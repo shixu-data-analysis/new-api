@@ -72,7 +72,7 @@ export function SystemBrand(props: SystemBrandProps) {
             className='size-full rounded-md object-cover'
           />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span className='hidden max-w-[12rem] truncate sm:inline'>{name}</span>
       </Link>
     )
   }

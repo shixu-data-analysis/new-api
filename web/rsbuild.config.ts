@@ -14,14 +14,23 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
+  const canvasCloudServerUrl =
+    process.env.VITE_CANVAS_CLOUD_SERVER_URL ||
+    env.rawPublicVars.VITE_CANVAS_CLOUD_SERVER_URL ||
+    'http://localhost:10689'
 
   const isProd = envMode === 'production'
-  const devProxy = Object.fromEntries(
+  const devProxy: Record<string, object> = Object.fromEntries(
     (['/api', '/mj', '/pg'] as const).map((key) => [
       key,
       { target: serverUrl, changeOrigin: true },
     ])
-  ) as Record<string, { target: string; changeOrigin: boolean }>
+  )
+  devProxy['/canvas-api'] = {
+    target: canvasCloudServerUrl,
+    changeOrigin: true,
+    pathRewrite: { '^/canvas-api': '' },
+  }
 
   return {
     plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],
