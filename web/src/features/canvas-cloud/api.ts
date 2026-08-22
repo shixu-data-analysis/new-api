@@ -23,6 +23,10 @@ import type {
   CanvasCatalogModel,
   CanvasContributionReport,
   CanvasCustomerWorkspace,
+  CanvasModelReleaseManifest,
+  CanvasModelReleasePlan,
+  CanvasModelReleaseResult,
+  CanvasModelReleaseSummary,
   CanvasRechargeOffer,
   CanvasSession,
 } from './types'
@@ -127,6 +131,61 @@ export async function createCanvasRefund(input: {
       `${webBase}/admin/refunds`,
       { ...input, refundReference: `web-${crypto.randomUUID()}` },
       { headers: { 'Idempotency-Key': idempotencyKey('web-refund') } }
+    )
+  ).data
+}
+
+export async function getCanvasModelReleases(): Promise<
+  CanvasModelReleaseSummary[]
+> {
+  return (
+    await api.get<CanvasModelReleaseSummary[]>(
+      `${webBase}/admin/model-releases`
+    )
+  ).data
+}
+
+function modelReleasePost<T>(
+  path: string,
+  manifest: CanvasModelReleaseManifest
+) {
+  return api.post<T>(`${webBase}/admin/model-releases${path}`, manifest, {
+    headers: { 'Idempotency-Key': idempotencyKey('web-model-release') },
+  })
+}
+
+export async function planCanvasModelRelease(
+  manifest: CanvasModelReleaseManifest
+): Promise<CanvasModelReleasePlan> {
+  return (await modelReleasePost<CanvasModelReleasePlan>('/plan', manifest))
+    .data
+}
+
+export async function createCanvasModelReleaseDraft(
+  manifest: CanvasModelReleaseManifest
+): Promise<CanvasModelReleaseResult> {
+  return (await modelReleasePost<CanvasModelReleaseResult>('/drafts', manifest))
+    .data
+}
+
+export async function approveCanvasModelRelease(
+  manifest: CanvasModelReleaseManifest
+): Promise<CanvasModelReleaseResult> {
+  return (
+    await modelReleasePost<CanvasModelReleaseResult>(
+      `/${encodeURIComponent(manifest.changeId)}/approve`,
+      manifest
+    )
+  ).data
+}
+
+export async function publishCanvasModelRelease(
+  manifest: CanvasModelReleaseManifest
+): Promise<CanvasModelReleaseResult> {
+  return (
+    await modelReleasePost<CanvasModelReleaseResult>(
+      `/${encodeURIComponent(manifest.changeId)}/publish`,
+      manifest
     )
   ).data
 }

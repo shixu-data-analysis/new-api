@@ -145,3 +145,96 @@ export interface CanvasContributionReport {
   reconciliationTimeoutLossMinor: string
   disclaimer: string
 }
+
+export interface CanvasModelReleaseManifest {
+  schemaVersion: 1
+  changeId: string
+  review: {
+    sourceRef: string
+    decisionSummary: string
+    evidenceRefs: string[]
+  }
+  provider: { code: string; internalName: string }
+  channel: {
+    code: string
+    version: number
+    protocolAdapter: string
+    upstreamModel: string
+    executionSnapshot: Record<string, unknown>
+  }
+  model: {
+    modelKey: string
+    version: number
+    publicName: string
+    publicCatalogSnapshot: Record<string, unknown>
+    privateExecutionSnapshot: Record<string, unknown>
+  }
+  combinations: Array<{
+    key: string
+    normalizedParameters: Record<string, unknown>
+    billingDimensionsSnapshot: Record<string, unknown>
+  }>
+  prices: Array<{
+    priceGroupCode: string
+    combinationKey: string
+    version: number
+    points: string
+    baseRateSnapshot: string
+    targetMarginRate: string
+    successProbability: string
+    kTheoryMinor: string
+    kActualMinor: string | null
+    kPricingMinor: string
+    riskBufferMinor: string
+    breakEvenPointsCeil: string
+    targetMarginPointsCeil: string
+    pricingAssumptionsSnapshot: Record<string, unknown>
+  }>
+}
+
+export interface CanvasModelReleasePlan {
+  changeId: string
+  manifestSha256: string
+  target: 'local' | 'stg'
+  action: 'CREATE_DRAFT' | 'REPLAY'
+  existingStatus: string | null
+  providerAction: 'CREATE' | 'REUSE'
+  priceGroups: string[]
+  publicationOrder: [
+    'PROVIDER_CHANNEL',
+    'CUSTOMER_MODEL',
+    'PRICE_VERSION',
+    'MODEL_RELEASE',
+  ]
+  changes: Array<{
+    resourceType:
+      | 'PROVIDER'
+      | 'PROVIDER_CHANNEL'
+      | 'CUSTOMER_MODEL'
+      | 'PARAMETER_COMBINATION'
+      | 'PRICE_VERSION'
+    key: string
+    action: 'CREATE' | 'REUSE' | 'CREATE_VERSION' | 'REPLACE' | 'REPLAY'
+    current: Record<string, unknown> | null
+    proposed: Record<string, unknown>
+  }>
+}
+
+export interface CanvasModelReleaseSummary {
+  changeId: string
+  manifestSha256: string
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED'
+  target: 'local' | 'stg'
+  sourceRef: string
+  decisionSummary: string
+  manifest: CanvasModelReleaseManifest
+  createdAt: string
+  approvedAt: string | null
+  effectiveAt: string | null
+}
+
+export interface CanvasModelReleaseResult {
+  changeId: string
+  manifestSha256: string
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED'
+}

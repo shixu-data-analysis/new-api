@@ -19,10 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  approveCanvasModelRelease,
   getCanvasAdminWorkspace,
   getCanvasCustomerWorkspace,
+  getCanvasModelReleases,
+  planCanvasModelRelease,
   publishCanvasPriceVersion,
+  publishCanvasModelRelease,
 } from '../api'
+import type { CanvasModelReleaseManifest } from '../types'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 
@@ -56,6 +61,45 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/price-versions/price-version-id/publish',
       undefined,
       { headers: { 'Idempotency-Key': expect.stringMatching(/^web-price-/) } }
+    )
+  })
+
+  it('keeps model review, approval, and ordered publication on separate administrator calls', async () => {
+    const manifest = {
+      schemaVersion: 1,
+      changeId: 'review-model-v1',
+    } as CanvasModelReleaseManifest
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasModelReleases()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/model-releases'
+    )
+
+    mocks.post.mockResolvedValue({ data: { changeId: manifest.changeId } })
+    await planCanvasModelRelease(manifest)
+    await approveCanvasModelRelease(manifest)
+    await publishCanvasModelRelease(manifest)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/model-releases/plan',
+      manifest,
+      {
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^web-model-release-/),
+        },
+      }
+    )
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/model-releases/review-model-v1/approve',
+      manifest,
+      expect.any(Object)
+    )
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      3,
+      '/canvas-api/v1/web/admin/model-releases/review-model-v1/publish',
+      manifest,
+      expect.any(Object)
     )
   })
 })

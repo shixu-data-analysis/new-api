@@ -39,21 +39,31 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 
 import {
+  approveCanvasModelRelease,
+  createCanvasModelReleaseDraft,
   createCanvasRechargeOrder,
   createCanvasRefund,
   getCanvasAdminWorkspace,
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
+  getCanvasModelReleases,
   getCanvasRechargeOffers,
   getCanvasSession,
+  planCanvasModelRelease,
   publishCanvasPriceVersion,
+  publishCanvasModelRelease,
   reconcileCanvasTask,
   redeemCanvasRechargeCode,
 } from './api'
 import { formatMoneyMinor } from './formatters'
+import type {
+  CanvasModelReleaseManifest,
+  CanvasModelReleasePlan,
+} from './types'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
 const customerSections = [
@@ -63,7 +73,13 @@ const customerSections = [
   'tasks',
   'consumption',
 ] as const
-const adminSections = ['pricing', 'channels', 'refunds', 'reports'] as const
+const adminSections = [
+  'pricing',
+  'channels',
+  'refunds',
+  'reports',
+  'model-releases',
+] as const
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
 type CanvasSection = CustomerSection | AdminSection
@@ -78,6 +94,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   channels: 'Canvas Channels',
   refunds: 'Canvas Refunds',
   reports: 'Canvas Reports',
+  'model-releases': 'Canvas Model Releases',
 }
 
 function formatDate(value: string | null): string {
@@ -157,6 +174,268 @@ function MetricCard(props: {
         </CardContent>
       )}
     </Card>
+  )
+}
+
+function parseManifestText(value: string): CanvasModelReleaseManifest {
+  const parsed: unknown = JSON.parse(value)
+  if (!parsed || typeof parsed !== 'object' || !('changeId' in parsed)) {
+    throw new Error('Invalid model release manifest')
+  }
+  return parsed as CanvasModelReleaseManifest
+}
+
+function JsonSnapshot(props: { value: Record<string, unknown> | null }) {
+  return (
+    <pre className='max-w-[28rem] overflow-x-auto whitespace-pre-wrap break-words text-xs'>
+      {props.value === null ? '—' : JSON.stringify(props.value, null, 2)}
+    </pre>
+  )
+}
+
+function AdminModelReleases() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [manifestText, setManifestText] = useState('')
+  const [plan, setPlan] = useState<CanvasModelReleasePlan | null>(null)
+  const [plannedText, setPlannedText] = useState<string | null>(null)
+  const releases = useQuery({
+    queryKey: ['canvas-cloud', 'model-releases'],
+    queryFn: getCanvasModelReleases,
+  })
+  const preview = useMutation({
+    mutationFn: async (text: string) =>
+      planCanvasModelRelease(parseManifestText(text)),
+    onSuccess: (nextPlan, text) => {
+      setPlan(nextPlan)
+      setPlannedText(text)
+      toast.success(t('Model release diff ready'))
+    },
+    onError: () => toast.error(t('Model release manifest is invalid')),
+  })
+  const refreshReleases = async () => {
+    setPlan(null)
+    setPlannedText(null)
+    await queryClient.invalidateQueries({
+      queryKey: ['canvas-cloud', 'model-releases'],
+    })
+  }
+  const draft = useMutation({
+    mutationFn: async () =>
+      createCanvasModelReleaseDraft(parseManifestText(manifestText)),
+    onSuccess: async () => {
+      toast.success(t('Model release draft created'))
+      await refreshReleases()
+    },
+    onError: () => toast.error(t('Model release draft failed')),
+  })
+  const approve = useMutation({
+    mutationFn: approveCanvasModelRelease,
+    onSuccess: async () => {
+      toast.success(t('Model release approved'))
+      await refreshReleases()
+    },
+    onError: () => toast.error(t('Model release approval failed')),
+  })
+  const publishRelease = useMutation({
+    mutationFn: publishCanvasModelRelease,
+    onSuccess: async () => {
+      toast.success(t('Model release published'))
+      await refreshReleases()
+    },
+    onError: () => toast.error(t('Model release publication failed')),
+  })
+
+  if (releases.isPending) return <LoadingState />
+  if (releases.isError) {
+    return <ErrorState onRetry={() => void releases.refetch()} />
+  }
+
+  const planIsCurrent = plan !== null && plannedText === manifestText
+  return (
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Import reviewed model release')}</CardTitle>
+          <CardDescription>
+            {t(
+              'Import a secret-free reviewed JSON package, preview every database change, then create a draft.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className='space-y-3'>
+          <div className='space-y-1'>
+            <Label htmlFor='model-release-file'>
+              {t('Review package file')}
+            </Label>
+            <Input
+              id='model-release-file'
+              type='file'
+              accept='application/json,.json'
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+                void file.text().then((value) => {
+                  setManifestText(value)
+                  setPlan(null)
+                  setPlannedText(null)
+                })
+              }}
+            />
+          </div>
+          <div className='space-y-1'>
+            <Label htmlFor='model-release-json'>
+              {t('Review package JSON')}
+            </Label>
+            <Textarea
+              id='model-release-json'
+              className='min-h-64 font-mono text-xs'
+              value={manifestText}
+              onChange={(event) => {
+                setManifestText(event.target.value)
+                setPlan(null)
+                setPlannedText(null)
+              }}
+              placeholder='{ "schemaVersion": 1, "changeId": "..." }'
+            />
+          </div>
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              variant='outline'
+              disabled={!manifestText.trim() || preview.isPending}
+              onClick={() => preview.mutate(manifestText)}
+            >
+              {t('Preview database changes')}
+            </Button>
+            <Button
+              disabled={
+                !planIsCurrent ||
+                plan.action !== 'CREATE_DRAFT' ||
+                draft.isPending
+              }
+              onClick={() => draft.mutate()}
+            >
+              {t('Create reviewed draft')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {plan && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Database change preview')}</CardTitle>
+            <CardDescription>
+              {plan.changeId} · SHA-256 {plan.manifestSha256} · {plan.target}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            <div className='text-muted-foreground text-sm'>
+              {t('Publication order')}: {plan.publicationOrder.join(' → ')}
+            </div>
+            <DataTable
+              empty={t('No database changes')}
+              headers={[
+                t('Resource'),
+                t('Key'),
+                t('Action'),
+                t('Current'),
+                t('Proposed'),
+              ]}
+              rows={plan.changes.map((change) => [
+                change.resourceType,
+                change.key,
+                <StatusBadge
+                  key='action'
+                  label={change.action}
+                  copyable={false}
+                />,
+                <JsonSnapshot key='current' value={change.current} />,
+                <JsonSnapshot key='proposed' value={change.proposed} />,
+              ])}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Controlled release queue')}</CardTitle>
+          <CardDescription>
+            {t('Approval and publication are separate audited transitions.')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            empty={t('No model releases')}
+            headers={[
+              t('Change ID'),
+              t('Review source'),
+              t('Target'),
+              t('Status'),
+              t('Created'),
+              t('Action'),
+            ]}
+            rows={releases.data.map((release) => [
+              release.changeId,
+              release.sourceRef,
+              release.target,
+              <StatusBadge
+                key='status'
+                label={release.status}
+                copyable={false}
+              />,
+              formatDate(release.createdAt),
+              release.status === 'PUBLISHED' ? (
+                '—'
+              ) : (
+                <div key='actions' className='flex gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={preview.isPending}
+                    onClick={() => {
+                      const text = JSON.stringify(release.manifest, null, 2)
+                      setManifestText(text)
+                      setPlan(null)
+                      setPlannedText(null)
+                      preview.mutate(text)
+                    }}
+                  >
+                    {t('Preview')}
+                  </Button>
+                  {release.status === 'DRAFT' ? (
+                    <Button
+                      size='sm'
+                      disabled={
+                        approve.isPending ||
+                        !planIsCurrent ||
+                        plan.manifestSha256 !== release.manifestSha256
+                      }
+                      onClick={() => approve.mutate(release.manifest)}
+                    >
+                      {t('Approve')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size='sm'
+                      disabled={
+                        publishRelease.isPending ||
+                        !planIsCurrent ||
+                        plan.manifestSha256 !== release.manifestSha256
+                      }
+                      onClick={() => publishRelease.mutate(release.manifest)}
+                    >
+                      {t('Publish in dependency order')}
+                    </Button>
+                  )}
+                </div>
+              ),
+            ])}
+          />
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -715,6 +994,14 @@ export function CanvasCloud() {
   const section = (allowed as readonly string[]).includes(params.section)
     ? (params.section as CanvasSection)
     : allowed[0]
+  let content: ReactNode
+  if (!admin) {
+    content = <CustomerContent section={section as CustomerSection} />
+  } else if (section === 'model-releases') {
+    content = <AdminModelReleases />
+  } else {
+    content = <AdminContent section={section as AdminSection} />
+  }
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -753,11 +1040,7 @@ export function CanvasCloud() {
               ))}
             </TabsList>
           </Tabs>
-          {admin ? (
-            <AdminContent section={section as AdminSection} />
-          ) : (
-            <CustomerContent section={section as CustomerSection} />
-          )}
+          {content}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
