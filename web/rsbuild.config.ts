@@ -18,6 +18,18 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_CANVAS_CLOUD_SERVER_URL ||
     env.rawPublicVars.VITE_CANVAS_CLOUD_SERVER_URL ||
     'http://localhost:10689'
+  const canvasManualUat =
+    process.env.VITE_CANVAS_MANUAL_UAT ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT ||
+    ''
+  const canvasManualUatCustomerBundle =
+    process.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE ||
+    ''
+  const canvasManualUatAdminBundle =
+    process.env.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE ||
+    ''
 
   const isProd = envMode === 'production'
   const devProxy: Record<string, object> = Object.fromEntries(
@@ -64,6 +76,14 @@ export default defineConfig(({ envMode }) => {
     source: {
       entry: {
         index: './src/main.tsx',
+      },
+      define: {
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT':
+          JSON.stringify(canvasManualUat),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE':
+          JSON.stringify(canvasManualUatCustomerBundle),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE':
+          JSON.stringify(canvasManualUatAdminBundle),
       },
     },
     resolve: {
