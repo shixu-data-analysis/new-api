@@ -22,13 +22,13 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_CANVAS_MANUAL_UAT ||
     env.rawPublicVars.VITE_CANVAS_MANUAL_UAT ||
     ''
-  const canvasManualUatCustomerBundle =
-    process.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE ||
-    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE ||
+  const canvasManualUatCustomerLogin =
+    process.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
     ''
-  const canvasManualUatAdminBundle =
-    process.env.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE ||
-    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE ||
+  const canvasManualUatAdminLogin =
+    process.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
     ''
 
   const isProd = envMode === 'production'
@@ -80,10 +80,12 @@ export default defineConfig(({ envMode }) => {
       define: {
         'import.meta.env.VITE_CANVAS_MANUAL_UAT':
           JSON.stringify(canvasManualUat),
-        'import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_BUNDLE':
-          JSON.stringify(canvasManualUatCustomerBundle),
-        'import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_BUNDLE':
-          JSON.stringify(canvasManualUatAdminBundle),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN': JSON.stringify(
+          canvasManualUatCustomerLogin
+        ),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN': JSON.stringify(
+          canvasManualUatAdminLogin
+        ),
       },
     },
     resolve: {

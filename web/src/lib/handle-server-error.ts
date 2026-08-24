@@ -30,7 +30,7 @@ export function handleServerError(error: unknown) {
 
   const messageKey = getServerErrorMessageKey(error)
   if (messageKey) {
-    toast.error(i18next.t(messageKey))
+    toast.error(i18next.t(messageKey), { id: `server-error:${messageKey}` })
     return
   }
 

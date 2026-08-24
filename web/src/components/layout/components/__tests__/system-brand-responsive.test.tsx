@@ -48,5 +48,9 @@ describe('SystemBrand responsive layout', () => {
       'sm:inline'
     )
     expect(screen.getByRole('link', { name: 'Go to home' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Go to home' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
   })
 })

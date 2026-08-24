@@ -27,7 +27,6 @@ import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { LoadingState } from '@/components/loading-state'
-import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -44,14 +43,13 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   approveCanvasModelRelease,
   createCanvasModelReleaseDraft,
-  createCanvasRechargeOrder,
   createCanvasRefund,
   getCanvasAdminWorkspace,
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
   getCanvasModelReleases,
-  getCanvasRechargeOffers,
+  getCanvasRechargePurchaseLink,
   getCanvasSession,
   planCanvasModelRelease,
   publishCanvasPriceVersion,
@@ -59,6 +57,8 @@ import {
   reconcileCanvasTask,
   redeemCanvasRechargeCode,
 } from './api'
+import { BusinessTerm } from './components/BusinessTerm'
+import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
 import type {
   CanvasModelReleaseManifest,
@@ -187,7 +187,7 @@ function parseManifestText(value: string): CanvasModelReleaseManifest {
 
 function JsonSnapshot(props: { value: Record<string, unknown> | null }) {
   return (
-    <pre className='max-w-[28rem] overflow-x-auto whitespace-pre-wrap break-words text-xs'>
+    <pre className='max-w-[28rem] overflow-x-auto text-xs break-words whitespace-pre-wrap'>
       {props.value === null ? '—' : JSON.stringify(props.value, null, 2)}
     </pre>
   )
@@ -343,12 +343,16 @@ function AdminModelReleases() {
                 t('Proposed'),
               ]}
               rows={plan.changes.map((change) => [
-                change.resourceType,
+                <BusinessTerm
+                  key='resource'
+                  kind='releaseResource'
+                  value={change.resourceType}
+                />,
                 change.key,
-                <StatusBadge
+                <BusinessTerm
                   key='action'
-                  label={change.action}
-                  copyable={false}
+                  kind='releaseAction'
+                  value={change.action}
                 />,
                 <JsonSnapshot key='current' value={change.current} />,
                 <JsonSnapshot key='proposed' value={change.proposed} />,
@@ -379,11 +383,15 @@ function AdminModelReleases() {
             rows={releases.data.map((release) => [
               release.changeId,
               release.sourceRef,
-              release.target,
-              <StatusBadge
+              <BusinessTerm
+                key='target'
+                kind='releaseTarget'
+                value={release.target}
+              />,
+              <BusinessTerm
                 key='status'
-                label={release.status}
-                copyable={false}
+                kind='configStatus'
+                value={release.status}
               />,
               formatDate(release.createdAt),
               release.status === 'PUBLISHED' ? (
@@ -452,19 +460,11 @@ function CustomerContent(props: { section: CustomerSection }) {
     queryFn: getCanvasCatalog,
     enabled: props.section === 'models',
   })
-  const offers = useQuery({
-    queryKey: ['canvas-cloud', 'offers'],
-    queryFn: getCanvasRechargeOffers,
+  const purchaseLink = useQuery({
+    queryKey: ['canvas-cloud', 'recharge-purchase-link'],
+    queryFn: getCanvasRechargePurchaseLink,
     enabled: props.section === 'recharge',
-  })
-  const order = useMutation({
-    mutationFn: createCanvasRechargeOrder,
-    onSuccess: async () => {
-      toast.success(t('Recharge order created'))
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'customer'],
-      })
-    },
+    retry: false,
   })
   const redeem = useMutation({
     mutationFn: redeemCanvasRechargeCode,
@@ -507,56 +507,23 @@ function CustomerContent(props: { section: CustomerSection }) {
   if (props.section === 'recharge') {
     return (
       <div className='space-y-4'>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Redeem recharge code')}</CardTitle>
-            <CardDescription>
-              {t('Points are issued only after a valid code is redeemed.')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='flex flex-col gap-2 sm:flex-row'>
-            <Input
-              aria-label={t('Recharge code')}
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-            />
-            <Button
-              disabled={code.trim().length < 8 || redeem.isPending}
-              onClick={() => redeem.mutate(code.trim())}
-            >
-              {t('Redeem')}
-            </Button>
-          </CardContent>
-        </Card>
-        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
-          {offers.data?.map((offer) => (
-            <Card key={offer.offerVersionId}>
-              <CardHeader>
-                <CardTitle>
-                  {formatMoneyMinor(offer.listedAmountMinor, offer.currency)}
-                </CardTitle>
-                <CardDescription>
-                  {t('{{points}} paid points', { points: offer.paidPoints })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  className='w-full'
-                  disabled={order.isPending}
-                  onClick={() => order.mutate(offer.offerVersionId)}
-                >
-                  {t('Create recharge order')}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <RechargeCodeCard
+          code={code}
+          purchaseUrl={purchaseLink.data ?? null}
+          redeeming={redeem.isPending}
+          onCodeChange={setCode}
+          onRedeem={() => redeem.mutate(code.trim())}
+        />
         <DataTable
           empty={t('No recharge orders')}
           headers={[t('Order'), t('Status'), t('Amount'), t('Created')]}
           rows={data.rechargeOrders.map((item) => [
             item.orderNumber,
-            <StatusBadge key='s' label={item.status} copyable={false} />,
+            <BusinessTerm
+              key='s'
+              kind='rechargeOrderStatus'
+              value={item.status}
+            />,
             formatMoneyMinor(item.listedAmountMinor, item.currency),
             formatDate(item.createdAt),
           ])}
@@ -613,11 +580,15 @@ function CustomerContent(props: { section: CustomerSection }) {
         ]}
         rows={data.tasks.map((item) => [
           item.modelName,
-          <StatusBadge key='e' label={item.executionStatus} copyable={false} />,
-          <StatusBadge
+          <BusinessTerm
+            key='e'
+            kind='taskExecutionStatus'
+            value={item.executionStatus}
+          />,
+          <BusinessTerm
             key='b'
-            label={item.customerBillingStatus}
-            copyable={false}
+            kind='billingStatus'
+            value={item.customerBillingStatus}
           />,
           item.quotedPoints,
           formatDate(item.acceptedAt),
@@ -631,7 +602,7 @@ function CustomerContent(props: { section: CustomerSection }) {
         empty={t('No point lots')}
         headers={[t('Type'), t('Available'), t('Reserved'), t('Expires')]}
         rows={data.wallet.lots.map((item) => [
-          item.type,
+          <BusinessTerm key='type' kind='pointLotType' value={item.type} />,
           item.availablePoints,
           item.reservedPoints,
           formatDate(item.expiresAt),
@@ -647,10 +618,22 @@ function CustomerContent(props: { section: CustomerSection }) {
           t('Time'),
         ]}
         rows={data.ledger.map((item) => [
-          item.eventType,
+          <BusinessTerm
+            key='event'
+            kind='ledgerEvent'
+            value={item.eventType}
+          />,
           item.eventPoints,
           item.remainingDelta,
-          item.reason ?? '—',
+          item.reason ? (
+            <BusinessTerm
+              key='reason'
+              kind='ledgerReason'
+              value={item.reason}
+            />
+          ) : (
+            '—'
+          ),
           formatDate(item.occurredAt),
         ])}
       />
@@ -731,7 +714,7 @@ function AdminContent(props: { section: AdminSection }) {
         rows={data.prices.map((item) => [
           item.modelName,
           item.priceGroup,
-          <StatusBadge key='s' label={item.status} copyable={false} />,
+          <BusinessTerm key='s' kind='configStatus' value={item.status} />,
           item.points,
           item.breakEvenPoints,
           item.status === 'APPROVED' ? (
@@ -765,7 +748,7 @@ function AdminContent(props: { section: AdminSection }) {
           rows={data.channels.map((item) => [
             item.providerName,
             `${item.code} v${item.version}`,
-            <StatusBadge key='s' label={item.status} copyable={false} />,
+            <BusinessTerm key='s' kind='configStatus' value={item.status} />,
             item.protocolAdapter,
             item.upstreamModel,
           ])}
@@ -781,11 +764,15 @@ function AdminContent(props: { section: AdminSection }) {
           ]}
           rows={data.reconciliationTasks.map((item) => [
             item.modelName,
-            item.executionStatus,
-            <StatusBadge
+            <BusinessTerm
+              key='execution'
+              kind='taskExecutionStatus'
+              value={item.executionStatus}
+            />,
+            <BusinessTerm
               key='s'
-              label={item.providerReconcileStatus}
-              copyable={false}
+              kind='reconciliationStatus'
+              value={item.providerReconcileStatus}
             />,
             formatDate(item.acceptedAt),
             item.providerReconcileStatus === 'COST_CONFIRMED' ? (
@@ -907,7 +894,7 @@ function AdminContent(props: { section: AdminSection }) {
           rows={data.refunds.map((item) => [
             item.refundReference,
             item.orderNumber,
-            <StatusBadge key='s' label={item.status} copyable={false} />,
+            <BusinessTerm key='s' kind='refundStatus' value={item.status} />,
             formatCnyMinor(item.cashAmountMinor),
             item.pointsClawedBack,
             item.pointsOutstanding,
@@ -944,7 +931,7 @@ function AdminContent(props: { section: AdminSection }) {
       </div>
       <Card>
         <CardContent className='text-muted-foreground pt-1'>
-          {report.data.disclaimer}
+          {t(report.data.disclaimer)}
         </CardContent>
       </Card>
     </div>

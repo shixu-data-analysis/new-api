@@ -50,7 +50,7 @@ import './styles/index.css'
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
 initializeFrontendCache()
 installBuildMetadata()
-initializeCanvasManualUat()
+const canvasManualUatReady = initializeCanvasManualUat().catch(() => undefined)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -115,6 +115,7 @@ const rootElement = document.querySelector<HTMLElement>('#root')
 if (!rootElement) {
   throw new Error('Root element not found')
 }
+const applicationRoot = rootElement
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
@@ -157,8 +158,11 @@ if (!rootElement) {
     /* empty */
   }
 })()
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement)
+async function renderApplication(): Promise<void> {
+  await canvasManualUatReady
+  if (applicationRoot.innerHTML) return
+
+  const root = ReactDOM.createRoot(applicationRoot)
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
@@ -173,3 +177,5 @@ if (!rootElement.innerHTML) {
     </StrictMode>
   )
 }
+
+void renderApplication()

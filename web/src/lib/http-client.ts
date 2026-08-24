@@ -135,7 +135,10 @@ api.interceptors.response.use(
         : error?.response?.data?.message ||
           error?.message ||
           t('Request failed')
-      toast.error(message)
+      toast.error(
+        message,
+        messageKey ? { id: `server-error:${messageKey}` } : undefined
+      )
     }
     throw error
   }

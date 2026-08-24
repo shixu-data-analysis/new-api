@@ -65,4 +65,16 @@ describe('server error message mapping', () => {
       })
     ).toBe(expected.TELEGRAM_BIND_INTERNAL_ERROR)
   })
+
+  test('maps recharge-code failures to customer-safe localized keys', () => {
+    expect(
+      getServerErrorMessageKey({ code: 'RECHARGE_CODE_ALREADY_REDEEMED' })
+    ).toBe('This recharge code has already been used.')
+    expect(
+      getServerErrorMessageKey({
+        response: { data: { code: 'RECHARGE_CODE_UNAVAILABLE' } },
+      })
+    ).toBe('This recharge code is invalid, expired, or unavailable.')
+  })
+
 })

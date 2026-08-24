@@ -25,6 +25,25 @@ export interface CanvasSession {
   emailMasked: string | null
 }
 
+export interface CanvasAdminRechargeCode {
+  id: string
+  name: string
+  status: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
+  maskedCode: string
+  currency: 'CNY'
+  amountMinor: string
+  points: string
+  createdAt: string
+  expiresAt: string
+  redeemedAt: string | null
+}
+
+export interface CanvasIssuedRechargeCodes {
+  created: boolean
+  codes: Array<{ id: string; code: string }>
+  items: CanvasAdminRechargeCode[]
+}
+
 export interface CanvasCustomerWorkspace {
   wallet: {
     availablePoints: string
@@ -81,15 +100,6 @@ export interface CanvasCatalogModel {
     billingDimensions: Record<string, unknown>
     points: string
   }>
-}
-
-export interface CanvasRechargeOffer {
-  offerVersionId: string
-  currency: string
-  listedAmountMinor: string
-  paidPoints: string
-  promotionPreview: Record<string, unknown> | null
-  effectiveAt: string
 }
 
 export interface CanvasAdminWorkspace {

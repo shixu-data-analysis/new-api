@@ -20,12 +20,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   approveCanvasModelRelease,
+  getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
   getCanvasCustomerWorkspace,
   getCanvasModelReleases,
+  getCanvasRechargePurchaseLink,
+  issueCanvasAdminRechargeCodes,
+  normalizeCanvasRechargePurchaseLink,
   planCanvasModelRelease,
   publishCanvasPriceVersion,
   publishCanvasModelRelease,
+  redeemCanvasRechargeCode,
 } from '../api'
 import type { CanvasModelReleaseManifest } from '../types'
 
@@ -62,6 +67,69 @@ describe('Canvas Cloud API boundary', () => {
       undefined,
       { headers: { 'Idempotency-Key': expect.stringMatching(/^web-price-/) } }
     )
+  })
+
+  it('uses one Canvas endpoint for administrator code inventory and issuance', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasAdminRechargeCodes()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/recharge-codes'
+    )
+
+    mocks.post.mockResolvedValue({
+      data: { created: true, codes: [], items: [] },
+    })
+    await issueCanvasAdminRechargeCodes({
+      name: 'CNY 10',
+      amountMinor: '1000',
+      count: 1,
+    })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/recharge-codes',
+      { name: 'CNY 10', amountMinor: '1000', count: 1 },
+      {
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^web-issue-code-/),
+        },
+        skipErrorHandler: true,
+      }
+    )
+
+    mocks.post.mockResolvedValue({ data: { redeemed: true } })
+    await redeemCanvasRechargeCode('CANVAS-TEST-CODE')
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/recharge-code-redemptions',
+      { code: 'CANVAS-TEST-CODE' },
+      {
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^web-redeem-/),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  })
+
+  it('reuses only safe administrator-configured purchase links', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { topup_link: 'https://shop.example.com/canvas-codes' },
+      },
+    })
+
+    await expect(getCanvasRechargePurchaseLink()).resolves.toBe(
+      'https://shop.example.com/canvas-codes'
+    )
+    expect(mocks.get).toHaveBeenCalledWith('/api/user/topup/info')
+    expect(normalizeCanvasRechargePurchaseLink('/store/canvas')).toBe(
+      '/store/canvas'
+    )
+    expect(
+      normalizeCanvasRechargePurchaseLink('javascript:alert(1)')
+    ).toBeNull()
+    expect(
+      normalizeCanvasRechargePurchaseLink('//untrusted.example.com')
+    ).toBeNull()
   })
 
   it('keeps model review, approval, and ordered publication on separate administrator calls', async () => {

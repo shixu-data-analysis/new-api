@@ -2,9 +2,9 @@
 Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,19 +19,92 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
-  resolveCanvasManualUatBundle,
+  loginCanvasManualUat,
+  resolveCanvasManualUatLogin,
   resolveCanvasManualUatRole,
 } from '../manual-uat'
 
-function encodedBundle(role: 1 | 10, id: number, name: string): string {
-  return btoa(
-    JSON.stringify({
-      access_token: `${name}-access-token`,
+function encodedLogin(role: 1 | 10, username: string): string {
+  return btoa(JSON.stringify({ username, password: 'test-password', role }))
+}
+
+const baseConfig = {
+  enabled: true,
+  development: true,
+  hostname: '127.0.0.1',
+  requestedRole: 'customer',
+  customerLogin: encodedLogin(1, 'uatcustomer'),
+  adminLogin: encodedLogin(10, 'uatadmin'),
+}
+
+describe('Canvas manual UAT authentication', () => {
+  it('binds customer and platform-administrator login to separate origins', () => {
+    const customer = resolveCanvasManualUatLogin(baseConfig)
+    const admin = resolveCanvasManualUatLogin({
+      ...baseConfig,
+      hostname: 'localhost',
+      requestedRole: 'admin',
+    })
+
+    expect(customer).toMatchObject({
+      role: 'customer',
+      credentials: { username: 'uatcustomer', role: 1 },
+    })
+    expect(admin).toMatchObject({
+      role: 'admin',
+      credentials: { username: 'uatadmin', role: 10 },
+    })
+  })
+
+  it('fails closed outside an explicit loopback development build', () => {
+    expect(
+      resolveCanvasManualUatLogin({ ...baseConfig, enabled: false })
+    ).toBeNull()
+    expect(
+      resolveCanvasManualUatLogin({ ...baseConfig, development: false })
+    ).toBeNull()
+    expect(
+      resolveCanvasManualUatLogin({
+        ...baseConfig,
+        hostname: 'uat.example.com',
+      })
+    ).toBeNull()
+  })
+
+  it('rejects a role on the wrong loopback origin', () => {
+    expect(() =>
+      resolveCanvasManualUatLogin({
+        ...baseConfig,
+        requestedRole: 'admin',
+      })
+    ).toThrow('admin must use its dedicated loopback origin')
+  })
+
+  it('rejects login config whose declared role does not match the origin', () => {
+    expect(() =>
+      resolveCanvasManualUatLogin({
+        ...baseConfig,
+        customerLogin: encodedLogin(10, 'uatadmin'),
+      })
+    ).toThrow('Canvas manual UAT customer login config is invalid')
+  })
+
+  it('derives the role from the cookie-isolated hostname', () => {
+    expect(resolveCanvasManualUatRole('127.0.0.1', null)).toBe('customer')
+    expect(resolveCanvasManualUatRole('localhost', null)).toBe('admin')
+    expect(() => resolveCanvasManualUatRole('::1', null)).toThrow(
+      'requires an isolated loopback origin'
+    )
+  })
+
+  it('accepts only a server-issued bundle matching the origin role', async () => {
+    const bundle = {
+      access_token: 'customer-access-token',
       token_type: 'Bearer',
       access_expires_at: 10_000,
-      user: { id, username: name, role, status: 1 },
+      user: { id: 2, username: 'uatcustomer', role: 1, status: 1 },
       session: {
-        sid: `${name}-session`,
+        sid: 'customer-session',
         current: true,
         login_method: 'password',
         ip: '127.0.0.1',
@@ -40,80 +113,21 @@ function encodedBundle(role: 1 | 10, id: number, name: string): string {
         last_active_at: 1_000,
         expires_at: 10_000,
       },
-    })
-  )
-}
+    }
 
-const baseConfig = {
-  enabled: true,
-  development: true,
-  hostname: '127.0.0.1',
-  role: 'customer',
-  customerBundle: encodedBundle(1, 2, 'uatcustomer'),
-  adminBundle: encodedBundle(10, 3, 'uatadmin'),
-}
-
-describe('Canvas manual UAT authentication', () => {
-  it('creates isolated customer and platform-administrator sessions', () => {
-    const customer = resolveCanvasManualUatBundle(baseConfig)
-    const admin = resolveCanvasManualUatBundle({
-      ...baseConfig,
-      role: 'admin',
-    })
-
-    expect(customer).toMatchObject({
-      access_token: 'uatcustomer-access-token',
-      user: { id: 2, role: 1 },
-      session: { sid: 'uatcustomer-session' },
-    })
-    expect(admin).toMatchObject({
-      access_token: 'uatadmin-access-token',
-      user: { id: 3, role: 10 },
-      session: { sid: 'uatadmin-session' },
-    })
-  })
-
-  it('fails closed outside an explicit loopback development build', () => {
-    expect(
-      resolveCanvasManualUatBundle({ ...baseConfig, enabled: false })
-    ).toBeNull()
-    expect(
-      resolveCanvasManualUatBundle({ ...baseConfig, development: false })
-    ).toBeNull()
-    expect(
-      resolveCanvasManualUatBundle({
-        ...baseConfig,
-        hostname: 'uat.example.com',
-      })
-    ).toBeNull()
-  })
-
-  it('rejects a selected role when its real login bundle is absent', () => {
-    expect(() =>
-      resolveCanvasManualUatBundle({
-        ...baseConfig,
-        role: 'admin',
-        adminBundle: '',
-      })
-    ).toThrow('Canvas manual UAT admin auth bundle is missing')
-  })
-
-  it('rejects a bundle whose server-issued role does not match the URL role', () => {
-    expect(() =>
-      resolveCanvasManualUatBundle({
-        ...baseConfig,
-        role: 'admin',
-        adminBundle: encodedBundle(1, 2, 'uatcustomer'),
-      })
-    ).toThrow('Canvas manual UAT admin auth bundle is invalid')
-  })
-
-  it('keeps the selected role across Canvas route changes and reloads', () => {
-    expect(resolveCanvasManualUatRole('admin', null)).toBe('admin')
-    expect(resolveCanvasManualUatRole(null, 'admin')).toBe('admin')
-    expect(resolveCanvasManualUatRole(null, null)).toBe('customer')
-    expect(resolveCanvasManualUatRole('unexpected', 'unexpected')).toBe(
-      'customer'
-    )
+    await expect(
+      loginCanvasManualUat(
+        { username: 'uatcustomer', password: 'test-password', role: 1 },
+        'customer',
+        async () => bundle
+      )
+    ).resolves.toMatchObject({ user: { role: 1 } })
+    await expect(
+      loginCanvasManualUat(
+        { username: 'uatadmin', password: 'test-password', role: 10 },
+        'admin',
+        async () => bundle
+      )
+    ).rejects.toThrow('admin login returned an invalid bundle')
   })
 })

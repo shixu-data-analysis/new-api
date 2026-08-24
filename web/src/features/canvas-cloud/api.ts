@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   CanvasAdminWorkspace,
+  CanvasAdminRechargeCode,
   CanvasCatalogModel,
   CanvasContributionReport,
   CanvasCustomerWorkspace,
@@ -27,11 +28,46 @@ import type {
   CanvasModelReleasePlan,
   CanvasModelReleaseResult,
   CanvasModelReleaseSummary,
-  CanvasRechargeOffer,
   CanvasSession,
+  CanvasIssuedRechargeCodes,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
+
+interface TopupLinkResponse {
+  success?: boolean
+  data?: { topup_link?: unknown }
+}
+
+export function normalizeCanvasRechargePurchaseLink(
+  value: unknown
+): string | null {
+  if (typeof value !== 'string') return null
+  const link = value.trim()
+  if (!link) return null
+
+  for (const character of link) {
+    const codePoint = character.codePointAt(0)
+    if (
+      character === '\\' ||
+      codePoint === undefined ||
+      codePoint <= 0x1f ||
+      codePoint === 0x7f
+    ) {
+      return null
+    }
+  }
+  if (link.startsWith('/') && !link.startsWith('//')) return link
+
+  try {
+    const url = new URL(link)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    if (url.username || url.password) return null
+    return link
+  } catch {
+    return null
+  }
+}
 
 export async function getCanvasSession(): Promise<CanvasSession> {
   return (await api.get<CanvasSession>(`${webBase}/session`)).data
@@ -47,17 +83,41 @@ export async function getCanvasCatalog(): Promise<CanvasCatalogModel[]> {
   return (await api.get<CanvasCatalogModel[]>('/canvas-api/v1/catalog')).data
 }
 
-export async function getCanvasRechargeOffers(): Promise<
-  CanvasRechargeOffer[]
-> {
-  return (
-    await api.get<CanvasRechargeOffer[]>('/canvas-api/v1/recharge-offers')
-  ).data
+export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
+  const response = (await api.get<TopupLinkResponse>('/api/user/topup/info'))
+    .data
+  if (response.success !== true) return null
+  return normalizeCanvasRechargePurchaseLink(response.data?.topup_link)
 }
 
 export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {
   return (await api.get<CanvasAdminWorkspace>(`${webBase}/admin/workspace`))
     .data
+}
+
+export async function getCanvasAdminRechargeCodes(): Promise<
+  CanvasAdminRechargeCode[]
+> {
+  return (
+    await api.get<CanvasAdminRechargeCode[]>(`${webBase}/admin/recharge-codes`)
+  ).data
+}
+
+export async function issueCanvasAdminRechargeCodes(input: {
+  name: string
+  amountMinor: string
+  count: number
+}): Promise<CanvasIssuedRechargeCodes> {
+  return (
+    await api.post<CanvasIssuedRechargeCodes>(
+      `${webBase}/admin/recharge-codes`,
+      input,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-issue-code') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
 }
 
 export async function getCanvasContributionReport(
@@ -76,22 +136,15 @@ function idempotencyKey(scope: string): string {
   return `${scope}-${crypto.randomUUID()}`
 }
 
-export async function createCanvasRechargeOrder(offerVersionId: string) {
-  return (
-    await api.post(
-      '/canvas-api/v1/recharge-orders',
-      { offerVersionId },
-      { headers: { 'Idempotency-Key': idempotencyKey('web-order') } }
-    )
-  ).data
-}
-
 export async function redeemCanvasRechargeCode(code: string) {
   return (
     await api.post(
       '/canvas-api/v1/recharge-code-redemptions',
       { code },
-      { headers: { 'Idempotency-Key': idempotencyKey('web-redeem') } }
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-redeem') },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }
