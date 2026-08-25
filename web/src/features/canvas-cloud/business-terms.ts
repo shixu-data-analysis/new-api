@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 export type CanvasBusinessTermKind =
   | 'billingStatus'
   | 'configStatus'
+  | 'customerStatus'
   | 'ledgerEvent'
   | 'ledgerReason'
+  | 'pointBalance'
   | 'pointLotType'
   | 'rechargeCodeStatus'
   | 'rechargeOrderStatus'
@@ -33,11 +35,37 @@ export type CanvasBusinessTermKind =
 
 type CanvasBusinessTermGroup = {
   helpKey: string
+  helpKeys?: Record<string, string>
   labels: Record<string, string>
   presentation: 'badge' | 'text'
 }
 
 export const canvasBusinessTermConfig = {
+  customerStatus: {
+    helpKey: '{{term}} is the current Canvas customer account status.',
+    labels: {
+      ACTIVE: 'Active',
+      SUSPENDED: 'Suspended',
+      CLOSED: 'Closed',
+    },
+    presentation: 'badge',
+  },
+  pointBalance: {
+    helpKey: '{{term}} is a Canvas customer point balance.',
+    helpKeys: {
+      AVAILABLE:
+        '{{term}} is the spendable total after reserved and expired points are excluded.',
+      PAID: '{{term}} is the spendable part issued from redeemed paid recharge codes.',
+      BONUS:
+        '{{term}} is the spendable part issued by registration, invitations, promotions, or manual grants.',
+    },
+    labels: {
+      AVAILABLE: 'Available points',
+      PAID: 'Paid points',
+      BONUS: 'Bonus points',
+    },
+    presentation: 'text',
+  },
   pointLotType: {
     helpKey:
       '{{term}} identifies how this point lot was obtained and which expiry rule applies.',
@@ -201,11 +229,11 @@ export function getCanvasBusinessTerm(
   labelKey: string
   presentation: 'badge' | 'text'
 } | null {
-  const group = canvasBusinessTermConfig[kind]
+  const group = canvasBusinessTermConfig[kind] as CanvasBusinessTermGroup
   const labelKey = (group.labels as Record<string, string>)[value]
   return labelKey
     ? {
-        helpKey: group.helpKey,
+        helpKey: group.helpKeys?.[value] ?? group.helpKey,
         labelKey,
         presentation: group.presentation,
       }

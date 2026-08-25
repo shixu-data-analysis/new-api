@@ -104,6 +104,7 @@ export interface CanvasCatalogModel {
 
 export interface CanvasAdminWorkspace {
   principal: { principalId: string; principalType: 'PLATFORM_ADMIN' | 'BOSS' }
+  customers: CanvasAdminCustomerPointBalance[]
   channels: Array<{
     id: string
     providerName: string
@@ -146,6 +147,17 @@ export interface CanvasAdminWorkspace {
     upstreamTaskId: string | null
     acceptedAt: string
   }>
+}
+
+export interface CanvasAdminCustomerPointBalance {
+  customerId: string
+  newApiUserId: string
+  username: string | null
+  emailMasked: string | null
+  status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+  availablePoints: string
+  paidAvailablePoints: string
+  bonusAvailablePoints: string
 }
 
 export interface CanvasContributionReport {
