@@ -70,10 +70,31 @@ describe('Canvas Cloud API boundary', () => {
   })
 
   it('uses one Canvas endpoint for administrator code inventory and issuance', async () => {
-    mocks.get.mockResolvedValue({ data: [] })
-    await getCanvasAdminRechargeCodes()
+    mocks.get.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await getCanvasAdminRechargeCodes({
+      page: 1,
+      pageSize: 20,
+      search: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
+      status: 'ACTIVE',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
     expect(mocks.get).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/recharge-codes'
+      '/canvas-api/v1/web/admin/recharge-codes',
+      {
+        params: {
+          page: 1,
+          pageSize: 20,
+          search: undefined,
+          status: 'ACTIVE',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+          codePrefix: 'CANVAS-A',
+          codeSuffix: 'UVWX',
+        },
+      }
     )
 
     mocks.post.mockResolvedValue({

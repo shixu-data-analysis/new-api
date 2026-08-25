@@ -18,14 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { canManageUpstreamSubscriptions } from '@/features/canvas-cloud/role-routing'
 import { Subscriptions } from '@/features/subscriptions'
-import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated/subscriptions/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!canManageUpstreamSubscriptions(auth.user?.role)) {
       throw redirect({ to: '/403' })
     }
   },

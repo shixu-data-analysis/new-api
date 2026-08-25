@@ -20,7 +20,8 @@ import { api } from '@/lib/api'
 
 import type {
   CanvasAdminWorkspace,
-  CanvasAdminRechargeCode,
+  CanvasAdminRechargeCodePage,
+  CanvasAdminRechargeCodeQuery,
   CanvasCatalogModel,
   CanvasContributionReport,
   CanvasCustomerWorkspace,
@@ -95,11 +96,30 @@ export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {
     .data
 }
 
-export async function getCanvasAdminRechargeCodes(): Promise<
-  CanvasAdminRechargeCode[]
-> {
+export async function getCanvasAdminRechargeCodes(
+  query: CanvasAdminRechargeCodeQuery
+): Promise<CanvasAdminRechargeCodePage> {
+  const normalizedSearch = query.search?.trim().toUpperCase()
+  let codeSearch: {
+    codePrefix?: string
+    codeSuffix?: string
+    search?: string
+  } = {}
+  if (normalizedSearch?.startsWith('CANVAS-') && normalizedSearch.length >= 8) {
+    codeSearch = { codePrefix: normalizedSearch.slice(0, 8) }
+    if (normalizedSearch.length >= 12) {
+      codeSearch.codeSuffix = normalizedSearch.slice(-4)
+    }
+  } else if (query.search?.trim()) {
+    codeSearch = { search: query.search.trim() }
+  }
   return (
-    await api.get<CanvasAdminRechargeCode[]>(`${webBase}/admin/recharge-codes`)
+    await api.get<CanvasAdminRechargeCodePage>(
+      `${webBase}/admin/recharge-codes`,
+      {
+        params: { ...query, search: undefined, ...codeSearch },
+      }
+    )
   ).data
 }
 

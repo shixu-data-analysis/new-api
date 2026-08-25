@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { usesCanvasCustomerBalances } from '../role-routing'
+import {
+  canManageUpstreamModels,
+  canManageUpstreamSubscriptions,
+  usesCanvasCustomerBalances,
+} from '../role-routing'
 
 describe('role-scoped customer balance page', () => {
   it('uses Canvas balances only for the role-10 platform administrator', () => {
@@ -26,5 +30,19 @@ describe('role-scoped customer balance page', () => {
     expect(usesCanvasCustomerBalances(100)).toBe(false)
     expect(usesCanvasCustomerBalances(1)).toBe(false)
     expect(usesCanvasCustomerBalances(undefined)).toBe(false)
+  })
+
+  it('keeps upstream subscription administration root-only', () => {
+    expect(canManageUpstreamSubscriptions(100)).toBe(true)
+    expect(canManageUpstreamSubscriptions(10)).toBe(false)
+    expect(canManageUpstreamSubscriptions(1)).toBe(false)
+    expect(canManageUpstreamSubscriptions(undefined)).toBe(false)
+  })
+
+  it('keeps upstream model administration root-only', () => {
+    expect(canManageUpstreamModels(100)).toBe(true)
+    expect(canManageUpstreamModels(10)).toBe(false)
+    expect(canManageUpstreamModels(1)).toBe(false)
+    expect(canManageUpstreamModels(undefined)).toBe(false)
   })
 })

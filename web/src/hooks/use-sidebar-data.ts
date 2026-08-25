@@ -135,6 +135,7 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Users'),
@@ -150,6 +151,7 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('System Info'),

@@ -38,6 +38,31 @@ export interface CanvasAdminRechargeCode {
   redeemedAt: string | null
 }
 
+export interface CanvasAdminRechargeCodePage {
+  items: CanvasAdminRechargeCode[]
+  total: number
+  page: number
+  pageSize: 20 | 50 | 100
+}
+
+export interface CanvasAdminRechargeCodeQuery {
+  page: number
+  pageSize: 20 | 50 | 100
+  search?: string
+  status?: CanvasAdminRechargeCode['status']
+  createdFrom?: string
+  createdTo?: string
+  sortBy:
+    | 'name'
+    | 'status'
+    | 'amount'
+    | 'points'
+    | 'createdAt'
+    | 'expiresAt'
+    | 'redeemedAt'
+  sortOrder: 'asc' | 'desc'
+}
+
 export interface CanvasIssuedRechargeCodes {
   created: boolean
   codes: Array<{ id: string; code: string }>

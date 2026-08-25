@@ -21,3 +21,13 @@ import { ROLE } from '@/lib/roles'
 export function usesCanvasCustomerBalances(role: number | undefined): boolean {
   return role === ROLE.ADMIN
 }
+
+export function canManageUpstreamSubscriptions(
+  role: number | undefined
+): boolean {
+  return role === ROLE.SUPER_ADMIN
+}
+
+export function canManageUpstreamModels(role: number | undefined): boolean {
+  return role === ROLE.SUPER_ADMIN
+}

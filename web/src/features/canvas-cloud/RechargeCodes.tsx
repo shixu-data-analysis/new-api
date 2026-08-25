@@ -17,8 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Plus, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  Plus,
+  RefreshCw,
+  Search,
+} from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -43,7 +51,11 @@ import {
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
 import { cnyToMinor } from './recharge-code-amount'
-import type { CanvasIssuedRechargeCodes } from './types'
+import type {
+  CanvasAdminRechargeCode,
+  CanvasAdminRechargeCodeQuery,
+  CanvasIssuedRechargeCodes,
+} from './types'
 
 function formatCny(value: string): string {
   const minor = BigInt(value)
@@ -59,6 +71,13 @@ function formatDate(value: string | null): string {
     : '—'
 }
 
+function dateBoundary(value: string, nextDay = false): string | undefined {
+  if (!value) return undefined
+  const date = new Date(`${value}T00:00:00`)
+  if (nextDay) date.setDate(date.getDate() + 1)
+  return date.toISOString()
+}
+
 export function CanvasRechargeCodes() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -66,13 +85,42 @@ export function CanvasRechargeCodes() {
   const [amount, setAmount] = useState('10')
   const [count, setCount] = useState('1')
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
+  const [codesVisible, setCodesVisible] = useState(false)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'' | CanvasAdminRechargeCode['status']>(
+    ''
+  )
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo, setCreatedTo] = useState('')
+  const [sortBy, setSortBy] =
+    useState<CanvasAdminRechargeCodeQuery['sortBy']>('createdAt')
+  const [sortOrder, setSortOrder] =
+    useState<CanvasAdminRechargeCodeQuery['sortOrder']>('desc')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<20 | 50 | 100>(20)
+  const inventoryQuery: CanvasAdminRechargeCodeQuery = {
+    page,
+    pageSize,
+    sortBy,
+    sortOrder,
+    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(status ? { status } : {}),
+    ...(dateBoundary(createdFrom)
+      ? { createdFrom: dateBoundary(createdFrom) }
+      : {}),
+    ...(dateBoundary(createdTo, true)
+      ? { createdTo: dateBoundary(createdTo, true) }
+      : {}),
+  }
   const inventory = useQuery({
-    queryKey: ['canvas-cloud', 'admin-recharge-codes'],
-    queryFn: getCanvasAdminRechargeCodes,
+    queryKey: ['canvas-cloud', 'admin-recharge-codes', inventoryQuery],
+    queryFn: () => getCanvasAdminRechargeCodes(inventoryQuery),
+    placeholderData: (previous) => previous,
   })
   const issue = useMutation({
     mutationFn: issueCanvasAdminRechargeCodes,
     onSuccess: async (result) => {
+      setCodesVisible(false)
       setIssued(result)
       toast.success(t('Canvas recharge codes created'))
       await queryClient.invalidateQueries({
@@ -99,7 +147,27 @@ export function CanvasRechargeCodes() {
     toast.success(t('Recharge codes copied'))
   }
 
-  const submit = () => {
+  const downloadCodes = () => {
+    if (!issued?.codes.length) return
+    const blob = new Blob(
+      [`${issued.codes.map((item) => item.code).join('\n')}\n`],
+      { type: 'text/plain;charset=utf-8' }
+    )
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `canvas-recharge-codes-${new Date()
+      .toISOString()
+      .slice(0, 10)}.txt`
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    toast.success(t('Recharge codes downloaded'))
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     if (amountMinor === null || !validCount) return
     issue.mutate({ name: name.trim(), amountMinor, count: parsedCount })
   }
@@ -109,47 +177,108 @@ export function CanvasRechargeCodes() {
     if (inventory.isError) {
       return <ErrorState onRetry={() => void inventory.refetch()} />
     }
-    if (inventory.data.length === 0) {
-      return <EmptyState title={t('No Canvas recharge codes')} bordered />
+    if (inventory.data.items.length === 0) {
+      const hasFilters = Boolean(
+        search.trim() || status || createdFrom || createdTo
+      )
+      return (
+        <EmptyState
+          title={
+            hasFilters
+              ? t('No matching recharge codes')
+              : t('No Canvas recharge codes')
+          }
+          bordered
+        />
+      )
     }
+    const totalPages = Math.max(
+      1,
+      Math.ceil(inventory.data.total / inventory.data.pageSize)
+    )
+    const firstItem = (inventory.data.page - 1) * inventory.data.pageSize + 1
+    const lastItem = Math.min(
+      inventory.data.page * inventory.data.pageSize,
+      inventory.data.total
+    )
     return (
-      <div className='overflow-x-auto rounded-xl border'>
-        <table className='w-full min-w-[760px] text-left text-sm'>
-          <thead className='bg-muted/60 text-muted-foreground'>
-            <tr>
-              {[
-                t('Name'),
-                t('Code'),
-                t('Status'),
-                t('Amount'),
-                t('Points'),
-                t('Created'),
-                t('Expires'),
-                t('Redeemed'),
-              ].map((header) => (
-                <th key={header} className='px-3 py-2 font-medium'>
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className='divide-y'>
-            {inventory.data.map((item) => (
-              <tr key={item.id} className='hover:bg-muted/30'>
-                <td className='px-3 py-2'>{item.name}</td>
-                <td className='px-3 py-2 font-mono'>{item.maskedCode}</td>
-                <td className='px-3 py-2'>
-                  <BusinessTerm kind='rechargeCodeStatus' value={item.status} />
-                </td>
-                <td className='px-3 py-2'>{formatCny(item.amountMinor)}</td>
-                <td className='px-3 py-2'>{item.points}</td>
-                <td className='px-3 py-2'>{formatDate(item.createdAt)}</td>
-                <td className='px-3 py-2'>{formatDate(item.expiresAt)}</td>
-                <td className='px-3 py-2'>{formatDate(item.redeemedAt)}</td>
+      <div className='space-y-3'>
+        <div className='overflow-x-auto rounded-xl border'>
+          <table className='w-full min-w-[760px] text-left text-sm'>
+            <thead className='bg-muted/60 text-muted-foreground'>
+              <tr>
+                {[
+                  t('Name'),
+                  t('Code'),
+                  t('Status'),
+                  t('Amount'),
+                  t('Points'),
+                  t('Created'),
+                  t('Expires'),
+                  t('Redeemed'),
+                ].map((header) => (
+                  <th key={header} className='px-3 py-2 font-medium'>
+                    {header}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className='divide-y'>
+              {inventory.data.items.map((item) => (
+                <tr key={item.id} className='hover:bg-muted/30'>
+                  <td className='px-3 py-2'>{item.name}</td>
+                  <td className='px-3 py-2 font-mono'>{item.maskedCode}</td>
+                  <td className='px-3 py-2'>
+                    <BusinessTerm
+                      kind='rechargeCodeStatus'
+                      value={item.status}
+                    />
+                  </td>
+                  <td className='px-3 py-2'>{formatCny(item.amountMinor)}</td>
+                  <td className='px-3 py-2'>{item.points}</td>
+                  <td className='px-3 py-2'>{formatDate(item.createdAt)}</td>
+                  <td className='px-3 py-2'>{formatDate(item.expiresAt)}</td>
+                  <td className='px-3 py-2'>{formatDate(item.redeemedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+          <p className='text-muted-foreground text-sm'>
+            {t('{{from}}–{{to}} of {{total}}', {
+              from: firstItem,
+              to: lastItem,
+              total: inventory.data.total,
+            })}
+          </p>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              {t('Previous')}
+            </Button>
+            <span className='min-w-20 text-center text-sm'>
+              {t('Page {{page}} of {{total}}', {
+                page: inventory.data.page,
+                total: totalPages,
+              })}
+            </span>
+            <Button
+              variant='outline'
+              size='sm'
+              disabled={page >= totalPages}
+              onClick={() =>
+                setPage((current) => Math.min(totalPages, current + 1))
+              }
+            >
+              {t('Next')}
+            </Button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -171,7 +300,7 @@ export function CanvasRechargeCodes() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
-          <Card>
+          <Card size='sm'>
             <CardHeader>
               <CardTitle>{t('Create Canvas recharge codes')}</CardTitle>
               <CardDescription>
@@ -180,44 +309,67 @@ export function CanvasRechargeCodes() {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent className='grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_10rem_auto] md:items-end'>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-name'>{t('Name')}</Label>
-                <Input
-                  id='canvas-code-name'
-                  maxLength={20}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t('Enter recharge code name')}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-amount'>{t('Amount (CNY)')}</Label>
-                <Input
-                  id='canvas-code-amount'
-                  inputMode='decimal'
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                />
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    '1 CNY equals 50 Canvas Points; the amount must produce whole points.'
-                  )}
-                </p>
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-count'>{t('Quantity')}</Label>
-                <Input
-                  id='canvas-code-count'
-                  inputMode='numeric'
-                  value={count}
-                  onChange={(event) => setCount(event.target.value)}
-                />
-              </div>
-              <Button disabled={!canSubmit} onClick={submit}>
-                <Plus />
-                {t('Create codes')}
-              </Button>
+            <CardContent>
+              <form
+                aria-label={t('Create Canvas recharge codes')}
+                className='max-w-6xl'
+                onSubmit={submit}
+              >
+                <fieldset className='grid items-start gap-4 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_minmax(15rem,1.6fr)_8rem_auto]'>
+                  <legend className='sr-only'>
+                    {t('Create Canvas recharge codes')}
+                  </legend>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-name'>{t('Name')}</Label>
+                    <Input
+                      id='canvas-code-name'
+                      maxLength={20}
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder={t('Enter recharge code name')}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-amount'>
+                      {t('Amount (CNY)')}
+                    </Label>
+                    <Input
+                      id='canvas-code-amount'
+                      aria-describedby='canvas-code-amount-help'
+                      inputMode='decimal'
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                    />
+                    <p
+                      id='canvas-code-amount-help'
+                      className='text-muted-foreground text-xs'
+                    >
+                      {t(
+                        '1 CNY equals 50 Canvas Points; the amount must produce whole points.'
+                      )}
+                    </p>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-count'>{t('Quantity')}</Label>
+                    <Input
+                      id='canvas-code-count'
+                      inputMode='numeric'
+                      value={count}
+                      onChange={(event) => setCount(event.target.value)}
+                    />
+                  </div>
+                  <div className='flex md:col-span-2 md:justify-end lg:col-span-1 lg:pt-6'>
+                    <Button
+                      className='w-full sm:w-auto'
+                      disabled={!canSubmit}
+                      type='submit'
+                    >
+                      <Plus />
+                      {t('Create codes')}
+                    </Button>
+                  </div>
+                </fieldset>
+              </form>
             </CardContent>
           </Card>
 
@@ -232,18 +384,43 @@ export function CanvasRechargeCodes() {
                 </CardDescription>
               </CardHeader>
               <CardContent className='space-y-3'>
-                <pre className='bg-muted max-h-72 overflow-auto rounded-lg p-3 font-mono text-sm'>
-                  {issued.codes.map((item) => item.code).join('\n')}
+                <pre
+                  aria-label={t(
+                    codesVisible
+                      ? 'Visible recharge codes'
+                      : 'Hidden recharge codes'
+                  )}
+                  className='bg-muted max-h-72 overflow-auto rounded-lg p-3 font-mono text-sm'
+                >
+                  {issued.codes
+                    .map((item) =>
+                      codesVisible ? item.code : '•••• •••• •••• ••••'
+                    )
+                    .join('\n')}
                 </pre>
-                <Button variant='outline' onClick={() => void copyCodes()}>
-                  <Copy />
-                  {t('Copy all codes')}
-                </Button>
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    aria-pressed={codesVisible}
+                    variant='outline'
+                    onClick={() => setCodesVisible((visible) => !visible)}
+                  >
+                    {codesVisible ? <EyeOff /> : <Eye />}
+                    {t(codesVisible ? 'Hide codes' : 'Show codes')}
+                  </Button>
+                  <Button variant='outline' onClick={() => void copyCodes()}>
+                    <Copy />
+                    {t('Copy all codes')}
+                  </Button>
+                  <Button variant='outline' onClick={downloadCodes}>
+                    <Download />
+                    {t('Download TXT')}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
 
-          <Card>
+          <Card size='sm'>
             <CardHeader>
               <CardTitle>{t('Canvas recharge code inventory')}</CardTitle>
               <CardDescription>
@@ -252,7 +429,158 @@ export function CanvasRechargeCodes() {
                 )}
               </CardDescription>
             </CardHeader>
-            <CardContent>{renderInventory()}</CardContent>
+            <CardContent className='space-y-4'>
+              <div className='bg-muted/20 space-y-3 rounded-lg border p-3'>
+                <div className='grid items-start gap-3 md:grid-cols-2 xl:grid-cols-[minmax(20rem,2fr)_minmax(10rem,1fr)_minmax(10rem,1fr)]'>
+                  <div className='space-y-1.5 md:col-span-2 xl:col-span-1'>
+                    <Label htmlFor='canvas-code-search'>
+                      {t('Search recharge codes')}
+                    </Label>
+                    <div className='relative'>
+                      <Search
+                        aria-hidden='true'
+                        className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
+                      />
+                      <Input
+                        id='canvas-code-search'
+                        aria-describedby='canvas-code-search-help'
+                        className='pl-9'
+                        value={search}
+                        onChange={(event) => {
+                          setSearch(event.target.value)
+                          setPage(1)
+                        }}
+                        placeholder={t('Search by name or full code')}
+                      />
+                    </div>
+                    <p
+                      id='canvas-code-search-help'
+                      className='text-muted-foreground text-xs'
+                    >
+                      {t(
+                        'Paste a customer-provided full code to match its safely retained prefix and suffix.'
+                      )}
+                    </p>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-status'>{t('Status')}</Label>
+                    <select
+                      id='canvas-code-status'
+                      className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                      value={status}
+                      onChange={(event) => {
+                        setStatus(
+                          event.target.value as
+                            | ''
+                            | CanvasAdminRechargeCode['status']
+                        )
+                        setPage(1)
+                      }}
+                    >
+                      <option value=''>{t('All statuses')}</option>
+                      <option value='ACTIVE'>{t('Active')}</option>
+                      <option value='REDEEMED'>{t('Redeemed')}</option>
+                      <option value='EXPIRED'>{t('Expired')}</option>
+                      <option value='VOID'>{t('Voided')}</option>
+                    </select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-page-size'>
+                      {t('Page size')}
+                    </Label>
+                    <select
+                      id='canvas-code-page-size'
+                      className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                      value={pageSize}
+                      onChange={(event) => {
+                        setPageSize(Number(event.target.value) as 20 | 50 | 100)
+                        setPage(1)
+                      }}
+                    >
+                      {[20, 50, 100].map((size) => (
+                        <option key={size} value={size}>
+                          {t('{{count}} per page', { count: size })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className='grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4'>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-created-from'>
+                      {t('Created from')}
+                    </Label>
+                    <Input
+                      id='canvas-code-created-from'
+                      type='date'
+                      value={createdFrom}
+                      onChange={(event) => {
+                        setCreatedFrom(event.target.value)
+                        setPage(1)
+                      }}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-created-to'>
+                      {t('Created to')}
+                    </Label>
+                    <Input
+                      id='canvas-code-created-to'
+                      type='date'
+                      value={createdTo}
+                      onChange={(event) => {
+                        setCreatedTo(event.target.value)
+                        setPage(1)
+                      }}
+                    />
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-sort-by'>{t('Sort by')}</Label>
+                    <select
+                      id='canvas-code-sort-by'
+                      className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                      value={sortBy}
+                      onChange={(event) => {
+                        setSortBy(
+                          event.target
+                            .value as CanvasAdminRechargeCodeQuery['sortBy']
+                        )
+                        setPage(1)
+                      }}
+                    >
+                      <option value='createdAt'>{t('Created')}</option>
+                      <option value='expiresAt'>{t('Expires')}</option>
+                      <option value='redeemedAt'>{t('Redeemed')}</option>
+                      <option value='name'>{t('Name')}</option>
+                      <option value='status'>{t('Status')}</option>
+                      <option value='amount'>{t('Amount')}</option>
+                      <option value='points'>{t('Points')}</option>
+                    </select>
+                  </div>
+                  <div className='space-y-1.5'>
+                    <Label htmlFor='canvas-code-sort-order'>
+                      {t('Sort order')}
+                    </Label>
+                    <select
+                      id='canvas-code-sort-order'
+                      className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                      value={sortOrder}
+                      onChange={(event) => {
+                        setSortOrder(
+                          event.target
+                            .value as CanvasAdminRechargeCodeQuery['sortOrder']
+                        )
+                        setPage(1)
+                      }}
+                    >
+                      <option value='desc'>{t('Descending')}</option>
+                      <option value='asc'>{t('Ascending')}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              {renderInventory()}
+            </CardContent>
           </Card>
         </div>
       </SectionPageLayout.Content>
