@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  approveCanvasPriceDraft,
+  createCanvasPriceDraft,
   approveCanvasModelRelease,
   getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
@@ -66,6 +68,47 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/price-versions/price-version-id/publish',
       undefined,
       { headers: { 'Idempotency-Key': expect.stringMatching(/^web-price-/) } }
+    )
+  })
+
+  it('keeps price draft creation and PLATFORM_ADMIN approval on distinct protected calls', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
+    const input = {
+      sourcePriceVersionId: 'published-price-id',
+      points: '20',
+      successProbability: '0.900000',
+      successfulTaskCostRmb: '0.16000000',
+      failedUnrecoverableCostRmb: '0.18000000',
+      otherVariableCostRmb: '0.00000000',
+      riskBufferRmb: '0.02000000',
+      decisionSummary: 'Reviewed pricing inputs',
+      evidenceRefs: ['pricing-review://2026-08-26'],
+    }
+    await createCanvasPriceDraft(input)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/price-versions/drafts',
+      input,
+      {
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^web-price-draft-/),
+        },
+        skipErrorHandler: true,
+      }
+    )
+
+    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
+    await approveCanvasPriceDraft('draft-price-id', 'Reviewed frozen formula')
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/price-versions/draft-price-id/approve',
+      { reason: 'Reviewed frozen formula' },
+      {
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^web-price-approve-/),
+        },
+        skipErrorHandler: true,
+      }
     )
   })
 

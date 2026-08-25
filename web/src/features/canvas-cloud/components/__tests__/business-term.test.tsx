@@ -51,4 +51,15 @@ describe('Canvas business term', () => {
     expect(screen.getByText('FUTURE_EVENT')).toBeVisible()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
+
+  it('centralizes pricing labels and read-only field explanations', async () => {
+    await i18next.changeLanguage('zh')
+    render(<BusinessTerm kind='pricingField' value='BREAK_EVEN' />)
+
+    expect(
+      screen.getByRole('button', {
+        name: '保本线. K_pricing 乘以每元 50 积分后的只读向上取整值；发布价必须严格高于它。',
+      })
+    ).toBeVisible()
+  })
 })

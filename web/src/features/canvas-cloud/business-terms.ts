@@ -24,6 +24,7 @@ export type CanvasBusinessTermKind =
   | 'ledgerReason'
   | 'pointBalance'
   | 'pointLotType'
+  | 'pricingField'
   | 'rechargeCodeStatus'
   | 'rechargeOrderStatus'
   | 'reconciliationStatus'
@@ -73,6 +74,88 @@ export const canvasBusinessTermConfig = {
       PAID: 'Paid points',
       BONUS: 'Bonus points',
       GRACE_BONUS: 'Grace bonus points',
+    },
+    presentation: 'text',
+  },
+  pricingField: {
+    helpKey: '{{term}} is a Canvas PriceVersion field.',
+    helpKeys: {
+      MODEL:
+        'The customer-visible model name. It comes from the versioned CustomerModel and is read-only here.',
+      PRICE_GROUP:
+        'The internal published PriceGroup used to resolve the customer price. Customers never see this group name.',
+      COMBINATION:
+        'The immutable parameter-combination key covered by this price version.',
+      VERSION:
+        'The monotonically increasing PriceVersion number for this model, group, and parameter combination.',
+      STATUS:
+        'The controlled draft, approval, publication, or retirement state. It cannot be edited directly.',
+      POINTS:
+        'The final integer points charged for a new Quote. A change always creates a new draft version.',
+      BASE_RATE:
+        'The frozen issuance rate of 50 points per RMB. It is read-only in Canvas Business Baseline v1.0.',
+      TARGET_MARGIN_RATE:
+        'The frozen normal target margin rate of 40%. It is a health target, not permission to undercut break-even.',
+      SUCCESS_PROBABILITY:
+        'The reviewed probability that one attempt succeeds and is chargeable, expressed from 0 to 1.',
+      SUCCESS_COST:
+        'The reviewed RMB Provider cost of one successful chargeable attempt. A change creates a new draft.',
+      FAILURE_COST:
+        'The reviewed RMB cost that cannot be recovered when an attempt fails. A change creates a new draft.',
+      OTHER_COST:
+        'Other reviewed variable RMB cost per attempt included in the theoretical cost formula. A change creates a new draft.',
+      K_THEORY:
+        'The server-derived theoretical RMB cost per successful chargeable result.',
+      K_ACTUAL:
+        'The audited 30-day actual RMB cost per successful chargeable result. It is read-only and only eligible with at least 100 complete, consistent results.',
+      K_PRICING:
+        'The server-derived RMB cost used for pricing: eligible max(K_theory, K_actual), otherwise K_theory plus the approved risk buffer.',
+      RISK_BUFFER:
+        'The reviewed RMB risk buffer used only when eligible K_actual is unavailable. A change creates a new draft.',
+      BREAK_EVEN:
+        'The read-only ceiling of K_pricing multiplied by 50 points per RMB. A published price must be strictly greater.',
+      TARGET_MARGIN_POINTS:
+        'The read-only ceiling of break-even cost divided by 1 minus the 40% target margin.',
+      ASSUMPTIONS:
+        'The immutable calculation inputs, evidence, and eligibility facts captured with this PriceVersion.',
+      DECISION:
+        'The administrator decision summary stored in the immutable pricing assumptions snapshot.',
+      EVIDENCE:
+        'The evidence references supporting the draft inputs, stored in the immutable pricing assumptions snapshot.',
+      CREATED: 'The immutable actor and time that created this PriceVersion.',
+      APPROVED:
+        'The immutable PLATFORM_ADMIN approval actor and time, backed by an ApprovalRecord.',
+      EFFECTIVE:
+        'The immutable publication time after which new Quotes may use this version.',
+      ACTION:
+        'Only legal state transitions are available. Historical rows and derived fields remain read-only.',
+    },
+    labels: {
+      MODEL: 'Model',
+      PRICE_GROUP: 'Price group',
+      COMBINATION: 'Parameter combination',
+      VERSION: 'Version',
+      STATUS: 'Status',
+      POINTS: 'Points',
+      BASE_RATE: 'Base rate',
+      TARGET_MARGIN_RATE: 'Target margin rate',
+      SUCCESS_PROBABILITY: 'Success probability',
+      SUCCESS_COST: 'Successful task cost',
+      FAILURE_COST: 'Failed unrecoverable cost',
+      OTHER_COST: 'Other variable cost',
+      K_THEORY: 'K_theory',
+      K_ACTUAL: 'K_actual',
+      K_PRICING: 'K_pricing',
+      RISK_BUFFER: 'Risk buffer',
+      BREAK_EVEN: 'Break-even',
+      TARGET_MARGIN_POINTS: 'Target margin floor',
+      ASSUMPTIONS: 'Pricing assumptions',
+      DECISION: 'Decision summary',
+      EVIDENCE: 'Evidence references',
+      CREATED: 'Created',
+      APPROVED: 'Approved',
+      EFFECTIVE: 'Effective',
+      ACTION: 'Action',
     },
     presentation: 'text',
   },

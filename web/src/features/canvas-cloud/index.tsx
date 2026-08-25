@@ -52,11 +52,11 @@ import {
   getCanvasRechargePurchaseLink,
   getCanvasSession,
   planCanvasModelRelease,
-  publishCanvasPriceVersion,
   publishCanvasModelRelease,
   reconcileCanvasTask,
   redeemCanvasRechargeCode,
 } from './api'
+import { AdminPricing } from './components/AdminPricing'
 import { BusinessTerm } from './components/BusinessTerm'
 import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
@@ -666,15 +666,6 @@ function AdminContent(props: { section: AdminSection }) {
     queryFn: () => getCanvasContributionReport(dates.from, dates.to),
     enabled: props.section === 'reports',
   })
-  const publish = useMutation({
-    mutationFn: publishCanvasPriceVersion,
-    onSuccess: async () => {
-      toast.success(t('Price published'))
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'admin'],
-      })
-    },
-  })
   const reconcile = useMutation({
     mutationFn: (taskId: string) =>
       reconcileCanvasTask(taskId, 'RECONCILED', 'Reviewed in Canvas Cloud Web'),
@@ -701,35 +692,11 @@ function AdminContent(props: { section: AdminSection }) {
   const data = workspace.data
   if (props.section === 'pricing') {
     return (
-      <DataTable
-        empty={t('No price versions')}
-        headers={[
-          t('Model'),
-          t('Price group'),
-          t('Status'),
-          t('Points'),
-          t('Break-even'),
-          t('Action'),
-        ]}
-        rows={data.prices.map((item) => [
-          item.modelName,
-          item.priceGroup,
-          <BusinessTerm key='s' kind='configStatus' value={item.status} />,
-          item.points,
-          item.breakEvenPoints,
-          item.status === 'APPROVED' ? (
-            <Button
-              key='a'
-              size='sm'
-              disabled={publish.isPending}
-              onClick={() => publish.mutate(item.id)}
-            >
-              {t('Publish')}
-            </Button>
-          ) : (
-            '—'
-          ),
-        ])}
+      <AdminPricing
+        prices={data.prices}
+        onChanged={() =>
+          queryClient.invalidateQueries({ queryKey: ['canvas-cloud', 'admin'] })
+        }
       />
     )
   }

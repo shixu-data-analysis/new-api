@@ -142,13 +142,29 @@ export interface CanvasAdminWorkspace {
   }>
   prices: Array<{
     id: string
+    modelKey: string
     modelName: string
+    priceGroupCode: string
     priceGroup: string
+    combinationKey: string
+    normalizedParameters: Record<string, unknown>
     version: number
     status: string
     points: string
+    baseRatePointsPerRmb: string
+    targetMarginRate: string
+    successProbability: string
+    kTheoryRmb: string
+    kActualRmb: string | null
+    kPricingRmb: string
+    riskBufferRmb: string
     breakEvenPoints: string
     targetMarginPoints: string
+    pricingAssumptionsSnapshot: Record<string, unknown>
+    createdByPrincipalId: string
+    approvedByPrincipalId: string | null
+    createdAt: string
+    approvedAt: string | null
     effectiveAt: string | null
   }>
   refunds: Array<{

@@ -179,6 +179,43 @@ export async function publishCanvasPriceVersion(priceVersionId: string) {
   ).data
 }
 
+export interface CanvasPriceDraftInput {
+  sourcePriceVersionId: string
+  points: string
+  successProbability: string
+  successfulTaskCostRmb: string
+  failedUnrecoverableCostRmb: string
+  otherVariableCostRmb: string
+  riskBufferRmb: string
+  decisionSummary: string
+  evidenceRefs: string[]
+}
+
+export async function createCanvasPriceDraft(input: CanvasPriceDraftInput) {
+  return (
+    await api.post(`${webBase}/admin/price-versions/drafts`, input, {
+      headers: { 'Idempotency-Key': idempotencyKey('web-price-draft') },
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function approveCanvasPriceDraft(
+  priceVersionId: string,
+  reason: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-versions/${priceVersionId}/approve`,
+      { reason },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-price-approve') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function reconcileCanvasTask(
   taskId: string,
   status: 'RECONCILED' | 'DISPUTED',
