@@ -20,13 +20,36 @@ import { render, screen } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
+import en from '@/i18n/locales/en.json'
+import fr from '@/i18n/locales/fr.json'
+import ja from '@/i18n/locales/ja.json'
+import ru from '@/i18n/locales/ru.json'
+import vi from '@/i18n/locales/vi.json'
+import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
+import { canvasBusinessTermConfig } from '../../business-terms'
 import { BusinessTerm } from '../BusinessTerm'
 
 describe('Canvas business term', () => {
   beforeAll(() => {
-    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
+    for (const [language, locale] of Object.entries({
+      en,
+      fr,
+      ja,
+      ru,
+      vi,
+      zh,
+      'zh-TW': zhTW,
+    })) {
+      i18next.addResourceBundle(
+        language,
+        'translation',
+        locale.translation,
+        true,
+        true
+      )
+    }
   })
 
   afterEach(async () => {
@@ -58,8 +81,21 @@ describe('Canvas business term', () => {
 
     expect(
       screen.getByRole('button', {
-        name: '保本线. K_pricing 乘以每元 50 积分后的只读向上取整值；发布价必须严格高于它。',
+        name: '保本线. K_pricing 乘以该 PriceVersion 发行比例快照后的只读向上取整值；发布价必须严格高于它。',
       })
     ).toBeVisible()
+  })
+
+  it('localizes every pricing tooltip outside the English locale', () => {
+    const helpKeys = new Set([
+      canvasBusinessTermConfig.pricingField.helpKey,
+      ...Object.values(canvasBusinessTermConfig.pricingField.helpKeys),
+    ])
+
+    for (const language of ['fr', 'ja', 'ru', 'vi', 'zh', 'zh-TW']) {
+      for (const helpKey of helpKeys) {
+        expect(i18next.t(helpKey, { lng: language })).not.toBe(helpKey)
+      }
+    }
   })
 })

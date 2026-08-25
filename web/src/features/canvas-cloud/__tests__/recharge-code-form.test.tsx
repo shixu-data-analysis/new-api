@@ -91,8 +91,8 @@ describe('Canvas recharge-code creation form', () => {
       Ascending: 'Ascending',
       Previous: 'Previous',
       Next: 'Next',
-      '1 CNY equals 50 Canvas Points; the amount must produce whole points.':
-        '1 CNY equals 50 Canvas Points; the amount must produce whole points.',
+      'The currently published point issuance rate is used; the amount must produce whole points.':
+        'The currently published point issuance rate is used; the amount must produce whole points.',
     })
   })
 
@@ -135,7 +135,7 @@ describe('Canvas recharge-code creation form', () => {
     expect(fieldGroup).toContainElement(quantity)
     expect(fieldGroup).toContainElement(submit)
     expect(amount).toHaveAccessibleDescription(
-      '1 CNY equals 50 Canvas Points; the amount must produce whole points.'
+      'The currently published point issuance rate is used; the amount must produce whole points.'
     )
     expect(submit).toBeDisabled()
 

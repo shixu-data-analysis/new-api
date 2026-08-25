@@ -84,6 +84,19 @@ export const canvasBusinessTermConfig = {
         'The customer-visible model name. It comes from the versioned CustomerModel and is read-only here.',
       PRICE_GROUP:
         'The internal published PriceGroup used to resolve the customer price. Customers never see this group name.',
+      PRICE_GROUP_CODE:
+        'The stable internal code identifying a customer pricing segment. Customers never see it directly.',
+      PRICE_GROUP_NAME:
+        'The administrator-facing name of the customer pricing segment. A change creates a new governed version.',
+      GROUP_VERSION:
+        'The monotonically increasing version of this PriceGroup code.',
+      GROUP_STATUS:
+        'The controlled draft, approval, publication, or retirement state of this PriceGroup version.',
+      GROUP_CREATED: 'The immutable time this PriceGroup version was created.',
+      GROUP_APPROVED:
+        'The immutable PLATFORM_ADMIN approval time backed by an ApprovalRecord.',
+      GROUP_EFFECTIVE:
+        'The publication time after which new pricing and customer assignments may reference this PriceGroup version.',
       COMBINATION:
         'The immutable parameter-combination key covered by this price version.',
       VERSION:
@@ -93,11 +106,31 @@ export const canvasBusinessTermConfig = {
       POINTS:
         'The final integer points charged for a new Quote. A change always creates a new draft version.',
       BASE_RATE:
-        'The frozen issuance rate of 50 points per RMB. It is read-only in Canvas Business Baseline v1.0.',
+        'The immutable points-per-RMB snapshot captured by this PriceVersion. It comes from the published issuance-rate ConfigVersion and is never edited here.',
+      ISSUANCE_RATE:
+        'The points issued for one RMB of new eligible business. A change creates a governed draft and affects only facts created after publication.',
+      RATE_VERSION:
+        'The monotonically increasing ConfigVersion number for the CNY point issuance rate.',
+      RATE_STATUS:
+        'The controlled draft, approval, publication, or retirement state of this issuance-rate ConfigVersion. It cannot be edited directly.',
+      RATE_DECISION:
+        'The administrator decision summary stored in this immutable issuance-rate ConfigVersion payload.',
+      RATE_EVIDENCE:
+        'The evidence references supporting this issuance-rate version, stored in its immutable payload.',
+      RATE_CREATED:
+        'The immutable actor and time that created this issuance-rate ConfigVersion.',
+      RATE_APPROVED:
+        'The immutable PLATFORM_ADMIN approval actor and time for this issuance-rate ConfigVersion, backed by an ApprovalRecord.',
+      RATE_EFFECTIVE:
+        'The immutable publication time after which new pricing and recharge facts use this issuance rate.',
+      APPROVAL_REASON:
+        'The PLATFORM_ADMIN review reason that will be stored in an immutable ApprovalRecord.',
       TARGET_MARGIN_RATE:
         'The frozen normal target margin rate of 40%. It is a health target, not permission to undercut break-even.',
       SUCCESS_PROBABILITY:
         'The reviewed probability that one attempt succeeds and is chargeable, expressed from 0 to 1.',
+      EXPECTED_ATTEMPT_COST:
+        'The probability-weighted RMB cost of one attempt before dividing by the success probability.',
       SUCCESS_COST:
         'The reviewed RMB Provider cost of one successful chargeable attempt. A change creates a new draft.',
       FAILURE_COST:
@@ -108,12 +141,16 @@ export const canvasBusinessTermConfig = {
         'The server-derived theoretical RMB cost per successful chargeable result.',
       K_ACTUAL:
         'The audited 30-day actual RMB cost per successful chargeable result. It is read-only and only eligible with at least 100 complete, consistent results.',
+      ACTUAL_ELIGIBLE:
+        'A simulation switch for the audited K_actual path. It does not change the stored eligibility facts or any PriceVersion.',
       K_PRICING:
         'The server-derived RMB cost used for pricing: eligible max(K_theory, K_actual), otherwise K_theory plus the approved risk buffer.',
       RISK_BUFFER:
         'The reviewed RMB risk buffer used only when eligible K_actual is unavailable. A change creates a new draft.',
       BREAK_EVEN:
-        'The read-only ceiling of K_pricing multiplied by 50 points per RMB. A published price must be strictly greater.',
+        'The read-only ceiling of K_pricing multiplied by this PriceVersion issuance-rate snapshot. A published price must be strictly greater.',
+      PROPOSED_POINTS:
+        'A side-effect-free simulated point price used only to compare against the calculated floors.',
       TARGET_MARGIN_POINTS:
         'The read-only ceiling of break-even cost divided by 1 minus the 40% target margin.',
       ASSUMPTIONS:
@@ -133,21 +170,40 @@ export const canvasBusinessTermConfig = {
     labels: {
       MODEL: 'Model',
       PRICE_GROUP: 'Price group',
+      PRICE_GROUP_CODE: 'Price group code',
+      PRICE_GROUP_NAME: 'Price group name',
+      GROUP_VERSION: 'Group version',
+      GROUP_STATUS: 'Status',
+      GROUP_CREATED: 'Created',
+      GROUP_APPROVED: 'Approved',
+      GROUP_EFFECTIVE: 'Effective',
       COMBINATION: 'Parameter combination',
       VERSION: 'Version',
       STATUS: 'Status',
       POINTS: 'Points',
       BASE_RATE: 'Base rate',
+      ISSUANCE_RATE: 'Point issuance rate',
+      RATE_VERSION: 'Rate version',
+      RATE_STATUS: 'Status',
+      RATE_DECISION: 'Decision summary',
+      RATE_EVIDENCE: 'Evidence references',
+      RATE_CREATED: 'Created',
+      RATE_APPROVED: 'Approved',
+      RATE_EFFECTIVE: 'Effective',
+      APPROVAL_REASON: 'Approval reason',
       TARGET_MARGIN_RATE: 'Target margin rate',
       SUCCESS_PROBABILITY: 'Success probability',
+      EXPECTED_ATTEMPT_COST: 'Expected attempt cost',
       SUCCESS_COST: 'Successful task cost',
       FAILURE_COST: 'Failed unrecoverable cost',
       OTHER_COST: 'Other variable cost',
       K_THEORY: 'K_theory',
       K_ACTUAL: 'K_actual',
+      ACTUAL_ELIGIBLE: 'Actual cost eligibility',
       K_PRICING: 'K_pricing',
       RISK_BUFFER: 'Risk buffer',
       BREAK_EVEN: 'Break-even',
+      PROPOSED_POINTS: 'Proposed price points',
       TARGET_MARGIN_POINTS: 'Target margin floor',
       ASSUMPTIONS: 'Pricing assumptions',
       DECISION: 'Decision summary',

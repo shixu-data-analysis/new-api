@@ -58,6 +58,7 @@ import {
 } from './api'
 import { AdminPricing } from './components/AdminPricing'
 import { BusinessTerm } from './components/BusinessTerm'
+import { PricingCalculator } from './components/PricingCalculator'
 import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
 import type {
@@ -75,11 +76,15 @@ const customerSections = [
 ] as const
 const adminSections = [
   'pricing',
+  'pricing-calculator',
   'channels',
   'refunds',
   'reports',
   'model-releases',
 ] as const
+const adminNavigationSections = adminSections.filter(
+  (section) => section !== 'pricing-calculator'
+)
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
 type CanvasSection = CustomerSection | AdminSection
@@ -91,6 +96,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   tasks: 'Canvas Tasks',
   consumption: 'Canvas Consumption',
   pricing: 'Canvas Pricing',
+  'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
   refunds: 'Canvas Refunds',
   reports: 'Canvas Reports',
@@ -700,6 +706,9 @@ function AdminContent(props: { section: AdminSection }) {
       />
     )
   }
+  if (props.section === 'pricing-calculator') {
+    return <PricingCalculator />
+  }
   if (props.section === 'channels') {
     return (
       <div className='space-y-4'>
@@ -961,39 +970,43 @@ export function CanvasCloud() {
       <SectionPageLayout.Title>
         {t(sectionTitles[section])}
       </SectionPageLayout.Title>
-      <SectionPageLayout.Actions>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() =>
-            void queryClient
-              .invalidateQueries({ queryKey: ['canvas-cloud'] })
-              .then(() => toast.success(t('Canvas data refreshed')))
-          }
-        >
-          <RefreshCw />
-          {t('Refresh')}
-        </Button>
-      </SectionPageLayout.Actions>
-      <SectionPageLayout.Content>
-        <div className='space-y-4'>
-          <Tabs
-            value={section}
-            onValueChange={(value) =>
-              void navigate({
-                to: '/canvas-cloud/$section',
-                params: { section: value },
-              })
+      {section !== 'pricing-calculator' && (
+        <SectionPageLayout.Actions>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() =>
+              void queryClient
+                .invalidateQueries({ queryKey: ['canvas-cloud'] })
+                .then(() => toast.success(t('Canvas data refreshed')))
             }
           >
-            <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
-              {allowed.map((item) => (
-                <TabsTrigger key={item} value={item}>
-                  {t(sectionTitles[item])}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+            <RefreshCw />
+            {t('Refresh')}
+          </Button>
+        </SectionPageLayout.Actions>
+      )}
+      <SectionPageLayout.Content>
+        <div className='space-y-4'>
+          {section !== 'pricing-calculator' && (
+            <Tabs
+              value={section}
+              onValueChange={(value) =>
+                void navigate({
+                  to: '/canvas-cloud/$section',
+                  params: { section: value },
+                })
+              }
+            >
+              <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
+                {(admin ? adminNavigationSections : allowed).map((item) => (
+                  <TabsTrigger key={item} value={item}>
+                    {t(sectionTitles[item])}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
           {content}
         </div>
       </SectionPageLayout.Content>

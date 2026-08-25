@@ -20,17 +20,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   approveCanvasPriceDraft,
+  approveCanvasPointIssuanceRate,
+  createCanvasPointIssuanceRateDraft,
   createCanvasPriceDraft,
+  approveCanvasPriceGroup,
+  createCanvasPriceGroupDraft,
+  getCanvasPriceGroups,
+  publishCanvasPriceGroup,
   approveCanvasModelRelease,
   getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
   getCanvasCustomerWorkspace,
   getCanvasModelReleases,
+  getCanvasPointIssuanceRates,
   getCanvasRechargePurchaseLink,
   issueCanvasAdminRechargeCodes,
   normalizeCanvasRechargePurchaseLink,
   planCanvasModelRelease,
   publishCanvasPriceVersion,
+  publishCanvasPointIssuanceRate,
   publishCanvasModelRelease,
   redeemCanvasRechargeCode,
 } from '../api'
@@ -76,13 +84,11 @@ describe('Canvas Cloud API boundary', () => {
     const input = {
       sourcePriceVersionId: 'published-price-id',
       points: '20',
-      successProbability: '0.900000',
-      successfulTaskCostRmb: '0.16000000',
-      failedUnrecoverableCostRmb: '0.18000000',
-      otherVariableCostRmb: '0.00000000',
-      riskBufferRmb: '0.02000000',
-      decisionSummary: 'Reviewed pricing inputs',
-      evidenceRefs: ['pricing-review://2026-08-26'],
+      successProbability: '0.9',
+      successfulTaskCostRmb: '0.16',
+      failedUnrecoverableCostRmb: '0.18',
+      otherVariableCostRmb: '0',
+      riskBufferRmb: '0.02',
     }
     await createCanvasPriceDraft(input)
     expect(mocks.post).toHaveBeenNthCalledWith(
@@ -109,6 +115,72 @@ describe('Canvas Cloud API boundary', () => {
         },
         skipErrorHandler: true,
       }
+    )
+  })
+
+  it('keeps issuance-rate reads and controlled transitions on dedicated Web routes', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasPointIssuanceRates()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/point-issuance-rates'
+    )
+    const input = {
+      pointsPerRmb: '60',
+    }
+    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
+    await createCanvasPointIssuanceRateDraft(input)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/point-issuance-rates/drafts',
+      input,
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await approveCanvasPointIssuanceRate('rate-v2', 'Reviewed and approved')
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/point-issuance-rates/rate-v2/approve',
+      { reason: 'Reviewed and approved' },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishCanvasPointIssuanceRate('rate-v2')
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      3,
+      '/canvas-api/v1/web/admin/point-issuance-rates/rate-v2/publish',
+      undefined,
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('keeps PriceGroup reads and governed transitions on dedicated Web routes', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasPriceGroups()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/price-groups'
+    )
+    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
+    await createCanvasPriceGroupDraft({
+      code: 'VIP',
+      internalName: 'VIP customers',
+    })
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/price-groups/drafts',
+      { code: 'VIP', internalName: 'VIP customers' },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await approveCanvasPriceGroup('group-v1', 'Reviewed and approved')
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/price-groups/group-v1/approve',
+      { reason: 'Reviewed and approved' },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishCanvasPriceGroup('group-v1')
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      3,
+      '/canvas-api/v1/web/admin/price-groups/group-v1/publish',
+      undefined,
+      expect.objectContaining({ skipErrorHandler: true })
     )
   })
 

@@ -187,8 +187,7 @@ export interface CanvasPriceDraftInput {
   failedUnrecoverableCostRmb: string
   otherVariableCostRmb: string
   riskBufferRmb: string
-  decisionSummary: string
-  evidenceRefs: string[]
+  decisionSummary?: string
 }
 
 export async function createCanvasPriceDraft(input: CanvasPriceDraftInput) {
@@ -210,6 +209,108 @@ export async function approveCanvasPriceDraft(
       { reason },
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-price-approve') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasPointIssuanceRates() {
+  return (
+    await api.get<import('./types').CanvasPointIssuanceRateVersion[]>(
+      `${webBase}/admin/point-issuance-rates`
+    )
+  ).data
+}
+
+export async function createCanvasPointIssuanceRateDraft(input: {
+  pointsPerRmb: string
+  decisionSummary?: string
+}) {
+  return (
+    await api.post(`${webBase}/admin/point-issuance-rates/drafts`, input, {
+      headers: { 'Idempotency-Key': idempotencyKey('web-rate-draft') },
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function approveCanvasPointIssuanceRate(
+  rateId: string,
+  reason: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-issuance-rates/${rateId}/approve`,
+      { reason },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-rate-approve') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasPointIssuanceRate(rateId: string) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-issuance-rates/${rateId}/publish`,
+      undefined,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-rate-publish') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasPriceGroups() {
+  return (
+    await api.get<import('./types').CanvasPriceGroupVersion[]>(
+      `${webBase}/admin/price-groups`
+    )
+  ).data
+}
+
+export async function createCanvasPriceGroupDraft(input: {
+  code: string
+  internalName: string
+}) {
+  return (
+    await api.post(`${webBase}/admin/price-groups/drafts`, input, {
+      headers: { 'Idempotency-Key': idempotencyKey('web-price-group-draft') },
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function approveCanvasPriceGroup(
+  priceGroupId: string,
+  reason: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-groups/${priceGroupId}/approve`,
+      { reason },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-price-group-approve'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasPriceGroup(priceGroupId: string) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-groups/${priceGroupId}/publish`,
+      undefined,
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-price-group-publish'),
+        },
         skipErrorHandler: true,
       }
     )

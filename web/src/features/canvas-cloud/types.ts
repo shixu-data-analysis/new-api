@@ -190,6 +190,31 @@ export interface CanvasAdminWorkspace {
   }>
 }
 
+export interface CanvasPointIssuanceRateVersion {
+  id: string
+  version: number
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'RETIRED'
+  pointsPerRmb: string
+  decisionSummary: string
+  evidenceRefs: string[]
+  createdByPrincipalId: string
+  approvedByPrincipalId: string | null
+  createdAt: string
+  approvedAt: string | null
+  effectiveAt: string | null
+}
+
+export interface CanvasPriceGroupVersion {
+  id: string
+  code: string
+  internalName: string
+  version: number
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'RETIRED'
+  createdAt: string
+  approvedAt: string | null
+  effectiveAt: string | null
+}
+
 export interface CanvasAdminCustomerPointBalance {
   customerId: string
   newApiUserId: string

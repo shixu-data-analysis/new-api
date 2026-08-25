@@ -345,7 +345,7 @@ export function CanvasRechargeCodes() {
                       className='text-muted-foreground text-xs'
                     >
                       {t(
-                        '1 CNY equals 50 Canvas Points; the amount must produce whole points.'
+                        'The currently published point issuance rate is used; the amount must produce whole points.'
                       )}
                     </p>
                   </div>
