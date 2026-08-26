@@ -45,6 +45,7 @@ import {
   createCanvasModelReleaseDraft,
   createCanvasRefund,
   getCanvasAdminWorkspace,
+  getCanvasAdminTestingModels,
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
@@ -209,6 +210,10 @@ function AdminModelReleases() {
     queryKey: ['canvas-cloud', 'model-releases'],
     queryFn: getCanvasModelReleases,
   })
+  const testingModels = useQuery({
+    queryKey: ['canvas-cloud', 'admin-testing-models'],
+    queryFn: getCanvasAdminTestingModels,
+  })
   const preview = useMutation({
     mutationFn: async (text: string) =>
       planCanvasModelRelease(parseManifestText(text)),
@@ -260,6 +265,37 @@ function AdminModelReleases() {
   const planIsCurrent = plan !== null && plannedText === manifestText
   return (
     <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Model pricing readiness')}</CardTitle>
+          <CardDescription>
+            {t(
+              'Published models remain available for internal management testing before every customer pricing target is ready.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            empty={t('No internally testable models')}
+            headers={[
+              t('Model'),
+              t('Provider'),
+              t('Status'),
+              t('Pricing readiness'),
+              t('Customer visibility'),
+            ]}
+            rows={(testingModels.data ?? []).map((model) => [
+              `${model.name} · ${model.modelKey} · v${model.version}`,
+              `${model.provider.name} · ${model.channel.upstreamModel}`,
+              t(model.status),
+              `${model.pricedTargets}/${model.totalTargets}`,
+              model.customerVisible
+                ? t('Visible to priced customers')
+                : t('Management testing only'),
+            ])}
+          />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>{t('Import reviewed model release')}</CardTitle>

@@ -104,11 +104,11 @@ export const canvasBusinessTermConfig = {
       STATUS:
         'The controlled draft, approval, publication, or retirement state. It cannot be edited directly.',
       POINTS:
-        'The final integer points charged for a new Quote. A change always creates a new draft version.',
+        'The final integer points charged for a new Quote. A confirmed change creates a new immutable published version.',
       BASE_RATE:
         'The immutable points-per-RMB snapshot captured by this PriceVersion. It comes from the published issuance-rate ConfigVersion and is never edited here.',
       ISSUANCE_RATE:
-        'The points issued for one RMB of new eligible business. A change creates a governed draft and affects only facts created after publication.',
+        'The points issued for one RMB of new eligible business. A confirmed change is published as a new immutable version and affects only later facts.',
       RATE_VERSION:
         'The monotonically increasing ConfigVersion number for the CNY point issuance rate.',
       RATE_STATUS:
@@ -132,11 +132,11 @@ export const canvasBusinessTermConfig = {
       EXPECTED_ATTEMPT_COST:
         'The probability-weighted RMB cost of one attempt before dividing by the success probability.',
       SUCCESS_COST:
-        'The reviewed RMB Provider cost of one successful chargeable attempt. A change creates a new draft.',
+        'The reviewed RMB Provider cost of one successful chargeable attempt. A confirmed change creates a new immutable published version.',
       FAILURE_COST:
-        'The reviewed RMB cost that cannot be recovered when an attempt fails. A change creates a new draft.',
+        'The reviewed RMB cost that cannot be recovered when an attempt fails. A confirmed change creates a new immutable published version.',
       OTHER_COST:
-        'Other reviewed variable RMB cost per attempt included in the theoretical cost formula. A change creates a new draft.',
+        'Other reviewed variable RMB cost per attempt included in the theoretical cost formula. A confirmed change creates a new immutable published version.',
       K_THEORY:
         'The server-derived theoretical RMB cost per successful chargeable result.',
       K_ACTUAL:
@@ -146,7 +146,7 @@ export const canvasBusinessTermConfig = {
       K_PRICING:
         'The server-derived RMB cost used for pricing: eligible max(K_theory, K_actual), otherwise K_theory plus the approved risk buffer.',
       RISK_BUFFER:
-        'The reviewed RMB risk buffer used only when eligible K_actual is unavailable. A change creates a new draft.',
+        'The reviewed RMB risk buffer used only when eligible K_actual is unavailable. A confirmed change creates a new immutable published version.',
       BREAK_EVEN:
         'The read-only ceiling of K_pricing multiplied by this PriceVersion issuance-rate snapshot. A published price must be strictly greater.',
       PROPOSED_POINTS:

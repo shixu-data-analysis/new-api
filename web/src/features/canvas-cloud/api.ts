@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   CanvasAdminWorkspace,
+  CanvasAdminTestingModel,
   CanvasAdminRechargeCodePage,
   CanvasAdminRechargeCodeQuery,
   CanvasCatalogModel,
@@ -94,6 +95,14 @@ export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
 export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {
   return (await api.get<CanvasAdminWorkspace>(`${webBase}/admin/workspace`))
     .data
+}
+
+export async function getCanvasAdminTestingModels(): Promise<
+  CanvasAdminTestingModel[]
+> {
+  return (
+    await api.get<CanvasAdminTestingModel[]>(`${webBase}/admin/testing-models`)
+  ).data
 }
 
 export async function getCanvasAdminRechargeCodes(
@@ -199,6 +208,40 @@ export async function createCanvasPriceDraft(input: CanvasPriceDraftInput) {
   ).data
 }
 
+export async function publishConfirmedCanvasPriceChange(
+  input: CanvasPriceDraftInput
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-versions/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-price-confirmed') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishConfirmedCanvasInitialPrice(
+  input: Omit<CanvasPriceDraftInput, 'sourcePriceVersionId'> & {
+    customerModelId: string
+    priceGroupId: string
+    parameterCombinationId: string
+  }
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-versions/initial-publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-initial-price') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function approveCanvasPriceDraft(
   priceVersionId: string,
   reason: string
@@ -232,6 +275,22 @@ export async function createCanvasPointIssuanceRateDraft(input: {
       headers: { 'Idempotency-Key': idempotencyKey('web-rate-draft') },
       skipErrorHandler: true,
     })
+  ).data
+}
+
+export async function publishConfirmedCanvasPointIssuanceRate(input: {
+  pointsPerRmb: string
+  decisionSummary?: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-issuance-rates/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-rate-confirmed') },
+        skipErrorHandler: true,
+      }
+    )
   ).data
 }
 
@@ -280,6 +339,23 @@ export async function createCanvasPriceGroupDraft(input: {
       headers: { 'Idempotency-Key': idempotencyKey('web-price-group-draft') },
       skipErrorHandler: true,
     })
+  ).data
+}
+
+export async function publishConfirmedCanvasPriceGroup(input: {
+  internalName: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-groups/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-price-group-confirmed'),
+        },
+        skipErrorHandler: true,
+      }
+    )
   ).data
 }
 

@@ -1,3 +1,4 @@
+import { useMutation, useQuery } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { type ReactNode, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -32,14 +33,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import {
-  approveCanvasPriceGroup,
-  createCanvasPriceGroupDraft,
-  getCanvasPriceGroups,
-  publishCanvasPriceGroup,
-} from '../api'
+import { getCanvasPriceGroups, publishConfirmedCanvasPriceGroup } from '../api'
 import type { CanvasPriceGroupVersion } from '../types'
 import { BusinessTerm } from './BusinessTerm'
+import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { PricingRecordsTable } from './PricingRecordsTable'
+import { PricingTableColumnHeader } from './PricingTableColumnHeader'
 
 function dateTime(value: string | null): string {
   return value
@@ -50,26 +49,30 @@ function dateTime(value: string | null): string {
     : '—'
 }
 
-function GroupDetail(props: { label: string; value: string }) {
-  return (
-    <div className='min-w-0 space-y-1'>
-      <div className='text-muted-foreground text-xs font-medium'>
-        <BusinessTerm kind='pricingField' value={props.label} />
-      </div>
-      <div className='text-sm break-words'>{props.value}</div>
-    </div>
-  )
+function groupColumn(
+  id: string,
+  term: string,
+  accessorFn: (group: CanvasPriceGroupVersion) => unknown,
+  cell: (group: CanvasPriceGroupVersion) => ReactNode
+): ColumnDef<CanvasPriceGroupVersion, unknown> {
+  return {
+    id,
+    accessorFn,
+    header: ({ column }) => (
+      <PricingTableColumnHeader column={column} term={term} />
+    ),
+    cell: ({ row }) => cell(row.original),
+  }
 }
 
 export function PriceGroupManagement() {
   const { t } = useTranslation()
   const [form, setForm] = useState({
     internalName: '',
-    approvalReason: '',
   })
   const [nameTouched, setNameTouched] = useState(false)
-  const [approvalTouched, setApprovalTouched] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
   const groups = useQuery({
     queryKey: ['canvas-cloud', 'price-groups'],
     queryFn: getCanvasPriceGroups,
@@ -85,45 +88,88 @@ export function PriceGroupManagement() {
     [...internalName].length <= 128,
     'Use no more than 128 characters'
   )
-  const approvalReason = form.approvalReason.trim()
-  let approvalError: string | null = null
-  if (approvalReason.length === 0) {
-    approvalError = t('This field is required')
-  } else if (approvalReason.length < 8) {
-    approvalError = t('Enter at least 8 characters')
-  } else if (approvalReason.length > 2000) {
-    approvalError = t('Use no more than 2000 characters')
-  }
   const refresh = async () => {
     await groups.refetch()
   }
-  const createDraft = useMutation({
-    mutationFn: () => createCanvasPriceGroupDraft({ internalName }),
+  const publishGroup = useMutation({
+    mutationFn: () => publishConfirmedCanvasPriceGroup({ internalName }),
     onSuccess: async () => {
-      toast.success(t('Price group draft created'))
+      setConfirmationOpen(false)
+      toast.success(t('Price group published'))
       setForm((current) => ({ ...current, internalName: '' }))
       setNameTouched(false)
       setSubmitted(false)
       await refresh()
     },
-    onError: () => toast.error(t('Price group draft failed')),
-  })
-  const approve = useMutation({
-    mutationFn: (id: string) => approveCanvasPriceGroup(id, approvalReason),
-    onSuccess: async () => {
-      toast.success(t('Price group approved'))
-      await refresh()
-    },
-    onError: () => toast.error(t('Price group approval failed')),
-  })
-  const publish = useMutation({
-    mutationFn: publishCanvasPriceGroup,
-    onSuccess: async () => {
-      toast.success(t('Price group published'))
-      await refresh()
-    },
     onError: () => toast.error(t('Price group publication failed')),
   })
+  const groupColumns = useMemo<ColumnDef<CanvasPriceGroupVersion, unknown>[]>(
+    () => [
+      groupColumn(
+        'code',
+        'PRICE_GROUP_CODE',
+        (group) => group.code,
+        (group) => group.code
+      ),
+      groupColumn(
+        'name',
+        'PRICE_GROUP_NAME',
+        (group) => group.internalName,
+        (group) => group.internalName
+      ),
+      groupColumn(
+        'version',
+        'GROUP_VERSION',
+        (group) => group.version,
+        (group) => `v${group.version}`
+      ),
+      groupColumn(
+        'status',
+        'GROUP_STATUS',
+        (group) => t(group.status),
+        (group) => t(group.status)
+      ),
+      groupColumn(
+        'created',
+        'GROUP_CREATED',
+        (group) => group.createdAt,
+        (group) => dateTime(group.createdAt)
+      ),
+      groupColumn(
+        'approved',
+        'GROUP_APPROVED',
+        (group) => group.approvedAt ?? '',
+        (group) => dateTime(group.approvedAt)
+      ),
+      groupColumn(
+        'effective',
+        'GROUP_EFFECTIVE',
+        (group) => group.effectiveAt ?? '',
+        (group) => dateTime(group.effectiveAt)
+      ),
+    ],
+    [t]
+  )
+  const groupFilters = useMemo(
+    () => [
+      { columnId: 'code', label: t('Price group code') },
+      { columnId: 'name', label: t('Price group name') },
+      { columnId: 'version', label: t('Group version') },
+      { columnId: 'status', label: t('Status') },
+      { columnId: 'created', label: t('Created') },
+      { columnId: 'approved', label: t('Approved') },
+      { columnId: 'effective', label: t('Effective') },
+    ],
+    [t]
+  )
+  const confirmationDetails = [
+    { label: t('Price group name'), value: internalName },
+    { label: t('Price group code'), value: t('Generated automatically') },
+  ]
+
+  const confirmAction = () => {
+    publishGroup.mutate()
+  }
 
   return (
     <Card>
@@ -131,19 +177,19 @@ export function PriceGroupManagement() {
         <CardTitle>{t('Price groups')}</CardTitle>
         <CardDescription>
           {t(
-            'Price groups define internal customer pricing segments. New groups require draft, platform administrator approval, and publication before pricing can reference them.'
+            'Price groups define internal customer pricing segments. Review and confirm a new group before it is published for pricing.'
           )}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
         <form
-          aria-label={t('Create price group draft')}
+          aria-label={t('Create price group')}
           className='bg-muted/20 max-w-5xl rounded-xl border p-4'
           onSubmit={(event) => {
             event.preventDefault()
             setSubmitted(true)
             if (nameError) return
-            createDraft.mutate()
+            setConfirmationOpen(true)
           }}
         >
           <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start'>
@@ -193,52 +239,13 @@ export function PriceGroupManagement() {
             <Button
               type='submit'
               className='w-full lg:mt-6 lg:w-auto'
-              disabled={createDraft.isPending}
+              disabled={publishGroup.isPending}
             >
-              {t('Create group draft')}
+              {t('Review new price group')}
             </Button>
           </div>
         </form>
 
-        {(groups.data ?? []).some((group) => group.status === 'DRAFT') && (
-          <div className='max-w-2xl space-y-1'>
-            <Label htmlFor='price-group-approval-reason'>
-              <BusinessTerm kind='pricingField' value='APPROVAL_REASON' />
-            </Label>
-            <Input
-              id='price-group-approval-reason'
-              value={form.approvalReason}
-              onChange={(event) => {
-                setApprovalTouched(true)
-                setForm((current) => ({
-                  ...current,
-                  approvalReason: event.target.value,
-                }))
-              }}
-              onBlur={() => setApprovalTouched(true)}
-              aria-required='true'
-              aria-describedby={`price-group-approval-help${approvalTouched && approvalError ? ' price-group-approval-error' : ''}`}
-              aria-invalid={
-                approvalTouched && approvalError ? 'true' : undefined
-              }
-            />
-            <div
-              id='price-group-approval-help'
-              className='text-muted-foreground text-xs'
-            >
-              {t('Required for approval, 8 to 2000 characters')}
-            </div>
-            {approvalTouched && approvalError && (
-              <div
-                id='price-group-approval-error'
-                className='text-destructive text-xs'
-                role='alert'
-              >
-                {approvalError}
-              </div>
-            )}
-          </div>
-        )}
         {groups.isPending && (
           <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
         )}
@@ -248,58 +255,37 @@ export function PriceGroupManagement() {
           </Button>
         )}
         <div className='space-y-3'>
-          {(groups.data ?? []).map((group: CanvasPriceGroupVersion) => (
-            <div key={group.id} className='rounded-xl border p-3 sm:p-4'>
-              <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
-                <div className='grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7'>
-                  <GroupDetail label='PRICE_GROUP_CODE' value={group.code} />
-                  <GroupDetail
-                    label='PRICE_GROUP_NAME'
-                    value={group.internalName}
-                  />
-                  <GroupDetail
-                    label='GROUP_VERSION'
-                    value={`v${group.version}`}
-                  />
-                  <GroupDetail label='GROUP_STATUS' value={t(group.status)} />
-                  <GroupDetail
-                    label='GROUP_CREATED'
-                    value={dateTime(group.createdAt)}
-                  />
-                  <GroupDetail
-                    label='GROUP_APPROVED'
-                    value={dateTime(group.approvedAt)}
-                  />
-                  <GroupDetail
-                    label='GROUP_EFFECTIVE'
-                    value={dateTime(group.effectiveAt)}
-                  />
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {group.status === 'DRAFT' && (
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      disabled={approve.isPending || Boolean(approvalError)}
-                      onClick={() => approve.mutate(group.id)}
-                    >
-                      {t('Approve')}
-                    </Button>
-                  )}
-                  {group.status === 'APPROVED' && (
-                    <Button
-                      size='sm'
-                      disabled={publish.isPending}
-                      onClick={() => publish.mutate(group.id)}
-                    >
-                      {t('Publish')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
+          <div>
+            <h3 className='text-sm font-semibold'>
+              {t('Price group records')}
+            </h3>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Changes requiring action appear first; published history is paginated.'
+              )}
+            </p>
+          </div>
+          <PricingRecordsTable
+            columns={groupColumns}
+            data={groups.data ?? []}
+            filters={groupFilters}
+            getRowId={(group) => group.id}
+            initialSorting={[{ id: 'created', desc: true }]}
+            emptyTitle={t('No price group records')}
+          />
         </div>
+        <PricingActionConfirmation
+          open={confirmationOpen}
+          onOpenChange={setConfirmationOpen}
+          title={t('Confirm price group change')}
+          description={t(
+            'Review the values below. Confirmation approves and publishes the change in one protected operation; published history remains immutable.'
+          )}
+          details={confirmationDetails}
+          confirmLabel={t('Confirm change')}
+          pending={publishGroup.isPending}
+          onConfirm={confirmAction}
+        />
       </CardContent>
     </Card>
   )

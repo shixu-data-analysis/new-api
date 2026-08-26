@@ -204,6 +204,48 @@ export interface CanvasPointIssuanceRateVersion {
   effectiveAt: string | null
 }
 
+export interface CanvasAdminTestingModel {
+  id: string
+  modelKey: string
+  version: number
+  name: string
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
+  customerVisible: boolean
+  pricedTargets: number
+  totalTargets: number
+  provider: { code: string; name: string }
+  channel: {
+    code: string
+    version: number
+    status: string
+    protocolAdapter: string
+    upstreamModel: string
+    executionSnapshot: Record<string, unknown>
+  }
+  publicCatalogSnapshot: Record<string, unknown>
+  parameterCombinations: Array<{
+    id: string
+    key: string
+    enabled: boolean
+    normalizedParameters: Record<string, unknown>
+    billingDimensionsSnapshot: Record<string, unknown>
+  }>
+  pricingTargets: Array<{
+    priceGroupId: string
+    priceGroupCode: string
+    priceGroupName: string
+    priceGroupVersion: number
+    parameterCombinationId: string
+    combinationKey: string
+    priced: boolean
+    priceVersionId: string | null
+    priceVersion: number | null
+    points: string | null
+  }>
+  createdAt: string
+  effectiveAt: string | null
+}
+
 export interface CanvasPriceGroupVersion {
   id: string
   code: string

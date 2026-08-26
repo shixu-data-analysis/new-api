@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Calculator } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,16 +34,15 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
-  approveCanvasPriceDraft,
-  approveCanvasPointIssuanceRate,
-  createCanvasPointIssuanceRateDraft,
-  createCanvasPriceDraft,
   getCanvasPointIssuanceRates,
-  publishCanvasPointIssuanceRate,
-  publishCanvasPriceVersion,
+  getCanvasAdminTestingModels,
+  publishConfirmedCanvasInitialPrice,
+  publishConfirmedCanvasPointIssuanceRate,
+  publishConfirmedCanvasPriceChange,
 } from '../api'
 import type {
   CanvasAdminWorkspace,
@@ -50,6 +50,9 @@ import type {
 } from '../types'
 import { BusinessTerm } from './BusinessTerm'
 import { PriceGroupManagement } from './PriceGroupManagement'
+import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { PricingRecordsTable } from './PricingRecordsTable'
+import { PricingTableColumnHeader } from './PricingTableColumnHeader'
 
 type Price = CanvasAdminWorkspace['prices'][number]
 
@@ -100,6 +103,22 @@ const editableFieldLabels: Partial<Record<(typeof fieldKeys)[number], string>> =
 
 function PricingField(props: { value: (typeof fieldKeys)[number] }) {
   return <BusinessTerm kind='pricingField' value={props.value} />
+}
+
+function pricingColumn<TData>(
+  id: string,
+  term: (typeof fieldKeys)[number],
+  accessorFn: (row: TData) => unknown,
+  cell: (row: TData) => React.ReactNode
+): ColumnDef<TData, unknown> {
+  return {
+    id,
+    accessorFn,
+    header: ({ column }) => (
+      <PricingTableColumnHeader column={column} term={term} />
+    ),
+    cell: ({ row }) => cell(row.original),
+  }
 }
 
 function dateTime(value: string | null): string {
@@ -160,29 +179,49 @@ function serverErrorPayload(error: unknown): {
   }
 }
 
-function Detail(props: { label: (typeof fieldKeys)[number]; value: string }) {
-  return (
-    <div className='min-w-0 space-y-1'>
-      <div className='text-muted-foreground text-xs font-medium'>
-        <PricingField value={props.label} />
-      </div>
-      <div className='text-sm break-words tabular-nums'>{props.value}</div>
-    </div>
-  )
-}
-
 export function AdminPricing(props: {
   prices: Price[]
   onChanged: () => Promise<unknown>
 }) {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState('prices')
+  const [confirmation, setConfirmation] = useState<
+    { kind: 'create-price' } | { kind: 'create-rate' } | null
+  >(null)
   const published = useMemo(
     () => props.prices.filter((price) => price.status === 'PUBLISHED'),
     [props.prices]
   )
+  const testingModels = useQuery({
+    queryKey: ['canvas-cloud', 'admin-testing-models'],
+    queryFn: getCanvasAdminTestingModels,
+    enabled: activeTab === 'prices',
+  })
+  const initialTargets = useMemo(
+    () =>
+      (testingModels.data ?? []).flatMap((model) =>
+        model.pricingTargets
+          .filter((target) => !target.priced)
+          .map((target) => ({ model, target }))
+      ),
+    [testingModels.data]
+  )
   const [selectedId, setSelectedId] = useState(published[0]?.id ?? '')
   const selected =
     published.find((price) => price.id === selectedId) ?? published[0]
+  const selectedInitial = initialTargets.find(
+    ({ model, target }) =>
+      `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}` ===
+      selectedId
+  )
+  useEffect(() => {
+    if (!selectedId && initialTargets[0]) {
+      const { model, target } = initialTargets[0]
+      setSelectedId(
+        `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}`
+      )
+    }
+  }, [initialTargets, selectedId])
   const [form, setForm] = useState({
     points: '',
     successProbability: '0.900000',
@@ -191,7 +230,6 @@ export function AdminPricing(props: {
     otherVariableCostRmb: '0',
     riskBufferRmb: '0',
     decisionSummary: '',
-    approvalReason: '',
   })
   const [priceTouched, setPriceTouched] = useState({
     points: false,
@@ -206,7 +244,6 @@ export function AdminPricing(props: {
   const [rateForm, setRateForm] = useState({
     pointsPerRmb: '',
     decisionSummary: '',
-    approvalReason: '',
   })
   const [rateTouched, setRateTouched] = useState({
     pointsPerRmb: false,
@@ -216,6 +253,7 @@ export function AdminPricing(props: {
   const rates = useQuery({
     queryKey: ['canvas-cloud', 'point-issuance-rates'],
     queryFn: getCanvasPointIssuanceRates,
+    enabled: activeTab === 'rate',
   })
   const trimmedRate = rateForm.pointsPerRmb.trim()
   const trimmedDecision = rateForm.decisionSummary.trim()
@@ -316,6 +354,18 @@ export function AdminPricing(props: {
   }, [rates.data])
 
   useEffect(() => {
+    if (selectedInitial) {
+      setForm((current) => ({
+        ...current,
+        points: '',
+        successProbability: '0.9',
+        successfulTaskCostRmb: '0',
+        failedUnrecoverableCostRmb: '0',
+        otherVariableCostRmb: '0',
+        riskBufferRmb: '0',
+      }))
+      return
+    }
     if (!selected) return
     const assumptions = selected.pricingAssumptionsSnapshot
     setForm((current) => ({
@@ -336,15 +386,32 @@ export function AdminPricing(props: {
           : '0',
       riskBufferRmb: editableDecimal(selected.riskBufferRmb),
     }))
-  }, [selected])
+  }, [selected, selectedInitial])
 
   const changed = async () => {
     await props.onChanged()
   }
-  const draft = useMutation({
+  const publishPrice = useMutation({
     mutationFn: async () => {
+      if (selectedInitial) {
+        return publishConfirmedCanvasInitialPrice({
+          customerModelId: selectedInitial.model.id,
+          priceGroupId: selectedInitial.target.priceGroupId,
+          parameterCombinationId:
+            selectedInitial.target.parameterCombinationId,
+          points: priceValues.points,
+          successProbability: priceValues.successProbability,
+          successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
+          failedUnrecoverableCostRmb: priceValues.failedUnrecoverableCostRmb,
+          otherVariableCostRmb: priceValues.otherVariableCostRmb,
+          riskBufferRmb: priceValues.riskBufferRmb,
+          ...(priceValues.decisionSummary
+            ? { decisionSummary: priceValues.decisionSummary }
+            : {}),
+        })
+      }
       if (!selected) throw new Error('No published price selected')
-      return createCanvasPriceDraft({
+      return publishConfirmedCanvasPriceChange({
         sourcePriceVersionId: selected.id,
         points: priceValues.points,
         successProbability: priceValues.successProbability,
@@ -358,7 +425,8 @@ export function AdminPricing(props: {
       })
     },
     onSuccess: async () => {
-      toast.success(t('Price draft created'))
+      setConfirmation(null)
+      toast.success(t('Price published'))
       setForm((current) => ({ ...current, decisionSummary: '' }))
       setPriceTouched({
         points: false,
@@ -371,23 +439,7 @@ export function AdminPricing(props: {
       })
       setPriceSubmitted(false)
       await changed()
-    },
-    onError: () => toast.error(t('Price draft failed')),
-  })
-  const approve = useMutation({
-    mutationFn: (id: string) =>
-      approveCanvasPriceDraft(id, form.approvalReason.trim()),
-    onSuccess: async () => {
-      toast.success(t('Price draft approved'))
-      await changed()
-    },
-    onError: () => toast.error(t('Price approval failed')),
-  })
-  const publish = useMutation({
-    mutationFn: publishCanvasPriceVersion,
-    onSuccess: async () => {
-      toast.success(t('Price published'))
-      await changed()
+      await testingModels.refetch()
     },
     onError: () => toast.error(t('Price publication failed')),
   })
@@ -396,12 +448,13 @@ export function AdminPricing(props: {
   }
   const createRate = useMutation({
     mutationFn: () =>
-      createCanvasPointIssuanceRateDraft({
+      publishConfirmedCanvasPointIssuanceRate({
         pointsPerRmb: trimmedRate,
         ...(trimmedDecision ? { decisionSummary: trimmedDecision } : {}),
       }),
     onSuccess: async () => {
-      toast.success(t('Point issuance rate draft created'))
+      setConfirmation(null)
+      toast.success(t('Point issuance rate published'))
       setRateForm((current) => ({
         ...current,
         decisionSummary: '',
@@ -418,7 +471,7 @@ export function AdminPricing(props: {
       let description: string
       if (failure.code === 'VALIDATION_FAILED') {
         description = t(
-          'The submitted rate draft did not pass server validation. Check the field requirements and try again.'
+          'The submitted rate change did not pass server validation. Check the field requirements and try again.'
         )
       } else if (failure.code === 'UNAUTHORIZED') {
         description = t(
@@ -441,40 +494,322 @@ export function AdminPricing(props: {
           'The request failed before the server returned a reason.'
         )
       }
-      toast.error(t('Point issuance rate draft failed'), {
+      toast.error(t('Point issuance rate publication failed'), {
         description,
         closeButton: false,
       })
     },
   })
-  const approveRate = useMutation({
-    mutationFn: (id: string) =>
-      approveCanvasPointIssuanceRate(id, rateForm.approvalReason.trim()),
-    onSuccess: async () => {
-      toast.success(t('Point issuance rate approved'))
-      await refreshRates()
-    },
-    onError: () => toast.error(t('Point issuance rate approval failed')),
-  })
-  const publishRate = useMutation({
-    mutationFn: publishCanvasPointIssuanceRate,
-    onSuccess: async () => {
-      toast.success(t('Point issuance rate published'))
-      await refreshRates()
-    },
-    onError: () => toast.error(t('Point issuance rate publication failed')),
-  })
+  const rateColumns = useMemo<
+    ColumnDef<CanvasPointIssuanceRateVersion, unknown>[]
+  >(
+    () => [
+      pricingColumn(
+        'version',
+        'RATE_VERSION',
+        (rate) => rate.version,
+        (rate) => `v${rate.version}`
+      ),
+      pricingColumn(
+        'status',
+        'RATE_STATUS',
+        (rate) => t(rate.status),
+        (rate) => t(rate.status)
+      ),
+      pricingColumn(
+        'rate',
+        'ISSUANCE_RATE',
+        (rate) => Number(rate.pointsPerRmb),
+        (rate) => `${businessDecimal(rate.pointsPerRmb)} ${t('points per RMB')}`
+      ),
+      pricingColumn(
+        'created',
+        'RATE_CREATED',
+        (rate) => rate.createdAt,
+        (rate) => dateTime(rate.createdAt)
+      ),
+      pricingColumn(
+        'approved',
+        'RATE_APPROVED',
+        (rate) => rate.approvedAt ?? '',
+        (rate) => dateTime(rate.approvedAt)
+      ),
+      pricingColumn(
+        'effective',
+        'RATE_EFFECTIVE',
+        (rate) => rate.effectiveAt ?? '',
+        (rate) => dateTime(rate.effectiveAt)
+      ),
+    ],
+    [t]
+  )
+  const rateFilters = useMemo(
+    () => [
+      { columnId: 'version', label: t('Rate version') },
+      { columnId: 'status', label: t('Status') },
+      { columnId: 'rate', label: t('Point issuance rate') },
+      { columnId: 'created', label: t('Created') },
+      { columnId: 'approved', label: t('Approved') },
+      { columnId: 'effective', label: t('Effective') },
+    ],
+    [t]
+  )
+  const priceColumns = useMemo<ColumnDef<Price, unknown>[]>(
+    () => [
+      pricingColumn(
+        'model',
+        'MODEL',
+        (price) => `${price.modelName} ${price.modelKey}`,
+        (price) => (
+          <div className='min-w-48'>
+            <div className='font-medium'>{price.modelName}</div>
+            <div className='text-muted-foreground text-xs'>
+              {price.modelKey}
+            </div>
+          </div>
+        )
+      ),
+      pricingColumn(
+        'priceGroup',
+        'PRICE_GROUP',
+        (price) => `${price.priceGroup} ${price.priceGroupCode}`,
+        (price) => (
+          <div className='min-w-44'>
+            <div>{price.priceGroup}</div>
+            <div className='text-muted-foreground text-xs'>
+              {price.priceGroupCode}
+            </div>
+          </div>
+        )
+      ),
+      pricingColumn(
+        'combination',
+        'COMBINATION',
+        (price) => price.combinationKey,
+        (price) => price.combinationKey
+      ),
+      pricingColumn(
+        'version',
+        'VERSION',
+        (price) => price.version,
+        (price) => `v${price.version}`
+      ),
+      pricingColumn(
+        'status',
+        'STATUS',
+        (price) => t(price.status),
+        (price) => t(price.status)
+      ),
+      pricingColumn(
+        'points',
+        'POINTS',
+        (price) => Number(price.points),
+        (price) => `${price.points} ${t('points')}`
+      ),
+      pricingColumn(
+        'baseRate',
+        'BASE_RATE',
+        (price) => Number(price.baseRatePointsPerRmb),
+        (price) =>
+          `${businessDecimal(price.baseRatePointsPerRmb)} ${t('points per RMB')}`
+      ),
+      pricingColumn(
+        'targetMargin',
+        'TARGET_MARGIN_RATE',
+        (price) => Number(price.targetMarginRate),
+        (price) => `${Number(price.targetMarginRate) * 100}%`
+      ),
+      pricingColumn(
+        'successProbability',
+        'SUCCESS_PROBABILITY',
+        (price) => Number(price.successProbability),
+        (price) => businessDecimal(price.successProbability)
+      ),
+      pricingColumn(
+        'successCost',
+        'SUCCESS_COST',
+        (price) =>
+          Number(price.pricingAssumptionsSnapshot.successfulTaskCostRmb ?? 0),
+        (price) =>
+          `${businessDecimal(String(price.pricingAssumptionsSnapshot.successfulTaskCostRmb ?? 0))} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'failureCost',
+        'FAILURE_COST',
+        (price) =>
+          Number(
+            price.pricingAssumptionsSnapshot.failedUnrecoverableCostRmb ?? 0
+          ),
+        (price) =>
+          `${businessDecimal(String(price.pricingAssumptionsSnapshot.failedUnrecoverableCostRmb ?? 0))} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'otherCost',
+        'OTHER_COST',
+        (price) =>
+          Number(price.pricingAssumptionsSnapshot.otherVariableCostRmb ?? 0),
+        (price) =>
+          `${businessDecimal(String(price.pricingAssumptionsSnapshot.otherVariableCostRmb ?? 0))} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'kTheory',
+        'K_THEORY',
+        (price) => Number(price.kTheoryRmb),
+        (price) => `${businessDecimal(price.kTheoryRmb)} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'kActual',
+        'K_ACTUAL',
+        (price) => (price.kActualRmb === null ? -1 : Number(price.kActualRmb)),
+        (price) =>
+          price.kActualRmb === null
+            ? t('Not eligible or unavailable')
+            : `${businessDecimal(price.kActualRmb)} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'kPricing',
+        'K_PRICING',
+        (price) => Number(price.kPricingRmb),
+        (price) => `${businessDecimal(price.kPricingRmb)} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'riskBuffer',
+        'RISK_BUFFER',
+        (price) => Number(price.riskBufferRmb),
+        (price) => `${businessDecimal(price.riskBufferRmb)} ${t('RMB')}`
+      ),
+      pricingColumn(
+        'breakEven',
+        'BREAK_EVEN',
+        (price) => Number(price.breakEvenPoints),
+        (price) => `${price.breakEvenPoints} ${t('points')}`
+      ),
+      pricingColumn(
+        'targetMarginPoints',
+        'TARGET_MARGIN_POINTS',
+        (price) => Number(price.targetMarginPoints),
+        (price) => `${price.targetMarginPoints} ${t('points')}`
+      ),
+      pricingColumn(
+        'created',
+        'CREATED',
+        (price) => price.createdAt,
+        (price) => dateTime(price.createdAt)
+      ),
+      pricingColumn(
+        'approved',
+        'APPROVED',
+        (price) => price.approvedAt ?? '',
+        (price) => dateTime(price.approvedAt)
+      ),
+      pricingColumn(
+        'effective',
+        'EFFECTIVE',
+        (price) => price.effectiveAt ?? '',
+        (price) => dateTime(price.effectiveAt)
+      ),
+      pricingColumn(
+        'assumptions',
+        'ASSUMPTIONS',
+        (price) =>
+          JSON.stringify(
+            visiblePricingAssumptions(price.pricingAssumptionsSnapshot)
+          ),
+        (price) => {
+          const assumptions = visiblePricingAssumptions(
+            price.pricingAssumptionsSnapshot
+          )
+          return (
+            <details className='max-w-80 min-w-48'>
+              <summary className='cursor-pointer text-sm font-medium'>
+                {t('Show pricing assumptions')}
+              </summary>
+              <pre className='bg-muted/40 mt-2 max-h-56 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap'>
+                {JSON.stringify(assumptions, null, 2)}
+              </pre>
+            </details>
+          )
+        }
+      ),
+    ],
+    [t]
+  )
+  const priceFilters = useMemo(
+    () =>
+      [
+        ['model', 'Model'],
+        ['priceGroup', 'Price group'],
+        ['combination', 'Parameter combination'],
+        ['version', 'Version'],
+        ['status', 'Status'],
+        ['points', 'Points'],
+        ['baseRate', 'Base rate'],
+        ['targetMargin', 'Target margin rate'],
+        ['successProbability', 'Success probability'],
+        ['successCost', 'Successful task cost'],
+        ['failureCost', 'Failed unrecoverable cost'],
+        ['otherCost', 'Other variable cost'],
+        ['kTheory', 'K_theory'],
+        ['kActual', 'K_actual'],
+        ['kPricing', 'K_pricing'],
+        ['riskBuffer', 'Risk buffer'],
+        ['breakEven', 'Break-even'],
+        ['targetMarginPoints', 'Target margin floor'],
+        ['created', 'Created'],
+        ['approved', 'Approved'],
+        ['effective', 'Effective'],
+        ['assumptions', 'Pricing assumptions'],
+      ].map(([columnId, label]) => ({ columnId, label: t(label) })),
+    [t]
+  )
+
+  const confirmationDetails = (() => {
+    if (!confirmation) return []
+    if (confirmation.kind === 'create-rate') {
+      return [
+        {
+          label: t('Point issuance rate'),
+          value: `${trimmedRate} ${t('points per RMB')}`,
+        },
+        {
+          label: t('Decision summary'),
+          value: trimmedDecision || t('Not provided'),
+        },
+      ]
+    }
+    if (confirmation.kind === 'create-price') {
+      return [
+        {
+          label: t('Published price source'),
+          value: selectedInitial?.model.name ?? selected?.modelName ?? '—',
+        },
+        { label: t('Points'), value: `${priceValues.points} ${t('points')}` },
+        {
+          label: t('Success probability'),
+          value: priceValues.successProbability,
+        },
+        {
+          label: t('Risk buffer'),
+          value: `${priceValues.riskBufferRmb} ${t('RMB')}`,
+        },
+      ]
+    }
+    return []
+  })()
+
+  const confirmAction = () => {
+    if (!confirmation) return
+    if (confirmation.kind === 'create-price') publishPrice.mutate()
+    if (confirmation.kind === 'create-rate') createRate.mutate()
+  }
+
+  const confirmationPending = publishPrice.isPending || createRate.isPending
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-4'>
       <Card>
         <CardHeader>
-          <CardTitle>{t('Point issuance rate')}</CardTitle>
-          <CardDescription>
-            {t(
-              'The published rate applies only to new pricing drafts and new recharge facts. Historical snapshots are never recalculated.'
-            )}
-          </CardDescription>
+          <CardTitle>{t('Canvas pricing')}</CardTitle>
           <CardAction>
             <Button
               type='button'
@@ -494,291 +829,54 @@ export function AdminPricing(props: {
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent className='space-y-4'>
-          <form
-            aria-label={t('Create point issuance rate draft')}
-            className='bg-muted/20 max-w-5xl overflow-hidden rounded-xl border'
-            onSubmit={(event) => {
-              event.preventDefault()
-              setRateSubmitted(true)
-              if (!rateFormValid) return
-              createRate.mutate()
-            }}
-          >
-            <div className='border-b px-4 py-3'>
-              <div className='text-sm font-medium'>
-                {t('Create point issuance rate draft')}
-              </div>
-            </div>
-            <div className='space-y-4 p-4'>
-              <div className='grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]'>
-                <div className='space-y-1'>
-                  <Label htmlFor='issuance-rate-value'>
-                    <PricingField value='ISSUANCE_RATE' />
-                    <span className='text-destructive ml-1' aria-hidden='true'>
-                      *
-                    </span>
-                  </Label>
-                  <Input
-                    id='issuance-rate-value'
-                    inputMode='decimal'
-                    value={rateForm.pointsPerRmb}
-                    onChange={(event) =>
-                      setRateForm((current) => ({
-                        ...current,
-                        pointsPerRmb: event.target.value,
-                      }))
-                    }
-                    onBlur={() =>
-                      setRateTouched((current) => ({
-                        ...current,
-                        pointsPerRmb: true,
-                      }))
-                    }
-                    aria-required='true'
-                    aria-describedby={`issuance-rate-unit${showRateError('pointsPerRmb') && rateErrors.pointsPerRmb ? ' issuance-rate-error' : ''}`}
-                    aria-invalid={
-                      showRateError('pointsPerRmb') &&
-                      Boolean(rateErrors.pointsPerRmb)
-                    }
-                  />
-                  <div
-                    id='issuance-rate-unit'
-                    className='text-muted-foreground text-xs'
-                  >
-                    {t('points per RMB, up to 2 decimals')}
-                  </div>
-                  {showRateError('pointsPerRmb') && rateErrors.pointsPerRmb && (
-                    <div
-                      id='issuance-rate-error'
-                      className='text-destructive text-xs'
-                      role='alert'
-                    >
-                      {rateErrors.pointsPerRmb}
-                    </div>
-                  )}
-                </div>
-                <div className='space-y-1'>
-                  <Label htmlFor='issuance-rate-decision'>
-                    <PricingField value='RATE_DECISION' />
-                  </Label>
-                  <Input
-                    id='issuance-rate-decision'
-                    value={rateForm.decisionSummary}
-                    onChange={(event) =>
-                      setRateForm((current) => ({
-                        ...current,
-                        decisionSummary: event.target.value,
-                      }))
-                    }
-                    onBlur={() =>
-                      setRateTouched((current) => ({
-                        ...current,
-                        decisionSummary: true,
-                      }))
-                    }
-                    aria-describedby={
-                      showRateError('decisionSummary') &&
-                      rateErrors.decisionSummary
-                        ? 'issuance-rate-decision-help issuance-rate-decision-error'
-                        : 'issuance-rate-decision-help'
-                    }
-                    aria-invalid={
-                      showRateError('decisionSummary') &&
-                      Boolean(rateErrors.decisionSummary)
-                    }
-                  />
-                  <div
-                    id='issuance-rate-decision-help'
-                    className='text-muted-foreground text-xs'
-                  >
-                    {t('Optional, up to 2000 characters')}
-                  </div>
-                  {showRateError('decisionSummary') &&
-                    rateErrors.decisionSummary && (
-                      <div
-                        id='issuance-rate-decision-error'
-                        className='text-destructive text-xs'
-                        role='alert'
-                      >
-                        {rateErrors.decisionSummary}
-                      </div>
-                    )}
-                </div>
-              </div>
-              <div className='flex justify-end border-t pt-4'>
-                <Button
-                  type='submit'
-                  className='w-full sm:w-auto'
-                  disabled={createRate.isPending}
-                >
-                  {t('Create rate draft')}
-                </Button>
-              </div>
-            </div>
-          </form>
-          {(rates.data ?? []).some((rate) => rate.status === 'DRAFT') && (
-            <div className='max-w-2xl space-y-1'>
-              <Label htmlFor='issuance-rate-approval-reason'>
-                <PricingField value='APPROVAL_REASON' />
-              </Label>
-              <Input
-                id='issuance-rate-approval-reason'
-                value={rateForm.approvalReason}
-                onChange={(event) =>
-                  setRateForm((current) => ({
-                    ...current,
-                    approvalReason: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          )}
-          {rates.isPending && (
-            <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
-          )}
-          {rates.isError && (
-            <Button variant='outline' onClick={() => void rates.refetch()}>
-              {t('Retry')}
-            </Button>
-          )}
-          <div className='space-y-3'>
-            {(rates.data ?? []).map((rate: CanvasPointIssuanceRateVersion) => (
-              <div key={rate.id} className='rounded-xl border p-3 sm:p-4'>
-                <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
-                  <div className='grid min-w-0 flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6'>
-                    <Detail label='RATE_VERSION' value={`v${rate.version}`} />
-                    <Detail label='RATE_STATUS' value={t(rate.status)} />
-                    <Detail
-                      label='ISSUANCE_RATE'
-                      value={`${businessDecimal(rate.pointsPerRmb)} ${t('points per RMB')}`}
-                    />
-                    <Detail
-                      label='RATE_EFFECTIVE'
-                      value={dateTime(rate.effectiveAt)}
-                    />
-                    <Detail
-                      label='RATE_CREATED'
-                      value={dateTime(rate.createdAt)}
-                    />
-                    <Detail
-                      label='RATE_APPROVED'
-                      value={rate.approvedAt ? dateTime(rate.approvedAt) : '—'}
-                    />
-                  </div>
-                  <div className='flex flex-wrap gap-2'>
-                    {rate.status === 'DRAFT' && (
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        disabled={
-                          approveRate.isPending ||
-                          rateForm.approvalReason.trim().length < 8
-                        }
-                        onClick={() => approveRate.mutate(rate.id)}
-                      >
-                        {t('Approve')}
-                      </Button>
-                    )}
-                    {rate.status === 'APPROVED' && (
-                      <Button
-                        size='sm'
-                        disabled={publishRate.isPending}
-                        onClick={() => publishRate.mutate(rate.id)}
-                      >
-                        {t('Publish')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className='h-auto max-w-full flex-wrap justify-start gap-1'>
+              <TabsTrigger className='min-h-9 px-3' value='prices'>
+                {t('Model prices')}
+              </TabsTrigger>
+              <TabsTrigger className='min-h-9 px-3' value='groups'>
+                {t('Price groups')}
+              </TabsTrigger>
+              <TabsTrigger className='min-h-9 px-3' value='rate'>
+                {t('Point issuance rate')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardContent>
       </Card>
 
-      <PriceGroupManagement />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Create price version draft')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Only administrator inputs are editable. Submission creates a new DRAFT and never changes the selected published version.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            aria-label={t('Create price version draft')}
-            className='space-y-4'
-            onSubmit={(event) => {
-              event.preventDefault()
-              setPriceSubmitted(true)
-              if (!priceFormValid) return
-              draft.mutate()
-            }}
-          >
-            <div className='space-y-1'>
-              <Label htmlFor='pricing-source'>
-                {t('Published price source')}
-              </Label>
-              <select
-                id='pricing-source'
-                className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
-                value={selected?.id ?? ''}
-                onChange={(event) => setSelectedId(event.target.value)}
-              >
-                {published.map((price) => (
-                  <option key={price.id} value={price.id}>
-                    {price.modelName} · {price.priceGroup} ·{' '}
-                    {price.combinationKey} · v{price.version}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-              {[
-                ['pricing-points', 'POINTS', 'points', 'numeric'],
-                [
-                  'pricing-q',
-                  'SUCCESS_PROBABILITY',
-                  'successProbability',
-                  'decimal',
-                ],
-                [
-                  'pricing-success-cost',
-                  'SUCCESS_COST',
-                  'successfulTaskCostRmb',
-                  'decimal',
-                ],
-                [
-                  'pricing-failure-cost',
-                  'FAILURE_COST',
-                  'failedUnrecoverableCostRmb',
-                  'decimal',
-                ],
-                [
-                  'pricing-other-cost',
-                  'OTHER_COST',
-                  'otherVariableCostRmb',
-                  'decimal',
-                ],
-                ['pricing-buffer', 'RISK_BUFFER', 'riskBufferRmb', 'decimal'],
-              ].map(([id, label, key, inputMode]) => {
-                const field = key as keyof typeof priceTouched
-                let unit = t('RMB per successful chargeable result')
-                if (key === 'points') {
-                  unit = t('Integer points')
-                } else if (key === 'successProbability') {
-                  unit = t('Decimal from 0 to 1')
-                }
-                return (
-                  <div key={id} className='space-y-1'>
-                    <Label htmlFor={id}>
-                      <PricingField
-                        value={label as (typeof fieldKeys)[number]}
-                      />
+      {activeTab === 'rate' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Point issuance rate')}</CardTitle>
+            <CardDescription>
+              {t(
+                'The published rate applies only to new prices and new recharge facts. Historical snapshots are never recalculated.'
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            <form
+              aria-label={t('Adjust point issuance rate')}
+              className='bg-muted/20 max-w-5xl overflow-hidden rounded-xl border'
+              onSubmit={(event) => {
+                event.preventDefault()
+                setRateSubmitted(true)
+                if (!rateFormValid) return
+                setConfirmation({ kind: 'create-rate' })
+              }}
+            >
+              <div className='border-b px-4 py-3'>
+                <div className='text-sm font-medium'>
+                  {t('Adjust point issuance rate')}
+                </div>
+              </div>
+              <div className='space-y-4 p-4'>
+                <div className='grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]'>
+                  <div className='space-y-1'>
+                    <Label htmlFor='issuance-rate-value'>
+                      <PricingField value='ISSUANCE_RATE' />
                       <span
                         className='text-destructive ml-1'
                         aria-hidden='true'
@@ -787,248 +885,388 @@ export function AdminPricing(props: {
                       </span>
                     </Label>
                     <Input
-                      id={id}
-                      aria-label={t(
-                        editableFieldLabels[
-                          label as (typeof fieldKeys)[number]
-                        ] ?? label
-                      )}
-                      inputMode={inputMode as 'numeric' | 'decimal'}
-                      value={form[key as keyof typeof form]}
+                      id='issuance-rate-value'
+                      inputMode='decimal'
+                      value={rateForm.pointsPerRmb}
                       onChange={(event) =>
-                        setForm((current) => ({
+                        setRateForm((current) => ({
                           ...current,
-                          [key]: event.target.value,
+                          pointsPerRmb: event.target.value,
                         }))
                       }
                       onBlur={() =>
-                        setPriceTouched((current) => ({
+                        setRateTouched((current) => ({
                           ...current,
-                          [field]: true,
+                          pointsPerRmb: true,
                         }))
                       }
                       aria-required='true'
-                      aria-describedby={`${id}-unit${showPriceError(field) && priceErrors[field] ? ` ${id}-error` : ''}`}
+                      aria-describedby={`issuance-rate-unit${showRateError('pointsPerRmb') && rateErrors.pointsPerRmb ? ' issuance-rate-error' : ''}`}
                       aria-invalid={
-                        showPriceError(field) && Boolean(priceErrors[field])
+                        showRateError('pointsPerRmb') &&
+                        Boolean(rateErrors.pointsPerRmb)
                       }
                     />
                     <div
-                      id={`${id}-unit`}
+                      id='issuance-rate-unit'
                       className='text-muted-foreground text-xs'
                     >
-                      {unit}
+                      {t('points per RMB, up to 2 decimals')}
                     </div>
-                    {showPriceError(field) && priceErrors[field] && (
+                    {showRateError('pointsPerRmb') &&
+                      rateErrors.pointsPerRmb && (
+                        <div
+                          id='issuance-rate-error'
+                          className='text-destructive text-xs'
+                          role='alert'
+                        >
+                          {rateErrors.pointsPerRmb}
+                        </div>
+                      )}
+                  </div>
+                  <div className='space-y-1'>
+                    <Label htmlFor='issuance-rate-decision'>
+                      <PricingField value='RATE_DECISION' />
+                    </Label>
+                    <Input
+                      id='issuance-rate-decision'
+                      value={rateForm.decisionSummary}
+                      onChange={(event) =>
+                        setRateForm((current) => ({
+                          ...current,
+                          decisionSummary: event.target.value,
+                        }))
+                      }
+                      onBlur={() =>
+                        setRateTouched((current) => ({
+                          ...current,
+                          decisionSummary: true,
+                        }))
+                      }
+                      aria-describedby={
+                        showRateError('decisionSummary') &&
+                        rateErrors.decisionSummary
+                          ? 'issuance-rate-decision-help issuance-rate-decision-error'
+                          : 'issuance-rate-decision-help'
+                      }
+                      aria-invalid={
+                        showRateError('decisionSummary') &&
+                        Boolean(rateErrors.decisionSummary)
+                      }
+                    />
+                    <div
+                      id='issuance-rate-decision-help'
+                      className='text-muted-foreground text-xs'
+                    >
+                      {t('Optional, up to 2000 characters')}
+                    </div>
+                    {showRateError('decisionSummary') &&
+                      rateErrors.decisionSummary && (
+                        <div
+                          id='issuance-rate-decision-error'
+                          className='text-destructive text-xs'
+                          role='alert'
+                        >
+                          {rateErrors.decisionSummary}
+                        </div>
+                      )}
+                  </div>
+                </div>
+                <div className='flex justify-end border-t pt-4'>
+                  <Button
+                    type='submit'
+                    className='w-full sm:w-auto'
+                    disabled={createRate.isPending}
+                  >
+                    {t('Review rate change')}
+                  </Button>
+                </div>
+              </div>
+            </form>
+            {rates.isPending && (
+              <div className='text-muted-foreground text-sm'>
+                {t('Loading')}
+              </div>
+            )}
+            {rates.isError && (
+              <Button variant='outline' onClick={() => void rates.refetch()}>
+                {t('Retry')}
+              </Button>
+            )}
+            <div className='space-y-3'>
+              <div>
+                <h3 className='text-sm font-semibold'>{t('Rate records')}</h3>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {t(
+                    'Changes requiring action appear first; published history is paginated.'
+                  )}
+                </p>
+              </div>
+              <PricingRecordsTable
+                columns={rateColumns}
+                data={rates.data ?? []}
+                filters={rateFilters}
+                getRowId={(rate) => rate.id}
+                initialSorting={[{ id: 'version', desc: true }]}
+                emptyTitle={t('No rate records')}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'groups' && <PriceGroupManagement />}
+
+      {activeTab === 'prices' && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Adjust model price')}</CardTitle>
+              <CardDescription>
+                {t(
+                  'Review the editable inputs, then confirm the change. The published source remains immutable and the confirmed change enters approval.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                aria-label={t('Adjust model price')}
+                className='space-y-4'
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  setPriceSubmitted(true)
+                  if (!priceFormValid) return
+                  setConfirmation({ kind: 'create-price' })
+                }}
+              >
+                <div className='space-y-1'>
+                  <Label htmlFor='pricing-source'>
+                    {t('Pricing target')}
+                  </Label>
+                  <select
+                    id='pricing-source'
+                    className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
+                    value={selectedInitial ? selectedId : (selected?.id ?? '')}
+                    onChange={(event) => setSelectedId(event.target.value)}
+                  >
+                    {published.map((price) => (
+                      <option key={price.id} value={price.id}>
+                        {price.modelName} · {price.priceGroup} ·{' '}
+                        {price.combinationKey} · v{price.version}
+                      </option>
+                    ))}
+                    {initialTargets.map(({ model, target }) => {
+                      const value = `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}`
+                      return (
+                        <option key={value} value={value}>
+                          {model.name} · {target.priceGroupName} ·{' '}
+                          {target.combinationKey} · {t('Not priced')}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+                <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+                  {[
+                    ['pricing-points', 'POINTS', 'points', 'numeric'],
+                    [
+                      'pricing-q',
+                      'SUCCESS_PROBABILITY',
+                      'successProbability',
+                      'decimal',
+                    ],
+                    [
+                      'pricing-success-cost',
+                      'SUCCESS_COST',
+                      'successfulTaskCostRmb',
+                      'decimal',
+                    ],
+                    [
+                      'pricing-failure-cost',
+                      'FAILURE_COST',
+                      'failedUnrecoverableCostRmb',
+                      'decimal',
+                    ],
+                    [
+                      'pricing-other-cost',
+                      'OTHER_COST',
+                      'otherVariableCostRmb',
+                      'decimal',
+                    ],
+                    [
+                      'pricing-buffer',
+                      'RISK_BUFFER',
+                      'riskBufferRmb',
+                      'decimal',
+                    ],
+                  ].map(([id, label, key, inputMode]) => {
+                    const field = key as keyof typeof priceTouched
+                    let unit = t('RMB per successful chargeable result')
+                    if (key === 'points') {
+                      unit = t('Integer points')
+                    } else if (key === 'successProbability') {
+                      unit = t('Decimal from 0 to 1')
+                    }
+                    return (
+                      <div key={id} className='space-y-1'>
+                        <Label htmlFor={id}>
+                          <PricingField
+                            value={label as (typeof fieldKeys)[number]}
+                          />
+                          <span
+                            className='text-destructive ml-1'
+                            aria-hidden='true'
+                          >
+                            *
+                          </span>
+                        </Label>
+                        <Input
+                          id={id}
+                          aria-label={t(
+                            editableFieldLabels[
+                              label as (typeof fieldKeys)[number]
+                            ] ?? label
+                          )}
+                          inputMode={inputMode as 'numeric' | 'decimal'}
+                          value={form[key as keyof typeof form]}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          onBlur={() =>
+                            setPriceTouched((current) => ({
+                              ...current,
+                              [field]: true,
+                            }))
+                          }
+                          aria-required='true'
+                          aria-describedby={`${id}-unit${showPriceError(field) && priceErrors[field] ? ` ${id}-error` : ''}`}
+                          aria-invalid={
+                            showPriceError(field) && Boolean(priceErrors[field])
+                          }
+                        />
+                        <div
+                          id={`${id}-unit`}
+                          className='text-muted-foreground text-xs'
+                        >
+                          {unit}
+                        </div>
+                        {showPriceError(field) && priceErrors[field] && (
+                          <div
+                            id={`${id}-error`}
+                            className='text-destructive text-xs'
+                            role='alert'
+                          >
+                            {priceErrors[field]}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className='max-w-3xl space-y-1'>
+                  <Label htmlFor='pricing-decision'>
+                    <PricingField value='DECISION' />
+                  </Label>
+                  <Textarea
+                    id='pricing-decision'
+                    aria-label={t('Decision summary')}
+                    value={form.decisionSummary}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        decisionSummary: event.target.value,
+                      }))
+                    }
+                    onBlur={() =>
+                      setPriceTouched((current) => ({
+                        ...current,
+                        decisionSummary: true,
+                      }))
+                    }
+                    aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
+                    aria-invalid={
+                      showPriceError('decisionSummary') &&
+                      Boolean(priceErrors.decisionSummary)
+                    }
+                  />
+                  <div
+                    id='pricing-decision-help'
+                    className='text-muted-foreground text-xs'
+                  >
+                    {t('Optional, up to 2000 characters')}
+                  </div>
+                  {showPriceError('decisionSummary') &&
+                    priceErrors.decisionSummary && (
                       <div
-                        id={`${id}-error`}
+                        id='pricing-decision-error'
                         className='text-destructive text-xs'
                         role='alert'
                       >
-                        {priceErrors[field]}
+                        {priceErrors.decisionSummary}
                       </div>
                     )}
-                  </div>
-                )
-              })}
-            </div>
-            <div className='max-w-3xl space-y-1'>
-              <Label htmlFor='pricing-decision'>
-                <PricingField value='DECISION' />
-              </Label>
-              <Textarea
-                id='pricing-decision'
-                aria-label={t('Decision summary')}
-                value={form.decisionSummary}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    decisionSummary: event.target.value,
-                  }))
-                }
-                onBlur={() =>
-                  setPriceTouched((current) => ({
-                    ...current,
-                    decisionSummary: true,
-                  }))
-                }
-                aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
-                aria-invalid={
-                  showPriceError('decisionSummary') &&
-                  Boolean(priceErrors.decisionSummary)
-                }
-              />
-              <div
-                id='pricing-decision-help'
-                className='text-muted-foreground text-xs'
-              >
-                {t('Optional, up to 2000 characters')}
-              </div>
-              {showPriceError('decisionSummary') &&
-                priceErrors.decisionSummary && (
-                  <div
-                    id='pricing-decision-error'
-                    className='text-destructive text-xs'
-                    role='alert'
-                  >
-                    {priceErrors.decisionSummary}
-                  </div>
-                )}
-            </div>
-            <Button
-              type='submit'
-              className='w-full sm:w-auto'
-              disabled={!selected || draft.isPending}
-            >
-              {t('Create calculated draft')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Price versions')}</CardTitle>
-          <CardDescription>
-            {t(
-              'All pricing inputs, derived values, snapshots, audit facts, and workflow states are shown below.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-3'>
-          <div className='space-y-1'>
-            <Label htmlFor='pricing-approval-reason'>
-              <PricingField value='APPROVAL_REASON' />
-            </Label>
-            <Input
-              id='pricing-approval-reason'
-              value={form.approvalReason}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  approvalReason: event.target.value,
-                }))
-              }
-            />
-          </div>
-          {props.prices.map((price) => (
-            <div key={price.id} className='rounded-xl border p-3 sm:p-4'>
-              <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
-                <div>
-                  <div className='font-medium'>{price.modelName}</div>
-                  <div className='text-muted-foreground text-sm'>
-                    {price.priceGroup} · {price.combinationKey} · v
-                    {price.version} · {t(price.status)}
-                  </div>
                 </div>
-                <div className='flex flex-wrap gap-2'>
-                  {price.status === 'DRAFT' && (
-                    <Button
-                      size='sm'
-                      variant='outline'
-                      disabled={
-                        approve.isPending ||
-                        form.approvalReason.trim().length < 8
-                      }
-                      onClick={() => approve.mutate(price.id)}
-                    >
-                      {t('Approve')}
-                    </Button>
-                  )}
-                  {price.status === 'APPROVED' && (
-                    <Button
-                      size='sm'
-                      disabled={publish.isPending}
-                      onClick={() => publish.mutate(price.id)}
-                    >
-                      {t('Publish')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className='mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'>
-                <Detail
-                  label='MODEL'
-                  value={`${price.modelName} (${price.modelKey})`}
-                />
-                <Detail
-                  label='PRICE_GROUP'
-                  value={`${price.priceGroup} (${price.priceGroupCode})`}
-                />
-                <Detail label='COMBINATION' value={price.combinationKey} />
-                <Detail label='VERSION' value={String(price.version)} />
-                <Detail label='STATUS' value={t(price.status)} />
-              </div>
-              <div className='mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5'>
-                <Detail
-                  label='POINTS'
-                  value={`${price.points} ${t('points')}`}
-                />
-                <Detail
-                  label='BASE_RATE'
-                  value={`${businessDecimal(price.baseRatePointsPerRmb)} ${t('points per RMB')}`}
-                />
-                <Detail
-                  label='TARGET_MARGIN_RATE'
-                  value={`${Number(price.targetMarginRate) * 100}%`}
-                />
-                <Detail
-                  label='SUCCESS_PROBABILITY'
-                  value={businessDecimal(price.successProbability)}
-                />
-                <Detail
-                  label='K_THEORY'
-                  value={`${businessDecimal(price.kTheoryRmb)} ${t('RMB')}`}
-                />
-                <Detail
-                  label='K_ACTUAL'
-                  value={
-                    price.kActualRmb === null
-                      ? t('Not eligible or unavailable')
-                      : `${businessDecimal(price.kActualRmb)} ${t('RMB')}`
+                <Button
+                  type='submit'
+                  className='w-full sm:w-auto'
+                  disabled={
+                    (!selected && !selectedInitial) || publishPrice.isPending
                   }
-                />
-                <Detail
-                  label='K_PRICING'
-                  value={`${businessDecimal(price.kPricingRmb)} ${t('RMB')}`}
-                />
-                <Detail
-                  label='RISK_BUFFER'
-                  value={`${businessDecimal(price.riskBufferRmb)} ${t('RMB')}`}
-                />
-                <Detail
-                  label='BREAK_EVEN'
-                  value={`${price.breakEvenPoints} ${t('points')}`}
-                />
-                <Detail
-                  label='TARGET_MARGIN_POINTS'
-                  value={`${price.targetMarginPoints} ${t('points')}`}
-                />
-                <Detail label='CREATED' value={dateTime(price.createdAt)} />
-                <Detail
-                  label='APPROVED'
-                  value={price.approvedAt ? dateTime(price.approvedAt) : '—'}
-                />
-                <Detail label='EFFECTIVE' value={dateTime(price.effectiveAt)} />
-                <div className='space-y-1 sm:col-span-2 lg:col-span-4 xl:col-span-2'>
-                  <div className='text-muted-foreground text-xs font-medium'>
-                    <PricingField value='ASSUMPTIONS' />
-                  </div>
-                  <pre className='bg-muted/40 max-h-40 overflow-auto rounded-lg p-2 text-xs break-words whitespace-pre-wrap'>
-                    {JSON.stringify(
-                      visiblePricingAssumptions(
-                        price.pricingAssumptionsSnapshot
-                      ),
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
+                >
+                  {t('Review price change')}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Price versions')}</CardTitle>
+              <CardDescription>
+                {t(
+                  'All pricing inputs, derived values, snapshots, audit facts, and workflow states are shown below.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              <div>
+                <h3 className='text-sm font-semibold'>
+                  {t('Price version records')}
+                </h3>
+                <p className='text-muted-foreground mt-1 text-xs'>
+                  {t(
+                    'Changes requiring action appear first; published history is paginated.'
+                  )}
+                </p>
               </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+              <PricingRecordsTable
+                columns={priceColumns}
+                data={props.prices}
+                filters={priceFilters}
+                getRowId={(price) => price.id}
+                initialSorting={[{ id: 'created', desc: true }]}
+                emptyTitle={t('No price version records')}
+              />
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      <PricingActionConfirmation
+        open={confirmation !== null}
+        onOpenChange={(open) => !open && setConfirmation(null)}
+        title={t('Confirm pricing change')}
+        description={t(
+          'Review the values below. Confirmation approves and publishes the change in one protected operation; published history remains immutable.'
+        )}
+        details={confirmationDetails}
+        confirmLabel={t('Confirm change')}
+        pending={confirmationPending}
+        onConfirm={confirmAction}
+      />
     </div>
   )
 }

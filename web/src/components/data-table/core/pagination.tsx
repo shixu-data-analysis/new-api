@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
@@ -56,20 +56,34 @@ export function DataTablePagination<TData>({
   const totalPages = table.getPageCount()
   const totalRows = table.getRowCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  let ellipsisSeen = false
+  const pageItems = pageNumbers.map((pageNumber) => {
+    if (pageNumber !== '...') {
+      return { key: `page-${pageNumber}`, pageNumber }
+    }
+    const key = ellipsisSeen ? 'ellipsis-end' : 'ellipsis-start'
+    ellipsisSeen = true
+    return { key, pageNumber }
+  })
 
   return (
-    <div
-      className={cn(
-        '@container/pagination flex min-w-0 items-center justify-end overflow-clip'
-      )}
-      style={{ overflowClipMargin: 1 }}
-    >
-      <div className='flex min-w-0 shrink-0 items-center gap-2 @xl/pagination:gap-3'>
+    <div className='@container/pagination flex min-w-0 flex-wrap items-center justify-end gap-2'>
+      <div className='flex min-w-0 flex-wrap items-center justify-end gap-2 @xl/pagination:gap-3'>
         <div className='flex shrink-0 items-baseline gap-1.5 text-xs font-medium whitespace-nowrap sm:text-sm'>
           <span className='text-muted-foreground/80'>{t('Total:')}</span>
           <span className='text-foreground tabular-nums'>
             {totalRows.toLocaleString()}
           </span>
+        </div>
+
+        <div
+          className='text-muted-foreground/80 shrink-0 text-xs font-medium whitespace-nowrap tabular-nums sm:text-sm'
+          aria-live='polite'
+        >
+          {t('Page {{current}} of {{total}}', {
+            current: currentPage,
+            total: Math.max(totalPages, 1),
+          })}
         </div>
 
         <div className='flex shrink-0 items-center gap-1.5 @lg/pagination:gap-2'>
@@ -83,7 +97,10 @@ export function DataTablePagination<TData>({
               table.setPageSize(Number(value))
             }}
           >
-            <SelectTrigger className='text-foreground h-8 w-[64px] font-medium tabular-nums sm:w-[70px]'>
+            <SelectTrigger
+              className='text-foreground h-8 w-[64px] font-medium tabular-nums sm:w-[70px]'
+              aria-label={t('Rows per page')}
+            >
               <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
@@ -118,8 +135,8 @@ export function DataTablePagination<TData>({
             <ChevronLeftIcon className='h-4 w-4' />
           </Button>
 
-          {pageNumbers.map((pageNumber, index) => (
-            <div key={`${pageNumber}-${index}`} className='flex items-center'>
+          {pageItems.map(({ key, pageNumber }) => (
+            <div key={key} className='flex items-center'>
               {pageNumber === '...' ? (
                 <span className='text-muted-foreground/60 px-0.5 text-sm @lg/pagination:px-1'>
                   ...

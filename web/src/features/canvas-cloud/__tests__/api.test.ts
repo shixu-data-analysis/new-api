@@ -30,6 +30,7 @@ import {
   approveCanvasModelRelease,
   getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
+  getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
   getCanvasModelReleases,
   getCanvasPointIssuanceRates,
@@ -38,6 +39,10 @@ import {
   normalizeCanvasRechargePurchaseLink,
   planCanvasModelRelease,
   publishCanvasPriceVersion,
+  publishConfirmedCanvasPriceChange,
+  publishConfirmedCanvasInitialPrice,
+  publishConfirmedCanvasPointIssuanceRate,
+  publishConfirmedCanvasPriceGroup,
   publishCanvasPointIssuanceRate,
   publishCanvasModelRelease,
   redeemCanvasRechargeCode,
@@ -67,6 +72,33 @@ describe('Canvas Cloud API boundary', () => {
     })
     await getCanvasAdminWorkspace()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/admin/workspace')
+  })
+
+  it('uses protected administrator routes for testing models and initial pricing', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasAdminTestingModels()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/testing-models'
+    )
+
+    const input = {
+      customerModelId: 'model-id',
+      priceGroupId: 'group-id',
+      parameterCombinationId: 'combination-id',
+      points: '20',
+      successProbability: '0.9',
+      successfulTaskCostRmb: '0.16',
+      failedUnrecoverableCostRmb: '0.18',
+      otherVariableCostRmb: '0',
+      riskBufferRmb: '0.02',
+    }
+    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
+    await publishConfirmedCanvasInitialPrice(input)
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/price-versions/initial-publications',
+      { ...input, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
   })
 
   it('sends publication through the role-authenticated Web route with an idempotency key', async () => {
@@ -115,6 +147,40 @@ describe('Canvas Cloud API boundary', () => {
         },
         skipErrorHandler: true,
       }
+    )
+  })
+
+  it('uses confirmed publication routes for the single-administrator pricing workflow', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
+    const price = {
+      sourcePriceVersionId: 'published-price-id',
+      points: '20',
+      successProbability: '0.9',
+      successfulTaskCostRmb: '0.16',
+      failedUnrecoverableCostRmb: '0.18',
+      otherVariableCostRmb: '0',
+      riskBufferRmb: '0.02',
+    }
+    await publishConfirmedCanvasPriceChange(price)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/price-versions/publications',
+      { ...price, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishConfirmedCanvasPointIssuanceRate({ pointsPerRmb: '60' })
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/point-issuance-rates/publications',
+      { pointsPerRmb: '60', confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishConfirmedCanvasPriceGroup({ internalName: '测试客户' })
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      3,
+      '/canvas-api/v1/web/admin/price-groups/publications',
+      { internalName: '测试客户', confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
     )
   })
 
