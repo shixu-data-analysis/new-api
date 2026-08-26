@@ -26,12 +26,10 @@ import type {
   CanvasCatalogModel,
   CanvasContributionReport,
   CanvasCustomerWorkspace,
-  CanvasModelReleaseManifest,
-  CanvasModelReleasePlan,
-  CanvasModelReleaseResult,
-  CanvasModelReleaseSummary,
   CanvasSession,
   CanvasIssuedRechargeCodes,
+  CanvasModelCatalogBundle,
+  CanvasModelCatalogPlan,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -163,6 +161,56 @@ export async function getCanvasContributionReport(
 
 function idempotencyKey(scope: string): string {
   return `${scope}-${crypto.randomUUID()}`
+}
+
+export async function planCanvasModelCatalogBundle(
+  bundle: CanvasModelCatalogBundle
+): Promise<CanvasModelCatalogPlan> {
+  return (
+    await api.post<CanvasModelCatalogPlan>(
+      `${webBase}/admin/model-catalog-bundles/plan`,
+      bundle,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-catalog-plan') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasModelCatalogBundle(
+  bundle: CanvasModelCatalogBundle
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/model-catalog-bundles/publications`,
+      { confirmed: true, bundle },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-catalog-publish') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasModelPresentation(input: {
+  modelKey: string
+  displayName: string
+  description: string
+  enabled: boolean
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/model-presentations/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-model-presentation'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
 }
 
 export async function redeemCanvasRechargeCode(code: string) {
@@ -417,61 +465,6 @@ export async function createCanvasRefund(input: {
       `${webBase}/admin/refunds`,
       { ...input, refundReference: `web-${crypto.randomUUID()}` },
       { headers: { 'Idempotency-Key': idempotencyKey('web-refund') } }
-    )
-  ).data
-}
-
-export async function getCanvasModelReleases(): Promise<
-  CanvasModelReleaseSummary[]
-> {
-  return (
-    await api.get<CanvasModelReleaseSummary[]>(
-      `${webBase}/admin/model-releases`
-    )
-  ).data
-}
-
-function modelReleasePost<T>(
-  path: string,
-  manifest: CanvasModelReleaseManifest
-) {
-  return api.post<T>(`${webBase}/admin/model-releases${path}`, manifest, {
-    headers: { 'Idempotency-Key': idempotencyKey('web-model-release') },
-  })
-}
-
-export async function planCanvasModelRelease(
-  manifest: CanvasModelReleaseManifest
-): Promise<CanvasModelReleasePlan> {
-  return (await modelReleasePost<CanvasModelReleasePlan>('/plan', manifest))
-    .data
-}
-
-export async function createCanvasModelReleaseDraft(
-  manifest: CanvasModelReleaseManifest
-): Promise<CanvasModelReleaseResult> {
-  return (await modelReleasePost<CanvasModelReleaseResult>('/drafts', manifest))
-    .data
-}
-
-export async function approveCanvasModelRelease(
-  manifest: CanvasModelReleaseManifest
-): Promise<CanvasModelReleaseResult> {
-  return (
-    await modelReleasePost<CanvasModelReleaseResult>(
-      `/${encodeURIComponent(manifest.changeId)}/approve`,
-      manifest
-    )
-  ).data
-}
-
-export async function publishCanvasModelRelease(
-  manifest: CanvasModelReleaseManifest
-): Promise<CanvasModelReleaseResult> {
-  return (
-    await modelReleasePost<CanvasModelReleaseResult>(
-      `/${encodeURIComponent(manifest.changeId)}/publish`,
-      manifest
     )
   ).data
 }

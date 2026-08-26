@@ -27,27 +27,25 @@ import {
   createCanvasPriceGroupDraft,
   getCanvasPriceGroups,
   publishCanvasPriceGroup,
-  approveCanvasModelRelease,
   getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
-  getCanvasModelReleases,
   getCanvasPointIssuanceRates,
   getCanvasRechargePurchaseLink,
   issueCanvasAdminRechargeCodes,
   normalizeCanvasRechargePurchaseLink,
-  planCanvasModelRelease,
+  planCanvasModelCatalogBundle,
   publishCanvasPriceVersion,
   publishConfirmedCanvasPriceChange,
   publishConfirmedCanvasInitialPrice,
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceGroup,
   publishCanvasPointIssuanceRate,
-  publishCanvasModelRelease,
+  publishCanvasModelCatalogBundle,
+  publishCanvasModelPresentation,
   redeemCanvasRechargeCode,
 } from '../api'
-import type { CanvasModelReleaseManifest } from '../types'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 
@@ -96,6 +94,50 @@ describe('Canvas Cloud API boundary', () => {
     await publishConfirmedCanvasInitialPrice(input)
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/price-versions/initial-publications',
+      { ...input, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('uses the confirmed administrator Bundle planning and publication routes', async () => {
+    const bundle = {
+      schemaVersion: 2 as const,
+      bundleId: 'catalog',
+      bundleVersion: '1',
+      providers: [],
+      channels: [],
+      models: [],
+      openapiContracts: [],
+      adapterProfiles: [],
+    }
+    mocks.post.mockResolvedValue({ data: { blocking: false, changes: [] } })
+    await planCanvasModelCatalogBundle(bundle)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/model-catalog-bundles/plan',
+      bundle,
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishCanvasModelCatalogBundle(bundle)
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/model-catalog-bundles/publications',
+      { confirmed: true, bundle },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('publishes model presentation separately from Bundle definitions', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
+    const input = {
+      modelKey: 'canvas.image.test',
+      displayName: '测试模型',
+      description: '客户端说明',
+      enabled: false,
+    }
+    await publishCanvasModelPresentation(input)
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/model-presentations/publications',
       { ...input, confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
     )
@@ -331,44 +373,5 @@ describe('Canvas Cloud API boundary', () => {
     expect(
       normalizeCanvasRechargePurchaseLink('//untrusted.example.com')
     ).toBeNull()
-  })
-
-  it('keeps model review, approval, and ordered publication on separate administrator calls', async () => {
-    const manifest = {
-      schemaVersion: 1,
-      changeId: 'review-model-v1',
-    } as CanvasModelReleaseManifest
-    mocks.get.mockResolvedValue({ data: [] })
-    await getCanvasModelReleases()
-    expect(mocks.get).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/model-releases'
-    )
-
-    mocks.post.mockResolvedValue({ data: { changeId: manifest.changeId } })
-    await planCanvasModelRelease(manifest)
-    await approveCanvasModelRelease(manifest)
-    await publishCanvasModelRelease(manifest)
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
-      '/canvas-api/v1/web/admin/model-releases/plan',
-      manifest,
-      {
-        headers: {
-          'Idempotency-Key': expect.stringMatching(/^web-model-release-/),
-        },
-      }
-    )
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
-      '/canvas-api/v1/web/admin/model-releases/review-model-v1/approve',
-      manifest,
-      expect.any(Object)
-    )
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      3,
-      '/canvas-api/v1/web/admin/model-releases/review-model-v1/publish',
-      manifest,
-      expect.any(Object)
-    )
   })
 })
