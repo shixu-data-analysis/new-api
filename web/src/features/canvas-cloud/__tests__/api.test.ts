@@ -159,13 +159,12 @@ describe('Canvas Cloud API boundary', () => {
     )
     mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
     await createCanvasPriceGroupDraft({
-      code: 'VIP',
-      internalName: 'VIP customers',
+      internalName: '测试客户',
     })
     expect(mocks.post).toHaveBeenNthCalledWith(
       1,
       '/canvas-api/v1/web/admin/price-groups/drafts',
-      { code: 'VIP', internalName: 'VIP customers' },
+      { internalName: '测试客户' },
       expect.objectContaining({ skipErrorHandler: true })
     )
     await approveCanvasPriceGroup('group-v1', 'Reviewed and approved')

@@ -64,32 +64,25 @@ function GroupDetail(props: { label: string; value: string }) {
 export function PriceGroupManagement() {
   const { t } = useTranslation()
   const [form, setForm] = useState({
-    code: '',
     internalName: '',
     approvalReason: '',
   })
-  const [touched, setTouched] = useState({ code: false, internalName: false })
+  const [nameTouched, setNameTouched] = useState(false)
   const [approvalTouched, setApprovalTouched] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const groups = useQuery({
     queryKey: ['canvas-cloud', 'price-groups'],
     queryFn: getCanvasPriceGroups,
   })
-  const code = form.code.trim().toUpperCase()
-  const internalName = form.internalName.trim()
+  const internalName = form.internalName.trim().normalize('NFC')
   const requiredError = (value: string, valid: boolean, message: string) => {
     if (value.length === 0) return t('This field is required')
     if (!valid) return t(message)
     return null
   }
-  const codeError = requiredError(
-    code,
-    /^[A-Z][A-Z0-9_-]{1,63}$/.test(code),
-    'Use 2 to 64 uppercase letters, numbers, underscores, or hyphens'
-  )
   const nameError = requiredError(
     internalName,
-    internalName.length <= 128,
+    [...internalName].length <= 128,
     'Use no more than 128 characters'
   )
   const approvalReason = form.approvalReason.trim()
@@ -105,11 +98,11 @@ export function PriceGroupManagement() {
     await groups.refetch()
   }
   const createDraft = useMutation({
-    mutationFn: () => createCanvasPriceGroupDraft({ code, internalName }),
+    mutationFn: () => createCanvasPriceGroupDraft({ internalName }),
     onSuccess: async () => {
       toast.success(t('Price group draft created'))
-      setForm((current) => ({ ...current, code: '', internalName: '' }))
-      setTouched({ code: false, internalName: false })
+      setForm((current) => ({ ...current, internalName: '' }))
+      setNameTouched(false)
       setSubmitted(false)
       await refresh()
     },
@@ -149,50 +142,11 @@ export function PriceGroupManagement() {
           onSubmit={(event) => {
             event.preventDefault()
             setSubmitted(true)
-            if (codeError || nameError) return
+            if (nameError) return
             createDraft.mutate()
           }}
         >
-          <div className='grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)_auto] lg:items-start'>
-            <div className='space-y-1'>
-              <Label htmlFor='price-group-code'>
-                <BusinessTerm kind='pricingField' value='PRICE_GROUP_CODE' />
-                <span className='text-destructive ml-1' aria-hidden='true'>
-                  *
-                </span>
-              </Label>
-              <Input
-                id='price-group-code'
-                value={form.code}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    code: event.target.value.toUpperCase(),
-                  }))
-                }
-                onBlur={() =>
-                  setTouched((current) => ({ ...current, code: true }))
-                }
-                aria-required='true'
-                aria-describedby={`price-group-code-help${(submitted || touched.code) && codeError ? ' price-group-code-error' : ''}`}
-                aria-invalid={(submitted || touched.code) && Boolean(codeError)}
-              />
-              <div
-                id='price-group-code-help'
-                className='text-muted-foreground text-xs'
-              >
-                {t('Stable internal code, 2 to 64 characters')}
-              </div>
-              {(submitted || touched.code) && codeError && (
-                <div
-                  id='price-group-code-error'
-                  className='text-destructive text-xs'
-                  role='alert'
-                >
-                  {codeError}
-                </div>
-              )}
-            </div>
+          <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start'>
             <div className='space-y-1'>
               <Label htmlFor='price-group-name'>
                 <BusinessTerm kind='pricingField' value='PRICE_GROUP_NAME' />
@@ -209,22 +163,24 @@ export function PriceGroupManagement() {
                     internalName: event.target.value,
                   }))
                 }
-                onBlur={() =>
-                  setTouched((current) => ({ ...current, internalName: true }))
-                }
+                onBlur={() => setNameTouched(true)}
                 aria-required='true'
-                aria-describedby={`price-group-name-help${(submitted || touched.internalName) && nameError ? ' price-group-name-error' : ''}`}
-                aria-invalid={
-                  (submitted || touched.internalName) && Boolean(nameError)
-                }
+                aria-describedby={`price-group-name-help price-group-code-help${(submitted || nameTouched) && nameError ? ' price-group-name-error' : ''}`}
+                aria-invalid={(submitted || nameTouched) && Boolean(nameError)}
               />
               <div
                 id='price-group-name-help'
                 className='text-muted-foreground text-xs'
               >
-                {t('Administrator-facing name, up to 128 characters')}
+                {t('Any language, up to 128 characters')}
               </div>
-              {(submitted || touched.internalName) && nameError && (
+              <div
+                id='price-group-code-help'
+                className='text-muted-foreground text-xs'
+              >
+                {t('A unique immutable code is generated automatically.')}
+              </div>
+              {(submitted || nameTouched) && nameError && (
                 <div
                   id='price-group-name-error'
                   className='text-destructive text-xs'

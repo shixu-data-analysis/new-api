@@ -273,7 +273,6 @@ export async function getCanvasPriceGroups() {
 }
 
 export async function createCanvasPriceGroupDraft(input: {
-  code: string
   internalName: string
 }) {
   return (

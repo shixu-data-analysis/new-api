@@ -194,33 +194,33 @@ describe('Canvas administrator pricing', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('creates a governed price group draft and validates both required fields', async () => {
+  it('creates a governed price group with a server-generated code and a multilingual name', async () => {
     renderPricing()
     const form = screen.getByRole('form', { name: 'Create price group draft' })
     fireEvent.submit(form)
     expect(apiMocks.createCanvasPriceGroupDraft).not.toHaveBeenCalled()
-    expect(within(form).getAllByText('This field is required')).toHaveLength(2)
+    expect(within(form).getAllByText('This field is required')).toHaveLength(1)
     expect(
-      within(form).getByRole('textbox', { name: /Price group code/ })
-    ).toHaveAttribute('aria-invalid', 'true')
+      within(form).queryByRole('textbox', { name: /Price group code/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(form).getByText(
+        'A unique immutable code is generated automatically.'
+      )
+    ).toBeVisible()
     expect(
       within(form).getByRole('textbox', { name: /Price group name/ })
     ).toHaveAttribute('aria-invalid', 'true')
 
     fireEvent.change(
-      within(form).getByRole('textbox', { name: /Price group code/ }),
-      { target: { value: 'vip' } }
-    )
-    fireEvent.change(
       within(form).getByRole('textbox', { name: /Price group name/ }),
-      { target: { value: 'VIP customers' } }
+      { target: { value: '测试客户・VIP' } }
     )
     fireEvent.submit(form)
 
     await waitFor(() => {
       expect(apiMocks.createCanvasPriceGroupDraft).toHaveBeenCalledWith({
-        code: 'VIP',
-        internalName: 'VIP customers',
+        internalName: '测试客户・VIP',
       })
     })
     expect(screen.getByText('UAT-STANDARD')).toBeVisible()
