@@ -131,7 +131,7 @@ export function PriceGroupManagement() {
         <CardTitle>{t('Price groups')}</CardTitle>
         <CardDescription>
           {t(
-            'Price groups define internal customer pricing segments. New groups require draft, PLATFORM_ADMIN approval, and publication before pricing can reference them.'
+            'Price groups define internal customer pricing segments. New groups require draft, platform administrator approval, and publication before pricing can reference them.'
           )}
         </CardDescription>
       </CardHeader>

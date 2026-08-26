@@ -86,6 +86,12 @@ describe('Canvas business term', () => {
     ).toBeVisible()
   })
 
+  it('never exposes the internal platform administrator code in localized UI copy', () => {
+    for (const locale of [en, fr, ja, ru, vi, zh, zhTW]) {
+      expect(JSON.stringify(locale.translation)).not.toContain('PLATFORM_ADMIN')
+    }
+  })
+
   it('localizes every pricing tooltip outside the English locale', () => {
     const helpKeys = new Set([
       canvasBusinessTermConfig.pricingField.helpKey,

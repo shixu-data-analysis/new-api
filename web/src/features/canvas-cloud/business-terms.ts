@@ -94,7 +94,7 @@ export const canvasBusinessTermConfig = {
         'The controlled draft, approval, publication, or retirement state of this PriceGroup version.',
       GROUP_CREATED: 'The immutable time this PriceGroup version was created.',
       GROUP_APPROVED:
-        'The immutable PLATFORM_ADMIN approval time backed by an ApprovalRecord.',
+        'The immutable platform administrator approval time recorded in an approval record.',
       GROUP_EFFECTIVE:
         'The publication time after which new pricing and customer assignments may reference this PriceGroup version.',
       COMBINATION:
@@ -120,11 +120,11 @@ export const canvasBusinessTermConfig = {
       RATE_CREATED:
         'The immutable actor and time that created this issuance-rate ConfigVersion.',
       RATE_APPROVED:
-        'The immutable PLATFORM_ADMIN approval actor and time for this issuance-rate ConfigVersion, backed by an ApprovalRecord.',
+        'The immutable platform administrator and approval time for this point issuance rate version, recorded in an approval record.',
       RATE_EFFECTIVE:
         'The immutable publication time after which new pricing and recharge facts use this issuance rate.',
       APPROVAL_REASON:
-        'The PLATFORM_ADMIN review reason that will be stored in an immutable ApprovalRecord.',
+        'The platform administrator review reason that will be stored in an immutable approval record.',
       TARGET_MARGIN_RATE:
         'The frozen normal target margin rate of 40%. It is a health target, not permission to undercut break-even.',
       SUCCESS_PROBABILITY:
@@ -161,7 +161,7 @@ export const canvasBusinessTermConfig = {
         'The evidence references supporting the draft inputs, stored in the immutable pricing assumptions snapshot.',
       CREATED: 'The immutable actor and time that created this PriceVersion.',
       APPROVED:
-        'The immutable PLATFORM_ADMIN approval actor and time, backed by an ApprovalRecord.',
+        'The immutable platform administrator and approval time, recorded in an approval record.',
       EFFECTIVE:
         'The immutable publication time after which new Quotes may use this version.',
       ACTION:
