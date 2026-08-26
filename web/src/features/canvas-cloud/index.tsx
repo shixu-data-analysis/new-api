@@ -435,6 +435,23 @@ function AdminContent(props: { section: AdminSection }) {
     return (
       <div className='space-y-4'>
         <DataTable
+          empty={t('No data')}
+          headers={[
+            t('ID'),
+            t('Mode'),
+            t('Status'),
+            t('Credentials'),
+            t('Updated'),
+          ]}
+          rows={data.executorWorkers.map((item) => [
+            `${item.queueName} · ${item.workerId}`,
+            item.mode,
+            item.status,
+            item.credentialsConfigured ? t('Configured') : t('Not configured'),
+            formatDate(item.heartbeatAt),
+          ])}
+        />
+        <DataTable
           empty={t('No provider channels')}
           headers={[
             t('Provider'),
@@ -456,6 +473,7 @@ function AdminContent(props: { section: AdminSection }) {
           headers={[
             t('Model'),
             t('Execution'),
+            t('Source'),
             t('Reconciliation'),
             t('Accepted'),
             t('Action'),
@@ -467,6 +485,7 @@ function AdminContent(props: { section: AdminSection }) {
               kind='taskExecutionStatus'
               value={item.executionStatus}
             />,
+            item.executionOrigin ?? '—',
             <BusinessTerm
               key='s'
               kind='reconciliationStatus'

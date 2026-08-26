@@ -179,12 +179,23 @@ export interface CanvasAdminWorkspace {
     recoveryStatus: string | null
     createdAt: string
   }>
+  executorWorkers: Array<{
+    queueName: string
+    mode: 'MOCK' | 'REAL'
+    workerId: string
+    status: 'RUNNING' | 'STOPPING' | 'STOPPED'
+    credentialsConfigured: boolean
+    startedAt: string
+    heartbeatAt: string
+    leaseExpiresAt: string
+  }>
   reconciliationTasks: Array<{
     id: string
     modelName: string
     executionStatus: string
     customerBillingStatus: string
     providerReconcileStatus: string
+    executionOrigin: 'MOCK' | 'REAL' | null
     upstreamTaskId: string | null
     acceptedAt: string
   }>
