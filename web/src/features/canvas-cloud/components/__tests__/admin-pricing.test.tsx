@@ -176,8 +176,9 @@ describe('Canvas administrator pricing', () => {
       )
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Open pricing calculator' })
-    ).toBeVisible()
+      screen.getAllByRole('button', { name: 'Open pricing calculator' })
+    ).toHaveLength(2)
+    expect(screen.getByText('How the pricing calculation works')).toBeVisible()
     expect(screen.getByLabelText(/Break-even\./)).toBeVisible()
     expect(screen.getByText('Show pricing assumptions')).toBeVisible()
     expect(screen.getByLabelText(/Created\./)).toBeVisible()
@@ -577,7 +578,7 @@ describe('Canvas administrator pricing', () => {
     })
   })
 
-  it('limits direct rate input to two decimals and opens the floating calculator popup', async () => {
+  it('keeps inline and floating calculator entries on one reusable popup', async () => {
     const focus = vi.fn()
     const popup = vi
       .spyOn(window, 'open')
@@ -585,9 +586,22 @@ describe('Canvas administrator pricing', () => {
     renderPricing()
     openTab('Point issuance rate')
 
-    expect(
-      screen.getByRole('button', { name: 'Open pricing calculator' })
-    ).toHaveClass('fixed', 'bottom-4', 'right-4')
+    const calculatorButtons = screen.getAllByRole('button', {
+      name: 'Open pricing calculator',
+    })
+    expect(calculatorButtons).toHaveLength(2)
+    expect(calculatorButtons[1]).toHaveClass(
+      'fixed',
+      'right-4',
+      'bottom-4',
+      'z-50',
+      'bg-primary',
+      'font-semibold',
+      'lg:right-0',
+      'lg:top-1/2',
+      'lg:bottom-auto',
+      'lg:rounded-r-none'
+    )
 
     const form = screen.getByRole('form', {
       name: 'Adjust point issuance rate',
@@ -605,9 +619,7 @@ describe('Canvas administrator pricing', () => {
       'Enter a positive value with up to 2 decimals'
     )
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Open pricing calculator' })
-    )
+    fireEvent.click(calculatorButtons[0])
     expect(popup).toHaveBeenCalledWith(
       '/canvas-cloud/pricing-calculator',
       'canvas-pricing-calculator',

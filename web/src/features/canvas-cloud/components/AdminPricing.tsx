@@ -1147,6 +1147,15 @@ export function AdminPricing(props: {
     confirmationLabel = t('Schedule special')
   }
 
+  const openPricingCalculator = () => {
+    const popup = window.open(
+      '/canvas-cloud/pricing-calculator',
+      'canvas-pricing-calculator',
+      'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
+    )
+    popup?.focus()
+  }
+
   return (
     <div className='mx-auto w-full max-w-7xl space-y-4 pb-24'>
       <Card>
@@ -1170,19 +1179,37 @@ export function AdminPricing(props: {
         </CardContent>
       </Card>
 
+      <Card className='border-primary/30 bg-primary/5'>
+        <CardContent className='flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex min-w-0 items-start gap-3'>
+            <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
+              <Calculator aria-hidden='true' className='size-5' />
+            </div>
+            <div className='min-w-0 space-y-1'>
+              <h3 className='font-semibold'>
+                {t('Pricing calculation guide')}
+              </h3>
+              <p className='text-muted-foreground text-sm'>
+                {t('Simulation has no side effects')}
+              </p>
+            </div>
+          </div>
+          <Button
+            type='button'
+            className='w-full shrink-0 sm:w-auto'
+            onClick={openPricingCalculator}
+          >
+            <Calculator aria-hidden='true' />
+            {t('Open pricing calculator')}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Button
         type='button'
-        variant='outline'
         aria-label={t('Open pricing calculator')}
-        className='border-primary/30 bg-background/95 hover:border-primary/60 fixed right-4 bottom-4 z-40 h-11 rounded-full px-4 shadow-lg backdrop-blur-sm transition-colors sm:right-6 sm:bottom-6'
-        onClick={() => {
-          const popup = window.open(
-            '/canvas-cloud/pricing-calculator',
-            'canvas-pricing-calculator',
-            'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
-          )
-          popup?.focus()
-        }}
+        className='bg-primary text-primary-foreground hover:bg-primary/90 ring-background fixed right-4 bottom-4 z-50 h-12 rounded-full px-5 font-semibold shadow-xl ring-4 transition-colors lg:top-1/2 lg:right-0 lg:bottom-auto lg:-translate-y-1/2 lg:rounded-l-xl lg:rounded-r-none'
+        onClick={openPricingCalculator}
       >
         <Calculator aria-hidden='true' />
         {t('Open pricing calculator')}
