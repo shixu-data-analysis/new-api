@@ -86,6 +86,10 @@ describe('Published model catalog', () => {
   it('sorts the whole result set by each selected column before pagination', async () => {
     renderCatalog()
     await screen.findByText('Alpha model')
+    expect(
+      screen.getByText('Model ID: 85000000-0000-7000-8000-000000000004')
+    ).toBeVisible()
+    expect(screen.queryByText('canvas.image.alpha')).not.toBeInTheDocument()
     let rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Alpha model')
     expect(rows[2]).toHaveTextContent('Zeta model')
@@ -94,6 +98,22 @@ describe('Published model catalog', () => {
     rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Zeta model')
     expect(rows[2]).toHaveTextContent('Alpha model')
+  })
+
+  it('searches published models by model ID instead of the internal product key', async () => {
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    const search = screen.getByRole('textbox', {
+      name: 'Search model name or ID',
+    })
+
+    fireEvent.change(search, { target: { value: '000000000005' } })
+    expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
+    expect(screen.getByText('Zeta model')).toBeVisible()
+
+    fireEvent.change(search, { target: { value: 'canvas.image.alpha' } })
+    expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zeta model')).not.toBeInTheDocument()
   })
 
   it('publishes client display edits without sending Bundle or pricing fields', async () => {

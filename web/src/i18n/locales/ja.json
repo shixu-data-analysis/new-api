@@ -5773,6 +5773,8 @@
     "Publication result": "公開結果",
     "These are the current database-backed model settings used to build the client catalog.": "クライアントカタログの基準となる、データベース上の現在のモデル設定です。",
     "Search model name or key": "モデル名またはキーを検索",
+    "Search model name or ID": "モデル名またはモデル ID を検索",
+    "Model ID": "モデル ID",
     "Pricing progress": "価格設定の進捗",
     "Internal only": "内部専用",
     "Modify basic information": "基本情報を変更",

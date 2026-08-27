@@ -5773,6 +5773,8 @@
     "Publication result": "发布结果",
     "These are the current database-backed model settings used to build the client catalog.": "这里显示数据库中的当前有效模型配置，客户端目录以此为准。",
     "Search model name or key": "搜索模型名称或编码",
+    "Search model name or ID": "搜索模型名称或模型 ID",
+    "Model ID": "模型 ID",
     "Pricing progress": "定价进度",
     "Internal only": "仅内部可见",
     "Modify basic information": "修改基本信息",

@@ -94,7 +94,7 @@ export function PublishedModelCatalog() {
       return (
         visible &&
         (!query ||
-          `${model.name} ${model.modelKey}`.toLocaleLowerCase().includes(query))
+          `${model.name} ${model.id}`.toLocaleLowerCase().includes(query))
       )
     })
     const direction = descending ? -1 : 1
@@ -172,8 +172,8 @@ export function PublishedModelCatalog() {
               setSearch(event.target.value)
               setPage(1)
             }}
-            placeholder={t('Search model name or key')}
-            aria-label={t('Search model name or key')}
+            placeholder={t('Search model name or ID')}
+            aria-label={t('Search model name or ID')}
           />
           <select
             className='border-input bg-background h-9 rounded-md border px-3 text-sm'
@@ -233,7 +233,7 @@ export function PublishedModelCatalog() {
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1 font-mono text-xs'>
-                        {model.modelKey}
+                        {t('Model ID')}: {model.id}
                       </div>
                       <details className='mt-2'>
                         <summary className='text-primary cursor-pointer text-xs'>

@@ -5773,6 +5773,8 @@
     "Publication result": "Publication result",
     "These are the current database-backed model settings used to build the client catalog.": "These are the current database-backed model settings used to build the client catalog.",
     "Search model name or key": "Search model name or key",
+    "Search model name or ID": "Search model name or ID",
+    "Model ID": "Model ID",
     "Pricing progress": "Pricing progress",
     "Internal only": "Internal only",
     "Modify basic information": "Modify basic information",

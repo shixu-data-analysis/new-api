@@ -5773,6 +5773,8 @@
     "Publication result": "Résultat de publication",
     "These are the current database-backed model settings used to build the client catalog.": "Paramètres actuels de la base utilisés pour construire le catalogue client.",
     "Search model name or key": "Rechercher par nom ou clé",
+    "Search model name or ID": "Rechercher par nom ou ID de modèle",
+    "Model ID": "ID du modèle",
     "Pricing progress": "Progression de la tarification",
     "Internal only": "Interne uniquement",
     "Modify basic information": "Modifier les informations de base",

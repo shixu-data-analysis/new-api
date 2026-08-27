@@ -5773,6 +5773,8 @@
     "Publication result": "發佈結果",
     "These are the current database-backed model settings used to build the client catalog.": "這裡顯示資料庫中的目前有效模型設定，用戶端目錄以此為準。",
     "Search model name or key": "搜尋模型名稱或編碼",
+    "Search model name or ID": "搜尋模型名稱或模型 ID",
+    "Model ID": "模型 ID",
     "Pricing progress": "定價進度",
     "Internal only": "僅內部可見",
     "Modify basic information": "修改基本資訊",

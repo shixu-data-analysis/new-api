@@ -44,6 +44,7 @@ const guidedPricingKeys = [
   'How many points should the customer pay?',
   'Pricing recommendation',
 ] as const
+const modelIdentityKeys = ['Search model name or ID', 'Model ID'] as const
 
 describe('Canvas interface localization', () => {
   it.each(Object.entries(localizedResources))(
@@ -87,6 +88,17 @@ describe('Canvas interface localization', () => {
     (_locale, resource) => {
       const translations = resource.translation as Record<string, string>
       for (const key of guidedPricingKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'translates model identity labels in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of modelIdentityKeys) {
         expect(translations[key], key).toBeTypeOf('string')
         expect(translations[key], key).not.toBe(key)
       }

@@ -5773,6 +5773,8 @@
     "Publication result": "Kết quả phát hành",
     "These are the current database-backed model settings used to build the client catalog.": "Đây là cấu hình hiện hành trong cơ sở dữ liệu dùng để tạo danh mục trên ứng dụng.",
     "Search model name or key": "Tìm theo tên hoặc mã mô hình",
+    "Search model name or ID": "Tìm theo tên hoặc ID mô hình",
+    "Model ID": "ID mô hình",
     "Pricing progress": "Tiến độ định giá",
     "Internal only": "Chỉ nội bộ",
     "Modify basic information": "Sửa thông tin cơ bản",

@@ -5773,6 +5773,8 @@
     "Publication result": "Результат публикации",
     "These are the current database-backed model settings used to build the client catalog.": "Текущие настройки из базы данных, на основе которых строится каталог клиента.",
     "Search model name or key": "Поиск по имени или ключу",
+    "Search model name or ID": "Поиск по имени или ID модели",
+    "Model ID": "ID модели",
     "Pricing progress": "Готовность цен",
     "Internal only": "Только для внутренних пользователей",
     "Modify basic information": "Изменить основные сведения",
