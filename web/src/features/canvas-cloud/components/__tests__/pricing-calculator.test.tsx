@@ -97,11 +97,17 @@ describe('Canvas pricing calculator', () => {
       </QueryClientProvider>
     )
 
-    expect(screen.getByText('How the pricing calculation works')).toBeVisible()
+    expect(
+      screen.getByText('How often do you expect this task to succeed?')
+    ).toBeVisible()
     expect(
       screen.getByRole('form', { name: 'Pricing simulator' })
     ).toBeVisible()
     expect(screen.getByText(/This simulator does not write data/)).toBeVisible()
+    expect(
+      screen.queryByLabelText('Point issuance rate')
+    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('K_actual')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Proposed price points'), {
       target: { value: '1' },
     })

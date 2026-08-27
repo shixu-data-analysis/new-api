@@ -44,6 +44,12 @@ import {
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceChange,
 } from '../api'
+import {
+  calculateQuestionnairePricing,
+  probabilityDecimalToPercent,
+  probabilityPercentToDecimal,
+  type PricingQuestionnaireAnswers,
+} from '../pricing-simulation'
 import type {
   CanvasAdminWorkspace,
   CanvasPointIssuanceRateVersion,
@@ -51,6 +57,7 @@ import type {
 import { BusinessTerm } from './BusinessTerm'
 import { PriceGroupManagement } from './PriceGroupManagement'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { PricingRecordsTable } from './PricingRecordsTable'
 import { PricingTableColumnHeader } from './PricingTableColumnHeader'
 
@@ -90,16 +97,6 @@ const fieldKeys = [
   'EFFECTIVE',
   'ACTION',
 ] as const
-
-const editableFieldLabels: Partial<Record<(typeof fieldKeys)[number], string>> =
-  {
-    POINTS: 'Points',
-    SUCCESS_PROBABILITY: 'Success probability',
-    SUCCESS_COST: 'Successful task cost',
-    FAILURE_COST: 'Failed unrecoverable cost',
-    OTHER_COST: 'Other variable cost',
-    RISK_BUFFER: 'Risk buffer',
-  }
 
 function PricingField(props: { value: (typeof fieldKeys)[number] }) {
   return <BusinessTerm kind='pricingField' value={props.value} />
@@ -224,7 +221,7 @@ export function AdminPricing(props: {
   }, [initialTargets, selectedId])
   const [form, setForm] = useState({
     points: '',
-    successProbability: '0.900000',
+    successProbabilityPercent: '90',
     successfulTaskCostRmb: '0',
     failedUnrecoverableCostRmb: '0',
     otherVariableCostRmb: '0',
@@ -233,7 +230,7 @@ export function AdminPricing(props: {
   })
   const [priceTouched, setPriceTouched] = useState({
     points: false,
-    successProbability: false,
+    successProbabilityPercent: false,
     successfulTaskCostRmb: false,
     failedUnrecoverableCostRmb: false,
     otherVariableCostRmb: false,
@@ -253,7 +250,7 @@ export function AdminPricing(props: {
   const rates = useQuery({
     queryKey: ['canvas-cloud', 'point-issuance-rates'],
     queryFn: getCanvasPointIssuanceRates,
-    enabled: activeTab === 'rate',
+    enabled: activeTab === 'rate' || activeTab === 'prices',
   })
   const trimmedRate = rateForm.pointsPerRmb.trim()
   const trimmedDecision = rateForm.decisionSummary.trim()
@@ -282,7 +279,10 @@ export function AdminPricing(props: {
 
   const priceValues = {
     points: form.points.trim(),
-    successProbability: form.successProbability.trim(),
+    successProbabilityPercent: form.successProbabilityPercent.trim(),
+    successProbability: probabilityPercentToDecimal(
+      form.successProbabilityPercent.trim()
+    ),
     successfulTaskCostRmb: form.successfulTaskCostRmb.trim(),
     failedUnrecoverableCostRmb: form.failedUnrecoverableCostRmb.trim(),
     otherVariableCostRmb: form.otherVariableCostRmb.trim(),
@@ -290,6 +290,7 @@ export function AdminPricing(props: {
     decisionSummary: form.decisionSummary.trim(),
   }
   const decimalUpToTwo = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/
+  const decimalUpToEight = /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/
   const requiredPriceError = (
     value: string,
     valid: boolean,
@@ -305,32 +306,32 @@ export function AdminPricing(props: {
       /^[1-9]\d*$/.test(priceValues.points),
       'Enter a positive integer'
     ),
-    successProbability: requiredPriceError(
-      priceValues.successProbability,
-      decimalUpToTwo.test(priceValues.successProbability) &&
-        Number(priceValues.successProbability) > 0 &&
-        Number(priceValues.successProbability) <= 1,
-      'Enter a value above 0 and at most 1, with up to 2 decimals'
+    successProbabilityPercent: requiredPriceError(
+      priceValues.successProbabilityPercent,
+      decimalUpToTwo.test(priceValues.successProbabilityPercent) &&
+        Number(priceValues.successProbabilityPercent) > 0 &&
+        Number(priceValues.successProbabilityPercent) <= 100,
+      'Enter a percentage above 0 and at most 100, with up to 2 decimals'
     ),
     successfulTaskCostRmb: requiredPriceError(
       priceValues.successfulTaskCostRmb,
-      decimalUpToTwo.test(priceValues.successfulTaskCostRmb),
-      'Enter a non-negative value with up to 2 decimals'
+      decimalUpToEight.test(priceValues.successfulTaskCostRmb),
+      'Enter a non-negative value with up to 8 decimals'
     ),
     failedUnrecoverableCostRmb: requiredPriceError(
       priceValues.failedUnrecoverableCostRmb,
-      decimalUpToTwo.test(priceValues.failedUnrecoverableCostRmb),
-      'Enter a non-negative value with up to 2 decimals'
+      decimalUpToEight.test(priceValues.failedUnrecoverableCostRmb),
+      'Enter a non-negative value with up to 8 decimals'
     ),
     otherVariableCostRmb: requiredPriceError(
       priceValues.otherVariableCostRmb,
-      decimalUpToTwo.test(priceValues.otherVariableCostRmb),
-      'Enter a non-negative value with up to 2 decimals'
+      decimalUpToEight.test(priceValues.otherVariableCostRmb),
+      'Enter a non-negative value with up to 8 decimals'
     ),
     riskBufferRmb: requiredPriceError(
       priceValues.riskBufferRmb,
-      decimalUpToTwo.test(priceValues.riskBufferRmb),
-      'Enter a non-negative value with up to 2 decimals'
+      decimalUpToEight.test(priceValues.riskBufferRmb),
+      'Enter a non-negative value with up to 8 decimals'
     ),
     decisionSummary:
       priceValues.decisionSummary.length > 2_000
@@ -342,6 +343,23 @@ export function AdminPricing(props: {
   )
   const showPriceError = (field: keyof typeof priceTouched) =>
     priceSubmitted || priceTouched[field]
+  const publishedIssuanceRate = rates.data?.find(
+    (rate) => rate.status === 'PUBLISHED'
+  )
+  const questionnaireAnswers: PricingQuestionnaireAnswers = {
+    successProbabilityPercent: priceValues.successProbabilityPercent,
+    successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
+    failedUnrecoverableCostRmb: priceValues.failedUnrecoverableCostRmb,
+    otherVariableCostRmb: priceValues.otherVariableCostRmb,
+    riskBufferRmb: priceValues.riskBufferRmb,
+    proposedPoints: priceValues.points,
+  }
+  const questionnaireRate =
+    publishedIssuanceRate?.pointsPerRmb ?? selected?.baseRatePointsPerRmb ?? '0'
+  const questionnaireResult = calculateQuestionnairePricing(
+    questionnaireAnswers,
+    questionnaireRate
+  )
 
   useEffect(() => {
     const current = rates.data?.find((rate) => rate.status === 'PUBLISHED')
@@ -358,7 +376,7 @@ export function AdminPricing(props: {
       setForm((current) => ({
         ...current,
         points: '',
-        successProbability: '0.9',
+        successProbabilityPercent: '90',
         successfulTaskCostRmb: '0',
         failedUnrecoverableCostRmb: '0',
         otherVariableCostRmb: '0',
@@ -371,7 +389,9 @@ export function AdminPricing(props: {
     setForm((current) => ({
       ...current,
       points: selected.points,
-      successProbability: editableDecimal(selected.successProbability),
+      successProbabilityPercent: probabilityDecimalToPercent(
+        selected.successProbability
+      ),
       successfulTaskCostRmb:
         typeof assumptions.successfulTaskCostRmb === 'string'
           ? editableDecimal(assumptions.successfulTaskCostRmb)
@@ -397,8 +417,7 @@ export function AdminPricing(props: {
         return publishConfirmedCanvasInitialPrice({
           customerModelId: selectedInitial.model.id,
           priceGroupId: selectedInitial.target.priceGroupId,
-          parameterCombinationId:
-            selectedInitial.target.parameterCombinationId,
+          parameterCombinationId: selectedInitial.target.parameterCombinationId,
           points: priceValues.points,
           successProbability: priceValues.successProbability,
           successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
@@ -430,7 +449,7 @@ export function AdminPricing(props: {
       setForm((current) => ({ ...current, decisionSummary: '' }))
       setPriceTouched({
         points: false,
-        successProbability: false,
+        successProbabilityPercent: false,
         successfulTaskCostRmb: false,
         failedUnrecoverableCostRmb: false,
         otherVariableCostRmb: false,
@@ -785,13 +804,37 @@ export function AdminPricing(props: {
         },
         { label: t('Points'), value: `${priceValues.points} ${t('points')}` },
         {
-          label: t('Success probability'),
-          value: priceValues.successProbability,
+          label: t('Expected success rate'),
+          value: `${priceValues.successProbabilityPercent}%`,
+        },
+        {
+          label: t('Service provider cost when successful'),
+          value: `${priceValues.successfulTaskCostRmb} ${t('RMB')}`,
+        },
+        {
+          label: t('Unrecoverable service provider cost when failed'),
+          value: `${priceValues.failedUnrecoverableCostRmb} ${t('RMB')}`,
+        },
+        {
+          label: t('Other variable cost for every attempt'),
+          value: `${priceValues.otherVariableCostRmb} ${t('RMB')}`,
         },
         {
           label: t('Risk buffer'),
           value: `${priceValues.riskBufferRmb} ${t('RMB')}`,
         },
+        ...(questionnaireResult
+          ? [
+              {
+                label: t('Break-even'),
+                value: `${questionnaireResult.breakEvenPoints} ${t('points')}`,
+              },
+              {
+                label: t('Target margin floor'),
+                value: `${questionnaireResult.targetMarginPoints} ${t('points')}`,
+              },
+            ]
+          : []),
       ]
     }
     return []
@@ -1040,9 +1083,7 @@ export function AdminPricing(props: {
                 }}
               >
                 <div className='space-y-1'>
-                  <Label htmlFor='pricing-source'>
-                    {t('Pricing target')}
-                  </Label>
+                  <Label htmlFor='pricing-source'>{t('Pricing target')}</Label>
                   <select
                     id='pricing-source'
                     className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
@@ -1066,106 +1107,34 @@ export function AdminPricing(props: {
                     })}
                   </select>
                 </div>
-                <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-                  {[
-                    ['pricing-points', 'POINTS', 'points', 'numeric'],
-                    [
-                      'pricing-q',
-                      'SUCCESS_PROBABILITY',
-                      'successProbability',
-                      'decimal',
-                    ],
-                    [
-                      'pricing-success-cost',
-                      'SUCCESS_COST',
-                      'successfulTaskCostRmb',
-                      'decimal',
-                    ],
-                    [
-                      'pricing-failure-cost',
-                      'FAILURE_COST',
-                      'failedUnrecoverableCostRmb',
-                      'decimal',
-                    ],
-                    [
-                      'pricing-other-cost',
-                      'OTHER_COST',
-                      'otherVariableCostRmb',
-                      'decimal',
-                    ],
-                    [
-                      'pricing-buffer',
-                      'RISK_BUFFER',
-                      'riskBufferRmb',
-                      'decimal',
-                    ],
-                  ].map(([id, label, key, inputMode]) => {
-                    const field = key as keyof typeof priceTouched
-                    let unit = t('RMB per successful chargeable result')
-                    if (key === 'points') {
-                      unit = t('Integer points')
-                    } else if (key === 'successProbability') {
-                      unit = t('Decimal from 0 to 1')
-                    }
-                    return (
-                      <div key={id} className='space-y-1'>
-                        <Label htmlFor={id}>
-                          <PricingField
-                            value={label as (typeof fieldKeys)[number]}
-                          />
-                          <span
-                            className='text-destructive ml-1'
-                            aria-hidden='true'
-                          >
-                            *
-                          </span>
-                        </Label>
-                        <Input
-                          id={id}
-                          aria-label={t(
-                            editableFieldLabels[
-                              label as (typeof fieldKeys)[number]
-                            ] ?? label
-                          )}
-                          inputMode={inputMode as 'numeric' | 'decimal'}
-                          value={form[key as keyof typeof form]}
-                          onChange={(event) =>
-                            setForm((current) => ({
-                              ...current,
-                              [key]: event.target.value,
-                            }))
-                          }
-                          onBlur={() =>
-                            setPriceTouched((current) => ({
-                              ...current,
-                              [field]: true,
-                            }))
-                          }
-                          aria-required='true'
-                          aria-describedby={`${id}-unit${showPriceError(field) && priceErrors[field] ? ` ${id}-error` : ''}`}
-                          aria-invalid={
-                            showPriceError(field) && Boolean(priceErrors[field])
-                          }
-                        />
-                        <div
-                          id={`${id}-unit`}
-                          className='text-muted-foreground text-xs'
-                        >
-                          {unit}
-                        </div>
-                        {showPriceError(field) && priceErrors[field] && (
-                          <div
-                            id={`${id}-error`}
-                            className='text-destructive text-xs'
-                            role='alert'
-                          >
-                            {priceErrors[field]}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <PricingQuestionnaire
+                  idPrefix='pricing'
+                  answers={questionnaireAnswers}
+                  pointsPerRmb={questionnaireRate}
+                  currentPoints={selected?.points}
+                  errors={Object.fromEntries(
+                    Object.entries(priceErrors)
+                      .filter(([key]) => key !== 'decisionSummary')
+                      .map(([key, error]) => [
+                        key === 'points' ? 'proposedPoints' : key,
+                        showPriceError(key as keyof typeof priceTouched)
+                          ? error
+                          : null,
+                      ])
+                  )}
+                  onChange={(key, value) =>
+                    setForm((current) => ({
+                      ...current,
+                      [key === 'proposedPoints' ? 'points' : key]: value,
+                    }))
+                  }
+                  onBlur={(key) =>
+                    setPriceTouched((current) => ({
+                      ...current,
+                      [key === 'proposedPoints' ? 'points' : key]: true,
+                    }))
+                  }
+                />
                 <div className='max-w-3xl space-y-1'>
                   <Label htmlFor='pricing-decision'>
                     <PricingField value='DECISION' />

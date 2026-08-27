@@ -177,7 +177,7 @@ describe('Canvas administrator pricing', () => {
     expect(
       screen.queryByRole('textbox', { name: /K_pricing/ })
     ).not.toBeInTheDocument()
-    expect(screen.getByText('50 points per RMB')).toBeVisible()
+    expect(screen.getAllByText('50 points per RMB')).toHaveLength(2)
     expect(screen.getByText('Not eligible or unavailable')).toBeVisible()
     expect(screen.queryByText('FROZEN v1.0 baseline')).not.toBeInTheDocument()
     expect(screen.queryByText('baseline://v1')).not.toBeInTheDocument()
@@ -285,9 +285,10 @@ describe('Canvas administrator pricing', () => {
         'initial:model-id:group-id:combination-id'
       )
     )
-    fireEvent.change(document.querySelector('#pricing-points')!, {
-      target: { value: '20' },
-    })
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Proposed price points' }),
+      { target: { value: '20' } }
+    )
     fireEvent.submit(screen.getByRole('form', { name: 'Adjust model price' }))
     confirmChange()
 
@@ -398,11 +399,11 @@ describe('Canvas administrator pricing', () => {
       name: 'Adjust model price',
     })
     const requiredFields = [
-      'Points',
-      'Success probability',
-      'Successful task cost',
-      'Failed unrecoverable cost',
-      'Other variable cost',
+      'Proposed price points',
+      'Expected success rate',
+      'Service provider cost when successful',
+      'Unrecoverable service provider cost when failed',
+      'Other variable cost for every attempt',
       'Risk buffer',
     ]
 
@@ -427,21 +428,26 @@ describe('Canvas administrator pricing', () => {
     expect(toastMocks.error).not.toHaveBeenCalled()
   })
 
-  it('rejects price precision beyond two decimals before calling the API', () => {
+  it('rejects invalid percentages and cost precision beyond eight decimals', () => {
     renderPricing()
     const form = screen.getByRole('form', {
       name: 'Adjust model price',
     })
-    fireEvent.change(within(form).getByRole('textbox', { name: 'Points' }), {
-      target: { value: '1.5' },
-    })
     fireEvent.change(
-      within(form).getByRole('textbox', { name: 'Success probability' }),
-      { target: { value: '1.001' } }
+      within(form).getByRole('textbox', { name: 'Proposed price points' }),
+      {
+        target: { value: '1.5' },
+      }
     )
     fireEvent.change(
-      within(form).getByRole('textbox', { name: 'Successful task cost' }),
-      { target: { value: '0.123' } }
+      within(form).getByRole('textbox', { name: 'Expected success rate' }),
+      { target: { value: '100.001' } }
+    )
+    fireEvent.change(
+      within(form).getByRole('textbox', {
+        name: 'Service provider cost when successful',
+      }),
+      { target: { value: '0.123456789' } }
     )
     fireEvent.submit(form)
 
@@ -449,11 +455,11 @@ describe('Canvas administrator pricing', () => {
     expect(within(form).getByText('Enter a positive integer')).toBeVisible()
     expect(
       within(form).getByText(
-        'Enter a value above 0 and at most 1, with up to 2 decimals'
+        'Enter a percentage above 0 and at most 100, with up to 2 decimals'
       )
     ).toBeVisible()
     expect(
-      within(form).getByText('Enter a non-negative value with up to 2 decimals')
+      within(form).getByText('Enter a non-negative value with up to 8 decimals')
     ).toBeVisible()
   })
 
@@ -624,7 +630,7 @@ describe('Canvas administrator pricing', () => {
     expect(container.querySelector('.overflow-x-auto')).toBeInTheDocument()
     expect(container.querySelector('.min-w-max')).toBeInTheDocument()
     expect(container.querySelector('.sm\\:grid-cols-2')).toBeInTheDocument()
-    expect(container.querySelector('.xl\\:grid-cols-4')).toBeInTheDocument()
+    expect(container.querySelector('.lg\\:grid-cols-4')).toBeInTheDocument()
   })
 
   it('mounts only the selected pricing tab and paginates published history', async () => {
@@ -641,14 +647,14 @@ describe('Canvas administrator pricing', () => {
       </QueryClientProvider>
     )
 
-    expect(apiMocks.getCanvasPointIssuanceRates).not.toHaveBeenCalled()
+    expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalledTimes(1)
     expect(apiMocks.getCanvasPriceGroups).not.toHaveBeenCalled()
     expect(screen.getByText('Canvas Model 1')).toBeVisible()
     expect(screen.getByText('Canvas Model 20')).toBeVisible()
     expect(screen.queryByText('Canvas Model 21')).not.toBeInTheDocument()
     expect(screen.getByText('21')).toBeVisible()
     expect(screen.getByText('Page 1 of 2')).toBeVisible()
-    expect(screen.getByText('2').closest('button')).toBeVisible()
+    expect(screen.getByRole('button', { name: /Go to page 2/ })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     expect(screen.getByText('Canvas Model 21')).toBeVisible()
     expect(screen.queryByText('Canvas Model 1')).not.toBeInTheDocument()
@@ -774,9 +780,13 @@ describe('Canvas administrator pricing', () => {
       expect(screen.getByLabelText('Pricing target')).toHaveValue(
         'published-price-v2'
       )
-      expect(screen.getByRole('textbox', { name: 'Points' })).toHaveValue('30')
       expect(
-        screen.getByRole('textbox', { name: 'Successful task cost' })
+        screen.getByRole('textbox', { name: 'Proposed price points' })
+      ).toHaveValue('30')
+      expect(
+        screen.getByRole('textbox', {
+          name: 'Service provider cost when successful',
+        })
       ).toHaveValue('0.3')
     })
   })

@@ -40,6 +40,50 @@ export interface PricingSimulationResult {
   verdict: 'BELOW_BREAK_EVEN' | 'BELOW_TARGET' | 'MEETS_TARGET'
 }
 
+export interface PricingQuestionnaireAnswers {
+  successProbabilityPercent: string
+  successfulTaskCostRmb: string
+  failedUnrecoverableCostRmb: string
+  otherVariableCostRmb: string
+  riskBufferRmb: string
+  proposedPoints: string
+}
+
+export function probabilityPercentToDecimal(value: string): string {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return value
+  return (numeric / 100).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+export function probabilityDecimalToPercent(value: string): string {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return value
+  return (numeric * 100).toFixed(2).replace(/\.?0+$/, '')
+}
+
+export function calculateQuestionnairePricing(
+  answers: PricingQuestionnaireAnswers,
+  pointsPerRmb: string
+): PricingSimulationResult | null {
+  try {
+    return simulatePricing({
+      successProbability: probabilityPercentToDecimal(
+        answers.successProbabilityPercent
+      ),
+      successfulTaskCostRmb: answers.successfulTaskCostRmb,
+      failedUnrecoverableCostRmb: answers.failedUnrecoverableCostRmb,
+      otherVariableCostRmb: answers.otherVariableCostRmb,
+      riskBufferRmb: answers.riskBufferRmb,
+      pointsPerRmb,
+      actualCostEligible: false,
+      actualCostRmb: '0',
+      proposedPoints: answers.proposedPoints,
+    })
+  } catch {
+    return null
+  }
+}
+
 function fixed(value: string, scale: number): bigint {
   const match = /^(0|[1-9]\d*)(?:\.(\d+))?$/.exec(value)
   if (!match || (match[2]?.length ?? 0) > scale) throw new Error('invalid')

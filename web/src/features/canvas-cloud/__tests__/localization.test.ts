@@ -35,6 +35,15 @@ const canvasKeys = Object.keys(en.translation).filter((key) =>
 const businessTermKeys = Object.values(canvasBusinessTermConfig).flatMap(
   (group) => [group.helpKey, ...Object.values(group.labels)]
 )
+const guidedPricingKeys = [
+  'Published point issuance rate',
+  'How often do you expect this task to succeed?',
+  'What does one attempt cost?',
+  'Service provider cost when successful',
+  'Unrecoverable service provider cost when failed',
+  'How many points should the customer pay?',
+  'Pricing recommendation',
+] as const
 
 describe('Canvas interface localization', () => {
   it.each(Object.entries(localizedResources))(
@@ -65,5 +74,22 @@ describe('Canvas interface localization', () => {
     expect(zh.translation['Bonus points']).toBe('赠送积分')
     expect(zh.translation.Issued).toBe('发放')
     expect(zh.translation['Invite registration']).toBe('邀请注册')
+    expect(zh.translation['Provider channel']).toBe('服务商渠道')
+    expect(
+      zh.translation[
+        'The reviewed RMB Provider cost of one successful chargeable attempt. A confirmed change creates a new immutable published version.'
+      ]
+    ).not.toMatch(/Provider/i)
   })
+
+  it.each(Object.entries(localizedResources))(
+    'translates every guided pricing label in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of guidedPricingKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
 })
