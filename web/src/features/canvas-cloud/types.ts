@@ -167,6 +167,32 @@ export interface CanvasAdminWorkspace {
     approvedAt: string | null
     effectiveAt: string | null
   }>
+  pricePromotions: Array<{
+    id: string
+    version: number
+    status: 'APPROVED' | 'ACTIVE' | 'STOPPED' | 'EXPIRED'
+    sourcePriceVersionId: string
+    modelKey: string
+    modelName: string
+    priceGroupCode: string
+    priceGroup: string
+    combinationKey: string
+    basePoints: string
+    specialPoints: string
+    expectedContributionRate: string
+    campaignBudgetMinor: string | null
+    maxExpectedLossMinor: string | null
+    maxParticipants: string | null
+    usedBudgetMinor: string
+    usedExpectedLossMinor: string
+    participants: string
+    approvalReason: string
+    startsAt: string
+    endsAt: string
+    createdAt: string
+    approvedAt: string | null
+    effectiveAt: string | null
+  }>
   refunds: Array<{
     id: string
     refundReference: string

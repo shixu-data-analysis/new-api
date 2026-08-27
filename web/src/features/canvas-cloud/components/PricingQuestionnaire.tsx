@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { formatBusinessNumber } from '../number-format'
 import {
   type PricingSimulationResult,
   calculateQuestionnairePricing,
@@ -48,15 +49,6 @@ function verdictPresentation(verdict: PricingSimulationResult['verdict']) {
     className: 'border-emerald-500/40 bg-emerald-500/10',
     message: 'Simulation meets target margin',
   }
-}
-
-function displayRmb(value: string): string {
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric)) return value
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numeric)
 }
 
 function Question(props: {
@@ -161,13 +153,70 @@ export function PricingQuestionnaire(props: {
     error: props.errors?.[key],
     onBlur: () => props.onBlur?.(key),
   })
+  const proposedPointsAction = () => {
+    if (result) {
+      return (
+        <section
+          aria-label={t('Pricing recommendation')}
+          className='border-primary/30 bg-primary/5 mt-3 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+        >
+          <div>
+            <div className='text-primary text-xs font-medium'>
+              {t('Pricing recommendation')}
+            </div>
+            <div className='mt-1 text-lg font-semibold tabular-nums'>
+              {result.targetMarginPoints} {t('points')}
+            </div>
+          </div>
+          <div className='flex flex-col gap-2 sm:flex-row'>
+            <Button
+              type='button'
+              className='w-full sm:w-auto'
+              onClick={() =>
+                props.onChange('proposedPoints', result.targetMarginPoints)
+              }
+            >
+              {t('Use recommended')}
+            </Button>
+            {props.currentPoints && (
+              <Button
+                type='button'
+                variant='outline'
+                className='w-full sm:w-auto'
+                onClick={() =>
+                  props.onChange('proposedPoints', props.currentPoints ?? '')
+                }
+              >
+                {t('Keep current')} · {props.currentPoints}
+              </Button>
+            )}
+          </div>
+        </section>
+      )
+    }
+    if (props.currentPoints) {
+      return (
+        <Button
+          type='button'
+          variant='outline'
+          className='mt-3'
+          onClick={() =>
+            props.onChange('proposedPoints', props.currentPoints ?? '')
+          }
+        >
+          {t('Keep current')} · {props.currentPoints}
+        </Button>
+      )
+    }
+    return null
+  }
 
   return (
     <div className='space-y-4'>
       <div className='bg-muted/35 grid gap-3 rounded-xl border p-4 sm:grid-cols-2'>
         <SummaryValue
           label={t('Published point issuance rate')}
-          value={`${Number(props.pointsPerRmb || 0)} ${t('points per RMB')}`}
+          value={`${formatBusinessNumber(props.pointsPerRmb || 0)} ${t('points per RMB')}`}
         />
         <SummaryValue
           label={t('Model target margin')}
@@ -278,7 +327,7 @@ export function PricingQuestionnaire(props: {
           'Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.'
         )}
       >
-        <div className='flex flex-col gap-3 sm:flex-row sm:items-end'>
+        <div className='max-w-2xl'>
           <div className='w-full max-w-xs'>
             <AnswerField
               id={id('proposed-points')}
@@ -290,30 +339,8 @@ export function PricingQuestionnaire(props: {
               {...field('proposedPoints')}
             />
           </div>
-          <div className='flex flex-wrap gap-2 pb-0.5'>
-            {result && (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() =>
-                  props.onChange('proposedPoints', result.targetMarginPoints)
-                }
-              >
-                {t('Use recommended')} · {result.targetMarginPoints}
-              </Button>
-            )}
-            {props.currentPoints && (
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={() =>
-                  props.onChange('proposedPoints', props.currentPoints ?? '')
-                }
-              >
-                {t('Keep current')} · {props.currentPoints}
-              </Button>
-            )}
-          </div>
+
+          {proposedPointsAction()}
         </div>
       </Question>
 
@@ -326,11 +353,11 @@ export function PricingQuestionnaire(props: {
           <div className='mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
             <SummaryValue
               label={t('Cost per successful task')}
-              value={`${displayRmb(result.kTheoryRmb)} ${t('RMB')}`}
+              value={`${formatBusinessNumber(result.kTheoryRmb)} ${t('RMB')}`}
             />
             <SummaryValue
               label={t('Pricing cost basis')}
-              value={`${displayRmb(result.kPricingRmb)} ${t('RMB')}`}
+              value={`${formatBusinessNumber(result.kPricingRmb)} ${t('RMB')}`}
             />
             <SummaryValue
               label={t('Break-even')}
@@ -355,13 +382,14 @@ export function PricingQuestionnaire(props: {
               <div>
                 <dt>{t('Expected attempt cost')}</dt>
                 <dd>
-                  {displayRmb(result.expectedAttemptCostRmb)} {t('RMB')}
+                  {formatBusinessNumber(result.expectedAttemptCostRmb)}{' '}
+                  {t('RMB')}
                 </dd>
               </div>
               <div>
                 <dt>{t('Break-even before rounding')}</dt>
                 <dd>
-                  {Number(result.breakEvenRaw)} {t('points')}
+                  {formatBusinessNumber(result.breakEvenRaw)} {t('points')}
                 </dd>
               </div>
             </dl>

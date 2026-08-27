@@ -19,9 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  cancelCanvasLimitedPricePromotion,
+  cancelScheduledCanvasPrice,
   approveCanvasPriceDraft,
   approveCanvasPointIssuanceRate,
   createCanvasPointIssuanceRateDraft,
+  createCanvasLimitedPricePromotion,
   createCanvasPriceDraft,
   approveCanvasPriceGroup,
   createCanvasPriceGroupDraft,
@@ -245,6 +248,58 @@ describe('Canvas Cloud API boundary', () => {
       3,
       '/canvas-api/v1/web/admin/price-groups/publications',
       { internalName: '测试客户', confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('sends the future timestamp and protects scheduled cancellation', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
+    const effectiveAt = '2026-08-29T00:00:00.000Z'
+    await publishConfirmedCanvasPriceChange({
+      sourcePriceVersionId: 'published-price-id',
+      points: '20',
+      targetMarginRate: '0.25',
+      successProbability: '0.9',
+      successfulTaskCostRmb: '0.16',
+      failedUnrecoverableCostRmb: '0.18',
+      otherVariableCostRmb: '0',
+      riskBufferRmb: '0.02',
+      effectiveAt,
+    })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/price-versions/publications',
+      expect.objectContaining({ effectiveAt, confirmed: true }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await cancelScheduledCanvasPrice('scheduled-price-id')
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/price-versions/scheduled-price-id/cancel-schedule',
+      { confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('keeps limited-time specials on confirmed administrator-only routes', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
+    const input = {
+      sourcePriceVersionId: 'published-price-id',
+      specialPoints: '15',
+      startsAt: '2026-08-29T00:00:00.000Z',
+      endsAt: '2026-08-30T00:00:00.000Z',
+      campaignBudgetMinor: '10000',
+      maxParticipants: '100',
+      approvalReason: 'Approved launch promotion',
+    }
+    await createCanvasLimitedPricePromotion(input)
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/limited-price-promotions',
+      { ...input, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await cancelCanvasLimitedPricePromotion('promotion-version-id')
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/limited-price-promotions/promotion-version-id/cancel',
+      { confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

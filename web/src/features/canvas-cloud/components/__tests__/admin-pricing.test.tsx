@@ -33,6 +33,9 @@ import type { CanvasAdminWorkspace } from '../../types'
 import { AdminPricing } from '../AdminPricing'
 
 const apiMocks = vi.hoisted(() => ({
+  cancelCanvasLimitedPricePromotion: vi.fn(),
+  cancelScheduledCanvasPrice: vi.fn(),
+  createCanvasLimitedPricePromotion: vi.fn(),
   publishConfirmedCanvasPriceChange: vi.fn(),
   publishConfirmedCanvasInitialPrice: vi.fn(),
   getCanvasAdminTestingModels: vi.fn(),
@@ -120,6 +123,13 @@ describe('Canvas administrator pricing', () => {
     })
     apiMocks.publishConfirmedCanvasInitialPrice.mockResolvedValue({
       status: 'PUBLISHED',
+    })
+    apiMocks.cancelScheduledCanvasPrice.mockResolvedValue({ status: 'RETIRED' })
+    apiMocks.createCanvasLimitedPricePromotion.mockResolvedValue({
+      status: 'APPROVED',
+    })
+    apiMocks.cancelCanvasLimitedPricePromotion.mockResolvedValue({
+      status: 'STOPPED',
     })
     apiMocks.getCanvasAdminTestingModels.mockResolvedValue([])
     apiMocks.getCanvasPointIssuanceRates.mockResolvedValue([
@@ -234,6 +244,35 @@ describe('Canvas administrator pricing', () => {
     expect(
       within(form).queryByRole('textbox', { name: /Evidence references/ })
     ).not.toBeInTheDocument()
+  })
+
+  it('schedules a future activation and explains that the current price stays active', async () => {
+    apiMocks.publishConfirmedCanvasPriceChange.mockResolvedValue({
+      status: 'APPROVED',
+    })
+    renderPricing()
+    fireEvent.click(screen.getByRole('radio', { name: /Schedule for later/ }))
+    const localValue = '2099-08-29T09:30'
+    fireEvent.change(screen.getByLabelText('Activation time'), {
+      target: { value: localValue },
+    })
+    fireEvent.submit(screen.getByRole('form', { name: 'Adjust model price' }))
+    expect(
+      screen.getByText(
+        'The current price stays active until the selected time.'
+      )
+    ).toBeVisible()
+    confirmChange()
+    await waitFor(() => {
+      expect(apiMocks.publishConfirmedCanvasPriceChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          effectiveAt: new Date(localValue).toISOString(),
+        })
+      )
+    })
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      'Price activation scheduled'
+    )
   })
 
   it('publishes the first price for an internally tested model target', async () => {
@@ -801,5 +840,41 @@ describe('Canvas administrator pricing', () => {
         })
       ).toHaveValue('0.3')
     })
+  })
+
+  it('schedules a limited-time special with an explicit local time range', async () => {
+    const onChanged = vi.fn().mockResolvedValue(undefined)
+    renderPricing(onChanged)
+
+    fireEvent.change(screen.getByLabelText('Special price'), {
+      target: { value: '15' },
+    })
+    fireEvent.change(screen.getByLabelText('Start time'), {
+      target: { value: '2027-08-29T10:00' },
+    })
+    fireEvent.change(screen.getByLabelText('End time'), {
+      target: { value: '2027-08-30T10:00' },
+    })
+    fireEvent.change(screen.getByLabelText('Approval reason'), {
+      target: { value: 'Approved seasonal launch promotion' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review limited-time special' })
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Confirm limited-time special' })
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Schedule special' }))
+
+    await waitFor(() => {
+      expect(apiMocks.createCanvasLimitedPricePromotion).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourcePriceVersionId: 'published-price',
+          specialPoints: '15',
+          approvalReason: 'Approved seasonal launch promotion',
+        })
+      )
+    })
+    expect(onChanged).toHaveBeenCalled()
   })
 })

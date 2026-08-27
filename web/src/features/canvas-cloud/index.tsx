@@ -453,6 +453,7 @@ function AdminContent(props: { section: AdminSection }) {
     return (
       <AdminPricing
         prices={data.prices}
+        pricePromotions={data.pricePromotions ?? []}
         onChanged={() =>
           queryClient.invalidateQueries({ queryKey: ['canvas-cloud', 'admin'] })
         }

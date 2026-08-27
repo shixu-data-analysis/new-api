@@ -44,7 +44,7 @@ describe('Canvas pricing calculator', () => {
         id: 'rate-v2',
         version: 2,
         status: 'PUBLISHED',
-        pointsPerRmb: '60.00000000',
+        pointsPerRmb: '50.00000000',
       },
     ])
   })
@@ -137,13 +137,21 @@ describe('Canvas pricing calculator', () => {
     fireEvent.change(screen.getByLabelText('Proposed price points'), {
       target: { value: '1' },
     })
+    const recommendation = screen.getByRole('region', {
+      name: 'Pricing recommendation',
+    })
+    expect(recommendation).toHaveTextContent('158 points')
+    fireEvent.click(screen.getByRole('button', { name: 'Use recommended' }))
+    expect(screen.getByLabelText('Proposed price points')).toHaveValue('158')
     expect(
-      await screen.findByText(/at or below break-even and cannot be published/)
+      await screen.findByText(/meets or exceeds this price version/)
     ).toBeVisible()
     expect(screen.getByText('2.17 RMB')).toBeVisible()
     expect(screen.getByText('2.37 RMB')).toBeVisible()
 
     fireEvent.click(screen.getByText('Show calculation details'))
     expect(screen.getByText('1.95 RMB')).toBeVisible()
+    expect(screen.getByText('118.33 points')).toBeVisible()
+    expect(screen.queryByText('118.333333 points')).not.toBeInTheDocument()
   })
 })

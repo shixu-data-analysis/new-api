@@ -258,6 +258,63 @@ export interface CanvasPriceDraftInput {
   otherVariableCostRmb: string
   riskBufferRmb: string
   decisionSummary?: string
+  effectiveAt?: string
+}
+
+export async function cancelScheduledCanvasPrice(priceVersionId: string) {
+  return (
+    await api.post(
+      `${webBase}/admin/price-versions/${priceVersionId}/cancel-schedule`,
+      { confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-price-cancel') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export interface CanvasLimitedPricePromotionInput {
+  sourcePriceVersionId: string
+  specialPoints: string
+  startsAt: string
+  endsAt: string
+  campaignBudgetMinor?: string
+  maxExpectedLossMinor?: string
+  maxParticipants?: string
+  approvalReason: string
+}
+
+export async function createCanvasLimitedPricePromotion(
+  input: CanvasLimitedPricePromotionInput
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/limited-price-promotions`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-limited-special') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function cancelCanvasLimitedPricePromotion(
+  promotionVersionId: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/limited-price-promotions/${promotionVersionId}/cancel`,
+      { confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-limited-special-cancel'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
 }
 
 export async function createCanvasPriceDraft(input: CanvasPriceDraftInput) {
