@@ -220,6 +220,7 @@ describe('Canvas administrator pricing', () => {
       expect(apiMocks.publishConfirmedCanvasPriceChange).toHaveBeenCalledWith({
         sourcePriceVersionId: 'published-price',
         points: '20',
+        targetMarginRate: '0.4',
         successProbability: '0.9',
         successfulTaskCostRmb: '0.16',
         failedUnrecoverableCostRmb: '0.18',
@@ -298,6 +299,7 @@ describe('Canvas administrator pricing', () => {
         priceGroupId: 'group-id',
         parameterCombinationId: 'combination-id',
         points: '20',
+        targetMarginRate: '0.4',
         successProbability: '0.9',
         successfulTaskCostRmb: '0',
         failedUnrecoverableCostRmb: '0',
@@ -400,6 +402,7 @@ describe('Canvas administrator pricing', () => {
     })
     const requiredFields = [
       'Proposed price points',
+      'Target margin rate',
       'Expected success rate',
       'Service provider cost when successful',
       'Unrecoverable service provider cost when failed',
@@ -421,7 +424,7 @@ describe('Canvas administrator pricing', () => {
         'true'
       )
     }
-    expect(within(form).getAllByText('This field is required')).toHaveLength(6)
+    expect(within(form).getAllByText('This field is required')).toHaveLength(7)
     expect(
       within(form).getByRole('textbox', { name: 'Decision summary' })
     ).toHaveAttribute('aria-invalid', 'false')
@@ -440,6 +443,10 @@ describe('Canvas administrator pricing', () => {
       }
     )
     fireEvent.change(
+      within(form).getByRole('textbox', { name: 'Target margin rate' }),
+      { target: { value: '100' } }
+    )
+    fireEvent.change(
       within(form).getByRole('textbox', { name: 'Expected success rate' }),
       { target: { value: '100.001' } }
     )
@@ -453,6 +460,11 @@ describe('Canvas administrator pricing', () => {
 
     expect(apiMocks.publishConfirmedCanvasPriceChange).not.toHaveBeenCalled()
     expect(within(form).getByText('Enter a positive integer')).toBeVisible()
+    expect(
+      within(form).getByText(
+        'Enter a percentage from 0 to below 100, with up to 2 decimals'
+      )
+    ).toBeVisible()
     expect(
       within(form).getByText(
         'Enter a percentage above 0 and at most 100, with up to 2 decimals'

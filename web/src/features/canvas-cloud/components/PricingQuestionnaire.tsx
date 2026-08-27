@@ -169,7 +169,10 @@ export function PricingQuestionnaire(props: {
           label={t('Published point issuance rate')}
           value={`${Number(props.pointsPerRmb || 0)} ${t('points per RMB')}`}
         />
-        <SummaryValue label={t('Governed target margin')} value='40%' />
+        <SummaryValue
+          label={t('Model target margin')}
+          value={`${props.answers.targetMarginPercent || '—'}%`}
+        />
       </div>
 
       <Question
@@ -251,6 +254,25 @@ export function PricingQuestionnaire(props: {
 
       <Question
         number={4}
+        title={t('What target gross margin should this model use?')}
+        description={t(
+          'This price version stores its own target margin. New model prices start from the 40% default.'
+        )}
+      >
+        <div className='max-w-xs'>
+          <AnswerField
+            id={id('target-margin')}
+            label={t('Target margin rate')}
+            value={props.answers.targetMarginPercent}
+            unit={t('Percent, at least 0 and below 100. Default: 40%')}
+            onChange={(value) => props.onChange('targetMarginPercent', value)}
+            {...field('targetMarginPercent')}
+          />
+        </div>
+      </Question>
+
+      <Question
+        number={5}
         title={t('How many points should the customer pay?')}
         description={t(
           'Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.'

@@ -29,7 +29,10 @@ import {
 } from '@/components/ui/card'
 
 import { getCanvasPointIssuanceRates } from '../api'
-import type { PricingQuestionnaireAnswers } from '../pricing-simulation'
+import {
+  DEFAULT_TARGET_MARGIN_PERCENT,
+  type PricingQuestionnaireAnswers,
+} from '../pricing-simulation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 
 export function PricingCalculator() {
@@ -41,6 +44,7 @@ export function PricingCalculator() {
   const publishedRate = rates.data?.find((rate) => rate.status === 'PUBLISHED')
   const [pointsPerRmb, setPointsPerRmb] = useState('50')
   const [answers, setAnswers] = useState<PricingQuestionnaireAnswers>({
+    targetMarginPercent: DEFAULT_TARGET_MARGIN_PERCENT,
     successProbabilityPercent: '90',
     successfulTaskCostRmb: '2',
     failedUnrecoverableCostRmb: '0.5',

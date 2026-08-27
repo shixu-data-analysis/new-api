@@ -52,6 +52,7 @@ describe('Canvas pricing calculator', () => {
   it('matches the fixed-point break-even example and separates actual-cost eligibility', () => {
     expect(
       simulatePricing({
+        targetMarginRate: '0.400000',
         successProbability: '1.000000',
         successfulTaskCostRmb: '2.50000000',
         failedUnrecoverableCostRmb: '0',
@@ -72,6 +73,7 @@ describe('Canvas pricing calculator', () => {
 
     expect(
       simulatePricing({
+        targetMarginRate: '0.400000',
         successProbability: '1.000000',
         successfulTaskCostRmb: '2.00000000',
         failedUnrecoverableCostRmb: '0',
@@ -87,6 +89,25 @@ describe('Canvas pricing calculator', () => {
       kPricingRmb: '2.50000000',
       breakEvenPoints: '125',
       verdict: 'BELOW_TARGET',
+    })
+
+    expect(
+      simulatePricing({
+        targetMarginRate: '0.250000',
+        successProbability: '1.000000',
+        successfulTaskCostRmb: '2.50000000',
+        failedUnrecoverableCostRmb: '0',
+        otherVariableCostRmb: '0',
+        riskBufferRmb: '0',
+        pointsPerRmb: '50',
+        actualCostEligible: false,
+        actualCostRmb: '0',
+        proposedPoints: '167',
+      })
+    ).toMatchObject({
+      breakEvenPoints: '125',
+      targetMarginPoints: '167',
+      verdict: 'MEETS_TARGET',
     })
   })
 
@@ -108,6 +129,11 @@ describe('Canvas pricing calculator', () => {
       screen.queryByLabelText('Point issuance rate')
     ).not.toBeInTheDocument()
     expect(screen.queryByLabelText('K_actual')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Target margin rate')).toHaveValue('40')
+    fireEvent.change(screen.getByLabelText('Target margin rate'), {
+      target: { value: '25' },
+    })
+    expect(screen.getByText('25%')).toBeVisible()
     fireEvent.change(screen.getByLabelText('Proposed price points'), {
       target: { value: '1' },
     })

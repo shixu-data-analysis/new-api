@@ -251,6 +251,7 @@ export async function publishCanvasPriceVersion(priceVersionId: string) {
 export interface CanvasPriceDraftInput {
   sourcePriceVersionId: string
   points: string
+  targetMarginRate: string
   successProbability: string
   successfulTaskCostRmb: string
   failedUnrecoverableCostRmb: string

@@ -104,6 +104,7 @@ describe('Canvas Cloud API boundary', () => {
       priceGroupId: 'group-id',
       parameterCombinationId: 'combination-id',
       points: '20',
+      targetMarginRate: '0.4',
       successProbability: '0.9',
       successfulTaskCostRmb: '0.16',
       failedUnrecoverableCostRmb: '0.18',
@@ -178,6 +179,7 @@ describe('Canvas Cloud API boundary', () => {
     const input = {
       sourcePriceVersionId: 'published-price-id',
       points: '20',
+      targetMarginRate: '0.4',
       successProbability: '0.9',
       successfulTaskCostRmb: '0.16',
       failedUnrecoverableCostRmb: '0.18',
@@ -217,6 +219,7 @@ describe('Canvas Cloud API boundary', () => {
     const price = {
       sourcePriceVersionId: 'published-price-id',
       points: '20',
+      targetMarginRate: '0.250000',
       successProbability: '0.9',
       successfulTaskCostRmb: '0.16',
       failedUnrecoverableCostRmb: '0.18',

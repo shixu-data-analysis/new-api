@@ -45,6 +45,7 @@ import {
   publishConfirmedCanvasPriceChange,
 } from '../api'
 import {
+  DEFAULT_TARGET_MARGIN_PERCENT,
   calculateQuestionnairePricing,
   probabilityDecimalToPercent,
   probabilityPercentToDecimal,
@@ -221,6 +222,7 @@ export function AdminPricing(props: {
   }, [initialTargets, selectedId])
   const [form, setForm] = useState({
     points: '',
+    targetMarginPercent: DEFAULT_TARGET_MARGIN_PERCENT,
     successProbabilityPercent: '90',
     successfulTaskCostRmb: '0',
     failedUnrecoverableCostRmb: '0',
@@ -230,6 +232,7 @@ export function AdminPricing(props: {
   })
   const [priceTouched, setPriceTouched] = useState({
     points: false,
+    targetMarginPercent: false,
     successProbabilityPercent: false,
     successfulTaskCostRmb: false,
     failedUnrecoverableCostRmb: false,
@@ -279,6 +282,10 @@ export function AdminPricing(props: {
 
   const priceValues = {
     points: form.points.trim(),
+    targetMarginPercent: form.targetMarginPercent.trim(),
+    targetMarginRate: probabilityPercentToDecimal(
+      form.targetMarginPercent.trim()
+    ),
     successProbabilityPercent: form.successProbabilityPercent.trim(),
     successProbability: probabilityPercentToDecimal(
       form.successProbabilityPercent.trim()
@@ -305,6 +312,13 @@ export function AdminPricing(props: {
       priceValues.points,
       /^[1-9]\d*$/.test(priceValues.points),
       'Enter a positive integer'
+    ),
+    targetMarginPercent: requiredPriceError(
+      priceValues.targetMarginPercent,
+      decimalUpToTwo.test(priceValues.targetMarginPercent) &&
+        Number(priceValues.targetMarginPercent) >= 0 &&
+        Number(priceValues.targetMarginPercent) < 100,
+      'Enter a percentage from 0 to below 100, with up to 2 decimals'
     ),
     successProbabilityPercent: requiredPriceError(
       priceValues.successProbabilityPercent,
@@ -347,6 +361,7 @@ export function AdminPricing(props: {
     (rate) => rate.status === 'PUBLISHED'
   )
   const questionnaireAnswers: PricingQuestionnaireAnswers = {
+    targetMarginPercent: priceValues.targetMarginPercent,
     successProbabilityPercent: priceValues.successProbabilityPercent,
     successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
     failedUnrecoverableCostRmb: priceValues.failedUnrecoverableCostRmb,
@@ -376,6 +391,7 @@ export function AdminPricing(props: {
       setForm((current) => ({
         ...current,
         points: '',
+        targetMarginPercent: DEFAULT_TARGET_MARGIN_PERCENT,
         successProbabilityPercent: '90',
         successfulTaskCostRmb: '0',
         failedUnrecoverableCostRmb: '0',
@@ -389,6 +405,9 @@ export function AdminPricing(props: {
     setForm((current) => ({
       ...current,
       points: selected.points,
+      targetMarginPercent: probabilityDecimalToPercent(
+        selected.targetMarginRate
+      ),
       successProbabilityPercent: probabilityDecimalToPercent(
         selected.successProbability
       ),
@@ -419,6 +438,7 @@ export function AdminPricing(props: {
           priceGroupId: selectedInitial.target.priceGroupId,
           parameterCombinationId: selectedInitial.target.parameterCombinationId,
           points: priceValues.points,
+          targetMarginRate: priceValues.targetMarginRate,
           successProbability: priceValues.successProbability,
           successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
           failedUnrecoverableCostRmb: priceValues.failedUnrecoverableCostRmb,
@@ -433,6 +453,7 @@ export function AdminPricing(props: {
       return publishConfirmedCanvasPriceChange({
         sourcePriceVersionId: selected.id,
         points: priceValues.points,
+        targetMarginRate: priceValues.targetMarginRate,
         successProbability: priceValues.successProbability,
         successfulTaskCostRmb: priceValues.successfulTaskCostRmb,
         failedUnrecoverableCostRmb: priceValues.failedUnrecoverableCostRmb,
@@ -449,6 +470,7 @@ export function AdminPricing(props: {
       setForm((current) => ({ ...current, decisionSummary: '' }))
       setPriceTouched({
         points: false,
+        targetMarginPercent: false,
         successProbabilityPercent: false,
         successfulTaskCostRmb: false,
         failedUnrecoverableCostRmb: false,
@@ -803,6 +825,10 @@ export function AdminPricing(props: {
           value: selectedInitial?.model.name ?? selected?.modelName ?? '—',
         },
         { label: t('Points'), value: `${priceValues.points} ${t('points')}` },
+        {
+          label: t('Target margin rate'),
+          value: `${priceValues.targetMarginPercent}%`,
+        },
         {
           label: t('Expected success rate'),
           value: `${priceValues.successProbabilityPercent}%`,

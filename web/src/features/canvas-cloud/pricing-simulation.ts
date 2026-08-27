@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export interface SimulationInput {
+  targetMarginRate: string
   successProbability: string
   successfulTaskCostRmb: string
   failedUnrecoverableCostRmb: string
@@ -41,6 +42,7 @@ export interface PricingSimulationResult {
 }
 
 export interface PricingQuestionnaireAnswers {
+  targetMarginPercent: string
   successProbabilityPercent: string
   successfulTaskCostRmb: string
   failedUnrecoverableCostRmb: string
@@ -48,6 +50,8 @@ export interface PricingQuestionnaireAnswers {
   riskBufferRmb: string
   proposedPoints: string
 }
+
+export const DEFAULT_TARGET_MARGIN_PERCENT = '40'
 
 export function probabilityPercentToDecimal(value: string): string {
   const numeric = Number(value)
@@ -67,6 +71,9 @@ export function calculateQuestionnairePricing(
 ): PricingSimulationResult | null {
   try {
     return simulatePricing({
+      targetMarginRate: probabilityPercentToDecimal(
+        answers.targetMarginPercent
+      ),
       successProbability: probabilityPercentToDecimal(
         answers.successProbabilityPercent
       ),
@@ -117,8 +124,11 @@ export function simulatePricing(
   const other = fixed(input.otherVariableCostRmb, 8)
   const buffer = fixed(input.riskBufferRmb, 8)
   const rate = fixed(input.pointsPerRmb, 8)
+  const margin = fixed(input.targetMarginRate, 6)
   const proposed = fixed(input.proposedPoints, 0)
-  if (rate <= 0n || proposed <= 0n) throw new Error('invalid')
+  if (rate <= 0n || margin < 0n || margin >= one || proposed <= 0n) {
+    throw new Error('invalid')
+  }
 
   const expectedNumerator = q * success + (one - q) * failure + one * other
   const theory = ceilDivide(expectedNumerator, q)
@@ -133,7 +143,7 @@ export function simulatePricing(
   const breakNumerator = pricing * rate
   const breakEven = ceilDivide(breakNumerator, pointDenominator)
   const targetNumerator = breakNumerator * one
-  const targetDenominator = pointDenominator * 600_000n
+  const targetDenominator = pointDenominator * (one - margin)
   const target = ceilDivide(targetNumerator, targetDenominator)
   let verdict: PricingSimulationResult['verdict'] = 'MEETS_TARGET'
   if (proposed <= breakEven) verdict = 'BELOW_BREAK_EVEN'

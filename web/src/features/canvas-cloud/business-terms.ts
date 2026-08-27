@@ -126,7 +126,7 @@ export const canvasBusinessTermConfig = {
       APPROVAL_REASON:
         'The platform administrator review reason that will be stored in an immutable approval record.',
       TARGET_MARGIN_RATE:
-        'The frozen normal target margin rate of 40%. It is a health target, not permission to undercut break-even.',
+        'The target margin stored on this price version. New prices start from the uniform 40% default and may be adjusted per model.',
       SUCCESS_PROBABILITY:
         'The reviewed probability that one attempt succeeds and is chargeable, expressed from 0 to 1.',
       EXPECTED_ATTEMPT_COST:
@@ -152,7 +152,7 @@ export const canvasBusinessTermConfig = {
       PROPOSED_POINTS:
         'A side-effect-free simulated point price used only to compare against the calculated floors.',
       TARGET_MARGIN_POINTS:
-        'The read-only ceiling of break-even cost divided by 1 minus the 40% target margin.',
+        "The read-only ceiling of break-even cost divided by one minus this price version's configured target margin.",
       ASSUMPTIONS:
         'The immutable calculation inputs, evidence, and eligibility facts captured with this PriceVersion.',
       DECISION:
