@@ -147,7 +147,11 @@ export function PricingQuestionnaire(props: {
     () => calculateQuestionnairePricing(props.answers, props.pointsPerRmb),
     [props.answers, props.pointsPerRmb]
   )
-  const verdict = result ? verdictPresentation(result.verdict) : null
+  const hasValidProposedPoints = /^[1-9]\d*$/.test(props.answers.proposedPoints)
+  const verdict =
+    result && hasValidProposedPoints
+      ? verdictPresentation(result.verdict)
+      : null
   const id = (suffix: string) => `${props.idPrefix}-${suffix}`
   const field = (key: AnswerKey) => ({
     error: props.errors?.[key],
@@ -328,7 +332,9 @@ export function PricingQuestionnaire(props: {
         )}
       >
         <div className='max-w-2xl'>
-          <div className='w-full max-w-xs'>
+          {proposedPointsAction()}
+
+          <div className='mt-3 w-full max-w-xs'>
             <AnswerField
               id={id('proposed-points')}
               label={t('Proposed price points')}
@@ -339,8 +345,6 @@ export function PricingQuestionnaire(props: {
               {...field('proposedPoints')}
             />
           </div>
-
-          {proposedPointsAction()}
         </div>
       </Question>
 
@@ -369,11 +373,13 @@ export function PricingQuestionnaire(props: {
               emphasized
             />
           </div>
-          <div
-            className={`mt-3 rounded-lg border p-3 text-sm ${verdict?.className ?? ''}`}
-          >
-            {t(verdict?.message ?? 'Simulation meets target margin')}
-          </div>
+          {verdict && (
+            <div
+              className={`mt-3 rounded-lg border p-3 text-sm ${verdict.className}`}
+            >
+              {t(verdict.message)}
+            </div>
+          )}
           <details className='mt-3 text-sm'>
             <summary className='cursor-pointer font-medium'>
               {t('Show calculation details')}

@@ -26,7 +26,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -1149,28 +1148,10 @@ export function AdminPricing(props: {
   }
 
   return (
-    <div className='mx-auto w-full max-w-7xl space-y-4'>
+    <div className='mx-auto w-full max-w-7xl space-y-4 pb-24'>
       <Card>
         <CardHeader>
           <CardTitle>{t('Canvas pricing')}</CardTitle>
-          <CardAction>
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={() => {
-                const popup = window.open(
-                  '/canvas-cloud/pricing-calculator',
-                  'canvas-pricing-calculator',
-                  'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
-                )
-                popup?.focus()
-              }}
-            >
-              <Calculator />
-              {t('Open pricing calculator')}
-            </Button>
-          </CardAction>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1188,6 +1169,24 @@ export function AdminPricing(props: {
           </Tabs>
         </CardContent>
       </Card>
+
+      <Button
+        type='button'
+        variant='outline'
+        aria-label={t('Open pricing calculator')}
+        className='border-primary/30 bg-background/95 hover:border-primary/60 fixed right-4 bottom-4 z-40 h-11 rounded-full px-4 shadow-lg backdrop-blur-sm transition-colors sm:right-6 sm:bottom-6'
+        onClick={() => {
+          const popup = window.open(
+            '/canvas-cloud/pricing-calculator',
+            'canvas-pricing-calculator',
+            'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
+          )
+          popup?.focus()
+        }}
+      >
+        <Calculator aria-hidden='true' />
+        {t('Open pricing calculator')}
+      </Button>
 
       {activeTab === 'rate' && (
         <Card>

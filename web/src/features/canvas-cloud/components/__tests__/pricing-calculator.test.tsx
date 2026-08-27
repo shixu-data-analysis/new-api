@@ -135,12 +135,15 @@ describe('Canvas pricing calculator', () => {
     })
     expect(screen.getByText('25%')).toBeVisible()
     fireEvent.change(screen.getByLabelText('Proposed price points'), {
-      target: { value: '1' },
+      target: { value: '' },
     })
     const recommendation = screen.getByRole('region', {
       name: 'Pricing recommendation',
     })
     expect(recommendation).toHaveTextContent('158 points')
+    expect(
+      screen.queryByText(/meets or exceeds this price version/)
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Use recommended' }))
     expect(screen.getByLabelText('Proposed price points')).toHaveValue('158')
     expect(

@@ -70,6 +70,9 @@ export function calculateQuestionnairePricing(
   pointsPerRmb: string
 ): PricingSimulationResult | null {
   try {
+    const proposedPoints = /^[1-9]\d*$/.test(answers.proposedPoints)
+      ? answers.proposedPoints
+      : '1'
     return simulatePricing({
       targetMarginRate: probabilityPercentToDecimal(
         answers.targetMarginPercent
@@ -84,7 +87,7 @@ export function calculateQuestionnairePricing(
       pointsPerRmb,
       actualCostEligible: false,
       actualCostRmb: '0',
-      proposedPoints: answers.proposedPoints,
+      proposedPoints,
     })
   } catch {
     return null

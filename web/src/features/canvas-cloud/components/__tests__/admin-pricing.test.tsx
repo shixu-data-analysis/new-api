@@ -577,13 +577,17 @@ describe('Canvas administrator pricing', () => {
     })
   })
 
-  it('limits direct rate input to two decimals and opens a focused calculator popup', async () => {
+  it('limits direct rate input to two decimals and opens the floating calculator popup', async () => {
     const focus = vi.fn()
     const popup = vi
       .spyOn(window, 'open')
       .mockReturnValue({ focus } as unknown as Window)
     renderPricing()
     openTab('Point issuance rate')
+
+    expect(
+      screen.getByRole('button', { name: 'Open pricing calculator' })
+    ).toHaveClass('fixed', 'bottom-4', 'right-4')
 
     const form = screen.getByRole('form', {
       name: 'Adjust point issuance rate',
