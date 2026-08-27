@@ -20,6 +20,8 @@ import { api } from '@/lib/api'
 
 import type {
   CanvasAdminWorkspace,
+  CanvasAuditEventPage,
+  CanvasAuditEventQuery,
   CanvasAdminTestingModel,
   CanvasAdminRechargeCodePage,
   CanvasAdminRechargeCodeQuery,
@@ -93,6 +95,16 @@ export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
 export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {
   return (await api.get<CanvasAdminWorkspace>(`${webBase}/admin/workspace`))
     .data
+}
+
+export async function getCanvasAuditEvents(
+  query: CanvasAuditEventQuery
+): Promise<CanvasAuditEventPage> {
+  return (
+    await api.get<CanvasAuditEventPage>(`${webBase}/admin/audit-events`, {
+      params: query,
+    })
+  ).data
 }
 
 export async function getCanvasAdminTestingModels(): Promise<

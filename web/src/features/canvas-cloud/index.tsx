@@ -42,6 +42,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   createCanvasRefund,
   getCanvasAdminWorkspace,
+  getCanvasAuditEvents,
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
@@ -72,6 +73,7 @@ const adminSections = [
   'channels',
   'refunds',
   'reports',
+  'audit',
 ] as const
 const adminNavigationSections = adminSections.filter(
   (section) => section !== 'pricing-calculator'
@@ -92,6 +94,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   channels: 'Canvas Channels',
   refunds: 'Canvas Refunds',
   reports: 'Canvas Reports',
+  audit: 'Canvas Audit Log',
 }
 
 function formatDate(value: string | null): string {
@@ -377,6 +380,11 @@ function AdminContent(props: { section: AdminSection }) {
     pointsRequested: '0',
     reason: '',
   })
+  const [auditFilters, setAuditFilters] = useState({
+    action: '',
+    outcome: '',
+    resourceId: '',
+  })
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
     queryFn: getCanvasAdminWorkspace,
@@ -392,6 +400,29 @@ function AdminContent(props: { section: AdminSection }) {
     queryKey: ['canvas-cloud', 'report', dates],
     queryFn: () => getCanvasContributionReport(dates.from, dates.to),
     enabled: props.section === 'reports',
+  })
+  const audit = useQuery({
+    queryKey: ['canvas-cloud', 'audit', auditFilters],
+    queryFn: () =>
+      getCanvasAuditEvents({
+        page: 1,
+        pageSize: 50,
+        ...(auditFilters.action.trim()
+          ? { action: auditFilters.action.trim() }
+          : {}),
+        ...(auditFilters.outcome
+          ? {
+              outcome: auditFilters.outcome as
+                | 'SUCCESS'
+                | 'FAILURE'
+                | 'DEFERRED',
+            }
+          : {}),
+        ...(auditFilters.resourceId.trim()
+          ? { resourceId: auditFilters.resourceId.trim() }
+          : {}),
+      }),
+    enabled: props.section === 'audit',
   })
   const reconcile = useMutation({
     mutationFn: (taskId: string) =>
@@ -430,6 +461,95 @@ function AdminContent(props: { section: AdminSection }) {
   }
   if (props.section === 'pricing-calculator') {
     return <PricingCalculator />
+  }
+  if (props.section === 'audit') {
+    if (audit.isPending) return <LoadingState />
+    if (audit.isError) {
+      return <ErrorState onRetry={() => void audit.refetch()} />
+    }
+    return (
+      <div className='space-y-4'>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Cloud audit filters')}</CardTitle>
+            <CardDescription>
+              {t('Read-only persistent Cloud security and task facts')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='grid gap-4 md:grid-cols-3'>
+            <div className='space-y-2'>
+              <Label htmlFor='canvas-audit-action'>{t('Action')}</Label>
+              <Input
+                id='canvas-audit-action'
+                value={auditFilters.action}
+                onChange={(event) =>
+                  setAuditFilters((current) => ({
+                    ...current,
+                    action: event.target.value,
+                  }))
+                }
+                placeholder='task.execution.succeeded'
+              />
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='canvas-audit-outcome'>{t('Outcome')}</Label>
+              <select
+                id='canvas-audit-outcome'
+                className='border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none'
+                value={auditFilters.outcome}
+                onChange={(event) =>
+                  setAuditFilters((current) => ({
+                    ...current,
+                    outcome: event.target.value,
+                  }))
+                }
+              >
+                <option value=''>{t('All outcomes')}</option>
+                <option value='SUCCESS'>{t('Success')}</option>
+                <option value='FAILURE'>{t('Failure')}</option>
+                <option value='DEFERRED'>{t('Deferred')}</option>
+              </select>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='canvas-audit-resource'>{t('Resource ID')}</Label>
+              <Input
+                id='canvas-audit-resource'
+                value={auditFilters.resourceId}
+                onChange={(event) =>
+                  setAuditFilters((current) => ({
+                    ...current,
+                    resourceId: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
+        <DataTable
+          empty={t('No audit events')}
+          headers={[
+            t('Time'),
+            t('Outcome'),
+            t('Action'),
+            t('Actor'),
+            t('Resource'),
+            t('Reason'),
+          ]}
+          rows={audit.data.items.map((item) => [
+            formatDate(item.occurredAt),
+            item.outcome,
+            item.action,
+            item.actorPrincipalId
+              ? `${item.actorType} · ${item.actorPrincipalId}`
+              : item.actorType,
+            item.resourceId
+              ? `${item.resourceType} · ${item.resourceId}`
+              : (item.resourceKey ?? item.resourceType),
+            item.reasonCode ?? '—',
+          ])}
+        />
+      </div>
+    )
   }
   if (props.section === 'channels') {
     return (

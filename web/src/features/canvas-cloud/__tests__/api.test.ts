@@ -29,6 +29,7 @@ import {
   publishCanvasPriceGroup,
   getCanvasAdminRechargeCodes,
   getCanvasAdminWorkspace,
+  getCanvasAuditEvents,
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
   getCanvasPointIssuanceRates,
@@ -70,6 +71,25 @@ describe('Canvas Cloud API boundary', () => {
     })
     await getCanvasAdminWorkspace()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/admin/workspace')
+  })
+
+  it('reads filtered Cloud audit facts without a mutation or mode parameter', async () => {
+    mocks.get.mockResolvedValue({
+      data: { page: 1, pageSize: 50, total: 0, items: [] },
+    })
+    const query = {
+      page: 1 as const,
+      pageSize: 50 as const,
+      outcome: 'FAILURE' as const,
+      action: 'task.execution',
+      resourceId: '85000000-0000-7000-8000-000000000002',
+    }
+    await getCanvasAuditEvents(query)
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/audit-events',
+      { params: query }
+    )
+    expect(mocks.post).not.toHaveBeenCalled()
   })
 
   it('uses protected administrator routes for testing models and initial pricing', async () => {

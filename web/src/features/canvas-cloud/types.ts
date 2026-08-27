@@ -201,6 +201,39 @@ export interface CanvasAdminWorkspace {
   }>
 }
 
+export interface CanvasAuditEventPage {
+  page: number
+  pageSize: 20 | 50 | 100
+  total: number
+  items: Array<{
+    id: string
+    occurredAt: string
+    service: string
+    environment: string
+    category: string
+    action: string
+    outcome: 'SUCCESS' | 'FAILURE' | 'DEFERRED'
+    severity: 'INFO' | 'WARN' | 'ERROR'
+    actorPrincipalId: string | null
+    actorType: string
+    requestId: string | null
+    traceId: string | null
+    resourceType: string
+    resourceId: string | null
+    resourceKey: string | null
+    reasonCode: string | null
+    publicMetadata: Record<string, unknown>
+  }>
+}
+
+export interface CanvasAuditEventQuery {
+  page: number
+  pageSize: 20 | 50 | 100
+  action?: string
+  outcome?: CanvasAuditEventPage['items'][number]['outcome']
+  resourceId?: string
+}
+
 export interface CanvasPointIssuanceRateVersion {
   id: string
   version: number
