@@ -50,6 +50,15 @@ function verdictPresentation(verdict: PricingSimulationResult['verdict']) {
   }
 }
 
+function displayRmb(value: string): string {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return value
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric)
+}
+
 function Question(props: {
   number: number
   title: string
@@ -121,7 +130,7 @@ function SummaryValue(props: {
   emphasized?: boolean
 }) {
   return (
-    <div className='rounded-lg border bg-background p-3'>
+    <div className='bg-background rounded-lg border p-3'>
       <dt className='text-muted-foreground text-xs'>{props.label}</dt>
       <dd
         className={`mt-1 tabular-nums ${props.emphasized ? 'text-lg font-semibold' : 'font-medium'}`}
@@ -289,17 +298,17 @@ export function PricingQuestionnaire(props: {
       {result ? (
         <section
           aria-live='polite'
-          className='rounded-xl border bg-muted/20 p-4 sm:p-5'
+          className='bg-muted/20 rounded-xl border p-4 sm:p-5'
         >
           <h3 className='font-semibold'>{t('Pricing recommendation')}</h3>
           <div className='mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
             <SummaryValue
               label={t('Cost per successful task')}
-              value={`${Number(result.kTheoryRmb)} ${t('RMB')}`}
+              value={`${displayRmb(result.kTheoryRmb)} ${t('RMB')}`}
             />
             <SummaryValue
               label={t('Pricing cost basis')}
-              value={`${Number(result.kPricingRmb)} ${t('RMB')}`}
+              value={`${displayRmb(result.kPricingRmb)} ${t('RMB')}`}
             />
             <SummaryValue
               label={t('Break-even')}
@@ -324,7 +333,7 @@ export function PricingQuestionnaire(props: {
               <div>
                 <dt>{t('Expected attempt cost')}</dt>
                 <dd>
-                  {Number(result.expectedAttemptCostRmb)} {t('RMB')}
+                  {displayRmb(result.expectedAttemptCostRmb)} {t('RMB')}
                 </dd>
               </div>
               <div>

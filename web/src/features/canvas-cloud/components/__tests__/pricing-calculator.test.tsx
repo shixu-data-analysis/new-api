@@ -114,5 +114,10 @@ describe('Canvas pricing calculator', () => {
     expect(
       await screen.findByText(/at or below break-even and cannot be published/)
     ).toBeVisible()
+    expect(screen.getByText('2.17 RMB')).toBeVisible()
+    expect(screen.getByText('2.37 RMB')).toBeVisible()
+
+    fireEvent.click(screen.getByText('Show calculation details'))
+    expect(screen.getByText('1.95 RMB')).toBeVisible()
   })
 })
