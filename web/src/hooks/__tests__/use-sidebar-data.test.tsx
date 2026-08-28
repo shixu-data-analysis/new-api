@@ -40,6 +40,7 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/audit',
       '/canvas-cloud/customers',
       '/canvas-cloud/recharge-codes',
+      '/canvas-cloud/invite-codes',
       '/canvas-cloud/refunds',
       '/canvas-cloud/catalog',
       '/canvas-cloud/pricing',

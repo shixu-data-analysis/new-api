@@ -37,6 +37,7 @@ import {
   Settings,
   Ticket,
   User,
+  UserPlus,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -101,6 +102,11 @@ export function useSidebarData(): SidebarData {
                 title: t('Canvas Recharge Codes'),
                 url: '/canvas-cloud/recharge-codes',
                 icon: Key,
+              },
+              {
+                title: t('Canvas Invite Codes'),
+                url: '/canvas-cloud/invite-codes',
+                icon: UserPlus,
               },
               {
                 title: t('Canvas Refunds'),

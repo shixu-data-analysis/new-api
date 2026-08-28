@@ -20,6 +20,7 @@ export type CanvasBusinessTermKind =
   | 'billingStatus'
   | 'configStatus'
   | 'customerStatus'
+  | 'executorStatus'
   | 'ledgerEvent'
   | 'ledgerReason'
   | 'pointBalance'
@@ -48,6 +49,16 @@ export const canvasBusinessTermConfig = {
       ACTIVE: 'Active',
       SUSPENDED: 'Suspended',
       CLOSED: 'Closed',
+    },
+    presentation: 'badge',
+  },
+  executorStatus: {
+    helpKey:
+      '{{term}} is the current lifecycle state of this Canvas executor worker.',
+    labels: {
+      RUNNING: 'Running',
+      STOPPING: 'Stopping',
+      STOPPED: 'Stopped',
     },
     presentation: 'badge',
   },
@@ -299,6 +310,8 @@ export const canvasBusinessTermConfig = {
       RETIRED: 'Retired',
       ACTIVE: 'Active',
       PAUSED: 'Paused',
+      STOPPED: 'Stopped',
+      EXPIRED: 'Expired',
     },
     presentation: 'badge',
   },
@@ -378,4 +391,11 @@ export function getCanvasBusinessTerm(
         presentation: group.presentation,
       }
     : null
+}
+
+export function getCanvasBusinessTermLabelKey(
+  kind: CanvasBusinessTermKind,
+  value: string
+): string {
+  return getCanvasBusinessTerm(kind, value)?.labelKey ?? value
 }

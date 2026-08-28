@@ -45,6 +45,20 @@ const guidedPricingKeys = [
   'Pricing recommendation',
 ] as const
 const modelIdentityKeys = ['Search model name or ID', 'Model ID'] as const
+const inviteBonusKeys = [
+  'Bonus promotion',
+  'Initial Bonus points',
+  'Bonus validity days',
+  'Initial Bonus',
+  'Optional',
+] as const
+const inviteStatusKeys = [
+  'Invite status DRAFT',
+  'Invite status ACTIVE',
+  'Invite status PAUSED',
+  'Invite status REVOKED',
+  'Invite status EXPIRED',
+] as const
 
 describe('Canvas interface localization', () => {
   it.each(Object.entries(localizedResources))(
@@ -99,6 +113,29 @@ describe('Canvas interface localization', () => {
     (_locale, resource) => {
       const translations = resource.translation as Record<string, string>
       for (const key of modelIdentityKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'localizes invite promotional-point labels in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of inviteBonusKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+        expect(translations[key], key).not.toMatch(/Bonus|Optional/i)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'localizes every invite status in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of inviteStatusKeys) {
         expect(translations[key], key).toBeTypeOf('string')
         expect(translations[key], key).not.toBe(key)
       }

@@ -46,6 +46,7 @@ import {
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceChange,
 } from '../api'
+import { getCanvasBusinessTermLabelKey } from '../business-terms'
 import {
   formatBusinessNumber,
   formatBusinessPercentFromRate,
@@ -732,8 +733,8 @@ export function AdminPricing(props: {
       pricingColumn(
         'status',
         'RATE_STATUS',
-        (rate) => t(rate.status),
-        (rate) => t(rate.status)
+        (rate) => t(getCanvasBusinessTermLabelKey('configStatus', rate.status)),
+        (rate) => <BusinessTerm kind='configStatus' value={rate.status} />
       ),
       pricingColumn(
         'rate',
@@ -817,8 +818,9 @@ export function AdminPricing(props: {
       pricingColumn(
         'status',
         'STATUS',
-        (price) => t(price.status),
-        (price) => t(price.status)
+        (price) =>
+          t(getCanvasBusinessTermLabelKey('configStatus', price.status)),
+        (price) => <BusinessTerm kind='configStatus' value={price.status} />
       ),
       pricingColumn(
         'points',
@@ -1874,8 +1876,11 @@ export function AdminPricing(props: {
                           {dateTime(promotion.endsAt)}
                         </div>
                         <div className='text-muted-foreground mt-1 text-xs'>
-                          {t(promotion.status)} · {t('Participants')}:{' '}
-                          {promotion.participants}/
+                          <BusinessTerm
+                            kind='configStatus'
+                            value={promotion.status}
+                          />{' '}
+                          · {t('Participants')}: {promotion.participants}/
                           {promotion.maxParticipants ?? '∞'} ·{' '}
                           {t('Budget used')}:{' '}
                           {minorToRmb(promotion.usedBudgetMinor)} /{' '}

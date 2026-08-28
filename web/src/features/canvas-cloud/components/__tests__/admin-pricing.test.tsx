@@ -130,7 +130,9 @@ describe('Canvas administrator pricing', () => {
     apiMocks.publishConfirmedCanvasInitialPrice.mockResolvedValue({
       status: 'PUBLISHED',
     })
-    apiMocks.cancelScheduledCanvasPrice.mockResolvedValue({ status: 'RETIRED' })
+    apiMocks.cancelScheduledCanvasPrice.mockResolvedValue({
+      status: 'RETIRED',
+    })
     apiMocks.createCanvasLimitedPricePromotion.mockResolvedValue({
       status: 'APPROVED',
     })
@@ -236,6 +238,8 @@ describe('Canvas administrator pricing', () => {
     expect(within(table).getByText('20 points')).toBeVisible()
     expect(within(table).getByText('10 points')).toBeVisible()
     expect(within(table).getByText('17 points')).toBeVisible()
+    expect(within(table).getByText('Published')).toBeVisible()
+    expect(within(table).queryByText('PUBLISHED')).not.toBeInTheDocument()
     expect(screen.getByText(/successfulTaskCostRmb/)).not.toBeVisible()
 
     const assumptions = screen.getByText('Show pricing assumptions')

@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { getCanvasPriceGroups, publishConfirmedCanvasPriceGroup } from '../api'
+import { getCanvasBusinessTermLabelKey } from '../business-terms'
 import type { CanvasPriceGroupVersion } from '../types'
 import { BusinessTerm } from './BusinessTerm'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -126,8 +127,9 @@ export function PriceGroupManagement() {
       groupColumn(
         'status',
         'GROUP_STATUS',
-        (group) => t(group.status),
-        (group) => t(group.status)
+        (group) =>
+          t(getCanvasBusinessTermLabelKey('configStatus', group.status)),
+        (group) => <BusinessTerm kind='configStatus' value={group.status} />
       ),
       groupColumn(
         'created',

@@ -30,6 +30,9 @@ import type {
   CanvasCustomerWorkspace,
   CanvasSession,
   CanvasIssuedRechargeCodes,
+  CanvasAdminInviteCode,
+  CanvasCreatedInviteCode,
+  CanvasInviteCodeOptions,
   CanvasModelCatalogBundle,
   CanvasModelCatalogPlan,
 } from './types'
@@ -153,6 +156,72 @@ export async function issueCanvasAdminRechargeCodes(input: {
       input,
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-issue-code') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function activateCanvasInvite(code: string): Promise<{
+  status: 'CONSUMED'
+  customerId: string
+}> {
+  return (
+    await api.post(
+      `${webBase}/invite-registration`,
+      { code },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-invite-activate') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasAdminInviteCodes(): Promise<
+  CanvasAdminInviteCode[]
+> {
+  return (await api.get(`${webBase}/admin/invite-codes`)).data
+}
+
+export async function getCanvasInviteCodeOptions(): Promise<CanvasInviteCodeOptions> {
+  return (await api.get(`${webBase}/admin/invite-code-options`)).data
+}
+
+export async function createCanvasAdminInviteCode(input: {
+  maxRegistrations: string
+  validFrom: string
+  expiresAt: string
+  priceGroupId: string
+  initialBonusPoints: string | null
+  initialBonusTtlDays: number | null
+  promotionVersionId: string | null
+  referralSource: string | null
+}): Promise<CanvasCreatedInviteCode> {
+  return (
+    await api.post(
+      `${webBase}/admin/invite-codes`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-invite-create') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function changeCanvasAdminInviteCodeStatus(
+  inviteCodeId: string,
+  action: 'pause' | 'resume' | 'revoke'
+): Promise<CanvasAdminInviteCode> {
+  return (
+    await api.post(
+      `${webBase}/admin/invite-codes/${inviteCodeId}/${action}`,
+      { confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey(`web-invite-${action}`),
+        },
         skipErrorHandler: true,
       }
     )

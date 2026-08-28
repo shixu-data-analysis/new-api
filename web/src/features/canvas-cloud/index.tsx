@@ -57,6 +57,8 @@ import {
 import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPricing } from './components/AdminPricing'
 import { BusinessTerm } from './components/BusinessTerm'
+import { InviteActivation } from './components/InviteActivation'
+import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PricingCalculator } from './components/PricingCalculator'
 import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
@@ -73,6 +75,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   'task-logs': 'Canvas Task Logs',
   customers: 'Canvas Customers & Points',
   'recharge-codes': 'Canvas Recharge Codes',
+  'invite-codes': 'Canvas Invite Codes',
   catalog: 'Canvas Model Catalog',
   overview: 'Canvas Usage Overview',
   recharge: 'Redeem Points',
@@ -687,7 +690,11 @@ function AdminContent(props: { section: AdminSection }) {
           key: item.customerId,
           cells: [
             item.username,
-            item.status,
+            <BusinessTerm
+              key='status'
+              kind='customerStatus'
+              value={item.status}
+            />,
             item.availablePoints,
             item.paidAvailablePoints,
             item.bonusAvailablePoints,
@@ -699,6 +706,7 @@ function AdminContent(props: { section: AdminSection }) {
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
   }
+  if (props.section === 'invite-codes') return <InviteCodeManagement />
   if (props.section === 'catalog') return <AdminModelCatalog />
   if (props.section === 'pricing') {
     return (
@@ -823,7 +831,11 @@ function AdminContent(props: { section: AdminSection }) {
             cells: [
               `${item.queueName} · ${item.workerId}`,
               item.mode,
-              item.status,
+              <BusinessTerm
+                key='status'
+                kind='executorStatus'
+                value={item.status}
+              />,
               item.credentialsConfigured
                 ? t('Configured')
                 : t('Not configured'),
@@ -1036,13 +1048,16 @@ export function CanvasCloud() {
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <ErrorState
-            title={t('Canvas access unavailable')}
-            description={t(
-              'Complete Canvas invite registration or contact an administrator.'
-            )}
-            onRetry={() => void session.refetch()}
-          />
+          <div className='space-y-4'>
+            <ErrorState
+              title={t('Canvas access unavailable')}
+              description={t(
+                'Complete Canvas invite registration or contact an administrator.'
+              )}
+              onRetry={() => void session.refetch()}
+            />
+            <InviteActivation />
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     )

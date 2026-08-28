@@ -19,18 +19,22 @@ For commercial licensing, please contact support@quantumnous.com
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  activateCanvasInvite,
   cancelCanvasLimitedPricePromotion,
   cancelScheduledCanvasPrice,
   approveCanvasPriceDraft,
   approveCanvasPointIssuanceRate,
   createCanvasPointIssuanceRateDraft,
   createCanvasLimitedPricePromotion,
+  createCanvasAdminInviteCode,
   createCanvasPriceDraft,
   approveCanvasPriceGroup,
   createCanvasPriceGroupDraft,
   getCanvasPriceGroups,
   publishCanvasPriceGroup,
   getCanvasAdminRechargeCodes,
+  getCanvasAdminInviteCodes,
+  getCanvasInviteCodeOptions,
   getCanvasAdminWorkspace,
   getCanvasAuditEvents,
   getCanvasAdminTestingModels,
@@ -39,6 +43,7 @@ import {
   getCanvasTaskPolicySettings,
   getCanvasRechargePurchaseLink,
   issueCanvasAdminRechargeCodes,
+  changeCanvasAdminInviteCodeStatus,
   normalizeCanvasRechargePurchaseLink,
   planCanvasModelCatalogBundle,
   publishCanvasPriceVersion,
@@ -453,6 +458,49 @@ describe('Canvas Cloud API boundary', () => {
         },
         skipErrorHandler: true,
       }
+    )
+  })
+
+  it('uses protected Canvas endpoints for invite activation and lifecycle management', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasAdminInviteCodes()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes'
+    )
+    mocks.get.mockResolvedValue({ data: { priceGroups: [], promotions: [] } })
+    await getCanvasInviteCodeOptions()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-code-options'
+    )
+
+    mocks.post.mockResolvedValue({ data: { item: {}, code: 'CANVAS-TEST' } })
+    const input = {
+      maxRegistrations: '10',
+      validFrom: '2026-08-29T00:00:00.000Z',
+      expiresAt: '2026-09-29T00:00:00.000Z',
+      priceGroupId: 'group-v1',
+      initialBonusPoints: '500',
+      initialBonusTtlDays: 30,
+      promotionVersionId: null,
+      referralSource: 'launch',
+    }
+    await createCanvasAdminInviteCode(input)
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes',
+      { ...input, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await changeCanvasAdminInviteCodeStatus('invite-v1', 'pause')
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/invite-v1/pause',
+      { confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await activateCanvasInvite('CANVAS-TEST')
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/invite-registration',
+      { code: 'CANVAS-TEST' },
+      expect.objectContaining({ skipErrorHandler: true })
     )
   })
 

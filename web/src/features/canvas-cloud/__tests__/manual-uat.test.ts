@@ -143,4 +143,31 @@ describe('Canvas manual UAT authentication', () => {
       )
     ).rejects.toThrow('admin login returned an invalid bundle')
   })
+
+  it('rejects a same-role bundle for a different configured customer', async () => {
+    const bundle = {
+      access_token: 'existing-customer-access-token',
+      token_type: 'Bearer',
+      access_expires_at: 10_000,
+      user: { id: 2, username: 'uatcustomer', role: 1, status: 1 },
+      session: {
+        sid: 'existing-customer-session',
+        current: true,
+        login_method: 'password',
+        ip: '127.0.0.1',
+        user_agent: 'manual-uat',
+        created_at: 1_000,
+        last_active_at: 1_000,
+        expires_at: 10_000,
+      },
+    }
+
+    await expect(
+      loginCanvasManualUat(
+        { username: 'uatinvitee', password: 'test-password', role: 1 },
+        'customer',
+        async () => bundle
+      )
+    ).rejects.toThrow('customer login returned an invalid bundle')
+  })
 })

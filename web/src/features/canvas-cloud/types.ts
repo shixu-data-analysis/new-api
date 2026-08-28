@@ -69,6 +69,54 @@ export interface CanvasIssuedRechargeCodes {
   items: CanvasAdminRechargeCode[]
 }
 
+export type CanvasInviteCodeStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'REVOKED'
+  | 'EXPIRED'
+
+export interface CanvasAdminInviteCode {
+  id: string
+  maskedCode: string
+  status: CanvasInviteCodeStatus
+  effectiveStatus: CanvasInviteCodeStatus
+  maxRegistrations: string
+  reservedCount: string
+  consumedCount: string
+  remainingCount: string
+  validFrom: string
+  expiresAt: string
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  initialBonusPoints: string | null
+  initialBonusTtlDays: number | null
+  promotionVersionId: string | null
+  referralSource: string | null
+  pausedAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface CanvasInviteCodeOptions {
+  priceGroups: Array<{ id: string; code: string; internalName: string }>
+  promotions: Array<{
+    id: string
+    code: string
+    internalName: string
+    version: number
+    status: string
+    bonusPoints: string
+    bonusTtlDays: number
+  }>
+}
+
+export interface CanvasCreatedInviteCode {
+  item: CanvasAdminInviteCode
+  code: string | null
+}
+
 export interface CanvasCustomerWorkspace {
   wallet: {
     availablePoints: string

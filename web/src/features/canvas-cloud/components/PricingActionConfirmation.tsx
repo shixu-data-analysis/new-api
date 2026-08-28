@@ -41,6 +41,7 @@ export function PricingActionConfirmation(props: {
   description: string
   details: ConfirmationDetail[]
   confirmLabel: string
+  destructive?: boolean
   pending: boolean
   onConfirm: () => void
 }) {
@@ -69,7 +70,11 @@ export function PricingActionConfirmation(props: {
           <AlertDialogCancel disabled={props.pending}>
             {t('Cancel')}
           </AlertDialogCancel>
-          <AlertDialogAction disabled={props.pending} onClick={props.onConfirm}>
+          <AlertDialogAction
+            variant={props.destructive ? 'destructive' : 'default'}
+            disabled={props.pending}
+            onClick={props.onConfirm}
+          >
             {props.confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

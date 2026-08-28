@@ -167,8 +167,10 @@ export async function loginCanvasManualUat(
   request: CanvasManualUatLoginRequest = requestCanvasManualUatLogin
 ): Promise<AuthBundle> {
   const bundle = await request(credentials)
-  const expectedRole = role === 'admin' ? 10 : 1
-  if (!isAuthBundle(bundle) || bundle.user.role !== expectedRole) {
+  if (
+    !isAuthBundle(bundle) ||
+    !matchesCanvasManualUatIdentity(bundle.user, role, credentials)
+  ) {
     throw new Error(
       `Canvas manual UAT ${role} login returned an invalid bundle`
     )
@@ -176,11 +178,22 @@ export async function loginCanvasManualUat(
   return bundle
 }
 
-function hasUsableRoleBundle(role: CanvasManualUatRole): boolean {
-  const auth = useAuthStore.getState().auth
+function matchesCanvasManualUatIdentity(
+  user: AuthBundle['user'] | null | undefined,
+  role: CanvasManualUatRole,
+  credentials: CanvasManualUatLogin
+): boolean {
   const expectedRole = role === 'admin' ? 10 : 1
+  return user?.role === expectedRole && user.username === credentials.username
+}
+
+function hasUsableLoginBundle(
+  role: CanvasManualUatRole,
+  credentials: CanvasManualUatLogin
+): boolean {
+  const auth = useAuthStore.getState().auth
   return (
-    auth.user?.role === expectedRole &&
+    matchesCanvasManualUatIdentity(auth.user, role, credentials) &&
     Boolean(auth.accessToken) &&
     Boolean(auth.session?.sid) &&
     (auth.accessExpiresAt ?? 0) > Math.floor(Date.now() / 1000) + 30
@@ -204,12 +217,16 @@ export async function initializeCanvasManualUat(): Promise<void> {
 
   window.sessionStorage.setItem(roleStorageKey, login.role)
   window.localStorage.setItem('setup_status_checked', 'true')
-  if (hasUsableRoleBundle(login.role)) return
+  if (hasUsableLoginBundle(login.role, login.credentials)) return
 
   const refreshed = await refreshAuthentication()
   if (
     refreshed.kind === 'authenticated' &&
-    refreshed.bundle.user.role === login.credentials.role
+    matchesCanvasManualUatIdentity(
+      refreshed.bundle.user,
+      login.role,
+      login.credentials
+    )
   ) {
     return
   }
