@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BarChart3,
+  BookOpenCheck,
   Box,
+  CircleDollarSign,
   Cloud,
   CreditCard,
   FileText,
@@ -28,6 +31,8 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
+  ReceiptText,
+  RotateCcw,
   ServerCog,
   Settings,
   Ticket,
@@ -38,6 +43,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -48,6 +54,131 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const canvasSession = useCanvasSession()
+
+  if (canvasSession.isPending) return { navGroups: [] }
+
+  if (canvasSession.isSuccess) {
+    if (canvasSession.data.principalType === 'PLATFORM_ADMIN') {
+      return {
+        navGroups: [
+          {
+            id: 'canvas-admin-operations',
+            title: t('Operations'),
+            items: [
+              {
+                title: t('Canvas Dashboard'),
+                url: '/canvas-cloud/dashboard',
+                icon: BarChart3,
+              },
+              {
+                title: t('Canvas Usage Logs'),
+                url: '/canvas-cloud/usage-logs',
+                icon: ReceiptText,
+              },
+              {
+                title: t('Canvas Task Logs'),
+                url: '/canvas-cloud/task-logs',
+                icon: ListTodo,
+              },
+              {
+                title: t('Canvas Audit Log'),
+                url: '/canvas-cloud/audit',
+                icon: BookOpenCheck,
+              },
+            ],
+          },
+          {
+            id: 'canvas-admin-business',
+            title: t('Business'),
+            items: [
+              {
+                title: t('Canvas Customers & Points'),
+                url: '/canvas-cloud/customers',
+                icon: Users,
+              },
+              {
+                title: t('Canvas Recharge Codes'),
+                url: '/canvas-cloud/recharge-codes',
+                icon: Key,
+              },
+              {
+                title: t('Canvas Refunds'),
+                url: '/canvas-cloud/refunds',
+                icon: RotateCcw,
+              },
+            ],
+          },
+          {
+            id: 'canvas-admin-models-cost',
+            title: t('Models & Cost'),
+            items: [
+              {
+                title: t('Canvas Model Catalog'),
+                url: '/canvas-cloud/catalog',
+                icon: Box,
+              },
+              {
+                title: t('Canvas Pricing'),
+                url: '/canvas-cloud/pricing',
+                icon: CircleDollarSign,
+              },
+              {
+                title: t('Canvas Channels'),
+                url: '/canvas-cloud/channels',
+                icon: ServerCog,
+              },
+            ],
+          },
+          {
+            id: 'account',
+            title: t('Account'),
+            items: [{ title: t('Profile'), url: '/profile', icon: User }],
+          },
+        ],
+      }
+    }
+    return {
+      navGroups: [
+        {
+          id: 'canvas',
+          title: t('Canvas Cloud'),
+          items: [
+            {
+              title: t('Canvas Usage Overview'),
+              url: '/canvas-cloud/overview',
+              icon: BarChart3,
+            },
+            {
+              title: t('Redeem Points'),
+              url: '/canvas-cloud/recharge',
+              icon: Ticket,
+            },
+            {
+              title: t('Available Models'),
+              url: '/canvas-cloud/models',
+              icon: Box,
+            },
+            {
+              title: t('My Tasks'),
+              url: '/canvas-cloud/tasks',
+              icon: ListTodo,
+            },
+            {
+              title: t('Point History'),
+              url: '/canvas-cloud/consumption',
+              icon: FileText,
+            },
+          ],
+        },
+        {
+          id: 'account',
+          title: t('Account'),
+          items: [{ title: t('Profile'), url: '/profile', icon: User }],
+        },
+      ],
+    }
+  }
 
   return {
     navGroups: [

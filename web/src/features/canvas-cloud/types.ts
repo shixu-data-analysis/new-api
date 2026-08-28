@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type CanvasPrincipalType = 'CUSTOMER' | 'PLATFORM_ADMIN' | 'BOSS'
+export type CanvasPrincipalType = 'CUSTOMER' | 'PLATFORM_ADMIN'
 
 export interface CanvasSession {
   principalId: string
@@ -128,7 +128,7 @@ export interface CanvasCatalogModel {
 }
 
 export interface CanvasAdminWorkspace {
-  principal: { principalId: string; principalType: 'PLATFORM_ADMIN' | 'BOSS' }
+  principal: { principalId: string; principalType: 'PLATFORM_ADMIN' }
   customers: CanvasAdminCustomerPointBalance[]
   channels: Array<{
     id: string
@@ -224,6 +224,20 @@ export interface CanvasAdminWorkspace {
     executionOrigin: 'MOCK' | 'REAL' | null
     upstreamTaskId: string | null
     acceptedAt: string
+  }>
+  recentTasks: Array<{
+    id: string
+    customerId: string
+    customerName: string
+    modelName: string
+    quotedPoints: string
+    executionStatus: string
+    customerBillingStatus: string
+    providerReconcileStatus: string
+    executionOrigin: 'MOCK' | 'REAL' | null
+    upstreamTaskId: string | null
+    acceptedAt: string
+    completedAt: string | null
   }>
 }
 

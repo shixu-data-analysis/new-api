@@ -16,10 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { CanvasCloud } from '@/features/canvas-cloud'
+import { isCanvasSectionAllowed } from '@/features/canvas-cloud/access'
+import { getCanvasSession } from '@/features/canvas-cloud/api'
 
 export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
+  beforeLoad: async ({ params }) => {
+    let session
+    try {
+      session = await getCanvasSession()
+    } catch {
+      throw redirect({ to: '/403' })
+    }
+
+    if (!isCanvasSectionAllowed(session.principalType, params.section)) {
+      throw redirect({ to: '/403' })
+    }
+  },
   component: CanvasCloud,
 })

@@ -20,11 +20,17 @@ import { useNavigate, useRouter } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { getCanvasHomeSection } from '@/features/canvas-cloud/access'
+import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 
 export function ForbiddenError() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { history } = useRouter()
+  const canvasSession = useCanvasSession()
+  const canvasHomeSection = canvasSession.data
+    ? getCanvasHomeSection(canvasSession.data.principalType)
+    : null
   return (
     <div className='h-svh'>
       <div className='m-auto flex h-full w-full flex-col items-center justify-center gap-2'>
@@ -38,7 +44,16 @@ export function ForbiddenError() {
           <Button variant='outline' onClick={() => history.go(-1)}>
             {t('Go Back')}
           </Button>
-          <Button onClick={() => navigate({ to: '/' })}>
+          <Button
+            onClick={() =>
+              canvasHomeSection
+                ? navigate({
+                    to: '/canvas-cloud/$section',
+                    params: { section: canvasHomeSection },
+                  })
+                : navigate({ to: '/' })
+            }
+          >
             {t('Back to Home')}
           </Button>
         </div>

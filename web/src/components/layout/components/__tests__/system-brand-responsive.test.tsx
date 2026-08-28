@@ -21,13 +21,27 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { SystemBrand } from '../system-brand'
 
+const { canvasSessionState } = vi.hoisted(() => ({
+  canvasSessionState: {
+    data: null as null | { principalType: 'CUSTOMER' | 'PLATFORM_ADMIN' },
+    isSuccess: false,
+  },
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   Link: (
-    props: React.AnchorHTMLAttributes<HTMLAnchorElement> & { to: string }
+    props: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+      to: string
+      params?: unknown
+    }
   ) => {
-    const { to, ...anchorProps } = props
+    const { to, params: _params, ...anchorProps } = props
     return <a href={to} {...anchorProps} />
   },
+}))
+
+vi.mock('@/features/canvas-cloud/use-canvas-session', () => ({
+  useCanvasSession: () => canvasSessionState,
 }))
 
 vi.mock('@/hooks/use-status', () => ({
@@ -52,5 +66,21 @@ describe('SystemBrand responsive layout', () => {
       'href',
       '/dashboard'
     )
+  })
+
+  it('uses the LingCat identity and role dashboard for a Canvas administrator', () => {
+    canvasSessionState.data = { principalType: 'PLATFORM_ADMIN' }
+    canvasSessionState.isSuccess = true
+
+    render(<SystemBrand variant='inline' />)
+
+    expect(screen.getByRole('img', { name: 'LingCat Studio' })).toBeVisible()
+    expect(screen.getByText('LingCat Studio')).toHaveClass(
+      'hidden',
+      'sm:inline'
+    )
+    expect(
+      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+    ).toHaveAttribute('href', '/canvas-cloud/$section')
   })
 })

@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   loginCanvasManualUat,
+  resolveCanvasManualUatEntryHref,
   resolveCanvasManualUatLogin,
   resolveCanvasManualUatRole,
 } from '../manual-uat'
@@ -94,6 +95,18 @@ describe('Canvas manual UAT authentication', () => {
     expect(resolveCanvasManualUatRole('localhost', null)).toBe('admin')
     expect(() => resolveCanvasManualUatRole('::1', null)).toThrow(
       'requires an isolated loopback origin'
+    )
+  })
+
+  it('maps each isolated root origin to its Canvas product home', () => {
+    expect(resolveCanvasManualUatEntryHref('127.0.0.1', null)).toBe(
+      '/canvas-cloud/overview?canvas-uat-role=customer'
+    )
+    expect(resolveCanvasManualUatEntryHref('localhost', null)).toBe(
+      '/canvas-cloud/dashboard?canvas-uat-role=admin'
+    )
+    expect(() => resolveCanvasManualUatEntryHref('127.0.0.1', 'admin')).toThrow(
+      'admin must use its dedicated loopback origin'
     )
   })
 

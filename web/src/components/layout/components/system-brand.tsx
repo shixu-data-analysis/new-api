@@ -24,6 +24,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { getCanvasProductName } from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -46,20 +49,36 @@ type SystemBrandProps = {
  * - sidebar: stacked card in the sidebar header (display only)
  */
 export function SystemBrand(props: SystemBrandProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
+  const canvasSession = useCanvasSession()
 
   const variant = props.variant ?? 'sidebar'
-  const name = status?.system_name || props.defaultName || 'New API'
+  const canvasName = getCanvasProductName(
+    i18n.resolvedLanguage ?? i18n.language
+  )
+  const name = canvasSession.isSuccess
+    ? canvasName
+    : status?.system_name || props.defaultName || 'New API'
+  const homeSection =
+    canvasSession.data?.principalType === 'PLATFORM_ADMIN'
+      ? 'dashboard'
+      : 'overview'
+  const displayedLogo = canvasSession.isSuccess ? lingCatStudioIcon : logo
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
   if (variant === 'inline') {
     return (
       <Link
-        to='/dashboard'
-        aria-label={t('Go to home')}
+        to={canvasSession.isSuccess ? '/canvas-cloud/$section' : '/dashboard'}
+        params={canvasSession.isSuccess ? { section: homeSection } : undefined}
+        aria-label={
+          canvasSession.isSuccess
+            ? t('Return to {{name}} dashboard', { name: canvasName })
+            : t('Go to home')
+        }
         className={cn(
           'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
@@ -67,8 +86,8 @@ export function SystemBrand(props: SystemBrandProps) {
       >
         <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
           <img
-            src={logo}
-            alt={t('Logo')}
+            src={displayedLogo}
+            alt={canvasSession.isSuccess ? canvasName : t('Logo')}
             className='size-full rounded-md object-cover'
           />
         </div>
@@ -87,7 +106,7 @@ export function SystemBrand(props: SystemBrandProps) {
         >
           <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
             <img
-              src={logo}
+              src={displayedLogo}
               alt={t('Logo')}
               className='size-full rounded-lg object-cover'
             />

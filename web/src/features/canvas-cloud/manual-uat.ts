@@ -77,6 +77,15 @@ export function resolveCanvasManualUatRole(
   return role
 }
 
+export function resolveCanvasManualUatEntryHref(
+  hostname: string,
+  requestedRole: string | null
+): string {
+  const role = resolveCanvasManualUatRole(hostname, requestedRole)
+  const section = role === 'admin' ? 'dashboard' : 'overview'
+  return `/canvas-cloud/${section}?canvas-uat-role=${role}`
+}
+
 function decodeBase64Url(value: string): unknown {
   const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
   const padding = '='.repeat((4 - (normalized.length % 4)) % 4)

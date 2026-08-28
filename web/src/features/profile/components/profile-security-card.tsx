@@ -37,6 +37,7 @@ import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 interface ProfileSecurityCardProps {
   profile: UserProfile | null
   loading: boolean
+  allowAccessToken: boolean
 }
 
 type DialogKey = 'password' | 'token' | 'delete'
@@ -44,6 +45,7 @@ type DialogKey = 'password' | 'token' | 'delete'
 export function ProfileSecurityCard({
   profile,
   loading,
+  allowAccessToken,
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
@@ -74,13 +76,17 @@ export function ProfileSecurityCard({
       action: () => dialogs.open('password'),
       variant: 'default' as const,
     },
-    {
-      icon: Key,
-      title: t('Access Token'),
-      description: t('Generate and manage your API access token'),
-      action: () => dialogs.open('token'),
-      variant: 'default' as const,
-    },
+    ...(allowAccessToken
+      ? [
+          {
+            icon: Key,
+            title: t('Access Token'),
+            description: t('Generate and manage your API access token'),
+            action: () => dialogs.open('token'),
+            variant: 'default' as const,
+          },
+        ]
+      : []),
     {
       icon: Trash2,
       title: t('Delete Account'),
@@ -132,12 +138,14 @@ export function ProfileSecurityCard({
         username={profile.username}
       />
 
-      <AccessTokenDialog
-        open={dialogs.isOpen('token')}
-        onOpenChange={(open) =>
-          open ? dialogs.open('token') : dialogs.close('token')
-        }
-      />
+      {allowAccessToken && (
+        <AccessTokenDialog
+          open={dialogs.isOpen('token')}
+          onOpenChange={(open) =>
+            open ? dialogs.open('token') : dialogs.close('token')
+          }
+        />
+      )}
 
       <DeleteAccountDialog
         open={dialogs.isOpen('delete')}

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { getRouteApi } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,8 +37,12 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import {
+  isCanvasSectionAllowed,
+  type canvasAdminSections as adminSections,
+  type canvasCustomerSections as customerSections,
+} from './access'
 import {
   createCanvasRefund,
   getCanvasAdminWorkspace,
@@ -46,7 +50,6 @@ import {
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
-  getCanvasRechargePurchaseLink,
   getCanvasSession,
   reconcileCanvasTask,
   redeemCanvasRechargeCode,
@@ -57,44 +60,34 @@ import { BusinessTerm } from './components/BusinessTerm'
 import { PricingCalculator } from './components/PricingCalculator'
 import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
+import { CanvasRechargeCodes } from './RechargeCodes'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
-const customerSections = [
-  'overview',
-  'recharge',
-  'models',
-  'tasks',
-  'consumption',
-] as const
-const adminSections = [
-  'catalog',
-  'pricing',
-  'pricing-calculator',
-  'channels',
-  'refunds',
-  'reports',
-  'audit',
-] as const
-const adminNavigationSections = adminSections.filter(
-  (section) => section !== 'pricing-calculator'
-)
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
 type CanvasSection = CustomerSection | AdminSection
 
 const sectionTitles: Record<CanvasSection, string> = {
+  dashboard: 'Canvas Dashboard',
+  'usage-logs': 'Canvas Usage Logs',
+  'task-logs': 'Canvas Task Logs',
+  customers: 'Canvas Customers & Points',
+  'recharge-codes': 'Canvas Recharge Codes',
   catalog: 'Canvas Model Catalog',
-  overview: 'Canvas Overview',
-  recharge: 'Canvas Recharge',
-  models: 'Canvas Models',
-  tasks: 'Canvas Tasks',
-  consumption: 'Canvas Consumption',
+  overview: 'Canvas Usage Overview',
+  recharge: 'Redeem Points',
+  models: 'Available Models',
+  tasks: 'My Tasks',
+  consumption: 'Point History',
   pricing: 'Canvas Pricing',
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
   refunds: 'Canvas Refunds',
-  reports: 'Canvas Reports',
   audit: 'Canvas Audit Log',
+}
+
+function sumPoints(values: string[]): string {
+  return values.reduce((total, value) => total + BigInt(value), 0n).toString()
 }
 
 function formatDate(value: string | null): string {
@@ -117,7 +110,7 @@ function formatCnyMinor(value: string): string {
 
 function DataTable(props: {
   headers: string[]
-  rows: ReactNode[][]
+  rows: Array<{ key: string; cells: ReactNode[] }>
   empty: string
 }) {
   if (props.rows.length === 0) {
@@ -136,12 +129,9 @@ function DataTable(props: {
           </tr>
         </thead>
         <tbody className='divide-y'>
-          {props.rows.map((cells) => (
-            <tr
-              key={typeof cells[0] === 'string' ? cells[0] : String(cells[0])}
-              className='hover:bg-muted/30'
-            >
-              {cells.map((cell, cellIndex) => (
+          {props.rows.map((row) => (
+            <tr key={row.key} className='hover:bg-muted/30'>
+              {row.cells.map((cell, cellIndex) => (
                 <td
                   key={props.headers[cellIndex]}
                   className='px-3 py-2 align-middle'
@@ -190,12 +180,6 @@ function CustomerContent(props: { section: CustomerSection }) {
     queryFn: getCanvasCatalog,
     enabled: props.section === 'models',
   })
-  const purchaseLink = useQuery({
-    queryKey: ['canvas-cloud', 'recharge-purchase-link'],
-    queryFn: getCanvasRechargePurchaseLink,
-    enabled: props.section === 'recharge',
-    retry: false,
-  })
   const redeem = useMutation({
     mutationFn: redeemCanvasRechargeCode,
     onSuccess: async () => {
@@ -212,25 +196,69 @@ function CustomerContent(props: { section: CustomerSection }) {
   }
   const data = workspace.data
   if (props.section === 'overview') {
+    const completedTasks = data.tasks.filter(
+      (task) => task.executionStatus === 'SUCCEEDED'
+    ).length
+    const consumedPoints = sumPoints(
+      data.tasks
+        .filter((task) => task.customerBillingStatus === 'SETTLED')
+        .map((task) => task.quotedPoints)
+    )
+    const usageByModel = Object.entries(
+      data.tasks.reduce<Record<string, { count: number; points: bigint }>>(
+        (result, task) => {
+          const key = task.modelName || t('Unknown model')
+          const current = result[key] ?? { count: 0, points: 0n }
+          current.count += 1
+          if (task.customerBillingStatus === 'SETTLED') {
+            current.points += BigInt(task.quotedPoints)
+          }
+          result[key] = current
+          return result
+        },
+        {}
+      )
+    ).sort(([, left], [, right]) => right.count - left.count)
     return (
-      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-        <MetricCard
-          title={t('Available points')}
-          value={data.wallet.availablePoints}
-        />
-        <MetricCard
-          title={t('Paid points')}
-          value={data.wallet.paidAvailablePoints}
-        />
-        <MetricCard
-          title={t('Bonus points')}
-          value={data.wallet.bonusAvailablePoints}
-        />
-        <MetricCard
-          title={t('Recent tasks')}
-          value={String(data.tasks.length)}
-          description={t('Latest 100 Canvas tasks')}
-        />
+      <div className='space-y-4'>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+          <MetricCard
+            title={t('Available points')}
+            value={data.wallet.availablePoints}
+          />
+          <MetricCard
+            title={t('Points used')}
+            value={consumedPoints}
+            description={t('Latest 100 Canvas tasks')}
+          />
+          <MetricCard
+            title={t('Tasks')}
+            value={String(data.tasks.length)}
+            description={t('Latest 100 Canvas tasks')}
+          />
+          <MetricCard
+            title={t('Successful tasks')}
+            value={String(completedTasks)}
+          />
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Model usage')}</CardTitle>
+            <CardDescription>
+              {t('Your own latest Canvas usage by model')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              empty={t('No Canvas tasks')}
+              headers={[t('Model'), t('Tasks'), t('Points used')]}
+              rows={usageByModel.map(([model, usage]) => ({
+                key: model,
+                cells: [model, String(usage.count), usage.points.toString()],
+              }))}
+            />
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -239,7 +267,7 @@ function CustomerContent(props: { section: CustomerSection }) {
       <div className='space-y-4'>
         <RechargeCodeCard
           code={code}
-          purchaseUrl={purchaseLink.data ?? null}
+          purchaseUrl={null}
           redeeming={redeem.isPending}
           onCodeChange={setCode}
           onRedeem={() => redeem.mutate(code.trim())}
@@ -247,16 +275,19 @@ function CustomerContent(props: { section: CustomerSection }) {
         <DataTable
           empty={t('No recharge orders')}
           headers={[t('Order'), t('Status'), t('Amount'), t('Created')]}
-          rows={data.rechargeOrders.map((item) => [
-            item.orderNumber,
-            <BusinessTerm
-              key='s'
-              kind='rechargeOrderStatus'
-              value={item.status}
-            />,
-            formatMoneyMinor(item.listedAmountMinor, item.currency),
-            formatDate(item.createdAt),
-          ])}
+          rows={data.rechargeOrders.map((item) => ({
+            key: item.id,
+            cells: [
+              item.orderNumber,
+              <BusinessTerm
+                key='s'
+                kind='rechargeOrderStatus'
+                value={item.status}
+              />,
+              formatMoneyMinor(item.listedAmountMinor, item.currency),
+              formatDate(item.createdAt),
+            ],
+          }))}
         />
       </div>
     )
@@ -308,21 +339,24 @@ function CustomerContent(props: { section: CustomerSection }) {
           t('Points'),
           t('Accepted'),
         ]}
-        rows={data.tasks.map((item) => [
-          item.modelName,
-          <BusinessTerm
-            key='e'
-            kind='taskExecutionStatus'
-            value={item.executionStatus}
-          />,
-          <BusinessTerm
-            key='b'
-            kind='billingStatus'
-            value={item.customerBillingStatus}
-          />,
-          item.quotedPoints,
-          formatDate(item.acceptedAt),
-        ])}
+        rows={data.tasks.map((item) => ({
+          key: item.id,
+          cells: [
+            item.modelName,
+            <BusinessTerm
+              key='e'
+              kind='taskExecutionStatus'
+              value={item.executionStatus}
+            />,
+            <BusinessTerm
+              key='b'
+              kind='billingStatus'
+              value={item.customerBillingStatus}
+            />,
+            item.quotedPoints,
+            formatDate(item.acceptedAt),
+          ],
+        }))}
       />
     )
   }
@@ -331,12 +365,15 @@ function CustomerContent(props: { section: CustomerSection }) {
       <DataTable
         empty={t('No point lots')}
         headers={[t('Type'), t('Available'), t('Reserved'), t('Expires')]}
-        rows={data.wallet.lots.map((item) => [
-          <BusinessTerm key='type' kind='pointLotType' value={item.type} />,
-          item.availablePoints,
-          item.reservedPoints,
-          formatDate(item.expiresAt),
-        ])}
+        rows={data.wallet.lots.map((item) => ({
+          key: item.id,
+          cells: [
+            <BusinessTerm key='type' kind='pointLotType' value={item.type} />,
+            item.availablePoints,
+            item.reservedPoints,
+            formatDate(item.expiresAt),
+          ],
+        }))}
       />
       <DataTable
         empty={t('No consumption records')}
@@ -347,25 +384,28 @@ function CustomerContent(props: { section: CustomerSection }) {
           t('Reason'),
           t('Time'),
         ]}
-        rows={data.ledger.map((item) => [
-          <BusinessTerm
-            key='event'
-            kind='ledgerEvent'
-            value={item.eventType}
-          />,
-          item.eventPoints,
-          item.remainingDelta,
-          item.reason ? (
+        rows={data.ledger.map((item) => ({
+          key: item.id,
+          cells: [
             <BusinessTerm
-              key='reason'
-              kind='ledgerReason'
-              value={item.reason}
-            />
-          ) : (
-            '—'
-          ),
-          formatDate(item.occurredAt),
-        ])}
+              key='event'
+              kind='ledgerEvent'
+              value={item.eventType}
+            />,
+            item.eventPoints,
+            item.remainingDelta,
+            item.reason ? (
+              <BusinessTerm
+                key='reason'
+                kind='ledgerReason'
+                value={item.reason}
+              />
+            ) : (
+              '—'
+            ),
+            formatDate(item.occurredAt),
+          ],
+        }))}
       />
     </div>
   )
@@ -399,7 +439,7 @@ function AdminContent(props: { section: AdminSection }) {
   const report = useQuery({
     queryKey: ['canvas-cloud', 'report', dates],
     queryFn: () => getCanvasContributionReport(dates.from, dates.to),
-    enabled: props.section === 'reports',
+    enabled: props.section === 'dashboard',
   })
   const audit = useQuery({
     queryKey: ['canvas-cloud', 'audit', auditFilters],
@@ -448,6 +488,217 @@ function AdminContent(props: { section: AdminSection }) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
   }
   const data = workspace.data
+  if (props.section === 'dashboard') {
+    const totalAvailablePoints = sumPoints(
+      data.customers.map((customer) => customer.availablePoints)
+    )
+    const settledPoints = sumPoints(
+      data.recentTasks
+        .filter((task) => task.customerBillingStatus === 'SETTLED')
+        .map((task) => task.quotedPoints)
+    )
+    const successfulTasks = data.recentTasks.filter(
+      (task) => task.executionStatus === 'SUCCEEDED'
+    ).length
+    const activeWorkers = data.executorWorkers.filter(
+      (worker) => worker.status === 'RUNNING'
+    ).length
+    return (
+      <div className='space-y-4'>
+        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+          <MetricCard
+            title={t('Active customers')}
+            value={String(
+              data.customers.filter((customer) => customer.status === 'ACTIVE')
+                .length
+            )}
+          />
+          <MetricCard
+            title={t('Customer available points')}
+            value={totalAvailablePoints}
+          />
+          <MetricCard
+            title={t('Points used')}
+            value={settledPoints}
+            description={t('Latest 100 platform Canvas tasks')}
+          />
+          <MetricCard
+            title={t('Executor health')}
+            value={`${activeWorkers}/${data.executorWorkers.length}`}
+            description={t('Running workers')}
+          />
+        </div>
+        <div className='grid gap-4 lg:grid-cols-2'>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Task health')}</CardTitle>
+              <CardDescription>
+                {t('Latest 100 platform Canvas tasks')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='grid grid-cols-2 gap-3'>
+              <MetricCard
+                title={t('Tasks')}
+                value={String(data.recentTasks.length)}
+              />
+              <MetricCard
+                title={t('Successful tasks')}
+                value={String(successfulTasks)}
+              />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Attention required')}</CardTitle>
+              <CardDescription>
+                {t('Operational items that need administrator review')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='grid grid-cols-2 gap-3'>
+              <MetricCard
+                title={t('Reconciliation tasks')}
+                value={String(data.reconciliationTasks.length)}
+              />
+              <MetricCard
+                title={t('Refunds')}
+                value={String(
+                  data.refunds.filter((item) => item.status !== 'COMPLETED')
+                    .length
+                )}
+              />
+            </CardContent>
+          </Card>
+        </div>
+        {report.isSuccess && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Contribution overview')}</CardTitle>
+              <CardDescription>{t(report.data.disclaimer)}</CardDescription>
+            </CardHeader>
+            <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+              <MetricCard
+                title={t('Original contribution')}
+                value={formatCnyMinor(
+                  report.data.originalBatchContributionMinor
+                )}
+              />
+              <MetricCard
+                title={t('Refund adjustments')}
+                value={formatCnyMinor(
+                  report.data.refundAndChargebackAdjustmentsMinor
+                )}
+              />
+              <MetricCard
+                title={t('Adjusted contribution')}
+                value={formatCnyMinor(report.data.adjustedContributionMinor)}
+              />
+              <MetricCard
+                title={t('Reconciliation timeout loss')}
+                value={formatCnyMinor(
+                  report.data.reconciliationTimeoutLossMinor
+                )}
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    )
+  }
+  if (props.section === 'usage-logs') {
+    return (
+      <DataTable
+        empty={t('No consumption records')}
+        headers={[
+          t('Customer'),
+          t('Model'),
+          t('Points used'),
+          t('Billing'),
+          t('Time'),
+        ]}
+        rows={data.recentTasks.map((item) => ({
+          key: item.id,
+          cells: [
+            item.customerName,
+            item.modelName,
+            item.quotedPoints,
+            <BusinessTerm
+              key='billing'
+              kind='billingStatus'
+              value={item.customerBillingStatus}
+            />,
+            formatDate(item.acceptedAt),
+          ],
+        }))}
+      />
+    )
+  }
+  if (props.section === 'task-logs') {
+    return (
+      <DataTable
+        empty={t('No Canvas tasks')}
+        headers={[
+          t('Customer'),
+          t('Model'),
+          t('Execution'),
+          t('Billing'),
+          t('Reconciliation'),
+          t('Source'),
+          t('Accepted'),
+        ]}
+        rows={data.recentTasks.map((item) => ({
+          key: item.id,
+          cells: [
+            item.customerName,
+            item.modelName,
+            <BusinessTerm
+              key='execution'
+              kind='taskExecutionStatus'
+              value={item.executionStatus}
+            />,
+            <BusinessTerm
+              key='billing'
+              kind='billingStatus'
+              value={item.customerBillingStatus}
+            />,
+            <BusinessTerm
+              key='reconciliation'
+              kind='reconciliationStatus'
+              value={item.providerReconcileStatus}
+            />,
+            item.executionOrigin ?? '—',
+            formatDate(item.acceptedAt),
+          ],
+        }))}
+      />
+    )
+  }
+  if (props.section === 'customers') {
+    return (
+      <DataTable
+        empty={t('No customers')}
+        headers={[
+          t('Customer'),
+          t('Status'),
+          t('Available points'),
+          t('Paid points'),
+          t('Bonus points'),
+        ]}
+        rows={data.customers.map((item) => ({
+          key: item.customerId,
+          cells: [
+            item.username,
+            item.status,
+            item.availablePoints,
+            item.paidAvailablePoints,
+            item.bonusAvailablePoints,
+          ],
+        }))}
+      />
+    )
+  }
+  if (props.section === 'recharge-codes') {
+    return <CanvasRechargeCodes embedded />
+  }
   if (props.section === 'catalog') return <AdminModelCatalog />
   if (props.section === 'pricing') {
     return (
@@ -536,18 +787,21 @@ function AdminContent(props: { section: AdminSection }) {
             t('Resource'),
             t('Reason'),
           ]}
-          rows={audit.data.items.map((item) => [
-            formatDate(item.occurredAt),
-            item.outcome,
-            item.action,
-            item.actorPrincipalId
-              ? `${item.actorType} · ${item.actorPrincipalId}`
-              : item.actorType,
-            item.resourceId
-              ? `${item.resourceType} · ${item.resourceId}`
-              : (item.resourceKey ?? item.resourceType),
-            item.reasonCode ?? '—',
-          ])}
+          rows={audit.data.items.map((item) => ({
+            key: item.id,
+            cells: [
+              formatDate(item.occurredAt),
+              item.outcome,
+              item.action,
+              item.actorPrincipalId
+                ? `${item.actorType} · ${item.actorPrincipalId}`
+                : item.actorType,
+              item.resourceId
+                ? `${item.resourceType} · ${item.resourceId}`
+                : (item.resourceKey ?? item.resourceType),
+              item.reasonCode ?? '—',
+            ],
+          }))}
         />
       </div>
     )
@@ -564,13 +818,18 @@ function AdminContent(props: { section: AdminSection }) {
             t('Credentials'),
             t('Updated'),
           ]}
-          rows={data.executorWorkers.map((item) => [
-            `${item.queueName} · ${item.workerId}`,
-            item.mode,
-            item.status,
-            item.credentialsConfigured ? t('Configured') : t('Not configured'),
-            formatDate(item.heartbeatAt),
-          ])}
+          rows={data.executorWorkers.map((item) => ({
+            key: `${item.queueName}:${item.workerId}`,
+            cells: [
+              `${item.queueName} · ${item.workerId}`,
+              item.mode,
+              item.status,
+              item.credentialsConfigured
+                ? t('Configured')
+                : t('Not configured'),
+              formatDate(item.heartbeatAt),
+            ],
+          }))}
         />
         <DataTable
           empty={t('No provider channels')}
@@ -581,13 +840,16 @@ function AdminContent(props: { section: AdminSection }) {
             t('Adapter'),
             t('Upstream model'),
           ]}
-          rows={data.channels.map((item) => [
-            item.providerName,
-            `${item.code} v${item.version}`,
-            <BusinessTerm key='s' kind='configStatus' value={item.status} />,
-            item.protocolAdapter,
-            item.upstreamModel,
-          ])}
+          rows={data.channels.map((item) => ({
+            key: item.id,
+            cells: [
+              item.providerName,
+              `${item.code} v${item.version}`,
+              <BusinessTerm key='s' kind='configStatus' value={item.status} />,
+              item.protocolAdapter,
+              item.upstreamModel,
+            ],
+          }))}
         />
         <DataTable
           empty={t('No reconciliation tasks')}
@@ -599,33 +861,36 @@ function AdminContent(props: { section: AdminSection }) {
             t('Accepted'),
             t('Action'),
           ]}
-          rows={data.reconciliationTasks.map((item) => [
-            item.modelName,
-            <BusinessTerm
-              key='execution'
-              kind='taskExecutionStatus'
-              value={item.executionStatus}
-            />,
-            item.executionOrigin ?? '—',
-            <BusinessTerm
-              key='s'
-              kind='reconciliationStatus'
-              value={item.providerReconcileStatus}
-            />,
-            formatDate(item.acceptedAt),
-            item.providerReconcileStatus === 'COST_CONFIRMED' ? (
-              <Button
-                key='a'
-                size='sm'
-                disabled={reconcile.isPending}
-                onClick={() => reconcile.mutate(item.id)}
-              >
-                {t('Reconcile')}
-              </Button>
-            ) : (
-              '—'
-            ),
-          ])}
+          rows={data.reconciliationTasks.map((item) => ({
+            key: item.id,
+            cells: [
+              item.modelName,
+              <BusinessTerm
+                key='execution'
+                kind='taskExecutionStatus'
+                value={item.executionStatus}
+              />,
+              item.executionOrigin ?? '—',
+              <BusinessTerm
+                key='s'
+                kind='reconciliationStatus'
+                value={item.providerReconcileStatus}
+              />,
+              formatDate(item.acceptedAt),
+              item.providerReconcileStatus === 'COST_CONFIRMED' ? (
+                <Button
+                  key='a'
+                  size='sm'
+                  disabled={reconcile.isPending}
+                  onClick={() => reconcile.mutate(item.id)}
+                >
+                  {t('Reconcile')}
+                </Button>
+              ) : (
+                '—'
+              ),
+            ],
+          }))}
         />
       </div>
     )
@@ -729,56 +994,26 @@ function AdminContent(props: { section: AdminSection }) {
             t('Clawed back'),
             t('Outstanding'),
           ]}
-          rows={data.refunds.map((item) => [
-            item.refundReference,
-            item.orderNumber,
-            <BusinessTerm key='s' kind='refundStatus' value={item.status} />,
-            formatCnyMinor(item.cashAmountMinor),
-            item.pointsClawedBack,
-            item.pointsOutstanding,
-          ])}
+          rows={data.refunds.map((item) => ({
+            key: item.id,
+            cells: [
+              item.refundReference,
+              item.orderNumber,
+              <BusinessTerm key='s' kind='refundStatus' value={item.status} />,
+              formatCnyMinor(item.cashAmountMinor),
+              item.pointsClawedBack,
+              item.pointsOutstanding,
+            ],
+          }))}
         />
       </div>
     )
   }
-  if (report.isPending) return <LoadingState />
-  if (report.isError) {
-    return <ErrorState onRetry={() => void report.refetch()} />
-  }
-  return (
-    <div className='space-y-4'>
-      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-        <MetricCard
-          title={t('Original contribution')}
-          value={formatCnyMinor(report.data.originalBatchContributionMinor)}
-        />
-        <MetricCard
-          title={t('Refund adjustments')}
-          value={formatCnyMinor(
-            report.data.refundAndChargebackAdjustmentsMinor
-          )}
-        />
-        <MetricCard
-          title={t('Adjusted contribution')}
-          value={formatCnyMinor(report.data.adjustedContributionMinor)}
-        />
-        <MetricCard
-          title={t('Reconciliation timeout loss')}
-          value={formatCnyMinor(report.data.reconciliationTimeoutLossMinor)}
-        />
-      </div>
-      <Card>
-        <CardContent className='text-muted-foreground pt-1'>
-          {t(report.data.disclaimer)}
-        </CardContent>
-      </Card>
-    </div>
-  )
+  return null
 }
 
 export function CanvasCloud() {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const params = route.useParams()
   const session = useQuery({
@@ -812,13 +1047,21 @@ export function CanvasCloud() {
       </SectionPageLayout>
     )
   }
-  const admin =
-    session.data.principalType === 'PLATFORM_ADMIN' ||
-    session.data.principalType === 'BOSS'
-  const allowed = admin ? adminSections : customerSections
-  const section = (allowed as readonly string[]).includes(params.section)
-    ? (params.section as CanvasSection)
-    : allowed[0]
+  const admin = session.data.principalType === 'PLATFORM_ADMIN'
+  if (!isCanvasSectionAllowed(session.data.principalType, params.section)) {
+    return (
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
+        <SectionPageLayout.Content>
+          <ErrorState
+            title={t('Access denied')}
+            description={t('You do not have access to this Canvas section.')}
+          />
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+    )
+  }
+  const section = params.section as CanvasSection
   let content: ReactNode
   if (!admin) {
     content = <CustomerContent section={section as CustomerSection} />
@@ -847,28 +1090,7 @@ export function CanvasCloud() {
         </SectionPageLayout.Actions>
       )}
       <SectionPageLayout.Content>
-        <div className='space-y-4'>
-          {section !== 'pricing-calculator' && (
-            <Tabs
-              value={section}
-              onValueChange={(value) =>
-                void navigate({
-                  to: '/canvas-cloud/$section',
-                  params: { section: value },
-                })
-              }
-            >
-              <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
-                {(admin ? adminNavigationSections : allowed).map((item) => (
-                  <TabsTrigger key={item} value={item}>
-                    {t(sectionTitles[item])}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-          {content}
-        </div>
+        <div className='min-w-0'>{content}</div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )

@@ -19,10 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { AuthenticatedLayout } from '@/components/layout'
+import {
+  canCanvasPrincipalAccessPath,
+  getCanvasHomeSection,
+  isCanvasDefaultLandingPath,
+} from '@/features/canvas-cloud/access'
+import { getCanvasSession } from '@/features/canvas-cloud/api'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
     const { auth } = useAuthStore.getState()
 
     if (!auth.user || !auth.accessToken) {
@@ -30,6 +37,31 @@ export const Route = createFileRoute('/_authenticated')({
         to: '/sign-in',
         search: { redirect: location.href },
       })
+    }
+
+    if (location.pathname === '/403') return
+
+    const canvasSession = await getCanvasSession().catch(() => null)
+    if (canvasSession) {
+      if (isCanvasDefaultLandingPath(location.pathname)) {
+        throw redirect({
+          to: '/canvas-cloud/$section',
+          params: {
+            section: getCanvasHomeSection(canvasSession.principalType),
+          },
+          search: location.search,
+          replace: true,
+        })
+      }
+      if (!canCanvasPrincipalAccessPath(location.pathname)) {
+        throw redirect({ to: '/403' })
+      }
+      return
+    }
+
+    if (auth.user.role === ROLE.ADMIN) {
+      const isAccountPath = location.pathname.startsWith('/profile')
+      if (!isAccountPath) throw redirect({ to: '/403' })
     }
   },
   component: AuthenticatedLayout,
