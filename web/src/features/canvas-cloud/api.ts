@@ -384,6 +384,30 @@ export async function getCanvasPointIssuanceRates() {
   ).data
 }
 
+export async function getCanvasTaskPolicySettings() {
+  return (
+    await api.get<import('./types').CanvasTaskPolicySettings>(
+      `${webBase}/admin/task-policy-settings`
+    )
+  ).data
+}
+
+export async function publishConfirmedCanvasTaskPolicySettings(input: {
+  quoteTtlSeconds: number
+  bonusFailureGraceDays: number
+}) {
+  return (
+    await api.post<import('./types').CanvasTaskPolicySettings>(
+      `${webBase}/admin/task-policy-settings/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-task-policy') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function createCanvasPointIssuanceRateDraft(input: {
   pointsPerRmb: string
   decisionSummary?: string

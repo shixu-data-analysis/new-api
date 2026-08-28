@@ -240,6 +240,7 @@ export const canvasBusinessTermConfig = {
       'Task failed or timed out': 'Task failed or timed out',
       'Crossed-expiry task release': 'Expired bonus task release',
       'Seven-day failure grace': 'Seven-day failure grace',
+      'Bonus failure grace': 'Bonus failure grace',
     },
     presentation: 'text',
   },

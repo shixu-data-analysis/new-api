@@ -41,6 +41,8 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminTestingModels: vi.fn(),
   getCanvasPointIssuanceRates: vi.fn(),
   publishConfirmedCanvasPointIssuanceRate: vi.fn(),
+  getCanvasTaskPolicySettings: vi.fn(),
+  publishConfirmedCanvasTaskPolicySettings: vi.fn(),
   getCanvasPriceGroups: vi.fn(),
   publishConfirmedCanvasPriceGroup: vi.fn(),
 }))
@@ -101,7 +103,11 @@ function renderPricing(
 }
 
 function openTab(
-  name: 'Model prices' | 'Price groups' | 'Point issuance rate'
+  name:
+    | 'Model prices'
+    | 'Price groups'
+    | 'Point issuance rate'
+    | 'Task policy settings'
 ) {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
@@ -165,6 +171,22 @@ describe('Canvas administrator pricing', () => {
     apiMocks.publishConfirmedCanvasPointIssuanceRate.mockResolvedValue({
       status: 'PUBLISHED',
     })
+    apiMocks.getCanvasTaskPolicySettings.mockResolvedValue({
+      quoteTtlSeconds: 300,
+      quoteTtlVersion: null,
+      quoteTtlEffectiveAt: null,
+      bonusFailureGraceDays: 7,
+      bonusFailureGraceVersion: null,
+      bonusFailureGraceEffectiveAt: null,
+    })
+    apiMocks.publishConfirmedCanvasTaskPolicySettings.mockResolvedValue({
+      quoteTtlSeconds: 600,
+      quoteTtlVersion: 1,
+      quoteTtlEffectiveAt: '2026-08-29T00:00:00.000Z',
+      bonusFailureGraceDays: 14,
+      bonusFailureGraceVersion: 1,
+      bonusFailureGraceEffectiveAt: '2026-08-29T00:00:00.000Z',
+    })
   })
 
   it('shows every pricing category and keeps derived and audit values read-only', () => {
@@ -193,6 +215,14 @@ describe('Canvas administrator pricing', () => {
     expect(screen.queryByText('FROZEN v1.0 baseline')).not.toBeInTheDocument()
     expect(screen.queryByText('baseline://v1')).not.toBeInTheDocument()
     expect(screen.queryByText('platform-admin')).not.toBeInTheDocument()
+  })
+
+  it('exposes the administrator task policy settings entry', async () => {
+    renderPricing()
+    openTab('Task policy settings')
+
+    expect(await screen.findByLabelText('Quote validity')).toHaveValue('300')
+    expect(screen.getByLabelText('Bonus failure grace')).toHaveValue('7')
   })
 
   it('shows pricing records in a table and keeps raw assumptions collapsed', () => {
@@ -578,13 +608,12 @@ describe('Canvas administrator pricing', () => {
     })
   })
 
-  it('keeps inline and floating calculator entries on one reusable popup', async () => {
+  it('keeps inline and floating calculator entries on model prices only', async () => {
     const focus = vi.fn()
     const popup = vi
       .spyOn(window, 'open')
       .mockReturnValue({ focus } as unknown as Window)
     renderPricing()
-    openTab('Point issuance rate')
 
     const calculatorButtons = screen.getAllByRole('button', {
       name: 'Open pricing calculator',
@@ -603,6 +632,19 @@ describe('Canvas administrator pricing', () => {
       'lg:rounded-r-none'
     )
 
+    fireEvent.click(calculatorButtons[1])
+    expect(popup).toHaveBeenCalledWith(
+      '/canvas-cloud/pricing-calculator',
+      'canvas-pricing-calculator',
+      'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
+    )
+    expect(focus).toHaveBeenCalledOnce()
+
+    openTab('Point issuance rate')
+    expect(
+      screen.queryByRole('button', { name: 'Open pricing calculator' })
+    ).not.toBeInTheDocument()
+
     const form = screen.getByRole('form', {
       name: 'Adjust point issuance rate',
     })
@@ -618,14 +660,20 @@ describe('Canvas administrator pricing', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Enter a positive value with up to 2 decimals'
     )
+  })
 
-    fireEvent.click(calculatorButtons[0])
-    expect(popup).toHaveBeenCalledWith(
-      '/canvas-cloud/pricing-calculator',
-      'canvas-pricing-calculator',
-      'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
+  it('keeps the pricing tabs on one horizontally scrollable row', () => {
+    renderPricing()
+
+    expect(screen.getByRole('tablist')).toHaveClass(
+      'w-full',
+      'flex-nowrap',
+      'overflow-x-auto',
+      'overflow-y-hidden'
     )
-    expect(focus).toHaveBeenCalledOnce()
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).toHaveClass('h-8', 'flex-none')
+    }
   })
 
   it('shows the only required rate error below the rate field', async () => {

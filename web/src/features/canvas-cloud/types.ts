@@ -288,6 +288,15 @@ export interface CanvasPointIssuanceRateVersion {
   effectiveAt: string | null
 }
 
+export interface CanvasTaskPolicySettings {
+  quoteTtlSeconds: number
+  quoteTtlVersion: number | null
+  quoteTtlEffectiveAt: string | null
+  bonusFailureGraceDays: number
+  bonusFailureGraceVersion: number | null
+  bonusFailureGraceEffectiveAt: string | null
+}
+
 export interface CanvasAdminTestingModel {
   id: string
   modelKey: string

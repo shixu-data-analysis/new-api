@@ -67,6 +67,7 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { PricingRecordsTable } from './PricingRecordsTable'
 import { PricingTableColumnHeader } from './PricingTableColumnHeader'
+import { TaskPolicySettings } from './TaskPolicySettings'
 
 type Price = CanvasAdminWorkspace['prices'][number]
 type PricePromotion = CanvasAdminWorkspace['pricePromotions'][number]
@@ -1157,63 +1158,81 @@ export function AdminPricing(props: {
   }
 
   return (
-    <div className='mx-auto w-full max-w-7xl space-y-4 pb-24'>
+    <div
+      className={`mx-auto w-full max-w-7xl space-y-4 ${activeTab === 'prices' ? 'pb-24' : ''}`}
+    >
       <Card>
         <CardHeader>
           <CardTitle>{t('Canvas pricing')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className='h-auto max-w-full flex-wrap justify-start gap-1'>
-              <TabsTrigger className='min-h-9 px-3' value='prices'>
+            <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+              <TabsTrigger
+                className='h-8 min-h-8 flex-none px-3'
+                value='prices'
+              >
                 {t('Model prices')}
               </TabsTrigger>
-              <TabsTrigger className='min-h-9 px-3' value='groups'>
+              <TabsTrigger
+                className='h-8 min-h-8 flex-none px-3'
+                value='groups'
+              >
                 {t('Price groups')}
               </TabsTrigger>
-              <TabsTrigger className='min-h-9 px-3' value='rate'>
+              <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='rate'>
                 {t('Point issuance rate')}
+              </TabsTrigger>
+              <TabsTrigger
+                className='h-8 min-h-8 flex-none px-3'
+                value='task-policy'
+              >
+                {t('Task policy settings')}
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </CardContent>
       </Card>
 
-      <Card className='border-primary/30 bg-primary/5'>
-        <CardContent className='flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between'>
-          <div className='flex min-w-0 items-start gap-3'>
-            <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
-              <Calculator aria-hidden='true' className='size-5' />
-            </div>
-            <div className='min-w-0 space-y-1'>
-              <h3 className='font-semibold'>
-                {t('Pricing calculation guide')}
-              </h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Simulation has no side effects')}
-              </p>
-            </div>
-          </div>
+      {activeTab === 'prices' && (
+        <>
+          <Card className='border-primary/30 bg-primary/5'>
+            <CardContent className='flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='flex min-w-0 items-start gap-3'>
+                <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
+                  <Calculator aria-hidden='true' className='size-5' />
+                </div>
+                <div className='min-w-0 space-y-1'>
+                  <h3 className='font-semibold'>
+                    {t('Pricing calculation guide')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Simulation has no side effects')}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type='button'
+                className='w-full shrink-0 sm:w-auto'
+                onClick={openPricingCalculator}
+              >
+                <Calculator aria-hidden='true' />
+                {t('Open pricing calculator')}
+              </Button>
+            </CardContent>
+          </Card>
+
           <Button
             type='button'
-            className='w-full shrink-0 sm:w-auto'
+            aria-label={t('Open pricing calculator')}
+            className='bg-primary text-primary-foreground hover:bg-primary/90 ring-background fixed right-4 bottom-4 z-50 h-12 rounded-full px-5 font-semibold shadow-xl ring-4 transition-colors lg:top-1/2 lg:right-0 lg:bottom-auto lg:-translate-y-1/2 lg:rounded-l-xl lg:rounded-r-none'
             onClick={openPricingCalculator}
           >
             <Calculator aria-hidden='true' />
             {t('Open pricing calculator')}
           </Button>
-        </CardContent>
-      </Card>
-
-      <Button
-        type='button'
-        aria-label={t('Open pricing calculator')}
-        className='bg-primary text-primary-foreground hover:bg-primary/90 ring-background fixed right-4 bottom-4 z-50 h-12 rounded-full px-5 font-semibold shadow-xl ring-4 transition-colors lg:top-1/2 lg:right-0 lg:bottom-auto lg:-translate-y-1/2 lg:rounded-l-xl lg:rounded-r-none'
-        onClick={openPricingCalculator}
-      >
-        <Calculator aria-hidden='true' />
-        {t('Open pricing calculator')}
-      </Button>
+        </>
+      )}
 
       {activeTab === 'rate' && (
         <Card>
@@ -1385,6 +1404,8 @@ export function AdminPricing(props: {
       )}
 
       {activeTab === 'groups' && <PriceGroupManagement />}
+
+      {activeTab === 'task-policy' && <TaskPolicySettings />}
 
       {activeTab === 'prices' && (
         <>

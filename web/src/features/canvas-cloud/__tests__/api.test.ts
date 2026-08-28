@@ -36,6 +36,7 @@ import {
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
   getCanvasPointIssuanceRates,
+  getCanvasTaskPolicySettings,
   getCanvasRechargePurchaseLink,
   issueCanvasAdminRechargeCodes,
   normalizeCanvasRechargePurchaseLink,
@@ -45,6 +46,7 @@ import {
   publishConfirmedCanvasInitialPrice,
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceGroup,
+  publishConfirmedCanvasTaskPolicySettings,
   publishCanvasPointIssuanceRate,
   publishCanvasModelCatalogBundle,
   publishCanvasModelPresentation,
@@ -248,6 +250,30 @@ describe('Canvas Cloud API boundary', () => {
       3,
       '/canvas-api/v1/web/admin/price-groups/publications',
       { internalName: '测试客户', confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('reads and publishes administrator task policy settings', async () => {
+    mocks.get.mockResolvedValue({
+      data: { quoteTtlSeconds: 300, bonusFailureGraceDays: 7 },
+    })
+    mocks.post.mockResolvedValue({
+      data: { quoteTtlSeconds: 600, bonusFailureGraceDays: 14 },
+    })
+
+    await getCanvasTaskPolicySettings()
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/task-policy-settings'
+    )
+
+    await publishConfirmedCanvasTaskPolicySettings({
+      quoteTtlSeconds: 600,
+      bonusFailureGraceDays: 14,
+    })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/task-policy-settings/publications',
+      { quoteTtlSeconds: 600, bonusFailureGraceDays: 14, confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
     )
   })
