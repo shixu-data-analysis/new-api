@@ -54,12 +54,18 @@ export function isCanvasDefaultLandingPath(pathname: string): boolean {
 
 export function isCanvasSectionAllowed(
   principalType: CanvasPrincipalType,
-  section: string
+  section: string,
+  inviterEnabled = false
 ): boolean {
   let allowed: readonly string[] = canvasCustomerSections
   if (principalType === 'PLATFORM_ADMIN') allowed = canvasAdminSections
   if (principalType === 'AGENT') allowed = canvasAgentSections
-  return (allowed as readonly string[]).includes(section)
+  return (
+    (allowed as readonly string[]).includes(section) ||
+    (principalType === 'CUSTOMER' &&
+      inviterEnabled &&
+      section === 'agent-center')
+  )
 }
 
 export function canCanvasPrincipalAccessPath(pathname: string): boolean {

@@ -258,7 +258,8 @@ export async function getCanvasAgents(): Promise<CanvasAgentProfile[]> {
 export async function provisionCanvasAgent(input: {
   newApiUserId: string
   internalName: string
-  status: 'ACTIVE' | 'DISABLED'
+  status: 'ACTIVE'
+  reason: string
 }): Promise<CanvasAgentProfile> {
   return (
     await api.post(

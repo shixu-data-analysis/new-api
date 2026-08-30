@@ -566,6 +566,7 @@ describe('Canvas Cloud API boundary', () => {
       newApiUserId: '42',
       internalName: 'HFSY API',
       status: 'ACTIVE',
+      reason: 'Approved customer inviter',
     })
     expect(mocks.post).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/admin/agents',

@@ -26,6 +26,9 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasSectionAllowed('CUSTOMER', 'tasks')).toBe(true)
     expect(isCanvasSectionAllowed('CUSTOMER', 'dashboard')).toBe(false)
     expect(isCanvasSectionAllowed('CUSTOMER', 'usage-logs')).toBe(false)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center')).toBe(false)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center', true)).toBe(true)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agents', true)).toBe(false)
   })
 
   it('allows platform administrators only the administration sections', () => {

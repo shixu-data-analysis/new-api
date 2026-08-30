@@ -23,6 +23,7 @@ export interface CanvasSession {
   principalType: CanvasPrincipalType
   displayName: string
   emailMasked: string | null
+  inviterEnabled: boolean
 }
 
 export interface CanvasAdminRechargeCode {

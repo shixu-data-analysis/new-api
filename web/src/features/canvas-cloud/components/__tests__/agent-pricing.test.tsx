@@ -114,7 +114,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     ])
   })
 
-  it('provisions only an existing New API user and confirms the no-wallet boundary', async () => {
+  it('confirms that invitation ability preserves the existing customer boundary', async () => {
     renderWithClient(<AgentManagement />)
     fireEvent.change(await screen.findByLabelText('New API user ID'), {
       target: { value: '42' },
@@ -122,8 +122,13 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(screen.getByLabelText('Inviter name'), {
       target: { value: 'Tokyo Agent' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create inviter' }))
-    expect(await screen.findByText(/without a customer wallet/)).toBeVisible()
+    fireEvent.change(screen.getByLabelText('Approval reason'), {
+      target: { value: 'Approved partner onboarding' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable invitation ability' })
+    )
+    expect(await screen.findByText(/keeps all customer pages/)).toBeVisible()
     expect(apiMocks.provisionCanvasAgent).not.toHaveBeenCalled()
   })
 
@@ -131,13 +136,14 @@ describe('Canvas Agent and provider pricing governance', () => {
     renderWithClient(<AgentManagement />)
 
     const createButton = await screen.findByRole('button', {
-      name: 'Create inviter',
+      name: 'Enable invitation ability',
     })
     expect(createButton).toBeEnabled()
     fireEvent.click(createButton)
 
     expect(await screen.findByText('Enter a New API user ID')).toBeVisible()
     expect(screen.getByText('Enter an inviter name')).toBeVisible()
+    expect(screen.getByText('Enter an approval reason')).toBeVisible()
     expect(screen.getByLabelText('New API user ID')).toHaveAttribute(
       'aria-invalid',
       'true'
@@ -147,7 +153,7 @@ describe('Canvas Agent and provider pricing governance', () => {
 
   it('explains the server reason when inviter creation fails', async () => {
     apiMocks.provisionCanvasAgent.mockRejectedValueOnce({
-      response: { data: { code: 'IDENTITY_ALREADY_PROVISIONED' } },
+      response: { data: { code: 'INVITER_CAPABILITY_ALREADY_GRANTED' } },
     })
     renderWithClient(<AgentManagement />)
     fireEvent.change(await screen.findByLabelText('New API user ID'), {
@@ -156,23 +162,27 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(screen.getByLabelText('Inviter name'), {
       target: { value: 'Tokyo Agent' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create inviter' }))
+    fireEvent.change(screen.getByLabelText('Approval reason'), {
+      target: { value: 'Approved partner onboarding' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enable invitation ability' })
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Confirm creation' })
     )
 
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(
-        'Inviter could not be created',
+        'Invitation ability could not be enabled',
         {
-          description:
-            'This New API user already has a Canvas identity and cannot also become an inviter.',
+          description: 'This customer already has invitation ability.',
         }
       )
     )
   })
 
-  it('creates only an ordinary inviter without a provider association', async () => {
+  it('adds invitation ability to a customer without a provider association', async () => {
     renderWithClient(<AgentManagement />)
 
     fireEvent.change(await screen.findByLabelText('New API user ID'), {
@@ -181,18 +191,24 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(screen.getByLabelText('Inviter name'), {
       target: { value: 'Tokyo Inviter' },
     })
+    fireEvent.change(screen.getByLabelText('Approval reason'), {
+      target: { value: 'Approved customer referral program' },
+    })
     const createButton = screen.getByRole('button', {
-      name: 'Create inviter',
+      name: 'Enable invitation ability',
     })
     expect(createButton).toBeEnabled()
     fireEvent.click(createButton)
-    expect(await screen.findByText('Create this inviter?')).toBeVisible()
+    expect(
+      await screen.findByText('Enable invitation ability for this customer?')
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Confirm creation' }))
     await waitFor(() =>
       expect(apiMocks.provisionCanvasAgent).toHaveBeenCalledWith({
         newApiUserId: '43',
         internalName: 'Tokyo Inviter',
         status: 'ACTIVE',
+        reason: 'Approved customer referral program',
       })
     )
   })

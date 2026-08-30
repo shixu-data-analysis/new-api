@@ -1068,7 +1068,13 @@ export function CanvasCloud() {
       </SectionPageLayout>
     )
   }
-  if (!isCanvasSectionAllowed(session.data.principalType, params.section)) {
+  if (
+    !isCanvasSectionAllowed(
+      session.data.principalType,
+      params.section,
+      session.data.inviterEnabled
+    )
+  ) {
     return (
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
@@ -1083,13 +1089,13 @@ export function CanvasCloud() {
   }
   const section = params.section as CanvasSection
   let content: ReactNode
-  if (session.data.principalType === 'CUSTOMER') {
+  if (section === 'agent-center') {
+    content = <AgentCenter />
+  } else if (session.data.principalType === 'CUSTOMER') {
     content = <CustomerContent section={section as CustomerSection} />
   } else if (session.data.principalType === 'PLATFORM_ADMIN') {
     content = <AdminContent section={section as AdminSection} />
-  } else {
-    content = <AgentCenter />
-  }
+  } else content = <AgentCenter />
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>

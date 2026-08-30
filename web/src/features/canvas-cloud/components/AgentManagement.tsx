@@ -50,6 +50,7 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 interface AgentFormValues {
   newApiUserId: string
   internalName: string
+  reason: string
 }
 
 function agentCreationFailureCode(error: unknown): string | null {
@@ -67,6 +68,7 @@ export function AgentManagement() {
     defaultValues: {
       newApiUserId: '',
       internalName: '',
+      reason: '',
     },
   })
   const values = form.watch()
@@ -81,11 +83,12 @@ export function AgentManagement() {
         newApiUserId: form.getValues('newApiUserId'),
         internalName: form.getValues('internalName').trim(),
         status: 'ACTIVE',
+        reason: form.getValues('reason').trim(),
       }),
     onSuccess: async () => {
       setConfirming(false)
       form.reset()
-      toast.success(t('Inviter created'))
+      toast.success(t('Invitation ability enabled'))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['canvas-cloud', 'agents'] }),
         queryClient.invalidateQueries({
@@ -96,9 +99,11 @@ export function AgentManagement() {
     onError: (error) => {
       const reason = (() => {
         switch (agentCreationFailureCode(error)) {
-          case 'IDENTITY_ALREADY_PROVISIONED':
+          case 'INVITER_CAPABILITY_ALREADY_GRANTED':
+            return t('This customer already has invitation ability.')
+          case 'CUSTOMER_REQUIRED':
             return t(
-              'This New API user already has a Canvas identity and cannot also become an inviter.'
+              'Only an active Canvas customer can receive invitation ability.'
             )
           case 'VALIDATION_FAILED':
             return t(
@@ -126,7 +131,9 @@ export function AgentManagement() {
             )
         }
       })()
-      toast.error(t('Inviter could not be created'), { description: reason })
+      toast.error(t('Invitation ability could not be enabled'), {
+        description: reason,
+      })
     },
   })
   if (agents.isPending) return <LoadingState />
@@ -143,10 +150,10 @@ export function AgentManagement() {
     <div className='space-y-4'>
       <Card>
         <CardHeader>
-          <CardTitle>{t('Create inviter')}</CardTitle>
+          <CardTitle>{t('Enable invitation ability')}</CardTitle>
           <CardDescription>
             {t(
-              'Provision an existing New API user as a read-only Canvas Agent.'
+              'Add invitation ability to an existing Canvas customer without removing customer access.'
             )}
           </CardDescription>
         </CardHeader>
@@ -154,7 +161,7 @@ export function AgentManagement() {
           <Form {...form}>
             <form
               noValidate
-              className='grid items-start gap-3 md:grid-cols-[minmax(10rem,0.8fr)_minmax(14rem,1.2fr)_auto]'
+              className='grid items-start gap-3 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)_minmax(14rem,1.2fr)_auto]'
               onSubmit={form.handleSubmit(
                 () => setConfirming(true),
                 () => toast.error(t('Please fix the highlighted fields'))
@@ -178,9 +185,30 @@ export function AgentManagement() {
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Use an existing, enabled common New API user who does not already have a Canvas identity.'
+                        'Use the New API user ID of an existing active Canvas customer.'
                       )}
                     </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='reason'
+                rules={{
+                  validate: (value) =>
+                    value.trim().length > 0 || t('Enter an approval reason'),
+                  maxLength: {
+                    value: 500,
+                    message: t('Reason must not exceed 500 characters'),
+                  },
+                }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Approval reason')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} maxLength={500} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -211,7 +239,7 @@ export function AgentManagement() {
                 type='submit'
                 disabled={create.isPending}
               >
-                {t('Create inviter')}
+                {t('Enable invitation ability')}
               </Button>
             </form>
           </Form>
@@ -247,15 +275,16 @@ export function AgentManagement() {
       </div>
       <PricingActionConfirmation
         open={confirming}
-        title={t('Create this inviter?')}
+        title={t('Enable invitation ability for this customer?')}
         description={t(
-          'This creates an AGENT Principal without a customer wallet or administrator permissions.'
+          'The customer keeps all customer pages, wallet, points, recharge, models, and tasks. The inviter center appears only after this confirmed grant.'
         )}
         confirmLabel={t('Confirm creation')}
         pending={create.isPending}
         details={[
           { label: t('New API user ID'), value: values.newApiUserId },
           { label: t('Inviter name'), value: values.internalName.trim() },
+          { label: t('Approval reason'), value: values.reason.trim() },
         ]}
         onOpenChange={setConfirming}
         onConfirm={() => create.mutate()}

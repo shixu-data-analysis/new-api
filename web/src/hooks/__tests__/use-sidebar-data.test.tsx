@@ -17,7 +17,13 @@ const { canvasShellState } = vi.hoisted(() => ({
     canvasSession: {
       isPending: false,
       isSuccess: true,
-      data: { principalType: 'PLATFORM_ADMIN' as const },
+      data: {
+        principalType: 'PLATFORM_ADMIN' as
+          | 'CUSTOMER'
+          | 'AGENT'
+          | 'PLATFORM_ADMIN',
+        inviterEnabled: false,
+      },
     },
   },
 }))
@@ -33,6 +39,7 @@ describe('Canvas administrator primary sidebar', () => {
     canvasShellState.canvasSession.isSuccess = true
     canvasShellState.canvasSession.data = {
       principalType: 'PLATFORM_ADMIN',
+      inviterEnabled: false,
     }
   })
 
@@ -80,5 +87,34 @@ describe('Canvas administrator primary sidebar', () => {
         group.items.flatMap((item) => ('url' in item ? [item.url] : []))
       )
     ).toEqual(['/canvas-cloud/overview', '/profile'])
+  })
+
+  it('shows the inviter center only after a customer receives invitation ability', () => {
+    canvasShellState.canvasSession.data = {
+      principalType: 'CUSTOMER',
+      inviterEnabled: false,
+    }
+    const ordinary = renderHook(() => useSidebarData())
+    expect(
+      ordinary.result.current.navGroups
+        .flatMap((group) => group.items)
+        .some(
+          (item) => 'url' in item && item.url === '/canvas-cloud/agent-center'
+        )
+    ).toBe(false)
+    ordinary.unmount()
+
+    canvasShellState.canvasSession.data = {
+      principalType: 'CUSTOMER',
+      inviterEnabled: true,
+    }
+    const inviter = renderHook(() => useSidebarData())
+    expect(
+      inviter.result.current.navGroups
+        .flatMap((group) => group.items)
+        .some(
+          (item) => 'url' in item && item.url === '/canvas-cloud/agent-center'
+        )
+    ).toBe(true)
   })
 })

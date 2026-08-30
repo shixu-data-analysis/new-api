@@ -202,6 +202,15 @@ export function useSidebarData(): SidebarData {
               url: '/canvas-cloud/consumption',
               icon: FileText,
             },
+            ...(canvasSession.data.inviterEnabled
+              ? [
+                  {
+                    title: t('Inviter center'),
+                    url: '/canvas-cloud/agent-center',
+                    icon: Users,
+                  },
+                ]
+              : []),
           ],
         },
         {
