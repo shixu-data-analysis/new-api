@@ -37,6 +37,15 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'recharge')).toBe(false)
   })
 
+  it('keeps Agents on the single read-only inviter center', () => {
+    expect(isCanvasSectionAllowed('AGENT', 'agent-center')).toBe(true)
+    expect(isCanvasSectionAllowed('AGENT', 'overview')).toBe(false)
+    expect(isCanvasSectionAllowed('AGENT', 'pricing')).toBe(false)
+    expect(isCanvasSectionAllowed('AGENT', 'agents')).toBe(false)
+    expect(getCanvasHomeSection('AGENT')).toBe('agent-center')
+    expect(canCanvasPrincipalManageClientAccessToken('AGENT')).toBe(false)
+  })
+
   it('uses role homes only for the generic authenticated landing path', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'overview')).toBe(false)
     expect(getCanvasHomeSection('PLATFORM_ADMIN')).toBe('dashboard')

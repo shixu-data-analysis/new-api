@@ -36,6 +36,7 @@ const baseConfig = {
   requestedRole: 'customer',
   customerLogin: encodedLogin(1, 'uatcustomer'),
   adminLogin: encodedLogin(10, 'uatadmin'),
+  agentLogin: encodedLogin(1, 'uatagent'),
 }
 
 describe('Canvas manual UAT authentication', () => {
@@ -54,6 +55,18 @@ describe('Canvas manual UAT authentication', () => {
     expect(admin).toMatchObject({
       role: 'admin',
       credentials: { username: 'uatadmin', role: 10 },
+    })
+  })
+
+  it('selects the inviter on the sequential customer-side origin', () => {
+    const agent = resolveCanvasManualUatLogin({
+      ...baseConfig,
+      hostname: '127.0.0.1',
+      requestedRole: 'agent',
+    })
+    expect(agent).toMatchObject({
+      role: 'agent',
+      credentials: { username: 'uatagent', role: 1 },
     })
   })
 
@@ -104,6 +117,9 @@ describe('Canvas manual UAT authentication', () => {
     )
     expect(resolveCanvasManualUatEntryHref('localhost', null)).toBe(
       '/canvas-cloud/dashboard?canvas-uat-role=admin'
+    )
+    expect(resolveCanvasManualUatEntryHref('127.0.0.1', 'agent')).toBe(
+      '/canvas-cloud/agent-center?canvas-uat-role=agent'
     )
     expect(() => resolveCanvasManualUatEntryHref('127.0.0.1', 'admin')).toThrow(
       'admin must use its dedicated loopback origin'

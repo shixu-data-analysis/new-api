@@ -7,7 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Download, Pause, Play, ShieldX } from 'lucide-react'
+import { Copy, Download, Eye, EyeOff, Pause, Play, ShieldX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -38,6 +38,7 @@ import {
   createCanvasAdminInviteCode,
   getCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
+  revealCanvasCode,
 } from '../api'
 import type { CanvasAdminInviteCode } from '../types'
 import {
@@ -98,9 +99,11 @@ export function InviteCodeManagement() {
     priceGroupId: '',
     initialBonusPoints: '',
     initialBonusTtlDays: '',
+    referralPrincipalId: '',
   })
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
+  const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const codes = useQuery({
     queryKey: ['canvas-cloud', 'admin-invite-codes'],
     queryFn: getCanvasAdminInviteCodes,
@@ -127,6 +130,7 @@ export function InviteCodeManagement() {
           : null,
         promotionVersionId: null,
         referralSource: null,
+        referralPrincipalId: form.referralPrincipalId || null,
       }),
     onSuccess: async (result) => {
       setIssuedCode(result.code)
@@ -151,6 +155,21 @@ export function InviteCodeManagement() {
       })
     },
     onError: () => toast.error(t('Invite code status could not be updated')),
+  })
+  const reveal = useMutation({
+    mutationFn: (input: { id: string; action: 'DISPLAY' | 'COPY' }) =>
+      revealCanvasCode('admin-invite', input.id, input.action).then(
+        (result) => ({ ...result, ...input })
+      ),
+    onSuccess: async (result) => {
+      if (result.action === 'COPY') {
+        await navigator.clipboard.writeText(result.code)
+        toast.success(t('Invite code copied'))
+        return
+      }
+      setRevealedCodes((current) => ({ ...current, [result.id]: result.code }))
+    },
+    onError: () => toast.error(t('Invite code could not be revealed')),
   })
 
   const capacityIsInteger = /^[1-9]\d*$/.test(form.maxRegistrations)
@@ -236,7 +255,7 @@ export function InviteCodeManagement() {
   let confirmationDestructive = false
   if (pendingAction?.kind === 'create') {
     confirmationDescription = t(
-      'This immediately activates a new invite. Its plaintext is shown only once after creation.'
+      'This immediately activates a new invite. Later plaintext access remains masked by default and is audited.'
     )
     confirmationDetails = [
       {
@@ -249,6 +268,13 @@ export function InviteCodeManagement() {
           options.data.priceGroups.find(
             (item) => item.id === selectedPriceGroupId
           )?.internalName ?? '—',
+      },
+      {
+        label: t('Inviter'),
+        value:
+          options.data.agents.find(
+            (item) => item.principalId === form.referralPrincipalId
+          )?.internalName ?? t('None'),
       },
       {
         label: t('Expires at'),
@@ -376,6 +402,32 @@ export function InviteCodeManagement() {
                   message={errors.priceGroup}
                 />
               </div>
+            </div>
+            <div className='space-y-2'>
+              <Label htmlFor='invite-agent'>{t('Inviter')}</Label>
+              <select
+                id='invite-agent'
+                className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                value={form.referralPrincipalId}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    referralPrincipalId: event.target.value,
+                  }))
+                }
+              >
+                <option value=''>{t('No inviter')}</option>
+                {options.data.agents.map((agent) => (
+                  <option key={agent.principalId} value={agent.principalId}>
+                    {agent.internalName}
+                  </option>
+                ))}
+              </select>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Attribution does not restrict which models the customer can use.'
+                )}
+              </p>
             </div>
             <div className='grid gap-4 xl:grid-cols-2'>
               <fieldset className='space-y-3 rounded-xl border p-4'>
@@ -512,7 +564,7 @@ export function InviteCodeManagement() {
               </fieldset>
             </div>
             <div>
-              <p className='text-muted-foreground mb-3 text-sm'>
+              <p className='text-muted-foreground mb-3 text-xs'>
                 {t(
                   'Initial Bonus points are promotional points, not cash. Their validity is fixed when the customer activates the invite.'
                 )}
@@ -528,10 +580,10 @@ export function InviteCodeManagement() {
       {issuedCode && (
         <Card className='border-amber-500/50'>
           <CardHeader>
-            <CardTitle>{t('Save this invite code now')}</CardTitle>
+            <CardTitle>{t('Invite code created')}</CardTitle>
             <CardDescription>
               {t(
-                'For security, the full code is shown only once and cannot be recovered later.'
+                'The full code is shown now for delivery. The list masks it by default; showing or copying it later is audited.'
               )}
             </CardDescription>
           </CardHeader>
@@ -567,13 +619,14 @@ export function InviteCodeManagement() {
             <EmptyState title={t('No invite codes')} bordered />
           ) : (
             <div className='overflow-x-auto rounded-xl border'>
-              <table className='w-full min-w-[860px] text-left text-sm'>
+              <table className='w-full min-w-[980px] text-left text-sm'>
                 <thead className='bg-muted/60 text-muted-foreground'>
                   <tr>
                     {[
                       'Invite code',
                       'Status',
                       'Price group',
+                      'Inviter',
                       'Used / capacity',
                       'Initial Bonus',
                       'Validity',
@@ -588,7 +641,9 @@ export function InviteCodeManagement() {
                 <tbody className='divide-y'>
                   {codes.data.map((item) => (
                     <tr key={item.id}>
-                      <td className='px-3 py-2 font-mono'>{item.maskedCode}</td>
+                      <td className='px-3 py-2 font-mono'>
+                        {revealedCodes[item.id] ?? item.maskedCode}
+                      </td>
                       <td className='px-3 py-2'>
                         <Badge
                           variant={inviteStatusVariant(item.effectiveStatus)}
@@ -597,6 +652,9 @@ export function InviteCodeManagement() {
                         </Badge>
                       </td>
                       <td className='px-3 py-2'>{item.priceGroupName}</td>
+                      <td className='px-3 py-2'>
+                        {item.agent?.internalName ?? '—'}
+                      </td>
                       <td className='px-3 py-2 tabular-nums'>
                         {item.consumedCount} / {item.maxRegistrations}
                         {Number(item.reservedCount) > 0 && (
@@ -619,6 +677,49 @@ export function InviteCodeManagement() {
                       <td className='px-3 py-2'>
                         <TooltipProvider delay={200}>
                           <div className='flex flex-wrap gap-2'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='size-9 cursor-pointer p-0'
+                              aria-label={t(
+                                revealedCodes[item.id]
+                                  ? 'Hide invite code'
+                                  : 'Show invite code'
+                              )}
+                              aria-pressed={Boolean(revealedCodes[item.id])}
+                              disabled={reveal.isPending}
+                              onClick={() => {
+                                if (revealedCodes[item.id]) {
+                                  setRevealedCodes((current) => {
+                                    const next = { ...current }
+                                    delete next[item.id]
+                                    return next
+                                  })
+                                  return
+                                }
+                                reveal.mutate({
+                                  id: item.id,
+                                  action: 'DISPLAY',
+                                })
+                              }}
+                            >
+                              {revealedCodes[item.id] ? (
+                                <EyeOff className='size-4' />
+                              ) : (
+                                <Eye className='size-4' />
+                              )}
+                            </Button>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              aria-label={t('Copy invite code')}
+                              disabled={reveal.isPending}
+                              onClick={() =>
+                                reveal.mutate({ id: item.id, action: 'COPY' })
+                              }
+                            >
+                              <Copy className='size-4' />
+                            </Button>
                             {item.effectiveStatus === 'ACTIVE' && (
                               <Tooltip>
                                 <TooltipTrigger

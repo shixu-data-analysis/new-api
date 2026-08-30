@@ -20,14 +20,18 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { CanvasCloud } from '@/features/canvas-cloud'
 import { isCanvasSectionAllowed } from '@/features/canvas-cloud/access'
-import { getCanvasSession } from '@/features/canvas-cloud/api'
+import {
+  getCanvasSession,
+  isCanvasInviteRegistrationRequired,
+} from '@/features/canvas-cloud/api'
 
 export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
   beforeLoad: async ({ params }) => {
     let session
     try {
       session = await getCanvasSession()
-    } catch {
+    } catch (error) {
+      if (isCanvasInviteRegistrationRequired(error)) return
       throw redirect({ to: '/403' })
     }
 

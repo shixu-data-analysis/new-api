@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { isAuthBundle, refreshAuthentication } from '@/lib/auth-session'
 import { useAuthStore, type AuthBundle } from '@/stores/auth-store'
 
-export type CanvasManualUatRole = 'customer' | 'admin'
+export type CanvasManualUatRole = 'customer' | 'admin' | 'agent'
 
 interface CanvasManualUatConfig {
   enabled: boolean
@@ -28,6 +28,7 @@ interface CanvasManualUatConfig {
   requestedRole: string | null
   customerLogin: string
   adminLogin: string
+  agentLogin: string
 }
 
 interface CanvasManualUatLogin {
@@ -40,16 +41,13 @@ type CanvasManualUatLoginRequest = (
   credentials: CanvasManualUatLogin
 ) => Promise<unknown>
 
-const roleByHostname: Record<string, CanvasManualUatRole> = {
-  '127.0.0.1': 'customer',
-  localhost: 'admin',
-}
+const customerOriginRoles = new Set<CanvasManualUatRole>(['customer', 'agent'])
 const roleStorageKey = 'canvas-manual-uat-role'
 
 function isCanvasManualUatRole(
   value: string | null
 ): value is CanvasManualUatRole {
-  return value === 'customer' || value === 'admin'
+  return value === 'customer' || value === 'admin' || value === 'agent'
 }
 
 export function isCanvasManualUatActive(): boolean {
@@ -57,7 +55,8 @@ export function isCanvasManualUatActive(): boolean {
     typeof window !== 'undefined' &&
     import.meta.env.VITE_CANVAS_MANUAL_UAT === '1' &&
     import.meta.env.DEV &&
-    roleByHostname[window.location.hostname] !== undefined
+    (window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === 'localhost')
   )
 }
 
@@ -65,16 +64,25 @@ export function resolveCanvasManualUatRole(
   hostname: string,
   requestedRole: string | null
 ): CanvasManualUatRole {
-  const role = roleByHostname[hostname]
-  if (!role) {
-    throw new Error('Canvas manual UAT requires an isolated loopback origin')
-  }
-  if (isCanvasManualUatRole(requestedRole) && requestedRole !== role) {
+  if (hostname === 'localhost') {
+    if (requestedRole === null || requestedRole === 'admin') return 'admin'
     throw new Error(
       `Canvas manual UAT ${requestedRole} must use its dedicated loopback origin`
     )
   }
-  return role
+  if (hostname !== '127.0.0.1') {
+    throw new Error('Canvas manual UAT requires an isolated loopback origin')
+  }
+  if (requestedRole === null) return 'customer'
+  if (
+    isCanvasManualUatRole(requestedRole) &&
+    customerOriginRoles.has(requestedRole)
+  ) {
+    return requestedRole
+  }
+  throw new Error(
+    `Canvas manual UAT ${requestedRole} must use its dedicated loopback origin`
+  )
 }
 
 export function resolveCanvasManualUatEntryHref(
@@ -82,7 +90,9 @@ export function resolveCanvasManualUatEntryHref(
   requestedRole: string | null
 ): string {
   const role = resolveCanvasManualUatRole(hostname, requestedRole)
-  const section = role === 'admin' ? 'dashboard' : 'overview'
+  let section = 'overview'
+  if (role === 'admin') section = 'dashboard'
+  if (role === 'agent') section = 'agent-center'
   return `/canvas-cloud/${section}?canvas-uat-role=${role}`
 }
 
@@ -101,14 +111,15 @@ export function resolveCanvasManualUatLogin(
   if (
     !config.enabled ||
     !config.development ||
-    roleByHostname[config.hostname] === undefined
+    (config.hostname !== '127.0.0.1' && config.hostname !== 'localhost')
   ) {
     return null
   }
 
   const role = resolveCanvasManualUatRole(config.hostname, config.requestedRole)
-  const encodedLogin =
-    role === 'admin' ? config.adminLogin : config.customerLogin
+  let encodedLogin = config.customerLogin
+  if (role === 'admin') encodedLogin = config.adminLogin
+  if (role === 'agent') encodedLogin = config.agentLogin
   if (!encodedLogin) {
     throw new Error(`Canvas manual UAT ${role} login config is missing`)
   }
@@ -212,6 +223,8 @@ export async function initializeCanvasManualUat(): Promise<void> {
       import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN?.trim() || '',
     adminLogin:
       import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN?.trim() || '',
+    agentLogin:
+      import.meta.env.VITE_CANVAS_MANUAL_UAT_AGENT_LOGIN?.trim() || '',
   })
   if (!login) return
 

@@ -39,10 +39,12 @@ import {
   getCanvasAuditEvents,
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
+  getCanvasSession,
   getCanvasPointIssuanceRates,
   getCanvasTaskPolicySettings,
   getCanvasRechargePurchaseLink,
   issueCanvasAdminRechargeCodes,
+  isCanvasInviteRegistrationRequired,
   changeCanvasAdminInviteCodeStatus,
   normalizeCanvasRechargePurchaseLink,
   planCanvasModelCatalogBundle,
@@ -56,6 +58,13 @@ import {
   publishCanvasModelCatalogBundle,
   publishCanvasModelPresentation,
   redeemCanvasRechargeCode,
+  getCanvasAgents,
+  getCanvasAgentWorkspace,
+  getCanvasProviderPricingMatrix,
+  provisionCanvasAgent,
+  publishCanvasProviderRate,
+  resolveCanvasProviderRateRisk,
+  revealCanvasCode,
 } from '../api'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
@@ -66,6 +75,36 @@ describe('Canvas Cloud API boundary', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     mocks.post.mockReset()
+  })
+
+  it('keeps invite registration pending inside the Canvas activation flow', async () => {
+    mocks.get.mockResolvedValue({ data: { principalType: 'CUSTOMER' } })
+    await getCanvasSession()
+    expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/session', {
+      skipErrorHandler: true,
+    })
+
+    expect(
+      isCanvasInviteRegistrationRequired({
+        response: {
+          status: 403,
+          data: { code: 'INVITE_REGISTRATION_REQUIRED' },
+        },
+      })
+    ).toBe(true)
+    expect(
+      isCanvasInviteRegistrationRequired({
+        response: { status: 403, data: { code: 'UNAUTHORIZED' } },
+      })
+    ).toBe(false)
+    expect(
+      isCanvasInviteRegistrationRequired({
+        response: {
+          status: 401,
+          data: { code: 'INVITE_REGISTRATION_REQUIRED' },
+        },
+      })
+    ).toBe(false)
   })
 
   it('keeps Canvas customer and administrator reads under the isolated proxy prefix', async () => {
@@ -467,7 +506,9 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/invite-codes'
     )
-    mocks.get.mockResolvedValue({ data: { priceGroups: [], promotions: [] } })
+    mocks.get.mockResolvedValue({
+      data: { agents: [], priceGroups: [], promotions: [] },
+    })
     await getCanvasInviteCodeOptions()
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/invite-code-options'
@@ -483,6 +524,7 @@ describe('Canvas Cloud API boundary', () => {
       initialBonusTtlDays: 30,
       promotionVersionId: null,
       referralSource: 'launch',
+      referralPrincipalId: null,
     }
     await createCanvasAdminInviteCode(input)
     expect(mocks.post).toHaveBeenCalledWith(
@@ -500,6 +542,74 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/invite-registration',
       { code: 'CANVAS-TEST' },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('uses explicit role-scoped Agent and provider-rate endpoints', async () => {
+    mocks.get.mockResolvedValue({ data: [] })
+    await getCanvasAgents()
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/agents'
+    )
+    await getCanvasAgentWorkspace()
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/agent/workspace'
+    )
+    await getCanvasProviderPricingMatrix()
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/provider-pricing-matrix'
+    )
+
+    mocks.post.mockResolvedValue({ data: {} })
+    await provisionCanvasAgent({
+      newApiUserId: '42',
+      internalName: 'HFSY API',
+      status: 'ACTIVE',
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/agents',
+      expect.objectContaining({ confirmed: true }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await revealCanvasCode('agent-invite', 'invite-v1', 'COPY')
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/agent/invite-codes/invite-v1/reveal',
+      { action: 'COPY', confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await publishCanvasProviderRate({
+      customerModelId: 'model-v1',
+      parameterCombinationId: 'quality-4k',
+      nativeAmount: '0.40',
+      currency: 'CNY',
+      exchangeRateSnapshot: {
+        rate: '1',
+        source: 'contract',
+        asOf: '2026-08-30T00:00:00.000Z',
+      },
+      normalizedAmountMinor: '0.40',
+      failureChargePolicy: { mode: 'NONE' },
+      decisionSummary: 'Approved contract update',
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/provider-rate-versions/publications',
+      expect.objectContaining({ billingUnit: 'REQUEST', confirmed: true }),
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await resolveCanvasProviderRateRisk({
+      providerRateVersionId: 'rate-v1',
+      decisionType: 'TEMPORARY_LOSS',
+      lossEndsAt: '2026-09-01T00:00:00.000Z',
+      maxExpectedLossPoints: '100',
+      reason: 'Approved transition loss',
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/provider-rate-risk-decisions',
+      expect.objectContaining({
+        confirmed: true,
+        decisionType: 'TEMPORARY_LOSS',
+      }),
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

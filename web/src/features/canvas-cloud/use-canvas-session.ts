@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
+import { useLocation } from '@tanstack/react-router'
 
 import { getCanvasSession } from './api'
 
@@ -17,4 +18,14 @@ export function useCanvasSession() {
     retry: false,
     staleTime: 5 * 60 * 1000,
   })
+}
+
+export function useCanvasShellSession() {
+  const canvasSession = useCanvasSession()
+  const pathname = useLocation({ select: (location) => location.pathname })
+  return {
+    canvasSession,
+    isCanvasShell:
+      canvasSession.isSuccess || pathname.startsWith('/canvas-cloud/'),
+  }
 }

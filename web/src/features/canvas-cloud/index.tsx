@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label'
 import {
   isCanvasSectionAllowed,
   type canvasAdminSections as adminSections,
+  type canvasAgentSections as agentSections,
   type canvasCustomerSections as customerSections,
 } from './access'
 import {
@@ -56,24 +57,28 @@ import {
 } from './api'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPricing } from './components/AdminPricing'
+import { AgentCenter } from './components/AgentCenter'
+import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PricingCalculator } from './components/PricingCalculator'
-import { RechargeCodeCard } from './components/RechargeCodeCard'
 import { formatMoneyMinor } from './formatters'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
-type CanvasSection = CustomerSection | AdminSection
+type AgentSection = (typeof agentSections)[number]
+type CanvasSection = CustomerSection | AdminSection | AgentSection
 
 const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
   'usage-logs': 'Canvas Usage Logs',
   'task-logs': 'Canvas Task Logs',
   customers: 'Canvas Customers & Points',
+  agents: 'Inviter management',
   'recharge-codes': 'Canvas Recharge Codes',
   'invite-codes': 'Canvas Invite Codes',
   catalog: 'Canvas Model Catalog',
@@ -87,6 +92,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   channels: 'Canvas Channels',
   refunds: 'Canvas Refunds',
   audit: 'Canvas Audit Log',
+  'agent-center': 'Inviter center',
 }
 
 function sumPoints(values: string[]): string {
@@ -268,9 +274,8 @@ function CustomerContent(props: { section: CustomerSection }) {
   if (props.section === 'recharge') {
     return (
       <div className='space-y-4'>
-        <RechargeCodeCard
+        <CustomerRechargeCodeCard
           code={code}
-          purchaseUrl={null}
           redeeming={redeem.isPending}
           onCodeChange={setCode}
           onRedeem={() => redeem.mutate(code.trim())}
@@ -703,6 +708,7 @@ function AdminContent(props: { section: AdminSection }) {
       />
     )
   }
+  if (props.section === 'agents') return <AgentManagement />
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
   }
@@ -1062,7 +1068,6 @@ export function CanvasCloud() {
       </SectionPageLayout>
     )
   }
-  const admin = session.data.principalType === 'PLATFORM_ADMIN'
   if (!isCanvasSectionAllowed(session.data.principalType, params.section)) {
     return (
       <SectionPageLayout>
@@ -1078,10 +1083,12 @@ export function CanvasCloud() {
   }
   const section = params.section as CanvasSection
   let content: ReactNode
-  if (!admin) {
+  if (session.data.principalType === 'CUSTOMER') {
     content = <CustomerContent section={section as CustomerSection} />
-  } else {
+  } else if (session.data.principalType === 'PLATFORM_ADMIN') {
     content = <AdminContent section={section as AdminSection} />
+  } else {
+    content = <AgentCenter />
   }
   return (
     <SectionPageLayout>

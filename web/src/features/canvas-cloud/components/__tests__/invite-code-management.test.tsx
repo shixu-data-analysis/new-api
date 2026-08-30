@@ -12,6 +12,7 @@ import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 
 import { InviteActivation } from '../InviteActivation'
 import { InviteCodeManagement } from '../InviteCodeManagement'
@@ -22,6 +23,7 @@ const apiMocks = vi.hoisted(() => ({
   createCanvasAdminInviteCode: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
   getCanvasInviteCodeOptions: vi.fn(),
+  revealCanvasCode: vi.fn(),
 }))
 
 vi.mock('../../api', () => apiMocks)
@@ -39,6 +41,7 @@ function renderWithClient(element: React.ReactNode) {
 describe('Canvas invite code management', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
   })
 
   beforeEach(async () => {
@@ -50,6 +53,7 @@ describe('Canvas invite code management', () => {
         { id: 'group-v1', code: 'STANDARD', internalName: 'Standard' },
       ],
       promotions: [],
+      agents: [],
     })
     apiMocks.activateCanvasInvite.mockResolvedValue({
       status: 'CONSUMED',
@@ -73,7 +77,9 @@ describe('Canvas invite code management', () => {
     expect(screen.getByText(/Uses your current time zone/)).toBeVisible()
     expect(screen.queryByLabelText('Bonus promotion')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Referral source')).not.toBeInTheDocument()
-    expect(screen.getByText(/promotional points, not cash/)).toBeVisible()
+    const bonusBoundaryNote = screen.getByText(/promotional points, not cash/)
+    expect(bonusBoundaryNote).toBeVisible()
+    expect(bonusBoundaryNote).toHaveClass('text-muted-foreground', 'text-xs')
   })
 
   it('shows field-level errors and blocks an invalid invite configuration', async () => {
@@ -108,11 +114,26 @@ describe('Canvas invite code management', () => {
     expect(apiMocks.createCanvasAdminInviteCode).not.toHaveBeenCalled()
   })
 
+  it('localizes the audited plaintext confirmation in Chinese', async () => {
+    await i18next.changeLanguage('zh')
+    renderWithClient(<InviteCodeManagement />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '核对并创建邀请码' })
+    )
+
+    expect(
+      screen.getByText(
+        '这会立即激活一个新邀请码。之后默认保持掩码，任何明文访问都会记录审计。'
+      )
+    ).toBeVisible()
+  })
+
   it('labels invite status and requires confirmation before a status change', async () => {
     apiMocks.getCanvasAdminInviteCodes.mockResolvedValue([
       {
         id: 'invite-v1',
-        maskedCode: 'CANVAS-U••••••••',
+        maskedCode: 'CANVAS-U••••••••CRET',
         status: 'ACTIVE',
         effectiveStatus: 'ACTIVE',
         maxRegistrations: '10',
@@ -128,6 +149,7 @@ describe('Canvas invite code management', () => {
         initialBonusTtlDays: 30,
         promotionVersionId: null,
         referralSource: null,
+        agent: null,
         pausedAt: null,
         revokedAt: null,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -155,6 +177,56 @@ describe('Canvas invite code management', () => {
     expect(screen.getByText('Current status')).toBeVisible()
     expect(screen.getByText('New status')).toBeVisible()
     expect(apiMocks.changeCanvasAdminInviteCodeStatus).not.toHaveBeenCalled()
+  })
+
+  it('toggles a revealed invite code back to its mask and changes the icon', async () => {
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue([
+      {
+        id: 'invite-v1',
+        maskedCode: 'CANVAS-U••••••••CRET',
+        status: 'ACTIVE',
+        effectiveStatus: 'ACTIVE',
+        maxRegistrations: '10',
+        reservedCount: '0',
+        consumedCount: '1',
+        remainingCount: '9',
+        validFrom: '2026-01-01T00:00:00.000Z',
+        expiresAt: '2035-01-01T00:00:00.000Z',
+        priceGroupId: 'group-v1',
+        priceGroupCode: 'STANDARD',
+        priceGroupName: 'Standard',
+        initialBonusPoints: null,
+        initialBonusTtlDays: null,
+        promotionVersionId: null,
+        referralSource: null,
+        agent: null,
+        pausedAt: null,
+        revokedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
+    apiMocks.revealCanvasCode.mockResolvedValue({ code: 'CANVAS-SECRET' })
+
+    const { container } = renderWithClient(<InviteCodeManagement />)
+    const show = await screen.findByRole('button', {
+      name: 'Show invite code',
+    })
+    expect(show).toHaveAttribute('aria-pressed', 'false')
+    expect(show.querySelector('.lucide-eye')).toBeInTheDocument()
+
+    fireEvent.click(show)
+    expect(await screen.findByText('CANVAS-SECRET')).toBeVisible()
+    const hide = screen.getByRole('button', { name: 'Hide invite code' })
+    expect(hide).toHaveAttribute('aria-pressed', 'true')
+    expect(hide.querySelector('.lucide-eye-off')).toBeInTheDocument()
+
+    fireEvent.click(hide)
+    expect(await screen.findByText('CANVAS-U••••••••CRET')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Show invite code' })
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(apiMocks.revealCanvasCode).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('.lucide-eye')).toBeInTheDocument()
   })
 
   it('activates the signed-in customer with the entered invite code', async () => {

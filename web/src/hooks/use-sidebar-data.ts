@@ -44,7 +44,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
-import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -55,7 +55,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const canvasSession = useCanvasSession()
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
 
   if (canvasSession.isPending) return { navGroups: [] }
 
@@ -97,6 +97,11 @@ export function useSidebarData(): SidebarData {
                 title: t('Canvas Customers & Points'),
                 url: '/canvas-cloud/customers',
                 icon: Users,
+              },
+              {
+                title: t('Inviter management'),
+                url: '/canvas-cloud/agents',
+                icon: UserPlus,
               },
               {
                 title: t('Canvas Recharge Codes'),
@@ -144,6 +149,28 @@ export function useSidebarData(): SidebarData {
         ],
       }
     }
+    if (canvasSession.data.principalType === 'AGENT') {
+      return {
+        navGroups: [
+          {
+            id: 'canvas-agent',
+            title: t('Canvas Cloud'),
+            items: [
+              {
+                title: t('Inviter center'),
+                url: '/canvas-cloud/agent-center',
+                icon: Users,
+              },
+            ],
+          },
+          {
+            id: 'account',
+            title: t('Account'),
+            items: [{ title: t('Profile'), url: '/profile', icon: User }],
+          },
+        ],
+      }
+    }
     return {
       navGroups: [
         {
@@ -174,6 +201,29 @@ export function useSidebarData(): SidebarData {
               title: t('Point History'),
               url: '/canvas-cloud/consumption',
               icon: FileText,
+            },
+          ],
+        },
+        {
+          id: 'account',
+          title: t('Account'),
+          items: [{ title: t('Profile'), url: '/profile', icon: User }],
+        },
+      ],
+    }
+  }
+
+  if (isCanvasShell) {
+    return {
+      navGroups: [
+        {
+          id: 'canvas-activation',
+          title: t('Canvas Cloud'),
+          items: [
+            {
+              title: t('Canvas Cloud'),
+              url: '/canvas-cloud/overview',
+              icon: Cloud,
             },
           ],
         },

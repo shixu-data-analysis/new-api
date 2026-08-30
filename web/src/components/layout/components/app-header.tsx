@@ -21,7 +21,7 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
-import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 
@@ -107,8 +107,7 @@ export function AppHeader({
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  const canvasSession = useCanvasSession()
-  const isCanvasPrincipal = canvasSession.isSuccess
+  const { isCanvasShell } = useCanvasShellSession()
 
   // Notifications hook
   const notifications = useNotifications()
@@ -123,13 +122,13 @@ export function AppHeader({
 
       {rightContent ?? (
         <div className='ms-auto flex min-w-0 items-center gap-1 sm:gap-2'>
-          {showTopNav && !isCanvasPrincipal && (
+          {showTopNav && !isCanvasShell && (
             <div className='me-1 hidden lg:block'>
               <TopNav links={links} />
             </div>
           )}
-          {showSearch && !isCanvasPrincipal && <Search />}
-          {showNotifications && !isCanvasPrincipal && (
+          {showSearch && !isCanvasShell && <Search />}
+          {showNotifications && !isCanvasShell && (
             <NotificationPopover
               open={notifications.popoverOpen}
               onOpenChange={notifications.setPopoverOpen}
@@ -142,7 +141,7 @@ export function AppHeader({
             />
           )}
           <LanguageSwitcher />
-          {showConfigDrawer && !isCanvasPrincipal && <ConfigDrawer />}
+          {showConfigDrawer && !isCanvasShell && <ConfigDrawer />}
           {showProfileDropdown && <ProfileDropdown />}
         </div>
       )}

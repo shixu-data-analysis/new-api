@@ -21,6 +21,7 @@ export const canvasAdminSections = [
   'usage-logs',
   'task-logs',
   'customers',
+  'agents',
   'recharge-codes',
   'invite-codes',
   'catalog',
@@ -31,10 +32,14 @@ export const canvasAdminSections = [
   'audit',
 ] as const
 
+export const canvasAgentSections = ['agent-center'] as const
+
 export function getCanvasHomeSection(
   principalType: CanvasPrincipalType
-): 'dashboard' | 'overview' {
-  return principalType === 'PLATFORM_ADMIN' ? 'dashboard' : 'overview'
+): 'dashboard' | 'overview' | 'agent-center' {
+  if (principalType === 'PLATFORM_ADMIN') return 'dashboard'
+  if (principalType === 'AGENT') return 'agent-center'
+  return 'overview'
 }
 
 export function canCanvasPrincipalManageClientAccessToken(
@@ -51,10 +56,9 @@ export function isCanvasSectionAllowed(
   principalType: CanvasPrincipalType,
   section: string
 ): boolean {
-  const allowed =
-    principalType === 'PLATFORM_ADMIN'
-      ? canvasAdminSections
-      : canvasCustomerSections
+  let allowed: readonly string[] = canvasCustomerSections
+  if (principalType === 'PLATFORM_ADMIN') allowed = canvasAdminSections
+  if (principalType === 'AGENT') allowed = canvasAgentSections
   return (allowed as readonly string[]).includes(section)
 }
 

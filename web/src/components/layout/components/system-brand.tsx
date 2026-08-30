@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/sidebar'
 import { getCanvasProductName } from '@/features/canvas-cloud/brand'
 import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
-import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -52,30 +52,30 @@ export function SystemBrand(props: SystemBrandProps) {
   const { t, i18n } = useTranslation()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
-  const canvasSession = useCanvasSession()
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
 
   const variant = props.variant ?? 'sidebar'
   const canvasName = getCanvasProductName(
     i18n.resolvedLanguage ?? i18n.language
   )
-  const name = canvasSession.isSuccess
+  const name = isCanvasShell
     ? canvasName
     : status?.system_name || props.defaultName || 'New API'
   const homeSection =
     canvasSession.data?.principalType === 'PLATFORM_ADMIN'
       ? 'dashboard'
       : 'overview'
-  const displayedLogo = canvasSession.isSuccess ? lingCatStudioIcon : logo
+  const displayedLogo = isCanvasShell ? lingCatStudioIcon : logo
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
   if (variant === 'inline') {
     return (
       <Link
-        to={canvasSession.isSuccess ? '/canvas-cloud/$section' : '/dashboard'}
-        params={canvasSession.isSuccess ? { section: homeSection } : undefined}
+        to={isCanvasShell ? '/canvas-cloud/$section' : '/dashboard'}
+        params={isCanvasShell ? { section: homeSection } : undefined}
         aria-label={
-          canvasSession.isSuccess
+          isCanvasShell
             ? t('Return to {{name}} dashboard', { name: canvasName })
             : t('Go to home')
         }
@@ -87,7 +87,7 @@ export function SystemBrand(props: SystemBrandProps) {
         <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
           <img
             src={displayedLogo}
-            alt={canvasSession.isSuccess ? canvasName : t('Logo')}
+            alt={isCanvasShell ? canvasName : t('Logo')}
             className='size-full rounded-md object-cover'
           />
         </div>

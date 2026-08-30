@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import useDialogState from '@/hooks/use-dialog'
 import { useIsSidebarModuleVisible } from '@/hooks/use-sidebar-config'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -47,7 +47,7 @@ export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, roleLabel } = useUserDisplay(user)
-  const canvasSession = useCanvasSession()
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
   const canvasIdentity = canvasSession.data
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
   const isWalletVisible = useIsSidebarModuleVisible('/wallet')
@@ -116,14 +116,14 @@ export function ProfileDropdown() {
             {t('Profile')}
           </DropdownMenuItem>
 
-          {!canvasIdentity && isWalletVisible && (
+          {!isCanvasShell && isWalletVisible && (
             <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
               <Wallet className='size-4' />
               {t('Wallet')}
             </DropdownMenuItem>
           )}
 
-          {!canvasIdentity && isSuperAdmin && (
+          {!isCanvasShell && isSuperAdmin && (
             <DropdownMenuItem
               onClick={() =>
                 navigate({

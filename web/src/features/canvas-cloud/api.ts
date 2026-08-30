@@ -35,6 +35,9 @@ import type {
   CanvasInviteCodeOptions,
   CanvasModelCatalogBundle,
   CanvasModelCatalogPlan,
+  CanvasAgentProfile,
+  CanvasAgentWorkspace,
+  CanvasProviderPricingRow,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -75,7 +78,24 @@ export function normalizeCanvasRechargePurchaseLink(
 }
 
 export async function getCanvasSession(): Promise<CanvasSession> {
-  return (await api.get<CanvasSession>(`${webBase}/session`)).data
+  return (
+    await api.get<CanvasSession>(`${webBase}/session`, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export function isCanvasInviteRegistrationRequired(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return false
+  }
+  const response = (
+    error as { response?: { status?: unknown; data?: { code?: unknown } } }
+  ).response
+  return (
+    response?.status === 403 &&
+    response.data?.code === 'INVITE_REGISTRATION_REQUIRED'
+  )
 }
 
 export async function getCanvasCustomerWorkspace(): Promise<CanvasCustomerWorkspace> {
@@ -197,6 +217,7 @@ export async function createCanvasAdminInviteCode(input: {
   initialBonusTtlDays: number | null
   promotionVersionId: string | null
   referralSource: string | null
+  referralPrincipalId: string | null
 }): Promise<CanvasCreatedInviteCode> {
   return (
     await api.post(
@@ -204,6 +225,105 @@ export async function createCanvasAdminInviteCode(input: {
       { ...input, confirmed: true },
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-invite-create') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function revealCanvasCode(
+  kind: 'admin-invite' | 'agent-invite' | 'admin-recharge',
+  id: string,
+  action: 'DISPLAY' | 'COPY'
+): Promise<{ code: string }> {
+  let path = `admin/recharge-codes/${id}`
+  if (kind === 'admin-invite') path = `admin/invite-codes/${id}`
+  if (kind === 'agent-invite') path = `agent/invite-codes/${id}`
+  return (
+    await api.post(
+      `${webBase}/${path}/reveal`,
+      { action, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-reveal-code') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasAgents(): Promise<CanvasAgentProfile[]> {
+  return (await api.get(`${webBase}/admin/agents`)).data
+}
+
+export async function provisionCanvasAgent(input: {
+  newApiUserId: string
+  internalName: string
+  status: 'ACTIVE' | 'DISABLED'
+}): Promise<CanvasAgentProfile> {
+  return (
+    await api.post(
+      `${webBase}/admin/agents`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-agent-create') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasAgentWorkspace(): Promise<CanvasAgentWorkspace> {
+  return (await api.get(`${webBase}/agent/workspace`)).data
+}
+
+export async function getCanvasProviderPricingMatrix(): Promise<
+  CanvasProviderPricingRow[]
+> {
+  return (await api.get(`${webBase}/admin/provider-pricing-matrix`)).data
+}
+
+export async function publishCanvasProviderRate(input: {
+  customerModelId: string
+  parameterCombinationId: string
+  nativeAmount: string
+  currency: string
+  exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+  normalizedAmountMinor: string
+  failureChargePolicy:
+    | { mode: 'NONE' }
+    | { mode: 'SAME_AS_SUCCESS' }
+    | { mode: 'FIXED'; normalizedAmountMinor: string }
+  decisionSummary: string
+  effectiveAt?: string
+}): Promise<{ id: string; version: number; status: string }> {
+  return (
+    await api.post(
+      `${webBase}/admin/provider-rate-versions/publications`,
+      { ...input, billingUnit: 'REQUEST', confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-provider-rate') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function resolveCanvasProviderRateRisk(input: {
+  providerRateVersionId: string
+  decisionType: 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
+  scheduledPriceVersionIds?: string[]
+  lossEndsAt?: string
+  maxExpectedLossPoints?: string
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/provider-rate-risk-decisions`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-provider-rate-risk'),
+        },
         skipErrorHandler: true,
       }
     )

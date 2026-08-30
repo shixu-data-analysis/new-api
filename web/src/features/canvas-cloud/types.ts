@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type CanvasPrincipalType = 'CUSTOMER' | 'PLATFORM_ADMIN'
+export type CanvasPrincipalType = 'CUSTOMER' | 'AGENT' | 'PLATFORM_ADMIN'
 
 export interface CanvasSession {
   principalId: string
@@ -94,12 +94,14 @@ export interface CanvasAdminInviteCode {
   initialBonusTtlDays: number | null
   promotionVersionId: string | null
   referralSource: string | null
+  agent: CanvasAgentReference | null
   pausedAt: string | null
   revokedAt: string | null
   createdAt: string
 }
 
 export interface CanvasInviteCodeOptions {
+  agents: CanvasAgentReference[]
   priceGroups: Array<{ id: string; code: string; internalName: string }>
   promotions: Array<{
     id: string
@@ -110,6 +112,94 @@ export interface CanvasInviteCodeOptions {
     bonusPoints: string
     bonusTtlDays: number
   }>
+}
+
+export interface CanvasAgentReference {
+  principalId: string
+  internalName: string
+}
+
+export interface CanvasAgentProfile {
+  principalId: string
+  newApiUserId: string
+  displayName: string
+  internalName: string
+  status: 'ACTIVE' | 'DISABLED'
+  createdAt: string
+}
+
+export interface CanvasAgentWorkspace {
+  profile: {
+    principalId: string
+    displayName: string
+    internalName: string
+    status: 'ACTIVE'
+  }
+  invites: Array<{
+    id: string
+    maskedCode: string
+    status: CanvasInviteCodeStatus
+    maxRegistrations: string
+    reservedCount: string
+    consumedCount: string
+    remainingCount: string
+    validFrom: string
+    expiresAt: string
+    activatedCustomers: string
+  }>
+  customers: Array<{
+    id: string
+    newApiUserId: string
+    username: string | null
+    emailMasked: string | null
+    status: string
+    activatedAt: string | null
+  }>
+}
+
+export interface CanvasProviderPricingRow {
+  providerId: string
+  providerCode: string
+  providerName: string
+  channelId: string
+  channelCode: string
+  customerModelId: string
+  modelKey: string
+  modelName: string
+  combinationId: string
+  combinationKey: string
+  parameters: Record<string, unknown>
+  billingDimensions: Record<string, unknown>
+  resolvedProviderModelId: string
+  rateId: string | null
+  rateVersion: number | null
+  rateStatus: string | null
+  billingUnit: 'REQUEST' | null
+  nativeAmount: string | null
+  currency: string | null
+  normalizedAmountMinor: string | null
+  rateEffectiveAt: string | null
+  prices: Array<{
+    id: string
+    groupId: string
+    groupName: string
+    points: string
+    version: number
+    status: string
+    providerRateVersionId: string | null
+    effectiveAt: string | null
+    breakEvenPoints: string
+    newBreakEvenPoints: string | null
+    belowBreakEven: boolean
+  }>
+  riskDecision: {
+    id: string
+    decisionType: 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
+    lossEndsAt: string | null
+    maxExpectedLossPoints: string | null
+    consumedExpectedLossPoints: string
+    reason: string
+  } | null
 }
 
 export interface CanvasCreatedInviteCode {

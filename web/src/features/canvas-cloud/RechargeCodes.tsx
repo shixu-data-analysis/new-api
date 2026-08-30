@@ -48,6 +48,7 @@ import { Label } from '@/components/ui/label'
 import {
   getCanvasAdminRechargeCodes,
   issueCanvasAdminRechargeCodes,
+  revealCanvasCode,
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
 import { cnyToMinor } from './recharge-code-amount'
@@ -86,6 +87,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const [count, setCount] = useState('1')
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
   const [codesVisible, setCodesVisible] = useState(false)
+  const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'' | CanvasAdminRechargeCode['status']>(
     ''
@@ -127,6 +129,21 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         queryKey: ['canvas-cloud', 'admin-recharge-codes'],
       })
     },
+  })
+  const reveal = useMutation({
+    mutationFn: (input: { id: string; action: 'DISPLAY' | 'COPY' }) =>
+      revealCanvasCode('admin-recharge', input.id, input.action).then(
+        (result) => ({ ...result, ...input })
+      ),
+    onSuccess: async (result) => {
+      if (result.action === 'COPY') {
+        await navigator.clipboard.writeText(result.code)
+        toast.success(t('Recharge code copied'))
+        return
+      }
+      setRevealedCodes((current) => ({ ...current, [result.id]: result.code }))
+    },
+    onError: () => toast.error(t('Recharge code could not be revealed')),
   })
   const amountMinor = cnyToMinor(amount)
   const parsedCount = Number(count)
@@ -204,7 +221,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     return (
       <div className='space-y-3'>
         <div className='overflow-x-auto rounded-xl border'>
-          <table className='w-full min-w-[760px] text-left text-sm'>
+          <table className='w-full min-w-[900px] text-left text-sm'>
             <thead className='bg-muted/60 text-muted-foreground'>
               <tr>
                 {[
@@ -216,6 +233,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   t('Created'),
                   t('Expires'),
                   t('Redeemed'),
+                  t('Actions'),
                 ].map((header) => (
                   <th key={header} className='px-3 py-2 font-medium'>
                     {header}
@@ -227,7 +245,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
               {inventory.data.items.map((item) => (
                 <tr key={item.id} className='hover:bg-muted/30'>
                   <td className='px-3 py-2'>{item.name}</td>
-                  <td className='px-3 py-2 font-mono'>{item.maskedCode}</td>
+                  <td className='px-3 py-2 font-mono'>
+                    {revealedCodes[item.id] ?? item.maskedCode}
+                  </td>
                   <td className='px-3 py-2'>
                     <BusinessTerm
                       kind='rechargeCodeStatus'
@@ -239,6 +259,36 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   <td className='px-3 py-2'>{formatDate(item.createdAt)}</td>
                   <td className='px-3 py-2'>{formatDate(item.expiresAt)}</td>
                   <td className='px-3 py-2'>{formatDate(item.redeemedAt)}</td>
+                  <td className='px-3 py-2'>
+                    {item.status === 'ACTIVE' ? (
+                      <div className='flex gap-1'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          aria-label={t('Show recharge code')}
+                          disabled={reveal.isPending}
+                          onClick={() =>
+                            reveal.mutate({ id: item.id, action: 'DISPLAY' })
+                          }
+                        >
+                          <Eye />
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          aria-label={t('Copy recharge code')}
+                          disabled={reveal.isPending}
+                          onClick={() =>
+                            reveal.mutate({ id: item.id, action: 'COPY' })
+                          }
+                        >
+                          <Copy />
+                        </Button>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

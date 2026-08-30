@@ -68,6 +68,7 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { PricingRecordsTable } from './PricingRecordsTable'
 import { PricingTableColumnHeader } from './PricingTableColumnHeader'
+import { ProviderPricingMatrix } from './ProviderPricingMatrix'
 import { TaskPolicySettings } from './TaskPolicySettings'
 
 type Price = CanvasAdminWorkspace['prices'][number]
@@ -1223,6 +1224,7 @@ export function AdminPricing(props: {
               </Button>
             </CardContent>
           </Card>
+          <ProviderPricingMatrix />
 
           <Button
             type='button'

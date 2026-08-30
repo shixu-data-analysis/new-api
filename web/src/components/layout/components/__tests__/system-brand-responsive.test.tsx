@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SystemBrand } from '../system-brand'
 
@@ -25,6 +25,7 @@ const { canvasSessionState } = vi.hoisted(() => ({
   canvasSessionState: {
     data: null as null | { principalType: 'CUSTOMER' | 'PLATFORM_ADMIN' },
     isSuccess: false,
+    isCanvasShell: false,
   },
 }))
 
@@ -41,7 +42,10 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/features/canvas-cloud/use-canvas-session', () => ({
-  useCanvasSession: () => canvasSessionState,
+  useCanvasShellSession: () => ({
+    canvasSession: canvasSessionState,
+    isCanvasShell: canvasSessionState.isCanvasShell,
+  }),
 }))
 
 vi.mock('@/hooks/use-status', () => ({
@@ -53,6 +57,12 @@ vi.mock('@/hooks/use-system-config', () => ({
 }))
 
 describe('SystemBrand responsive layout', () => {
+  beforeEach(() => {
+    canvasSessionState.data = null
+    canvasSessionState.isSuccess = false
+    canvasSessionState.isCanvasShell = false
+  })
+
   it('keeps the logo accessible while deferring the long name until sm', () => {
     render(<SystemBrand variant='inline' />)
 
@@ -71,6 +81,7 @@ describe('SystemBrand responsive layout', () => {
   it('uses the LingCat identity and role dashboard for a Canvas administrator', () => {
     canvasSessionState.data = { principalType: 'PLATFORM_ADMIN' }
     canvasSessionState.isSuccess = true
+    canvasSessionState.isCanvasShell = true
 
     render(<SystemBrand variant='inline' />)
 
@@ -79,6 +90,18 @@ describe('SystemBrand responsive layout', () => {
       'hidden',
       'sm:inline'
     )
+    expect(
+      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+    ).toHaveAttribute('href', '/canvas-cloud/$section')
+  })
+
+  it('keeps the LingCat identity while Canvas registration is pending', () => {
+    canvasSessionState.isCanvasShell = true
+
+    render(<SystemBrand variant='inline' />)
+
+    expect(screen.getByRole('img', { name: 'LingCat Studio' })).toBeVisible()
+    expect(screen.getByText('LingCat Studio')).toBeVisible()
     expect(
       screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
     ).toHaveAttribute('href', '/canvas-cloud/$section')

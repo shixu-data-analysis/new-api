@@ -45,6 +45,9 @@ const apiMocks = vi.hoisted(() => ({
   publishConfirmedCanvasTaskPolicySettings: vi.fn(),
   getCanvasPriceGroups: vi.fn(),
   publishConfirmedCanvasPriceGroup: vi.fn(),
+  getCanvasProviderPricingMatrix: vi.fn(),
+  publishCanvasProviderRate: vi.fn(),
+  resolveCanvasProviderRateRisk: vi.fn(),
 }))
 const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
@@ -140,6 +143,7 @@ describe('Canvas administrator pricing', () => {
       status: 'STOPPED',
     })
     apiMocks.getCanvasAdminTestingModels.mockResolvedValue([])
+    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue([])
     apiMocks.getCanvasPointIssuanceRates.mockResolvedValue([
       {
         id: 'rate-v1',
