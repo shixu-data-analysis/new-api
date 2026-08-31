@@ -20,6 +20,8 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import { isCanvasProductName } from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 type AuthLayoutProps = {
@@ -29,6 +31,9 @@ type AuthLayoutProps = {
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { t } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
+  const displayedLogo = isCanvasProductName(systemName)
+    ? lingCatStudioIcon
+    : logo
 
   return (
     <div className='relative grid h-svh max-w-none'>
@@ -41,7 +46,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             <Skeleton className='absolute inset-0 rounded-full' />
           ) : (
             <img
-              src={logo}
+              src={displayedLogo}
               alt={t('Logo')}
               className='h-8 w-8 rounded-full object-cover'
             />

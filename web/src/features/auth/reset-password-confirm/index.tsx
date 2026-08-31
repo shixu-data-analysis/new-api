@@ -1,3 +1,4 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,18 +18,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import type { z } from 'zod'
 
+import { PasswordInput } from '@/components/password-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useCountdown } from '@/hooks/use-countdown'
+import { resetPasswordFormSchema } from '@/features/auth/constants'
+import { isCanvasProductName } from '@/features/canvas-cloud/brand'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { api } from '@/lib/api'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { isCanvasDesktopView } from '@/lib/canvas-desktop-sign-out'
 
 import { AuthLayout } from '../auth-layout'
 
@@ -45,43 +58,38 @@ export function ResetPasswordConfirm({
 }: ResetPasswordConfirmProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [newPassword, setNewPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const {
-    secondsLeft,
-    isActive,
-    start: startCountdown,
-  } = useCountdown({ initialSeconds: 30 })
-
+  const { systemName } = useSystemConfig()
+  const isCanvasProduct = isCanvasProductName(systemName)
+  const embeddedInCanvasDesktop = isCanvasDesktopView()
   const isValidResetLink = Boolean(email && token)
+  const [resetComplete, setResetComplete] = useState(false)
+  const [resetLinkInvalid, setResetLinkInvalid] = useState(!isValidResetLink)
+  const [loading, setLoading] = useState(false)
+  const form = useForm<z.infer<typeof resetPasswordFormSchema>>({
+    resolver: zodResolver(resetPasswordFormSchema),
+    defaultValues: { password: '', confirmPassword: '' },
+  })
 
-  async function handleSubmit() {
+  async function handleSubmit(data: z.infer<typeof resetPasswordFormSchema>) {
     if (!isValidResetLink || !email || !token) {
       toast.error(t('Invalid reset link, please request a new password reset'))
       return
     }
 
-    startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', { email, token }, {
-        skipBusinessError: true,
-      } as Record<string, unknown>)
+      const res = await api.post(
+        '/api/user/reset',
+        { email, token, password: data.password },
+        { skipBusinessError: true } as Record<string, unknown>
+      )
 
       if (res?.data?.success) {
-        const password = res.data.data
-        setNewPassword(password)
-        const copySuccess = await copyToClipboard(password)
-        if (copySuccess) {
-          toast.success(
-            t('Password reset and copied to clipboard: {{password}}', {
-              password,
-            })
-          )
-        } else {
-          toast.success(t('Password reset: {{password}}', { password }))
-        }
+        form.reset()
+        setResetComplete(true)
+        toast.success(t('auth.resetPasswordConfirm.success'))
+      } else {
+        setResetLinkInvalid(true)
       }
     } catch {
       // Errors handled by global interceptor
@@ -90,19 +98,15 @@ export function ResetPasswordConfirm({
     }
   }
 
-  async function handleCopy() {
-    if (!newPassword) return
-
-    const copySuccess = await copyToClipboard(newPassword)
-    if (copySuccess) {
-      setCopied(true)
-      toast.success(
-        t('Password copied to clipboard: {{password}}', {
-          password: newPassword,
-        })
-      )
-      setTimeout(() => setCopied(false), 2000)
-    }
+  let description = t('auth.resetPasswordConfirm.description')
+  if (resetComplete && !isCanvasProduct) {
+    description = t('auth.resetPasswordConfirm.success')
+  } else if (resetComplete && embeddedInCanvasDesktop) {
+    description = t('auth.resetPasswordConfirm.canvasDesktopNext')
+  } else if (resetComplete) {
+    description = t('auth.resetPasswordConfirm.canvasExternalNext', {
+      productName: systemName,
+    })
   }
 
   return (
@@ -112,18 +116,18 @@ export function ResetPasswordConfirm({
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Reset password')}
           </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {newPassword
-              ? t('auth.resetPasswordConfirm.success')
-              : t('auth.resetPasswordConfirm.description')}
-          </p>
+          {!resetLinkInvalid && (
+            <p className='text-muted-foreground text-left text-sm sm:text-base'>
+              {description}
+            </p>
+          )}
         </div>
 
         <div className='space-y-4'>
-          {!isValidResetLink && (
+          {resetLinkInvalid && (
             <Alert variant='destructive'>
               <AlertDescription>
-                {t('Invalid reset link, please request a new password reset.')}
+                {t('auth.resetPasswordConfirm.linkInvalidOrUsed')}
               </AlertDescription>
             </Alert>
           )}
@@ -139,62 +143,84 @@ export function ResetPasswordConfirm({
             />
           </div>
 
-          {newPassword && (
-            <div className='space-y-2'>
-              <Label htmlFor='password'>{t('New password')}</Label>
-              <div className='flex gap-2'>
-                <Input
-                  id='password'
-                  value={newPassword}
-                  disabled
-                  className='font-mono'
+          {!resetComplete && !resetLinkInvalid && (
+            <Form {...form}>
+              <form
+                className='grid gap-4'
+                onSubmit={form.handleSubmit(handleSubmit)}
+              >
+                <FormField
+                  control={form.control}
+                  name='password'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('New password')}</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          autoComplete='new-password'
+                          placeholder={t('Enter password (8-20 characters)')}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='confirmPassword'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Confirm New Password')}</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          autoComplete='new-password'
+                          placeholder={t('Confirm password')}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
                 <Button
-                  type='button'
-                  size='icon'
-                  variant='outline'
-                  onClick={handleCopy}
+                  type='submit'
+                  className='w-full'
+                  disabled={loading || !isValidResetLink}
                 >
-                  {copied ? (
-                    <CheckIcon className='h-4 w-4' />
-                  ) : (
-                    <CopyIcon className='h-4 w-4' />
-                  )}
+                  {t('auth.resetPasswordConfirm.confirm')}
                 </Button>
-              </div>
-              <p className='text-muted-foreground text-xs'>
-                {t('Password has been copied to clipboard')}
-              </p>
-            </div>
+              </form>
+            </Form>
           )}
 
-          <Button
-            className='w-full'
-            onClick={
-              newPassword
-                ? () => navigate({ to: '/sign-in', replace: true })
-                : handleSubmit
-            }
-            disabled={
-              newPassword ? false : loading || isActive || !isValidResetLink
-            }
-          >
-            {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
-              : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
-          </Button>
+          {resetLinkInvalid && (
+            <Button
+              className='w-full'
+              onClick={() =>
+                navigate({ to: '/forgot-password', replace: true })
+              }
+            >
+              {t('auth.resetPasswordConfirm.requestNewLink')}
+            </Button>
+          )}
 
-          {!newPassword && (
+          {!resetComplete && !resetLinkInvalid && (
             <Button
               variant='link'
               className='w-full'
               onClick={() => navigate({ to: '/sign-in', replace: true })}
             >
               {t('Back to login')}
+            </Button>
+          )}
+
+          {resetComplete && !isCanvasProduct && (
+            <Button
+              className='w-full'
+              onClick={() => navigate({ to: '/sign-in', replace: true })}
+            >
+              {t('auth.resetPasswordConfirm.backToLogin')}
             </Button>
           )}
         </div>

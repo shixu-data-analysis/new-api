@@ -239,7 +239,7 @@ func Register(c *gin.Context) {
 		}
 		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
 			if errors.Is(err, model.ErrEmailAlreadyTaken) {
-				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+				registrationIdentityUnavailable(c)
 				return
 			}
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
@@ -257,7 +257,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
+		registrationIdentityUnavailable(c)
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
@@ -274,7 +274,7 @@ func Register(c *gin.Context) {
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
-			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+			registrationIdentityUnavailable(c)
 			return
 		}
 		common.ApiError(c, err)
@@ -321,6 +321,14 @@ func Register(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func registrationIdentityUnavailable(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": i18n.T(c, i18n.MsgUserRegistrationIdentityUnavailable),
+		"code":    "REGISTRATION_IDENTITY_UNAVAILABLE",
+	})
 }
 
 func GetAllUsers(c *gin.Context) {

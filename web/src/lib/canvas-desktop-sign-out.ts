@@ -26,6 +26,16 @@ interface DesktopSignOutEventDetail {
   message?: unknown
 }
 
+export function isCanvasDesktopView(): boolean {
+  try {
+    return desktopStatePattern.test(
+      window.sessionStorage.getItem(desktopSignOutStorageKey) || ''
+    )
+  } catch {
+    return false
+  }
+}
+
 export interface DesktopSignOutResult {
   success: boolean
   message?: string

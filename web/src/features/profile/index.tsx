@@ -21,7 +21,10 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
-import { canCanvasPrincipalManageClientAccessToken } from '@/features/canvas-cloud/access'
+import {
+  canCanvasPrincipalManageAdvancedAuthentication,
+  canCanvasPrincipalManageClientAccessToken,
+} from '@/features/canvas-cloud/access'
 import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
@@ -47,6 +50,12 @@ export function Profile() {
     canvasSession.isError ||
     (canvasSession.isSuccess &&
       canCanvasPrincipalManageClientAccessToken(
+        canvasSession.data.principalType
+      ))
+  const allowAdvancedAuthentication =
+    canvasSession.isError ||
+    (canvasSession.isSuccess &&
+      canCanvasPrincipalManageAdvancedAuthentication(
         canvasSession.data.principalType
       ))
 
@@ -100,8 +109,12 @@ export function Profile() {
                 {!isCanvasPrincipal && canConfigureSidebar && (
                   <SidebarModulesCard />
                 )}
-                <PasskeyCard loading={loading} />
-                <TwoFACard loading={loading} />
+                {allowAdvancedAuthentication && (
+                  <>
+                    <PasskeyCard loading={loading} />
+                    <TwoFACard loading={loading} />
+                  </>
+                )}
               </div>
             </div>
           </CardStaggerItem>

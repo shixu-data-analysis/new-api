@@ -17,10 +17,16 @@ const localizedNames: Record<string, string> = {
   vi: 'LingCat Studio',
 }
 
+const canvasProductNames = new Set(Object.values(localizedNames))
+
 export function getCanvasProductName(language: string): string {
   return (
     localizedNames[language] ??
     localizedNames[language.split('-')[0]] ??
     'LingCat Studio'
   )
+}
+
+export function isCanvasProductName(value: string): boolean {
+  return canvasProductNames.has(value.trim())
 }

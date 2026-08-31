@@ -11,13 +11,14 @@ License, or (at your option) any later version.
 import { describe, expect, it } from 'vitest'
 
 import {
+  canCanvasPrincipalManageAdvancedAuthentication,
   canCanvasPrincipalManageClientAccessToken,
   canCanvasPrincipalAccessPath,
   getCanvasHomeSection,
   isCanvasDefaultLandingPath,
   isCanvasSectionAllowed,
 } from '../access'
-import { getCanvasProductName } from '../brand'
+import { getCanvasProductName, isCanvasProductName } from '../brand'
 import { lingCatStudioIcon } from '../lingcat-icon'
 
 describe('Canvas role-scoped information architecture', () => {
@@ -59,11 +60,22 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasDefaultLandingPath('/wallet')).toBe(false)
   })
 
-  it('keeps the customer client credential available without exposing it to administrators', () => {
-    expect(canCanvasPrincipalManageClientAccessToken('CUSTOMER')).toBe(true)
+  it('keeps client access tokens hidden from every Canvas principal', () => {
+    expect(canCanvasPrincipalManageClientAccessToken('CUSTOMER')).toBe(false)
     expect(canCanvasPrincipalManageClientAccessToken('PLATFORM_ADMIN')).toBe(
       false
     )
+    expect(canCanvasPrincipalManageClientAccessToken('AGENT')).toBe(false)
+  })
+
+  it('keeps Passkey and two-factor configuration hidden from every Canvas principal', () => {
+    expect(canCanvasPrincipalManageAdvancedAuthentication('CUSTOMER')).toBe(
+      false
+    )
+    expect(
+      canCanvasPrincipalManageAdvancedAuthentication('PLATFORM_ADMIN')
+    ).toBe(false)
+    expect(canCanvasPrincipalManageAdvancedAuthentication('AGENT')).toBe(false)
   })
 
   it('uses the approved localized LingCat product name without changing upstream attribution', () => {
@@ -71,6 +83,9 @@ describe('Canvas role-scoped information architecture', () => {
     expect(getCanvasProductName('zh-TW')).toBe('靈貓工坊')
     expect(getCanvasProductName('en')).toBe('LingCat Studio')
     expect(getCanvasProductName('ja')).toBe('LingCat Studio')
+    expect(isCanvasProductName('灵猫工坊')).toBe(true)
+    expect(isCanvasProductName('LingCat Studio')).toBe(true)
+    expect(isCanvasProductName('New API')).toBe(false)
     const iconBytes = Buffer.from(
       lingCatStudioIcon.split(',')[1] ?? '',
       'base64'

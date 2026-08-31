@@ -43,6 +43,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { clearAuthenticatedClientState } from '@/lib/api'
+import { requestCanvasDesktopSignOut } from '@/lib/canvas-desktop-sign-out'
 import type { LoginSession } from '@/stores/auth-store'
 
 import {
@@ -74,19 +75,38 @@ export function LoginSessionsCard() {
   })
 
   const revokeMutation = useMutation({
-    mutationFn: async (sid: string) => {
-      const response = await revokeLoginSession(sid)
+    mutationFn: async (session: LoginSession) => {
+      if (session.current) {
+        const desktopSignOut = requestCanvasDesktopSignOut()
+        if (desktopSignOut) {
+          const result = await desktopSignOut
+          if (!result.success) {
+            throw new Error(result.message || t('Failed to sign out session'))
+          }
+          return {
+            sid: session.sid,
+            current: true,
+            coordinatedByDesktop: true,
+          }
+        }
+        if (session.login_method === 'canvas_customer_center') {
+          throw new Error(t('Failed to sign out session'))
+        }
+      }
+      const response = await revokeLoginSession(session.sid)
       if (!response.success) {
         throw new Error(response.message || t('Failed to sign out session'))
       }
-      return sid
+      return {
+        sid: session.sid,
+        current: session.current,
+        coordinatedByDesktop: false,
+      }
     },
-    onSuccess: async (sid) => {
-      const revokedCurrent = sessionsQuery.data?.some(
-        (session) => session.sid === sid && session.current
-      )
+    onSuccess: async ({ current, coordinatedByDesktop }) => {
       setRevokeTarget(null)
-      if (revokedCurrent) {
+      if (coordinatedByDesktop) return
+      if (current) {
         clearAuthenticatedClientState(queryClient)
         void navigate({ to: '/sign-in', replace: true })
         return
@@ -205,7 +225,7 @@ export function LoginSessionsCard() {
         onRevokeTargetChange={setRevokeTarget}
         onConfirmOthersChange={setConfirmOthers}
         onRevoke={() => {
-          if (revokeTarget) revokeMutation.mutate(revokeTarget.sid)
+          if (revokeTarget) revokeMutation.mutate(revokeTarget)
         }}
         onRevokeOthers={() => revokeOthersMutation.mutate()}
       />

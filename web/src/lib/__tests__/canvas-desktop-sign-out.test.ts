@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import { createCanvasDesktopSignOutUrl } from '../canvas-desktop-sign-out'
+import {
+  createCanvasDesktopSignOutUrl,
+  isCanvasDesktopView,
+} from '../canvas-desktop-sign-out'
 
 describe('Canvas Desktop sign-out request', () => {
   test('creates only the fixed same-origin request for a full random state', () => {
@@ -34,5 +37,17 @@ describe('Canvas Desktop sign-out request', () => {
     expect(
       createCanvasDesktopSignOutUrl(null, 'https://account.canvas.example')
     ).toBeNull()
+  })
+
+  test('detects only the injected per-view desktop state', () => {
+    window.sessionStorage.clear()
+    expect(isCanvasDesktopView()).toBe(false)
+    window.sessionStorage.setItem('canvas.desktop.sign-out-state', 'short')
+    expect(isCanvasDesktopView()).toBe(false)
+    window.sessionStorage.setItem(
+      'canvas.desktop.sign-out-state',
+      'abcdefghijklmnopqrstuvwxyzABCDEFGH123456789'
+    )
+    expect(isCanvasDesktopView()).toBe(true)
   })
 })

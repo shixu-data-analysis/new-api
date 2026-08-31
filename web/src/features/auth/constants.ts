@@ -49,6 +49,19 @@ export const forgotPasswordFormSchema = z.object({
   }),
 })
 
+export const resetPasswordFormSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, 'Password must be between 8 and 20 characters')
+      .max(20, 'Password must be at most 20 characters long'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match.",
+    path: ['confirmPassword'],
+  })
+
 export const otpFormSchema = z.object({
   otp: z.string().min(1, 'Please enter a code.'),
 })

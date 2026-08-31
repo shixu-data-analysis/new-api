@@ -43,9 +43,15 @@ export function getCanvasHomeSection(
 }
 
 export function canCanvasPrincipalManageClientAccessToken(
-  principalType: CanvasPrincipalType
+  _principalType: CanvasPrincipalType
 ): boolean {
-  return principalType === 'CUSTOMER'
+  return false
+}
+
+export function canCanvasPrincipalManageAdvancedAuthentication(
+  _principalType: CanvasPrincipalType
+): boolean {
+  return false
 }
 
 export function isCanvasDefaultLandingPath(pathname: string): boolean {
