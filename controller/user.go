@@ -425,6 +425,71 @@ func GenerateAccessToken(c *gin.Context) {
 	return
 }
 
+// EnsureCanvasAccessKey binds Canvas clients to the user's single dashboard
+// personal access token without rotating an existing key on every sign-in.
+func EnsureCanvasAccessKey(c *gin.Context) {
+	key, err := model.EnsureUserAccessToken(c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	setAuthNoStore(c)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    key,
+	})
+}
+
+func CreateCanvasCustomerCenterHandoff(c *gin.Context) {
+	userID := c.GetInt("id")
+	if userID <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgAuthNotLoggedIn)
+		return
+	}
+	ticket, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeCanvasCustomerCenter,
+		UserId:    userID,
+		ExpiresAt: time.Now().Add(60 * time.Second),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	setAuthNoStore(c)
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"path":       "/api/user/canvas/customer-center-handoff?ticket=" + url.QueryEscape(ticket),
+			"expires_at": time.Now().Add(60 * time.Second).Unix(),
+		},
+	})
+}
+
+func ConsumeCanvasCustomerCenterHandoff(c *gin.Context) {
+	flow, err := model.ConsumeAuthFlow(c.Query("ticket"), model.AuthFlowMatch{Purpose: model.AuthFlowPurposeCanvasCustomerCenter})
+	if err != nil {
+		c.Header("Cache-Control", "no-store")
+		c.String(http.StatusUnauthorized, "Customer-center sign-in link is invalid or expired.")
+		return
+	}
+	user, err := model.GetUserById(flow.UserId, false)
+	if err != nil || user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
+		return
+	}
+	bundle, err := service.CreateLoginSession(user.Id, "canvas_customer_center", c.ClientIP(), c.Request.UserAgent())
+	if err != nil {
+		writeAuthSessionError(c, err)
+		return
+	}
+	service.WriteRefreshCookie(c, bundle.RefreshToken)
+	c.Header("Cache-Control", "no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusSeeOther, "/canvas-cloud/overview")
+}
+
 type TransferAffQuotaRequest struct {
 	Quota int `json:"quota" binding:"required"`
 }
