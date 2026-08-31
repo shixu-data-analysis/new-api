@@ -59,6 +59,14 @@ const inviteStatusKeys = [
   'Invite status REVOKED',
   'Invite status EXPIRED',
 ] as const
+const paidExpiryKeys = [
+  'Task and point policy settings',
+  'Paid points validity',
+  'Whole days from 1 to 3650. Default: 90 days (3 months).',
+  'This applies only to Paid points issued by recharge-code redemption after publication. Existing Paid points without an expiry remain valid, and Bonus points keep their separate validity.',
+  'Enter a whole number from 1 to 3650',
+  'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.',
+] as const
 
 describe('Canvas interface localization', () => {
   it.each(Object.entries(localizedResources))(
@@ -127,6 +135,17 @@ describe('Canvas interface localization', () => {
         expect(translations[key], key).toBeTypeOf('string')
         expect(translations[key], key).not.toBe(key)
         expect(translations[key], key).not.toMatch(/Bonus|Optional/i)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'localizes Paid expiry policy in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of paidExpiryKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
       }
     }
   )

@@ -110,7 +110,7 @@ function openTab(
     | 'Model prices'
     | 'Price groups'
     | 'Point issuance rate'
-    | 'Task policy settings'
+    | 'Task and point policy settings'
 ) {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
@@ -184,6 +184,9 @@ describe('Canvas administrator pricing', () => {
       bonusFailureGraceDays: 7,
       bonusFailureGraceVersion: null,
       bonusFailureGraceEffectiveAt: null,
+      paidExpiryDays: 90,
+      paidExpiryVersion: null,
+      paidExpiryEffectiveAt: null,
     })
     apiMocks.publishConfirmedCanvasTaskPolicySettings.mockResolvedValue({
       quoteTtlSeconds: 600,
@@ -192,6 +195,9 @@ describe('Canvas administrator pricing', () => {
       bonusFailureGraceDays: 14,
       bonusFailureGraceVersion: 1,
       bonusFailureGraceEffectiveAt: '2026-08-29T00:00:00.000Z',
+      paidExpiryDays: 120,
+      paidExpiryVersion: 1,
+      paidExpiryEffectiveAt: '2026-08-29T00:00:00.000Z',
     })
   })
 
@@ -225,10 +231,11 @@ describe('Canvas administrator pricing', () => {
 
   it('exposes the administrator task policy settings entry', async () => {
     renderPricing()
-    openTab('Task policy settings')
+    openTab('Task and point policy settings')
 
     expect(await screen.findByLabelText('Quote validity')).toHaveValue('300')
     expect(screen.getByLabelText('Bonus failure grace')).toHaveValue('7')
+    expect(screen.getByLabelText('Paid points validity')).toHaveValue('90')
   })
 
   it('shows pricing records in a table and keeps raw assumptions collapsed', () => {

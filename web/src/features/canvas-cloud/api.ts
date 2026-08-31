@@ -585,6 +585,7 @@ export async function getCanvasTaskPolicySettings() {
 export async function publishConfirmedCanvasTaskPolicySettings(input: {
   quoteTtlSeconds: number
   bonusFailureGraceDays: number
+  paidExpiryDays: number
 }) {
   return (
     await api.post<import('./types').CanvasTaskPolicySettings>(

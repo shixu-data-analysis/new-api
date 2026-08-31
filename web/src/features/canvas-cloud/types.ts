@@ -434,6 +434,9 @@ export interface CanvasTaskPolicySettings {
   bonusFailureGraceDays: number
   bonusFailureGraceVersion: number | null
   bonusFailureGraceEffectiveAt: string | null
+  paidExpiryDays: number
+  paidExpiryVersion: number | null
+  paidExpiryEffectiveAt: string | null
 }
 
 export interface CanvasAdminTestingModel {

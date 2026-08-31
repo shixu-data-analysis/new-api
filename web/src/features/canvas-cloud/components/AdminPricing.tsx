@@ -1190,7 +1190,7 @@ export function AdminPricing(props: {
                 className='h-8 min-h-8 flex-none px-3'
                 value='task-policy'
               >
-                {t('Task policy settings')}
+                {t('Task and point policy settings')}
               </TabsTrigger>
             </TabsList>
           </Tabs>

@@ -300,10 +300,18 @@ describe('Canvas Cloud API boundary', () => {
 
   it('reads and publishes administrator task policy settings', async () => {
     mocks.get.mockResolvedValue({
-      data: { quoteTtlSeconds: 300, bonusFailureGraceDays: 7 },
+      data: {
+        quoteTtlSeconds: 300,
+        bonusFailureGraceDays: 7,
+        paidExpiryDays: 90,
+      },
     })
     mocks.post.mockResolvedValue({
-      data: { quoteTtlSeconds: 600, bonusFailureGraceDays: 14 },
+      data: {
+        quoteTtlSeconds: 600,
+        bonusFailureGraceDays: 14,
+        paidExpiryDays: 120,
+      },
     })
 
     await getCanvasTaskPolicySettings()
@@ -314,10 +322,16 @@ describe('Canvas Cloud API boundary', () => {
     await publishConfirmedCanvasTaskPolicySettings({
       quoteTtlSeconds: 600,
       bonusFailureGraceDays: 14,
+      paidExpiryDays: 120,
     })
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/task-policy-settings/publications',
-      { quoteTtlSeconds: 600, bonusFailureGraceDays: 14, confirmed: true },
+      {
+        quoteTtlSeconds: 600,
+        bonusFailureGraceDays: 14,
+        paidExpiryDays: 120,
+        confirmed: true,
+      },
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

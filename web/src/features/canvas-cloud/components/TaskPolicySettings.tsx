@@ -41,6 +41,7 @@ export function TaskPolicySettings() {
   const { t } = useTranslation()
   const [quoteTtlSeconds, setQuoteTtlSeconds] = useState('')
   const [bonusFailureGraceDays, setBonusFailureGraceDays] = useState('')
+  const [paidExpiryDays, setPaidExpiryDays] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const settings = useQuery({
@@ -52,18 +53,25 @@ export function TaskPolicySettings() {
     if (!settings.data) return
     setQuoteTtlSeconds(String(settings.data.quoteTtlSeconds))
     setBonusFailureGraceDays(String(settings.data.bonusFailureGraceDays))
+    setPaidExpiryDays(String(settings.data.paidExpiryDays))
   }, [settings.data])
 
   const quoteValue = Number(quoteTtlSeconds)
   const graceValue = Number(bonusFailureGraceDays)
+  const paidExpiryValue = Number(paidExpiryDays)
   const quoteValid =
     /^\d+$/.test(quoteTtlSeconds) && quoteValue >= 1 && quoteValue <= 86400
   const graceValid =
     /^\d+$/.test(bonusFailureGraceDays) && graceValue >= 1 && graceValue <= 365
+  const paidExpiryValid =
+    /^\d+$/.test(paidExpiryDays) &&
+    paidExpiryValue >= 1 &&
+    paidExpiryValue <= 3650
   const changed = Boolean(
     settings.data &&
     (quoteValue !== settings.data.quoteTtlSeconds ||
-      graceValue !== settings.data.bonusFailureGraceDays)
+      graceValue !== settings.data.bonusFailureGraceDays ||
+      paidExpiryValue !== settings.data.paidExpiryDays)
   )
 
   const publish = useMutation({
@@ -71,6 +79,7 @@ export function TaskPolicySettings() {
       publishConfirmedCanvasTaskPolicySettings({
         quoteTtlSeconds: quoteValue,
         bonusFailureGraceDays: graceValue,
+        paidExpiryDays: paidExpiryValue,
       }),
     onSuccess: async () => {
       setConfirmationOpen(false)
@@ -83,10 +92,10 @@ export function TaskPolicySettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('Task policy settings')}</CardTitle>
+        <CardTitle>{t('Task and point policy settings')}</CardTitle>
         <CardDescription>
           {t(
-            'Published settings are versioned. Quote validity applies to new quotes; the Bonus failure grace applies when frozen Bonus is released after crossing its original expiry.'
+            'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.'
           )}
         </CardDescription>
       </CardHeader>
@@ -106,11 +115,13 @@ export function TaskPolicySettings() {
             onSubmit={(event) => {
               event.preventDefault()
               setSubmitted(true)
-              if (!quoteValid || !graceValid || !changed) return
+              if (!quoteValid || !graceValid || !paidExpiryValid || !changed) {
+                return
+              }
               setConfirmationOpen(true)
             }}
           >
-            <div className='grid gap-4 md:grid-cols-2'>
+            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(0,1fr))_auto]'>
               <div className='space-y-1'>
                 <Label htmlFor='quote-ttl-seconds'>{t('Quote validity')}</Label>
                 <Input
@@ -146,6 +157,43 @@ export function TaskPolicySettings() {
                   {t('Published version')}:{' '}
                   {settings.data.quoteTtlVersion ?? t('Default')} ·{' '}
                   {dateTime(settings.data.quoteTtlEffectiveAt)}
+                </div>
+              </div>
+              <div className='space-y-1'>
+                <Label htmlFor='paid-expiry-days'>
+                  {t('Paid points validity')}
+                </Label>
+                <Input
+                  id='paid-expiry-days'
+                  inputMode='numeric'
+                  value={paidExpiryDays}
+                  onChange={(event) => setPaidExpiryDays(event.target.value)}
+                  aria-invalid={submitted && !paidExpiryValid}
+                  aria-describedby='paid-expiry-help paid-expiry-explanation'
+                />
+                <div
+                  id='paid-expiry-help'
+                  className='text-muted-foreground text-xs'
+                >
+                  {t('Whole days from 1 to 3650. Default: 90 days (3 months).')}
+                </div>
+                <div
+                  id='paid-expiry-explanation'
+                  className='bg-muted/40 rounded-md border p-3 text-sm'
+                >
+                  {t(
+                    'This applies only to Paid points issued by recharge-code redemption after publication. Existing Paid points without an expiry remain valid, and Bonus points keep their separate validity.'
+                  )}
+                </div>
+                {submitted && !paidExpiryValid && (
+                  <div className='text-destructive text-xs' role='alert'>
+                    {t('Enter a whole number from 1 to 3650')}
+                  </div>
+                )}
+                <div className='text-muted-foreground text-xs'>
+                  {t('Published version')}:{' '}
+                  {settings.data.paidExpiryVersion ?? t('Default')} ·{' '}
+                  {dateTime(settings.data.paidExpiryEffectiveAt)}
                 </div>
               </div>
               <div className='space-y-1'>
@@ -187,11 +235,15 @@ export function TaskPolicySettings() {
                   {dateTime(settings.data.bonusFailureGraceEffectiveAt)}
                 </div>
               </div>
-            </div>
-            <div className='flex justify-end border-t pt-4'>
-              <Button type='submit' disabled={publish.isPending || !changed}>
-                {t('Review settings change')}
-              </Button>
+              <div className='flex items-start md:col-span-2 xl:col-span-1 xl:pt-6'>
+                <Button
+                  type='submit'
+                  className='w-full xl:w-auto'
+                  disabled={publish.isPending || !changed}
+                >
+                  {t('Review settings change')}
+                </Button>
+              </div>
             </div>
           </form>
         )}
@@ -211,6 +263,10 @@ export function TaskPolicySettings() {
           {
             label: t('Bonus failure grace'),
             value: `${graceValue} ${t('days')}`,
+          },
+          {
+            label: t('Paid points validity'),
+            value: `${paidExpiryValue} ${t('days')}`,
           },
         ]}
         confirmLabel={t('Confirm change')}

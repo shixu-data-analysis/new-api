@@ -49,6 +49,9 @@ describe('Canvas administrator task policy settings', () => {
       bonusFailureGraceDays: 7,
       bonusFailureGraceVersion: null,
       bonusFailureGraceEffectiveAt: null,
+      paidExpiryDays: 90,
+      paidExpiryVersion: null,
+      paidExpiryEffectiveAt: null,
     })
     apiMocks.publishConfirmedCanvasTaskPolicySettings.mockResolvedValue({
       quoteTtlSeconds: 600,
@@ -57,6 +60,9 @@ describe('Canvas administrator task policy settings', () => {
       bonusFailureGraceDays: 14,
       bonusFailureGraceVersion: 1,
       bonusFailureGraceEffectiveAt: '2026-08-29T00:00:00.000Z',
+      paidExpiryDays: 120,
+      paidExpiryVersion: 1,
+      paidExpiryEffectiveAt: '2026-08-29T00:00:00.000Z',
     })
   })
 
@@ -65,8 +71,10 @@ describe('Canvas administrator task policy settings', () => {
 
     const quote = await screen.findByLabelText('Quote validity')
     const grace = screen.getByLabelText('Bonus failure grace')
+    const paidExpiry = screen.getByLabelText('Paid points validity')
     expect(quote).toHaveValue('300')
     expect(grace).toHaveValue('7')
+    expect(paidExpiry).toHaveValue('90')
     expect(
       screen.getByText(/After it expires, the system creates a new quote/)
     ).toBeVisible()
@@ -76,6 +84,7 @@ describe('Canvas administrator task policy settings', () => {
 
     fireEvent.change(quote, { target: { value: '600' } })
     fireEvent.change(grace, { target: { value: '14' } })
+    fireEvent.change(paidExpiry, { target: { value: '120' } })
     fireEvent.click(
       screen.getByRole('button', { name: 'Review settings change' })
     )
@@ -87,6 +96,7 @@ describe('Canvas administrator task policy settings', () => {
       ).toHaveBeenCalledWith({
         quoteTtlSeconds: 600,
         bonusFailureGraceDays: 14,
+        paidExpiryDays: 120,
       })
     )
   })
@@ -95,8 +105,10 @@ describe('Canvas administrator task policy settings', () => {
     renderSettings()
     const quote = await screen.findByLabelText('Quote validity')
     const grace = screen.getByLabelText('Bonus failure grace')
+    const paidExpiry = screen.getByLabelText('Paid points validity')
     fireEvent.change(quote, { target: { value: '0' } })
     fireEvent.change(grace, { target: { value: '366' } })
+    fireEvent.change(paidExpiry, { target: { value: '3651' } })
     fireEvent.click(
       screen.getByRole('button', { name: 'Review settings change' })
     )
@@ -105,6 +117,9 @@ describe('Canvas administrator task policy settings', () => {
       screen.getByText('Enter a whole number from 1 to 86400')
     ).toBeVisible()
     expect(screen.getByText('Enter a whole number from 1 to 365')).toBeVisible()
+    expect(
+      screen.getByText('Enter a whole number from 1 to 3650')
+    ).toBeVisible()
     expect(
       apiMocks.publishConfirmedCanvasTaskPolicySettings
     ).not.toHaveBeenCalled()
