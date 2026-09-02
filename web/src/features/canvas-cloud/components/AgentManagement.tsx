@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Badge } from '@/components/ui/badge'
@@ -43,8 +45,20 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import { getCanvasAgents, provisionCanvasAgent } from '../api'
+import { formatCanvasDateTime } from '../formatters'
+import type { CanvasAgentProfile } from '../types'
+import { useServerTableState } from '../use-server-table-state'
+import { CanvasServerTable } from './CanvasServerTable'
+import { CopyableText } from './CopyableText'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 interface AgentFormValues {
@@ -64,7 +78,10 @@ function agentCreationFailureCode(error: unknown): string | null {
 export function AgentManagement() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const tableState = useServerTableState('createdAt')
+  const [status, setStatus] = useState('')
   const form = useForm<AgentFormValues>({
+    mode: 'onTouched',
     defaultValues: {
       newApiUserId: '',
       internalName: '',
@@ -74,8 +91,15 @@ export function AgentManagement() {
   const values = form.watch()
   const [confirming, setConfirming] = useState(false)
   const agents = useQuery({
-    queryKey: ['canvas-cloud', 'agents'],
-    queryFn: getCanvasAgents,
+    queryKey: ['canvas-cloud', 'agents', tableState.query, status],
+    queryFn: ({ signal }) =>
+      getCanvasAgents(
+        {
+          ...tableState.query,
+          ...(status ? { status: status as CanvasAgentProfile['status'] } : {}),
+        },
+        signal
+      ),
   })
   const create = useMutation({
     mutationFn: () =>
@@ -136,6 +160,49 @@ export function AgentManagement() {
       })
     },
   })
+  const columns = useMemo<ColumnDef<CanvasAgentProfile, unknown>[]>(
+    () => [
+      {
+        id: 'internalName',
+        accessorKey: 'internalName',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Inviter')} />
+        ),
+        cell: ({ row }) => <CopyableText value={row.original.internalName} />,
+      },
+      {
+        id: 'newApiUserId',
+        accessorKey: 'newApiUserId',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('New API user ID')} />
+        ),
+        cell: ({ row }) => <CopyableText value={row.original.newApiUserId} />,
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Status')} />
+        ),
+        cell: ({ row }) => (
+          <Badge
+            variant={row.original.status === 'ACTIVE' ? 'secondary' : 'outline'}
+          >
+            {t(row.original.status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
+          </Badge>
+        ),
+      },
+      {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Created At')} />
+        ),
+        cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
+      },
+    ],
+    [t]
+  )
   if (agents.isPending) return <LoadingState />
   if (agents.isError) {
     return (
@@ -245,34 +312,43 @@ export function AgentManagement() {
           </Form>
         </CardContent>
       </Card>
-      <div className='overflow-x-auto rounded-xl border'>
-        <table className='w-full min-w-[560px] text-left text-sm'>
-          <thead className='bg-muted/60'>
-            <tr>
-              <th className='px-3 py-2'>{t('Inviter')}</th>
-              <th className='px-3 py-2'>{t('New API user ID')}</th>
-              <th className='px-3 py-2'>{t('Status')}</th>
-            </tr>
-          </thead>
-          <tbody className='divide-y'>
-            {agents.data.map((agent) => (
-              <tr key={agent.principalId}>
-                <td className='px-3 py-2'>{agent.internalName}</td>
-                <td className='px-3 py-2'>{agent.newApiUserId}</td>
-                <td className='px-3 py-2'>
-                  <Badge
-                    variant={
-                      agent.status === 'ACTIVE' ? 'secondary' : 'outline'
-                    }
-                  >
-                    {t(agent.status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
-                  </Badge>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <CanvasServerTable
+        data={agents.data.items}
+        columns={columns}
+        total={agents.data.total}
+        state={tableState}
+        searchPlaceholder={t('Search inviters')}
+        searchLabel={t('Inviter name or New API user ID')}
+        searchDescription={t(
+          'Fuzzy matches inviter name, customer display name, or New API user ID.'
+        )}
+        loading={agents.isFetching}
+        emptyTitle={t('No inviters')}
+        additionalFilters={
+          <Select
+            value={status || 'ALL'}
+            onValueChange={(value) =>
+              setStatus(value === 'ALL' ? '' : (value ?? ''))
+            }
+          >
+            <SelectTrigger className='w-44'>
+              <SelectValue>
+                {status
+                  ? t(status === 'ACTIVE' ? 'Enabled' : 'Disabled')
+                  : t('All statuses')}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+              <SelectItem value='ACTIVE'>{t('Enabled')}</SelectItem>
+              <SelectItem value='DISABLED'>{t('Disabled')}</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        hasActiveFilters={Boolean(status)}
+        onResetFilters={() => setStatus('')}
+        getRowId={(row) => row.principalId}
+      />
       <PricingActionConfirmation
         open={confirming}
         title={t('Enable invitation ability for this customer?')}

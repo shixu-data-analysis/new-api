@@ -43,12 +43,12 @@ export interface CanvasAdminRechargeCodePage {
   items: CanvasAdminRechargeCode[]
   total: number
   page: number
-  pageSize: 20 | 50 | 100
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
 
 export interface CanvasAdminRechargeCodeQuery {
   page: number
-  pageSize: 20 | 50 | 100
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
   search?: string
   status?: CanvasAdminRechargeCode['status']
   createdFrom?: string
@@ -129,6 +129,32 @@ export interface CanvasAgentProfile {
   createdAt: string
 }
 
+export interface CanvasAdminAgentQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  status?: CanvasAgentProfile['status']
+  sortBy: 'internalName' | 'newApiUserId' | 'status' | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminInviteCodeQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  status?: CanvasInviteCodeStatus
+  sortBy:
+    | 'code'
+    | 'status'
+    | 'priceGroup'
+    | 'inviter'
+    | 'capacity'
+    | 'validFrom'
+    | 'expiresAt'
+    | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
 export interface CanvasAgentWorkspace {
   profile: {
     principalId: string
@@ -136,26 +162,53 @@ export interface CanvasAgentWorkspace {
     internalName: string
     status: 'ACTIVE'
   }
-  invites: Array<{
-    id: string
-    maskedCode: string
-    status: CanvasInviteCodeStatus
-    maxRegistrations: string
-    reservedCount: string
-    consumedCount: string
-    remainingCount: string
-    validFrom: string
-    expiresAt: string
-    activatedCustomers: string
-  }>
-  customers: Array<{
-    id: string
-    newApiUserId: string
-    username: string | null
-    emailMasked: string | null
-    status: string
-    activatedAt: string | null
-  }>
+}
+
+export interface CanvasAgentInviteCode {
+  id: string
+  maskedCode: string
+  status: CanvasInviteCodeStatus
+  maxRegistrations: string
+  reservedCount: string
+  consumedCount: string
+  remainingCount: string
+  validFrom: string
+  expiresAt: string
+  activatedCustomers: string
+  createdAt: string
+}
+
+export interface CanvasAgentCustomer {
+  id: string
+  newApiUserId: string
+  username: string | null
+  emailMasked: string | null
+  status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+  activatedAt: string | null
+}
+
+export interface CanvasAgentInviteCodeQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  status?: CanvasInviteCodeStatus
+  sortBy:
+    | 'code'
+    | 'status'
+    | 'capacity'
+    | 'activatedCustomers'
+    | 'expiresAt'
+    | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAgentCustomerQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  status?: CanvasAgentCustomer['status']
+  sortBy: 'customer' | 'newApiUserId' | 'status' | 'activatedAt'
+  sortOrder: 'asc' | 'desc'
 }
 
 export interface CanvasProviderPricingRow {
@@ -335,6 +388,7 @@ export interface CanvasAdminWorkspace {
   refunds: Array<{
     id: string
     refundReference: string
+    customerConfirmationReference: string | null
     orderNumber: string
     status: string
     cashAmountMinor: string
@@ -382,7 +436,7 @@ export interface CanvasAdminWorkspace {
 
 export interface CanvasAuditEventPage {
   page: number
-  pageSize: 20 | 50 | 100
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
   total: number
   items: Array<{
     id: string
@@ -407,10 +461,18 @@ export interface CanvasAuditEventPage {
 
 export interface CanvasAuditEventQuery {
   page: number
-  pageSize: 20 | 50 | 100
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  category?: string
   action?: string
   outcome?: CanvasAuditEventPage['items'][number]['outcome']
+  actorPrincipalId?: string
+  resourceType?: string
   resourceId?: string
+  customerId?: string
+  from?: string
+  to?: string
+  sortOrder?: 'asc' | 'desc'
 }
 
 export interface CanvasPointIssuanceRateVersion {
@@ -556,6 +618,94 @@ export interface CanvasAdminCustomerPointBalance {
   availablePoints: string
   paidAvailablePoints: string
   bonusAvailablePoints: string
+  createdAt?: string
+}
+
+export interface CanvasAdminRechargeOrder {
+  id: string
+  orderNumber: string
+  customerId: string | null
+  customerName: string | null
+  customerEmailMasked: string | null
+  status: string
+  currency: string
+  listedAmountMinor: string
+  rechargeCodeMask: string | null
+  rechargeCodeStatus: string | null
+  expectedPaidPoints: string
+  originalPaidPoints: string
+  correctedPaidPoints: string
+  issuedPaidPoints: string
+  availablePaidPoints: string
+  availableBonusPoints: string
+  remainingCorrectionPoints: string
+  eligibleForPaidCorrection: boolean
+  paidCorrectionIneligibleReason: string | null
+  createdAt: string
+  redeemedAt: string | null
+}
+
+export interface CanvasPage<T> {
+  page: number
+  pageSize: number
+  total: number
+  items: T[]
+}
+
+export interface CanvasAdminRefund {
+  id: string
+  refundReference: string
+  customerConfirmationReference: string | null
+  orderNumber: string
+  status: string
+  cashAmountMinor: string
+  pointsRequested: string
+  pointsClawedBack: string
+  pointsOutstanding: string
+  recoveryStatus: string | null
+  createdAt: string
+}
+
+export interface CanvasPointLedgerItem {
+  id: string
+  pointLotId: string
+  eventType: string
+  eventPoints: string
+  remainingDelta: string
+  reservedDelta: string
+  taskId: string | null
+  refundLinkId: string | null
+  reason: string | null
+  occurredAt: string
+}
+
+export interface CanvasAdminCustomerTask {
+  id: string
+  modelName: string
+  quotedPoints: string
+  allocatedPoints: string
+  settledPoints: string
+  releasedPoints: string
+  executionStatus: string
+  customerBillingStatus: string
+  providerReconcileStatus: string
+  upstreamTaskId: string | null
+  acceptedAt: string
+  completedAt: string | null
+}
+
+export interface CanvasAdminPointLot {
+  id: string
+  type: string
+  sourceType: string
+  rechargeOrderId: string | null
+  rechargeOrderNumber: string | null
+  initialPoints: string
+  remainingPoints: string
+  reservedPoints: string
+  availablePoints: string
+  expiresAt: string | null
+  issuedAt: string
 }
 
 export interface CanvasContributionReport {

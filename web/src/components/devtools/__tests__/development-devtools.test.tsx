@@ -74,7 +74,9 @@ describe('DevelopmentDevtools', () => {
     expect(screen.getByTestId('router-devtools-panel')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Router panel close' }))
 
-    expect(screen.queryByTestId('router-devtools-panel')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('router-devtools-panel')
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Open TanStack Query Devtools' })
     ).toBeInTheDocument()

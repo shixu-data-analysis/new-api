@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import {
@@ -199,6 +200,7 @@ describe('Canvas recharge-code creation form', () => {
   })
 
   it('requests server-side search, filters, sorting, and pagination', async () => {
+    const user = userEvent.setup()
     apiMocks.getCanvasAdminRechargeCodes.mockImplementation(
       async (query: { page: number; pageSize: number }) => ({
         items: [
@@ -226,18 +228,13 @@ describe('Canvas recharge-code creation form', () => {
     fireEvent.change(screen.getByLabelText('Search recharge codes'), {
       target: { value: 'CANVAS-Y1234567890123456789FA2E' },
     })
-    fireEvent.change(screen.getByLabelText('Status'), {
-      target: { value: 'EXPIRED' },
-    })
+    await user.click(screen.getByLabelText('Status'))
+    await user.click(await screen.findByRole('option', { name: 'Expired' }))
     fireEvent.change(screen.getByLabelText('Created from'), {
       target: { value: '2026-08-01' },
     })
-    fireEvent.change(screen.getByLabelText('Sort by'), {
-      target: { value: 'expiresAt' },
-    })
-    fireEvent.change(screen.getByLabelText('Sort order'), {
-      target: { value: 'asc' },
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Expires' }))
+    fireEvent.click(await screen.findByText('Asc'))
 
     await waitFor(() => {
       expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
@@ -249,14 +246,16 @@ describe('Canvas recharge-code creation form', () => {
           createdFrom: expect.stringMatching(/T.*Z$/),
           sortBy: 'expiresAt',
           sortOrder: 'asc',
-        })
+        }),
+        expect.any(AbortSignal)
       )
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() => {
       expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 2 })
+        expect.objectContaining({ page: 2 }),
+        expect.any(AbortSignal)
       )
     })
   })

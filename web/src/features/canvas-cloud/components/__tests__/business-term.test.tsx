@@ -69,10 +69,22 @@ describe('Canvas business term', () => {
     expect(term).toHaveFocus()
   })
 
-  it('keeps an unknown server value visible instead of inventing a translation', () => {
-    render(<BusinessTerm kind='ledgerEvent' value='FUTURE_EVENT' />)
-    expect(screen.getByText('FUTURE_EVENT')).toBeVisible()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  it('localizes unknown status values without exposing the raw enum', async () => {
+    await i18next.changeLanguage('zh')
+    render(<BusinessTerm kind='refundStatus' value='FUTURE_STATUS' />)
+    expect(screen.getByText('未知状态')).toBeVisible()
+    expect(screen.queryByText('FUTURE_STATUS')).not.toBeInTheDocument()
+  })
+
+  it('uses Valid for current ACTIVE states and reserves Effective for lifecycle facts', () => {
+    expect(canvasBusinessTermConfig.customerStatus.labels.ACTIVE).toBe('Valid')
+    expect(canvasBusinessTermConfig.rechargeCodeStatus.labels.ACTIVE).toBe(
+      'Valid'
+    )
+    expect(canvasBusinessTermConfig.configStatus.labels.ACTIVE).toBe('Valid')
+    expect(canvasBusinessTermConfig.pricingField.labels.GROUP_EFFECTIVE).toBe(
+      'Effective'
+    )
   })
 
   it('centralizes pricing labels and read-only field explanations', async () => {

@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -37,6 +38,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
@@ -189,100 +197,94 @@ export function PublishedModelCatalog() {
             <option value='INTERNAL'>{t('Internal only')}</option>
           </select>
         </div>
-        <div className='overflow-x-auto rounded-lg border'>
-          <table className='w-full min-w-[980px] text-left text-sm'>
-            <thead className='bg-muted/50'>
-              <tr>
-                <th className='p-3'>{sortHeader('Client model', 'name')}</th>
-                <th className='p-3'>
-                  {sortHeader('Capability', 'capability')}
-                </th>
-                <th className='p-3'>{sortHeader('Version', 'version')}</th>
-                <th className='p-3'>
-                  {sortHeader('Customer visibility', 'visibility')}
-                </th>
-                <th className='p-3'>
-                  {sortHeader('Pricing progress', 'pricing')}
-                </th>
-                <th className='p-3'>{t('Actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleModels.map((model) => {
-                const capability =
-                  typeof model.publicCatalogSnapshot.capability === 'string'
-                    ? model.publicCatalogSnapshot.capability
-                    : '—'
-                let visibilityLabel = t(
-                  'Internal testing until pricing is published'
-                )
-                if (!model.enabled) {
-                  visibilityLabel = t('Disabled')
-                } else if (!model.resourceEnabled) {
-                  visibilityLabel = t('Disabled by technical control')
-                } else if (model.customerVisible) {
-                  visibilityLabel = t('Visible to customers')
-                }
-                return (
-                  <tr key={model.id} className='border-t align-top'>
-                    <td className='p-3'>
-                      <div className='font-medium'>{model.name}</div>
-                      {model.description && (
-                        <div className='text-muted-foreground mt-1 max-w-md'>
-                          {model.description}
-                        </div>
-                      )}
-                      <div className='text-muted-foreground mt-1 font-mono text-xs'>
-                        {t('Model ID')}: {model.id}
+        <StaticDataTable tableClassName='min-w-[980px]'>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{sortHeader('Client model', 'name')}</TableHead>
+              <TableHead>{sortHeader('Capability', 'capability')}</TableHead>
+              <TableHead>{sortHeader('Version', 'version')}</TableHead>
+              <TableHead>
+                {sortHeader('Customer visibility', 'visibility')}
+              </TableHead>
+              <TableHead>{sortHeader('Pricing progress', 'pricing')}</TableHead>
+              <TableHead>{t('Actions')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleModels.map((model) => {
+              const capability =
+                typeof model.publicCatalogSnapshot.capability === 'string'
+                  ? model.publicCatalogSnapshot.capability
+                  : '—'
+              let visibilityLabel = t(
+                'Internal testing until pricing is published'
+              )
+              if (!model.enabled) {
+                visibilityLabel = t('Disabled')
+              } else if (!model.resourceEnabled) {
+                visibilityLabel = t('Disabled by technical control')
+              } else if (model.customerVisible) {
+                visibilityLabel = t('Visible to customers')
+              }
+              return (
+                <TableRow key={model.id} className='align-top'>
+                  <TableCell>
+                    <div className='font-medium'>{model.name}</div>
+                    {model.description && (
+                      <div className='text-muted-foreground mt-1 max-w-md'>
+                        {model.description}
                       </div>
-                      <details className='mt-2'>
-                        <summary className='text-primary cursor-pointer text-xs'>
-                          {t('View client display configuration')}
-                        </summary>
-                        <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded p-3 text-xs'>
-                          {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
-                        </pre>
-                      </details>
-                    </td>
-                    <td className='p-3'>{t(capability)}</td>
-                    <td className='p-3 tabular-nums'>
-                      <div>
-                        {t('Technical')} v{model.version}
+                    )}
+                    <div className='text-muted-foreground mt-1 font-mono text-xs'>
+                      {t('Model ID')}: {model.id}
+                    </div>
+                    <details className='mt-2'>
+                      <summary className='text-primary cursor-pointer text-xs'>
+                        {t('View client display configuration')}
+                      </summary>
+                      <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded p-3 text-xs'>
+                        {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
+                      </pre>
+                    </details>
+                  </TableCell>
+                  <TableCell>{t(capability)}</TableCell>
+                  <TableCell className='tabular-nums'>
+                    <div>
+                      {t('Technical')} v{model.version}
+                    </div>
+                    {model.presentationVersion && (
+                      <div className='text-muted-foreground mt-1 text-xs'>
+                        {t('Presentation')} v{model.presentationVersion}
                       </div>
-                      {model.presentationVersion && (
-                        <div className='text-muted-foreground mt-1 text-xs'>
-                          {t('Presentation')} v{model.presentationVersion}
-                        </div>
-                      )}
-                    </td>
-                    <td className='p-3'>{visibilityLabel}</td>
-                    <td className='p-3 tabular-nums'>
-                      {model.pricedTargets} / {model.totalTargets}
-                    </td>
-                    <td className='p-3'>
-                      <div className='flex flex-wrap gap-2'>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => startEdit(model)}
-                        >
-                          {t('Modify basic information')}
-                        </Button>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() => setToggling(model)}
-                        >
-                          {model.enabled ? t('Disable') : t('Enable')}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+                  </TableCell>
+                  <TableCell>{visibilityLabel}</TableCell>
+                  <TableCell className='tabular-nums'>
+                    {model.pricedTargets} / {model.totalTargets}
+                  </TableCell>
+                  <TableCell>
+                    <div className='flex flex-wrap gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => startEdit(model)}
+                      >
+                        {t('Modify basic information')}
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setToggling(model)}
+                      >
+                        {model.enabled ? t('Disable') : t('Enable')}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </StaticDataTable>
         <div className='flex items-center justify-between'>
           <span className='text-muted-foreground text-sm'>
             {filtered.length} {t('models')} · {currentPage} / {pageCount}

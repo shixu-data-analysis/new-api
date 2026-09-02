@@ -114,7 +114,7 @@ export function useSidebarData(): SidebarData {
                 icon: UserPlus,
               },
               {
-                title: t('Canvas Refunds'),
+                title: t('Refund point recovery'),
                 url: '/canvas-cloud/refunds',
                 icon: RotateCcw,
               },

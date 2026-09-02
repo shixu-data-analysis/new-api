@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -31,6 +32,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
@@ -286,8 +294,8 @@ export function AdminModelCatalog() {
             </Card>
           )}
           {planner.isPending && (
-            <Card>
-              <CardContent className='text-muted-foreground p-6 text-sm'>
+            <Card size='sm'>
+              <CardContent className='text-muted-foreground text-sm'>
                 {t('Validating Bundle and calculating changes...')}
               </CardContent>
             </Card>
@@ -370,81 +378,78 @@ export function AdminModelCatalog() {
                         ))}
                       </select>
                     </div>
-                    <div className='overflow-x-auto rounded-lg border'>
-                      <table className='w-full min-w-[720px] text-left text-sm'>
-                        <thead className='bg-muted/50'>
-                          <tr>
-                            <th>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => changeSort('resourceType')}
-                              >
-                                {t('Resource type')}
-                              </Button>
-                            </th>
-                            <th>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => changeSort('key')}
-                              >
-                                {t('Key')}
-                              </Button>
-                            </th>
-                            <th>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => changeSort('action')}
-                              >
-                                {t('Action')}
-                              </Button>
-                            </th>
-                            <th>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => changeSort('currentVersion')}
-                              >
-                                {t('Current version')}
-                              </Button>
-                            </th>
-                            <th>
-                              <Button
-                                variant='ghost'
-                                size='sm'
-                                onClick={() => changeSort('proposedVersion')}
-                              >
-                                {t('Proposed version')}
-                              </Button>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visibleChanges.map((change) => (
-                            <tr
-                              key={`${change.resourceType}:${change.key}`}
-                              className='border-t'
+                    <StaticDataTable tableClassName='min-w-[720px]'>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => changeSort('resourceType')}
                             >
-                              <td className='p-3'>{t(change.resourceType)}</td>
-                              <td className='max-w-[22rem] p-3 break-all'>
-                                {change.key}
-                              </td>
-                              <td className='p-3 font-medium'>
-                                {t(change.action)}
-                              </td>
-                              <td className='p-3 tabular-nums'>
-                                {change.currentVersion ?? '—'}
-                              </td>
-                              <td className='p-3 tabular-nums'>
-                                {change.proposedVersion ?? '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                              {t('Resource type')}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => changeSort('key')}
+                            >
+                              {t('Key')}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => changeSort('action')}
+                            >
+                              {t('Action')}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => changeSort('currentVersion')}
+                            >
+                              {t('Current version')}
+                            </Button>
+                          </TableHead>
+                          <TableHead>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={() => changeSort('proposedVersion')}
+                            >
+                              {t('Proposed version')}
+                            </Button>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleChanges.map((change) => (
+                          <TableRow
+                            key={`${change.resourceType}:${change.key}`}
+                          >
+                            <TableCell>{t(change.resourceType)}</TableCell>
+                            <TableCell className='max-w-[22rem] break-all'>
+                              {change.key}
+                            </TableCell>
+                            <TableCell className='font-medium'>
+                              {t(change.action)}
+                            </TableCell>
+                            <TableCell className='tabular-nums'>
+                              {change.currentVersion ?? '—'}
+                            </TableCell>
+                            <TableCell className='tabular-nums'>
+                              {change.proposedVersion ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </StaticDataTable>
                     <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
                       <span className='text-muted-foreground text-sm'>
                         {filteredChanges.length} {t('records')} ·{' '}

@@ -1199,8 +1199,8 @@ export function AdminPricing(props: {
 
       {activeTab === 'prices' && (
         <>
-          <Card className='border-primary/30 bg-primary/5'>
-            <CardContent className='flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between'>
+          <Card size='sm' className='border-primary/30 bg-primary/5'>
+            <CardContent className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
               <div className='flex min-w-0 items-start gap-3'>
                 <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
                   <Calculator aria-hidden='true' className='size-5' />

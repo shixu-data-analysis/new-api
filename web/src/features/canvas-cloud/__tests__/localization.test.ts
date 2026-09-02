@@ -67,6 +67,35 @@ const paidExpiryKeys = [
   'Enter a whole number from 1 to 3650',
   'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.',
 ] as const
+const pointAdjustmentKeys = [
+  'Customer name',
+  'Search customer name',
+  'Record externally confirmed refund',
+  'Refund point recovery',
+  'Open refund point recovery',
+  'Prefilled customer',
+  'Canvas recharge order number or customer',
+  'Fuzzy matches the Canvas recharge order number or customer name. A customer opened from Customers & Points remains scoped to that customer.',
+  'Canvas recharge order',
+  'Customer confirmation reference',
+  'Calculated points',
+  'Grant Bonus points',
+  'Correct Paid points',
+  'Deduct from a Point Lot',
+  'Unknown status',
+  'In review',
+  'Recovered',
+  'Waived',
+  'CONFIGURATION',
+  'PAYMENT',
+  'TASK_EXECUTION',
+  'Unknown category',
+  'Unknown action',
+  'Unknown outcome',
+  'Unknown actor',
+  'Unknown resource',
+  'Unknown reason',
+] as const
 
 describe('Canvas interface localization', () => {
   it.each(Object.entries(localizedResources))(
@@ -151,6 +180,17 @@ describe('Canvas interface localization', () => {
   )
 
   it.each(Object.entries(localizedResources))(
+    'localizes administrator point adjustment and recovery states in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of pointAdjustmentKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
     'localizes every invite status in %s',
     (_locale, resource) => {
       const translations = resource.translation as Record<string, string>
@@ -160,4 +200,18 @@ describe('Canvas interface localization', () => {
       }
     }
   )
+
+  it('distinguishes valid code states from activation actions in Chinese', () => {
+    expect(zh.translation['Invite status ACTIVE']).toBe('有效')
+    expect(zh.translation.Valid).toBe('有效')
+    expect(zh.translation['Activation time']).toBe('生效时间')
+    expect(zhTW.translation['Invite status ACTIVE']).toBe('有效')
+    expect(zhTW.translation.Valid).toBe('有效')
+    expect(zhTW.translation['Activation time']).toBe('生效時間')
+  })
+
+  it('uses display wording for the Chinese column visibility control', () => {
+    expect(zh.translation.View).toBe('显示')
+    expect(zhTW.translation.View).toBe('顯示')
+  })
 })

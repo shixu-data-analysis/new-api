@@ -47,7 +47,12 @@ describe('Canvas invite code management', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
-    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue([])
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
     apiMocks.getCanvasInviteCodeOptions.mockResolvedValue({
       priceGroups: [
         { id: 'group-v1', code: 'STANDARD', internalName: 'Standard' },
@@ -130,39 +135,45 @@ describe('Canvas invite code management', () => {
   })
 
   it('labels invite status and requires confirmation before a status change', async () => {
-    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue([
-      {
-        id: 'invite-v1',
-        maskedCode: 'CANVAS-U••••••••CRET',
-        status: 'ACTIVE',
-        effectiveStatus: 'ACTIVE',
-        maxRegistrations: '10',
-        reservedCount: '0',
-        consumedCount: '1',
-        remainingCount: '9',
-        validFrom: '2026-01-01T00:00:00.000Z',
-        expiresAt: '2035-01-01T00:00:00.000Z',
-        priceGroupId: 'group-v1',
-        priceGroupCode: 'STANDARD',
-        priceGroupName: 'Standard',
-        initialBonusPoints: '500',
-        initialBonusTtlDays: 30,
-        promotionVersionId: null,
-        referralSource: null,
-        agent: null,
-        pausedAt: null,
-        revokedAt: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'invite-v1',
+          maskedCode: 'CANVAS-U••••••••CRET',
+          status: 'ACTIVE',
+          effectiveStatus: 'ACTIVE',
+          maxRegistrations: '10',
+          reservedCount: '0',
+          consumedCount: '1',
+          remainingCount: '9',
+          validFrom: '2026-01-01T00:00:00.000Z',
+          expiresAt: '2035-01-01T00:00:00.000Z',
+          priceGroupId: 'group-v1',
+          priceGroupCode: 'STANDARD',
+          priceGroupName: 'Standard',
+          initialBonusPoints: '500',
+          initialBonusTtlDays: 30,
+          promotionVersionId: null,
+          referralSource: null,
+          agent: null,
+          pausedAt: null,
+          revokedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    })
 
     renderWithClient(<InviteCodeManagement />)
 
-    expect(await screen.findByText('Active')).toBeVisible()
-    const pause = screen.getByRole('button', { name: 'Pause invite code' })
+    expect(await screen.findByText('Valid')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
+    const pause = screen.getByRole('menuitem', { name: 'Pause invite code' })
     expect(pause).toHaveTextContent('Pause invite code')
     expect(
-      screen.getByRole('button', { name: 'Revoke invite code' })
+      screen.getByRole('menuitem', { name: 'Revoke invite code' })
     ).toHaveTextContent('Revoke invite code')
 
     fireEvent.click(pause)
@@ -180,31 +191,36 @@ describe('Canvas invite code management', () => {
   })
 
   it('toggles a revealed invite code back to its mask and changes the icon', async () => {
-    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue([
-      {
-        id: 'invite-v1',
-        maskedCode: 'CANVAS-U••••••••CRET',
-        status: 'ACTIVE',
-        effectiveStatus: 'ACTIVE',
-        maxRegistrations: '10',
-        reservedCount: '0',
-        consumedCount: '1',
-        remainingCount: '9',
-        validFrom: '2026-01-01T00:00:00.000Z',
-        expiresAt: '2035-01-01T00:00:00.000Z',
-        priceGroupId: 'group-v1',
-        priceGroupCode: 'STANDARD',
-        priceGroupName: 'Standard',
-        initialBonusPoints: null,
-        initialBonusTtlDays: null,
-        promotionVersionId: null,
-        referralSource: null,
-        agent: null,
-        pausedAt: null,
-        revokedAt: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'invite-v1',
+          maskedCode: 'CANVAS-U••••••••CRET',
+          status: 'ACTIVE',
+          effectiveStatus: 'ACTIVE',
+          maxRegistrations: '10',
+          reservedCount: '0',
+          consumedCount: '1',
+          remainingCount: '9',
+          validFrom: '2026-01-01T00:00:00.000Z',
+          expiresAt: '2035-01-01T00:00:00.000Z',
+          priceGroupId: 'group-v1',
+          priceGroupCode: 'STANDARD',
+          priceGroupName: 'Standard',
+          initialBonusPoints: null,
+          initialBonusTtlDays: null,
+          promotionVersionId: null,
+          referralSource: null,
+          agent: null,
+          pausedAt: null,
+          revokedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    })
     apiMocks.revealCanvasCode.mockResolvedValue({ code: 'CANVAS-SECRET' })
 
     const { container } = renderWithClient(<InviteCodeManagement />)

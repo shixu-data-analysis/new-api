@@ -19,6 +19,8 @@ import { ProviderPricingMatrix } from '../ProviderPricingMatrix'
 
 const apiMocks = vi.hoisted(() => ({
   getCanvasAgentWorkspace: vi.fn(),
+  getCanvasAgentInviteCodes: vi.fn(),
+  getCanvasAgentCustomers: vi.fn(),
   getCanvasAgents: vi.fn(),
   provisionCanvasAgent: vi.fn(),
   getCanvasProviderPricingMatrix: vi.fn(),
@@ -51,7 +53,12 @@ describe('Canvas Agent and provider pricing governance', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
-    apiMocks.getCanvasAgents.mockResolvedValue([])
+    apiMocks.getCanvasAgents.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
     apiMocks.getCanvasAgentWorkspace.mockResolvedValue({
       profile: {
         principalId: 'agent-v1',
@@ -59,8 +66,18 @@ describe('Canvas Agent and provider pricing governance', () => {
         internalName: 'Tokyo Agent',
         status: 'ACTIVE',
       },
-      invites: [],
-      customers: [
+    })
+    apiMocks.getCanvasAgentInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
+    apiMocks.getCanvasAgentCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
         {
           id: 'customer-v1',
           newApiUserId: '86',
@@ -219,20 +236,17 @@ describe('Canvas Agent and provider pricing governance', () => {
     expect(await screen.findByText('My customers')).toBeVisible()
     expect(screen.getByText('invited-user')).toBeVisible()
     expect(screen.getByText('i***@example.com')).toBeVisible()
-    expect(screen.getByText('Active')).toBeVisible()
+    expect(screen.getByText('Valid')).toBeVisible()
     expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument()
     expect(screen.queryByText('My models')).not.toBeInTheDocument()
   })
 
   it('reveals and hides an owned invite code without decrypting twice', async () => {
-    apiMocks.getCanvasAgentWorkspace.mockResolvedValueOnce({
-      profile: {
-        principalId: 'agent-v1',
-        displayName: 'Tokyo Agent',
-        internalName: 'Tokyo Agent',
-        status: 'ACTIVE',
-      },
-      invites: [
+    apiMocks.getCanvasAgentInviteCodes.mockResolvedValueOnce({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
         {
           id: 'invite-v1',
           maskedCode: 'CANVAS-U••••••••CRET',
@@ -244,9 +258,9 @@ describe('Canvas Agent and provider pricing governance', () => {
           validFrom: '2026-08-30T00:00:00.000Z',
           expiresAt: '2027-08-30T00:00:00.000Z',
           activatedCustomers: '1',
+          createdAt: '2026-08-30T00:00:00.000Z',
         },
       ],
-      customers: [],
     })
     apiMocks.revealCanvasCode.mockResolvedValueOnce({
       id: 'invite-v1',

@@ -71,6 +71,12 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/channels',
       '/profile',
     ])
+    expect(
+      result.current.navGroups
+        .flatMap((group) => group.items)
+        .find((item) => 'url' in item && item.url === '/canvas-cloud/refunds')
+        ?.title
+    ).toBe('Refund point recovery')
   })
 
   it('shows only activation and profile navigation before Canvas registration', () => {

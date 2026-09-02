@@ -17,23 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Copy,
-  Download,
-  Eye,
-  EyeOff,
-  Plus,
-  RefreshCw,
-  Search,
-} from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/empty-state'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
-import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -44,6 +36,13 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import {
   getCanvasAdminRechargeCodes,
@@ -51,12 +50,14 @@ import {
   revealCanvasCode,
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CanvasServerTable } from './components/CanvasServerTable'
 import { cnyToMinor } from './recharge-code-amount'
 import type {
   CanvasAdminRechargeCode,
   CanvasAdminRechargeCodeQuery,
   CanvasIssuedRechargeCodes,
 } from './types'
+import { useServerTableState } from './use-server-table-state'
 
 function formatCny(value: string): string {
   const minor = BigInt(value)
@@ -88,24 +89,15 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
   const [codesVisible, setCodesVisible] = useState(false)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
-  const [search, setSearch] = useState('')
+  const tableState =
+    useServerTableState<CanvasAdminRechargeCodeQuery['sortBy']>('createdAt')
   const [status, setStatus] = useState<'' | CanvasAdminRechargeCode['status']>(
     ''
   )
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo, setCreatedTo] = useState('')
-  const [sortBy, setSortBy] =
-    useState<CanvasAdminRechargeCodeQuery['sortBy']>('createdAt')
-  const [sortOrder, setSortOrder] =
-    useState<CanvasAdminRechargeCodeQuery['sortOrder']>('desc')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<20 | 50 | 100>(20)
   const inventoryQuery: CanvasAdminRechargeCodeQuery = {
-    page,
-    pageSize,
-    sortBy,
-    sortOrder,
-    ...(search.trim() ? { search: search.trim() } : {}),
+    ...tableState.query,
     ...(status ? { status } : {}),
     ...(dateBoundary(createdFrom)
       ? { createdFrom: dateBoundary(createdFrom) }
@@ -116,7 +108,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   }
   const inventory = useQuery({
     queryKey: ['canvas-cloud', 'admin-recharge-codes', inventoryQuery],
-    queryFn: () => getCanvasAdminRechargeCodes(inventoryQuery),
+    queryFn: ({ signal }) =>
+      getCanvasAdminRechargeCodes(inventoryQuery, signal),
     placeholderData: (previous) => previous,
   })
   const issue = useMutation({
@@ -189,147 +182,220 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     issue.mutate({ name: name.trim(), amountMinor, count: parsedCount })
   }
 
+  const columns: ColumnDef<CanvasAdminRechargeCode, unknown>[] = [
+    {
+      id: 'name',
+      accessorKey: 'name',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Name')} />
+      ),
+    },
+    {
+      id: 'code',
+      accessorKey: 'maskedCode',
+      enableSorting: false,
+      header: t('Code'),
+      cell: ({ row }) => (
+        <span className='font-mono'>
+          {revealedCodes[row.original.id] ?? row.original.maskedCode}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Status')} />
+      ),
+      cell: ({ row }) => (
+        <BusinessTerm kind='rechargeCodeStatus' value={row.original.status} />
+      ),
+    },
+    {
+      id: 'amount',
+      accessorKey: 'amountMinor',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Amount')} />
+      ),
+      cell: ({ row }) => formatCny(row.original.amountMinor),
+    },
+    {
+      id: 'points',
+      accessorKey: 'points',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Points')} />
+      ),
+    },
+    {
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Created')} />
+      ),
+      cell: ({ row }) => formatDate(row.original.createdAt),
+    },
+    {
+      id: 'expiresAt',
+      accessorKey: 'expiresAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Expires')} />
+      ),
+      cell: ({ row }) => formatDate(row.original.expiresAt),
+    },
+    {
+      id: 'redeemedAt',
+      accessorKey: 'redeemedAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Redeemed')} />
+      ),
+      cell: ({ row }) => formatDate(row.original.redeemedAt),
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: t('Actions'),
+      cell: ({ row }) =>
+        row.original.status === 'ACTIVE' ? (
+          <div className='flex gap-1'>
+            <Button
+              size='sm'
+              variant='outline'
+              aria-label={t(
+                revealedCodes[row.original.id]
+                  ? 'Hide recharge code'
+                  : 'Show recharge code'
+              )}
+              aria-pressed={Boolean(revealedCodes[row.original.id])}
+              disabled={reveal.isPending}
+              onClick={() => {
+                if (revealedCodes[row.original.id]) {
+                  setRevealedCodes((current) => {
+                    const next = { ...current }
+                    delete next[row.original.id]
+                    return next
+                  })
+                  return
+                }
+                reveal.mutate({ id: row.original.id, action: 'DISPLAY' })
+              }}
+            >
+              {revealedCodes[row.original.id] ? <EyeOff /> : <Eye />}
+            </Button>
+            <Button
+              size='sm'
+              variant='outline'
+              aria-label={t('Copy recharge code')}
+              disabled={reveal.isPending}
+              onClick={() =>
+                reveal.mutate({ id: row.original.id, action: 'COPY' })
+              }
+            >
+              <Copy />
+            </Button>
+          </div>
+        ) : (
+          '—'
+        ),
+    },
+  ]
+
+  const resetPage = () =>
+    tableState.setPagination((value) => ({ ...value, pageIndex: 0 }))
+
   const renderInventory = () => {
-    if (inventory.isPending) return <LoadingState />
     if (inventory.isError) {
       return <ErrorState onRetry={() => void inventory.refetch()} />
     }
-    if (inventory.data.items.length === 0) {
-      const hasFilters = Boolean(
-        search.trim() || status || createdFrom || createdTo
-      )
-      return (
-        <EmptyState
-          title={
-            hasFilters
-              ? t('No matching recharge codes')
-              : t('No Canvas recharge codes')
-          }
-          bordered
-        />
-      )
-    }
-    const totalPages = Math.max(
-      1,
-      Math.ceil(inventory.data.total / inventory.data.pageSize)
-    )
-    const firstItem = (inventory.data.page - 1) * inventory.data.pageSize + 1
-    const lastItem = Math.min(
-      inventory.data.page * inventory.data.pageSize,
-      inventory.data.total
+    const hasFilters = Boolean(
+      tableState.search.trim() || status || createdFrom || createdTo
     )
     return (
-      <div className='space-y-3'>
-        <div className='overflow-x-auto rounded-xl border'>
-          <table className='w-full min-w-[900px] text-left text-sm'>
-            <thead className='bg-muted/60 text-muted-foreground'>
-              <tr>
-                {[
-                  t('Name'),
-                  t('Code'),
-                  t('Status'),
-                  t('Amount'),
-                  t('Points'),
-                  t('Created'),
-                  t('Expires'),
-                  t('Redeemed'),
-                  t('Actions'),
-                ].map((header) => (
-                  <th key={header} className='px-3 py-2 font-medium'>
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className='divide-y'>
-              {inventory.data.items.map((item) => (
-                <tr key={item.id} className='hover:bg-muted/30'>
-                  <td className='px-3 py-2'>{item.name}</td>
-                  <td className='px-3 py-2 font-mono'>
-                    {revealedCodes[item.id] ?? item.maskedCode}
-                  </td>
-                  <td className='px-3 py-2'>
-                    <BusinessTerm
-                      kind='rechargeCodeStatus'
-                      value={item.status}
-                    />
-                  </td>
-                  <td className='px-3 py-2'>{formatCny(item.amountMinor)}</td>
-                  <td className='px-3 py-2'>{item.points}</td>
-                  <td className='px-3 py-2'>{formatDate(item.createdAt)}</td>
-                  <td className='px-3 py-2'>{formatDate(item.expiresAt)}</td>
-                  <td className='px-3 py-2'>{formatDate(item.redeemedAt)}</td>
-                  <td className='px-3 py-2'>
-                    {item.status === 'ACTIVE' ? (
-                      <div className='flex gap-1'>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          aria-label={t('Show recharge code')}
-                          disabled={reveal.isPending}
-                          onClick={() =>
-                            reveal.mutate({ id: item.id, action: 'DISPLAY' })
-                          }
-                        >
-                          <Eye />
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          aria-label={t('Copy recharge code')}
-                          disabled={reveal.isPending}
-                          onClick={() =>
-                            reveal.mutate({ id: item.id, action: 'COPY' })
-                          }
-                        >
-                          <Copy />
-                        </Button>
-                      </div>
+      <CanvasServerTable
+        data={inventory.data?.items ?? []}
+        columns={columns}
+        total={inventory.data?.total ?? 0}
+        state={tableState}
+        searchPlaceholder={t('Search by name or full code')}
+        searchLabel={t('Search recharge codes')}
+        searchDescription={t(
+          'Paste a customer-provided full code to match its safely retained prefix and suffix.'
+        )}
+        loading={inventory.isPending || inventory.isFetching}
+        emptyTitle={
+          hasFilters
+            ? t('No matching recharge codes')
+            : t('No Canvas recharge codes')
+        }
+        additionalFilters={
+          <div className='flex flex-wrap items-end gap-2'>
+            <div className='space-y-1'>
+              <Label htmlFor='canvas-code-status'>{t('Status')}</Label>
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) => {
+                  setStatus(
+                    value === 'ALL'
+                      ? ''
+                      : ((value ?? '') as CanvasAdminRechargeCode['status'])
+                  )
+                  resetPage()
+                }}
+              >
+                <SelectTrigger id='canvas-code-status' className='w-40'>
+                  <SelectValue>
+                    {status ? (
+                      <BusinessTerm kind='rechargeCodeStatus' value={status} />
                     ) : (
-                      '—'
+                      t('All statuses')
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-          <p className='text-muted-foreground text-sm'>
-            {t('{{from}}–{{to}} of {{total}}', {
-              from: firstItem,
-              to: lastItem,
-              total: inventory.data.total,
-            })}
-          </p>
-          <div className='flex items-center gap-2'>
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              {t('Previous')}
-            </Button>
-            <span className='min-w-20 text-center text-sm'>
-              {t('Page {{page}} of {{total}}', {
-                page: inventory.data.page,
-                total: totalPages,
-              })}
-            </span>
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={page >= totalPages}
-              onClick={() =>
-                setPage((current) => Math.min(totalPages, current + 1))
-              }
-            >
-              {t('Next')}
-            </Button>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                  {['ACTIVE', 'REDEEMED', 'EXPIRED', 'VOID'].map((value) => (
+                    <SelectItem key={value} value={value}>
+                      <BusinessTerm kind='rechargeCodeStatus' value={value} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='space-y-1'>
+              <Label htmlFor='canvas-code-created-from'>
+                {t('Created from')}
+              </Label>
+              <Input
+                id='canvas-code-created-from'
+                type='date'
+                value={createdFrom}
+                onChange={(event) => {
+                  setCreatedFrom(event.target.value)
+                  resetPage()
+                }}
+              />
+            </div>
+            <div className='space-y-1'>
+              <Label htmlFor='canvas-code-created-to'>{t('Created to')}</Label>
+              <Input
+                id='canvas-code-created-to'
+                type='date'
+                value={createdTo}
+                onChange={(event) => {
+                  setCreatedTo(event.target.value)
+                  resetPage()
+                }}
+              />
+            </div>
           </div>
-        </div>
-      </div>
+        }
+        hasActiveFilters={Boolean(status || createdFrom || createdTo)}
+        onResetFilters={() => {
+          setStatus('')
+          setCreatedFrom('')
+          setCreatedTo('')
+        }}
+        getRowId={(row) => row.id}
+      />
     )
   }
 
@@ -462,156 +528,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='bg-muted/20 space-y-3 rounded-lg border p-3'>
-            <div className='grid items-start gap-3 md:grid-cols-2 xl:grid-cols-[minmax(20rem,2fr)_minmax(10rem,1fr)_minmax(10rem,1fr)]'>
-              <div className='space-y-1.5 md:col-span-2 xl:col-span-1'>
-                <Label htmlFor='canvas-code-search'>
-                  {t('Search recharge codes')}
-                </Label>
-                <div className='relative'>
-                  <Search
-                    aria-hidden='true'
-                    className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2'
-                  />
-                  <Input
-                    id='canvas-code-search'
-                    aria-describedby='canvas-code-search-help'
-                    className='pl-9'
-                    value={search}
-                    onChange={(event) => {
-                      setSearch(event.target.value)
-                      setPage(1)
-                    }}
-                    placeholder={t('Search by name or full code')}
-                  />
-                </div>
-                <p
-                  id='canvas-code-search-help'
-                  className='text-muted-foreground text-xs'
-                >
-                  {t(
-                    'Paste a customer-provided full code to match its safely retained prefix and suffix.'
-                  )}
-                </p>
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-status'>{t('Status')}</Label>
-                <select
-                  id='canvas-code-status'
-                  className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
-                  value={status}
-                  onChange={(event) => {
-                    setStatus(
-                      event.target.value as
-                        | ''
-                        | CanvasAdminRechargeCode['status']
-                    )
-                    setPage(1)
-                  }}
-                >
-                  <option value=''>{t('All statuses')}</option>
-                  <option value='ACTIVE'>{t('Active')}</option>
-                  <option value='REDEEMED'>{t('Redeemed')}</option>
-                  <option value='EXPIRED'>{t('Expired')}</option>
-                  <option value='VOID'>{t('Voided')}</option>
-                </select>
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-page-size'>{t('Page size')}</Label>
-                <select
-                  id='canvas-code-page-size'
-                  className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
-                  value={pageSize}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value) as 20 | 50 | 100)
-                    setPage(1)
-                  }}
-                >
-                  {[20, 50, 100].map((size) => (
-                    <option key={size} value={size}>
-                      {t('{{count}} per page', { count: size })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className='grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4'>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-created-from'>
-                  {t('Created from')}
-                </Label>
-                <Input
-                  id='canvas-code-created-from'
-                  type='date'
-                  value={createdFrom}
-                  onChange={(event) => {
-                    setCreatedFrom(event.target.value)
-                    setPage(1)
-                  }}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-created-to'>
-                  {t('Created to')}
-                </Label>
-                <Input
-                  id='canvas-code-created-to'
-                  type='date'
-                  value={createdTo}
-                  onChange={(event) => {
-                    setCreatedTo(event.target.value)
-                    setPage(1)
-                  }}
-                />
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-sort-by'>{t('Sort by')}</Label>
-                <select
-                  id='canvas-code-sort-by'
-                  className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
-                  value={sortBy}
-                  onChange={(event) => {
-                    setSortBy(
-                      event.target
-                        .value as CanvasAdminRechargeCodeQuery['sortBy']
-                    )
-                    setPage(1)
-                  }}
-                >
-                  <option value='createdAt'>{t('Created')}</option>
-                  <option value='expiresAt'>{t('Expires')}</option>
-                  <option value='redeemedAt'>{t('Redeemed')}</option>
-                  <option value='name'>{t('Name')}</option>
-                  <option value='status'>{t('Status')}</option>
-                  <option value='amount'>{t('Amount')}</option>
-                  <option value='points'>{t('Points')}</option>
-                </select>
-              </div>
-              <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-sort-order'>
-                  {t('Sort order')}
-                </Label>
-                <select
-                  id='canvas-code-sort-order'
-                  className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
-                  value={sortOrder}
-                  onChange={(event) => {
-                    setSortOrder(
-                      event.target
-                        .value as CanvasAdminRechargeCodeQuery['sortOrder']
-                    )
-                    setPage(1)
-                  }}
-                >
-                  <option value='desc'>{t('Descending')}</option>
-                  <option value='asc'>{t('Ascending')}</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          {renderInventory()}
-        </CardContent>
+        <CardContent className='space-y-4'>{renderInventory()}</CardContent>
       </Card>
     </div>
   )

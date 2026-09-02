@@ -53,7 +53,11 @@ const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
 
 api.get = ((url: string, config: ApiRequestConfig = {}) => {
-  if (config.disableDuplicate) return originalGet(url, config)
+  // A request-scoped AbortSignal belongs to one caller. Reusing that Promise
+  // lets one unmount or superseded query cancel every later caller, including
+  // React StrictMode's replacement mount. TanStack Query already deduplicates
+  // its own keyed requests, so only signal-free GETs use this fallback map.
+  if (config.disableDuplicate || config.signal) return originalGet(url, config)
 
   const params = config.params ? JSON.stringify(config.params) : '{}'
   const sessionSID = useAuthStore.getState().auth.session?.sid || 'anonymous'
@@ -98,6 +102,8 @@ api.interceptors.response.use(
     return response
   },
   async (error) => {
+    if (axios.isCancel(error)) throw error
+
     const config = error?.config as ApiRequestConfig | undefined
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status

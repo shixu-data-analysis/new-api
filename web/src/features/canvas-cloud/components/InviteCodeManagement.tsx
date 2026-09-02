@@ -7,12 +7,14 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Copy, Download, Eye, EyeOff, Pause, Play, ShieldX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/empty-state'
+import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Badge } from '@/components/ui/badge'
@@ -24,14 +26,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import {
   changeCanvasAdminInviteCodeStatus,
@@ -40,7 +48,10 @@ import {
   getCanvasInviteCodeOptions,
   revealCanvasCode,
 } from '../api'
-import type { CanvasAdminInviteCode } from '../types'
+import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
+import { useServerTableState } from '../use-server-table-state'
+import { CanvasServerTable } from './CanvasServerTable'
+import { CopyableText } from './CopyableText'
 import {
   PricingActionConfirmation,
   type ConfirmationDetail,
@@ -104,9 +115,18 @@ export function InviteCodeManagement() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
+  const tableState = useServerTableState('createdAt')
+  const [status, setStatus] = useState('')
   const codes = useQuery({
-    queryKey: ['canvas-cloud', 'admin-invite-codes'],
-    queryFn: getCanvasAdminInviteCodes,
+    queryKey: ['canvas-cloud', 'admin-invite-codes', tableState.query, status],
+    queryFn: ({ signal }) =>
+      getCanvasAdminInviteCodes(
+        {
+          ...tableState.query,
+          ...(status ? { status: status as CanvasInviteCodeStatus } : {}),
+        },
+        signal
+      ),
   })
   const options = useQuery({
     queryKey: ['canvas-cloud', 'invite-code-options'],
@@ -224,18 +244,6 @@ export function InviteCodeManagement() {
   }
   const valid = Object.values(errors).every((error) => error === null)
 
-  if (codes.isPending || options.isPending) return <LoadingState />
-  if (codes.isError || options.isError) {
-    return (
-      <ErrorState
-        onRetry={() => {
-          void codes.refetch()
-          void options.refetch()
-        }}
-      />
-    )
-  }
-
   const downloadIssuedCode = () => {
     if (!issuedCode) return
     const url = URL.createObjectURL(
@@ -246,6 +254,221 @@ export function InviteCodeManagement() {
     anchor.download = `canvas-invite-${new Date().toISOString().slice(0, 10)}.txt`
     anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  const columns: ColumnDef<CanvasAdminInviteCode, unknown>[] = [
+    {
+      id: 'code',
+      accessorKey: 'maskedCode',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Invite code')} />
+      ),
+      cell: ({ row }) => (
+        <span className='font-mono'>
+          <CopyableText
+            value={revealedCodes[row.original.id] ?? row.original.maskedCode}
+          />
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      accessorKey: 'effectiveStatus',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Status')} />
+      ),
+      cell: ({ row }) => (
+        <Badge variant={inviteStatusVariant(row.original.effectiveStatus)}>
+          {t(`Invite status ${row.original.effectiveStatus}`)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'priceGroup',
+      accessorKey: 'priceGroupName',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Price group')} />
+      ),
+    },
+    {
+      id: 'inviter',
+      accessorFn: (item) => item.agent?.internalName ?? '',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Inviter')} />
+      ),
+      cell: ({ row }) =>
+        row.original.agent ? (
+          <CopyableText value={row.original.agent.internalName} />
+        ) : (
+          '—'
+        ),
+    },
+    {
+      id: 'capacity',
+      accessorKey: 'maxRegistrations',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Used / capacity')} />
+      ),
+      cell: ({ row }) => (
+        <span className='tabular-nums'>
+          {row.original.consumedCount} / {row.original.maxRegistrations}
+          {Number(row.original.reservedCount) > 0 ? (
+            <span className='text-muted-foreground block'>
+              {t('Reserved')}: {row.original.reservedCount}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      id: 'initialBonus',
+      accessorKey: 'initialBonusPoints',
+      enableSorting: false,
+      header: t('Initial Bonus'),
+      cell: ({ row }) =>
+        row.original.initialBonusPoints
+          ? `${row.original.initialBonusPoints} · ${row.original.initialBonusTtlDays} ${t('days')}`
+          : '—',
+    },
+    {
+      id: 'validFrom',
+      accessorKey: 'validFrom',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Validity')} />
+      ),
+      cell: ({ row }) => (
+        <span>
+          {formatDate(row.original.validFrom)}
+          <span className='text-muted-foreground block'>
+            {formatDate(row.original.expiresAt)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Created At')} />
+      ),
+      cell: ({ row }) => formatDate(row.original.createdAt),
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: t('Actions'),
+      cell: ({ row }) => {
+        const item = row.original
+        return (
+          <div className='flex items-center justify-end gap-1'>
+            <Button
+              size='sm'
+              variant='outline'
+              className='cursor-pointer gap-1.5 whitespace-nowrap'
+              aria-label={t(
+                revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
+              )}
+              aria-pressed={Boolean(revealedCodes[item.id])}
+              disabled={reveal.isPending}
+              onClick={() => {
+                if (revealedCodes[item.id]) {
+                  setRevealedCodes((current) => {
+                    const next = { ...current }
+                    delete next[item.id]
+                    return next
+                  })
+                  return
+                }
+                reveal.mutate({ id: item.id, action: 'DISPLAY' })
+              }}
+            >
+              {revealedCodes[item.id] ? (
+                <EyeOff className='size-4' />
+              ) : (
+                <Eye className='size-4' />
+              )}
+              {t(
+                revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
+              )}
+            </Button>
+            <DataTableRowActionMenu
+              ariaLabel={t('Open menu')}
+              modal={false}
+              contentClassName='w-52'
+            >
+              <DropdownMenuItem
+                disabled={reveal.isPending}
+                onClick={() => reveal.mutate({ id: item.id, action: 'COPY' })}
+              >
+                {t('Copy invite code')}
+                <DropdownMenuShortcut>
+                  <Copy className='size-4' />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+              {['ACTIVE', 'PAUSED'].includes(item.effectiveStatus) ? (
+                <DropdownMenuSeparator />
+              ) : null}
+              {item.effectiveStatus === 'ACTIVE' ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    setPendingAction({ kind: 'status', item, action: 'pause' })
+                  }
+                >
+                  {t('Pause invite code')}
+                  <DropdownMenuShortcut>
+                    <Pause className='size-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              ) : null}
+              {item.effectiveStatus === 'PAUSED' ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    setPendingAction({ kind: 'status', item, action: 'resume' })
+                  }
+                >
+                  {t('Resume invite code')}
+                  <DropdownMenuShortcut>
+                    <Play className='size-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              ) : null}
+              {['ACTIVE', 'PAUSED'].includes(item.effectiveStatus) ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className='text-destructive focus:text-destructive'
+                    onClick={() =>
+                      setPendingAction({
+                        kind: 'status',
+                        item,
+                        action: 'revoke',
+                      })
+                    }
+                  >
+                    {t('Revoke invite code')}
+                    <DropdownMenuShortcut>
+                      <ShieldX className='size-4' />
+                    </DropdownMenuShortcut>
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DataTableRowActionMenu>
+          </div>
+        )
+      },
+    },
+  ]
+
+  if (codes.isPending || options.isPending) return <LoadingState />
+  if (codes.isError || options.isError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          void codes.refetch()
+          void options.refetch()
+        }}
+      />
+    )
   }
 
   let confirmationDescription = ''
@@ -615,209 +838,46 @@ export function InviteCodeManagement() {
           <CardTitle>{t('Invite codes')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {codes.data.length === 0 ? (
-            <EmptyState title={t('No invite codes')} bordered />
-          ) : (
-            <div className='overflow-x-auto rounded-xl border'>
-              <table className='w-full min-w-[980px] text-left text-sm'>
-                <thead className='bg-muted/60 text-muted-foreground'>
-                  <tr>
-                    {[
-                      'Invite code',
-                      'Status',
-                      'Price group',
-                      'Inviter',
-                      'Used / capacity',
-                      'Initial Bonus',
-                      'Validity',
-                      'Actions',
-                    ].map((label) => (
-                      <th key={label} className='px-3 py-2 font-medium'>
-                        {t(label)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className='divide-y'>
-                  {codes.data.map((item) => (
-                    <tr key={item.id}>
-                      <td className='px-3 py-2 font-mono'>
-                        {revealedCodes[item.id] ?? item.maskedCode}
-                      </td>
-                      <td className='px-3 py-2'>
-                        <Badge
-                          variant={inviteStatusVariant(item.effectiveStatus)}
-                        >
-                          {t(`Invite status ${item.effectiveStatus}`)}
-                        </Badge>
-                      </td>
-                      <td className='px-3 py-2'>{item.priceGroupName}</td>
-                      <td className='px-3 py-2'>
-                        {item.agent?.internalName ?? '—'}
-                      </td>
-                      <td className='px-3 py-2 tabular-nums'>
-                        {item.consumedCount} / {item.maxRegistrations}
-                        {Number(item.reservedCount) > 0 && (
-                          <span className='text-muted-foreground block'>
-                            {t('Reserved')}: {item.reservedCount}
-                          </span>
-                        )}
-                      </td>
-                      <td className='px-3 py-2'>
-                        {item.initialBonusPoints
-                          ? `${item.initialBonusPoints} · ${item.initialBonusTtlDays} ${t('days')}`
-                          : '—'}
-                      </td>
-                      <td className='px-3 py-2'>
-                        {formatDate(item.validFrom)}
-                        <span className='text-muted-foreground block'>
-                          {formatDate(item.expiresAt)}
-                        </span>
-                      </td>
-                      <td className='px-3 py-2'>
-                        <TooltipProvider delay={200}>
-                          <div className='flex flex-wrap gap-2'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='size-9 cursor-pointer p-0'
-                              aria-label={t(
-                                revealedCodes[item.id]
-                                  ? 'Hide invite code'
-                                  : 'Show invite code'
-                              )}
-                              aria-pressed={Boolean(revealedCodes[item.id])}
-                              disabled={reveal.isPending}
-                              onClick={() => {
-                                if (revealedCodes[item.id]) {
-                                  setRevealedCodes((current) => {
-                                    const next = { ...current }
-                                    delete next[item.id]
-                                    return next
-                                  })
-                                  return
-                                }
-                                reveal.mutate({
-                                  id: item.id,
-                                  action: 'DISPLAY',
-                                })
-                              }}
-                            >
-                              {revealedCodes[item.id] ? (
-                                <EyeOff className='size-4' />
-                              ) : (
-                                <Eye className='size-4' />
-                              )}
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              aria-label={t('Copy invite code')}
-                              disabled={reveal.isPending}
-                              onClick={() =>
-                                reveal.mutate({ id: item.id, action: 'COPY' })
-                              }
-                            >
-                              <Copy className='size-4' />
-                            </Button>
-                            {item.effectiveStatus === 'ACTIVE' && (
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Button
-                                      size='sm'
-                                      variant='outline'
-                                      className='cursor-pointer gap-1.5'
-                                      aria-label={t('Pause invite code')}
-                                      onClick={() =>
-                                        setPendingAction({
-                                          kind: 'status',
-                                          item,
-                                          action: 'pause',
-                                        })
-                                      }
-                                    />
-                                  }
-                                >
-                                  <Pause className='size-4' />
-                                  {t('Pause invite code')}
-                                </TooltipTrigger>
-                                <TooltipContent className='max-w-72 leading-relaxed'>
-                                  {t(
-                                    'Pausing blocks new activations until you resume it. Customers who already activated are not affected.'
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {item.effectiveStatus === 'PAUSED' && (
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Button
-                                      size='sm'
-                                      variant='outline'
-                                      className='cursor-pointer gap-1.5'
-                                      aria-label={t('Resume invite code')}
-                                      onClick={() =>
-                                        setPendingAction({
-                                          kind: 'status',
-                                          item,
-                                          action: 'resume',
-                                        })
-                                      }
-                                    />
-                                  }
-                                >
-                                  <Play className='size-4' />
-                                  {t('Resume invite code')}
-                                </TooltipTrigger>
-                                <TooltipContent className='max-w-72 leading-relaxed'>
-                                  {t(
-                                    'Resuming allows new activations again until the invite expires or reaches its registration limit.'
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            {['ACTIVE', 'PAUSED'].includes(
-                              item.effectiveStatus
-                            ) && (
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Button
-                                      size='sm'
-                                      variant='outline'
-                                      className='text-destructive hover:text-destructive cursor-pointer gap-1.5'
-                                      aria-label={t('Revoke invite code')}
-                                      onClick={() =>
-                                        setPendingAction({
-                                          kind: 'status',
-                                          item,
-                                          action: 'revoke',
-                                        })
-                                      }
-                                    />
-                                  }
-                                >
-                                  <ShieldX className='size-4' />
-                                  {t('Revoke invite code')}
-                                </TooltipTrigger>
-                                <TooltipContent className='max-w-72 leading-relaxed'>
-                                  {t(
-                                    'Revoking permanently blocks new activations and cannot be undone. Customers who already activated are not affected.'
-                                  )}
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
-                        </TooltipProvider>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <CanvasServerTable
+            data={codes.data.items}
+            columns={columns}
+            total={codes.data.total}
+            state={tableState}
+            searchPlaceholder={t('Search invite codes')}
+            searchLabel={t('Invite code, price group, or inviter')}
+            searchDescription={t(
+              'Fuzzy matches the visible code prefix, price group code or name, and inviter name.'
+            )}
+            loading={codes.isFetching}
+            emptyTitle={t('No invite codes')}
+            additionalFilters={
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) =>
+                  setStatus(value === 'ALL' ? '' : (value ?? ''))
+                }
+              >
+                <SelectTrigger className='w-44'>
+                  <SelectValue>
+                    {status ? t(`Invite status ${status}`) : t('All statuses')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                  {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
+                    (value) => (
+                      <SelectItem key={value} value={value}>
+                        {t(`Invite status ${value}`)}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            }
+            hasActiveFilters={Boolean(status)}
+            onResetFilters={() => setStatus('')}
+            getRowId={(row) => row.id}
+          />
         </CardContent>
       </Card>
 

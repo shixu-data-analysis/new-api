@@ -30,6 +30,7 @@ export type CanvasBusinessTermKind =
   | 'rechargeOrderStatus'
   | 'reconciliationStatus'
   | 'refundStatus'
+  | 'recoveryStatus'
   | 'releaseAction'
   | 'releaseResource'
   | 'releaseTarget'
@@ -46,7 +47,7 @@ export const canvasBusinessTermConfig = {
   customerStatus: {
     helpKey: '{{term}} is the current Canvas customer account status.',
     labels: {
-      ACTIVE: 'Active',
+      ACTIVE: 'Valid',
       SUSPENDED: 'Suspended',
       CLOSED: 'Closed',
     },
@@ -236,6 +237,7 @@ export const canvasBusinessTermConfig = {
       RELEASE: 'Released',
       EXPIRE: 'Expired',
       CLAWBACK: 'Clawed back',
+      ADJUSTMENT_DEBIT: 'Manually deducted',
       TRANSFER_OUT: 'Transferred out',
       TRANSFER_IN: 'Transferred in',
     },
@@ -258,7 +260,7 @@ export const canvasBusinessTermConfig = {
   rechargeOrderStatus: {
     helpKey: '{{term}} is the current stage of this recharge order.',
     labels: {
-      CREATED: 'Created',
+      CREATED: 'Order created',
       PAYMENT_PENDING: 'Payment pending',
       PAID: 'Paid',
       CODE_ACTIVATED: 'Code activated',
@@ -272,7 +274,7 @@ export const canvasBusinessTermConfig = {
     helpKey:
       '{{term}} is the current one-time use state of this Canvas recharge code.',
     labels: {
-      ACTIVE: 'Active',
+      ACTIVE: 'Valid',
       REDEEMED: 'Redeemed',
       VOID: 'Voided',
       EXPIRED: 'Expired',
@@ -308,7 +310,7 @@ export const canvasBusinessTermConfig = {
       APPROVED: 'Approved',
       PUBLISHED: 'Published',
       RETIRED: 'Retired',
-      ACTIVE: 'Active',
+      ACTIVE: 'Valid',
       PAUSED: 'Paused',
       STOPPED: 'Stopped',
       EXPIRED: 'Expired',
@@ -328,7 +330,7 @@ export const canvasBusinessTermConfig = {
   },
   refundStatus: {
     helpKey:
-      '{{term}} is the current cash-and-points recovery stage of this refund.',
+      '{{term}} is the current Canvas point-recovery stage for an externally confirmed refund fact.',
     labels: {
       REQUESTED: 'Requested',
       APPROVED: 'Approved',
@@ -337,6 +339,18 @@ export const canvasBusinessTermConfig = {
       PARTIAL_RECOVERY: 'Partially recovered',
       COMPLETED: 'Completed',
       REJECTED: 'Rejected',
+    },
+    presentation: 'badge',
+  },
+  recoveryStatus: {
+    helpKey:
+      '{{term}} is the current state of an outstanding point-recovery case.',
+    labels: {
+      OPEN: 'Open',
+      IN_REVIEW: 'In review',
+      RECOVERED: 'Recovered',
+      WAIVED: 'Waived',
+      CLOSED: 'Closed',
     },
     presentation: 'badge',
   },
@@ -383,7 +397,9 @@ export function getCanvasBusinessTerm(
   presentation: 'badge' | 'text'
 } | null {
   const group = canvasBusinessTermConfig[kind] as CanvasBusinessTermGroup
-  const labelKey = (group.labels as Record<string, string>)[value]
+  const labelKey =
+    (group.labels as Record<string, string>)[value] ??
+    (group.presentation === 'badge' ? 'Unknown status' : undefined)
   return labelKey
     ? {
         helpKey: group.helpKeys?.[value] ?? group.helpKey,
@@ -397,5 +413,5 @@ export function getCanvasBusinessTermLabelKey(
   kind: CanvasBusinessTermKind,
   value: string
 ): string {
-  return getCanvasBusinessTerm(kind, value)?.labelKey ?? value
+  return getCanvasBusinessTerm(kind, value)?.labelKey ?? 'Unknown'
 }

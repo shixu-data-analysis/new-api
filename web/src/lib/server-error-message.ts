@@ -32,8 +32,7 @@ const serverErrorMessageKeys = {
   TELEGRAM_BIND_USER_DELETED: 'This user account no longer exists.',
   TELEGRAM_BIND_USER_DISABLED: 'This user account is disabled.',
   TELEGRAM_BIND_INTERNAL_ERROR: 'Telegram binding failed. Please try again.',
-  RECHARGE_CODE_ALREADY_REDEEMED:
-    'This recharge code has already been used.',
+  RECHARGE_CODE_ALREADY_REDEEMED: 'This recharge code has already been used.',
   RECHARGE_CODE_UNAVAILABLE:
     'This recharge code is invalid, expired, or unavailable.',
 } as const

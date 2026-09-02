@@ -76,5 +76,4 @@ describe('server error message mapping', () => {
       })
     ).toBe('This recharge code is invalid, expired, or unavailable.')
   })
-
 })

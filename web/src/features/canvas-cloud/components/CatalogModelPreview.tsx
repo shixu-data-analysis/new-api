@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,82 +58,87 @@ export function CatalogModelPreview(props: {
         aria-label={t('Search published model preview')}
         placeholder={t('Search model name, key, or capability')}
       />
-      <div className='overflow-x-auto rounded-lg border'>
-        <table className='w-full min-w-[920px] text-left text-sm'>
-          <thead className='bg-muted/50'>
-            <tr>
-              <th className='p-3'>{t('Client model')}</th>
-              <th className='p-3'>{t('Capability')}</th>
-              <th className='p-3'>{t('Client configuration')}</th>
-              <th className='p-3'>{t('Customer visibility')}</th>
-              <th className='p-3'>{t('Publication result')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((model) => (
-              <tr key={model.productKey} className='border-t align-top'>
-                <td className='p-3'>
-                  <div className='font-medium'>{model.displayName}</div>
-                  <div className='text-muted-foreground mt-1 font-mono text-xs break-all'>
-                    {model.productKey}
+      <StaticDataTable
+        tableClassName='min-w-[920px]'
+        columns={[
+          {
+            id: 'model',
+            header: t('Client model'),
+            cell: (model: CanvasModelCatalogPlanModel) => (
+              <div>
+                <div className='font-medium'>{model.displayName}</div>
+                <div className='text-muted-foreground mt-1 font-mono text-xs break-all'>
+                  {model.productKey}
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: 'capability',
+            header: t('Capability'),
+            cell: (model: CanvasModelCatalogPlanModel) => t(model.capability),
+          },
+          {
+            id: 'configuration',
+            header: t('Client configuration'),
+            cell: (model: CanvasModelCatalogPlanModel) => (
+              <div>
+                <div className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
+                  <span>
+                    {Object.keys(model.publicInteraction.defaultParams).length}{' '}
+                    {t('default values')}
+                  </span>
+                  <span>
+                    {Object.keys(model.publicInteraction.paramSchema).length}{' '}
+                    {t('client options')}
+                  </span>
+                  <span>
+                    {
+                      Object.keys(model.publicInteraction.referenceLimits)
+                        .length
+                    }{' '}
+                    {t('reference rules')}
+                  </span>
+                </div>
+                <details className='mt-2'>
+                  <summary className='text-primary cursor-pointer text-xs font-medium select-none'>
+                    {t('View client display configuration')}
+                  </summary>
+                  <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded-md p-3 text-xs'>
+                    {JSON.stringify(model.publicInteraction, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            ),
+          },
+          {
+            id: 'visibility',
+            header: t('Customer visibility'),
+            cell: (model: CanvasModelCatalogPlanModel) =>
+              model.customerVisibleAfterPublish
+                ? t('Visible to customers')
+                : t('Internal testing until pricing is published'),
+          },
+          {
+            id: 'result',
+            header: t('Publication result'),
+            cell: (model: CanvasModelCatalogPlanModel) =>
+              model.action === 'NO_OP' ? (
+                <Badge variant='secondary'>{t('Unchanged — skipped')}</Badge>
+              ) : (
+                <div className='space-y-1'>
+                  <Badge>{t(model.action)}</Badge>
+                  <div className='text-muted-foreground text-xs tabular-nums'>
+                    {model.currentVersion ?? '—'} →{' '}
+                    {model.proposedVersion ?? '—'}
                   </div>
-                </td>
-                <td className='p-3'>{t(model.capability)}</td>
-                <td className='p-3'>
-                  <div className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
-                    <span>
-                      {
-                        Object.keys(model.publicInteraction.defaultParams)
-                          .length
-                      }{' '}
-                      {t('default values')}
-                    </span>
-                    <span>
-                      {Object.keys(model.publicInteraction.paramSchema).length}{' '}
-                      {t('client options')}
-                    </span>
-                    <span>
-                      {
-                        Object.keys(model.publicInteraction.referenceLimits)
-                          .length
-                      }{' '}
-                      {t('reference rules')}
-                    </span>
-                  </div>
-                  <details className='mt-2'>
-                    <summary className='text-primary cursor-pointer text-xs font-medium select-none'>
-                      {t('View client display configuration')}
-                    </summary>
-                    <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded-md p-3 text-xs'>
-                      {JSON.stringify(model.publicInteraction, null, 2)}
-                    </pre>
-                  </details>
-                </td>
-                <td className='p-3'>
-                  {model.customerVisibleAfterPublish
-                    ? t('Visible to customers')
-                    : t('Internal testing until pricing is published')}
-                </td>
-                <td className='p-3'>
-                  {model.action === 'NO_OP' ? (
-                    <Badge variant='secondary'>
-                      {t('Unchanged — skipped')}
-                    </Badge>
-                  ) : (
-                    <div className='space-y-1'>
-                      <Badge>{t(model.action)}</Badge>
-                      <div className='text-muted-foreground text-xs tabular-nums'>
-                        {model.currentVersion ?? '—'} →{' '}
-                        {model.proposedVersion ?? '—'}
-                      </div>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </div>
+              ),
+          },
+        ]}
+        data={visible}
+        getRowKey={(model) => model.productKey}
+      />
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <span className='text-muted-foreground text-sm'>
           {filtered.length} {t('models')} · {currentPage} / {pageCount}

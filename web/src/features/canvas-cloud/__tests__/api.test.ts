@@ -60,11 +60,21 @@ import {
   redeemCanvasRechargeCode,
   getCanvasAgents,
   getCanvasAgentWorkspace,
+  getCanvasAgentInviteCodes,
+  getCanvasAgentCustomers,
   getCanvasProviderPricingMatrix,
   provisionCanvasAgent,
   publishCanvasProviderRate,
   resolveCanvasProviderRateRisk,
   revealCanvasCode,
+  createCanvasRefund,
+  deductCanvasPointLot,
+  getCanvasAdminCustomerPointLots,
+  getCanvasAdminCustomerPointLedger,
+  getCanvasAdminCustomerTasks,
+  getCanvasAdminRechargeOrders,
+  grantCanvasManualBonus,
+  grantCanvasPaidCorrection,
 } from '../api'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
@@ -120,6 +130,115 @@ describe('Canvas Cloud API boundary', () => {
     })
     await getCanvasAdminWorkspace()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/admin/workspace')
+  })
+
+  it('keeps refund point calculation server-owned and routes governed Lot adjustments', async () => {
+    mocks.get.mockResolvedValue({ data: { items: [] } })
+    await getCanvasAdminRechargeOrders({
+      search: 'CANVAS-001',
+      customerId: 'customer-id',
+      status: 'CODE_ACTIVATED',
+      timeField: 'redeemedAt',
+      from: '2026-09-01T00:00:00.000Z',
+      to: '2026-09-30T23:59:59.000Z',
+      sortBy: 'redeemedAt',
+      sortOrder: 'desc',
+    })
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/recharge-orders',
+      {
+        params: {
+          page: 1,
+          pageSize: 20,
+          search: 'CANVAS-001',
+          customerId: 'customer-id',
+          status: 'CODE_ACTIVATED',
+          timeField: 'redeemedAt',
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-30T23:59:59.000Z',
+          sortBy: 'redeemedAt',
+          sortOrder: 'desc',
+        },
+      }
+    )
+    await getCanvasAdminCustomerPointLots('customer-id')
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/customers/customer-id/point-lots',
+      { params: { page: 1, pageSize: 20 } }
+    )
+    await getCanvasAdminCustomerPointLedger('customer-id', {
+      eventType: 'CONSUME',
+    })
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/customers/customer-id/point-ledger',
+      {
+        params: { page: 1, pageSize: 20, eventType: 'CONSUME' },
+        signal: undefined,
+      }
+    )
+    await getCanvasAdminCustomerTasks('customer-id', {
+      search: 'image',
+      sortBy: 'settledPoints',
+    })
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/customers/customer-id/tasks',
+      {
+        params: {
+          page: 1,
+          pageSize: 20,
+          search: 'image',
+          sortBy: 'settledPoints',
+        },
+        signal: undefined,
+      }
+    )
+
+    mocks.post.mockResolvedValue({ data: { id: 'created' } })
+    const refund = {
+      refundConfirmationReference: 'REFUND-001',
+      rechargeOrderId: 'order-id',
+      confirmedRefundAmountMinor: '1000',
+      customerConfirmationReference: 'CUSTOMER-001',
+      reason: 'confirmed externally',
+    }
+    await createCanvasRefund(refund)
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/refunds',
+      { ...refund, confirmed: true },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.any(String),
+        }),
+      })
+    )
+    expect(JSON.stringify(mocks.post.mock.calls.at(-1))).not.toContain(
+      'pointsRequested'
+    )
+
+    await grantCanvasManualBonus({
+      customerId: 'customer-id',
+      points: '10',
+      expiresAt: '2026-12-01T00:00:00.000Z',
+      reason: 'gift',
+    })
+    await grantCanvasPaidCorrection({
+      rechargeOrderId: 'order-id',
+      points: '10',
+      reason: 'correction',
+    })
+    await deductCanvasPointLot({
+      pointLotId: 'lot-id',
+      points: '10',
+      reason: 'deduction',
+    })
+    expect(mocks.post.mock.calls.slice(-3).map((call) => call[0])).toEqual([
+      '/canvas-api/v1/web/admin/point-adjustments/manual-bonus',
+      '/canvas-api/v1/web/admin/point-adjustments/paid-corrections',
+      '/canvas-api/v1/web/admin/point-adjustments/deductions',
+    ])
+    for (const call of mocks.post.mock.calls.slice(-3)) {
+      expect(call[1]).toMatchObject({ confirmed: true })
+    }
   })
 
   it('reads filtered Cloud audit facts without a mutation or mode parameter', async () => {
@@ -478,6 +597,7 @@ describe('Canvas Cloud API boundary', () => {
           codePrefix: 'CANVAS-A',
           codeSuffix: 'UVWX',
         },
+        signal: undefined,
       }
     )
 
@@ -516,9 +636,18 @@ describe('Canvas Cloud API boundary', () => {
 
   it('uses protected Canvas endpoints for invite activation and lifecycle management', async () => {
     mocks.get.mockResolvedValue({ data: [] })
-    await getCanvasAdminInviteCodes()
+    const inviteQuery = {
+      page: 2,
+      pageSize: 20 as const,
+      search: 'partner',
+      status: 'ACTIVE' as const,
+      sortBy: 'createdAt' as const,
+      sortOrder: 'desc' as const,
+    }
+    await getCanvasAdminInviteCodes(inviteQuery)
     expect(mocks.get).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/invite-codes'
+      '/canvas-api/v1/web/admin/invite-codes',
+      { params: inviteQuery, signal: undefined }
     )
     mocks.get.mockResolvedValue({
       data: { agents: [], priceGroups: [], promotions: [] },
@@ -562,13 +691,48 @@ describe('Canvas Cloud API boundary', () => {
 
   it('uses explicit role-scoped Agent and provider-rate endpoints', async () => {
     mocks.get.mockResolvedValue({ data: [] })
-    await getCanvasAgents()
+    const agentQuery = {
+      page: 1,
+      pageSize: 20 as const,
+      search: 'tester',
+      status: 'ACTIVE' as const,
+      sortBy: 'internalName' as const,
+      sortOrder: 'asc' as const,
+    }
+    await getCanvasAgents(agentQuery)
     expect(mocks.get).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/agents'
+      '/canvas-api/v1/web/admin/agents',
+      { params: agentQuery, signal: undefined }
     )
     await getCanvasAgentWorkspace()
     expect(mocks.get).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/agent/workspace'
+    )
+    const agentInviteQuery = {
+      page: 1,
+      pageSize: 20 as const,
+      search: 'CANVAS-A',
+      status: 'ACTIVE' as const,
+      sortBy: 'createdAt' as const,
+      sortOrder: 'desc' as const,
+    }
+    await getCanvasAgentInviteCodes(agentInviteQuery)
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/agent/invite-codes',
+      { params: agentInviteQuery, signal: undefined }
+    )
+    const agentCustomerQuery = {
+      page: 1,
+      pageSize: 20 as const,
+      search: 'customer',
+      status: 'ACTIVE' as const,
+      sortBy: 'activatedAt' as const,
+      sortOrder: 'desc' as const,
+    }
+    await getCanvasAgentCustomers(agentCustomerQuery)
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/agent/customers',
+      { params: agentCustomerQuery, signal: undefined }
     )
     await getCanvasProviderPricingMatrix()
     expect(mocks.get).toHaveBeenLastCalledWith(

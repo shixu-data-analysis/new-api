@@ -31,13 +31,26 @@ import type {
   CanvasSession,
   CanvasIssuedRechargeCodes,
   CanvasAdminInviteCode,
+  CanvasAdminInviteCodeQuery,
   CanvasCreatedInviteCode,
   CanvasInviteCodeOptions,
   CanvasModelCatalogBundle,
   CanvasModelCatalogPlan,
   CanvasAgentProfile,
+  CanvasAdminAgentQuery,
   CanvasAgentWorkspace,
+  CanvasAgentInviteCode,
+  CanvasAgentInviteCodeQuery,
+  CanvasAgentCustomer,
+  CanvasAgentCustomerQuery,
   CanvasProviderPricingRow,
+  CanvasAdminPointLot,
+  CanvasAdminRechargeOrder,
+  CanvasAdminCustomerPointBalance,
+  CanvasAdminCustomerTask,
+  CanvasAdminRefund,
+  CanvasPage,
+  CanvasPointLedgerItem,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -121,11 +134,13 @@ export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {
 }
 
 export async function getCanvasAuditEvents(
-  query: CanvasAuditEventQuery
+  query: CanvasAuditEventQuery,
+  signal?: AbortSignal
 ): Promise<CanvasAuditEventPage> {
   return (
     await api.get<CanvasAuditEventPage>(`${webBase}/admin/audit-events`, {
       params: query,
+      signal,
     })
   ).data
 }
@@ -139,7 +154,8 @@ export async function getCanvasAdminTestingModels(): Promise<
 }
 
 export async function getCanvasAdminRechargeCodes(
-  query: CanvasAdminRechargeCodeQuery
+  query: CanvasAdminRechargeCodeQuery,
+  signal?: AbortSignal
 ): Promise<CanvasAdminRechargeCodePage> {
   const normalizedSearch = query.search?.trim().toUpperCase()
   let codeSearch: {
@@ -160,6 +176,7 @@ export async function getCanvasAdminRechargeCodes(
       `${webBase}/admin/recharge-codes`,
       {
         params: { ...query, search: undefined, ...codeSearch },
+        signal,
       }
     )
   ).data
@@ -198,10 +215,16 @@ export async function activateCanvasInvite(code: string): Promise<{
   ).data
 }
 
-export async function getCanvasAdminInviteCodes(): Promise<
-  CanvasAdminInviteCode[]
-> {
-  return (await api.get(`${webBase}/admin/invite-codes`)).data
+export async function getCanvasAdminInviteCodes(
+  query: CanvasAdminInviteCodeQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminInviteCode>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminInviteCode>>(
+      `${webBase}/admin/invite-codes`,
+      { params: query, signal }
+    )
+  ).data
 }
 
 export async function getCanvasInviteCodeOptions(): Promise<CanvasInviteCodeOptions> {
@@ -251,8 +274,16 @@ export async function revealCanvasCode(
   ).data
 }
 
-export async function getCanvasAgents(): Promise<CanvasAgentProfile[]> {
-  return (await api.get(`${webBase}/admin/agents`)).data
+export async function getCanvasAgents(
+  query: CanvasAdminAgentQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAgentProfile>> {
+  return (
+    await api.get<CanvasPage<CanvasAgentProfile>>(`${webBase}/admin/agents`, {
+      params: query,
+      signal,
+    })
+  ).data
 }
 
 export async function provisionCanvasAgent(input: {
@@ -275,6 +306,30 @@ export async function provisionCanvasAgent(input: {
 
 export async function getCanvasAgentWorkspace(): Promise<CanvasAgentWorkspace> {
   return (await api.get(`${webBase}/agent/workspace`)).data
+}
+
+export async function getCanvasAgentInviteCodes(
+  query: CanvasAgentInviteCodeQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAgentInviteCode>> {
+  return (
+    await api.get<CanvasPage<CanvasAgentInviteCode>>(
+      `${webBase}/agent/invite-codes`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasAgentCustomers(
+  query: CanvasAgentCustomerQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAgentCustomer>> {
+  return (
+    await api.get<CanvasPage<CanvasAgentCustomer>>(
+      `${webBase}/agent/customers`,
+      { params: query, signal }
+    )
+  ).data
 }
 
 export async function getCanvasProviderPricingMatrix(): Promise<
@@ -740,16 +795,267 @@ export async function reconcileCanvasTask(
 }
 
 export async function createCanvasRefund(input: {
+  refundConfirmationReference: string
   rechargeOrderId: string
-  cashAmountMinor: string
-  pointsRequested: string
+  confirmedRefundAmountMinor: string
+  customerConfirmationReference: string
   reason: string
 }) {
   return (
     await api.post(
       `${webBase}/admin/refunds`,
-      { ...input, refundReference: `web-${crypto.randomUUID()}` },
-      { headers: { 'Idempotency-Key': idempotencyKey('web-refund') } }
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-refund') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasAdminRechargeOrders(
+  input: {
+    search?: string
+    customerId?: string
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+    eligibleForPaidCorrection?: boolean
+    status?:
+      | 'CREATED'
+      | 'PAYMENT_PENDING'
+      | 'PAID'
+      | 'CODE_ACTIVATED'
+      | 'REFUND_REVIEW'
+      | 'REFUNDED'
+      | 'CANCELLED'
+    timeField?: 'createdAt' | 'redeemedAt'
+    from?: string
+    to?: string
+    sortBy?:
+      | 'orderNumber'
+      | 'customer'
+      | 'status'
+      | 'expectedPaidPoints'
+      | 'issuedPaidPoints'
+      | 'availablePaidPoints'
+      | 'remainingCorrectionPoints'
+      | 'createdAt'
+      | 'redeemedAt'
+    sortOrder?: 'asc' | 'desc'
+  },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminRechargeOrder>> {
+  return (
+    await api.get(`${webBase}/admin/recharge-orders`, {
+      params: { page: 1, pageSize: 20, ...input },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminCustomerPointLots(
+  customerId: string,
+  query: {
+    search?: string
+    type?: 'PAID' | 'BONUS'
+    availableOnly?: boolean
+    from?: string
+    to?: string
+    sortBy?:
+      | 'type'
+      | 'availablePoints'
+      | 'reservedPoints'
+      | 'expiresAt'
+      | 'issuedAt'
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminPointLot>> {
+  return (
+    await api.get(`${webBase}/admin/customers/${customerId}/point-lots`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminCustomerPointLedger(
+  customerId: string,
+  query: {
+    search?: string
+    eventType?: string
+    from?: string
+    to?: string
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasPointLedgerItem>> {
+  return (
+    await api.get(`${webBase}/admin/customers/${customerId}/point-ledger`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminCustomerTasks(
+  customerId: string,
+  query: {
+    search?: string
+    executionStatus?: string
+    billingStatus?: string
+    from?: string
+    to?: string
+    sortBy?:
+      | 'taskId'
+      | 'model'
+      | 'quotedPoints'
+      | 'settledPoints'
+      | 'executionStatus'
+      | 'billingStatus'
+      | 'acceptedAt'
+      | 'completedAt'
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminCustomerTask>> {
+  return (
+    await api.get(`${webBase}/admin/customers/${customerId}/tasks`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminCustomers(
+  query: {
+    search?: string
+    status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+    sortBy?: 'customer' | 'status' | 'availablePoints' | 'createdAt'
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminCustomerPointBalance>> {
+  return (
+    await api.get(`${webBase}/admin/customers`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminRefunds(
+  query: {
+    search?: string
+    customerId?: string
+    status?: string
+    from?: string
+    to?: string
+    sortBy?: 'orderNumber' | 'status' | 'amount' | 'createdAt'
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminRefund>> {
+  return (
+    await api.get(`${webBase}/admin/refunds`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasCustomerPointLots(
+  query: Parameters<typeof getCanvasAdminCustomerPointLots>[1] = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminPointLot>> {
+  return (
+    await api.get(`${webBase}/customer/point-lots`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasCustomerPointLedger(
+  query: {
+    search?: string
+    eventType?: string
+    from?: string
+    to?: string
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasPointLedgerItem>> {
+  return (
+    await api.get(`${webBase}/customer/point-ledger`, {
+      params: { page: 1, pageSize: 20, ...query },
+      signal,
+    })
+  ).data
+}
+
+export async function grantCanvasManualBonus(input: {
+  customerId: string
+  points: string
+  expiresAt: string
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-adjustments/manual-bonus`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-manual-bonus') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function grantCanvasPaidCorrection(input: {
+  rechargeOrderId: string
+  points: string
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-adjustments/paid-corrections`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-paid-correction'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function deductCanvasPointLot(input: {
+  pointLotId: string
+  points: string
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/point-adjustments/deductions`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-point-deduction') },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }

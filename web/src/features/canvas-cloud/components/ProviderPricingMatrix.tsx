@@ -21,6 +21,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { StaticDataTable } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,13 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 import {
   getCanvasProviderPricingMatrix,
@@ -379,62 +387,64 @@ export function ProviderPricingMatrix() {
           ) : null}
         </CardContent>
       </Card>
-      <div className='overflow-x-auto rounded-xl border'>
-        <table className='w-full min-w-[960px] text-left text-sm'>
-          <thead className='bg-muted/60'>
-            <tr>
-              <th className='px-3 py-2'>{t('Provider')}</th>
-              <th>{t('Model')}</th>
-              <th>{t('Quality')}</th>
-              <th>{t('Actual model ID')}</th>
-              <th>{t('Current cost')}</th>
-              {groups.map((group) => (
-                <th key={group}>{group}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className='divide-y'>
-            {matrix.data.map((row) => (
-              <tr key={row.combinationId}>
-                <td className='px-3 py-2'>{row.providerName}</td>
-                <td>{row.modelName}</td>
-                <td>{String(row.parameters.quality ?? row.combinationKey)}</td>
-                <td className='font-mono'>{row.resolvedProviderModelId}</td>
-                <td>
-                  {row.nativeAmount && row.currency
-                    ? `${row.currency} ${row.nativeAmount}`
-                    : t('Not priced')}
-                </td>
-                {groups.map((group) => {
-                  const price = row.prices.find(
-                    (item) => item.groupName === group
-                  )
-                  return (
-                    <td key={group}>
-                      {price ? (
-                        <span
-                          className={
-                            price.belowBreakEven
-                              ? 'text-destructive font-medium'
-                              : ''
-                          }
-                        >
-                          {price.points} {t('points')} · v{price.version}
-                          {price.newBreakEvenPoints
-                            ? ` · ${t('Safe floor')} >${price.newBreakEvenPoints}`
-                            : ''}
-                        </span>
-                      ) : (
-                        t('Not priced')
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
+      <StaticDataTable tableClassName='min-w-[960px]'>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t('Provider')}</TableHead>
+            <TableHead>{t('Model')}</TableHead>
+            <TableHead>{t('Quality')}</TableHead>
+            <TableHead>{t('Actual model ID')}</TableHead>
+            <TableHead>{t('Current cost')}</TableHead>
+            {groups.map((group) => (
+              <TableHead key={group}>{group}</TableHead>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {matrix.data.map((row) => (
+            <TableRow key={row.combinationId}>
+              <TableCell>{row.providerName}</TableCell>
+              <TableCell>{row.modelName}</TableCell>
+              <TableCell>
+                {String(row.parameters.quality ?? row.combinationKey)}
+              </TableCell>
+              <TableCell className='font-mono'>
+                {row.resolvedProviderModelId}
+              </TableCell>
+              <TableCell>
+                {row.nativeAmount && row.currency
+                  ? `${row.currency} ${row.nativeAmount}`
+                  : t('Not priced')}
+              </TableCell>
+              {groups.map((group) => {
+                const price = row.prices.find(
+                  (item) => item.groupName === group
+                )
+                return (
+                  <TableCell key={group}>
+                    {price ? (
+                      <span
+                        className={
+                          price.belowBreakEven
+                            ? 'text-destructive font-medium'
+                            : ''
+                        }
+                      >
+                        {price.points} {t('points')} · v{price.version}
+                        {price.newBreakEvenPoints
+                          ? ` · ${t('Safe floor')} >${price.newBreakEvenPoints}`
+                          : ''}
+                      </span>
+                    ) : (
+                      t('Not priced')
+                    )}
+                  </TableCell>
+                )
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </StaticDataTable>
       <PricingActionConfirmation
         open={confirming === 'rate'}
         title={t('Publish this provider cost?')}

@@ -23,6 +23,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { StaticDataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
@@ -35,8 +36,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
 import {
   isCanvasSectionAllowed,
@@ -45,9 +44,7 @@ import {
   type canvasCustomerSections as customerSections,
 } from './access'
 import {
-  createCanvasRefund,
   getCanvasAdminWorkspace,
-  getCanvasAuditEvents,
   getCanvasCatalog,
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
@@ -55,11 +52,21 @@ import {
   reconcileCanvasTask,
   redeemCanvasRechargeCode,
 } from './api'
+import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
+import {
+  AdminPointAdjustments,
+  type RefundRecoveryPrefill,
+} from './components/AdminPointAdjustments'
 import { AdminPricing } from './components/AdminPricing'
+import {
+  AdminRefundRecovery,
+  type AdminRefundRecoveryPrefill,
+} from './components/AdminRefundRecovery'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
@@ -90,7 +97,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   pricing: 'Canvas Pricing',
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
-  refunds: 'Canvas Refunds',
+  refunds: 'Refund point recovery',
   audit: 'Canvas Audit Log',
   'agent-center': 'Inviter center',
 }
@@ -126,33 +133,16 @@ function DataTable(props: {
     return <EmptyState title={props.empty} bordered />
   }
   return (
-    <div className='overflow-x-auto rounded-xl border'>
-      <table className='w-full min-w-[720px] text-left text-sm'>
-        <thead className='bg-muted/60 text-muted-foreground'>
-          <tr>
-            {props.headers.map((header) => (
-              <th key={header} scope='col' className='px-3 py-2 font-medium'>
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className='divide-y'>
-          {props.rows.map((row) => (
-            <tr key={row.key} className='hover:bg-muted/30'>
-              {row.cells.map((cell, cellIndex) => (
-                <td
-                  key={props.headers[cellIndex]}
-                  className='px-3 py-2 align-middle'
-                >
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <StaticDataTable
+      tableClassName='min-w-[720px]'
+      columns={props.headers.map((header, index) => ({
+        id: `${index}:${header}`,
+        header,
+        cell: (row: (typeof props.rows)[number]) => row.cells[index],
+      }))}
+      data={props.rows}
+      getRowKey={(row) => row.key}
+    />
   )
 }
 
@@ -368,6 +358,7 @@ function CustomerContent(props: { section: CustomerSection }) {
       />
     )
   }
+  if (props.section === 'consumption') return <CustomerPointHistory />
   return (
     <div className='space-y-4'>
       <DataTable
@@ -419,23 +410,17 @@ function CustomerContent(props: { section: CustomerSection }) {
   )
 }
 
-function AdminContent(props: { section: AdminSection }) {
+function AdminContent(props: {
+  section: AdminSection
+  refundPrefill: AdminRefundRecoveryPrefill
+  onOpenRefundRecovery: (prefill: RefundRecoveryPrefill) => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [refund, setRefund] = useState({
-    rechargeOrderId: '',
-    cashAmountMinor: '0',
-    pointsRequested: '0',
-    reason: '',
-  })
-  const [auditFilters, setAuditFilters] = useState({
-    action: '',
-    outcome: '',
-    resourceId: '',
-  })
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
     queryFn: getCanvasAdminWorkspace,
+    enabled: !['customers', 'refunds', 'audit'].includes(props.section),
   })
   const dates = useMemo(
     () => ({
@@ -449,29 +434,6 @@ function AdminContent(props: { section: AdminSection }) {
     queryFn: () => getCanvasContributionReport(dates.from, dates.to),
     enabled: props.section === 'dashboard',
   })
-  const audit = useQuery({
-    queryKey: ['canvas-cloud', 'audit', auditFilters],
-    queryFn: () =>
-      getCanvasAuditEvents({
-        page: 1,
-        pageSize: 50,
-        ...(auditFilters.action.trim()
-          ? { action: auditFilters.action.trim() }
-          : {}),
-        ...(auditFilters.outcome
-          ? {
-              outcome: auditFilters.outcome as
-                | 'SUCCESS'
-                | 'FAILURE'
-                | 'DEFERRED',
-            }
-          : {}),
-        ...(auditFilters.resourceId.trim()
-          ? { resourceId: auditFilters.resourceId.trim() }
-          : {}),
-      }),
-    enabled: props.section === 'audit',
-  })
   const reconcile = useMutation({
     mutationFn: (taskId: string) =>
       reconcileCanvasTask(taskId, 'RECONCILED', 'Reviewed in Canvas Cloud Web'),
@@ -482,15 +444,17 @@ function AdminContent(props: { section: AdminSection }) {
       })
     },
   })
-  const createRefund = useMutation({
-    mutationFn: createCanvasRefund,
-    onSuccess: async () => {
-      toast.success(t('Refund workflow created'))
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'admin'],
-      })
-    },
-  })
+  if (props.section === 'customers') {
+    return (
+      <AdminPointAdjustments
+        onOpenRefundRecovery={props.onOpenRefundRecovery}
+      />
+    )
+  }
+  if (props.section === 'refunds') {
+    return <AdminRefundRecovery prefill={props.refundPrefill} />
+  }
+  if (props.section === 'audit') return <AdminAuditLog />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -680,34 +644,6 @@ function AdminContent(props: { section: AdminSection }) {
       />
     )
   }
-  if (props.section === 'customers') {
-    return (
-      <DataTable
-        empty={t('No customers')}
-        headers={[
-          t('Customer'),
-          t('Status'),
-          t('Available points'),
-          t('Paid points'),
-          t('Bonus points'),
-        ]}
-        rows={data.customers.map((item) => ({
-          key: item.customerId,
-          cells: [
-            item.username,
-            <BusinessTerm
-              key='status'
-              kind='customerStatus'
-              value={item.status}
-            />,
-            item.availablePoints,
-            item.paidAvailablePoints,
-            item.bonusAvailablePoints,
-          ],
-        }))}
-      />
-    )
-  }
   if (props.section === 'agents') return <AgentManagement />
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
@@ -727,98 +663,6 @@ function AdminContent(props: { section: AdminSection }) {
   }
   if (props.section === 'pricing-calculator') {
     return <PricingCalculator />
-  }
-  if (props.section === 'audit') {
-    if (audit.isPending) return <LoadingState />
-    if (audit.isError) {
-      return <ErrorState onRetry={() => void audit.refetch()} />
-    }
-    return (
-      <div className='space-y-4'>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Cloud audit filters')}</CardTitle>
-            <CardDescription>
-              {t('Read-only persistent Cloud security and task facts')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='grid gap-4 md:grid-cols-3'>
-            <div className='space-y-2'>
-              <Label htmlFor='canvas-audit-action'>{t('Action')}</Label>
-              <Input
-                id='canvas-audit-action'
-                value={auditFilters.action}
-                onChange={(event) =>
-                  setAuditFilters((current) => ({
-                    ...current,
-                    action: event.target.value,
-                  }))
-                }
-                placeholder='task.execution.succeeded'
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='canvas-audit-outcome'>{t('Outcome')}</Label>
-              <select
-                id='canvas-audit-outcome'
-                className='border-input bg-background focus-visible:ring-ring h-9 w-full rounded-md border px-3 text-sm focus-visible:ring-2 focus-visible:outline-none'
-                value={auditFilters.outcome}
-                onChange={(event) =>
-                  setAuditFilters((current) => ({
-                    ...current,
-                    outcome: event.target.value,
-                  }))
-                }
-              >
-                <option value=''>{t('All outcomes')}</option>
-                <option value='SUCCESS'>{t('Success')}</option>
-                <option value='FAILURE'>{t('Failure')}</option>
-                <option value='DEFERRED'>{t('Deferred')}</option>
-              </select>
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='canvas-audit-resource'>{t('Resource ID')}</Label>
-              <Input
-                id='canvas-audit-resource'
-                value={auditFilters.resourceId}
-                onChange={(event) =>
-                  setAuditFilters((current) => ({
-                    ...current,
-                    resourceId: event.target.value,
-                  }))
-                }
-              />
-            </div>
-          </CardContent>
-        </Card>
-        <DataTable
-          empty={t('No audit events')}
-          headers={[
-            t('Time'),
-            t('Outcome'),
-            t('Action'),
-            t('Actor'),
-            t('Resource'),
-            t('Reason'),
-          ]}
-          rows={audit.data.items.map((item) => ({
-            key: item.id,
-            cells: [
-              formatDate(item.occurredAt),
-              item.outcome,
-              item.action,
-              item.actorPrincipalId
-                ? `${item.actorType} · ${item.actorPrincipalId}`
-                : item.actorType,
-              item.resourceId
-                ? `${item.resourceType} · ${item.resourceId}`
-                : (item.resourceKey ?? item.resourceType),
-              item.reasonCode ?? '—',
-            ],
-          }))}
-        />
-      </div>
-    )
   }
   if (props.section === 'channels') {
     return (
@@ -913,120 +757,6 @@ function AdminContent(props: { section: AdminSection }) {
       </div>
     )
   }
-  if (props.section === 'refunds') {
-    return (
-      <div className='space-y-4'>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Create approved refund workflow')}</CardTitle>
-            <CardDescription>
-              {t(
-                'Cash adjustment and point clawback remain linked and auditable.'
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className='grid gap-3 md:grid-cols-2'
-              onSubmit={(event) => {
-                event.preventDefault()
-                createRefund.mutate(refund)
-              }}
-            >
-              <div className='space-y-1'>
-                <Label htmlFor='refund-order'>{t('Recharge order ID')}</Label>
-                <Input
-                  id='refund-order'
-                  required
-                  value={refund.rechargeOrderId}
-                  onChange={(event) =>
-                    setRefund({
-                      ...refund,
-                      rechargeOrderId: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className='space-y-1'>
-                <Label htmlFor='refund-cash'>
-                  {t('Cash amount (minor units)')}
-                </Label>
-                <Input
-                  id='refund-cash'
-                  inputMode='numeric'
-                  required
-                  value={refund.cashAmountMinor}
-                  onChange={(event) =>
-                    setRefund({
-                      ...refund,
-                      cashAmountMinor: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className='space-y-1'>
-                <Label htmlFor='refund-points'>
-                  {t('Points to claw back')}
-                </Label>
-                <Input
-                  id='refund-points'
-                  inputMode='numeric'
-                  required
-                  value={refund.pointsRequested}
-                  onChange={(event) =>
-                    setRefund({
-                      ...refund,
-                      pointsRequested: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className='space-y-1'>
-                <Label htmlFor='refund-reason'>{t('Reason')}</Label>
-                <Input
-                  id='refund-reason'
-                  required
-                  value={refund.reason}
-                  onChange={(event) =>
-                    setRefund({ ...refund, reason: event.target.value })
-                  }
-                />
-              </div>
-              <Button
-                className='md:col-span-2 md:justify-self-start'
-                type='submit'
-                disabled={createRefund.isPending}
-              >
-                {t('Create refund workflow')}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-        <DataTable
-          empty={t('No refunds')}
-          headers={[
-            t('Reference'),
-            t('Order'),
-            t('Status'),
-            t('Cash'),
-            t('Clawed back'),
-            t('Outstanding'),
-          ]}
-          rows={data.refunds.map((item) => ({
-            key: item.id,
-            cells: [
-              item.refundReference,
-              item.orderNumber,
-              <BusinessTerm key='s' kind='refundStatus' value={item.status} />,
-              formatCnyMinor(item.cashAmountMinor),
-              item.pointsClawedBack,
-              item.pointsOutstanding,
-            ],
-          }))}
-        />
-      </div>
-    )
-  }
   return null
 }
 
@@ -1034,6 +764,8 @@ export function CanvasCloud() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const params = route.useParams()
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
   const session = useQuery({
     queryKey: ['canvas-cloud', 'session'],
     queryFn: getCanvasSession,
@@ -1094,7 +826,19 @@ export function CanvasCloud() {
   } else if (session.data.principalType === 'CUSTOMER') {
     content = <CustomerContent section={section as CustomerSection} />
   } else if (session.data.principalType === 'PLATFORM_ADMIN') {
-    content = <AdminContent section={section as AdminSection} />
+    content = (
+      <AdminContent
+        section={section as AdminSection}
+        refundPrefill={search}
+        onOpenRefundRecovery={(prefill) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'refunds' },
+            search: prefill,
+          })
+        }
+      />
+    )
   } else content = <AgentCenter />
   return (
     <SectionPageLayout>

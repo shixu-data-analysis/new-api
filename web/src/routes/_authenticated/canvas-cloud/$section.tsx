@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import z from 'zod'
 
 import { CanvasCloud } from '@/features/canvas-cloud'
 import { isCanvasSectionAllowed } from '@/features/canvas-cloud/access'
@@ -24,6 +25,13 @@ import {
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
+
+const canvasCloudSearchSchema = z.object({
+  customerId: z.string().uuid().optional().catch(undefined),
+  customerName: z.string().trim().min(1).max(191).optional().catch(undefined),
+  orderId: z.string().uuid().optional().catch(undefined),
+  orderNumber: z.string().trim().min(1).max(191).optional().catch(undefined),
+})
 
 export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
   beforeLoad: async ({ params }) => {
@@ -45,5 +53,6 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       throw redirect({ to: '/403' })
     }
   },
+  validateSearch: canvasCloudSearchSchema,
   component: CanvasCloud,
 })

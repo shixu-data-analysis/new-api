@@ -105,6 +105,7 @@
 
 ### 3.7 表单
 
+- Canvas Cloud 表单、字段校验、多语言和数据表一致性同时遵循工作区根目录 `../../docs/agent-guides/ui-form-consistency.md`；Cloud API 是业务校验真源，本前端复用 New API 设计系统并镜像可提前判断的规则。
 - 使用 React Hook Form + Zod：在功能模块的 `lib/` 下定义 schema，并用 `z.infer` 导出表单类型；`useForm` 配合 `@hookform/resolvers/zod` 做校验。
 - 提交逻辑放在 `onSubmit`，展示加载与错误状态；成功后视场景重置表单或关闭弹窗。服务端校验错误映射到对应字段并展示（字段级错误展示方式见 [3.9 错误处理](#39-错误处理)）。
 
@@ -144,6 +145,7 @@
 
 ### 3.14 测试
 
+- Docker 自动测试必须通过 `bash scripts/run-docker-gate.sh <command> [args...]` 运行；`docker:gate` package script 只是等价快捷入口，不要求宿主机安装 Bun。该入口为每次运行创建唯一容器和临时依赖卷，并在成功、失败或中断时清理；禁止复用人工 UAT 的 Compose project、容器、网络、数据库或卷，也禁止手工创建长期 `node_modules` 测试卷。
 - 工具函数与纯逻辑优先单元测试（Vitest），测试文件 `*.test.ts`；组件用 React Testing Library 测交互与行为，避免测实现细节。
 - 新增功能、修复缺陷或修改现有行为时，必须同步新增或更新测试；Bug 修复必须先编写能够稳定复现问题的失败用例，再实现修复并确认用例转为通过。
 - 修改前端组件的布局、尺寸、滚动定位、焦点管理、键盘操作、选中状态、禁用状态、加载状态、空状态、错误状态或响应式行为时，必须补充对应的回归测试，覆盖本次变更保护的用户可见行为，防止后续调整重新引入问题。

@@ -17,119 +17,186 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { EmptyState } from '@/components/empty-state'
-import { ErrorState } from '@/components/error-state'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { SectionPageLayout } from '@/components/layout'
-import { LoadingState } from '@/components/loading-state'
-import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
-import { getCanvasAdminWorkspace } from './api'
+import { getCanvasAdminCustomers } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CanvasServerTable } from './components/CanvasServerTable'
+import { CopyableText } from './components/CopyableText'
+import type { CanvasAdminCustomerPointBalance } from './types'
+import { useServerTableState } from './use-server-table-state'
+
+type CustomerStatus = CanvasAdminCustomerPointBalance['status']
 
 export function CanvasCustomerPointBalances() {
   const { t } = useTranslation()
-  const workspace = useQuery({
-    queryKey: ['canvas-cloud', 'admin-workspace'],
-    queryFn: getCanvasAdminWorkspace,
+  const tableState = useServerTableState('createdAt')
+  const [status, setStatus] = useState<'' | CustomerStatus>('')
+  const customers = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin',
+      'customers',
+      'balances',
+      tableState.query,
+      status,
+    ],
+    queryFn: ({ signal }) =>
+      getCanvasAdminCustomers(
+        {
+          ...tableState.query,
+          ...(status ? { status } : {}),
+        },
+        signal
+      ),
   })
 
-  const content = (() => {
-    if (workspace.isPending) return <LoadingState />
-    if (workspace.isError)
-      return <ErrorState onRetry={() => void workspace.refetch()} />
-    if (workspace.data.customers.length === 0) {
-      return <EmptyState title={t('No Canvas customers')} bordered />
-    }
-    return (
-      <div className='overflow-x-auto rounded-xl border'>
-        <table className='w-full min-w-[720px] text-left text-sm'>
-          <thead className='bg-muted/60 text-muted-foreground'>
-            <tr>
-              <th className='px-3 py-2 font-medium'>{t('Canvas customer')}</th>
-              <th className='px-3 py-2 font-medium'>
-                {t('New API account ID')}
-              </th>
-              <th className='px-3 py-2 font-medium'>
-                <BusinessTerm kind='pointBalance' value='AVAILABLE' />
-              </th>
-              <th className='px-3 py-2 font-medium'>
-                <BusinessTerm kind='pointBalance' value='PAID' />
-              </th>
-              <th className='px-3 py-2 font-medium'>
-                <BusinessTerm kind='pointBalance' value='BONUS' />
-              </th>
-              <th className='px-3 py-2 font-medium'>{t('Status')}</th>
-            </tr>
-          </thead>
-          <tbody className='divide-y'>
-            {workspace.data.customers.map((customer) => (
-              <tr key={customer.customerId} className='hover:bg-muted/30'>
-                <td className='px-3 py-2'>
-                  <div className='font-medium'>
-                    {customer.username ?? t('Unnamed customer')}
-                  </div>
-                  {customer.emailMasked && (
-                    <div className='text-muted-foreground text-xs'>
-                      {customer.emailMasked}
-                    </div>
-                  )}
-                </td>
-                <td className='px-3 py-2 font-mono'>{customer.newApiUserId}</td>
-                <td className='px-3 py-2 tabular-nums'>
-                  {customer.availablePoints}
-                </td>
-                <td className='px-3 py-2 tabular-nums'>
-                  {customer.paidAvailablePoints}
-                </td>
-                <td className='px-3 py-2 tabular-nums'>
-                  {customer.bonusAvailablePoints}
-                </td>
-                <td className='px-3 py-2'>
-                  <BusinessTerm kind='customerStatus' value={customer.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-  })()
+  const columns = useMemo<
+    ColumnDef<CanvasAdminCustomerPointBalance, unknown>[]
+  >(
+    () => [
+      {
+        id: 'customer',
+        accessorFn: (item) => item.username ?? item.newApiUserId,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Canvas customer')} />
+        ),
+        meta: { label: t('Canvas customer') },
+        cell: ({ row }) => (
+          <div className='space-y-1'>
+            <CopyableText
+              value={row.original.username ?? row.original.newApiUserId}
+            />
+            {row.original.emailMasked ? (
+              <div className='text-muted-foreground text-xs'>
+                {row.original.emailMasked}
+              </div>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        id: 'newApiUserId',
+        accessorKey: 'newApiUserId',
+        enableSorting: false,
+        header: t('New API account ID'),
+        cell: ({ row }) => <CopyableText value={row.original.newApiUserId} />,
+      },
+      {
+        id: 'availablePoints',
+        accessorKey: 'availablePoints',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Available points')}
+          />
+        ),
+        meta: { label: t('Available points') },
+      },
+      {
+        id: 'paidAvailablePoints',
+        accessorKey: 'paidAvailablePoints',
+        enableSorting: false,
+        header: () => <BusinessTerm kind='pointBalance' value='PAID' />,
+      },
+      {
+        id: 'bonusAvailablePoints',
+        accessorKey: 'bonusAvailablePoints',
+        enableSorting: false,
+        header: () => <BusinessTerm kind='pointBalance' value='BONUS' />,
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Status')} />
+        ),
+        meta: { label: t('Status') },
+        cell: ({ row }) => (
+          <BusinessTerm kind='customerStatus' value={row.original.status} />
+        ),
+      },
+    ],
+    [t]
+  )
 
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Canvas Customers')}</SectionPageLayout.Title>
-      <SectionPageLayout.Actions>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => void workspace.refetch()}
-        >
-          <RefreshCw />
-          {t('Refresh')}
-        </Button>
-      </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Canvas customer point balances')}</CardTitle>
-            <CardDescription>
-              {t(
-                'These balances come from the Canvas point ledger. Paid and bonus points remain separate and New API technical quota is not included.'
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>{content}</CardContent>
-        </Card>
+        <div className='space-y-3'>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'These balances come from the Canvas point ledger. Paid and bonus points remain separate and New API technical quota is not included.'
+            )}
+          </p>
+          <CanvasServerTable
+            data={customers.data?.items ?? []}
+            columns={columns}
+            total={customers.data?.total ?? 0}
+            state={tableState}
+            searchLabel={t('Customer name, email, or New API user ID')}
+            searchPlaceholder={t('Search customers')}
+            searchDescription={t(
+              'Fuzzy matches customer name, masked email, or New API user ID.'
+            )}
+            loading={customers.isPending || customers.isFetching}
+            emptyTitle={t('No Canvas customers')}
+            additionalFilters={
+              <Select
+                value={status || 'ALL'}
+                onValueChange={(value) => {
+                  setStatus(value === 'ALL' ? '' : (value as CustomerStatus))
+                  tableState.setPagination((current) => ({
+                    ...current,
+                    pageIndex: 0,
+                  }))
+                }}
+              >
+                <SelectTrigger className='w-44' aria-label={t('Status')}>
+                  <SelectValue>
+                    {status ? (
+                      <BusinessTerm kind='customerStatus' value={status} />
+                    ) : (
+                      t('All statuses')
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                    <SelectItem key={value} value={value}>
+                      <BusinessTerm kind='customerStatus' value={value} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+            hasActiveFilters={Boolean(status)}
+            onResetFilters={() => {
+              setStatus('')
+              tableState.setSearch('')
+              tableState.setSorting([{ id: 'createdAt', desc: true }])
+              tableState.setPagination((current) => ({
+                ...current,
+                pageIndex: 0,
+              }))
+            }}
+            getRowId={(item) => item.customerId}
+          />
+        </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )

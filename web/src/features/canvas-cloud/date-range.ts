@@ -16,19 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export function formatMoneyMinor(value: string, currency: string): string {
-  const minor = BigInt(value)
-  const absolute = minor < 0n ? -minor : minor
-  const grouped = (absolute / 100n)
-    .toString()
-    .replaceAll(/\B(?=(\d{3})+(?!\d))/g, ',')
-  const amount = `${grouped}.${(absolute % 100n).toString().padStart(2, '0')}`
-  return `${minor < 0n ? '-' : ''}${currency} ${amount}`
-}
-
-export function formatCanvasDateTime(
-  value: string | null,
-  fallback = '—'
-): string {
-  return value ? new Date(value).toLocaleString() : fallback
+export function isCanvasDateRangeValid(from?: Date, to?: Date) {
+  return !from || !to || from.getTime() <= to.getTime()
 }

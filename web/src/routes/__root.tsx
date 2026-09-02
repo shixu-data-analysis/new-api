@@ -96,9 +96,7 @@ function RootComponent() {
       <NavigationProgress />
       <Outlet />
       <Toaster closeButton duration={5000} position='top-center' richColors />
-      {import.meta.env.MODE === 'development' && (
-        <DevelopmentDevtools />
-      )}
+      {import.meta.env.MODE === 'development' && <DevelopmentDevtools />}
     </ThemeCustomizationProvider>
   )
 }
