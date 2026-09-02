@@ -73,7 +73,15 @@ const billingStatuses = [
   'RELEASED_TIMEOUT',
 ] as const
 
-function CustomerOrders({ customerId }: { customerId: string }) {
+function CustomerOrders({
+  customerId,
+  selectedOrderId,
+  onCorrectOrder,
+}: {
+  customerId: string
+  selectedOrderId?: string
+  onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
+}) {
   const { t } = useTranslation()
   const state = useServerTableState('createdAt')
   const [status, setStatus] = useState('')
@@ -106,7 +114,16 @@ function CustomerOrders({ customerId }: { customerId: string }) {
       ),
     enabled: rangeValid,
   })
-  const columns = useCanvasRechargeOrderColumns({})
+  const columns = useCanvasRechargeOrderColumns({
+    showCorrectionDetails: Boolean(onCorrectOrder),
+    selectedOrderId,
+    isSelectable: (order) =>
+      order.eligibleForPaidCorrection &&
+      BigInt(order.remainingCorrectionPoints) > 0n,
+    onSelect: onCorrectOrder,
+    actionLabel: t('Correct Paid points'),
+    hideUnavailableAction: true,
+  })
   return (
     <CanvasServerTable<CanvasAdminRechargeOrder>
       data={query.data?.items ?? []}
@@ -375,23 +392,44 @@ function CustomerTasks({ customerId }: { customerId: string }) {
 
 export function AdminCustomerOperations({
   customerId,
+  selectedOrderId,
+  selectedLotId,
+  onCorrectOrder,
+  onDeductLot,
 }: {
   customerId: string
+  selectedOrderId?: string
+  selectedLotId?: string
+  onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
+  onDeductLot?: (lot: import('../types').CanvasAdminPointLot) => void
 }) {
   const { t } = useTranslation()
   return (
     <Tabs defaultValue='orders'>
-      <TabsList>
+      <TabsList className='max-w-full justify-start overflow-x-auto'>
         <TabsTrigger value='orders'>{t('Recharge orders')}</TabsTrigger>
-        <TabsTrigger value='points'>{t('Point details')}</TabsTrigger>
+        <TabsTrigger value='lots'>{t('Point Lots')}</TabsTrigger>
+        <TabsTrigger value='ledger'>{t('Point ledger')}</TabsTrigger>
         <TabsTrigger value='tasks'>{t('Tasks')}</TabsTrigger>
         <TabsTrigger value='audit'>{t('Customer audit')}</TabsTrigger>
       </TabsList>
       <TabsContent value='orders'>
-        <CustomerOrders customerId={customerId} />
+        <CustomerOrders
+          customerId={customerId}
+          selectedOrderId={selectedOrderId}
+          onCorrectOrder={onCorrectOrder}
+        />
       </TabsContent>
-      <TabsContent value='points'>
-        <CustomerPointHistory customerId={customerId} />
+      <TabsContent value='lots'>
+        <CustomerPointHistory
+          customerId={customerId}
+          view='lots'
+          selectedLotId={selectedLotId}
+          onDeductLot={onDeductLot}
+        />
+      </TabsContent>
+      <TabsContent value='ledger'>
+        <CustomerPointHistory customerId={customerId} view='ledger' />
       </TabsContent>
       <TabsContent value='tasks'>
         <CustomerTasks customerId={customerId} />

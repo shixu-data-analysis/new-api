@@ -37,12 +37,16 @@ export function useCanvasRechargeOrderColumns({
   selectedOrderId,
   isSelectable = alwaysSelectable,
   onSelect,
+  actionLabel,
+  hideUnavailableAction = false,
 }: {
   showCustomer?: boolean
   showCorrectionDetails?: boolean
   selectedOrderId?: string
   isSelectable?: (order: CanvasAdminRechargeOrder) => boolean
   onSelect?: (order: CanvasAdminRechargeOrder) => void
+  actionLabel?: string
+  hideUnavailableAction?: boolean
 }): ColumnDef<CanvasAdminRechargeOrder, unknown>[] {
   const { t } = useTranslation()
 
@@ -178,10 +182,14 @@ export function useCanvasRechargeOrderColumns({
         header: t('Actions'),
         cell: ({ row }) => {
           const selectable = isSelectable(row.original)
+          if (!selectable && hideUnavailableAction) return null
           let label = t('Unavailable')
           if (selectable) {
             label =
-              selectedOrderId === row.original.id ? t('Selected') : t('Select')
+              actionLabel ??
+              (selectedOrderId === row.original.id
+                ? t('Selected')
+                : t('Select'))
           }
           return (
             <Button
@@ -203,6 +211,8 @@ export function useCanvasRechargeOrderColumns({
     return columns
   }, [
     isSelectable,
+    actionLabel,
+    hideUnavailableAction,
     onSelect,
     selectedOrderId,
     showCorrectionDetails,

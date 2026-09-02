@@ -65,6 +65,16 @@ function localizeAuditValue(t: TFunction, value: string, unknownKey: string) {
   return t(value, { defaultValue: t(unknownKey) })
 }
 
+const auditActorLabelKeys: Record<string, string> = {
+  PLATFORM_ADMIN: 'Platform administrator',
+}
+const auditResourceLabelKeys: Record<string, string> = {
+  POINT_LEDGER: 'Point ledger',
+}
+const auditReasonLabelKeys: Record<string, string> = {
+  SELECTED_LOT_DEDUCTION: 'Selected Point Lot deduction',
+}
+
 export function AdminAuditLog({ customerId }: { customerId?: string }) {
   const { t } = useTranslation()
   const state = useServerTableState('occurredAt')
@@ -149,39 +159,66 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
         accessorKey: 'actorType',
         enableSorting: false,
         header: t('Actor'),
-        cell: ({ row }) =>
-          localizeAuditValue(t, row.original.actorType, 'Unknown actor'),
+        cell: ({ row }) => {
+          const actorLabelKey = auditActorLabelKeys[row.original.actorType]
+          const actorLabel = actorLabelKey
+            ? t(actorLabelKey)
+            : localizeAuditValue(t, row.original.actorType, 'Unknown actor')
+          return (
+            <span>
+              {actorLabel}
+              {row.original.actorExternalSystem === 'new-api' &&
+              row.original.actorExternalId ? (
+                <>
+                  {' '}
+                  · {t('New API user ID')}:{' '}
+                  <CopyableText value={row.original.actorExternalId} />
+                </>
+              ) : null}
+            </span>
+          )
+        },
       },
       {
         id: 'resource',
         accessorKey: 'resourceType',
         enableSorting: false,
         header: t('Resource'),
-        cell: ({ row }) => (
-          <span>
-            {localizeAuditValue(
-              t,
-              row.original.resourceType,
-              'Unknown resource'
-            )}
-            {row.original.resourceId ? (
-              <>
-                {' '}
-                · <CopyableText value={row.original.resourceId} />
-              </>
-            ) : null}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const resourceLabelKey =
+            auditResourceLabelKeys[row.original.resourceType]
+          const resourceLabel = resourceLabelKey
+            ? t(resourceLabelKey)
+            : localizeAuditValue(
+                t,
+                row.original.resourceType,
+                'Unknown resource'
+              )
+          return (
+            <span>
+              {resourceLabel}
+              {row.original.resourceId ? (
+                <>
+                  {' '}
+                  · <CopyableText value={row.original.resourceId} />
+                </>
+              ) : null}
+            </span>
+          )
+        },
       },
       {
         id: 'reason',
         accessorKey: 'reasonCode',
         enableSorting: false,
         header: t('Reason'),
-        cell: ({ row }) =>
-          row.original.reasonCode
-            ? localizeAuditValue(t, row.original.reasonCode, 'Unknown reason')
-            : '—',
+        cell: ({ row }) => {
+          if (!row.original.reasonCode) return '—'
+          const reasonLabelKey = auditReasonLabelKeys[row.original.reasonCode]
+          return reasonLabelKey
+            ? t(reasonLabelKey)
+            : localizeAuditValue(t, row.original.reasonCode, 'Unknown reason')
+        },
       },
     ],
     [t]

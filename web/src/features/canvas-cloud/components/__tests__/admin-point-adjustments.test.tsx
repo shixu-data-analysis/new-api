@@ -17,13 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,9 +40,10 @@ const apiMocks = vi.hoisted(() => ({
   grantCanvasManualBonus: vi.fn(),
   grantCanvasPaidCorrection: vi.fn(),
 }))
+const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 vi.mock('../../api', () => apiMocks)
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: toastMocks }))
 
 function renderWithQuery(node: ReactNode) {
   const client = new QueryClient({
@@ -199,17 +194,19 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
       ],
     })
     apiMocks.grantCanvasManualBonus.mockResolvedValue({ pointLotId: 'lot' })
+    apiMocks.grantCanvasPaidCorrection.mockResolvedValue({ pointLotId: 'lot' })
+    apiMocks.deductCanvasPointLot.mockResolvedValue({ pointLotId: 'lot' })
     apiMocks.createCanvasRefund.mockResolvedValue({ id: 'refund' })
   })
 
-  it('uses a searchable customer table before exposing the adjustment forms', async () => {
+  it('keeps adjustments in a customer-scoped side drawer', async () => {
     renderWithQuery(<AdminPointAdjustments />)
     expect(screen.getByPlaceholderText('Search customer name')).toBeVisible()
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    expect(
-      (await screen.findAllByText('Grant Bonus points')).length
-    ).toBeGreaterThan(0)
+    expect(screen.queryByLabelText('Bonus points')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Grant Bonus points' }))
+    expect(await screen.findByRole('dialog')).toBeVisible()
     expect(
       screen.queryByText('Enter a positive whole number')
     ).not.toBeInTheDocument()
@@ -227,6 +224,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     fireEvent.change(screen.getByLabelText('Reason'), {
       target: { value: 'wrong customer draft' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     fireEvent.click(
       screen.getByRole('button', { name: 'Back to customer list' })
     )
@@ -235,11 +233,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
       screen.queryByRole('button', { name: 'Back to customer list' })
     ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    expect(screen.getByLabelText('Bonus points')).toHaveValue('')
-    expect(screen.getByLabelText('Reason')).toHaveValue('')
-    expect(
-      screen.queryByText('Enter a positive whole number')
-    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Bonus points')).not.toBeInTheDocument()
   })
 
   it('selects a Canvas order and never offers an administrator-entered point amount for refund recovery', async () => {
@@ -281,7 +275,17 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     expect(screen.getByRole('tab', { name: 'Recharge orders' })).toBeVisible()
     expect(await screen.findByText(order.orderNumber)).toBeVisible()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Point details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Point Lots' }))
+    expect(screen.getByPlaceholderText('Search Point Lots')).toBeVisible()
+    expect(
+      screen.queryByPlaceholderText('Search point events')
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Point ledger' }))
+    expect(screen.getByPlaceholderText('Search point events')).toBeVisible()
+    expect(
+      screen.queryByPlaceholderText('Search Point Lots')
+    ).not.toBeInTheDocument()
     expect(await screen.findByText('Task settlement')).toBeVisible()
     expect(
       screen.getAllByText('85000000-0000-7000-8000-000000000006').length
@@ -298,6 +302,41 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
         expect.any(AbortSignal)
       )
     )
+  })
+
+  it('renders known administrator, resource, and reason audit values', async () => {
+    apiMocks.getCanvasAuditEvents.mockResolvedValue({
+      page: 1,
+      pageSize: 50,
+      total: 1,
+      items: [
+        {
+          id: '85000000-0000-7000-8000-000000000020',
+          occurredAt: '2026-09-01T01:00:00.000Z',
+          actorType: 'PLATFORM_ADMIN',
+          actorExternalSystem: 'new-api',
+          actorExternalId: '1',
+          resourceType: 'POINT_LEDGER',
+          resourceId: '85000000-0000-7000-8000-000000000005',
+          reasonCode: 'SELECTED_LOT_DEDUCTION',
+          category: 'POINTS',
+          action: 'points.manual_deduction.posted',
+          outcome: 'SUCCESS',
+        },
+      ],
+    })
+    renderWithQuery(<AdminPointAdjustments />)
+    expect(await screen.findByText('uatcustomer')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Customer audit' }))
+    expect(
+      await screen.findByRole('cell', { name: /Platform administrator/ })
+    ).toBeVisible()
+    expect(screen.getByRole('cell', { name: /Point ledger/ })).toBeVisible()
+    expect(screen.getByText('Selected Point Lot deduction')).toBeVisible()
+    expect(screen.queryByText('Unknown actor')).not.toBeInTheDocument()
+    expect(screen.queryByText('Unknown resource')).not.toBeInTheDocument()
+    expect(screen.queryByText('Unknown reason')).not.toBeInTheDocument()
   })
 
   it('loads a prefilled refund order without validating untouched refund fields', async () => {
@@ -347,90 +386,43 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     expect(await screen.findByText('uatcustomer')).toBeVisible()
   })
 
-  it('disables a Point Lot whose available balance is zero', async () => {
+  it('offers deduction only on an eligible Point Lot row', async () => {
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    fireEvent.click(
-      screen.getByRole('tab', { name: 'Deduct from a Point Lot' })
-    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Point Lots' }))
     expect(screen.getByText('All types')).toBeVisible()
     expect(screen.queryByText('ALL')).not.toBeInTheDocument()
     expect(
-      await screen.findByRole('button', { name: 'Unavailable' })
-    ).toBeDisabled()
-    expect(screen.getByText('Task-reserved points')).toBeVisible()
-    expect(
-      screen.getByText(
-        'Points currently held for running or unsettled tasks. Manual deductions do not change them.'
-      )
+      await screen.findByRole('button', { name: 'Deduct points' })
     ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Unavailable' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Task-reserved points')).toBeVisible()
   })
 
-  it('explains order matching and reveals the Paid correction form only after an explicit order selection', async () => {
+  it('opens a Paid correction drawer from the eligible recharge-order row', async () => {
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Correct Paid points' }))
-
-    const search = screen.getByPlaceholderText(
-      'Enter a full order number or any consecutive fragment'
-    )
-    expect(search).toHaveAttribute(
-      'placeholder',
-      'Enter a full order number or any consecutive fragment'
-    )
+    expect(await screen.findByText(order.orderNumber)).toBeVisible()
     expect(
-      screen.getByText(/Matches only Canvas recharge order numbers/)
+      screen.getByRole('button', { name: 'Correct Paid points' })
     ).toBeVisible()
-    expect(
-      screen.getByText(/Only orders with verified missing Paid issuance/)
-    ).toBeVisible()
-    const correctionCard = search.closest<HTMLElement>('[data-slot="card"]')
-    if (!correctionCard) throw new Error('Paid correction card was not found')
-    expect(
-      within(correctionCard).queryByText('All statuses')
-    ).not.toBeInTheDocument()
-    expect(screen.getAllByText('Expected Paid points').length).toBeGreaterThan(
-      0
-    )
-    expect(screen.getAllByText('Issued Paid points').length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByText('Available Paid points for this order').length
-    ).toBeGreaterThan(0)
-    expect(
-      screen.getAllByText('Remaining correctable points').length
-    ).toBeGreaterThan(0)
-    expect(screen.getAllByText('Order created at').length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByText('Recharge code redeemed at').length
-    ).toBeGreaterThan(0)
     expect(screen.queryByLabelText('Paid points')).not.toBeInTheDocument()
-
-    fireEvent.change(search, { target: { value: '3F52CD' } })
-    await waitFor(() =>
-      expect(apiMocks.getCanvasAdminRechargeOrders).toHaveBeenLastCalledWith(
-        expect.objectContaining({ search: '3F52CD' }),
-        expect.any(AbortSignal)
-      )
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }))
-    expect(screen.getByText('Selected order')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Selected' })).toBeVisible()
-    expect(screen.getByLabelText('Paid points')).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Paid points' }))
+    expect(await screen.findByRole('dialog')).toBeVisible()
     expect(screen.getByLabelText('Paid points')).toHaveAttribute('max', '100')
-    expect(
-      screen.getByRole('button', { name: 'Choose another order' })
-    ).toBeVisible()
   })
 
   it('rejects a Paid correction above the verified missing issuance', async () => {
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Correct Paid points' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Select' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Correct Paid points' })
+    )
     fireEvent.change(screen.getByLabelText('Paid points'), {
       target: { value: '101' },
     })
@@ -445,5 +437,92 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
         'Points cannot exceed the remaining correction amount'
       )
     ).toBeVisible()
+  })
+
+  it('refreshes the selected customer summary after a successful adjustment', async () => {
+    renderWithQuery(<AdminPointAdjustments />)
+    expect(await screen.findByText('uatcustomer')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Correct Paid points' })
+    )
+    fireEvent.change(screen.getByLabelText('Paid points'), {
+      target: { value: '50' },
+    })
+    fireEvent.change(screen.getByLabelText('Reason'), {
+      target: { value: 'verified historical under-issuance' },
+    })
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        { ...customer, availablePoints: '950', paidAvailablePoints: '550' },
+      ],
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review Paid correction' })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm adjustment' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.grantCanvasPaidCorrection).toHaveBeenCalled()
+    )
+    expect(await screen.findByText('Available points: 950')).toBeVisible()
+    expect(screen.getByText('Paid points: 550')).toBeVisible()
+  })
+
+  it('shows one actionable toast and reloads the Lot after a concurrent deduction rejection', async () => {
+    renderWithQuery(<AdminPointAdjustments />)
+    expect(await screen.findByText('uatcustomer')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Point Lots' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Deduct points' })
+    )
+    fireEvent.change(screen.getByLabelText('Points to deduct'), {
+      target: { value: '400' },
+    })
+    fireEvent.change(screen.getByLabelText('Reason'), {
+      target: { value: 'confirmed customer support deduction' },
+    })
+    apiMocks.getCanvasAdminCustomerPointLots.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: '85000000-0000-7000-8000-000000000003',
+          type: 'BONUS',
+          sourceType: 'MANUAL_GRANT',
+          rechargeOrderId: null,
+          rechargeOrderNumber: null,
+          initialPoints: '500',
+          remainingPoints: '300',
+          reservedPoints: '100',
+          availablePoints: '200',
+          expiresAt: '2026-12-01T00:00:00.000Z',
+          issuedAt: '2026-09-01T00:00:00.000Z',
+        },
+      ],
+    })
+    apiMocks.deductCanvasPointLot.mockRejectedValue({
+      response: { data: { code: 'INSUFFICIENT_AVAILABLE_POINTS' } },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Review deduction' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm adjustment' })
+    )
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Deduction cannot exceed current available points 200. Please enter a new amount.'
+      )
+    )
+    expect(toastMocks.error).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('Points to deduct')).toHaveValue('')
+    expect(screen.getByLabelText('Reason')).toHaveValue(
+      'confirmed customer support deduction'
+    )
   })
 })

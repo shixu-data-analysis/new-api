@@ -100,11 +100,12 @@ export function CanvasServerTable<TData>({
       toolbar={
         <DataTableToolbar
           table={table}
+          stableGrid
           searchPlaceholder={searchPlaceholder}
           searchDebounceMs={0}
           customSearch={
             searchLabel || searchDescription ? (
-              <div className='w-full space-y-1 sm:w-[280px] lg:w-[360px]'>
+              <div className='w-full space-y-1'>
                 {searchLabel ? (
                   <Label htmlFor={searchId}>{searchLabel}</Label>
                 ) : null}

@@ -19,18 +19,21 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeft, RotateCcw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, Gift, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import {
-  DataTableColumnHeader,
-  DISABLED_ROW_DESKTOP,
-  DISABLED_ROW_MOBILE,
-} from '@/components/data-table'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { DateTimePicker } from '@/components/datetime-picker'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  SideDrawerSection,
+} from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -49,7 +52,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -57,18 +59,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 
 import {
   deductCanvasPointLot,
-  getCanvasAdminCustomerPointLots,
   getCanvasAdminCustomers,
-  getCanvasAdminRechargeOrders,
   grantCanvasManualBonus,
   grantCanvasPaidCorrection,
 } from '../api'
-import { getCanvasBusinessTermLabelKey } from '../business-terms'
-import { isCanvasDateRangeValid } from '../date-range'
 import {
   bonusAdjustmentSchema,
   deductionSchema,
@@ -82,26 +87,35 @@ import type {
   CanvasAdminCustomerPointBalance,
   CanvasAdminPointLot,
   CanvasAdminRechargeOrder,
+  CanvasPage,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminCustomerOperations } from './AdminCustomerOperations'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
-import {
-  CanvasRechargeOrderSummary,
-  useCanvasRechargeOrderColumns,
-} from './CanvasRechargeOrder'
+import { CanvasRechargeOrderSummary } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
-type PendingAction = 'bonus' | 'paid' | 'deduction' | null
-const isLotDeductible = (lot: CanvasAdminPointLot) =>
-  BigInt(lot.availablePoints) > 0n &&
-  (!lot.expiresAt || new Date(lot.expiresAt).getTime() > Date.now())
-const isOrderCorrectable = (order: CanvasAdminRechargeOrder) =>
-  order.eligibleForPaidCorrection &&
-  BigInt(order.remainingCorrectionPoints) > 0n
+type AdjustmentAction = 'bonus' | 'paid' | 'deduction'
+type PendingAction = AdjustmentAction | null
+
+function errorPayload(error: unknown): Record<string, unknown> | null {
+  if (!error || typeof error !== 'object') return null
+  if ('response' in error) {
+    const response = error.response
+    if (
+      response &&
+      typeof response === 'object' &&
+      'data' in response &&
+      response.data &&
+      typeof response.data === 'object'
+    ) {
+      return response.data as Record<string, unknown>
+    }
+  }
+  return error as Record<string, unknown>
+}
 
 export interface RefundRecoveryPrefill {
   customerId: string
@@ -124,41 +138,22 @@ export function AdminPointAdjustments({
   const [selectedLot, setSelectedLot] = useState<CanvasAdminPointLot | null>(
     null
   )
+  const [sheetAction, setSheetAction] = useState<AdjustmentAction | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const [customerStatus, setCustomerStatus] = useState('')
-  const [lotType, setLotType] = useState('')
-  const [orderTimeField, setOrderTimeField] = useState<
-    'createdAt' | 'redeemedAt'
-  >('createdAt')
-  const [orderFrom, setOrderFrom] = useState<Date>()
-  const [orderTo, setOrderTo] = useState<Date>()
-  const paidFormRef = useRef<HTMLDivElement>(null)
-  const paidPointsInputRef = useRef<HTMLInputElement | null>(null)
+  const [refreshingCustomer, setRefreshingCustomer] = useState(false)
   const customersState = useServerTableState('createdAt')
-  const ordersState = useServerTableState('createdAt')
-  const lotsState = useServerTableState('expiresAt')
-  const setOrdersPagination = ordersState.setPagination
   const customerId = customer?.customerId
-  const orderDateRangeValid = isCanvasDateRangeValid(orderFrom, orderTo)
-  useEffect(() => {
-    setOrdersPagination((value) => ({ ...value, pageIndex: 0 }))
-  }, [orderFrom, orderTimeField, orderTo, setOrdersPagination])
-  useEffect(() => {
-    if (!selectedOrder) return
-    paidFormRef.current?.scrollIntoView?.({
-      behavior: 'smooth',
-      block: 'start',
-    })
-    paidPointsInputRef.current?.focus()
-  }, [selectedOrder])
+
+  const customersQueryKey = [
+    'canvas-cloud',
+    'admin',
+    'customers',
+    customersState.query,
+    customerStatus,
+  ] as const
   const customers = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin',
-      'customers',
-      customersState.query,
-      customerStatus,
-    ],
+    queryKey: customersQueryKey,
     queryFn: ({ signal }) =>
       getCanvasAdminCustomers(
         {
@@ -169,55 +164,6 @@ export function AdminPointAdjustments({
         },
         signal
       ),
-  })
-  const orders = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin',
-      'recharge-orders',
-      customerId,
-      ordersState.query,
-      orderTimeField,
-      orderFrom?.toISOString(),
-      orderTo?.toISOString(),
-    ],
-    queryFn: ({ signal }) =>
-      getCanvasAdminRechargeOrders(
-        {
-          ...ordersState.query,
-          customerId: customerId ?? '',
-          eligibleForPaidCorrection: true,
-          timeField: orderTimeField,
-          ...(orderDateRangeValid && orderFrom
-            ? { from: orderFrom.toISOString() }
-            : {}),
-          ...(orderDateRangeValid && orderTo
-            ? { to: orderTo.toISOString() }
-            : {}),
-        },
-        signal
-      ),
-    enabled: Boolean(customerId) && orderDateRangeValid,
-  })
-  const lots = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin',
-      'point-lots',
-      customerId,
-      lotsState.query,
-      lotType,
-    ],
-    queryFn: ({ signal }) =>
-      getCanvasAdminCustomerPointLots(
-        customerId ?? '',
-        {
-          ...lotsState.query,
-          ...(lotType ? { type: lotType as 'PAID' | 'BONUS' } : {}),
-        },
-        signal
-      ),
-    enabled: Boolean(customerId),
   })
 
   const bonusForm = useForm<BonusAdjustmentValues>({
@@ -237,18 +183,76 @@ export function AdminPointAdjustments({
     mode: 'onTouched',
     defaultValues: { pointLotId: '', points: '', reason: '' },
   })
-  const returnToCustomerList = () => {
-    setCustomer(null)
+
+  const closeAdjustmentSheet = () => {
+    setSheetAction(null)
+    setPendingAction(null)
     setSelectedOrder(null)
     setSelectedLot(null)
-    setPendingAction(null)
     bonusForm.reset()
     paidForm.reset()
     deductionForm.reset()
   }
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['canvas-cloud', 'admin'] })
-  const mutationError = () => toast.error(t('Point adjustment failed'))
+  const returnToCustomerList = () => {
+    closeAdjustmentSheet()
+    setCustomer(null)
+  }
+  const openBonusSheet = () => {
+    closeAdjustmentSheet()
+    setSheetAction('bonus')
+  }
+  const openPaidSheet = (order: CanvasAdminRechargeOrder) => {
+    closeAdjustmentSheet()
+    setSelectedOrder(order)
+    paidForm.reset({ rechargeOrderId: order.id, points: '', reason: '' })
+    setSheetAction('paid')
+  }
+  const openDeductionSheet = (lot: CanvasAdminPointLot) => {
+    closeAdjustmentSheet()
+    setSelectedLot(lot)
+    deductionForm.reset({ pointLotId: lot.id, points: '', reason: '' })
+    setSheetAction('deduction')
+  }
+
+  const refreshCustomerRecord = async () => {
+    if (!customerId) return false
+    setRefreshingCustomer(true)
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
+      const refreshed = await customers.refetch()
+      const latest = refreshed.data?.items.find(
+        (item) => item.customerId === customerId
+      )
+      if (!latest) throw new Error('Selected customer was not returned')
+      setCustomer(latest)
+      return true
+    } catch {
+      toast.error(
+        t(
+          'Points were adjusted, but the latest customer balance could not be loaded. Try refreshing the record.'
+        )
+      )
+      return false
+    } finally {
+      setRefreshingCustomer(false)
+    }
+  }
+
+  const showMutationError = (error: unknown) => {
+    setPendingAction(null)
+    const payload = errorPayload(error)
+    const requestId =
+      typeof payload?.requestId === 'string' ? payload.requestId : undefined
+    toast.error(t('Point adjustment failed'), {
+      description: requestId ? `${t('Request ID')}: ${requestId}` : undefined,
+    })
+  }
+  const finishSuccessfulAdjustment = async (message: string) => {
+    toast.success(message)
+    closeAdjustmentSheet()
+    await refreshCustomerRecord()
+  }
+
   const bonusMutation = useMutation({
     mutationFn: (values: BonusAdjustmentValues) => {
       if (!customerId) throw new Error('Customer selection is required')
@@ -259,42 +263,58 @@ export function AdminPointAdjustments({
         reason: values.reason,
       })
     },
-    onSuccess: async () => {
-      setPendingAction(null)
-      bonusForm.reset()
-      toast.success(t('Bonus points granted'))
-      await refresh()
-    },
-    onError: mutationError,
+    onSuccess: () => finishSuccessfulAdjustment(t('Bonus points granted')),
+    onError: showMutationError,
   })
   const paidMutation = useMutation({
     mutationFn: (values: PaidCorrectionValues) =>
       grantCanvasPaidCorrection(values),
-    onSuccess: async () => {
-      setPendingAction(null)
-      setSelectedOrder(null)
-      paidForm.reset()
-      toast.success(t('Paid points corrected'))
-      await refresh()
-    },
-    onError: mutationError,
+    onSuccess: () => finishSuccessfulAdjustment(t('Paid points corrected')),
+    onError: showMutationError,
   })
   const deductionMutation = useMutation({
     mutationFn: (values: DeductionValues) => deductCanvasPointLot(values),
-    onSuccess: async () => {
+    onSuccess: () => finishSuccessfulAdjustment(t('Points deducted')),
+    onError: async (error) => {
+      const payload = errorPayload(error)
+      if (payload?.code !== 'INSUFFICIENT_AVAILABLE_POINTS' || !customerId) {
+        showMutationError(error)
+        return
+      }
       setPendingAction(null)
-      setSelectedLot(null)
-      deductionForm.reset()
-      toast.success(t('Points deducted'))
-      await refresh()
+      const lotsQueryKey = [
+        'canvas-cloud',
+        'admin-customer',
+        customerId,
+        'point-lots',
+      ] as const
+      await queryClient.refetchQueries({ queryKey: lotsQueryKey })
+      const pages = queryClient.getQueriesData<CanvasPage<CanvasAdminPointLot>>(
+        {
+          queryKey: lotsQueryKey,
+        }
+      )
+      const latestLot = pages
+        .flatMap(([, page]) => page?.items ?? [])
+        .find((lot) => lot.id === selectedLot?.id)
+      if (latestLot) setSelectedLot(latestLot)
+      const availablePoints = latestLot?.availablePoints ?? '0'
+      deductionForm.reset({
+        pointLotId: selectedLot?.id ?? '',
+        points: '',
+        reason: deductionForm.getValues('reason'),
+      })
+      toast.error(
+        t(
+          'Deduction cannot exceed current available points {{points}}. Please enter a new amount.',
+          { points: availablePoints }
+        )
+      )
     },
-    onError: mutationError,
   })
 
-  const customerColumns = useMemo<
-    ColumnDef<CanvasAdminCustomerPointBalance, unknown>[]
-  >(
-    () => [
+  const customerColumns: ColumnDef<CanvasAdminCustomerPointBalance, unknown>[] =
+    [
       {
         id: 'customer',
         accessorFn: (item) => item.username ?? item.newApiUserId,
@@ -333,122 +353,23 @@ export function AdminPointAdjustments({
       {
         id: 'select',
         enableSorting: false,
+        enableHiding: false,
         header: t('Actions'),
         cell: ({ row }) => (
           <Button
             type='button'
             size='sm'
-            variant={
-              customer?.customerId === row.original.customerId
-                ? 'default'
-                : 'outline'
-            }
+            variant='outline'
             onClick={() => {
+              closeAdjustmentSheet()
               setCustomer(row.original)
-              setSelectedOrder(null)
-              setSelectedLot(null)
-              setPendingAction(null)
-              bonusForm.reset()
-              paidForm.reset()
-              deductionForm.reset()
             }}
           >
             {t('Select')}
           </Button>
         ),
       },
-    ],
-    [bonusForm, customer?.customerId, deductionForm, paidForm, t]
-  )
-  const selectOrder = useCallback(
-    (order: CanvasAdminRechargeOrder) => {
-      if (!isOrderCorrectable(order)) return
-      setSelectedOrder(order)
-      paidForm.setValue('rechargeOrderId', order.id, {
-        shouldValidate: true,
-      })
-    },
-    [paidForm]
-  )
-  const orderColumns = useCanvasRechargeOrderColumns({
-    showCorrectionDetails: true,
-    selectedOrderId: selectedOrder?.id,
-    isSelectable: isOrderCorrectable,
-    onSelect: selectOrder,
-  })
-  const lotColumns = useMemo<ColumnDef<CanvasAdminPointLot, unknown>[]>(
-    () => [
-      {
-        id: 'type',
-        accessorKey: 'type',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Type')} />
-        ),
-        meta: { label: t('Type') },
-        cell: ({ row }) =>
-          t(getCanvasBusinessTermLabelKey('pointLotType', row.original.type)),
-      },
-      {
-        id: 'availablePoints',
-        accessorKey: 'availablePoints',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={t('Available points')}
-          />
-        ),
-        meta: { label: t('Available points') },
-      },
-      {
-        id: 'reservedPoints',
-        accessorKey: 'reservedPoints',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={t('Task-reserved points')}
-          />
-        ),
-        meta: { label: t('Task-reserved points') },
-      },
-      {
-        id: 'expiresAt',
-        accessorKey: 'expiresAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Expires at')} />
-        ),
-        meta: { label: t('Expires at') },
-        cell: ({ row }) =>
-          formatCanvasDateTime(row.original.expiresAt, t('No expiry')),
-      },
-      {
-        id: 'select',
-        enableSorting: false,
-        header: t('Actions'),
-        cell: ({ row }) => {
-          const disabled = !isLotDeductible(row.original)
-          return (
-            <Button
-              type='button'
-              size='sm'
-              disabled={disabled}
-              variant={
-                selectedLot?.id === row.original.id ? 'default' : 'outline'
-              }
-              onClick={() => {
-                setSelectedLot(row.original)
-                deductionForm.setValue('pointLotId', row.original.id, {
-                  shouldValidate: true,
-                })
-              }}
-            >
-              {disabled ? t('Unavailable') : t('Select')}
-            </Button>
-          )
-        },
-      },
-    ],
-    [deductionForm, selectedLot?.id, t]
-  )
+    ]
 
   if (!customer) {
     return (
@@ -477,7 +398,7 @@ export function AdminPointAdjustments({
                   setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
                 }
               >
-                <SelectTrigger className='w-40'>
+                <SelectTrigger className='w-full sm:w-40'>
                   <SelectValue placeholder={t('Status')}>
                     {customerStatus ? (
                       <BusinessTerm
@@ -512,10 +433,11 @@ export function AdminPointAdjustments({
     | BonusAdjustmentValues
     | PaidCorrectionValues
     | DeductionValues
+    | null = null
   if (pendingAction === 'bonus') pendingValues = bonusForm.getValues()
-  else if (pendingAction === 'paid') pendingValues = paidForm.getValues()
-  else pendingValues = deductionForm.getValues()
-  const details = Object.entries(pendingValues).map(([label, value]) => ({
+  if (pendingAction === 'paid') pendingValues = paidForm.getValues()
+  if (pendingAction === 'deduction') pendingValues = deductionForm.getValues()
+  const details = Object.entries(pendingValues ?? {}).map(([label, value]) => ({
     label: t(label),
     value: value instanceof Date ? value.toLocaleString() : String(value ?? ''),
   }))
@@ -523,6 +445,14 @@ export function AdminPointAdjustments({
     bonusMutation.isPending ||
     paidMutation.isPending ||
     deductionMutation.isPending
+  let sheetTitle = t('Deduct from a Point Lot')
+  if (sheetAction === 'bonus') sheetTitle = t('Grant Bonus points')
+  if (sheetAction === 'paid') sheetTitle = t('Correct Paid points')
+  let reviewLabel = t('Review deduction')
+  if (sheetAction === 'bonus') reviewLabel = t('Review Bonus grant')
+  if (sheetAction === 'paid') reviewLabel = t('Review Paid correction')
+  const formId = `point-adjustment-${sheetAction ?? 'closed'}`
+
   return (
     <div className='space-y-4'>
       <Button
@@ -557,23 +487,32 @@ export function AdminPointAdjustments({
                 <span>
                   {t('Bonus points')}: {customer.bonusAvailablePoints}
                 </span>
+                {refreshingCustomer ? (
+                  <span>{t('Refreshing customer record...')}</span>
+                ) : null}
               </div>
             </div>
-            {onOpenRefundRecovery ? (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() =>
-                  onOpenRefundRecovery({
-                    customerId: customer.customerId,
-                    customerName: customer.username ?? customer.newApiUserId,
-                  })
-                }
-              >
-                <RotateCcw className='size-4' />
-                {t('Open refund point recovery')}
+            <div className='flex flex-wrap gap-2'>
+              <Button type='button' onClick={openBonusSheet}>
+                <Gift className='size-4' />
+                {t('Grant Bonus points')}
               </Button>
-            ) : null}
+              {onOpenRefundRecovery ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() =>
+                    onOpenRefundRecovery({
+                      customerId: customer.customerId,
+                      customerName: customer.username ?? customer.newApiUserId,
+                    })
+                  }
+                >
+                  <RotateCcw className='size-4' />
+                  {t('Open refund point recovery')}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -587,43 +526,47 @@ export function AdminPointAdjustments({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <AdminCustomerOperations customerId={customer.customerId} />
+          <AdminCustomerOperations
+            customerId={customer.customerId}
+            selectedOrderId={selectedOrder?.id}
+            selectedLotId={selectedLot?.id}
+            onCorrectOrder={openPaidSheet}
+            onDeductLot={openDeductionSheet}
+          />
         </CardContent>
       </Card>
-      <div>
-        <h2 className='text-lg font-semibold'>{t('Point adjustments')}</h2>
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'Create a governed adjustment only after reviewing the customer records above.'
-          )}
-        </p>
-      </div>
-      <Tabs defaultValue='bonus'>
-        <TabsList>
-          <TabsTrigger value='bonus'>{t('Grant Bonus points')}</TabsTrigger>
-          <TabsTrigger value='paid'>{t('Correct Paid points')}</TabsTrigger>
-          <TabsTrigger value='deduction'>
-            {t('Deduct from a Point Lot')}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value='bonus'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Grant Bonus points')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'Manual gifts create Bonus only and require an explicit expiry.'
+
+      <Sheet
+        open={sheetAction !== null}
+        onOpenChange={(open) => !open && closeAdjustmentSheet()}
+      >
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[640px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>{sheetTitle}</SheetTitle>
+            <SheetDescription>
+              {t(
+                'Review the selected customer and record, enter the adjustment, then continue to final confirmation.'
+              )}
+            </SheetDescription>
+          </SheetHeader>
+
+          {sheetAction === 'bonus' ? (
+            <Form {...bonusForm}>
+              <form
+                id={formId}
+                className={sideDrawerFormClassName()}
+                onSubmit={bonusForm.handleSubmit(() =>
+                  setPendingAction('bonus')
                 )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...bonusForm}>
-                <form
-                  className='max-w-xl space-y-4'
-                  onSubmit={bonusForm.handleSubmit(() =>
-                    setPendingAction('bonus')
-                  )}
-                >
+              >
+                <SideDrawerSection>
+                  <div className='font-medium'>
+                    <CopyableText
+                      value={customer.username ?? customer.newApiUserId}
+                    />
+                  </div>
                   <FormField
                     control={bonusForm.control}
                     name='points'
@@ -671,276 +614,96 @@ export function AdminPointAdjustments({
                       </FormItem>
                     )}
                   />
-                  <Button type='submit'>{t('Review Bonus grant')}</Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value='paid'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Correct Paid points')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'Only orders with verified missing Paid issuance can be corrected. Spending, deductions, reservations, and expiry do not create a correction gap.'
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <ol className='text-muted-foreground grid gap-2 text-sm sm:grid-cols-3'>
-                {[
-                  '1. Select order',
-                  '2. Enter correction',
-                  '3. Review and confirm',
-                ].map((step, index) => (
-                  <li
-                    key={step}
-                    className={
-                      index === 0 ||
-                      (index === 1 && selectedOrder) ||
-                      (index === 2 && pendingAction === 'paid')
-                        ? 'text-foreground font-medium'
-                        : undefined
-                    }
-                  >
-                    {t(step)}
-                  </li>
-                ))}
-              </ol>
-              <CanvasServerTable
-                data={orders.data?.items ?? []}
-                columns={orderColumns}
-                total={orders.data?.total ?? 0}
-                state={ordersState}
-                searchLabel={t('Canvas recharge order number')}
-                searchPlaceholder={t(
-                  'Enter a full order number or any consecutive fragment'
-                )}
-                searchDescription={t(
-                  'Matches only Canvas recharge order numbers, case-insensitively. For example: 140003 or 3F52CD.'
-                )}
-                loading={orders.isLoading || orders.isFetching}
-                emptyTitle={t('No recharge orders with missing Paid issuance')}
-                additionalFilters={
-                  <div className='flex flex-wrap items-end gap-2'>
-                    <div className='space-y-1'>
-                      <Label>{t('Time field')}</Label>
-                      <Select
-                        value={orderTimeField}
-                        onValueChange={(value) =>
-                          setOrderTimeField(
-                            value === 'redeemedAt' ? 'redeemedAt' : 'createdAt'
-                          )
-                        }
-                      >
-                        <SelectTrigger className='w-52'>
-                          <SelectValue>
-                            {t(
-                              orderTimeField === 'redeemedAt'
-                                ? 'Recharge code redeemed at'
-                                : 'Order created at'
-                            )}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value='createdAt'>
-                            {t('Order created at')}
-                          </SelectItem>
-                          <SelectItem value='redeemedAt'>
-                            {t('Recharge code redeemed at')}
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <CanvasDateRangeFilter
-                      from={orderFrom}
-                      to={orderTo}
-                      onFromChange={setOrderFrom}
-                      onToChange={setOrderTo}
-                      showLabels
-                    />
-                  </div>
-                }
-                hasActiveFilters={Boolean(orderFrom || orderTo)}
-                onResetFilters={() => {
-                  setOrderTimeField('createdAt')
-                  setOrderFrom(undefined)
-                  setOrderTo(undefined)
-                }}
-                getRowId={(row) => row.id}
-                getRowClassName={(row) =>
-                  selectedOrder?.id === row.original.id
-                    ? 'bg-primary/5'
-                    : undefined
-                }
-              />
-              {selectedOrder ? (
-                <div
-                  ref={paidFormRef}
-                  className='border-border scroll-mt-4 space-y-4 rounded-lg border p-4'
-                >
+                </SideDrawerSection>
+              </form>
+            </Form>
+          ) : null}
+
+          {sheetAction === 'paid' && selectedOrder ? (
+            <Form {...paidForm}>
+              <form
+                id={formId}
+                className={sideDrawerFormClassName()}
+                onSubmit={paidForm.handleSubmit(() => setPendingAction('paid'))}
+              >
+                <SideDrawerSection>
                   <CanvasRechargeOrderSummary
                     order={selectedOrder}
                     showCorrectionDetails
-                    actions={
-                      <div className='flex flex-wrap gap-2'>
-                        {onOpenRefundRecovery ? (
-                          <Button
-                            type='button'
-                            variant='outline'
-                            onClick={() =>
-                              onOpenRefundRecovery({
-                                customerId: customer.customerId,
-                                customerName:
-                                  customer.username ?? customer.newApiUserId,
-                                orderId: selectedOrder.id,
-                                orderNumber: selectedOrder.orderNumber,
-                              })
-                            }
-                          >
-                            <RotateCcw className='size-4' />
-                            {t('Open refund point recovery')}
-                          </Button>
-                        ) : null}
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() => {
-                            setSelectedOrder(null)
-                            paidForm.reset({
-                              rechargeOrderId: '',
-                              points: '',
-                              reason: '',
-                            })
-                          }}
-                        >
-                          {t('Choose another order')}
-                        </Button>
-                      </div>
-                    }
                   />
-                  <h3 className='font-semibold'>
-                    {t('Correct Paid points for this order')}
-                  </h3>
-                  <Form {...paidForm}>
-                    <form
-                      className='max-w-xl space-y-4'
-                      onSubmit={paidForm.handleSubmit(() =>
-                        setPendingAction('paid')
-                      )}
-                    >
-                      <FormField
-                        control={paidForm.control}
-                        name='points'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Paid points')}</FormLabel>
-                            <FormControl>
-                              <Input
-                                inputMode='numeric'
-                                max={selectedOrder.remainingCorrectionPoints}
-                                {...field}
-                                ref={(element) => {
-                                  field.ref(element)
-                                  paidPointsInputRef.current = element
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={paidForm.control}
-                        name='reason'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Reason')}</FormLabel>
-                            <FormControl>
-                              <Input maxLength={255} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormMessage />
-                      <Button type='submit'>
-                        {t('Review Paid correction')}
-                      </Button>
-                    </form>
-                  </Form>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value='deduction'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Deduct from a Point Lot')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'Only available points can be deducted; task-reserved points stay unchanged.'
+                  <FormField
+                    control={paidForm.control}
+                    name='points'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Paid points')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            inputMode='numeric'
+                            max={selectedOrder.remainingCorrectionPoints}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={paidForm.control}
+                    name='reason'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Reason')}</FormLabel>
+                        <FormControl>
+                          <Input maxLength={255} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SideDrawerSection>
+              </form>
+            </Form>
+          ) : null}
+
+          {sheetAction === 'deduction' && selectedLot ? (
+            <Form {...deductionForm}>
+              <form
+                id={formId}
+                className={sideDrawerFormClassName()}
+                onSubmit={deductionForm.handleSubmit(() =>
+                  setPendingAction('deduction')
                 )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-              <p className='text-muted-foreground text-sm'>
-                {t(
-                  'Points currently held for running or unsettled tasks. Manual deductions do not change them.'
-                )}
-              </p>
-              <CanvasServerTable
-                data={lots.data?.items ?? []}
-                columns={lotColumns}
-                total={lots.data?.total ?? 0}
-                state={lotsState}
-                searchPlaceholder={t('Search Point Lots')}
-                loading={lots.isLoading || lots.isFetching}
-                emptyTitle={t('No point lots')}
-                additionalFilters={
-                  <Select
-                    value={lotType || 'ALL'}
-                    onValueChange={(value) =>
-                      setLotType(value === 'ALL' ? '' : (value ?? ''))
-                    }
-                  >
-                    <SelectTrigger className='w-40'>
-                      <SelectValue placeholder={t('Type')}>
-                        {lotType
-                          ? t(
-                              lotType === 'PAID'
-                                ? 'Paid points'
-                                : 'Bonus points'
-                            )
-                          : t('All types')}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='ALL'>{t('All types')}</SelectItem>
-                      <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
-                      <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-                hasActiveFilters={Boolean(lotType)}
-                onResetFilters={() => setLotType('')}
-                getRowId={(row) => row.id}
-                getRowClassName={(row, context) => {
-                  if (isLotDeductible(row.original)) return undefined
-                  return context.isMobile
-                    ? DISABLED_ROW_MOBILE
-                    : DISABLED_ROW_DESKTOP
-                }}
-              />
-              <Form {...deductionForm}>
-                <form
-                  className='max-w-xl space-y-4'
-                  onSubmit={deductionForm.handleSubmit(() =>
-                    setPendingAction('deduction')
-                  )}
-                >
+              >
+                <SideDrawerSection>
+                  <div className='space-y-1'>
+                    <div className='font-medium'>
+                      {t('Point Lot')}: <CopyableText value={selectedLot.id} />
+                    </div>
+                    <div className='text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm'>
+                      <span>
+                        {t('Type')}:{' '}
+                        <BusinessTerm
+                          kind='pointLotType'
+                          value={selectedLot.type}
+                        />
+                      </span>
+                      <span>
+                        {t('Available points')}: {selectedLot.availablePoints}
+                      </span>
+                      <span>
+                        {t('Task-reserved points')}:{' '}
+                        {selectedLot.reservedPoints}
+                      </span>
+                      <span>
+                        {t('Expires at')}:{' '}
+                        {formatCanvasDateTime(
+                          selectedLot.expiresAt,
+                          t('No expiry')
+                        )}
+                      </span>
+                    </div>
+                  </div>
                   <FormField
                     control={deductionForm.control}
                     name='points'
@@ -967,20 +730,30 @@ export function AdminPointAdjustments({
                       </FormItem>
                     )}
                   />
-                  <FormMessage />
-                  <Button
-                    type='submit'
-                    variant='destructive'
-                    disabled={!selectedLot || !isLotDeductible(selectedLot)}
-                  >
-                    {t('Review deduction')}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                </SideDrawerSection>
+              </form>
+            </Form>
+          ) : null}
+
+          <SheetFooter className={sideDrawerFooterClassName()}>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={closeAdjustmentSheet}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='submit'
+              form={formId}
+              variant={sheetAction === 'deduction' ? 'destructive' : 'default'}
+            >
+              {reviewLabel}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
       <PricingActionConfirmation
         open={pendingAction !== null}
         onOpenChange={(open) => !open && setPendingAction(null)}

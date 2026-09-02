@@ -135,6 +135,8 @@ export type DataTableToolbarProps<TData> = {
    * Outer wrapper className override.
    */
   className?: string
+  /** Keep search, business filters, and actions in explicit responsive areas. */
+  stableGrid?: boolean
 }
 
 /**
@@ -368,6 +370,34 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
             {viewToggleNode}
             {viewOptionsNode}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (props.stableGrid) {
+    return (
+      <div
+        className={cn(
+          'grid grid-cols-1 items-start gap-2 sm:gap-3 md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto]',
+          props.className
+        )}
+      >
+        <div className='min-w-0'>
+          {props.customSearch !== undefined ? props.customSearch : searchInput}
+        </div>
+        <div className='flex min-w-0 flex-wrap items-end gap-2 sm:gap-3'>
+          {props.additionalSearch}
+          {filterChips}
+          {expanded && hasExpandable && props.expandable}
+        </div>
+        <div className='flex shrink-0 items-center gap-1.5 justify-self-end md:col-span-2 xl:col-span-1'>
+          {props.preActions}
+          {resetButton}
+          {searchButton}
+          {viewToggleNode}
+          {viewOptionsNode}
+          {expandToggle}
         </div>
       </div>
     )

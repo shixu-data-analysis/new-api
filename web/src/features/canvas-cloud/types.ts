@@ -449,6 +449,8 @@ export interface CanvasAuditEventPage {
     severity: 'INFO' | 'WARN' | 'ERROR'
     actorPrincipalId: string | null
     actorType: string
+    actorExternalSystem: string | null
+    actorExternalId: string | null
     requestId: string | null
     traceId: string | null
     resourceType: string

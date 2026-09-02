@@ -39,7 +39,7 @@ export function CanvasDateRangeFilter({
   const valid = isCanvasDateRangeValid(from, to)
 
   return (
-    <div className='flex flex-wrap items-end gap-2'>
+    <div className='grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2'>
       <div className='space-y-1'>
         {showLabels ? (
           <p className='text-sm font-medium'>{t('Start time')}</p>

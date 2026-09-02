@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -57,15 +58,28 @@ const ledgerEventTypes = [
   'TRANSFER_IN',
 ] as const
 
-export function CustomerPointHistory({ customerId }: { customerId?: string }) {
+export function CustomerPointHistory({
+  customerId,
+  view = 'both',
+  selectedLotId,
+  onDeductLot,
+}: {
+  customerId?: string
+  view?: 'both' | 'lots' | 'ledger'
+  selectedLotId?: string
+  onDeductLot?: (lot: CanvasAdminPointLot) => void
+}) {
   const { t } = useTranslation()
   const lotsState = useServerTableState('expiresAt')
   const ledgerState = useServerTableState('occurredAt')
   const [lotType, setLotType] = useState('')
   const [eventType, setEventType] = useState('')
-  const [from, setFrom] = useState<Date>()
-  const [to, setTo] = useState<Date>()
-  const dateRangeValid = isCanvasDateRangeValid(from, to)
+  const [lotFrom, setLotFrom] = useState<Date>()
+  const [lotTo, setLotTo] = useState<Date>()
+  const [ledgerFrom, setLedgerFrom] = useState<Date>()
+  const [ledgerTo, setLedgerTo] = useState<Date>()
+  const lotDateRangeValid = isCanvasDateRangeValid(lotFrom, lotTo)
+  const ledgerDateRangeValid = isCanvasDateRangeValid(ledgerFrom, ledgerTo)
   const lots = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -74,21 +88,21 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
       'point-lots',
       lotsState.query,
       lotType,
-      from?.toISOString(),
-      to?.toISOString(),
+      lotFrom?.toISOString(),
+      lotTo?.toISOString(),
     ],
     queryFn: ({ signal }) => {
       const query = {
         ...lotsState.query,
         ...(lotType ? { type: lotType as 'PAID' | 'BONUS' } : {}),
-        ...(from ? { from: from.toISOString() } : {}),
-        ...(to ? { to: to.toISOString() } : {}),
+        ...(lotFrom ? { from: lotFrom.toISOString() } : {}),
+        ...(lotTo ? { to: lotTo.toISOString() } : {}),
       }
       return customerId
         ? getCanvasAdminCustomerPointLots(customerId, query, signal)
         : getCanvasCustomerPointLots(query, signal)
     },
-    enabled: dateRangeValid,
+    enabled: lotDateRangeValid && view !== 'ledger',
   })
   const ledger = useQuery({
     queryKey: [
@@ -98,8 +112,8 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
       'point-ledger',
       ledgerState.query,
       eventType,
-      from?.toISOString(),
-      to?.toISOString(),
+      ledgerFrom?.toISOString(),
+      ledgerTo?.toISOString(),
     ],
     queryFn: ({ signal }) => {
       const query = {
@@ -110,17 +124,17 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
           ? { search: ledgerState.query.search }
           : {}),
         ...(eventType ? { eventType } : {}),
-        ...(from ? { from: from.toISOString() } : {}),
-        ...(to ? { to: to.toISOString() } : {}),
+        ...(ledgerFrom ? { from: ledgerFrom.toISOString() } : {}),
+        ...(ledgerTo ? { to: ledgerTo.toISOString() } : {}),
       }
       return customerId
         ? getCanvasAdminCustomerPointLedger(customerId, query, signal)
         : getCanvasCustomerPointLedger(query, signal)
     },
-    enabled: dateRangeValid,
+    enabled: ledgerDateRangeValid && view !== 'lots',
   })
-  const lotColumns = useMemo<ColumnDef<CanvasAdminPointLot, unknown>[]>(
-    () => [
+  const lotColumns = useMemo<ColumnDef<CanvasAdminPointLot, unknown>[]>(() => {
+    const columns: ColumnDef<CanvasAdminPointLot, unknown>[] = [
       {
         id: 'id',
         accessorKey: 'id',
@@ -162,8 +176,13 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
       {
         id: 'reservedPoints',
         accessorKey: 'reservedPoints',
-        enableSorting: false,
-        header: t('Reserved'),
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Task-reserved points')}
+          />
+        ),
+        meta: { label: t('Task-reserved points') },
       },
       {
         id: 'expiresAt',
@@ -175,9 +194,37 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
         cell: ({ row }) =>
           formatCanvasDateTime(row.original.expiresAt, t('No expiry')),
       },
-    ],
-    [t]
-  )
+    ]
+    if (onDeductLot) {
+      columns.push({
+        id: 'actions',
+        enableSorting: false,
+        enableHiding: false,
+        header: t('Actions'),
+        cell: ({ row }) => {
+          const available = BigInt(row.original.availablePoints)
+          const expired = Boolean(
+            row.original.expiresAt &&
+            new Date(row.original.expiresAt).getTime() <= Date.now()
+          )
+          if (available <= 0n || expired) return null
+          return (
+            <Button
+              type='button'
+              size='sm'
+              variant={
+                selectedLotId === row.original.id ? 'default' : 'outline'
+              }
+              onClick={() => onDeductLot(row.original)}
+            >
+              {t('Deduct points')}
+            </Button>
+          )
+        },
+      })
+    }
+    return columns
+  }, [onDeductLot, selectedLotId, t])
   const ledgerColumns = useMemo<ColumnDef<CanvasPointLedgerItem, unknown>[]>(
     () => [
       {
@@ -232,104 +279,113 @@ export function CustomerPointHistory({ customerId }: { customerId?: string }) {
     ],
     [t]
   )
-  const range = (
-    <CanvasDateRangeFilter
-      from={from}
-      to={to}
-      onFromChange={setFrom}
-      onToChange={setTo}
-    />
-  )
   return (
     <div className='space-y-6'>
-      <CanvasServerTable
-        data={lots.data?.items ?? []}
-        columns={lotColumns}
-        total={lots.data?.total ?? 0}
-        state={lotsState}
-        searchLabel={t('Point Lot or Canvas recharge order')}
-        searchPlaceholder={t('Search Point Lots')}
-        searchDescription={t(
-          'Fuzzy matches the Point Lot ID or Canvas recharge order number.'
-        )}
-        loading={lots.isLoading || lots.isFetching}
-        emptyTitle={t('No point lots')}
-        additionalFilters={
-          <div className='flex flex-wrap gap-2'>
-            <Select
-              value={lotType || 'ALL'}
-              onValueChange={(value) =>
-                setLotType(value === 'ALL' ? '' : (value ?? ''))
-              }
-            >
-              <SelectTrigger className='w-40'>
-                <SelectValue placeholder={t('Type')}>
-                  {lotType
-                    ? t(lotType === 'PAID' ? 'Paid points' : 'Bonus points')
-                    : t('All types')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='ALL'>{t('All types')}</SelectItem>
-                <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
-                <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
-              </SelectContent>
-            </Select>
-            {range}
-          </div>
-        }
-        hasActiveFilters={Boolean(lotType || from || to)}
-        onResetFilters={() => {
-          setLotType('')
-          setFrom(undefined)
-          setTo(undefined)
-        }}
-        getRowId={(row) => row.id}
-      />
-      <CanvasServerTable
-        data={ledger.data?.items ?? []}
-        columns={ledgerColumns}
-        total={ledger.data?.total ?? 0}
-        state={ledgerState}
-        searchPlaceholder={t('Search point events')}
-        searchDescription={t(
-          'Fuzzy matches the event, reason, task ID, or refund record ID.'
-        )}
-        loading={ledger.isLoading || ledger.isFetching}
-        emptyTitle={t('No consumption records')}
-        additionalFilters={
-          <div className='flex flex-wrap gap-2'>
-            <Select
-              value={eventType || 'ALL'}
-              onValueChange={(value) =>
-                setEventType(value === 'ALL' ? '' : (value ?? ''))
-              }
-            >
-              <SelectTrigger className='w-48'>
-                <SelectValue placeholder={t('Event')}>
-                  {eventType ? t(eventType) : t('All events')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='ALL'>{t('All events')}</SelectItem>
-                {ledgerEventTypes.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    <BusinessTerm kind='ledgerEvent' value={value} />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {range}
-          </div>
-        }
-        hasActiveFilters={Boolean(eventType || from || to)}
-        onResetFilters={() => {
-          setEventType('')
-          setFrom(undefined)
-          setTo(undefined)
-        }}
-        getRowId={(row) => row.id}
-      />
+      {view !== 'ledger' ? (
+        <CanvasServerTable
+          data={lots.data?.items ?? []}
+          columns={lotColumns}
+          total={lots.data?.total ?? 0}
+          state={lotsState}
+          searchLabel={t('Point Lot or Canvas recharge order')}
+          searchPlaceholder={t('Search Point Lots')}
+          searchDescription={t(
+            'Fuzzy matches the Point Lot ID or Canvas recharge order number.'
+          )}
+          loading={lots.isLoading || lots.isFetching}
+          emptyTitle={t('No point lots')}
+          additionalFilters={
+            <div className='grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap'>
+              <Select
+                value={lotType || 'ALL'}
+                onValueChange={(value) =>
+                  setLotType(value === 'ALL' ? '' : (value ?? ''))
+                }
+              >
+                <SelectTrigger className='w-full sm:w-40'>
+                  <SelectValue placeholder={t('Type')}>
+                    {lotType
+                      ? t(lotType === 'PAID' ? 'Paid points' : 'Bonus points')
+                      : t('All types')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All types')}</SelectItem>
+                  <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
+                  <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <CanvasDateRangeFilter
+                from={lotFrom}
+                to={lotTo}
+                onFromChange={setLotFrom}
+                onToChange={setLotTo}
+              />
+            </div>
+          }
+          hasActiveFilters={Boolean(lotType || lotFrom || lotTo)}
+          onResetFilters={() => {
+            setLotType('')
+            setLotFrom(undefined)
+            setLotTo(undefined)
+          }}
+          getRowId={(row) => row.id}
+          getRowClassName={(row) =>
+            selectedLotId === row.original.id ? 'bg-primary/5' : undefined
+          }
+        />
+      ) : null}
+      {view !== 'lots' ? (
+        <CanvasServerTable
+          data={ledger.data?.items ?? []}
+          columns={ledgerColumns}
+          total={ledger.data?.total ?? 0}
+          state={ledgerState}
+          searchPlaceholder={t('Search point events')}
+          searchDescription={t(
+            'Fuzzy matches the event, reason, task ID, or refund record ID.'
+          )}
+          loading={ledger.isLoading || ledger.isFetching}
+          emptyTitle={t('No consumption records')}
+          additionalFilters={
+            <div className='grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap'>
+              <Select
+                value={eventType || 'ALL'}
+                onValueChange={(value) =>
+                  setEventType(value === 'ALL' ? '' : (value ?? ''))
+                }
+              >
+                <SelectTrigger className='w-full sm:w-48'>
+                  <SelectValue placeholder={t('Event')}>
+                    {eventType ? t(eventType) : t('All events')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All events')}</SelectItem>
+                  {ledgerEventTypes.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      <BusinessTerm kind='ledgerEvent' value={value} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <CanvasDateRangeFilter
+                from={ledgerFrom}
+                to={ledgerTo}
+                onFromChange={setLedgerFrom}
+                onToChange={setLedgerTo}
+              />
+            </div>
+          }
+          hasActiveFilters={Boolean(eventType || ledgerFrom || ledgerTo)}
+          onResetFilters={() => {
+            setEventType('')
+            setLedgerFrom(undefined)
+            setLedgerTo(undefined)
+          }}
+          getRowId={(row) => row.id}
+        />
+      ) : null}
     </div>
   )
 }

@@ -17,19 +17,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { spawnSync } from 'node:child_process'
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 
 const mode = process.argv[2]
 
 if (mode !== '--check' && mode !== '--write') {
   console.error(
-    'Usage: node scripts/format-with-protected-headers.mjs --check|--write'
+    'Usage: node scripts/format-with-protected-headers.mjs --check|--write [path ...]'
   )
   process.exit(2)
 }
 
 const root = process.cwd()
+const requestedPaths = process.argv.slice(3)
 const excludedDirs = new Set([
   '.git',
   '.tanstack',
@@ -73,18 +86,34 @@ function walk(dir, files = []) {
   return files
 }
 
-function snapshotFiles(files) {
-  const snapshot = new Map()
-  for (const file of files) {
-    snapshot.set(file, readFileSync(file))
+function selectedFiles() {
+  if (requestedPaths.length === 0) {
+    return walk(root)
   }
-  return snapshot
-}
 
-function restoreSnapshot(snapshot) {
-  for (const [file, content] of snapshot) {
-    writeFileSync(file, content)
+  const files = []
+  for (const requestedPath of requestedPaths) {
+    const absolutePath = resolve(root, requestedPath)
+    const realPath = existsSync(absolutePath)
+      ? realpathSync(absolutePath)
+      : absolutePath
+    if (
+      requestedPath.startsWith('-') ||
+      isAbsolute(requestedPath) ||
+      (absolutePath !== root && !absolutePath.startsWith(`${root}/`)) ||
+      (realPath !== root && !realPath.startsWith(`${root}/`)) ||
+      !existsSync(absolutePath)
+    ) {
+      console.error(`Invalid format target: ${requestedPath}`)
+      process.exit(2)
+    }
+    if (statSync(absolutePath).isDirectory()) {
+      walk(absolutePath, files)
+    } else {
+      files.push(absolutePath)
+    }
   }
+  return [...new Set(files)]
 }
 
 function stripProtectedHeaders(files) {
@@ -117,13 +146,26 @@ function restoreProtectedHeaders(headers) {
   }
 }
 
-function listChangedFiles(before, files) {
+function copyCheckTree(files, checkRoot) {
+  for (const file of files) {
+    const destination = resolve(checkRoot, relative(root, file))
+    mkdirSync(resolve(destination, '..'), { recursive: true })
+    copyFileSync(file, destination)
+  }
+  for (const supportFile of ['.oxfmtrc.json', '.gitignore']) {
+    const source = resolve(root, supportFile)
+    if (existsSync(source)) {
+      copyFileSync(source, resolve(checkRoot, supportFile))
+    }
+  }
+}
+
+function listChangedFiles(files, checkRoot) {
   const changed = []
 
   for (const file of files) {
-    const previous = before.get(file)
-    const current = readFileSync(file)
-    if (!previous || !previous.equals(current)) {
+    const formatted = readFileSync(resolve(checkRoot, relative(root, file)))
+    if (!readFileSync(file).equals(formatted)) {
       changed.push(relative(root, file))
     }
   }
@@ -131,20 +173,36 @@ function listChangedFiles(before, files) {
   return changed
 }
 
-const files = walk(root).filter(
-  (file) => statSync(file).size < 10 * 1024 * 1024
-)
-const before = mode === '--check' ? snapshotFiles(files) : null
+const files = selectedFiles()
+const formatTargets = requestedPaths.length > 0 ? requestedPaths : ['.']
 let headers = new Map()
 let exitCode = 0
+let executionRoot = root
+let executionFiles = files
+let checkRoot
 
 try {
-  headers = stripProtectedHeaders(files)
+  if (mode === '--check') {
+    checkRoot = mkdtempSync(join(tmpdir(), 'new-api-format-check-'))
+    copyCheckTree(files, checkRoot)
+    executionRoot = checkRoot
+    executionFiles = files.map((file) =>
+      resolve(checkRoot, relative(root, file))
+    )
+  }
+  headers = stripProtectedHeaders(executionFiles)
   const result = spawnSync(
     'oxfmt',
-    ['-c', '.oxfmtrc.json', '--ignore-path', '.gitignore', '--write', '.'],
+    [
+      '-c',
+      '.oxfmtrc.json',
+      '--ignore-path',
+      '.gitignore',
+      '--write',
+      ...formatTargets,
+    ],
     {
-      cwd: root,
+      cwd: executionRoot,
       stdio: 'inherit',
     }
   )
@@ -152,7 +210,7 @@ try {
   restoreProtectedHeaders(headers)
 
   if (mode === '--check' && exitCode === 0) {
-    const changed = listChangedFiles(before, files)
+    const changed = listChangedFiles(files, checkRoot)
     if (changed.length > 0) {
       console.error('Format issues found in protected-header-safe check:')
       for (const file of changed) {
@@ -162,11 +220,8 @@ try {
     }
   }
 } finally {
-  if (mode === '--check' && before) {
-    restoreSnapshot(before)
-  } else {
-    restoreProtectedHeaders(headers)
-  }
+  if (mode === '--write') restoreProtectedHeaders(headers)
+  if (checkRoot) rmSync(checkRoot, { recursive: true, force: true })
 }
 
 process.exit(exitCode)
