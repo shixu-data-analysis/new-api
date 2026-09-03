@@ -211,7 +211,7 @@ describe('Canvas administrator pricing', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: 'Open pricing calculator' })
-    ).toHaveLength(2)
+    ).toHaveLength(1)
     expect(screen.getByText('How the pricing calculation works')).toBeVisible()
     expect(screen.getByLabelText(/Break-even\./)).toBeVisible()
     expect(screen.getByText('Show pricing assumptions')).toBeVisible()
@@ -623,7 +623,7 @@ describe('Canvas administrator pricing', () => {
     })
   })
 
-  it('keeps inline and floating calculator entries on model prices only', async () => {
+  it('keeps the calculator entry on model prices only', async () => {
     const focus = vi.fn()
     const popup = vi
       .spyOn(window, 'open')
@@ -633,21 +633,9 @@ describe('Canvas administrator pricing', () => {
     const calculatorButtons = screen.getAllByRole('button', {
       name: 'Open pricing calculator',
     })
-    expect(calculatorButtons).toHaveLength(2)
-    expect(calculatorButtons[1]).toHaveClass(
-      'fixed',
-      'right-4',
-      'bottom-4',
-      'z-50',
-      'bg-primary',
-      'font-semibold',
-      'lg:right-0',
-      'lg:top-1/2',
-      'lg:bottom-auto',
-      'lg:rounded-r-none'
-    )
+    expect(calculatorButtons).toHaveLength(1)
 
-    fireEvent.click(calculatorButtons[1])
+    fireEvent.click(calculatorButtons[0])
     expect(popup).toHaveBeenCalledWith(
       '/canvas-cloud/pricing-calculator',
       'canvas-pricing-calculator',
@@ -806,7 +794,7 @@ describe('Canvas administrator pricing', () => {
     )
   })
 
-  it('filters the full record set and exposes sorting for every column', () => {
+  it('filters the full record set and exposes sorting for every column', async () => {
     const history = [
       prices[0],
       {
@@ -824,23 +812,30 @@ describe('Canvas administrator pricing', () => {
     )
 
     const table = screen.getByRole('table')
+    const columnFiltersButton = screen.getByRole('button', {
+      name: 'Column filters',
+    })
+    const pointsSortButton = screen.getByRole('button', { name: 'Points' })
     expect(within(table).getByText('Canvas Image')).toBeVisible()
     expect(within(table).getByText('Canvas Text')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Points' }))
-    fireEvent.click(screen.getByText('Desc'))
+    fireEvent.click(pointsSortButton)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Desc' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('menuitem', { name: 'Desc' })
+      ).not.toBeInTheDocument()
+    )
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent(
       'Canvas Text'
     )
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'Search all columns' }),
-      {
-        target: { value: 'Canvas Text' },
-      }
-    )
+    fireEvent.click(columnFiltersButton)
+    fireEvent.change(screen.getByLabelText('Model'), {
+      target: { value: 'Canvas Text' },
+    })
     expect(within(table).queryByText('Canvas Image')).not.toBeInTheDocument()
     expect(within(table).getByText('Canvas Text')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Points' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Column filters' })).toBeVisible()
+    expect(pointsSortButton).toBeVisible()
+    expect(columnFiltersButton).toBeVisible()
   })
 
   it('renders every pricing record area as a sortable filterable table with visible pagination', async () => {
@@ -859,7 +854,7 @@ describe('Canvas administrator pricing', () => {
     expect(screen.getByRole('table')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Rate version' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
-    expect(screen.getByRole('textbox', { name: 'Rate version' })).toBeVisible()
+    expect(screen.getByLabelText('Rate version')).toBeInTheDocument()
 
     openTab('Price groups')
     await waitFor(() =>
@@ -870,9 +865,7 @@ describe('Canvas administrator pricing', () => {
       screen.getByRole('button', { name: 'Price group code' })
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
-    expect(
-      screen.getByRole('textbox', { name: 'Price group code' })
-    ).toBeVisible()
+    expect(screen.getByLabelText('Price group code')).toBeInTheDocument()
     expect(
       screen.getByRole('combobox', { name: 'Rows per page' })
     ).toHaveTextContent('20')

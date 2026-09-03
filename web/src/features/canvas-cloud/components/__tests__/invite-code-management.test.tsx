@@ -228,6 +228,8 @@ describe('Canvas invite code management', () => {
       name: 'Show invite code',
     })
     expect(show).toHaveAttribute('aria-pressed', 'false')
+    expect(show).toHaveTextContent('')
+    expect(show.closest('td')).toHaveTextContent('CANVAS-U••••••••CRET')
     expect(show.querySelector('.lucide-eye')).toBeInTheDocument()
 
     fireEvent.click(show)

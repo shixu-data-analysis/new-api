@@ -18,13 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
+import type { Column } from '@tanstack/react-table'
 import { RefreshCw } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { isValidElement, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { StaticDataTable } from '@/components/data-table'
-import { EmptyState } from '@/components/empty-state'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { LoadingState } from '@/components/loading-state'
@@ -49,7 +49,6 @@ import {
   getCanvasContributionReport,
   getCanvasCustomerWorkspace,
   getCanvasSession,
-  reconcileCanvasTask,
   redeemCanvasRechargeCode,
 } from './api'
 import { AdminAuditLog } from './components/AdminAuditLog'
@@ -63,6 +62,7 @@ import {
   AdminRefundRecovery,
   type AdminRefundRecoveryPrefill,
 } from './components/AdminRefundRecovery'
+import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
@@ -71,6 +71,7 @@ import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PricingCalculator } from './components/PricingCalculator'
+import { PricingRecordsTable } from './components/PricingRecordsTable'
 import { formatMoneyMinor } from './formatters'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
@@ -128,20 +129,60 @@ function DataTable(props: {
   headers: string[]
   rows: Array<{ key: string; cells: ReactNode[] }>
   empty: string
+  filterableColumnIndexes: number[]
 }) {
-  if (props.rows.length === 0) {
-    return <EmptyState title={props.empty} bordered />
-  }
+  type LocalTableRow = (typeof props.rows)[number]
+  const dataColumnIndexes = new Set(
+    props.headers.flatMap((_, index) =>
+      props.rows.some((row) => {
+        const cell = row.cells[index]
+        return (
+          typeof cell === 'string' ||
+          typeof cell === 'number' ||
+          (isValidElement<{ value?: string }>(cell) &&
+            Boolean(cell.props.value))
+        )
+      })
+        ? [index]
+        : []
+    )
+  )
+  const filterableColumnIndexes = new Set(props.filterableColumnIndexes)
+  const columns = props.headers.map((header, index) => ({
+    id: `${index}:${header}`,
+    accessorFn: (row: LocalTableRow) => {
+      const cell = row.cells[index]
+      if (typeof cell === 'string' || typeof cell === 'number') {
+        return String(cell)
+      }
+      if (isValidElement<{ value?: string }>(cell)) {
+        return cell.props.value ?? ''
+      }
+      return ''
+    },
+    enableSorting: dataColumnIndexes.has(index),
+    enableColumnFilter: filterableColumnIndexes.has(index),
+    header: ({ column }: { column: Column<LocalTableRow, unknown> }) =>
+      dataColumnIndexes.has(index) ? (
+        <DataTableColumnHeader column={column} title={header} />
+      ) : (
+        header
+      ),
+    cell: ({ row }: { row: { original: LocalTableRow } }) =>
+      row.original.cells[index],
+  }))
+  const filters = props.headers.flatMap((header, index) =>
+    filterableColumnIndexes.has(index)
+      ? [{ columnId: `${index}:${header}`, label: header }]
+      : []
+  )
   return (
-    <StaticDataTable
-      tableClassName='min-w-[720px]'
-      columns={props.headers.map((header, index) => ({
-        id: `${index}:${header}`,
-        header,
-        cell: (row: (typeof props.rows)[number]) => row.cells[index],
-      }))}
+    <PricingRecordsTable
+      columns={columns}
       data={props.rows}
-      getRowKey={(row) => row.key}
+      filters={filters}
+      getRowId={(row) => row.key}
+      emptyTitle={props.empty}
     />
   )
 }
@@ -251,6 +292,7 @@ function CustomerContent(props: { section: CustomerSection }) {
             <DataTable
               empty={t('No Canvas tasks')}
               headers={[t('Model'), t('Tasks'), t('Points used')]}
+              filterableColumnIndexes={[0]}
               rows={usageByModel.map(([model, usage]) => ({
                 key: model,
                 cells: [model, String(usage.count), usage.points.toString()],
@@ -273,6 +315,7 @@ function CustomerContent(props: { section: CustomerSection }) {
         <DataTable
           empty={t('No recharge orders')}
           headers={[t('Order'), t('Status'), t('Amount'), t('Created')]}
+          filterableColumnIndexes={[0]}
           rows={data.rechargeOrders.map((item) => ({
             key: item.id,
             cells: [
@@ -302,7 +345,9 @@ function CustomerContent(props: { section: CustomerSection }) {
             <CardHeader>
               <CardTitle>{model.name}</CardTitle>
               <CardDescription>
-                {String(model.catalog.capability ?? t('Canvas model'))}
+                {model.catalog.capability
+                  ? t(String(model.catalog.capability))
+                  : t('Canvas model')}
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-2'>
@@ -337,6 +382,7 @@ function CustomerContent(props: { section: CustomerSection }) {
           t('Points'),
           t('Accepted'),
         ]}
+        filterableColumnIndexes={[0]}
         rows={data.tasks.map((item) => ({
           key: item.id,
           cells: [
@@ -359,55 +405,7 @@ function CustomerContent(props: { section: CustomerSection }) {
     )
   }
   if (props.section === 'consumption') return <CustomerPointHistory />
-  return (
-    <div className='space-y-4'>
-      <DataTable
-        empty={t('No point lots')}
-        headers={[t('Type'), t('Available'), t('Reserved'), t('Expires')]}
-        rows={data.wallet.lots.map((item) => ({
-          key: item.id,
-          cells: [
-            <BusinessTerm key='type' kind='pointLotType' value={item.type} />,
-            item.availablePoints,
-            item.reservedPoints,
-            formatDate(item.expiresAt),
-          ],
-        }))}
-      />
-      <DataTable
-        empty={t('No consumption records')}
-        headers={[
-          t('Event'),
-          t('Points'),
-          t('Remaining delta'),
-          t('Reason'),
-          t('Time'),
-        ]}
-        rows={data.ledger.map((item) => ({
-          key: item.id,
-          cells: [
-            <BusinessTerm
-              key='event'
-              kind='ledgerEvent'
-              value={item.eventType}
-            />,
-            item.eventPoints,
-            item.remainingDelta,
-            item.reason ? (
-              <BusinessTerm
-                key='reason'
-                kind='ledgerReason'
-                value={item.reason}
-              />
-            ) : (
-              '—'
-            ),
-            formatDate(item.occurredAt),
-          ],
-        }))}
-      />
-    </div>
-  )
+  return null
 }
 
 function AdminContent(props: {
@@ -420,7 +418,13 @@ function AdminContent(props: {
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
     queryFn: getCanvasAdminWorkspace,
-    enabled: !['customers', 'refunds', 'audit'].includes(props.section),
+    enabled: ![
+      'customers',
+      'refunds',
+      'audit',
+      'usage-logs',
+      'task-logs',
+    ].includes(props.section),
   })
   const dates = useMemo(
     () => ({
@@ -434,16 +438,6 @@ function AdminContent(props: {
     queryFn: () => getCanvasContributionReport(dates.from, dates.to),
     enabled: props.section === 'dashboard',
   })
-  const reconcile = useMutation({
-    mutationFn: (taskId: string) =>
-      reconcileCanvasTask(taskId, 'RECONCILED', 'Reviewed in Canvas Cloud Web'),
-    onSuccess: async () => {
-      toast.success(t('Task reconciled'))
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'admin'],
-      })
-    },
-  })
   if (props.section === 'customers') {
     return (
       <AdminPointAdjustments
@@ -455,6 +449,8 @@ function AdminContent(props: {
     return <AdminRefundRecovery prefill={props.refundPrefill} />
   }
   if (props.section === 'audit') return <AdminAuditLog />
+  if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
+  if (props.section === 'task-logs') return <AdminTaskLogs kind='task' />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -576,74 +572,6 @@ function AdminContent(props: {
       </div>
     )
   }
-  if (props.section === 'usage-logs') {
-    return (
-      <DataTable
-        empty={t('No consumption records')}
-        headers={[
-          t('Customer'),
-          t('Model'),
-          t('Points used'),
-          t('Billing'),
-          t('Time'),
-        ]}
-        rows={data.recentTasks.map((item) => ({
-          key: item.id,
-          cells: [
-            item.customerName,
-            item.modelName,
-            item.quotedPoints,
-            <BusinessTerm
-              key='billing'
-              kind='billingStatus'
-              value={item.customerBillingStatus}
-            />,
-            formatDate(item.acceptedAt),
-          ],
-        }))}
-      />
-    )
-  }
-  if (props.section === 'task-logs') {
-    return (
-      <DataTable
-        empty={t('No Canvas tasks')}
-        headers={[
-          t('Customer'),
-          t('Model'),
-          t('Execution'),
-          t('Billing'),
-          t('Reconciliation'),
-          t('Source'),
-          t('Accepted'),
-        ]}
-        rows={data.recentTasks.map((item) => ({
-          key: item.id,
-          cells: [
-            item.customerName,
-            item.modelName,
-            <BusinessTerm
-              key='execution'
-              kind='taskExecutionStatus'
-              value={item.executionStatus}
-            />,
-            <BusinessTerm
-              key='billing'
-              kind='billingStatus'
-              value={item.customerBillingStatus}
-            />,
-            <BusinessTerm
-              key='reconciliation'
-              kind='reconciliationStatus'
-              value={item.providerReconcileStatus}
-            />,
-            item.executionOrigin ?? '—',
-            formatDate(item.acceptedAt),
-          ],
-        }))}
-      />
-    )
-  }
   if (props.section === 'agents') return <AgentManagement />
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
@@ -676,6 +604,7 @@ function AdminContent(props: {
             t('Credentials'),
             t('Updated'),
           ]}
+          filterableColumnIndexes={[0, 1]}
           rows={data.executorWorkers.map((item) => ({
             key: `${item.queueName}:${item.workerId}`,
             cells: [
@@ -702,6 +631,7 @@ function AdminContent(props: {
             t('Adapter'),
             t('Upstream model'),
           ]}
+          filterableColumnIndexes={[0, 1, 3, 4]}
           rows={data.channels.map((item) => ({
             key: item.id,
             cells: [
@@ -710,47 +640,6 @@ function AdminContent(props: {
               <BusinessTerm key='s' kind='configStatus' value={item.status} />,
               item.protocolAdapter,
               item.upstreamModel,
-            ],
-          }))}
-        />
-        <DataTable
-          empty={t('No reconciliation tasks')}
-          headers={[
-            t('Model'),
-            t('Execution'),
-            t('Source'),
-            t('Reconciliation'),
-            t('Accepted'),
-            t('Action'),
-          ]}
-          rows={data.reconciliationTasks.map((item) => ({
-            key: item.id,
-            cells: [
-              item.modelName,
-              <BusinessTerm
-                key='execution'
-                kind='taskExecutionStatus'
-                value={item.executionStatus}
-              />,
-              item.executionOrigin ?? '—',
-              <BusinessTerm
-                key='s'
-                kind='reconciliationStatus'
-                value={item.providerReconcileStatus}
-              />,
-              formatDate(item.acceptedAt),
-              item.providerReconcileStatus === 'COST_CONFIRMED' ? (
-                <Button
-                  key='a'
-                  size='sm'
-                  disabled={reconcile.isPending}
-                  onClick={() => reconcile.mutate(item.id)}
-                >
-                  {t('Reconcile')}
-                </Button>
-              ) : (
-                '—'
-              ),
             ],
           }))}
         />

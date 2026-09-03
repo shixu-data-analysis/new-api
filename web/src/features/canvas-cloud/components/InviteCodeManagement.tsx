@@ -8,8 +8,8 @@ License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, Download, Eye, EyeOff, Pause, Play, ShieldX } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Copy, Download, Pause, Play, ShieldX } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -17,7 +17,6 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -40,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import {
   changeCanvasAdminInviteCodeStatus,
@@ -50,7 +50,10 @@ import {
 } from '../api'
 import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
 import {
   PricingActionConfirmation,
@@ -76,15 +79,6 @@ function formatDate(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
-}
-
-function inviteStatusVariant(
-  status: CanvasAdminInviteCode['effectiveStatus']
-): 'secondary' | 'destructive' | 'outline' | 'warning' {
-  if (status === 'ACTIVE') return 'secondary'
-  if (status === 'REVOKED') return 'destructive'
-  if (status === 'EXPIRED') return 'outline'
-  return 'warning'
 }
 
 function FieldError(props: { id: string; message: string | null }) {
@@ -116,13 +110,36 @@ export function InviteCodeManagement() {
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const tableState = useServerTableState('createdAt')
+  const setPagination = tableState.setPagination
   const [status, setStatus] = useState('')
+  const [priceGroup, setPriceGroup] = useState('')
+  const [inviter, setInviter] = useState('')
+  const debouncedPriceGroup = useDebounce(priceGroup.trim(), 300)
+  const debouncedInviter = useDebounce(inviter.trim(), 300)
+  useEffect(() => {
+    setPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [debouncedInviter, debouncedPriceGroup, setPagination, status])
   const codes = useQuery({
-    queryKey: ['canvas-cloud', 'admin-invite-codes', tableState.query, status],
+    queryKey: [
+      'canvas-cloud',
+      'admin-invite-codes',
+      tableState.query,
+      status,
+      debouncedPriceGroup,
+      debouncedInviter,
+    ],
     queryFn: ({ signal }) =>
       getCanvasAdminInviteCodes(
         {
-          ...tableState.query,
+          page: tableState.query.page,
+          pageSize: tableState.query.pageSize,
+          sortBy: tableState.query.sortBy,
+          sortOrder: tableState.query.sortOrder,
+          ...(tableState.query.search ? { code: tableState.query.search } : {}),
+          ...(debouncedPriceGroup ? { priceGroup: debouncedPriceGroup } : {}),
+          ...(debouncedInviter ? { inviter: debouncedInviter } : {}),
           ...(status ? { status: status as CanvasInviteCodeStatus } : {}),
         },
         signal
@@ -263,13 +280,35 @@ export function InviteCodeManagement() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Invite code')} />
       ),
-      cell: ({ row }) => (
-        <span className='font-mono'>
-          <CopyableText
-            value={revealedCodes[row.original.id] ?? row.original.maskedCode}
-          />
-        </span>
-      ),
+      cell: ({ row }) => {
+        const item = row.original
+        const revealLabel = t(
+          revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
+        )
+        return (
+          <div className='flex w-full items-center gap-1'>
+            <span className='min-w-0 flex-1 truncate font-mono'>
+              {revealedCodes[item.id] ?? item.maskedCode}
+            </span>
+            <CanvasCodeRevealButton
+              label={revealLabel}
+              revealed={Boolean(revealedCodes[item.id])}
+              disabled={reveal.isPending}
+              onClick={() => {
+                if (revealedCodes[item.id]) {
+                  setRevealedCodes((current) => {
+                    const next = { ...current }
+                    delete next[item.id]
+                    return next
+                  })
+                  return
+                }
+                reveal.mutate({ id: item.id, action: 'DISPLAY' })
+              }}
+            />
+          </div>
+        )
+      },
     },
     {
       id: 'status',
@@ -278,9 +317,10 @@ export function InviteCodeManagement() {
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => (
-        <Badge variant={inviteStatusVariant(row.original.effectiveStatus)}>
-          {t(`Invite status ${row.original.effectiveStatus}`)}
-        </Badge>
+        <CanvasStatusBadge
+          status={row.original.effectiveStatus}
+          label={t(`Invite status ${row.original.effectiveStatus}`)}
+        />
       ),
     },
     {
@@ -292,13 +332,13 @@ export function InviteCodeManagement() {
     },
     {
       id: 'inviter',
-      accessorFn: (item) => item.agent?.internalName ?? '',
+      accessorFn: (item) => item.agent?.username ?? '',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Inviter')} />
+        <DataTableColumnHeader column={column} title={t('Inviter username')} />
       ),
       cell: ({ row }) =>
         row.original.agent ? (
-          <CopyableText value={row.original.agent.internalName} />
+          <CopyableText value={row.original.agent.username} />
         ) : (
           '—'
         ),
@@ -361,36 +401,6 @@ export function InviteCodeManagement() {
         const item = row.original
         return (
           <div className='flex items-center justify-end gap-1'>
-            <Button
-              size='sm'
-              variant='outline'
-              className='cursor-pointer gap-1.5 whitespace-nowrap'
-              aria-label={t(
-                revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
-              )}
-              aria-pressed={Boolean(revealedCodes[item.id])}
-              disabled={reveal.isPending}
-              onClick={() => {
-                if (revealedCodes[item.id]) {
-                  setRevealedCodes((current) => {
-                    const next = { ...current }
-                    delete next[item.id]
-                    return next
-                  })
-                  return
-                }
-                reveal.mutate({ id: item.id, action: 'DISPLAY' })
-              }}
-            >
-              {revealedCodes[item.id] ? (
-                <EyeOff className='size-4' />
-              ) : (
-                <Eye className='size-4' />
-              )}
-              {t(
-                revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
-              )}
-            </Button>
             <DataTableRowActionMenu
               ariaLabel={t('Open menu')}
               modal={false}
@@ -497,7 +507,7 @@ export function InviteCodeManagement() {
         value:
           options.data.agents.find(
             (item) => item.principalId === form.referralPrincipalId
-          )?.internalName ?? t('None'),
+          )?.username ?? t('None'),
       },
       {
         label: t('Expires at'),
@@ -642,7 +652,7 @@ export function InviteCodeManagement() {
                 <option value=''>{t('No inviter')}</option>
                 {options.data.agents.map((agent) => (
                   <option key={agent.principalId} value={agent.principalId}>
-                    {agent.internalName}
+                    {agent.username}
                   </option>
                 ))}
               </select>
@@ -843,39 +853,67 @@ export function InviteCodeManagement() {
             columns={columns}
             total={codes.data.total}
             state={tableState}
-            searchPlaceholder={t('Search invite codes')}
-            searchLabel={t('Invite code, price group, or inviter')}
-            searchDescription={t(
-              'Fuzzy matches the visible code prefix, price group code or name, and inviter name.'
-            )}
+            searchLabel={t('Invite code')}
             loading={codes.isFetching}
             emptyTitle={t('No invite codes')}
             additionalFilters={
-              <Select
-                value={status || 'ALL'}
-                onValueChange={(value) =>
-                  setStatus(value === 'ALL' ? '' : (value ?? ''))
-                }
-              >
-                <SelectTrigger className='w-44'>
-                  <SelectValue>
-                    {status ? t(`Invite status ${status}`) : t('All statuses')}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
-                    (value) => (
-                      <SelectItem key={value} value={value}>
-                        {t(`Invite status ${value}`)}
-                      </SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
+              <>
+                <CanvasColumnFilterField label={t('Price group')}>
+                  <Input
+                    value={priceGroup}
+                    placeholder={t('Price group')}
+                    onChange={(event) => setPriceGroup(event.target.value)}
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField label={t('Inviter username')}>
+                  <Input
+                    value={inviter}
+                    placeholder={t('Inviter username')}
+                    onChange={(event) => setInviter(event.target.value)}
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField label={t('Status')}>
+                  <Select
+                    value={status || 'ALL'}
+                    onValueChange={(value) =>
+                      setStatus(value === 'ALL' ? '' : (value ?? ''))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue>
+                        {status ? (
+                          <CanvasStatusBadge
+                            status={status}
+                            label={t(`Invite status ${status}`)}
+                          />
+                        ) : (
+                          t('All statuses')
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                      {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
+                        (value) => (
+                          <SelectItem key={value} value={value}>
+                            <CanvasStatusBadge
+                              status={value}
+                              label={t(`Invite status ${value}`)}
+                            />
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </CanvasColumnFilterField>
+              </>
             }
-            hasActiveFilters={Boolean(status)}
-            onResetFilters={() => setStatus('')}
+            hasActiveFilters={Boolean(priceGroup || inviter || status)}
+            onResetFilters={() => {
+              setPriceGroup('')
+              setInviter('')
+              setStatus('')
+            }}
             getRowId={(row) => row.id}
           />
         </CardContent>

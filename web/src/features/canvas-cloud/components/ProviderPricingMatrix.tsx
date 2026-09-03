@@ -47,6 +47,11 @@ import {
   publishCanvasProviderRate,
   resolveCanvasProviderRateRisk,
 } from '../api'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
+import {
+  CanvasColumnFilterField,
+  CanvasColumnFilterPanel,
+} from './CanvasColumnFilterPanel'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 type RiskDecision = 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
@@ -59,6 +64,10 @@ export function ProviderPricingMatrix() {
     queryFn: getCanvasProviderPricingMatrix,
   })
   const [selectedId, setSelectedId] = useState('')
+  const [providerFilter, setProviderFilter] = useState('')
+  const [modelFilter, setModelFilter] = useState('')
+  const [qualityFilter, setQualityFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [form, setForm] = useState({
     nativeAmount: '',
     currency: 'CNY',
@@ -161,11 +170,24 @@ export function ProviderPricingMatrix() {
         new Date(risk.lossEndsAt) > new Date() &&
         /^[1-9]\d*$/.test(risk.maxExpectedLossPoints)))
   )
-  const groups = [
-    ...new Set(
-      matrix.data.flatMap((row) => row.prices.map((price) => price.groupName))
-    ),
-  ]
+  const provider = providerFilter.trim().toLocaleLowerCase()
+  const model = modelFilter.trim().toLocaleLowerCase()
+  const quality = qualityFilter.trim().toLocaleLowerCase()
+  const filteredRows = matrix.data.filter(
+    (row) =>
+      (!provider || row.providerName.toLocaleLowerCase().includes(provider)) &&
+      (!model || row.modelName.toLocaleLowerCase().includes(model)) &&
+      (!quality ||
+        String(row.parameters.quality ?? row.combinationKey)
+          .toLocaleLowerCase()
+          .includes(quality))
+  )
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 20))
+  const currentPage = Math.min(page, pageCount)
+  const visibleRows = filteredRows.slice(
+    (currentPage - 1) * 20,
+    currentPage * 20
+  )
 
   return (
     <div className='space-y-4'>
@@ -387,64 +409,161 @@ export function ProviderPricingMatrix() {
           ) : null}
         </CardContent>
       </Card>
-      <StaticDataTable tableClassName='min-w-[960px]'>
+      <CanvasColumnFilterPanel
+        activeCount={
+          [providerFilter, modelFilter, qualityFilter].filter(Boolean).length
+        }
+        onClear={() => {
+          setProviderFilter('')
+          setModelFilter('')
+          setQualityFilter('')
+          setPage(1)
+        }}
+      >
+        <CanvasColumnFilterField label={t('Provider')}>
+          <Input
+            value={providerFilter}
+            placeholder={t('Provider')}
+            onChange={(event) => {
+              setProviderFilter(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+        <CanvasColumnFilterField label={t('Model')}>
+          <Input
+            value={modelFilter}
+            placeholder={t('Model')}
+            onChange={(event) => {
+              setModelFilter(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+        <CanvasColumnFilterField label={t('Quality')}>
+          <Input
+            value={qualityFilter}
+            placeholder={t('Quality')}
+            onChange={(event) => {
+              setQualityFilter(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+      </CanvasColumnFilterPanel>
+      <StaticDataTable tableClassName='min-w-[1120px] table-fixed'>
         <TableHeader>
           <TableRow>
-            <TableHead>{t('Provider')}</TableHead>
-            <TableHead>{t('Model')}</TableHead>
-            <TableHead>{t('Quality')}</TableHead>
-            <TableHead>{t('Actual model ID')}</TableHead>
-            <TableHead>{t('Current cost')}</TableHead>
-            {groups.map((group) => (
-              <TableHead key={group}>{group}</TableHead>
-            ))}
+            <TableHead
+              className={`${canvasStaticColumnWidth.standard} h-auto py-2 whitespace-normal`}
+            >
+              {t('Provider')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.wide} h-auto py-2 whitespace-normal`}
+            >
+              {t('Model')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.standard} h-auto py-2 whitespace-normal`}
+            >
+              {t('Quality')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.standard} h-auto py-2 whitespace-normal`}
+            >
+              {t('Current cost')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.standard} h-auto py-2 whitespace-normal`}
+            >
+              {t('Pricing risk')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.standard} h-auto py-2 whitespace-normal`}
+            >
+              {t('Affected price groups')}
+            </TableHead>
+            <TableHead
+              className={`${canvasStaticColumnWidth.detail} h-auto py-2 whitespace-normal`}
+            >
+              {t('Details')}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {matrix.data.map((row) => (
-            <TableRow key={row.combinationId}>
-              <TableCell>{row.providerName}</TableCell>
-              <TableCell>{row.modelName}</TableCell>
-              <TableCell>
-                {String(row.parameters.quality ?? row.combinationKey)}
+          {visibleRows.map((row) => (
+            <TableRow key={row.combinationId} className='align-top'>
+              <TableCell className='break-words whitespace-normal'>
+                {row.providerName}
               </TableCell>
-              <TableCell className='font-mono'>
-                {row.resolvedProviderModelId}
+              <TableCell className='break-words whitespace-normal'>
+                {row.modelName}
+              </TableCell>
+              <TableCell className='break-all whitespace-normal'>
+                {String(row.parameters.quality ?? row.combinationKey)}
               </TableCell>
               <TableCell>
                 {row.nativeAmount && row.currency
                   ? `${row.currency} ${row.nativeAmount}`
                   : t('Not priced')}
               </TableCell>
-              {groups.map((group) => {
-                const price = row.prices.find(
-                  (item) => item.groupName === group
-                )
-                return (
-                  <TableCell key={group}>
-                    {price ? (
-                      <span
+              <TableCell className='break-words whitespace-normal'>
+                {row.prices.some((price) => price.belowBreakEven)
+                  ? t('Below break-even')
+                  : t('No active risk')}
+              </TableCell>
+              <TableCell>{row.prices.length}</TableCell>
+              <TableCell>
+                <details>
+                  <summary className='text-primary cursor-pointer'>
+                    {t('View')}
+                  </summary>
+                  <div className='mt-2 min-w-0 space-y-1 text-xs whitespace-normal'>
+                    <div className='font-mono break-all'>
+                      {row.resolvedProviderModelId}
+                    </div>
+                    {row.prices.map((price) => (
+                      <div
+                        key={price.id}
                         className={
                           price.belowBreakEven
-                            ? 'text-destructive font-medium'
-                            : ''
+                            ? 'text-destructive break-words'
+                            : 'text-muted-foreground break-words'
                         }
                       >
-                        {price.points} {t('points')} · v{price.version}
-                        {price.newBreakEvenPoints
-                          ? ` · ${t('Safe floor')} >${price.newBreakEvenPoints}`
-                          : ''}
-                      </span>
-                    ) : (
-                      t('Not priced')
-                    )}
-                  </TableCell>
-                )
-              })}
+                        {price.groupName}: {price.points} {t('points')} · v
+                        {price.version}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </StaticDataTable>
+      <div className='flex items-center justify-between'>
+        <span className='text-muted-foreground text-sm'>
+          {filteredRows.length} {t('records')} · {currentPage} / {pageCount}
+        </span>
+        <div className='flex gap-2'>
+          <Button
+            variant='outline'
+            disabled={currentPage <= 1}
+            onClick={() => setPage((value) => value - 1)}
+          >
+            {t('Previous')}
+          </Button>
+          <Button
+            variant='outline'
+            disabled={currentPage >= pageCount}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            {t('Next')}
+          </Button>
+        </div>
+      </div>
       <PricingActionConfirmation
         open={confirming === 'rate'}
         title={t('Publish this provider cost?')}

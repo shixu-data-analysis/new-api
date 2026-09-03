@@ -225,7 +225,8 @@ describe('Canvas recharge-code creation form', () => {
     renderRechargeCodes()
 
     await screen.findByText('Support batch')
-    fireEvent.change(screen.getByLabelText('Search recharge codes'), {
+    await user.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(screen.getByPlaceholderText('Name'), {
       target: { value: 'CANVAS-Y1234567890123456789FA2E' },
     })
     await user.click(screen.getByLabelText('Status'))
@@ -241,7 +242,7 @@ describe('Canvas recharge-code creation form', () => {
         expect.objectContaining({
           page: 1,
           pageSize: 20,
-          search: 'CANVAS-Y1234567890123456789FA2E',
+          name: 'CANVAS-Y1234567890123456789FA2E',
           status: 'EXPIRED',
           createdFrom: expect.stringMatching(/T.*Z$/),
           sortBy: 'expiresAt',

@@ -62,8 +62,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     apiMocks.getCanvasAgentWorkspace.mockResolvedValue({
       profile: {
         principalId: 'agent-v1',
-        displayName: 'Tokyo Agent',
-        internalName: 'Tokyo Agent',
+        username: 'tokyo-agent',
         status: 'ACTIVE',
       },
     })
@@ -80,7 +79,6 @@ describe('Canvas Agent and provider pricing governance', () => {
       items: [
         {
           id: 'customer-v1',
-          newApiUserId: '86',
           username: 'invited-user',
           emailMasked: 'i***@example.com',
           status: 'ACTIVE',
@@ -133,11 +131,8 @@ describe('Canvas Agent and provider pricing governance', () => {
 
   it('confirms that invitation ability preserves the existing customer boundary', async () => {
     renderWithClient(<AgentManagement />)
-    fireEvent.change(await screen.findByLabelText('New API user ID'), {
-      target: { value: '42' },
-    })
-    fireEvent.change(screen.getByLabelText('Inviter name'), {
-      target: { value: 'Tokyo Agent' },
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: 'tokyo-agent' },
     })
     fireEvent.change(screen.getByLabelText('Approval reason'), {
       target: { value: 'Approved partner onboarding' },
@@ -158,10 +153,9 @@ describe('Canvas Agent and provider pricing governance', () => {
     expect(createButton).toBeEnabled()
     fireEvent.click(createButton)
 
-    expect(await screen.findByText('Enter a New API user ID')).toBeVisible()
-    expect(screen.getByText('Enter an inviter name')).toBeVisible()
+    expect(await screen.findByText('Enter a username')).toBeVisible()
     expect(screen.getByText('Enter an approval reason')).toBeVisible()
-    expect(screen.getByLabelText('New API user ID')).toHaveAttribute(
+    expect(screen.getByLabelText('Username')).toHaveAttribute(
       'aria-invalid',
       'true'
     )
@@ -173,11 +167,8 @@ describe('Canvas Agent and provider pricing governance', () => {
       response: { data: { code: 'INVITER_CAPABILITY_ALREADY_GRANTED' } },
     })
     renderWithClient(<AgentManagement />)
-    fireEvent.change(await screen.findByLabelText('New API user ID'), {
-      target: { value: '42' },
-    })
-    fireEvent.change(screen.getByLabelText('Inviter name'), {
-      target: { value: 'Tokyo Agent' },
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: 'tokyo-agent' },
     })
     fireEvent.change(screen.getByLabelText('Approval reason'), {
       target: { value: 'Approved partner onboarding' },
@@ -202,11 +193,8 @@ describe('Canvas Agent and provider pricing governance', () => {
   it('adds invitation ability to a customer without a provider association', async () => {
     renderWithClient(<AgentManagement />)
 
-    fireEvent.change(await screen.findByLabelText('New API user ID'), {
-      target: { value: '43' },
-    })
-    fireEvent.change(screen.getByLabelText('Inviter name'), {
-      target: { value: 'Tokyo Inviter' },
+    fireEvent.change(await screen.findByLabelText('Username'), {
+      target: { value: 'tokyo-inviter' },
     })
     fireEvent.change(screen.getByLabelText('Approval reason'), {
       target: { value: 'Approved customer referral program' },
@@ -222,8 +210,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm creation' }))
     await waitFor(() =>
       expect(apiMocks.provisionCanvasAgent).toHaveBeenCalledWith({
-        newApiUserId: '43',
-        internalName: 'Tokyo Inviter',
+        username: 'tokyo-inviter',
         status: 'ACTIVE',
         reason: 'Approved customer referral program',
       })
@@ -290,11 +277,23 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(await screen.findByLabelText('Model and quality'), {
       target: { value: 'combination-v1' },
     })
-    expect(screen.getByText('Below break-even')).toBeVisible()
-    expect(screen.getByText(/Safe floor >24/)).toBeVisible()
+    expect(screen.getAllByText('Below break-even')).toHaveLength(2)
     expect(
       screen.getByRole('button', { name: 'Record risk decision' })
     ).toBeDisabled()
     expect(apiMocks.resolveCanvasProviderRateRisk).not.toHaveBeenCalled()
+  })
+
+  it('wraps long model and quality values inside their table columns', async () => {
+    renderWithClient(<ProviderPricingMatrix />)
+
+    const modelCell = (await screen.findByText('Image Model')).closest('td')
+    expect(modelCell).toHaveClass('whitespace-normal', 'break-words')
+
+    const qualityCell = screen
+      .getAllByText('4K')
+      .map((element) => element.closest('td'))
+      .find(Boolean)
+    expect(qualityCell).toHaveClass('whitespace-normal', 'break-all')
   })
 })

@@ -75,7 +75,7 @@
 - **表达式**：禁止 2 层及以上嵌套三元表达式；改用 `if-else`、提前返回或抽取函数。单层三元可保留，但需简洁。
 - **可读性**：控制函数圈复杂度，复杂逻辑拆成小函数；变量与函数命名需有意义，遵循驼峰等常规约定。
 - **TypeScript**：避免 `any`，优先具体类型或 `unknown`；为参数与返回值显式标注类型；仅类型用途的导入使用 `import type { X } from '...'`。
-- **类型检查**：每次改动 TypeScript 或 TSX 代码后都要执行类型检查（如 `bun run typecheck`）；若出现类型错误，须修复至无错误为止，不得遗留。
+- **类型检查**：通常每次改动 TypeScript 或 TSX 代码后执行类型检查（如 `bun run typecheck`）；Canvas 大型 UI 任务在用户明确说 `complete` 前按 3.14 的肉眼迭代例外执行，完成时再统一检查。若出现类型错误，须修复至无错误为止，不得遗留。
 - **Lint 检查**：每次完成代码改动前，必须对所涉及文件执行 lint 检查，并修复这些文件中的所有 lint error；不得遗留 error。warning 可按变更范围与风险评估处理。
 - **解构**：对象非必要不要进行解构，特别是组件的 props；直接使用 `props.xxx` 更清晰，避免不必要的解构增加代码复杂度。
 
@@ -145,6 +145,7 @@
 
 ### 3.14 测试
 
+- **Canvas UI 肉眼迭代例外**：大型 UI 改进任务在用户明确说 `complete` 前，每次只运行预计数秒内完成的最小检查，例如一个直接相关用例、脚本语法或改动文件格式检查；不运行完整 Canvas 测试集、生产构建、完整 typecheck，或 `run-docker-affected-gate.sh` 这种捆绑门禁。布局、间距、颜色和视觉容纳以用户通过热更新页面的肉眼确认为准。用户说 `complete` 后，再一次性运行本节规定的受影响门禁和完成检查。
 - 常规受影响门禁使用一次 `bash scripts/run-docker-affected-gate.sh --test <test-file>... --file <source-file>...`：参数必须是仓库内已存在的相对文件且不能以 `-` 开头；入口在一个唯一容器中运行 focused Vitest、typecheck、受影响 lint、受影响 format 和生产 build，汇总每阶段状态与耗时后清理。底层 `bash scripts/run-docker-gate.sh <command> [args...]`（`docker:gate` 为等价快捷入口）只用于特殊门禁或排障。两者使用固定 digest 的 Bun 基础镜像，并按 `package.json`、`bun.lock` 与验证 Dockerfile 复用只读依赖镜像，不要求宿主机安装 Bun，不创建长期依赖卷，并在成功、失败或中断后证明运行容器零残留；format check 只修改临时副本。禁止复用人工 UAT 的 Compose project、容器、网络、数据库或卷。
 - 工具函数与纯逻辑优先单元测试（Vitest），测试文件 `*.test.ts`；组件用 React Testing Library 测交互与行为，避免测实现细节。
 - 新增功能、修复缺陷或修改现有行为时，必须同步新增或更新测试；Bug 修复必须先编写能够稳定复现问题的失败用例，再实现修复并确认用例转为通过。

@@ -20,7 +20,7 @@ import type { Column } from '@tanstack/react-table'
 import {
   ArrowDown as ArrowDownIcon,
   ArrowUp as ArrowUpIcon,
-  ChevronsUpDown as CaretSortIcon,
+  ArrowUpDown as SortIcon,
   EyeOff as EyeNoneIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -55,23 +55,23 @@ export function DataTableColumnHeader<TData, TValue>({
 
   const sortIcon = (() => {
     if (column.getIsSorted() === 'desc') {
-      return <ArrowDownIcon className='ms-2 h-4 w-4' />
+      return <ArrowDownIcon className='size-4 shrink-0' />
     }
     if (column.getIsSorted() === 'asc') {
-      return <ArrowUpIcon className='ms-2 h-4 w-4' />
+      return <ArrowUpIcon className='size-4 shrink-0' />
     }
-    return <CaretSortIcon className='ms-2 h-4 w-4' />
+    return <SortIcon className='size-4 shrink-0' />
   })()
 
   return (
-    <div className={cn('flex items-center space-x-2', className)}>
+    <div className={cn('flex items-center', className)}>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8'
+              className='data-popup-open:bg-accent -ms-3 h-8 gap-1.5 px-3'
             />
           }
         >
@@ -80,18 +80,18 @@ export function DataTableColumnHeader<TData, TValue>({
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
           <DropdownMenuItem onClick={() => column.toggleSorting(false)}>
-            <ArrowUpIcon className='text-muted-foreground/70 size-3.5' />
+            <ArrowUpIcon className='text-muted-foreground/70 size-4' />
             {t('Asc')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => column.toggleSorting(true)}>
-            <ArrowDownIcon className='text-muted-foreground/70 size-3.5' />
+            <ArrowDownIcon className='text-muted-foreground/70 size-4' />
             {t('Desc')}
           </DropdownMenuItem>
           {column.getCanHide() && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => column.toggleVisibility(false)}>
-                <EyeNoneIcon className='text-muted-foreground/70 size-3.5' />
+                <EyeNoneIcon className='text-muted-foreground/70 size-4' />
                 {t('Hide')}
               </DropdownMenuItem>
             </>

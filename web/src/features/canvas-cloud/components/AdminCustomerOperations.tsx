@@ -18,10 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useDebounce } from '@/hooks'
 
 import {
   getCanvasAdminCustomerTasks,
@@ -43,7 +45,8 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminAuditLog } from './AdminAuditLog'
-import { BusinessTerm } from './BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { useCanvasRechargeOrderColumns } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -102,7 +105,11 @@ function CustomerOrders({
     queryFn: ({ signal }) =>
       getCanvasAdminRechargeOrders(
         {
-          ...state.query,
+          page: state.query.page,
+          pageSize: state.query.pageSize,
+          sortBy: state.query.sortBy,
+          sortOrder: state.query.sortOrder,
+          ...(state.query.search ? { orderNumber: state.query.search } : {}),
           customerId,
           ...(status
             ? { status: status as (typeof orderStatuses)[number] }
@@ -131,45 +138,48 @@ function CustomerOrders({
       total={query.data?.total ?? 0}
       state={state}
       searchLabel={t('Canvas recharge order number')}
-      searchPlaceholder={t('Search Canvas recharge order number')}
-      searchDescription={t(
-        'Fuzzy matches any consecutive part of the Canvas recharge order number for this customer.'
-      )}
       loading={query.isLoading || query.isFetching}
       emptyTitle={t('No recharge orders')}
       additionalFilters={
-        <div className='flex flex-wrap gap-2'>
-          <Select
-            value={status || 'ALL'}
-            onValueChange={(value) =>
-              setStatus(value === 'ALL' ? '' : (value ?? ''))
-            }
-          >
-            <SelectTrigger className='w-48'>
-              <SelectValue placeholder={t('Status')}>
-                {status ? (
-                  <BusinessTerm kind='rechargeOrderStatus' value={status} />
-                ) : (
-                  t('All statuses')
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-              {orderStatuses.map((value) => (
-                <SelectItem key={value} value={value}>
-                  <BusinessTerm kind='rechargeOrderStatus' value={value} />
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <CanvasDateRangeFilter
-            from={from}
-            to={to}
-            onFromChange={setFrom}
-            onToChange={setTo}
-          />
-        </div>
+        <>
+          <CanvasColumnFilterField label={t('Status')}>
+            <Select
+              value={status || 'ALL'}
+              onValueChange={(value) =>
+                setStatus(value === 'ALL' ? '' : (value ?? ''))
+              }
+            >
+              <SelectTrigger className='w-full' aria-label={t('Status')}>
+                <SelectValue>
+                  {status ? (
+                    <BusinessTermText
+                      kind='rechargeOrderStatus'
+                      value={status}
+                    />
+                  ) : (
+                    t('All statuses')
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                {orderStatuses.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    <BusinessTerm kind='rechargeOrderStatus' value={value} />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CanvasColumnFilterField>
+          <div className='sm:col-span-2'>
+            <CanvasDateRangeFilter
+              from={from}
+              to={to}
+              onFromChange={setFrom}
+              onToChange={setTo}
+            />
+          </div>
+        </>
       }
       hasActiveFilters={Boolean(status || from || to)}
       onResetFilters={() => {
@@ -185,11 +195,29 @@ function CustomerOrders({
 function CustomerTasks({ customerId }: { customerId: string }) {
   const { t } = useTranslation()
   const state = useServerTableState('acceptedAt')
+  const setPagination = state.setPagination
   const [executionStatus, setExecutionStatus] = useState('')
   const [billingStatus, setBillingStatus] = useState('')
+  const [model, setModel] = useState('')
+  const [upstreamTaskId, setUpstreamTaskId] = useState('')
+  const debouncedModel = useDebounce(model.trim(), 300)
+  const debouncedUpstreamTaskId = useDebounce(upstreamTaskId.trim(), 300)
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
   const rangeValid = isCanvasDateRangeValid(from, to)
+  useEffect(() => {
+    setPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [
+    billingStatus,
+    debouncedModel,
+    debouncedUpstreamTaskId,
+    executionStatus,
+    from,
+    setPagination,
+    to,
+  ])
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -197,6 +225,8 @@ function CustomerTasks({ customerId }: { customerId: string }) {
       customerId,
       'tasks',
       state.query,
+      debouncedModel,
+      debouncedUpstreamTaskId,
       executionStatus,
       billingStatus,
       from?.toISOString(),
@@ -206,7 +236,15 @@ function CustomerTasks({ customerId }: { customerId: string }) {
       getCanvasAdminCustomerTasks(
         customerId,
         {
-          ...state.query,
+          page: state.query.page,
+          pageSize: state.query.pageSize,
+          sortBy: state.query.sortBy,
+          sortOrder: state.query.sortOrder,
+          ...(state.query.search ? { taskId: state.query.search } : {}),
+          ...(debouncedModel ? { model: debouncedModel } : {}),
+          ...(debouncedUpstreamTaskId
+            ? { upstreamTaskId: debouncedUpstreamTaskId }
+            : {}),
           ...(executionStatus ? { executionStatus } : {}),
           ...(billingStatus ? { billingStatus } : {}),
           ...(from ? { from: from.toISOString() } : {}),
@@ -304,65 +342,85 @@ function CustomerTasks({ customerId }: { customerId: string }) {
     [t]
   )
   const filters = (
-    <div className='flex flex-wrap gap-2'>
-      <Select
-        value={executionStatus || 'ALL'}
-        onValueChange={(value) =>
-          setExecutionStatus(value === 'ALL' ? '' : (value ?? ''))
-        }
-      >
-        <SelectTrigger className='w-48'>
-          <SelectValue placeholder={t('Execution status')}>
-            {executionStatus ? (
-              <BusinessTerm
-                kind='taskExecutionStatus'
-                value={executionStatus}
-              />
-            ) : (
-              t('All execution statuses')
-            )}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All execution statuses')}</SelectItem>
-          {executionStatuses.map((value) => (
-            <SelectItem key={value} value={value}>
-              <BusinessTerm kind='taskExecutionStatus' value={value} />
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={billingStatus || 'ALL'}
-        onValueChange={(value) =>
-          setBillingStatus(value === 'ALL' ? '' : (value ?? ''))
-        }
-      >
-        <SelectTrigger className='w-48'>
-          <SelectValue placeholder={t('Billing status')}>
-            {billingStatus ? (
-              <BusinessTerm kind='billingStatus' value={billingStatus} />
-            ) : (
-              t('All billing statuses')
-            )}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All billing statuses')}</SelectItem>
-          {billingStatuses.map((value) => (
-            <SelectItem key={value} value={value}>
-              <BusinessTerm kind='billingStatus' value={value} />
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <CanvasDateRangeFilter
-        from={from}
-        to={to}
-        onFromChange={setFrom}
-        onToChange={setTo}
-      />
-    </div>
+    <>
+      <CanvasColumnFilterField label={t('Model')}>
+        <Input
+          value={model}
+          placeholder={t('Model')}
+          onChange={(event) => setModel(event.target.value)}
+        />
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Upstream task ID')}>
+        <Input
+          value={upstreamTaskId}
+          placeholder={t('Upstream task ID')}
+          onChange={(event) => setUpstreamTaskId(event.target.value)}
+        />
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Execution status')}>
+        <Select
+          value={executionStatus || 'ALL'}
+          onValueChange={(value) =>
+            setExecutionStatus(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full'>
+            <SelectValue placeholder={t('Execution status')}>
+              {executionStatus ? (
+                <BusinessTermText
+                  kind='taskExecutionStatus'
+                  value={executionStatus}
+                />
+              ) : (
+                t('All execution statuses')
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All execution statuses')}</SelectItem>
+            {executionStatuses.map((value) => (
+              <SelectItem key={value} value={value}>
+                <BusinessTerm kind='taskExecutionStatus' value={value} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Billing status')}>
+        <Select
+          value={billingStatus || 'ALL'}
+          onValueChange={(value) =>
+            setBillingStatus(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full'>
+            <SelectValue placeholder={t('Billing status')}>
+              {billingStatus ? (
+                <BusinessTermText kind='billingStatus' value={billingStatus} />
+              ) : (
+                t('All billing statuses')
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All billing statuses')}</SelectItem>
+            {billingStatuses.map((value) => (
+              <SelectItem key={value} value={value}>
+                <BusinessTerm kind='billingStatus' value={value} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CanvasColumnFilterField>
+      <div className='sm:col-span-2'>
+        <CanvasDateRangeFilter
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+        />
+      </div>
+    </>
   )
   return (
     <CanvasServerTable
@@ -370,18 +428,23 @@ function CustomerTasks({ customerId }: { customerId: string }) {
       columns={columns}
       total={query.data?.total ?? 0}
       state={state}
-      searchLabel={t('Task ID, model, or upstream task ID')}
-      searchPlaceholder={t('Search tasks')}
-      searchDescription={t(
-        'Fuzzy matches the Canvas task ID, model name, or upstream task ID for this customer.'
-      )}
+      searchLabel={t('Task ID')}
       loading={query.isLoading || query.isFetching}
       emptyTitle={t('No Canvas tasks')}
       additionalFilters={filters}
-      hasActiveFilters={Boolean(executionStatus || billingStatus || from || to)}
+      hasActiveFilters={Boolean(
+        model ||
+        upstreamTaskId ||
+        executionStatus ||
+        billingStatus ||
+        from ||
+        to
+      )}
       onResetFilters={() => {
         setExecutionStatus('')
         setBillingStatus('')
+        setModel('')
+        setUpstreamTaskId('')
         setFrom(undefined)
         setTo(undefined)
       }}

@@ -43,13 +43,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import {
   getCanvasAdminRechargeCodes,
   issueCanvasAdminRechargeCodes,
   revealCanvasCode,
 } from './api'
-import { BusinessTerm } from './components/BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './components/BusinessTerm'
+import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { cnyToMinor } from './recharge-code-amount'
 import type {
@@ -96,8 +98,15 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   )
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo, setCreatedTo] = useState('')
+  const [code, setCode] = useState('')
+  const debouncedCode = useDebounce(code.trim(), 300)
   const inventoryQuery: CanvasAdminRechargeCodeQuery = {
-    ...tableState.query,
+    page: tableState.query.page,
+    pageSize: tableState.query.pageSize,
+    sortBy: tableState.query.sortBy,
+    sortOrder: tableState.query.sortOrder,
+    ...(tableState.query.search ? { name: tableState.query.search } : {}),
+    ...(debouncedCode ? { code: debouncedCode } : {}),
     ...(status ? { status } : {}),
     ...(dateBoundary(createdFrom)
       ? { createdFrom: dateBoundary(createdFrom) }
@@ -307,7 +316,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       return <ErrorState onRetry={() => void inventory.refetch()} />
     }
     const hasFilters = Boolean(
-      tableState.search.trim() || status || createdFrom || createdTo
+      tableState.search.trim() || code || status || createdFrom || createdTo
     )
     return (
       <CanvasServerTable
@@ -315,11 +324,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         columns={columns}
         total={inventory.data?.total ?? 0}
         state={tableState}
-        searchPlaceholder={t('Search by name or full code')}
-        searchLabel={t('Search recharge codes')}
-        searchDescription={t(
-          'Paste a customer-provided full code to match its safely retained prefix and suffix.'
-        )}
+        searchLabel={t('Name')}
         loading={inventory.isPending || inventory.isFetching}
         emptyTitle={
           hasFilters
@@ -327,9 +332,18 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
             : t('No Canvas recharge codes')
         }
         additionalFilters={
-          <div className='flex flex-wrap items-end gap-2'>
-            <div className='space-y-1'>
-              <Label htmlFor='canvas-code-status'>{t('Status')}</Label>
+          <>
+            <CanvasColumnFilterField label={t('Code')}>
+              <Input
+                value={code}
+                placeholder={t('Code')}
+                onChange={(event) => {
+                  setCode(event.target.value)
+                  resetPage()
+                }}
+              />
+            </CanvasColumnFilterField>
+            <CanvasColumnFilterField label={t('Status')}>
               <Select
                 value={status || 'ALL'}
                 onValueChange={(value) => {
@@ -341,10 +355,17 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   resetPage()
                 }}
               >
-                <SelectTrigger id='canvas-code-status' className='w-40'>
+                <SelectTrigger
+                  id='canvas-code-status'
+                  className='w-full'
+                  aria-label={t('Status')}
+                >
                   <SelectValue>
                     {status ? (
-                      <BusinessTerm kind='rechargeCodeStatus' value={status} />
+                      <BusinessTermText
+                        kind='rechargeCodeStatus'
+                        value={status}
+                      />
                     ) : (
                       t('All statuses')
                     )}
@@ -359,38 +380,39 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className='space-y-1'>
-              <Label htmlFor='canvas-code-created-from'>
-                {t('Created from')}
-              </Label>
+            </CanvasColumnFilterField>
+            <CanvasColumnFilterField label={t('Created from')}>
               <Input
                 id='canvas-code-created-from'
+                className='w-full'
                 type='date'
+                aria-label={t('Created from')}
                 value={createdFrom}
                 onChange={(event) => {
                   setCreatedFrom(event.target.value)
                   resetPage()
                 }}
               />
-            </div>
-            <div className='space-y-1'>
-              <Label htmlFor='canvas-code-created-to'>{t('Created to')}</Label>
+            </CanvasColumnFilterField>
+            <CanvasColumnFilterField label={t('Created to')}>
               <Input
                 id='canvas-code-created-to'
+                className='w-full'
                 type='date'
+                aria-label={t('Created to')}
                 value={createdTo}
                 onChange={(event) => {
                   setCreatedTo(event.target.value)
                   resetPage()
                 }}
               />
-            </div>
-          </div>
+            </CanvasColumnFilterField>
+          </>
         }
-        hasActiveFilters={Boolean(status || createdFrom || createdTo)}
+        hasActiveFilters={Boolean(code || status || createdFrom || createdTo)}
         onResetFilters={() => {
           setStatus('')
+          setCode('')
           setCreatedFrom('')
           setCreatedTo('')
         }}

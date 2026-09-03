@@ -72,6 +72,7 @@ import {
   getCanvasAdminCustomerPointLots,
   getCanvasAdminCustomerPointLedger,
   getCanvasAdminCustomerTasks,
+  getCanvasAdminTaskLogs,
   getCanvasAdminRechargeOrders,
   grantCanvasManualBonus,
   grantCanvasPaidCorrection,
@@ -135,7 +136,7 @@ describe('Canvas Cloud API boundary', () => {
   it('keeps refund point calculation server-owned and routes governed Lot adjustments', async () => {
     mocks.get.mockResolvedValue({ data: { items: [] } })
     await getCanvasAdminRechargeOrders({
-      search: 'CANVAS-001',
+      orderNumber: 'CANVAS-001',
       customerId: 'customer-id',
       status: 'CODE_ACTIVATED',
       timeField: 'redeemedAt',
@@ -150,7 +151,7 @@ describe('Canvas Cloud API boundary', () => {
         params: {
           page: 1,
           pageSize: 20,
-          search: 'CANVAS-001',
+          orderNumber: 'CANVAS-001',
           customerId: 'customer-id',
           status: 'CODE_ACTIVATED',
           timeField: 'redeemedAt',
@@ -177,7 +178,7 @@ describe('Canvas Cloud API boundary', () => {
       }
     )
     await getCanvasAdminCustomerTasks('customer-id', {
-      search: 'image',
+      model: 'image',
       sortBy: 'settledPoints',
     })
     expect(mocks.get).toHaveBeenCalledWith(
@@ -186,12 +187,26 @@ describe('Canvas Cloud API boundary', () => {
         params: {
           page: 1,
           pageSize: 20,
-          search: 'image',
+          model: 'image',
           sortBy: 'settledPoints',
         },
         signal: undefined,
       }
     )
+    const logQuery = {
+      page: 2,
+      pageSize: 20 as const,
+      customer: 'uatcustomer',
+      model: 'Canvas Image',
+      sortBy: 'acceptedAt' as const,
+      sortOrder: 'desc' as const,
+    }
+    await getCanvasAdminTaskLogs('usage', logQuery)
+    await getCanvasAdminTaskLogs('task', logQuery)
+    expect(mocks.get.mock.calls.slice(-2).map((call) => call[0])).toEqual([
+      '/canvas-api/v1/web/admin/usage-logs',
+      '/canvas-api/v1/web/admin/task-logs',
+    ])
 
     mocks.post.mockResolvedValue({ data: { id: 'created' } })
     const refund = {
@@ -579,7 +594,7 @@ describe('Canvas Cloud API boundary', () => {
     await getCanvasAdminRechargeCodes({
       page: 1,
       pageSize: 20,
-      search: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
+      code: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
       status: 'ACTIVE',
       sortBy: 'createdAt',
       sortOrder: 'desc',
@@ -590,7 +605,7 @@ describe('Canvas Cloud API boundary', () => {
         params: {
           page: 1,
           pageSize: 20,
-          search: undefined,
+          code: undefined,
           status: 'ACTIVE',
           sortBy: 'createdAt',
           sortOrder: 'desc',
@@ -639,7 +654,7 @@ describe('Canvas Cloud API boundary', () => {
     const inviteQuery = {
       page: 2,
       pageSize: 20 as const,
-      search: 'partner',
+      inviter: 'partner',
       status: 'ACTIVE' as const,
       sortBy: 'createdAt' as const,
       sortOrder: 'desc' as const,
@@ -696,7 +711,7 @@ describe('Canvas Cloud API boundary', () => {
       pageSize: 20 as const,
       search: 'tester',
       status: 'ACTIVE' as const,
-      sortBy: 'internalName' as const,
+      sortBy: 'username' as const,
       sortOrder: 'asc' as const,
     }
     await getCanvasAgents(agentQuery)
@@ -724,7 +739,7 @@ describe('Canvas Cloud API boundary', () => {
     const agentCustomerQuery = {
       page: 1,
       pageSize: 20 as const,
-      search: 'customer',
+      username: 'customer',
       status: 'ACTIVE' as const,
       sortBy: 'activatedAt' as const,
       sortOrder: 'desc' as const,
@@ -741,8 +756,7 @@ describe('Canvas Cloud API boundary', () => {
 
     mocks.post.mockResolvedValue({ data: {} })
     await provisionCanvasAgent({
-      newApiUserId: '42',
-      internalName: 'HFSY API',
+      username: 'canvas-user',
       status: 'ACTIVE',
       reason: 'Approved customer inviter',
     })

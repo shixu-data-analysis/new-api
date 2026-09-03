@@ -49,6 +49,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import {
   createCanvasRefund,
@@ -63,7 +64,8 @@ import {
 import { formatMoneyMinor } from '../formatters'
 import type { CanvasAdminRechargeOrder, CanvasAdminRefund } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm } from './BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import {
   CanvasRechargeOrderSummary,
@@ -91,23 +93,61 @@ export function AdminRefundRecovery({
     useState<CanvasAdminRechargeOrder | null>(null)
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [refundStatus, setRefundStatus] = useState('')
+  const [orderCustomer, setOrderCustomer] = useState('')
+  const [refundOrderNumber, setRefundOrderNumber] = useState('')
+  const [customerConfirmation, setCustomerConfirmation] = useState('')
+  const debouncedOrderCustomer = useDebounce(orderCustomer.trim(), 300)
+  const debouncedRefundOrderNumber = useDebounce(refundOrderNumber.trim(), 300)
+  const debouncedCustomerConfirmation = useDebounce(
+    customerConfirmation.trim(),
+    300
+  )
   const [refundFrom, setRefundFrom] = useState<Date>()
   const [refundTo, setRefundTo] = useState<Date>()
   const refundDateRangeValid = isCanvasDateRangeValid(refundFrom, refundTo)
   const ordersState = useServerTableState('createdAt', prefill.orderNumber)
   const refundsState = useServerTableState('createdAt')
+  const setOrdersPagination = ordersState.setPagination
+  const setRefundsPagination = refundsState.setPagination
+  useEffect(() => {
+    setOrdersPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [debouncedOrderCustomer, setOrdersPagination])
+  useEffect(() => {
+    setRefundsPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [
+    debouncedCustomerConfirmation,
+    debouncedRefundOrderNumber,
+    refundFrom,
+    refundStatus,
+    setRefundsPagination,
+    refundTo,
+  ])
   const orders = useQuery({
     queryKey: [
       'canvas-cloud',
       'admin',
       'refund-orders',
       ordersState.query,
+      debouncedOrderCustomer,
       prefill.customerId,
     ],
     queryFn: ({ signal }) =>
       getCanvasAdminRechargeOrders(
         {
-          ...ordersState.query,
+          page: ordersState.query.page,
+          pageSize: ordersState.query.pageSize,
+          sortBy: ordersState.query.sortBy,
+          sortOrder: ordersState.query.sortOrder,
+          ...(ordersState.query.search
+            ? { orderNumber: ordersState.query.search }
+            : {}),
+          ...(debouncedOrderCustomer
+            ? { customer: debouncedOrderCustomer }
+            : {}),
           ...(prefill.customerId ? { customerId: prefill.customerId } : {}),
         },
         signal
@@ -120,6 +160,8 @@ export function AdminRefundRecovery({
       'refunds',
       prefill.customerId,
       refundsState.query,
+      debouncedRefundOrderNumber,
+      debouncedCustomerConfirmation,
       refundStatus,
       refundFrom?.toISOString(),
       refundTo?.toISOString(),
@@ -127,7 +169,19 @@ export function AdminRefundRecovery({
     queryFn: ({ signal }) =>
       getCanvasAdminRefunds(
         {
-          ...refundsState.query,
+          page: refundsState.query.page,
+          pageSize: refundsState.query.pageSize,
+          sortBy: refundsState.query.sortBy,
+          sortOrder: refundsState.query.sortOrder,
+          ...(refundsState.query.search
+            ? { refundReference: refundsState.query.search }
+            : {}),
+          ...(debouncedRefundOrderNumber
+            ? { orderNumber: debouncedRefundOrderNumber }
+            : {}),
+          ...(debouncedCustomerConfirmation
+            ? { customerConfirmation: debouncedCustomerConfirmation }
+            : {}),
           ...(prefill.customerId ? { customerId: prefill.customerId } : {}),
           ...(refundStatus ? { status: refundStatus } : {}),
           ...(refundFrom ? { from: refundFrom.toISOString() } : {}),
@@ -275,11 +329,20 @@ export function AdminRefundRecovery({
             columns={orderColumns}
             total={orders.data?.total ?? 0}
             state={ordersState}
-            searchLabel={t('Canvas recharge order number or customer')}
-            searchPlaceholder={t('Search by Canvas order number or customer')}
-            searchDescription={t(
-              'Fuzzy matches the Canvas recharge order number or customer name. A customer opened from Customers & Points remains scoped to that customer.'
-            )}
+            searchLabel={t('Canvas recharge order number')}
+            additionalFilters={
+              prefill.customerId ? null : (
+                <CanvasColumnFilterField label={t('Customer')}>
+                  <Input
+                    value={orderCustomer}
+                    placeholder={t('Customer')}
+                    onChange={(event) => setOrderCustomer(event.target.value)}
+                  />
+                </CanvasColumnFilterField>
+              )
+            }
+            hasActiveFilters={Boolean(orderCustomer)}
+            onResetFilters={() => setOrderCustomer('')}
             loading={orders.isLoading || orders.isFetching}
             emptyTitle={t('No recharge orders')}
             getRowId={(row) => row.id}
@@ -383,51 +446,87 @@ export function AdminRefundRecovery({
             columns={refundColumns}
             total={refunds.data?.total ?? 0}
             state={refundsState}
-            searchPlaceholder={t('Search refunds')}
+            searchLabel={t('Refund confirmation reference')}
             loading={refunds.isLoading || refunds.isFetching}
             emptyTitle={t('No refunds')}
             additionalFilters={
-              <div className='flex flex-wrap gap-2'>
-                <Select
-                  value={refundStatus || 'ALL'}
-                  onValueChange={(value) =>
-                    setRefundStatus(value === 'ALL' ? '' : (value ?? ''))
-                  }
+              <>
+                <CanvasColumnFilterField
+                  label={t('Canvas recharge order number')}
                 >
-                  <SelectTrigger className='w-44'>
-                    <SelectValue placeholder={t('Status')}>
-                      {refundStatus ? (
-                        <BusinessTerm
-                          kind='refundStatus'
-                          value={refundStatus}
-                        />
-                      ) : (
-                        t('All statuses')
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                    {['COMPLETED', 'PARTIAL_RECOVERY', 'RECOVERY_PENDING'].map(
-                      (value) => (
+                  <Input
+                    value={refundOrderNumber}
+                    placeholder={t('Canvas recharge order number')}
+                    onChange={(event) =>
+                      setRefundOrderNumber(event.target.value)
+                    }
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField
+                  label={t('Customer confirmation reference')}
+                >
+                  <Input
+                    value={customerConfirmation}
+                    placeholder={t('Customer confirmation reference')}
+                    onChange={(event) =>
+                      setCustomerConfirmation(event.target.value)
+                    }
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField label={t('Status')}>
+                  <Select
+                    value={refundStatus || 'ALL'}
+                    onValueChange={(value) =>
+                      setRefundStatus(value === 'ALL' ? '' : (value ?? ''))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue placeholder={t('Status')}>
+                        {refundStatus ? (
+                          <BusinessTermText
+                            kind='refundStatus'
+                            value={refundStatus}
+                          />
+                        ) : (
+                          t('All statuses')
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                      {[
+                        'COMPLETED',
+                        'PARTIAL_RECOVERY',
+                        'RECOVERY_PENDING',
+                      ].map((value) => (
                         <SelectItem key={value} value={value}>
                           <BusinessTerm kind='refundStatus' value={value} />
                         </SelectItem>
-                      )
-                    )}
-                  </SelectContent>
-                </Select>
-                <CanvasDateRangeFilter
-                  from={refundFrom}
-                  to={refundTo}
-                  onFromChange={setRefundFrom}
-                  onToChange={setRefundTo}
-                />
-              </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CanvasColumnFilterField>
+                <div className='sm:col-span-2'>
+                  <CanvasDateRangeFilter
+                    from={refundFrom}
+                    to={refundTo}
+                    onFromChange={setRefundFrom}
+                    onToChange={setRefundTo}
+                  />
+                </div>
+              </>
             }
-            hasActiveFilters={Boolean(refundStatus || refundFrom || refundTo)}
+            hasActiveFilters={Boolean(
+              refundOrderNumber ||
+              customerConfirmation ||
+              refundStatus ||
+              refundFrom ||
+              refundTo
+            )}
             onResetFilters={() => {
               setRefundStatus('')
+              setRefundOrderNumber('')
+              setCustomerConfirmation('')
               setRefundFrom(undefined)
               setRefundTo(undefined)
             }}

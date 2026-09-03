@@ -49,7 +49,8 @@ export interface CanvasAdminRechargeCodePage {
 export interface CanvasAdminRechargeCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  search?: string
+  name?: string
+  code?: string
   status?: CanvasAdminRechargeCode['status']
   createdFrom?: string
   createdTo?: string
@@ -117,14 +118,12 @@ export interface CanvasInviteCodeOptions {
 
 export interface CanvasAgentReference {
   principalId: string
-  internalName: string
+  username: string
 }
 
 export interface CanvasAgentProfile {
   principalId: string
-  newApiUserId: string
-  displayName: string
-  internalName: string
+  username: string
   status: 'ACTIVE' | 'DISABLED'
   createdAt: string
 }
@@ -134,14 +133,16 @@ export interface CanvasAdminAgentQuery {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   search?: string
   status?: CanvasAgentProfile['status']
-  sortBy: 'internalName' | 'newApiUserId' | 'status' | 'createdAt'
+  sortBy: 'username' | 'status' | 'createdAt'
   sortOrder: 'asc' | 'desc'
 }
 
 export interface CanvasAdminInviteCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  search?: string
+  code?: string
+  priceGroup?: string
+  inviter?: string
   status?: CanvasInviteCodeStatus
   sortBy:
     | 'code'
@@ -158,8 +159,7 @@ export interface CanvasAdminInviteCodeQuery {
 export interface CanvasAgentWorkspace {
   profile: {
     principalId: string
-    displayName: string
-    internalName: string
+    username: string
     status: 'ACTIVE'
   }
 }
@@ -180,7 +180,6 @@ export interface CanvasAgentInviteCode {
 
 export interface CanvasAgentCustomer {
   id: string
-  newApiUserId: string
   username: string | null
   emailMasked: string | null
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
@@ -205,9 +204,10 @@ export interface CanvasAgentInviteCodeQuery {
 export interface CanvasAgentCustomerQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  search?: string
+  username?: string
+  email?: string
   status?: CanvasAgentCustomer['status']
-  sortBy: 'customer' | 'newApiUserId' | 'status' | 'activatedAt'
+  sortBy: 'customer' | 'status' | 'activatedAt'
   sortOrder: 'asc' | 'desc'
 }
 
@@ -449,8 +449,7 @@ export interface CanvasAuditEventPage {
     severity: 'INFO' | 'WARN' | 'ERROR'
     actorPrincipalId: string | null
     actorType: string
-    actorExternalSystem: string | null
-    actorExternalId: string | null
+    actorUsername: string | null
     requestId: string | null
     traceId: string | null
     resourceType: string
@@ -464,7 +463,8 @@ export interface CanvasAuditEventPage {
 export interface CanvasAuditEventQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  search?: string
+  resource?: string
+  reason?: string
   category?: string
   action?: string
   outcome?: CanvasAuditEventPage['items'][number]['outcome']
@@ -506,6 +506,7 @@ export interface CanvasTaskPolicySettings {
 export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
+  modelIds: Array<{ quality: string | null; modelId: string }>
   version: number
   name: string
   description: string
@@ -613,7 +614,6 @@ export interface CanvasModelCatalogPlan {
 
 export interface CanvasAdminCustomerPointBalance {
   customerId: string
-  newApiUserId: string
   username: string | null
   emailMasked: string | null
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
@@ -694,6 +694,45 @@ export interface CanvasAdminCustomerTask {
   upstreamTaskId: string | null
   acceptedAt: string
   completedAt: string | null
+}
+
+export interface CanvasAdminTaskLog {
+  id: string
+  customerId: string
+  customerName: string
+  modelName: string
+  quotedPoints: string
+  executionStatus: string
+  customerBillingStatus: string
+  providerReconcileStatus: string
+  executionOrigin: 'MOCK' | 'REAL' | null
+  upstreamTaskId: string | null
+  acceptedAt: string
+  completedAt: string | null
+}
+
+export interface CanvasAdminTaskLogQuery {
+  customer?: string
+  model?: string
+  executionStatus?: string
+  billingStatus?: string
+  reconciliationStatus?: string
+  executionOrigin?: 'MOCK' | 'REAL'
+  from?: string
+  to?: string
+  sortBy:
+    | 'customer'
+    | 'model'
+    | 'quotedPoints'
+    | 'executionStatus'
+    | 'billingStatus'
+    | 'reconciliationStatus'
+    | 'source'
+    | 'acceptedAt'
+    | 'completedAt'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
 
 export interface CanvasAdminPointLot {

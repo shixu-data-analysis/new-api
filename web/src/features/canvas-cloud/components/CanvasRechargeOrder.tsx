@@ -71,9 +71,9 @@ export function useCanvasRechargeOrderColumns({
         id: 'customer',
         accessorFn: (item) => item.customerName ?? item.customerEmailMasked,
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Customer')} />
+          <DataTableColumnHeader column={column} title={t('Username')} />
         ),
-        meta: { label: t('Customer') },
+        meta: { label: t('Username') },
         cell: ({ row }) =>
           row.original.customerName ? (
             <CopyableText value={row.original.customerName} />

@@ -56,7 +56,6 @@ function renderWithQuery(node: ReactNode) {
 
 const customer = {
   customerId: '85000000-0000-7000-8000-000000000001',
-  newApiUserId: '85',
   username: 'uatcustomer',
   emailMasked: null,
   status: 'ACTIVE' as const,
@@ -201,7 +200,8 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
 
   it('keeps adjustments in a customer-scoped side drawer', async () => {
     renderWithQuery(<AdminPointAdjustments />)
-    expect(screen.getByPlaceholderText('Search customer name')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    expect(screen.getByPlaceholderText('Username')).toBeInTheDocument()
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     expect(screen.queryByLabelText('Bonus points')).not.toBeInTheDocument()
@@ -228,7 +228,8 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Back to customer list' })
     )
-    expect(screen.getByPlaceholderText('Search customer name')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    expect(screen.getByPlaceholderText('Username')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Back to customer list' })
     ).not.toBeInTheDocument()
@@ -238,9 +239,13 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
 
   it('selects a Canvas order and never offers an administrator-entered point amount for refund recovery', async () => {
     renderWithQuery(<AdminRefundRecovery />)
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Column filters' })[0]
+    )
     expect(
-      screen.getByPlaceholderText('Search by Canvas order number or customer')
-    ).toBeVisible()
+      screen.getByLabelText('Canvas recharge order number')
+    ).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Customer')).toBeInTheDocument()
     expect(await screen.findByText('CANVAS-20260901-001')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     expect(
@@ -273,16 +278,27 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
 
     expect(screen.getByRole('tab', { name: 'Recharge orders' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('Canvas recharge order number')
+      ).toBeVisible()
+    )
     expect(await screen.findByText(order.orderNumber)).toBeVisible()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Point Lots' }))
-    expect(screen.getByPlaceholderText('Search Point Lots')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Point Lot')).toBeVisible()
+    )
+    expect(screen.getByPlaceholderText('Canvas recharge order')).toBeVisible()
     expect(
       screen.queryByPlaceholderText('Search point events')
     ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Point ledger' }))
-    expect(screen.getByPlaceholderText('Search point events')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await waitFor(() => expect(screen.getByLabelText('Reason')).toBeVisible())
     expect(
       screen.queryByPlaceholderText('Search Point Lots')
     ).not.toBeInTheDocument()
@@ -293,9 +309,15 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tasks' }))
     expect(await screen.findByText('Canvas Image')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await waitFor(() => expect(screen.getByLabelText('Task ID')).toBeVisible())
+    expect(screen.getByPlaceholderText('Model')).toBeVisible()
+    expect(screen.getByPlaceholderText('Upstream task ID')).toBeVisible()
     expect(screen.getByText('Consumed points')).toBeVisible()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Customer audit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await waitFor(() => expect(screen.getByLabelText('Action')).toBeVisible())
     await waitFor(() =>
       expect(apiMocks.getCanvasAuditEvents).toHaveBeenCalledWith(
         expect.objectContaining({ customerId: customer.customerId }),
@@ -314,8 +336,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
           id: '85000000-0000-7000-8000-000000000020',
           occurredAt: '2026-09-01T01:00:00.000Z',
           actorType: 'PLATFORM_ADMIN',
-          actorExternalSystem: 'new-api',
-          actorExternalId: '1',
+          actorUsername: 'root',
           resourceType: 'POINT_LEDGER',
           resourceId: '85000000-0000-7000-8000-000000000005',
           reasonCode: 'SELECTED_LOT_DEDUCTION',
@@ -355,7 +376,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
       expect(apiMocks.getCanvasAdminRechargeOrders).toHaveBeenLastCalledWith(
         expect.objectContaining({
           customerId: customer.customerId,
-          search: order.orderNumber,
+          orderNumber: order.orderNumber,
         }),
         expect.any(AbortSignal)
       )
@@ -371,13 +392,13 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('uatcustomer')).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Customer name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Username' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide' }))
     expect(screen.queryByText('uatcustomer')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'View' }))
     const customerToggle = await screen.findByRole('menuitemcheckbox', {
-      name: 'Customer name',
+      name: 'Username',
     })
     expect(
       screen.queryByRole('menuitemcheckbox', { name: 'Actions' })
@@ -391,7 +412,8 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
     expect(await screen.findByText('uatcustomer')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Point Lots' }))
-    expect(screen.getByText('All types')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    expect(screen.getByText('All types')).toBeInTheDocument()
     expect(screen.queryByText('ALL')).not.toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: 'Deduct points' })

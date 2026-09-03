@@ -27,13 +27,11 @@ export function CanvasDateRangeFilter({
   to,
   onFromChange,
   onToChange,
-  showLabels = false,
 }: {
   from?: Date
   to?: Date
   onFromChange: (value?: Date) => void
   onToChange: (value?: Date) => void
-  showLabels?: boolean
 }) {
   const { t } = useTranslation()
   const valid = isCanvasDateRangeValid(from, to)
@@ -41,23 +39,23 @@ export function CanvasDateRangeFilter({
   return (
     <div className='grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2'>
       <div className='space-y-1'>
-        {showLabels ? (
-          <p className='text-sm font-medium'>{t('Start time')}</p>
-        ) : null}
+        <p className='h-5 truncate text-sm leading-5 font-medium'>
+          {t('Start time')}
+        </p>
         <DateTimePicker
           value={from}
           onChange={onFromChange}
-          placeholder={t('From')}
+          placeholder={t('Start time')}
         />
       </div>
       <div className='space-y-1'>
-        {showLabels ? (
-          <p className='text-sm font-medium'>{t('End time')}</p>
-        ) : null}
+        <p className='h-5 truncate text-sm leading-5 font-medium'>
+          {t('End time')}
+        </p>
         <DateTimePicker
           value={to}
           onChange={onToChange}
-          placeholder={t('To')}
+          placeholder={t('End time')}
         />
       </div>
       {!valid ? (

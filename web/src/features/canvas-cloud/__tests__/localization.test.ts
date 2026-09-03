@@ -45,6 +45,15 @@ const guidedPricingKeys = [
   'Pricing recommendation',
 ] as const
 const modelIdentityKeys = ['Search model name or ID', 'Model ID'] as const
+const canvasCloudCoverageKeys = [
+  'Publish a versioned REQUEST × quality cost. Customer point prices remain unchanged.',
+  'Upstream task ID',
+  'records',
+  'Production',
+  'Quality',
+  'Pricing risk',
+  'No active risk',
+] as const
 const inviteBonusKeys = [
   'Bonus promotion',
   'Initial Bonus points',
@@ -68,14 +77,14 @@ const paidExpiryKeys = [
   'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.',
 ] as const
 const pointAdjustmentKeys = [
-  'Customer name',
-  'Search customer name',
+  'Username',
+  'Search username',
   'Record externally confirmed refund',
   'Refund point recovery',
   'Open refund point recovery',
   'Prefilled customer',
   'Canvas recharge order number or customer',
-  'Fuzzy matches the Canvas recharge order number or customer name. A customer opened from Customers & Points remains scoped to that customer.',
+  'Fuzzy matches the Canvas recharge order number or username. A customer opened from Customers & Points remains scoped to that customer.',
   'Canvas recharge order',
   'Customer confirmation reference',
   'Calculated points',
@@ -155,6 +164,28 @@ describe('Canvas interface localization', () => {
       }
     }
   )
+
+  it.each(Object.entries({ en, ...localizedResources }))(
+    'defines the Canvas Cloud page coverage keys in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of canvasCloudCoverageKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe('')
+      }
+    }
+  )
+
+  it('does not expose upstream pricing implementation terms in Chinese', () => {
+    expect(
+      zh.translation[
+        'Publish a versioned REQUEST × quality cost. Customer point prices remain unchanged.'
+      ]
+    ).not.toMatch(/REQUEST|quality/i)
+    expect(zh.translation.Quality).toBe('质量')
+    expect(zh.translation['Pricing risk']).toBe('定价风险')
+    expect(zh.translation['No active risk']).toBe('当前无风险')
+  })
 
   it.each(Object.entries(localizedResources))(
     'localizes invite promotional-point labels in %s',

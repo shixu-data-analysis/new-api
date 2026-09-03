@@ -158,9 +158,6 @@ export function PriceGroupManagement() {
       { columnId: 'name', label: t('Price group name') },
       { columnId: 'version', label: t('Group version') },
       { columnId: 'status', label: t('Status') },
-      { columnId: 'created', label: t('Created') },
-      { columnId: 'approved', label: t('Approved') },
-      { columnId: 'effective', label: t('Effective') },
     ],
     [t]
   )

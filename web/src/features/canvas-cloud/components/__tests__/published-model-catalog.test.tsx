@@ -27,6 +27,7 @@ function model(
   return {
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
+    modelIds: [{ quality: null, modelId: 'provider-alpha' }],
     version: 2,
     name: 'Alpha model',
     description: 'Client description',
@@ -72,10 +73,16 @@ describe('Published model catalog', () => {
     mocks.publish.mockReset()
     mocks.publish.mockResolvedValue({ status: 'PUBLISHED' })
     mocks.list.mockResolvedValue([
-      model({}),
+      model({
+        modelIds: [
+          { quality: '1K', modelId: 'provider-alpha-1k' },
+          { quality: '2K', modelId: 'provider-alpha-2k' },
+        ],
+      }),
       model({
         id: '85000000-0000-7000-8000-000000000005',
         modelKey: 'canvas.video.zeta',
+        modelIds: [{ quality: null, modelId: 'provider-zeta' }],
         name: 'Zeta model',
         version: 1,
         publicCatalogSnapshot: { capability: 'video.generate' },
@@ -86,9 +93,12 @@ describe('Published model catalog', () => {
   it('sorts the whole result set by each selected column before pagination', async () => {
     renderCatalog()
     await screen.findByText('Alpha model')
+    expect(screen.getAllByText('Model ID:')).toHaveLength(2)
+    expect(screen.getByText('1K: provider-alpha-1k')).toHaveClass('break-all')
+    expect(screen.getByText('2K: provider-alpha-2k')).toHaveClass('break-all')
     expect(
-      screen.getByText('Model ID: 85000000-0000-7000-8000-000000000004')
-    ).toBeVisible()
+      screen.queryByText('85000000-0000-7000-8000-000000000004')
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('canvas.image.alpha')).not.toBeInTheDocument()
     let rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Alpha model')
@@ -100,18 +110,21 @@ describe('Published model catalog', () => {
     expect(rows[2]).toHaveTextContent('Alpha model')
   })
 
-  it('searches published models by model ID instead of the internal product key', async () => {
+  it('searches published models by provider model ID instead of internal identifiers', async () => {
     renderCatalog()
     await screen.findByText('Alpha model')
-    const search = screen.getByRole('textbox', {
-      name: 'Search model name or ID',
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    const search = screen.getByPlaceholderText('Model ID')
 
-    fireEvent.change(search, { target: { value: '000000000005' } })
+    fireEvent.change(search, { target: { value: 'provider-zeta' } })
     expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
     expect(screen.getByText('Zeta model')).toBeVisible()
 
     fireEvent.change(search, { target: { value: 'canvas.image.alpha' } })
+    expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Zeta model')).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: '000000000004' } })
     expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
     expect(screen.queryByText('Zeta model')).not.toBeInTheDocument()
   })

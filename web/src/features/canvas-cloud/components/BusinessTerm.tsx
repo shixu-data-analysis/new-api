@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StatusBadge } from '@/components/status-badge'
 import {
   Tooltip,
   TooltipContent,
@@ -30,6 +30,17 @@ import {
   getCanvasBusinessTerm,
   type CanvasBusinessTermKind,
 } from '../business-terms'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
+
+export function BusinessTermText(props: {
+  kind: CanvasBusinessTermKind
+  value: string
+  fallback?: ReactNode
+}) {
+  const { t } = useTranslation()
+  const definition = getCanvasBusinessTerm(props.kind, props.value)
+  return definition ? t(definition.labelKey) : (props.fallback ?? props.value)
+}
 
 export function BusinessTerm(props: {
   kind: CanvasBusinessTermKind
@@ -52,7 +63,7 @@ export function BusinessTerm(props: {
       aria-label={`${label}. ${help}`}
     >
       {definition.presentation === 'badge' ? (
-        <StatusBadge label={label} copyable={false} />
+        <CanvasStatusBadge label={label} status={props.value} />
       ) : (
         label
       )}

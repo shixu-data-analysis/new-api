@@ -26,7 +26,6 @@ import { toast } from 'sonner'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -57,13 +56,14 @@ import { getCanvasAgents, provisionCanvasAgent } from '../api'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAgentProfile } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 interface AgentFormValues {
-  newApiUserId: string
-  internalName: string
+  username: string
   reason: string
 }
 
@@ -83,8 +83,7 @@ export function AgentManagement() {
   const form = useForm<AgentFormValues>({
     mode: 'onTouched',
     defaultValues: {
-      newApiUserId: '',
-      internalName: '',
+      username: '',
       reason: '',
     },
   })
@@ -104,8 +103,7 @@ export function AgentManagement() {
   const create = useMutation({
     mutationFn: () =>
       provisionCanvasAgent({
-        newApiUserId: form.getValues('newApiUserId'),
-        internalName: form.getValues('internalName').trim(),
+        username: form.getValues('username').trim(),
         status: 'ACTIVE',
         reason: form.getValues('reason').trim(),
       }),
@@ -135,11 +133,11 @@ export function AgentManagement() {
             )
           case 'NOT_FOUND':
             return t(
-              'The selected New API user no longer exists. Refresh the page and check the user ID.'
+              'The username was not found. Refresh the page and check the username.'
             )
           case 'IDENTITY_PROVIDER_UNAVAILABLE':
             return t(
-              'New API could not verify this user right now. Confirm the user ID exists, then try again later.'
+              'The user could not be verified right now. Confirm the username exists, then try again later.'
             )
           case 'UNAUTHORIZED':
             return t(
@@ -163,20 +161,12 @@ export function AgentManagement() {
   const columns = useMemo<ColumnDef<CanvasAgentProfile, unknown>[]>(
     () => [
       {
-        id: 'internalName',
-        accessorKey: 'internalName',
+        id: 'username',
+        accessorKey: 'username',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Inviter')} />
+          <DataTableColumnHeader column={column} title={t('Username')} />
         ),
-        cell: ({ row }) => <CopyableText value={row.original.internalName} />,
-      },
-      {
-        id: 'newApiUserId',
-        accessorKey: 'newApiUserId',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('New API user ID')} />
-        ),
-        cell: ({ row }) => <CopyableText value={row.original.newApiUserId} />,
+        cell: ({ row }) => <CopyableText value={row.original.username} />,
       },
       {
         id: 'status',
@@ -185,11 +175,10 @@ export function AgentManagement() {
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
         cell: ({ row }) => (
-          <Badge
-            variant={row.original.status === 'ACTIVE' ? 'secondary' : 'outline'}
-          >
-            {t(row.original.status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
-          </Badge>
+          <CanvasStatusBadge
+            status={row.original.status}
+            label={t(row.original.status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
+          />
         ),
       },
       {
@@ -228,7 +217,7 @@ export function AgentManagement() {
           <Form {...form}>
             <form
               noValidate
-              className='grid items-start gap-3 md:grid-cols-[minmax(10rem,0.7fr)_minmax(12rem,1fr)_minmax(14rem,1.2fr)_auto]'
+              className='grid items-start gap-3 md:grid-cols-2'
               onSubmit={form.handleSubmit(
                 () => setConfirming(true),
                 () => toast.error(t('Please fix the highlighted fields'))
@@ -236,23 +225,24 @@ export function AgentManagement() {
             >
               <FormField
                 control={form.control}
-                name='newApiUserId'
+                name='username'
                 rules={{
-                  required: t('Enter a New API user ID'),
-                  pattern: {
-                    value: /^[1-9]\d*$/,
-                    message: t('New API user ID must be a positive integer'),
+                  validate: (value) =>
+                    value.trim().length > 0 || t('Enter a username'),
+                  maxLength: {
+                    value: 191,
+                    message: t('Username must not exceed 191 characters'),
                   },
                 }}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('New API user ID')}</FormLabel>
+                    <FormLabel>{t('Username')}</FormLabel>
                     <FormControl>
-                      <Input {...field} inputMode='numeric' />
+                      <Input {...field} autoComplete='off' maxLength={191} />
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Use the New API user ID of an existing active Canvas customer.'
+                        'Enter the username of an existing active Canvas customer.'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -280,34 +270,15 @@ export function AgentManagement() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name='internalName'
-                rules={{
-                  validate: (value) =>
-                    value.trim().length > 0 || t('Enter an inviter name'),
-                  maxLength: {
-                    value: 128,
-                    message: t('Inviter name must not exceed 128 characters'),
-                  },
-                }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Inviter name')}</FormLabel>
-                    <FormControl>
-                      <Input {...field} maxLength={128} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                className='mt-0 w-full md:mt-7 md:w-auto'
-                type='submit'
-                disabled={create.isPending}
-              >
-                {t('Enable invitation ability')}
-              </Button>
+              <div className='flex justify-end md:col-span-2'>
+                <Button
+                  className='w-full md:w-auto'
+                  type='submit'
+                  disabled={create.isPending}
+                >
+                  {t('Enable invitation ability')}
+                </Button>
+              </div>
             </form>
           </Form>
         </CardContent>
@@ -317,33 +288,40 @@ export function AgentManagement() {
         columns={columns}
         total={agents.data.total}
         state={tableState}
-        searchPlaceholder={t('Search inviters')}
-        searchLabel={t('Inviter name or New API user ID')}
-        searchDescription={t(
-          'Fuzzy matches inviter name, customer display name, or New API user ID.'
-        )}
+        searchLabel={t('Inviter username')}
         loading={agents.isFetching}
         emptyTitle={t('No inviters')}
         additionalFilters={
-          <Select
-            value={status || 'ALL'}
-            onValueChange={(value) =>
-              setStatus(value === 'ALL' ? '' : (value ?? ''))
-            }
-          >
-            <SelectTrigger className='w-44'>
-              <SelectValue>
-                {status
-                  ? t(status === 'ACTIVE' ? 'Enabled' : 'Disabled')
-                  : t('All statuses')}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-              <SelectItem value='ACTIVE'>{t('Enabled')}</SelectItem>
-              <SelectItem value='DISABLED'>{t('Disabled')}</SelectItem>
-            </SelectContent>
-          </Select>
+          <CanvasColumnFilterField label={t('Status')}>
+            <Select
+              value={status || 'ALL'}
+              onValueChange={(value) =>
+                setStatus(value === 'ALL' ? '' : (value ?? ''))
+              }
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue>
+                  {status ? (
+                    <CanvasStatusBadge
+                      status={status}
+                      label={t(status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
+                    />
+                  ) : (
+                    t('All statuses')
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                <SelectItem value='ACTIVE'>
+                  <CanvasStatusBadge status='ACTIVE' label={t('Enabled')} />
+                </SelectItem>
+                <SelectItem value='DISABLED'>
+                  <CanvasStatusBadge status='DISABLED' label={t('Disabled')} />
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </CanvasColumnFilterField>
         }
         hasActiveFilters={Boolean(status)}
         onResetFilters={() => setStatus('')}
@@ -358,8 +336,7 @@ export function AgentManagement() {
         confirmLabel={t('Confirm creation')}
         pending={create.isPending}
         details={[
-          { label: t('New API user ID'), value: values.newApiUserId },
-          { label: t('Inviter name'), value: values.internalName.trim() },
+          { label: t('Username'), value: values.username.trim() },
           { label: t('Approval reason'), value: values.reason.trim() },
         ]}
         onOpenChange={setConfirming}

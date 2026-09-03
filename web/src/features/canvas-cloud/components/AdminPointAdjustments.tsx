@@ -91,7 +91,8 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminCustomerOperations } from './AdminCustomerOperations'
-import { BusinessTerm } from './BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasRechargeOrderSummary } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -317,15 +318,13 @@ export function AdminPointAdjustments({
     [
       {
         id: 'customer',
-        accessorFn: (item) => item.username ?? item.newApiUserId,
+        accessorKey: 'username',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Customer name')} />
+          <DataTableColumnHeader column={column} title={t('Username')} />
         ),
-        meta: { label: t('Customer name') },
+        meta: { label: t('Username') },
         cell: ({ row }) => (
-          <CopyableText
-            value={row.original.username ?? row.original.newApiUserId}
-          />
+          <CopyableText value={row.original.username ?? '—'} />
         ),
       },
       {
@@ -388,37 +387,39 @@ export function AdminPointAdjustments({
             columns={customerColumns}
             total={customers.data?.total ?? 0}
             state={customersState}
-            searchPlaceholder={t('Search customer name')}
+            searchLabel={t('Username')}
             loading={customers.isLoading || customers.isFetching}
             emptyTitle={t('No customers')}
             additionalFilters={
-              <Select
-                value={customerStatus || 'ALL'}
-                onValueChange={(value) =>
-                  setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
-                }
-              >
-                <SelectTrigger className='w-full sm:w-40'>
-                  <SelectValue placeholder={t('Status')}>
-                    {customerStatus ? (
-                      <BusinessTerm
-                        kind='customerStatus'
-                        value={customerStatus}
-                      />
-                    ) : (
-                      t('All statuses')
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                    <SelectItem key={value} value={value}>
-                      <BusinessTerm kind='customerStatus' value={value} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CanvasColumnFilterField label={t('Status')}>
+                <Select
+                  value={customerStatus || 'ALL'}
+                  onValueChange={(value) =>
+                    setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
+                  }
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue>
+                      {customerStatus ? (
+                        <BusinessTermText
+                          kind='customerStatus'
+                          value={customerStatus}
+                        />
+                      ) : (
+                        t('All statuses')
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                    {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        <BusinessTerm kind='customerStatus' value={value} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CanvasColumnFilterField>
             }
             hasActiveFilters={Boolean(customerStatus)}
             onResetFilters={() => setCustomerStatus('')}
@@ -469,9 +470,7 @@ export function AdminPointAdjustments({
           <div className='flex flex-wrap items-center justify-between gap-3'>
             <div>
               <div className='font-medium'>
-                <CopyableText
-                  value={customer.username ?? customer.newApiUserId}
-                />
+                <CopyableText value={customer.username ?? '—'} />
               </div>
               <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm'>
                 <span>
@@ -504,7 +503,7 @@ export function AdminPointAdjustments({
                   onClick={() =>
                     onOpenRefundRecovery({
                       customerId: customer.customerId,
-                      customerName: customer.username ?? customer.newApiUserId,
+                      customerName: customer.username ?? '—',
                     })
                   }
                 >
@@ -563,9 +562,7 @@ export function AdminPointAdjustments({
               >
                 <SideDrawerSection>
                   <div className='font-medium'>
-                    <CopyableText
-                      value={customer.username ?? customer.newApiUserId}
-                    />
+                    <CopyableText value={customer.username ?? '—'} />
                   </div>
                   <FormField
                     control={bonusForm.control}

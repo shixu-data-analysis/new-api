@@ -25,22 +25,25 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
 import type { CanvasServerTableState } from '../use-server-table-state'
+import { withCanvasTableColumnSizes } from './canvas-table-layout'
+import {
+  CanvasColumnFilterField,
+  CanvasColumnFilterPanel,
+} from './CanvasColumnFilterPanel'
 
 export function CanvasServerTable<TData>({
   data,
   columns,
   total,
   state,
-  searchPlaceholder,
   searchLabel,
-  searchDescription,
   loading,
   emptyTitle,
   additionalFilters,
   hasActiveFilters = false,
+  activeFilterCount,
   onResetFilters,
   getRowId,
   getRowClassName,
@@ -49,13 +52,12 @@ export function CanvasServerTable<TData>({
   columns: ColumnDef<TData, unknown>[]
   total: number
   state: CanvasServerTableState
-  searchPlaceholder: string
   searchLabel?: string
-  searchDescription?: string
   loading?: boolean
   emptyTitle: string
   additionalFilters?: React.ReactNode
   hasActiveFilters?: boolean
+  activeFilterCount?: number
   onResetFilters?: () => void
   getRowId: (row: TData) => string
   getRowClassName?: (
@@ -66,11 +68,13 @@ export function CanvasServerTable<TData>({
   const { pagination, setPagination, sorting, setSorting, search, setSearch } =
     state
   const searchId = useId()
-  const searchDescriptionId = `${searchId}-description`
   const pageCount = Math.max(1, Math.ceil(total / pagination.pageSize))
+  const sizedColumns = withCanvasTableColumnSizes(columns)
+  const visibleActiveFilterCount =
+    activeFilterCount ?? (search.trim() ? 1 : 0) + (hasActiveFilters ? 1 : 0)
   const { table } = useDataTable({
     data,
-    columns,
+    columns: sizedColumns,
     totalCount: total,
     pageCount,
     pagination,
@@ -90,46 +94,34 @@ export function CanvasServerTable<TData>({
   return (
     <DataTablePage
       table={table}
-      columns={columns}
+      columns={sizedColumns}
       isLoading={loading}
       isFetching={loading}
       emptyTitle={emptyTitle}
       fixedHeight={false}
       paginationInFooter={false}
       getRowClassName={getRowClassName}
+      applyHeaderSize
       toolbar={
         <DataTableToolbar
           table={table}
           stableGrid
-          searchPlaceholder={searchPlaceholder}
-          searchDebounceMs={0}
           customSearch={
-            searchLabel || searchDescription ? (
-              <div className='w-full space-y-1'>
-                {searchLabel ? (
-                  <Label htmlFor={searchId}>{searchLabel}</Label>
-                ) : null}
-                <Input
-                  id={searchId}
-                  value={search}
-                  placeholder={searchPlaceholder}
-                  aria-describedby={
-                    searchDescription ? searchDescriptionId : undefined
-                  }
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                {searchDescription ? (
-                  <p
-                    id={searchDescriptionId}
-                    className='text-muted-foreground text-xs leading-relaxed'
-                  >
-                    {searchDescription}
-                  </p>
-                ) : null}
-              </div>
-            ) : undefined
+            <CanvasColumnFilterPanel activeCount={visibleActiveFilterCount}>
+              {searchLabel ? (
+                <CanvasColumnFilterField label={searchLabel} htmlFor={searchId}>
+                  <Input
+                    id={searchId}
+                    className='min-w-0'
+                    value={search}
+                    placeholder={searchLabel}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </CanvasColumnFilterField>
+              ) : null}
+              {additionalFilters}
+            </CanvasColumnFilterPanel>
           }
-          additionalSearch={additionalFilters}
           onReset={() => {
             setSearch('')
             onResetFilters?.()

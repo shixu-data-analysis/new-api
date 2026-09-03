@@ -18,15 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { Copy } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -35,6 +34,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -42,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import {
   getCanvasAgentCustomers,
@@ -58,8 +59,11 @@ import type {
   CanvasInviteCodeStatus,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm } from './BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
 
 export function AgentCenter() {
@@ -69,8 +73,16 @@ export function AgentCenter() {
     useServerTableState<CanvasAgentInviteCodeQuery['sortBy']>('createdAt')
   const customersState =
     useServerTableState<CanvasAgentCustomerQuery['sortBy']>('activatedAt')
+  const setCustomersPagination = customersState.setPagination
   const [inviteStatus, setInviteStatus] = useState('')
   const [customerStatus, setCustomerStatus] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const debouncedCustomerEmail = useDebounce(customerEmail.trim(), 300)
+  useEffect(() => {
+    setCustomersPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [customerStatus, debouncedCustomerEmail, setCustomersPagination])
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'agent-workspace'],
     queryFn: getCanvasAgentWorkspace,
@@ -98,12 +110,20 @@ export function AgentCenter() {
       'canvas-cloud',
       'agent-customers',
       customersState.query,
+      debouncedCustomerEmail,
       customerStatus,
     ],
     queryFn: ({ signal }) =>
       getCanvasAgentCustomers(
         {
-          ...customersState.query,
+          page: customersState.query.page,
+          pageSize: customersState.query.pageSize,
+          sortBy: customersState.query.sortBy,
+          sortOrder: customersState.query.sortOrder,
+          ...(customersState.query.search
+            ? { username: customersState.query.search }
+            : {}),
+          ...(debouncedCustomerEmail ? { email: debouncedCustomerEmail } : {}),
           ...(customerStatus
             ? { status: customerStatus as CanvasAgentCustomer['status'] }
             : {}),
@@ -133,11 +153,35 @@ export function AgentCenter() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Invite code')} />
       ),
-      cell: ({ row }) => (
-        <span className='font-mono'>
-          {revealed[row.original.id] ?? row.original.maskedCode}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const item = row.original
+        const revealLabel = t(
+          revealed[item.id] ? 'Hide invite code' : 'Show invite code'
+        )
+        return (
+          <div className='flex w-full items-center gap-1'>
+            <span className='min-w-0 flex-1 truncate font-mono'>
+              {revealed[item.id] ?? item.maskedCode}
+            </span>
+            <CanvasCodeRevealButton
+              label={revealLabel}
+              revealed={Boolean(revealed[item.id])}
+              disabled={reveal.isPending}
+              onClick={() => {
+                if (revealed[item.id]) {
+                  setRevealed((current) => {
+                    const next = { ...current }
+                    delete next[item.id]
+                    return next
+                  })
+                  return
+                }
+                reveal.mutate({ id: item.id, action: 'DISPLAY' })
+              }}
+            />
+          </div>
+        )
+      },
     },
     {
       id: 'status',
@@ -145,7 +189,12 @@ export function AgentCenter() {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
-      cell: ({ row }) => t(`Invite status ${row.original.status}`),
+      cell: ({ row }) => (
+        <CanvasStatusBadge
+          status={row.original.status}
+          label={t(`Invite status ${row.original.status}`)}
+        />
+      ),
     },
     {
       id: 'capacity',
@@ -191,29 +240,6 @@ export function AgentCenter() {
           <Button
             size='sm'
             variant='outline'
-            aria-label={t(
-              revealed[row.original.id]
-                ? 'Hide invite code'
-                : 'Show invite code'
-            )}
-            aria-pressed={Boolean(revealed[row.original.id])}
-            onClick={() => {
-              if (revealed[row.original.id]) {
-                setRevealed((current) => {
-                  const next = { ...current }
-                  delete next[row.original.id]
-                  return next
-                })
-                return
-              }
-              reveal.mutate({ id: row.original.id, action: 'DISPLAY' })
-            }}
-          >
-            {revealed[row.original.id] ? <EyeOff /> : <Eye />}
-          </Button>
-          <Button
-            size='sm'
-            variant='outline'
             aria-label={t('Copy invite code')}
             onClick={() =>
               reveal.mutate({ id: row.original.id, action: 'COPY' })
@@ -230,7 +256,7 @@ export function AgentCenter() {
       id: 'customer',
       accessorKey: 'username',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Customer')} />
+        <DataTableColumnHeader column={column} title={t('Username')} />
       ),
       cell: ({ row }) =>
         row.original.username ? (
@@ -238,14 +264,6 @@ export function AgentCenter() {
         ) : (
           '—'
         ),
-    },
-    {
-      id: 'newApiUserId',
-      accessorKey: 'newApiUserId',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('New API user ID')} />
-      ),
-      cell: ({ row }) => <CopyableText value={row.original.newApiUserId} />,
     },
     {
       id: 'email',
@@ -290,11 +308,11 @@ export function AgentCenter() {
     <div className='space-y-4'>
       <Card>
         <CardHeader>
-          <CardTitle>{data.profile.internalName}</CardTitle>
+          <CardTitle>{data.profile.username}</CardTitle>
           <CardDescription>{t('Inviter')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Badge variant='secondary'>{t('Enabled')}</Badge>
+          <CanvasStatusBadge status='ACTIVE' label={t('Enabled')} />
         </CardContent>
       </Card>
       <Card>
@@ -310,38 +328,44 @@ export function AgentCenter() {
             columns={inviteColumns}
             total={invites.data?.total ?? 0}
             state={invitesState}
-            searchPlaceholder={t('Search invite codes')}
             searchLabel={t('Visible invite code prefix')}
-            searchDescription={t(
-              'Fuzzy matches only the visible invite code prefix.'
-            )}
             loading={invites.isPending || invites.isFetching}
             emptyTitle={t('No invite codes')}
             additionalFilters={
-              <Select
-                value={inviteStatus || 'ALL'}
-                onValueChange={(value) =>
-                  setInviteStatus(value === 'ALL' ? '' : (value ?? ''))
-                }
-              >
-                <SelectTrigger className='w-44'>
-                  <SelectValue>
-                    {inviteStatus
-                      ? t(`Invite status ${inviteStatus}`)
-                      : t('All statuses')}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
-                    (value) => (
-                      <SelectItem key={value} value={value}>
-                        {t(`Invite status ${value}`)}
-                      </SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
+              <CanvasColumnFilterField label={t('Status')}>
+                <Select
+                  value={inviteStatus || 'ALL'}
+                  onValueChange={(value) =>
+                    setInviteStatus(value === 'ALL' ? '' : (value ?? ''))
+                  }
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue>
+                      {inviteStatus ? (
+                        <CanvasStatusBadge
+                          status={inviteStatus}
+                          label={t(`Invite status ${inviteStatus}`)}
+                        />
+                      ) : (
+                        t('All statuses')
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                    {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
+                      (value) => (
+                        <SelectItem key={value} value={value}>
+                          <CanvasStatusBadge
+                            status={value}
+                            label={t(`Invite status ${value}`)}
+                          />
+                        </SelectItem>
+                      )
+                    )}
+                  </SelectContent>
+                </Select>
+              </CanvasColumnFilterField>
             }
             hasActiveFilters={Boolean(inviteStatus)}
             onResetFilters={() => setInviteStatus('')}
@@ -362,44 +386,54 @@ export function AgentCenter() {
             columns={customerColumns}
             total={customers.data?.total ?? 0}
             state={customersState}
-            searchPlaceholder={t('Search customers')}
-            searchLabel={t('Customer name, email, or New API user ID')}
-            searchDescription={t(
-              'Fuzzy matches customer name, masked email, or New API user ID.'
-            )}
+            searchLabel={t('Username')}
             loading={customers.isPending || customers.isFetching}
             emptyTitle={t('No customers')}
             additionalFilters={
-              <Select
-                value={customerStatus || 'ALL'}
-                onValueChange={(value) =>
-                  setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
-                }
-              >
-                <SelectTrigger className='w-44'>
-                  <SelectValue>
-                    {customerStatus ? (
-                      <BusinessTerm
-                        kind='customerStatus'
-                        value={customerStatus}
-                      />
-                    ) : (
-                      t('All statuses')
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                    <SelectItem key={value} value={value}>
-                      <BusinessTerm kind='customerStatus' value={value} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <CanvasColumnFilterField label={t('Email')}>
+                  <Input
+                    value={customerEmail}
+                    placeholder={t('Email')}
+                    onChange={(event) => setCustomerEmail(event.target.value)}
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField label={t('Status')}>
+                  <Select
+                    value={customerStatus || 'ALL'}
+                    onValueChange={(value) =>
+                      setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue>
+                        {customerStatus ? (
+                          <BusinessTermText
+                            kind='customerStatus'
+                            value={customerStatus}
+                          />
+                        ) : (
+                          t('All statuses')
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                      {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          <BusinessTerm kind='customerStatus' value={value} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CanvasColumnFilterField>
+              </>
             }
-            hasActiveFilters={Boolean(customerStatus)}
-            onResetFilters={() => setCustomerStatus('')}
+            hasActiveFilters={Boolean(customerEmail || customerStatus)}
+            onResetFilters={() => {
+              setCustomerEmail('')
+              setCustomerStatus('')
+            }}
             getRowId={(row) => row.id}
           />
         </CardContent>

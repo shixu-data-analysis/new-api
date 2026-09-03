@@ -137,6 +137,10 @@ export type DataTableToolbarProps<TData> = {
   className?: string
   /** Keep search, business filters, and actions in explicit responsive areas. */
   stableGrid?: boolean
+  /** Use a shorter primary search track for compact field-specific filters. */
+  compactSearch?: boolean
+  /** Keep business filters on one scrollable row at desktop widths. */
+  singleLineFilters?: boolean
 }
 
 /**
@@ -379,14 +383,24 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     return (
       <div
         className={cn(
-          'grid grid-cols-1 items-start gap-2 sm:gap-3 md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto]',
+          'grid grid-cols-1 items-start gap-2 sm:gap-3',
+          props.compactSearch
+            ? 'md:grid-cols-[11rem_minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)_auto]'
+            : 'md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto]',
           props.className
         )}
       >
         <div className='min-w-0'>
           {props.customSearch !== undefined ? props.customSearch : searchInput}
         </div>
-        <div className='flex min-w-0 flex-wrap items-end gap-2 sm:gap-3'>
+        <div
+          className={cn(
+            'flex min-w-0 items-start gap-2 sm:gap-3',
+            props.singleLineFilters
+              ? 'flex-wrap md:flex-nowrap md:overflow-x-auto md:pb-1'
+              : 'flex-wrap'
+          )}
+        >
           {props.additionalSearch}
           {filterChips}
           {expanded && hasExpandable && props.expandable}

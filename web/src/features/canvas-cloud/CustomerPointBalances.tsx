@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { SectionPageLayout } from '@/components/layout'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -30,9 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import { getCanvasAdminCustomers } from './api'
-import { BusinessTerm } from './components/BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './components/BusinessTerm'
+import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { CopyableText } from './components/CopyableText'
 import type { CanvasAdminCustomerPointBalance } from './types'
@@ -44,6 +47,8 @@ export function CanvasCustomerPointBalances() {
   const { t } = useTranslation()
   const tableState = useServerTableState('createdAt')
   const [status, setStatus] = useState<'' | CustomerStatus>('')
+  const [email, setEmail] = useState('')
+  const debouncedEmail = useDebounce(email.trim(), 300)
   const customers = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -52,11 +57,19 @@ export function CanvasCustomerPointBalances() {
       'balances',
       tableState.query,
       status,
+      debouncedEmail,
     ],
     queryFn: ({ signal }) =>
       getCanvasAdminCustomers(
         {
-          ...tableState.query,
+          page: tableState.query.page,
+          pageSize: tableState.query.pageSize,
+          sortBy: tableState.query.sortBy,
+          sortOrder: tableState.query.sortOrder,
+          ...(tableState.query.search
+            ? { username: tableState.query.search }
+            : {}),
+          ...(debouncedEmail ? { email: debouncedEmail } : {}),
           ...(status ? { status } : {}),
         },
         signal
@@ -69,16 +82,14 @@ export function CanvasCustomerPointBalances() {
     () => [
       {
         id: 'customer',
-        accessorFn: (item) => item.username ?? item.newApiUserId,
+        accessorKey: 'username',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Canvas customer')} />
+          <DataTableColumnHeader column={column} title={t('Username')} />
         ),
-        meta: { label: t('Canvas customer') },
+        meta: { label: t('Username') },
         cell: ({ row }) => (
           <div className='space-y-1'>
-            <CopyableText
-              value={row.original.username ?? row.original.newApiUserId}
-            />
+            <CopyableText value={row.original.username ?? '—'} />
             {row.original.emailMasked ? (
               <div className='text-muted-foreground text-xs'>
                 {row.original.emailMasked}
@@ -86,13 +97,6 @@ export function CanvasCustomerPointBalances() {
             ) : null}
           </div>
         ),
-      },
-      {
-        id: 'newApiUserId',
-        accessorKey: 'newApiUserId',
-        enableSorting: false,
-        header: t('New API account ID'),
-        cell: ({ row }) => <CopyableText value={row.original.newApiUserId} />,
       },
       {
         id: 'availablePoints',
@@ -147,46 +151,68 @@ export function CanvasCustomerPointBalances() {
             columns={columns}
             total={customers.data?.total ?? 0}
             state={tableState}
-            searchLabel={t('Customer name, email, or New API user ID')}
-            searchPlaceholder={t('Search customers')}
-            searchDescription={t(
-              'Fuzzy matches customer name, masked email, or New API user ID.'
-            )}
+            searchLabel={t('Username')}
             loading={customers.isPending || customers.isFetching}
             emptyTitle={t('No Canvas customers')}
             additionalFilters={
-              <Select
-                value={status || 'ALL'}
-                onValueChange={(value) => {
-                  setStatus(value === 'ALL' ? '' : (value as CustomerStatus))
-                  tableState.setPagination((current) => ({
-                    ...current,
-                    pageIndex: 0,
-                  }))
-                }}
-              >
-                <SelectTrigger className='w-44' aria-label={t('Status')}>
-                  <SelectValue>
-                    {status ? (
-                      <BusinessTerm kind='customerStatus' value={status} />
-                    ) : (
-                      t('All statuses')
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                    <SelectItem key={value} value={value}>
-                      <BusinessTerm kind='customerStatus' value={value} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <CanvasColumnFilterField label={t('Email')}>
+                  <Input
+                    value={email}
+                    placeholder={t('Email')}
+                    onChange={(event) => {
+                      setEmail(event.target.value)
+                      tableState.setPagination((current) => ({
+                        ...current,
+                        pageIndex: 0,
+                      }))
+                    }}
+                  />
+                </CanvasColumnFilterField>
+                <CanvasColumnFilterField label={t('Status')}>
+                  <Select
+                    value={status || 'ALL'}
+                    onValueChange={(value) => {
+                      setStatus(
+                        value === 'ALL' ? '' : (value as CustomerStatus)
+                      )
+                      tableState.setPagination((current) => ({
+                        ...current,
+                        pageIndex: 0,
+                      }))
+                    }}
+                  >
+                    <SelectTrigger className='w-full' aria-label={t('Status')}>
+                      <SelectValue>
+                        {status ? (
+                          <BusinessTermText
+                            kind='customerStatus'
+                            value={status}
+                          />
+                        ) : (
+                          t('All statuses')
+                        )}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                      {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          <BusinessTerm kind='customerStatus' value={value} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CanvasColumnFilterField>
+              </>
             }
-            hasActiveFilters={Boolean(status)}
+            hasActiveFilters={Boolean(email || status)}
+            activeFilterCount={
+              [tableState.search, email, status].filter(Boolean).length
+            }
             onResetFilters={() => {
               setStatus('')
+              setEmail('')
               tableState.setSearch('')
               tableState.setSorting([{ id: 'createdAt', desc: true }])
               tableState.setPagination((current) => ({

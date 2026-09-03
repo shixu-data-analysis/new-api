@@ -25,44 +25,85 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import type { CanvasModelCatalogPlanModel } from '../types'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
+import {
+  CanvasColumnFilterField,
+  CanvasColumnFilterPanel,
+} from './CanvasColumnFilterPanel'
 
 export function CatalogModelPreview(props: {
   models: CanvasModelCatalogPlanModel[]
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  const [productKey, setProductKey] = useState('')
+  const [capability, setCapability] = useState('')
   const [page, setPage] = useState(1)
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
+    const keyQuery = productKey.trim().toLocaleLowerCase()
+    const capabilityQuery = capability.trim().toLocaleLowerCase()
     return props.models.filter(
       (model) =>
-        !query ||
-        `${model.displayName} ${model.productKey} ${model.capability}`
-          .toLocaleLowerCase()
-          .includes(query)
+        (!query || model.displayName.toLocaleLowerCase().includes(query)) &&
+        (!keyQuery ||
+          model.productKey.toLocaleLowerCase().includes(keyQuery)) &&
+        (!capabilityQuery ||
+          model.capability.toLocaleLowerCase().includes(capabilityQuery))
     )
-  }, [props.models, search])
+  }, [capability, productKey, props.models, search])
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20))
   const currentPage = Math.min(page, pageCount)
   const visible = filtered.slice((currentPage - 1) * 20, currentPage * 20)
 
   return (
     <div className='space-y-3'>
-      <Input
-        className='max-w-md'
-        value={search}
-        onChange={(event) => {
-          setSearch(event.target.value)
+      <CanvasColumnFilterPanel
+        activeCount={[search, productKey, capability].filter(Boolean).length}
+        onClear={() => {
+          setSearch('')
+          setProductKey('')
+          setCapability('')
           setPage(1)
         }}
-        aria-label={t('Search published model preview')}
-        placeholder={t('Search model name, key, or capability')}
-      />
+      >
+        <CanvasColumnFilterField label={t('Client model')}>
+          <Input
+            value={search}
+            placeholder={t('Client model')}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+        <CanvasColumnFilterField label={t('Key')}>
+          <Input
+            value={productKey}
+            placeholder={t('Key')}
+            onChange={(event) => {
+              setProductKey(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+        <CanvasColumnFilterField label={t('Capability')}>
+          <Input
+            value={capability}
+            placeholder={t('Capability')}
+            onChange={(event) => {
+              setCapability(event.target.value)
+              setPage(1)
+            }}
+          />
+        </CanvasColumnFilterField>
+      </CanvasColumnFilterPanel>
       <StaticDataTable
-        tableClassName='min-w-[920px]'
+        tableClassName='min-w-[920px] table-fixed'
         columns={[
           {
             id: 'model',
+            className: canvasStaticColumnWidth.wide,
             header: t('Client model'),
             cell: (model: CanvasModelCatalogPlanModel) => (
               <div>
@@ -75,11 +116,13 @@ export function CatalogModelPreview(props: {
           },
           {
             id: 'capability',
+            className: canvasStaticColumnWidth.standard,
             header: t('Capability'),
             cell: (model: CanvasModelCatalogPlanModel) => t(model.capability),
           },
           {
             id: 'configuration',
+            className: canvasStaticColumnWidth.detail,
             header: t('Client configuration'),
             cell: (model: CanvasModelCatalogPlanModel) => (
               <div>
@@ -113,6 +156,7 @@ export function CatalogModelPreview(props: {
           },
           {
             id: 'visibility',
+            className: canvasStaticColumnWidth.wide,
             header: t('Customer visibility'),
             cell: (model: CanvasModelCatalogPlanModel) =>
               model.customerVisibleAfterPublish
@@ -121,6 +165,7 @@ export function CatalogModelPreview(props: {
           },
           {
             id: 'result',
+            className: canvasStaticColumnWidth.standard,
             header: t('Publication result'),
             cell: (model: CanvasModelCatalogPlanModel) =>
               model.action === 'NO_OP' ? (

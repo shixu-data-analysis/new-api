@@ -39,6 +39,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   TableBody,
   TableCell,
   TableHead,
@@ -52,6 +59,12 @@ import {
   publishCanvasModelPresentation,
 } from '../api'
 import type { CanvasAdminTestingModel } from '../types'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
+import {
+  CanvasColumnFilterField,
+  CanvasColumnFilterPanel,
+} from './CanvasColumnFilterPanel'
+import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 type SortKey = 'name' | 'capability' | 'version' | 'visibility' | 'pricing'
@@ -67,6 +80,7 @@ export function PublishedModelCatalog() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [modelId, setModelId] = useState('')
   const [visibility, setVisibility] = useState('ALL')
   const [sort, setSort] = useState<SortKey>('name')
   const [descending, setDescending] = useState(false)
@@ -93,7 +107,12 @@ export function PublishedModelCatalog() {
   })
   const filtered = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
+    const idQuery = modelId.trim().toLocaleLowerCase()
     const matches = (models.data ?? []).filter((model) => {
+      const providerModelIds = model.modelIds
+        .map((entry) => entry.modelId)
+        .join('\n')
+        .toLocaleLowerCase()
       const visible =
         visibility === 'ALL' ||
         (visibility === 'CUSTOMER'
@@ -101,8 +120,8 @@ export function PublishedModelCatalog() {
           : !model.customerVisible)
       return (
         visible &&
-        (!query ||
-          `${model.name} ${model.id}`.toLocaleLowerCase().includes(query))
+        (!query || model.name.toLocaleLowerCase().includes(query)) &&
+        (!idQuery || providerModelIds.includes(idQuery))
       )
     })
     const direction = descending ? -1 : 1
@@ -129,10 +148,16 @@ export function PublishedModelCatalog() {
       }
       return result * direction
     })
-  }, [descending, models.data, search, sort, visibility])
+  }, [descending, modelId, models.data, search, sort, visibility])
   const pageCount = Math.max(1, Math.ceil(filtered.length / 20))
   const currentPage = Math.min(page, pageCount)
   const visibleModels = filtered.slice((currentPage - 1) * 20, currentPage * 20)
+  let visibilityFilterLabel = t('All')
+  if (visibility === 'CUSTOMER') {
+    visibilityFilterLabel = t('Visible to customers')
+  } else if (visibility === 'INTERNAL') {
+    visibilityFilterLabel = t('Internal only')
+  }
   function startEdit(model: CanvasAdminTestingModel) {
     setDisplayName(model.name)
     setDescription(model.description)
@@ -147,19 +172,13 @@ export function PublishedModelCatalog() {
     setPage(1)
   }
   function sortHeader(label: string, key: SortKey) {
-    let marker = ''
-    if (sort === key) marker = descending ? ' ↓' : ' ↑'
     return (
-      <Button
-        type='button'
-        variant='ghost'
-        className='h-auto px-0 py-0 font-semibold'
-        aria-label={`${t('Sort by')} ${t(label)}`}
+      <CanvasStaticSortHeader
+        active={sort === key}
+        descending={descending}
+        label={t(label)}
         onClick={() => changeSort(key)}
-      >
-        {t(label)}
-        <span aria-hidden='true'>{marker}</span>
-      </Button>
+      />
     )
   }
   return (
@@ -173,41 +192,84 @@ export function PublishedModelCatalog() {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]'>
-          <Input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-            placeholder={t('Search model name or ID')}
-            aria-label={t('Search model name or ID')}
-          />
-          <select
-            className='border-input bg-background h-9 rounded-md border px-3 text-sm'
-            value={visibility}
-            onChange={(event) => {
-              setVisibility(event.target.value)
-              setPage(1)
-            }}
-            aria-label={t('Customer visibility')}
-          >
-            <option value='ALL'>{t('All')}</option>
-            <option value='CUSTOMER'>{t('Visible to customers')}</option>
-            <option value='INTERNAL'>{t('Internal only')}</option>
-          </select>
-        </div>
-        <StaticDataTable tableClassName='min-w-[980px]'>
+        <CanvasColumnFilterPanel
+          activeCount={
+            [search, modelId, visibility === 'ALL' ? '' : visibility].filter(
+              Boolean
+            ).length
+          }
+          onClear={() => {
+            setSearch('')
+            setModelId('')
+            setVisibility('ALL')
+            setPage(1)
+          }}
+        >
+          <CanvasColumnFilterField label={t('Client model')}>
+            <Input
+              value={search}
+              placeholder={t('Client model')}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+            />
+          </CanvasColumnFilterField>
+          <CanvasColumnFilterField label={t('Model ID')}>
+            <Input
+              value={modelId}
+              placeholder={t('Model ID')}
+              onChange={(event) => {
+                setModelId(event.target.value)
+                setPage(1)
+              }}
+            />
+          </CanvasColumnFilterField>
+          <CanvasColumnFilterField label={t('Customer visibility')}>
+            <Select
+              value={visibility}
+              onValueChange={(value) => {
+                setVisibility(value ?? 'ALL')
+                setPage(1)
+              }}
+            >
+              <SelectTrigger
+                className='w-full'
+                aria-label={t('Customer visibility')}
+              >
+                <SelectValue>{visibilityFilterLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='ALL'>{t('All')}</SelectItem>
+                <SelectItem value='CUSTOMER'>
+                  {t('Visible to customers')}
+                </SelectItem>
+                <SelectItem value='INTERNAL'>{t('Internal only')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </CanvasColumnFilterField>
+        </CanvasColumnFilterPanel>
+        <StaticDataTable tableClassName='min-w-[980px] table-fixed'>
           <TableHeader>
             <TableRow>
-              <TableHead>{sortHeader('Client model', 'name')}</TableHead>
-              <TableHead>{sortHeader('Capability', 'capability')}</TableHead>
-              <TableHead>{sortHeader('Version', 'version')}</TableHead>
-              <TableHead>
+              <TableHead className={canvasStaticColumnWidth.wide}>
+                {sortHeader('Client model', 'name')}
+              </TableHead>
+              <TableHead className={canvasStaticColumnWidth.standard}>
+                {sortHeader('Capability', 'capability')}
+              </TableHead>
+              <TableHead className={canvasStaticColumnWidth.compact}>
+                {sortHeader('Version', 'version')}
+              </TableHead>
+              <TableHead className={canvasStaticColumnWidth.wide}>
                 {sortHeader('Customer visibility', 'visibility')}
               </TableHead>
-              <TableHead>{sortHeader('Pricing progress', 'pricing')}</TableHead>
-              <TableHead>{t('Actions')}</TableHead>
+              <TableHead className={canvasStaticColumnWidth.standard}>
+                {sortHeader('Pricing progress', 'pricing')}
+              </TableHead>
+              <TableHead className={canvasStaticColumnWidth.compact}>
+                {t('Actions')}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -228,15 +290,29 @@ export function PublishedModelCatalog() {
               }
               return (
                 <TableRow key={model.id} className='align-top'>
-                  <TableCell>
-                    <div className='font-medium'>{model.name}</div>
+                  <TableCell className='whitespace-normal'>
+                    <div className='font-medium break-words'>{model.name}</div>
                     {model.description && (
                       <div className='text-muted-foreground mt-1 max-w-md'>
                         {model.description}
                       </div>
                     )}
-                    <div className='text-muted-foreground mt-1 font-mono text-xs'>
-                      {t('Model ID')}: {model.id}
+                    <div className='text-muted-foreground mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 font-mono text-xs'>
+                      <span>{t('Model ID')}:</span>
+                      <div className='min-w-0 space-y-0.5'>
+                        {model.modelIds.length > 0 ? (
+                          model.modelIds.map(({ quality, modelId }) => (
+                            <div
+                              key={`${quality ?? 'default'}:${modelId}`}
+                              className='break-all'
+                            >
+                              {quality ? `${quality}: ${modelId}` : modelId}
+                            </div>
+                          ))
+                        ) : (
+                          <div>—</div>
+                        )}
+                      </div>
                     </div>
                     <details className='mt-2'>
                       <summary className='text-primary cursor-pointer text-xs'>

@@ -33,6 +33,13 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   TableBody,
   TableCell,
   TableHead,
@@ -47,6 +54,12 @@ import {
 } from '../api'
 import { buildCatalogBundle } from '../catalogBundleReader'
 import type { CanvasModelCatalogBundle, CanvasModelCatalogPlan } from '../types'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
+import {
+  CanvasColumnFilterField,
+  CanvasColumnFilterPanel,
+} from './CanvasColumnFilterPanel'
+import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { CatalogModelPreview } from './CatalogModelPreview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PublishedModelCatalog } from './PublishedModelCatalog'
@@ -97,6 +110,7 @@ export function AdminModelCatalog() {
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [search, setSearch] = useState('')
+  const [resourceType, setResourceType] = useState('')
   const [action, setAction] = useState('ALL')
   const [sort, setSort] = useState<
     'resourceType' | 'key' | 'action' | 'currentVersion' | 'proposedVersion'
@@ -148,14 +162,14 @@ export function AdminModelCatalog() {
     : []
   const filteredChanges = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
+    const resourceQuery = resourceType.trim().toLocaleLowerCase()
     return [...(plan?.changes ?? [])]
       .filter(
         (change) =>
           (action === 'ALL' || change.action === action) &&
-          (!query ||
-            `${change.resourceType} ${change.key}`
-              .toLocaleLowerCase()
-              .includes(query))
+          (!query || change.key.toLocaleLowerCase().includes(query)) &&
+          (!resourceQuery ||
+            change.resourceType.toLocaleLowerCase().includes(resourceQuery))
       )
       .sort((left, right) => {
         const compared =
@@ -164,7 +178,7 @@ export function AdminModelCatalog() {
             : String(left[sort] ?? '').localeCompare(String(right[sort] ?? ''))
         return descending ? -compared : compared
       })
-  }, [action, descending, plan?.changes, search, sort])
+  }, [action, descending, plan?.changes, resourceType, search, sort])
   const pageCount = Math.max(1, Math.ceil(filteredChanges.length / 20))
   const visibleChanges = filteredChanges.slice(
     (Math.min(page, pageCount) - 1) * 20,
@@ -345,86 +359,124 @@ export function AdminModelCatalog() {
                     <CatalogModelPreview models={plan.models} />
                   </TabsContent>
                   <TabsContent value='changes' className='mt-4 space-y-4'>
-                    <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]'>
-                      <Input
-                        value={search}
-                        onChange={(event) => {
-                          setSearch(event.target.value)
-                          setPage(1)
-                        }}
-                        aria-label={t('Search')}
-                        placeholder={t('Search')}
-                      />
-                      <select
-                        className='border-input bg-background h-9 rounded-md border px-3 text-sm'
-                        value={action}
-                        aria-label={t('Action')}
-                        onChange={(event) => {
-                          setAction(event.target.value)
-                          setPage(1)
-                        }}
-                      >
-                        <option value='ALL'>{t('All')}</option>
-                        {[
-                          'CREATE',
-                          'REUSE',
-                          'CREATE_VERSION',
-                          'NO_OP',
-                          'CONFLICT',
-                        ].map((value) => (
-                          <option key={value} value={value}>
-                            {t(value)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <StaticDataTable tableClassName='min-w-[720px]'>
+                    <CanvasColumnFilterPanel
+                      activeCount={
+                        [
+                          resourceType,
+                          search,
+                          action === 'ALL' ? '' : action,
+                        ].filter(Boolean).length
+                      }
+                      onClear={() => {
+                        setResourceType('')
+                        setSearch('')
+                        setAction('ALL')
+                        setPage(1)
+                      }}
+                    >
+                      <CanvasColumnFilterField label={t('Resource type')}>
+                        <Input
+                          value={resourceType}
+                          placeholder={t('Resource type')}
+                          onChange={(event) => {
+                            setResourceType(event.target.value)
+                            setPage(1)
+                          }}
+                        />
+                      </CanvasColumnFilterField>
+                      <CanvasColumnFilterField label={t('Key')}>
+                        <Input
+                          value={search}
+                          placeholder={t('Key')}
+                          onChange={(event) => {
+                            setSearch(event.target.value)
+                            setPage(1)
+                          }}
+                        />
+                      </CanvasColumnFilterField>
+                      <CanvasColumnFilterField label={t('Action')}>
+                        <Select
+                          value={action}
+                          onValueChange={(value) => {
+                            setAction(value ?? 'ALL')
+                            setPage(1)
+                          }}
+                        >
+                          <SelectTrigger
+                            className='w-full'
+                            aria-label={t('Action')}
+                          >
+                            <SelectValue>
+                              {action === 'ALL' ? t('All') : t(action)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='ALL'>{t('All')}</SelectItem>
+                            {[
+                              'CREATE',
+                              'REUSE',
+                              'CREATE_VERSION',
+                              'NO_OP',
+                              'CONFLICT',
+                            ].map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {t(value)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </CanvasColumnFilterField>
+                    </CanvasColumnFilterPanel>
+                    <StaticDataTable tableClassName='min-w-[880px] table-fixed'>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>
-                            <Button
-                              variant='ghost'
-                              size='sm'
+                          <TableHead
+                            className={canvasStaticColumnWidth.standard}
+                          >
+                            <CanvasStaticSortHeader
+                              active={sort === 'resourceType'}
+                              descending={descending}
+                              label={t('Resource type')}
                               onClick={() => changeSort('resourceType')}
-                            >
-                              {t('Resource type')}
-                            </Button>
+                            />
                           </TableHead>
-                          <TableHead>
-                            <Button
-                              variant='ghost'
-                              size='sm'
+                          <TableHead className={canvasStaticColumnWidth.detail}>
+                            <CanvasStaticSortHeader
+                              active={sort === 'key'}
+                              descending={descending}
+                              label={t('Key')}
                               onClick={() => changeSort('key')}
-                            >
-                              {t('Key')}
-                            </Button>
+                            />
                           </TableHead>
-                          <TableHead>
-                            <Button
-                              variant='ghost'
-                              size='sm'
+                          <TableHead
+                            className={canvasStaticColumnWidth.standard}
+                          >
+                            <CanvasStaticSortHeader
+                              active={sort === 'action'}
+                              descending={descending}
+                              label={t('Action')}
                               onClick={() => changeSort('action')}
-                            >
-                              {t('Action')}
-                            </Button>
+                            />
                           </TableHead>
-                          <TableHead>
-                            <Button
-                              variant='ghost'
-                              size='sm'
+                          <TableHead
+                            className={canvasStaticColumnWidth.compact}
+                          >
+                            <CanvasStaticSortHeader
+                              active={sort === 'currentVersion'}
+                              descending={descending}
+                              label={t('Current version')}
                               onClick={() => changeSort('currentVersion')}
-                            >
-                              {t('Current version')}
-                            </Button>
+                            />
                           </TableHead>
-                          <TableHead>
-                            <Button
-                              variant='ghost'
-                              size='sm'
+                          <TableHead
+                            className={canvasStaticColumnWidth.compact}
+                          >
+                            <CanvasStaticSortHeader
+                              active={sort === 'proposedVersion'}
+                              descending={descending}
+                              label={t('Proposed version')}
                               onClick={() => changeSort('proposedVersion')}
-                            >
-                              {t('Proposed version')}
-                            </Button>
+                            />
                           </TableHead>
                         </TableRow>
                       </TableHeader>

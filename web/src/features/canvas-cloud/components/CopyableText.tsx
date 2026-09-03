@@ -33,8 +33,8 @@ export function CopyableText({ value }: { value: string }) {
       <Button
         type='button'
         variant='ghost'
-        size='icon'
-        className='size-7 shrink-0'
+        size='icon-sm'
+        className='shrink-0'
         aria-label={t('Copy')}
         onClick={async (event) => {
           event.stopPropagation()
@@ -44,11 +44,7 @@ export function CopyableText({ value }: { value: string }) {
           window.setTimeout(() => setCopied(false), 1500)
         }}
       >
-        {copied ? (
-          <Check className='size-3.5' />
-        ) : (
-          <Copy className='size-3.5' />
-        )}
+        {copied ? <Check className='size-4' /> : <Copy className='size-4' />}
       </Button>
     </span>
   )

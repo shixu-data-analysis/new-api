@@ -770,9 +770,6 @@ export function AdminPricing(props: {
       { columnId: 'version', label: t('Rate version') },
       { columnId: 'status', label: t('Status') },
       { columnId: 'rate', label: t('Point issuance rate') },
-      { columnId: 'created', label: t('Created') },
-      { columnId: 'approved', label: t('Approved') },
-      { columnId: 'effective', label: t('Effective') },
     ],
     [t]
   )
@@ -966,22 +963,6 @@ export function AdminPricing(props: {
         ['version', 'Version'],
         ['status', 'Status'],
         ['points', 'Points'],
-        ['baseRate', 'Base rate'],
-        ['targetMargin', 'Target margin rate'],
-        ['successProbability', 'Success probability'],
-        ['successCost', 'Successful task cost'],
-        ['failureCost', 'Failed unrecoverable cost'],
-        ['otherCost', 'Other variable cost'],
-        ['kTheory', 'K_theory'],
-        ['kActual', 'K_actual'],
-        ['kPricing', 'K_pricing'],
-        ['riskBuffer', 'Risk buffer'],
-        ['breakEven', 'Break-even'],
-        ['targetMarginPoints', 'Target margin floor'],
-        ['created', 'Created'],
-        ['approved', 'Approved'],
-        ['effective', 'Effective'],
-        ['assumptions', 'Pricing assumptions'],
       ].map(([columnId, label]) => ({ columnId, label: t(label) })),
     [t]
   )
@@ -1161,9 +1142,7 @@ export function AdminPricing(props: {
   }
 
   return (
-    <div
-      className={`mx-auto w-full max-w-7xl space-y-4 ${activeTab === 'prices' ? 'pb-24' : ''}`}
-    >
+    <div className='mx-auto w-full max-w-7xl space-y-4'>
       <Card>
         <CardHeader>
           <CardTitle>{t('Canvas pricing')}</CardTitle>
@@ -1176,6 +1155,9 @@ export function AdminPricing(props: {
                 value='prices'
               >
                 {t('Model prices')}
+              </TabsTrigger>
+              <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='costs'>
+                {t('Upstream cost')}
               </TabsTrigger>
               <TabsTrigger
                 className='h-8 min-h-8 flex-none px-3'
@@ -1198,45 +1180,34 @@ export function AdminPricing(props: {
       </Card>
 
       {activeTab === 'prices' && (
-        <>
-          <Card size='sm' className='border-primary/30 bg-primary/5'>
-            <CardContent className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-              <div className='flex min-w-0 items-start gap-3'>
-                <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
-                  <Calculator aria-hidden='true' className='size-5' />
-                </div>
-                <div className='min-w-0 space-y-1'>
-                  <h3 className='font-semibold'>
-                    {t('Pricing calculation guide')}
-                  </h3>
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Simulation has no side effects')}
-                  </p>
-                </div>
+        <Card size='sm' className='border-primary/30 bg-primary/5'>
+          <CardContent className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+            <div className='flex min-w-0 items-start gap-3'>
+              <div className='bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg'>
+                <Calculator aria-hidden='true' className='size-5' />
               </div>
-              <Button
-                type='button'
-                className='w-full shrink-0 sm:w-auto'
-                onClick={openPricingCalculator}
-              >
-                <Calculator aria-hidden='true' />
-                {t('Open pricing calculator')}
-              </Button>
-            </CardContent>
-          </Card>
-          <ProviderPricingMatrix />
-
-          <Button
-            type='button'
-            aria-label={t('Open pricing calculator')}
-            className='bg-primary text-primary-foreground hover:bg-primary/90 ring-background fixed right-4 bottom-4 z-50 h-12 rounded-full px-5 font-semibold shadow-xl ring-4 transition-colors lg:top-1/2 lg:right-0 lg:bottom-auto lg:-translate-y-1/2 lg:rounded-l-xl lg:rounded-r-none'
-            onClick={openPricingCalculator}
-          >
-            <Calculator aria-hidden='true' />
-            {t('Open pricing calculator')}
-          </Button>
-        </>
+              <div className='min-w-0 space-y-1'>
+                <h3 className='font-semibold'>
+                  {t('Pricing calculation guide')}
+                </h3>
+                <p className='text-muted-foreground text-sm'>
+                  {t('Simulation has no side effects')}
+                </p>
+              </div>
+            </div>
+            <Button
+              type='button'
+              className='w-full shrink-0 sm:w-auto'
+              onClick={openPricingCalculator}
+            >
+              <Calculator aria-hidden='true' />
+              {t('Open pricing calculator')}
+            </Button>
+          </CardContent>
+        </Card>
       )}
+
+      {activeTab === 'costs' && <ProviderPricingMatrix />}
 
       {activeTab === 'rate' && (
         <Card>

@@ -48,6 +48,8 @@ import type {
   CanvasAdminRechargeOrder,
   CanvasAdminCustomerPointBalance,
   CanvasAdminCustomerTask,
+  CanvasAdminTaskLog,
+  CanvasAdminTaskLogQuery,
   CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
@@ -145,6 +147,19 @@ export async function getCanvasAuditEvents(
   ).data
 }
 
+export async function getCanvasAdminTaskLogs(
+  kind: 'usage' | 'task',
+  query: CanvasAdminTaskLogQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminTaskLog>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminTaskLog>>(
+      `${webBase}/admin/${kind}-logs`,
+      { params: query, signal }
+    )
+  ).data
+}
+
 export async function getCanvasAdminTestingModels(): Promise<
   CanvasAdminTestingModel[]
 > {
@@ -157,25 +172,22 @@ export async function getCanvasAdminRechargeCodes(
   query: CanvasAdminRechargeCodeQuery,
   signal?: AbortSignal
 ): Promise<CanvasAdminRechargeCodePage> {
-  const normalizedSearch = query.search?.trim().toUpperCase()
+  const normalizedCode = query.code?.trim().toUpperCase()
   let codeSearch: {
     codePrefix?: string
     codeSuffix?: string
-    search?: string
   } = {}
-  if (normalizedSearch?.startsWith('CANVAS-') && normalizedSearch.length >= 8) {
-    codeSearch = { codePrefix: normalizedSearch.slice(0, 8) }
-    if (normalizedSearch.length >= 12) {
-      codeSearch.codeSuffix = normalizedSearch.slice(-4)
+  if (normalizedCode?.startsWith('CANVAS-') && normalizedCode.length >= 8) {
+    codeSearch = { codePrefix: normalizedCode.slice(0, 8) }
+    if (normalizedCode.length >= 12) {
+      codeSearch.codeSuffix = normalizedCode.slice(-4)
     }
-  } else if (query.search?.trim()) {
-    codeSearch = { search: query.search.trim() }
   }
   return (
     await api.get<CanvasAdminRechargeCodePage>(
       `${webBase}/admin/recharge-codes`,
       {
-        params: { ...query, search: undefined, ...codeSearch },
+        params: { ...query, code: undefined, ...codeSearch },
         signal,
       }
     )
@@ -287,8 +299,7 @@ export async function getCanvasAgents(
 }
 
 export async function provisionCanvasAgent(input: {
-  newApiUserId: string
-  internalName: string
+  username: string
   status: 'ACTIVE'
   reason: string
 }): Promise<CanvasAgentProfile> {
@@ -815,7 +826,8 @@ export async function createCanvasRefund(input: {
 
 export async function getCanvasAdminRechargeOrders(
   input: {
-    search?: string
+    orderNumber?: string
+    customer?: string
     customerId?: string
     page?: number
     pageSize?: 10 | 20 | 30 | 40 | 50 | 100
@@ -856,7 +868,8 @@ export async function getCanvasAdminRechargeOrders(
 export async function getCanvasAdminCustomerPointLots(
   customerId: string,
   query: {
-    search?: string
+    lotId?: string
+    rechargeOrderNumber?: string
     type?: 'PAID' | 'BONUS'
     availableOnly?: boolean
     from?: string
@@ -884,7 +897,9 @@ export async function getCanvasAdminCustomerPointLots(
 export async function getCanvasAdminCustomerPointLedger(
   customerId: string,
   query: {
-    search?: string
+    reason?: string
+    taskId?: string
+    refundId?: string
     eventType?: string
     from?: string
     to?: string
@@ -905,7 +920,9 @@ export async function getCanvasAdminCustomerPointLedger(
 export async function getCanvasAdminCustomerTasks(
   customerId: string,
   query: {
-    search?: string
+    taskId?: string
+    model?: string
+    upstreamTaskId?: string
     executionStatus?: string
     billingStatus?: string
     from?: string
@@ -935,7 +952,8 @@ export async function getCanvasAdminCustomerTasks(
 
 export async function getCanvasAdminCustomers(
   query: {
-    search?: string
+    username?: string
+    email?: string
     status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
     sortBy?: 'customer' | 'status' | 'availablePoints' | 'createdAt'
     sortOrder?: 'asc' | 'desc'
@@ -954,7 +972,9 @@ export async function getCanvasAdminCustomers(
 
 export async function getCanvasAdminRefunds(
   query: {
-    search?: string
+    refundReference?: string
+    orderNumber?: string
+    customerConfirmation?: string
     customerId?: string
     status?: string
     from?: string
@@ -988,7 +1008,9 @@ export async function getCanvasCustomerPointLots(
 
 export async function getCanvasCustomerPointLedger(
   query: {
-    search?: string
+    reason?: string
+    taskId?: string
+    refundId?: string
     eventType?: string
     from?: string
     to?: string

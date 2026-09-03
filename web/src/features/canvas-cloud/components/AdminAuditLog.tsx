@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -30,12 +31,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useDebounce } from '@/hooks'
 
 import { getCanvasAuditEvents } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAuditEventPage } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -50,17 +53,6 @@ const categories = [
   'PRICING',
   'TASK_EXECUTION',
 ] as const
-const actionsByCategory: Partial<
-  Record<(typeof categories)[number], string[]>
-> = {
-  POINTS: [
-    'points.manual_bonus.granted',
-    'points.paid_correction.granted',
-    'points.manual_deduction.posted',
-    'points.external_refund.recovered',
-  ],
-}
-
 function localizeAuditValue(t: TFunction, value: string, unknownKey: string) {
   return t(value, { defaultValue: t(unknownKey) })
 }
@@ -78,23 +70,39 @@ const auditReasonLabelKeys: Record<string, string> = {
 export function AdminAuditLog({ customerId }: { customerId?: string }) {
   const { t } = useTranslation()
   const state = useServerTableState('occurredAt')
+  const setPagination = state.setPagination
   const [category, setCategory] = useState('')
-  const [action, setAction] = useState('')
+  const [resource, setResource] = useState('')
+  const [reason, setReason] = useState('')
   const [outcome, setOutcome] = useState('')
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
   const dateRangeValid = isCanvasDateRangeValid(from, to)
-  const availableActions = category
-    ? (actionsByCategory[category as keyof typeof actionsByCategory] ?? [])
-    : []
+  const debouncedResource = useDebounce(resource.trim(), 300)
+  const debouncedReason = useDebounce(reason.trim(), 300)
+
+  useEffect(() => {
+    setPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [
+    category,
+    debouncedReason,
+    debouncedResource,
+    from,
+    outcome,
+    setPagination,
+    to,
+  ])
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
       'audit',
       customerId,
       state.query,
+      debouncedResource,
+      debouncedReason,
       category,
-      action,
       outcome,
       from?.toISOString(),
       to?.toISOString(),
@@ -105,9 +113,10 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
           page: state.query.page,
           pageSize: state.query.pageSize,
           sortOrder: state.query.sortOrder,
-          ...(state.query.search ? { search: state.query.search } : {}),
+          ...(state.query.search ? { action: state.query.search } : {}),
+          ...(debouncedResource ? { resource: debouncedResource } : {}),
+          ...(debouncedReason ? { reason: debouncedReason } : {}),
           ...(category ? { category } : {}),
-          ...(action ? { action } : {}),
           ...(outcome
             ? { outcome: outcome as 'SUCCESS' | 'FAILURE' | 'DEFERRED' }
             : {}),
@@ -167,12 +176,10 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
           return (
             <span>
               {actorLabel}
-              {row.original.actorExternalSystem === 'new-api' &&
-              row.original.actorExternalId ? (
+              {row.original.actorUsername ? (
                 <>
                   {' '}
-                  · {t('New API user ID')}:{' '}
-                  <CopyableText value={row.original.actorExternalId} />
+                  · <CopyableText value={row.original.actorUsername} />
                 </>
               ) : null}
             </span>
@@ -224,76 +231,74 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
     [t]
   )
   const filters = (
-    <div className='flex flex-wrap gap-2'>
-      <Select
-        value={category || 'ALL'}
-        onValueChange={(value) => {
-          setCategory(value === 'ALL' ? '' : (value ?? ''))
-          setAction('')
-        }}
-      >
-        <SelectTrigger className='w-40'>
-          <SelectValue placeholder={t('Category')}>
-            {category ? t(category) : t('All categories')}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All categories')}</SelectItem>
-          {categories.map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(value)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={action || 'ALL'}
-        disabled={availableActions.length === 0}
-        onValueChange={(value) =>
-          setAction(value === 'ALL' ? '' : (value ?? ''))
-        }
-      >
-        <SelectTrigger className='w-56'>
-          <SelectValue placeholder={t('Action')}>
-            {action ? t(action) : t('All actions')}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All actions')}</SelectItem>
-          {availableActions.map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(value)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Select
-        value={outcome || 'ALL'}
-        onValueChange={(value) =>
-          setOutcome(value === 'ALL' ? '' : (value ?? ''))
-        }
-      >
-        <SelectTrigger className='w-40'>
-          <SelectValue placeholder={t('Outcome')}>
-            {outcome ? t(outcome) : t('All outcomes')}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All outcomes')}</SelectItem>
-          {['SUCCESS', 'FAILURE', 'DEFERRED'].map((value) => (
-            <SelectItem key={value} value={value}>
-              {t(value)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <CanvasDateRangeFilter
-        from={from}
-        to={to}
-        onFromChange={setFrom}
-        onToChange={setTo}
-      />
-    </div>
+    <>
+      <CanvasColumnFilterField label={t('Resource')}>
+        <Input
+          value={resource}
+          placeholder={t('Resource')}
+          onChange={(event) => setResource(event.target.value)}
+        />
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Reason')}>
+        <Input
+          value={reason}
+          placeholder={t('Reason')}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Category')}>
+        <Select
+          value={category || 'ALL'}
+          onValueChange={(value) =>
+            setCategory(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full'>
+            <SelectValue>
+              {category ? t(category) : t('All categories')}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All categories')}</SelectItem>
+            {categories.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(value)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CanvasColumnFilterField>
+      <CanvasColumnFilterField label={t('Outcome')}>
+        <Select
+          value={outcome || 'ALL'}
+          onValueChange={(value) =>
+            setOutcome(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full'>
+            <SelectValue>
+              {outcome ? t(outcome) : t('All outcomes')}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All outcomes')}</SelectItem>
+            {['SUCCESS', 'FAILURE', 'DEFERRED'].map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(value)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CanvasColumnFilterField>
+      <div className='sm:col-span-2'>
+        <CanvasDateRangeFilter
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+        />
+      </div>
+    </>
   )
   return (
     <CanvasServerTable
@@ -301,14 +306,22 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
       columns={columns}
       total={query.data?.total ?? 0}
       state={state}
-      searchPlaceholder={t('Search audit events')}
+      searchLabel={t('Action')}
       loading={query.isLoading || query.isFetching}
       emptyTitle={t('No audit events')}
       additionalFilters={filters}
-      hasActiveFilters={Boolean(category || action || outcome || from || to)}
+      hasActiveFilters={Boolean(
+        resource || reason || category || outcome || from || to
+      )}
+      activeFilterCount={
+        [state.search, resource, reason, category, outcome, from, to].filter(
+          Boolean
+        ).length
+      }
       onResetFilters={() => {
+        setResource('')
+        setReason('')
         setCategory('')
-        setAction('')
         setOutcome('')
         setFrom(undefined)
         setTo(undefined)
