@@ -146,7 +146,7 @@
 ### 3.14 测试
 
 - **Canvas UI 肉眼迭代例外**：大型 UI 改进任务在用户明确说 `complete` 前，每次只运行预计数秒内完成的最小检查，例如一个直接相关用例、脚本语法或改动文件格式检查；不运行完整 Canvas 测试集、生产构建、完整 typecheck，或 `run-docker-affected-gate.sh` 这种捆绑门禁。布局、间距、颜色和视觉容纳以用户通过热更新页面的肉眼确认为准。用户说 `complete` 后，再一次性运行本节规定的受影响门禁和完成检查。
-- 常规受影响门禁使用一次 `bash scripts/run-docker-affected-gate.sh --test <test-file>... --file <source-file>...`：参数必须是仓库内已存在的相对文件且不能以 `-` 开头；入口在一个唯一容器中运行 focused Vitest、typecheck、受影响 lint、受影响 format 和生产 build，汇总每阶段状态与耗时后清理。底层 `bash scripts/run-docker-gate.sh <command> [args...]`（`docker:gate` 为等价快捷入口）只用于特殊门禁或排障。两者使用固定 digest 的 Bun 基础镜像，并按 `package.json`、`bun.lock` 与验证 Dockerfile 复用只读依赖镜像，不要求宿主机安装 Bun，不创建长期依赖卷，并在成功、失败或中断后证明运行容器零残留；format check 只修改临时副本。禁止复用人工 UAT 的 Compose project、容器、网络、数据库或卷。
+- 常规受影响门禁使用一次 `bash scripts/run-docker-affected-gate.sh --test <test-file>... --file <source-file>...`：参数必须是仓库内已存在的相对文件且不能以 `-` 开头；入口在一个唯一容器中运行 focused Vitest、typecheck、受影响 lint、受影响 format 和生产 build，汇总每阶段状态与耗时后清理。同一候选树不得再单独重复这些子门禁；底层 `bash scripts/run-docker-gate.sh <command> [args...]`（`docker:gate` 为等价快捷入口）只用于特殊门禁或排障。两者使用固定 digest 的 Bun 基础镜像，并按 `package.json`、`bun.lock` 与验证 Dockerfile 复用只读依赖镜像，不要求宿主机安装 Bun，不创建长期依赖卷，并在成功、失败或中断后证明运行容器零残留；format check 只修改临时副本。禁止复用人工 UAT 的 Compose project、容器、网络、数据库或卷。
 - 工具函数与纯逻辑优先单元测试（Vitest），测试文件 `*.test.ts`；组件用 React Testing Library 测交互与行为，避免测实现细节。
 - 新增功能、修复缺陷或修改现有行为时，必须同步新增或更新测试；Bug 修复必须先编写能够稳定复现问题的失败用例，再实现修复并确认用例转为通过。
 - 修改前端组件的布局、尺寸、滚动定位、焦点管理、键盘操作、选中状态、禁用状态、加载状态、空状态、错误状态或响应式行为时，必须补充对应的回归测试，覆盖本次变更保护的用户可见行为，防止后续调整重新引入问题。
@@ -166,7 +166,7 @@
 - 测试必须保护真实用户行为、稳定 API 契约或明确回归路径；禁止为了覆盖率添加 smoke、sleep/timing、随机输入、日志输出或只证明代码运行的测试。
 - 新增或大幅重写测试时优先使用 Vitest 与 React Testing Library 的标准断言和查询方式，避免手写通用断言辅助函数；只有表达项目特定业务不变量时才抽取测试 helper。
 - 清理测试时先合并重复场景、删除不明不白的实现细节断言；若旧测试间接覆盖了真实契约，需替换为更小、更直接的行为测试。
-- 提交前必须至少运行受影响测试文件，并根据影响范围执行相关测试集、`bun run typecheck` 和涉及文件的 lint；不得在未看到最新通过结果的情况下声明测试完成。
+- 未使用聚合门禁时，提交前必须至少运行受影响测试文件，并根据影响范围执行相关测试集、`bun run typecheck` 和涉及文件的 lint；使用上述聚合门禁时以其一次完整结果为准，不重复执行子命令。不得在未看到最新通过结果的情况下声明测试完成。
 
 ### 3.15 依赖管理
 
@@ -177,7 +177,7 @@
 
 - 使用 Rsbuild，配置见 `rsbuild.config.ts`；脚本以 `package.json` 为准（如 `bun run dev`、`bun run build`、`bun run typecheck`、`bun run lint`、`bun run format`），包管理见 [3.15 依赖管理](#315-依赖管理)。
 - 代码分割与懒加载策略见 [3.4 性能](#34-性能)；资源使用合适格式与压缩，环境变量用 `.env` 且以 `VITE_` 前缀，不在代码中硬编码。
-- **发布前**：执行 typecheck、lint、format 检查，完成生产构建并检查产物体积与环境变量配置。
+- **发布前**：通过本节唯一聚合门禁，由其一次完成 typecheck、lint、format 和生产构建；不要在同一候选树重复子命令。另行检查产物体积与环境变量配置。
 
 ---
 

@@ -13,5 +13,5 @@ This directory contains Canvas-owned pages embedded in the pinned New API web sh
 ## Verification gate
 
 - Add or update a focused React Testing Library regression for changed form behavior and accessible labels.
-- Run focused tests, TypeScript checking, affected-file lint/format, and the production build inside Docker Bun only.
+- For the frozen candidate, run the parent `scripts/run-docker-affected-gate.sh` once with the changed test and source paths; its Docker Bun result subsumes focused tests, TypeScript checking, affected-file lint/format, and the production build, so do not rerun those stages separately.
 - For layout changes, inspect the real page at approximately 390 px, 768 px, 1440 px, and the available wide desktop viewport. Confirm there is no page-level horizontal overflow, no detached or floating primary action, and no large blank region created solely by grid placement.
