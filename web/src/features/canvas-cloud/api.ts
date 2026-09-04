@@ -53,6 +53,7 @@ import type {
   CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
+  CanvasRuntimeConfiguration,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -644,6 +645,107 @@ export async function getCanvasTaskPolicySettings() {
   return (
     await api.get<import('./types').CanvasTaskPolicySettings>(
       `${webBase}/admin/task-policy-settings`
+    )
+  ).data
+}
+
+export async function getCanvasRuntimeConfiguration(): Promise<CanvasRuntimeConfiguration> {
+  return (
+    await api.get<CanvasRuntimeConfiguration>(
+      `${webBase}/admin/runtime-configuration`
+    )
+  ).data
+}
+
+export async function publishCanvasRuntimeStorage(input: {
+  environment: 'UAT' | 'STG' | 'PROD'
+  endpoint: string
+  mediaBucket: string
+  backupBucket: string
+  mediaCredentials: Record<string, string>
+  backupCredentials: Record<string, string>
+  inputRetentionHours: number
+  outputRetentionHours: number
+  downloadUrlTtlSeconds: number
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/runtime-storage/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-runtime-storage') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasProviderCredentialGroup(input: {
+  providerId: string
+  credentialGroupId?: string
+  name: string
+  credentials: Record<string, string>
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/provider-credential-groups/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-provider-credentials'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function bindCanvasProviderCredentials(input: {
+  credentialGroupVersionId: string
+  customerModelIds: string[]
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/provider-credential-bindings/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-provider-bindings') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function checkCanvasRuntimeStorage(
+  storageConfigVersionId: string,
+  bucketRole: 'TASK_MEDIA' | 'DB_BACKUP'
+) {
+  return (
+    await api.post<import('./types').CanvasRuntimeConnectionCheck>(
+      `${webBase}/admin/runtime-storage/${storageConfigVersionId}/checks`,
+      { bucketRole },
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-storage-check') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function checkCanvasProviderCredentialGroup(
+  credentialGroupVersionId: string
+) {
+  return (
+    await api.post<import('./types').CanvasRuntimeConnectionCheck>(
+      `${webBase}/admin/provider-credential-groups/${credentialGroupVersionId}/checks`,
+      undefined,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-credential-check') },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }

@@ -139,6 +139,11 @@ export function useSidebarData(): SidebarData {
                 url: '/canvas-cloud/channels',
                 icon: ServerCog,
               },
+              {
+                title: t('Canvas Runtime Configuration'),
+                url: '/canvas-cloud/runtime',
+                icon: Settings,
+              },
             ],
           },
           {

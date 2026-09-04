@@ -76,6 +76,20 @@ const paidExpiryKeys = [
   'Enter a whole number from 1 to 3650',
   'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.',
 ] as const
+const runtimeConfigurationKeys = [
+  'Buckets',
+  'Credential entries',
+  'Selected models',
+  'Updated by',
+  'Task media check',
+  'Backup check',
+  'Credential schemes',
+  'Last check',
+  'Not checked',
+  'Please check this field',
+  'No matching models',
+  'Passed',
+] as const
 const pointAdjustmentKeys = [
   'Username',
   'Search username',
@@ -107,6 +121,16 @@ const pointAdjustmentKeys = [
 ] as const
 
 describe('Canvas interface localization', () => {
+  it.each(Object.entries(localizedResources))(
+    'translates runtime configuration labels in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of runtimeConfigurationKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
   it.each(Object.entries(localizedResources))(
     'translates every Canvas label in %s without retaining the English word',
     (_locale, resource) => {

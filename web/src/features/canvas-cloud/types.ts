@@ -26,6 +26,65 @@ export interface CanvasSession {
   inviterEnabled: boolean
 }
 
+export interface CanvasRuntimeConfiguration {
+  providers: Array<{ id: string; code: string; name: string }>
+  storage: Array<{
+    id: string
+    environment: 'UAT' | 'STG' | 'PROD'
+    version: number
+    status: string
+    endpoint: string
+    mediaBucket: string
+    backupBucket: string
+    inputRetentionHours: number
+    outputRetentionHours: number
+    downloadUrlTtlSeconds: number
+    reason: string
+    effectiveAt: string | null
+    createdByPrincipalId: string
+    updatedBy: string
+    createdAt: string
+    checks: {
+      taskMedia: CanvasRuntimeConnectionCheck | null
+      databaseBackup: CanvasRuntimeConnectionCheck | null
+    }
+  }>
+  credentialGroups: Array<{
+    id: string
+    credentialGroupId: string
+    providerId: string
+    providerCode: string
+    name: string
+    version: number
+    status: string
+    schemeNames: string[]
+    reason: string
+    effectiveAt: string | null
+    createdByPrincipalId: string
+    updatedBy: string
+    createdAt: string
+    latestCheck: CanvasRuntimeConnectionCheck | null
+  }>
+  models: Array<{
+    id: string
+    modelKey: string
+    publicName: string
+    status: string
+    providerId: string
+    providerCode: string
+    providerChannelId: string
+    credentialGroupName: string | null
+    credentialGroupVersionId: string | null
+  }>
+}
+
+export interface CanvasRuntimeConnectionCheck {
+  outcome: 'PASSED' | 'FAILED'
+  reasonCode: string | null
+  checkedBy?: string
+  checkedAt: string
+}
+
 export interface CanvasAdminRechargeCode {
   id: string
   name: string

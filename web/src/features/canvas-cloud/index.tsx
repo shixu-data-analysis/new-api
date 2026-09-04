@@ -72,6 +72,7 @@ import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
+import { RuntimeConfiguration } from './components/RuntimeConfiguration'
 import { formatMoneyMinor } from './formatters'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
@@ -98,6 +99,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   pricing: 'Canvas Pricing',
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
+  runtime: 'Canvas Runtime Configuration',
   refunds: 'Refund point recovery',
   audit: 'Canvas Audit Log',
   'agent-center': 'Inviter center',
@@ -424,6 +426,7 @@ function AdminContent(props: {
       'audit',
       'usage-logs',
       'task-logs',
+      'runtime',
     ].includes(props.section),
   })
   const dates = useMemo(
@@ -451,6 +454,7 @@ function AdminContent(props: {
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
   if (props.section === 'task-logs') return <AdminTaskLogs kind='task' />
+  if (props.section === 'runtime') return <RuntimeConfiguration />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />

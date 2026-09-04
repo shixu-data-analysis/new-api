@@ -28,6 +28,7 @@ export const canvasAdminSections = [
   'pricing',
   'pricing-calculator',
   'channels',
+  'runtime',
   'refunds',
   'audit',
 ] as const
