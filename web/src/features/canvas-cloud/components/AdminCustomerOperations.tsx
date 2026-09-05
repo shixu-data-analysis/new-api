@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -51,7 +51,12 @@ import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { useCanvasRechargeOrderColumns } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import {
+  CustomerBusinessFacts,
+  type CustomerFactTarget,
+} from './CustomerBusinessFacts'
 import { CustomerPointHistory } from './CustomerPointHistory'
+import { CustomerPriceAssignment } from './CustomerPriceAssignment'
 
 const orderStatuses = [
   'CREATED',
@@ -80,7 +85,9 @@ function CustomerOrders({
   customerId,
   selectedOrderId,
   onCorrectOrder,
+  onInspect,
 }: {
+  onInspect: (target: CustomerFactTarget) => void
   customerId: string
   selectedOrderId?: string
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
@@ -122,6 +129,7 @@ function CustomerOrders({
     enabled: rangeValid,
   })
   const columns = useCanvasRechargeOrderColumns({
+    onInspect: (order) => onInspect({ kind: 'order', id: order.id }),
     showCorrectionDetails: Boolean(onCorrectOrder),
     selectedOrderId,
     isSelectable: (order) =>
@@ -192,7 +200,13 @@ function CustomerOrders({
   )
 }
 
-function CustomerTasks({ customerId }: { customerId: string }) {
+function CustomerTasks({
+  customerId,
+  onInspect,
+}: {
+  customerId: string
+  onInspect: (target: CustomerFactTarget) => void
+}) {
   const { t } = useTranslation()
   const state = useServerTableState('acceptedAt')
   const setPagination = state.setPagination
@@ -272,6 +286,15 @@ function CustomerTasks({ customerId }: { customerId: string }) {
           <DataTableColumnHeader column={column} title={t('Model')} />
         ),
         meta: { label: t('Model') },
+        cell: ({ row }) => (
+          <button
+            type='button'
+            className='text-primary text-start underline underline-offset-4'
+            onClick={() => onInspect({ kind: 'task', id: row.original.id })}
+          >
+            {row.original.modelName}
+          </button>
+        ),
       },
       {
         id: 'quotedPoints',
@@ -339,7 +362,7 @@ function CustomerTasks({ customerId }: { customerId: string }) {
         cell: ({ row }) => formatCanvasDateTime(row.original.completedAt, '—'),
       },
     ],
-    [t]
+    [t, onInspect]
   )
   const filters = (
     <>
@@ -466,21 +489,56 @@ export function AdminCustomerOperations({
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
   onDeductLot?: (lot: import('../types').CanvasAdminPointLot) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const factsTabRef = useRef<HTMLButtonElement>(null)
+  const [tab, setTab] = useState('orders')
+  const [selection, setSelection] = useState<
+    CustomerFactTarget & { customerId: string }
+  >()
+  useEffect(() => {
+    if (tab === 'facts') {
+      factsTabRef.current?.scrollIntoView?.({
+        block: 'nearest',
+        inline: 'nearest',
+      })
+    }
+  }, [tab, i18n.language])
+  const target =
+    selection?.customerId === customerId
+      ? { kind: selection.kind, id: selection.id }
+      : undefined
+  const inspect = (value: CustomerFactTarget) => {
+    setSelection({ ...value, customerId })
+    setTab('facts')
+  }
   return (
-    <Tabs defaultValue='orders'>
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        setTab(value)
+        if (value === 'facts') setSelection(undefined)
+      }}
+    >
       <TabsList className='max-w-full justify-start overflow-x-auto'>
+        <TabsTrigger value='price-plan'>{t('Price plan')}</TabsTrigger>
         <TabsTrigger value='orders'>{t('Recharge orders')}</TabsTrigger>
         <TabsTrigger value='lots'>{t('Point Lots')}</TabsTrigger>
         <TabsTrigger value='ledger'>{t('Point ledger')}</TabsTrigger>
         <TabsTrigger value='tasks'>{t('Tasks')}</TabsTrigger>
+        <TabsTrigger ref={factsTabRef} value='facts'>
+          {t('Business facts')}
+        </TabsTrigger>
         <TabsTrigger value='audit'>{t('Customer audit')}</TabsTrigger>
       </TabsList>
+      <TabsContent value='price-plan'>
+        <CustomerPriceAssignment key={customerId} customerId={customerId} />
+      </TabsContent>
       <TabsContent value='orders'>
         <CustomerOrders
           customerId={customerId}
           selectedOrderId={selectedOrderId}
           onCorrectOrder={onCorrectOrder}
+          onInspect={inspect}
         />
       </TabsContent>
       <TabsContent value='lots'>
@@ -489,13 +547,25 @@ export function AdminCustomerOperations({
           view='lots'
           selectedLotId={selectedLotId}
           onDeductLot={onDeductLot}
+          onInspect={inspect}
         />
       </TabsContent>
       <TabsContent value='ledger'>
-        <CustomerPointHistory customerId={customerId} view='ledger' />
+        <CustomerPointHistory
+          customerId={customerId}
+          view='ledger'
+          onInspect={inspect}
+        />
       </TabsContent>
       <TabsContent value='tasks'>
-        <CustomerTasks customerId={customerId} />
+        <CustomerTasks customerId={customerId} onInspect={inspect} />
+      </TabsContent>
+      <TabsContent value='facts'>
+        <CustomerBusinessFacts
+          key={`${customerId}:${target?.kind ?? ''}:${target?.id ?? ''}`}
+          customerId={customerId}
+          initial={target}
+        />
       </TabsContent>
       <TabsContent value='audit'>
         <AdminAuditLog customerId={customerId} />

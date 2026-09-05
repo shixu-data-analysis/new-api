@@ -909,3 +909,49 @@ export interface ChannelHealthReport {
     }>
   } | null
 }
+
+export interface CanvasCustomerPriceAssignment {
+  id: string
+  priceGroupId: string
+  internalName: string
+  version: number
+  reason: string
+  actorName: string | null
+  effectiveAt: string
+  endedAt: string | null
+}
+
+export interface CanvasCustomerPriceAssignments extends CanvasPage<CanvasCustomerPriceAssignment> {
+  customerId: string
+  customerName: string | null
+  currentGroup: Pick<
+    CanvasPriceGroupVersion,
+    'id' | 'internalName' | 'version' | 'status'
+  >
+}
+
+export type CanvasBusinessFactKind =
+  | 'task'
+  | 'quote'
+  | 'lot'
+  | 'ledger'
+  | 'allocation'
+  | 'order'
+  | 'payment'
+  | 'refund'
+  | 'recovery'
+  | 'cost'
+  | 'reconciliation'
+export interface CanvasBusinessFact {
+  id: string
+  kind: CanvasBusinessFactKind
+  name: string
+  status: string
+  at: string
+}
+export interface CanvasBusinessFactDetail extends CanvasBusinessFact {
+  fields: Record<string, string | null>
+}
+export interface CanvasBusinessFactPage extends CanvasPage<CanvasBusinessFact> {
+  fact?: CanvasBusinessFactDetail
+}

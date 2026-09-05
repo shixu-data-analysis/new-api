@@ -270,3 +270,36 @@ describe('Canvas interface localization', () => {
     expect(zhTW.translation.View).toBe('顯示')
   })
 })
+
+it('localizes customer price assignment labels in every supported language', () => {
+  const keys = [
+    'Confirm',
+    'Confirm price plan change',
+    'Current',
+    'Current price plan',
+    'Customer',
+    'Customer price plan',
+    'Customer price plan updated',
+    'Effective at',
+    'Ended at',
+    'New price plan',
+    'No other published price plans',
+    'No price plan history',
+    'Only new quotes use the new plan. Existing quotes and tasks keep their original prices.',
+    'Operator',
+    'Price plan',
+    'Price plan change failed. Refresh the current plan before retrying.',
+    'Price plan history',
+    'Reason',
+    'Refresh',
+    'Review price plan change',
+    'Select a published price plan',
+    'Unable to load price plans or assignment history',
+    'Unknown',
+  ]
+  for (const resource of Object.values(localizedResources)) {
+    for (const key of keys) {
+      expect((resource.translation as Record<string, string>)[key]).toBeTruthy()
+    }
+  }
+})

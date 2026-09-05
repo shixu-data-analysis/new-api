@@ -26,6 +26,7 @@ import zh from '@/i18n/locales/zh.json'
 import { CustomerPointHistory } from '../CustomerPointHistory'
 
 const apiMocks = vi.hoisted(() => ({
+  getCanvasAdminCustomerPointLedger: vi.fn(),
   getCanvasCustomerPointLedger: vi.fn(),
   getCanvasCustomerPointLots: vi.fn(),
 }))
@@ -90,6 +91,50 @@ describe('Customer point history', () => {
         },
       ],
     })
+  })
+
+  it('opens the related task from administrator ledger history without displaying its identifier', async () => {
+    const taskId = '85000000-0000-7000-8000-000000000006'
+    apiMocks.getCanvasAdminCustomerPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'ledger-settlement',
+          pointLotId: 'lot-a',
+          eventType: 'SETTLE',
+          eventPoints: '25',
+          remainingDelta: '-25',
+          reservedDelta: '-25',
+          taskId,
+          refundLinkId: null,
+          reason: 'Task succeeded',
+          occurredAt: '2026-09-03T00:55:45.000Z',
+        },
+      ],
+    })
+    const onInspect = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerPointHistory
+          customerId='customer-a'
+          view='ledger'
+          onInspect={onInspect}
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: zh.translation.Task,
+      })
+    )
+    expect(onInspect).toHaveBeenCalledWith({ kind: 'task', id: taskId })
+    expect(screen.queryByText(taskId)).not.toBeInTheDocument()
+    expect(apiMocks.getCanvasCustomerPointLedger).not.toHaveBeenCalled()
   })
 
   it('shows customer-readable point fields without internal identifiers', async () => {

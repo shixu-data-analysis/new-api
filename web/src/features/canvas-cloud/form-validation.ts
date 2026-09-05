@@ -70,3 +70,15 @@ export type PaidCorrectionValues = z.infer<
 >
 export type DeductionValues = z.infer<ReturnType<typeof deductionSchema>>
 export type RefundRecoveryValues = z.infer<typeof refundRecoverySchema>
+
+export const customerPriceAssignmentSchema = z.object({
+  priceGroupId: z.string().uuid('Select a published price plan'),
+  reason: z
+    .string()
+    .trim()
+    .min(8, 'Enter a reason of 8 to 255 characters')
+    .max(255, 'Enter a reason of 8 to 255 characters'),
+})
+export type CustomerPriceAssignmentValues = z.infer<
+  typeof customerPriceAssignmentSchema
+>

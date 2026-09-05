@@ -1214,3 +1214,61 @@ export async function controlCanvasChannel(
     )
   ).data
 }
+
+export async function getCanvasCustomerPriceAssignments(
+  customerId: string,
+  query: {
+    page: number
+    pageSize: number
+    group?: string
+    sortOrder: 'asc' | 'desc'
+  },
+  signal?: AbortSignal
+): Promise<import('./types').CanvasCustomerPriceAssignments> {
+  return (
+    await api.get<import('./types').CanvasCustomerPriceAssignments>(
+      `${webBase}/admin/customers/${encodeURIComponent(customerId)}/price-group-assignments`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function assignCanvasCustomerPriceGroup(
+  customerId: string,
+  input: { priceGroupId: string; reason: string },
+  key: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/customers/${encodeURIComponent(customerId)}/price-group-assignments`,
+      { ...input, confirmed: true },
+      { headers: { 'Idempotency-Key': key }, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasCustomerBusinessFacts(
+  customerId: string,
+  query: {
+    page: number
+    pageSize: number
+    sortOrder: 'asc' | 'desc'
+    kind?: import('./types').CanvasBusinessFactKind
+    name?: string
+    status?: string
+    from?: string
+    to?: string
+  },
+  root?: { kind: import('./types').CanvasBusinessFactKind; id: string },
+  signal?: AbortSignal
+): Promise<import('./types').CanvasBusinessFactPage> {
+  const suffix = root
+    ? `/${encodeURIComponent(root.kind)}/${encodeURIComponent(root.id)}`
+    : ''
+  return (
+    await api.get<import('./types').CanvasBusinessFactPage>(
+      `${webBase}/admin/customers/${encodeURIComponent(customerId)}/business-facts${suffix}`,
+      { params: query, signal }
+    )
+  ).data
+}

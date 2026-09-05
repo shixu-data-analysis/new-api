@@ -37,6 +37,7 @@ export function useCanvasRechargeOrderColumns({
   selectedOrderId,
   isSelectable = alwaysSelectable,
   onSelect,
+  onInspect,
   actionLabel,
   hideUnavailableAction = false,
 }: {
@@ -45,6 +46,7 @@ export function useCanvasRechargeOrderColumns({
   selectedOrderId?: string
   isSelectable?: (order: CanvasAdminRechargeOrder) => boolean
   onSelect?: (order: CanvasAdminRechargeOrder) => void
+  onInspect?: (order: CanvasAdminRechargeOrder) => void
   actionLabel?: string
   hideUnavailableAction?: boolean
 }): ColumnDef<CanvasAdminRechargeOrder, unknown>[] {
@@ -62,7 +64,18 @@ export function useCanvasRechargeOrderColumns({
           />
         ),
         meta: { label: t('Canvas recharge order') },
-        cell: ({ row }) => <CopyableText value={row.original.orderNumber} />,
+        cell: ({ row }) =>
+          onInspect ? (
+            <button
+              type='button'
+              className='text-primary text-start underline underline-offset-4'
+              onClick={() => onInspect(row.original)}
+            >
+              {row.original.orderNumber}
+            </button>
+          ) : (
+            <CopyableText value={row.original.orderNumber} />
+          ),
       },
     ]
 
@@ -214,6 +227,7 @@ export function useCanvasRechargeOrderColumns({
     actionLabel,
     hideUnavailableAction,
     onSelect,
+    onInspect,
     selectedOrderId,
     showCorrectionDetails,
     showCustomer,

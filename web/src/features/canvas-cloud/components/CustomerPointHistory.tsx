@@ -48,6 +48,7 @@ import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import type { CustomerFactTarget } from './CustomerBusinessFacts'
 
 const ledgerEventTypes = [
   'ISSUE',
@@ -66,8 +67,10 @@ export function CustomerPointHistory({
   view = 'both',
   selectedLotId,
   onDeductLot,
+  onInspect,
 }: {
   customerId?: string
+  onInspect?: (target: CustomerFactTarget) => void
   view?: 'both' | 'lots' | 'ledger'
   selectedLotId?: string
   onDeductLot?: (lot: CanvasAdminPointLot) => void
@@ -243,7 +246,19 @@ export function CustomerPointHistory({
         accessorKey: 'id',
         enableSorting: false,
         header: t('Point Lot'),
-        cell: ({ row }) => <CopyableText value={row.original.id} />,
+        cell: ({ row }) =>
+          onInspect ? (
+            <button
+              type='button'
+              className='text-primary text-start underline underline-offset-4'
+              onClick={() => onInspect({ kind: 'lot', id: row.original.id })}
+            >
+              <BusinessTermText kind='pointLotType' value={row.original.type} />{' '}
+              · {formatCanvasDateTime(row.original.issuedAt)}
+            </button>
+          ) : (
+            <CopyableText value={row.original.id} />
+          ),
       })
     }
     if (onDeductLot) {
@@ -275,7 +290,7 @@ export function CustomerPointHistory({
       })
     }
     return columns
-  }, [customerId, onDeductLot, selectedLotId, t])
+  }, [customerId, onDeductLot, onInspect, selectedLotId, t])
   const ledgerColumns = useMemo<
     ColumnDef<CanvasPointLedgerItem, unknown>[]
   >(() => {
@@ -294,9 +309,21 @@ export function CustomerPointHistory({
         accessorKey: 'eventType',
         enableSorting: false,
         header: t('Event'),
-        cell: ({ row }) => (
-          <BusinessTerm kind='ledgerEvent' value={row.original.eventType} />
-        ),
+        cell: ({ row }) =>
+          onInspect ? (
+            <button
+              type='button'
+              className='text-primary text-start underline underline-offset-4'
+              onClick={() => onInspect({ kind: 'ledger', id: row.original.id })}
+            >
+              <BusinessTermText
+                kind='ledgerEvent'
+                value={row.original.eventType}
+              />
+            </button>
+          ) : (
+            <BusinessTerm kind='ledgerEvent' value={row.original.eventType} />
+          ),
       },
       {
         id: 'eventPoints',
@@ -341,12 +368,20 @@ export function CustomerPointHistory({
           accessorKey: 'taskId',
           enableSorting: false,
           header: t('Task'),
-          cell: ({ row }) =>
-            row.original.taskId ? (
-              <CopyableText value={row.original.taskId} />
-            ) : (
-              '—'
-            ),
+          cell: ({ row }) => {
+            const taskId = row.original.taskId
+            if (!taskId) return '—'
+            if (!onInspect) return <CopyableText value={taskId} />
+            return (
+              <button
+                type='button'
+                className='text-primary text-start underline underline-offset-4'
+                onClick={() => onInspect({ kind: 'task', id: taskId })}
+              >
+                {t('Task')}
+              </button>
+            )
+          },
         }
       )
     } else {
@@ -363,7 +398,7 @@ export function CustomerPointHistory({
       })
     }
     return columns
-  }, [customerId, t])
+  }, [customerId, onInspect, t])
   return (
     <div className='space-y-6'>
       {view !== 'ledger' ? (

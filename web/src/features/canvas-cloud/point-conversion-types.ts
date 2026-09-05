@@ -101,7 +101,11 @@ export function formatExactRmbReference(
   const [integer, fraction = ''] = value.split('.')
   const formattedInteger = formatExactPointQuantity(integer, locale)
   const significantFraction = fraction.replace(/0+$/u, '')
-  return significantFraction
-    ? `${formattedInteger}.${significantFraction}`
-    : formattedInteger
+  if (!significantFraction) return formattedInteger
+  const parts = new Intl.NumberFormat(locale).formatToParts(-1.1)
+  const decimal = parts.find((part) => part.type === 'decimal')?.value ?? '.'
+  const minus = parts.find((part) => part.type === 'minusSign')?.value ?? '-'
+  const signedInteger =
+    integer === '-0' ? `${minus}${formattedInteger}` : formattedInteger
+  return `${signedInteger}${decimal}${significantFraction}`
 }
