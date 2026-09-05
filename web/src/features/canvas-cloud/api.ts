@@ -1183,3 +1183,32 @@ export async function deductCanvasPointLot(input: {
     )
   ).data
 }
+
+export async function getCanvasChannelHealth(
+  query: import('./types').ChannelHealthQuery
+): Promise<import('./types').ChannelHealthReport> {
+  return (
+    await api.get<import('./types').ChannelHealthReport>(
+      `${webBase}/admin/channel-health`,
+      { params: query, skipErrorHandler: true }
+    )
+  ).data
+}
+export async function controlCanvasChannel(
+  channelId: string,
+  input: {
+    enabled: boolean
+    expectedVersion: number
+    reasonCode: string
+    note: string
+  },
+  key: string
+) {
+  return (
+    await api.post(
+      `${webBase}/admin/channels/${channelId}/control`,
+      { ...input, confirmed: true },
+      { headers: { 'Idempotency-Key': key }, skipErrorHandler: true }
+    )
+  ).data
+}

@@ -66,6 +66,7 @@ import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
+import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
@@ -626,27 +627,7 @@ function AdminContent(props: {
             ],
           }))}
         />
-        <DataTable
-          empty={t('No provider channels')}
-          headers={[
-            t('Provider'),
-            t('Channel'),
-            t('Status'),
-            t('Adapter'),
-            t('Upstream model'),
-          ]}
-          filterableColumnIndexes={[0, 1, 3, 4]}
-          rows={data.channels.map((item) => ({
-            key: item.id,
-            cells: [
-              item.providerName,
-              `${item.code} v${item.version}`,
-              <BusinessTerm key='s' kind='configStatus' value={item.status} />,
-              item.protocolAdapter,
-              item.upstreamModel,
-            ],
-          }))}
-        />
+        <ChannelHealth />
       </div>
     )
   }
