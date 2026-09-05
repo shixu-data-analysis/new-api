@@ -27,7 +27,12 @@ export interface CanvasSession {
 }
 
 export interface CanvasRuntimeConfiguration {
-  providers: Array<{ id: string; code: string; name: string }>
+  providers: Array<{
+    id: string
+    code: string
+    name: string
+    credentialSchemes: string[]
+  }>
   storage: Array<{
     id: string
     environment: 'UAT' | 'STG' | 'PROD'

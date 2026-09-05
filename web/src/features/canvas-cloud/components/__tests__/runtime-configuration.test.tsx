@@ -34,6 +34,7 @@ const runtime = {
       id: '85000000-0000-7000-8000-000000000001',
       code: 'provider-a',
       name: 'Provider A',
+      credentialSchemes: ['bearerAuth', 'googleApiKey'],
     },
   ],
   storage: [
@@ -142,7 +143,7 @@ describe('Canvas runtime configuration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Replace secret' }))
     await waitFor(() =>
-      expect(screen.getByLabelText('Secret value')).toHaveFocus()
+      expect(screen.getByLabelText('Secret value · bearerAuth')).toHaveFocus()
     )
     expect(screen.getByLabelText('Provider')).toBeDisabled()
     expect(
@@ -150,6 +151,27 @@ describe('Canvas runtime configuration', () => {
         .getAllByLabelText('Credential group')
         .find((element) => element.tagName === 'INPUT')
     ).toBeDisabled()
+  })
+
+  it('derives fixed credential scheme fields from the selected provider', async () => {
+    renderRuntime()
+
+    fireEvent.change(await screen.findByLabelText('Provider'), {
+      target: { value: '85000000-0000-7000-8000-000000000001' },
+    })
+
+    expect(
+      screen.queryByRole('textbox', { name: 'Security scheme name' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('bearerAuth')).toBeVisible()
+    expect(screen.getByText('googleApiKey')).toBeVisible()
+    expect(screen.getAllByLabelText(/Secret value · /)).toHaveLength(2)
+    expect(
+      screen.queryByRole('button', { name: 'Add credential' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Remove' })
+    ).not.toBeInTheDocument()
   })
 
   it('reports a recorded failed check as failure and refreshes the overview', async () => {

@@ -9,7 +9,7 @@ License, or (at your option) any later version.
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type ReactNode } from 'react'
-import { useFieldArray, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -138,13 +138,9 @@ export function RuntimeConfiguration() {
       providerId: '',
       credentialGroupId: undefined,
       name: '',
-      entries: [{ schemeName: '', secret: '' }],
+      entries: [],
       reason: '',
     },
-  })
-  const credentialEntries = useFieldArray({
-    control: credential.control,
-    name: 'entries',
   })
   const binding = useForm<BindingForm>({
     resolver: zodResolver(bindingSchema),
@@ -205,7 +201,7 @@ export function RuntimeConfiguration() {
         providerId: '',
         credentialGroupId: undefined,
         name: '',
-        entries: [{ schemeName: '', secret: '' }],
+        entries: [],
         reason: '',
       })
       toast.success(t('Provider credential group published'))
@@ -585,10 +581,13 @@ export function RuntimeConfiguration() {
                         providerId: item.providerId,
                         credentialGroupId: item.credentialGroupId,
                         name: item.name,
-                        entries: item.schemeNames.map((schemeName) => ({
-                          schemeName,
-                          secret: '',
-                        })),
+                        entries:
+                          runtime.data.providers
+                            .find((provider) => provider.id === item.providerId)
+                            ?.credentialSchemes.map((schemeName) => ({
+                              schemeName,
+                              secret: '',
+                            })) ?? [],
                         reason: '',
                       })
                       requestAnimationFrame(() =>
@@ -616,7 +615,20 @@ export function RuntimeConfiguration() {
               <NativeSelect
                 className='w-full'
                 disabled={Boolean(credential.watch('credentialGroupId'))}
-                {...credential.register('providerId')}
+                {...credential.register('providerId', {
+                  onChange: (event) => {
+                    const provider = runtime.data.providers.find(
+                      (item) => item.id === event.target.value
+                    )
+                    credential.setValue(
+                      'entries',
+                      (provider?.credentialSchemes ?? []).map((schemeName) => ({
+                        schemeName,
+                        secret: '',
+                      }))
+                    )
+                  },
+                })}
               >
                 <NativeSelectOption value=''>
                   {t('Select provider')}
@@ -644,25 +656,21 @@ export function RuntimeConfiguration() {
               <Input {...credential.register('reason')} />
             </Field>
             <div className='space-y-2 md:col-span-2 xl:col-span-3'>
-              {credentialEntries.fields.map((entry, index) => (
+              {credential.watch('entries').map((entry, index) => (
                 <div
-                  key={entry.id}
-                  className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]'
+                  key={entry.schemeName}
+                  className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
                 >
+                  <div className='min-w-0 space-y-1'>
+                    <div className='text-sm font-medium'>
+                      {t('Security scheme name')}
+                    </div>
+                    <div className='bg-muted rounded-lg border px-2.5 py-1.5 font-mono text-sm'>
+                      {entry.schemeName}
+                    </div>
+                  </div>
                   <Field
-                    label={t('Security scheme name')}
-                    error={
-                      credential.formState.errors.entries?.[index]?.schemeName
-                        ?.message
-                    }
-                  >
-                    <Input
-                      {...credential.register(`entries.${index}.schemeName`)}
-                      placeholder='bearerAuth'
-                    />
-                  </Field>
-                  <Field
-                    label={t('Secret value')}
+                    label={`${t('Secret value')} · ${entry.schemeName}`}
                     error={
                       credential.formState.errors.entries?.[index]?.secret
                         ?.message
@@ -674,26 +682,13 @@ export function RuntimeConfiguration() {
                       {...credential.register(`entries.${index}.secret`)}
                     />
                   </Field>
-                  <Button
-                    className='self-end'
-                    type='button'
-                    variant='outline'
-                    disabled={credentialEntries.fields.length === 1}
-                    onClick={() => credentialEntries.remove(index)}
-                  >
-                    {t('Remove')}
-                  </Button>
                 </div>
               ))}
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() =>
-                  credentialEntries.append({ schemeName: '', secret: '' })
-                }
-              >
-                {t('Add credential')}
-              </Button>
+              {credential.watch('entries').length === 0 && (
+                <div className='text-muted-foreground text-sm'>
+                  {t('Not configured')}
+                </div>
+              )}
             </div>
             <div className='md:col-span-2 xl:col-span-3'>
               <Button type='submit'>
