@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { toIntlLocale } from '@/i18n/languages'
 
 import {
   cancelScheduledCanvasPrice,
@@ -51,6 +52,11 @@ import {
   formatBusinessNumber,
   formatBusinessPercentFromRate,
 } from '../number-format'
+import { getCanvasPointConversionReport } from '../point-conversion-api'
+import {
+  formatExactPointQuantity,
+  formatExactRmbReference,
+} from '../point-conversion-types'
 import {
   DEFAULT_TARGET_MARGIN_PERCENT,
   calculateQuestionnairePricing,
@@ -191,11 +197,12 @@ function serverErrorPayload(error: unknown): {
 }
 
 export function AdminPricing(props: {
+  mode?: 'pricing' | 'campaigns'
   prices: Price[]
   pricePromotions?: PricePromotion[]
   onChanged: () => Promise<unknown>
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [activeTab, setActiveTab] = useState('prices')
   const [confirmation, setConfirmation] = useState<
     | { kind: 'create-price' }
@@ -213,7 +220,7 @@ export function AdminPricing(props: {
   const testingModels = useQuery({
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
-    enabled: activeTab === 'prices',
+    enabled: activeTab === 'prices' && props.mode !== 'campaigns',
   })
   const initialTargets = useMemo(
     () =>
@@ -276,6 +283,7 @@ export function AdminPricing(props: {
   const [scheduledAt, setScheduledAt] = useState('')
   const [specialSourceId, setSpecialSourceId] = useState(published[0]?.id ?? '')
   const [specialForm, setSpecialForm] = useState({
+    pointBudget: '',
     specialPoints: '',
     startsAt: '',
     endsAt: '',
@@ -457,12 +465,77 @@ export function AdminPricing(props: {
       : null
   const specialIsNegative =
     specialContributionRate !== null && specialContributionRate < 0
+  const pointReference = useQuery({
+    queryKey: ['canvas-cloud', 'special-point-reference'],
+    queryFn: ({ signal }) =>
+      getCanvasPointConversionReport(
+        { page: 1, pageSize: 10, sortBy: 'issuedAt', sortOrder: 'desc' },
+        signal
+      ),
+    enabled: props.mode === 'campaigns',
+  })
+  const specialScenario = (() => {
+    if (
+      !specialSource ||
+      !specialPointsValid ||
+      !/^[1-9]\d{0,18}$/.test(specialForm.pointBudget)
+    ) {
+      return null
+    }
+    const discount =
+      BigInt(specialSource.points) - BigInt(specialForm.specialPoints)
+    let count = BigInt(specialForm.pointBudget) / discount
+    if (/^[1-9]\d{0,18}$/.test(specialForm.maxParticipants)) {
+      const maximum = BigInt(specialForm.maxParticipants)
+      if (maximum < count) count = maximum
+    }
+    const [rateInteger = '0', rateFraction = ''] =
+      specialSource.baseRatePointsPerRmb.split('.')
+    const [costInteger = '0', costFraction = ''] =
+      specialSource.kPricingRmb.split('.')
+    const rate =
+      BigInt(rateInteger) * 100000000n + BigInt(rateFraction.padEnd(8, '0'))
+    const cost =
+      BigInt(costInteger) * 100000000n + BigInt(costFraction.padEnd(8, '0'))
+    if (rate <= 0n) {
+      return null
+    }
+    const budgetPerAdmission = (discount * 10000000000n + rate - 1n) / rate
+    const specialReference =
+      (BigInt(specialForm.specialPoints) * 10000000000000000n) / rate
+    const lossPerAdmission =
+      cost > specialReference
+        ? ((cost - specialReference) * 100n + 99999999n) / 100000000n
+        : 0n
+    for (const [input, perAdmission] of [
+      [specialForm.campaignBudgetRmb, budgetPerAdmission],
+      [specialForm.maxExpectedLossRmb, lossPerAdmission],
+    ] as const) {
+      if (perAdmission > 0n && /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(input)) {
+        const maximum = BigInt(rmbToMinor(input)) / perAdmission
+        if (maximum < count) count = maximum
+      }
+    }
+    const consumed = count * BigInt(specialForm.specialPoints)
+    const average = pointReference.data?.summary.averageRmbPerPoint
+    const scaled = average ? BigInt(average.replace('.', '')) * consumed : null
+    return {
+      consumed: consumed.toString(),
+      discount: (count * discount).toString(),
+      reference:
+        scaled === null
+          ? null
+          : `${scaled / 10000000000n}.${(scaled % 10000000000n).toString().padStart(10, '0')}`,
+    }
+  })()
   const optionalMoneyValid = (value: string) =>
     value.length === 0 ||
     (/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(value) && Number(value) > 0)
   const specialFormValid =
     Boolean(specialSource) &&
     specialPointsValid &&
+    /^[1-9]\d{0,18}$/.test(specialForm.pointBudget.trim()) &&
+    BigInt(specialForm.pointBudget.trim()) <= 9223372036854775807n &&
     specialStart !== null &&
     Number.isFinite(specialStart.getTime()) &&
     specialStart.getTime() > Date.now() &&
@@ -624,6 +697,7 @@ export function AdminPricing(props: {
       const maxExpectedLossRmb = specialForm.maxExpectedLossRmb.trim()
       const maxParticipants = specialForm.maxParticipants.trim()
       return createCanvasLimitedPricePromotion({
+        pointBudget: specialForm.pointBudget.trim(),
         sourcePriceVersionId: specialSource.id,
         specialPoints: specialForm.specialPoints.trim(),
         startsAt: specialStart.toISOString(),
@@ -994,6 +1068,16 @@ export function AdminPricing(props: {
           label: t('Special price'),
           value: `${specialForm.specialPoints.trim()} ${t('points')}`,
         },
+        { label: t('Discount point budget'), value: specialForm.pointBudget },
+        {
+          label: t('Estimated task consumption'),
+          value: specialScenario
+            ? formatExactPointQuantity(
+                specialScenario.consumed,
+                toIntlLocale(i18n.language)
+              )
+            : '—',
+        },
         {
           label: t('Limited-time range'),
           value: `${dateTime(specialStart?.toISOString() ?? null)} — ${dateTime(specialEnd?.toISOString() ?? null)}`,
@@ -1143,43 +1227,50 @@ export function AdminPricing(props: {
 
   return (
     <div className='mx-auto w-full max-w-7xl space-y-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Canvas pricing')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-              <TabsTrigger
-                className='h-8 min-h-8 flex-none px-3'
-                value='prices'
-              >
-                {t('Model prices')}
-              </TabsTrigger>
-              <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='costs'>
-                {t('Upstream cost')}
-              </TabsTrigger>
-              <TabsTrigger
-                className='h-8 min-h-8 flex-none px-3'
-                value='groups'
-              >
-                {t('Price groups')}
-              </TabsTrigger>
-              <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='rate'>
-                {t('Point issuance rate')}
-              </TabsTrigger>
-              <TabsTrigger
-                className='h-8 min-h-8 flex-none px-3'
-                value='task-policy'
-              >
-                {t('Task and point policy settings')}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {activeTab === 'prices' && (
+      {props.mode !== 'campaigns' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Canvas pricing')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+                <TabsTrigger
+                  className='h-8 min-h-8 flex-none px-3'
+                  value='prices'
+                >
+                  {t('Model prices')}
+                </TabsTrigger>
+                <TabsTrigger
+                  className='h-8 min-h-8 flex-none px-3'
+                  value='costs'
+                >
+                  {t('Upstream cost')}
+                </TabsTrigger>
+                <TabsTrigger
+                  className='h-8 min-h-8 flex-none px-3'
+                  value='groups'
+                >
+                  {t('Price groups')}
+                </TabsTrigger>
+                <TabsTrigger
+                  className='h-8 min-h-8 flex-none px-3'
+                  value='rate'
+                >
+                  {t('Point issuance rate')}
+                </TabsTrigger>
+                <TabsTrigger
+                  className='h-8 min-h-8 flex-none px-3'
+                  value='task-policy'
+                >
+                  {t('Task and point policy settings')}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+      {activeTab === 'prices' && props.mode !== 'campaigns' && (
         <Card size='sm' className='border-primary/30 bg-primary/5'>
           <CardContent className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
             <div className='flex min-w-0 items-start gap-3'>
@@ -1384,579 +1475,652 @@ export function AdminPricing(props: {
 
       {activeTab === 'prices' && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Adjust model price')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'Review the editable inputs, then confirm the change. The published source remains immutable and the confirmed change enters approval.'
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form
-                aria-label={t('Adjust model price')}
-                className='space-y-4'
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  setPriceSubmitted(true)
-                  if (!priceFormValid) return
-                  setConfirmation({ kind: 'create-price' })
-                }}
-              >
-                <div className='space-y-1'>
-                  <Label htmlFor='pricing-source'>{t('Pricing target')}</Label>
-                  <select
-                    id='pricing-source'
-                    className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
-                    value={selectedInitial ? selectedId : (selected?.id ?? '')}
-                    onChange={(event) => setSelectedId(event.target.value)}
-                  >
-                    {published.map((price) => (
-                      <option key={price.id} value={price.id}>
-                        {price.modelName} · {price.priceGroup} ·{' '}
-                        {price.combinationKey} · v{price.version}
-                      </option>
-                    ))}
-                    {initialTargets.map(({ model, target }) => {
-                      const value = `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}`
-                      return (
-                        <option key={value} value={value}>
-                          {model.name} · {target.priceGroupName} ·{' '}
-                          {target.combinationKey} · {t('Not priced')}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-                <PricingQuestionnaire
-                  idPrefix='pricing'
-                  answers={questionnaireAnswers}
-                  pointsPerRmb={questionnaireRate}
-                  currentPoints={selected?.points}
-                  errors={Object.fromEntries(
-                    Object.entries(priceErrors)
-                      .filter(([key]) => key !== 'decisionSummary')
-                      .map(([key, error]) => [
-                        key === 'points' ? 'proposedPoints' : key,
-                        showPriceError(key as keyof typeof priceTouched)
-                          ? error
-                          : null,
-                      ])
+          {props.mode !== 'campaigns' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('Adjust model price')}</CardTitle>
+                <CardDescription>
+                  {t(
+                    'Review the editable inputs, then confirm the change. The published source remains immutable and the confirmed change enters approval.'
                   )}
-                  onChange={(key, value) =>
-                    setForm((current) => ({
-                      ...current,
-                      [key === 'proposedPoints' ? 'points' : key]: value,
-                    }))
-                  }
-                  onBlur={(key) =>
-                    setPriceTouched((current) => ({
-                      ...current,
-                      [key === 'proposedPoints' ? 'points' : key]: true,
-                    }))
-                  }
-                />
-                <fieldset className='max-w-3xl space-y-3 rounded-xl border p-4'>
-                  <legend className='px-1 text-sm font-semibold'>
-                    {t('When should this price take effect?')}
-                  </legend>
-                  <div className='grid gap-3 sm:grid-cols-2'>
-                    <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
-                      <input
-                        type='radio'
-                        name='price-activation-mode'
-                        value='immediate'
-                        checked={activationMode === 'immediate'}
-                        onChange={() => setActivationMode('immediate')}
-                      />
-                      <span>
-                        <span className='block text-sm font-medium'>
-                          {t('Immediately')}
-                        </span>
-                        <span className='text-muted-foreground block text-xs'>
-                          {t('New quotes use the price after confirmation.')}
-                        </span>
-                      </span>
-                    </label>
-                    <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
-                      <input
-                        type='radio'
-                        name='price-activation-mode'
-                        value='scheduled'
-                        checked={activationMode === 'scheduled'}
-                        onChange={() => setActivationMode('scheduled')}
-                      />
-                      <span>
-                        <span className='block text-sm font-medium'>
-                          {t('Schedule for later')}
-                        </span>
-                        <span className='text-muted-foreground block text-xs'>
-                          {t(
-                            'The current price stays active until the selected time.'
-                          )}
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                  {activationMode === 'scheduled' && (
-                    <div className='max-w-sm space-y-1'>
-                      <Label htmlFor='price-effective-at'>
-                        {t('Activation time')}
-                      </Label>
-                      <Input
-                        id='price-effective-at'
-                        type='datetime-local'
-                        value={scheduledAt}
-                        onChange={(event) => setScheduledAt(event.target.value)}
-                        aria-invalid={!scheduleValid}
-                        aria-describedby='price-effective-at-help'
-                      />
-                      <p
-                        id='price-effective-at-help'
-                        className='text-muted-foreground text-xs'
-                      >
-                        {t('Uses your current time zone')}:{' '}
-                        {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                      </p>
-                      {!scheduleValid && (
-                        <p className='text-destructive text-xs' role='alert'>
-                          {t('Choose a future activation time')}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </fieldset>
-                <div className='max-w-3xl space-y-1'>
-                  <Label htmlFor='pricing-decision'>
-                    <PricingField value='DECISION' />
-                  </Label>
-                  <Textarea
-                    id='pricing-decision'
-                    aria-label={t('Decision summary')}
-                    value={form.decisionSummary}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        decisionSummary: event.target.value,
-                      }))
-                    }
-                    onBlur={() =>
-                      setPriceTouched((current) => ({
-                        ...current,
-                        decisionSummary: true,
-                      }))
-                    }
-                    aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
-                    aria-invalid={
-                      showPriceError('decisionSummary') &&
-                      Boolean(priceErrors.decisionSummary)
-                    }
-                  />
-                  <div
-                    id='pricing-decision-help'
-                    className='text-muted-foreground text-xs'
-                  >
-                    {t('Optional, up to 2000 characters')}
-                  </div>
-                  {showPriceError('decisionSummary') &&
-                    priceErrors.decisionSummary && (
-                      <div
-                        id='pricing-decision-error'
-                        className='text-destructive text-xs'
-                        role='alert'
-                      >
-                        {priceErrors.decisionSummary}
-                      </div>
-                    )}
-                </div>
-                <Button
-                  type='submit'
-                  className='w-full sm:w-auto'
-                  disabled={
-                    (!selected && !selectedInitial) ||
-                    selectedHasSchedule ||
-                    publishPrice.isPending
-                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form
+                  aria-label={t('Adjust model price')}
+                  className='space-y-4'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    setPriceSubmitted(true)
+                    if (!priceFormValid) return
+                    setConfirmation({ kind: 'create-price' })
+                  }}
                 >
-                  {t('Review price change')}
-                </Button>
-                {selectedHasSchedule && (
-                  <p className='text-muted-foreground text-sm' role='status'>
-                    {t(
-                      'Cancel the existing schedule before creating another price change.'
-                    )}
-                  </p>
-                )}
-              </form>
-            </CardContent>
-          </Card>
-
-          <Card className='border-primary/30'>
-            <CardHeader>
-              <CardTitle className='flex items-center gap-2'>
-                <Tag className='text-primary size-5' aria-hidden='true' />
-                {t('Limited-time special')}
-              </CardTitle>
-              <CardDescription>
-                {t(
-                  'Set a lower price for a start and end time. The original price returns automatically after the range, while accepted quotes keep their frozen price.'
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-5'>
-              <form
-                aria-label={t('Schedule limited-time special')}
-                className='space-y-4 rounded-xl border p-4'
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  setSpecialSubmitted(true)
-                  if (!specialFormValid) return
-                  setConfirmation({ kind: 'create-special' })
-                }}
-              >
-                <div className='grid gap-4 lg:grid-cols-2'>
-                  <div className='space-y-1 lg:col-span-2'>
-                    <Label htmlFor='special-source'>
-                      {t('Special pricing target')}
+                  <div className='space-y-1'>
+                    <Label htmlFor='pricing-source'>
+                      {t('Pricing target')}
                     </Label>
                     <select
-                      id='special-source'
+                      id='pricing-source'
                       className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
-                      value={specialSource?.id ?? ''}
-                      onChange={(event) =>
-                        setSpecialSourceId(event.target.value)
+                      value={
+                        selectedInitial ? selectedId : (selected?.id ?? '')
                       }
+                      onChange={(event) => setSelectedId(event.target.value)}
                     >
                       {published.map((price) => (
                         <option key={price.id} value={price.id}>
                           {price.modelName} · {price.priceGroup} ·{' '}
-                          {price.combinationKey} · {price.points} {t('points')}
+                          {price.combinationKey} · v{price.version}
                         </option>
                       ))}
+                      {initialTargets.map(({ model, target }) => {
+                        const value = `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}`
+                        return (
+                          <option key={value} value={value}>
+                            {model.name} · {target.priceGroupName} ·{' '}
+                            {target.combinationKey} · {t('Not priced')}
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
-                  <div className='space-y-1'>
-                    <Label htmlFor='special-base-price'>
-                      {t('Original price')}
-                    </Label>
-                    <Input
-                      id='special-base-price'
-                      value={specialSource?.points ?? ''}
-                      readOnly
-                    />
-                    <p className='text-muted-foreground text-xs'>
-                      {t('The published base price is not modified.')}
-                    </p>
-                  </div>
-                  <div className='space-y-1'>
-                    <Label htmlFor='special-price'>{t('Special price')}</Label>
-                    <Input
-                      id='special-price'
-                      inputMode='numeric'
-                      value={specialForm.specialPoints}
-                      onChange={(event) =>
-                        setSpecialForm((current) => ({
-                          ...current,
-                          specialPoints: event.target.value,
-                        }))
-                      }
-                      aria-invalid={specialSubmitted && !specialPointsValid}
-                    />
-                    {specialSubmitted && !specialPointsValid && (
-                      <p className='text-destructive text-xs' role='alert'>
-                        {t('Enter a positive integer below the original price')}
-                      </p>
+                  <PricingQuestionnaire
+                    idPrefix='pricing'
+                    answers={questionnaireAnswers}
+                    pointsPerRmb={questionnaireRate}
+                    currentPoints={selected?.points}
+                    errors={Object.fromEntries(
+                      Object.entries(priceErrors)
+                        .filter(([key]) => key !== 'decisionSummary')
+                        .map(([key, error]) => [
+                          key === 'points' ? 'proposedPoints' : key,
+                          showPriceError(key as keyof typeof priceTouched)
+                            ? error
+                            : null,
+                        ])
                     )}
-                  </div>
-                  <div className='space-y-1'>
-                    <Label htmlFor='special-start'>{t('Start time')}</Label>
-                    <Input
-                      id='special-start'
-                      type='datetime-local'
-                      value={specialForm.startsAt}
-                      onChange={(event) =>
-                        setSpecialForm((current) => ({
-                          ...current,
-                          startsAt: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className='space-y-1'>
-                    <Label htmlFor='special-end'>{t('End time')}</Label>
-                    <Input
-                      id='special-end'
-                      type='datetime-local'
-                      value={specialForm.endsAt}
-                      onChange={(event) =>
-                        setSpecialForm((current) => ({
-                          ...current,
-                          endsAt: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <p className='text-muted-foreground flex items-center gap-2 text-xs'>
-                  <Clock3 className='size-4' aria-hidden='true' />
-                  {t('Uses your current time zone')}:{' '}
-                  {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                </p>
-                {specialSubmitted &&
-                  (!specialStart ||
-                    specialStart.getTime() <= Date.now() ||
-                    !specialEnd ||
-                    specialEnd.getTime() <= specialStart.getTime()) && (
-                    <p className='text-destructive text-sm' role='alert'>
-                      {t('Choose a future start time and a later end time')}
-                    </p>
-                  )}
-                <div
-                  className={`rounded-xl border p-4 ${specialIsNegative ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20'}`}
-                >
-                  <div className='text-sm font-semibold'>
-                    {t('Campaign safeguards')}
-                  </div>
-                  <p className='text-muted-foreground mt-1 text-xs'>
-                    {specialContributionRate === null
-                      ? t('Enter a special price to preview contribution.')
-                      : t('Expected contribution rate: {{rate}}%', {
-                          rate: formatBusinessNumber(
-                            String(specialContributionRate * 100)
-                          ),
-                        })}
-                  </p>
-                  {specialIsNegative && (
-                    <p
-                      className='text-destructive mt-2 text-sm font-medium'
-                      role='alert'
-                    >
-                      {t(
-                        'Negative contribution requires all three hard limits. New participation stops when any limit is reached.'
-                      )}
-                    </p>
-                  )}
-                  <div className='mt-3 grid gap-3 md:grid-cols-3'>
-                    <div className='space-y-1'>
-                      <Label htmlFor='special-budget'>
-                        {t('Campaign budget (RMB)')}
-                      </Label>
-                      <Input
-                        id='special-budget'
-                        inputMode='decimal'
-                        value={specialForm.campaignBudgetRmb}
-                        onChange={(event) =>
-                          setSpecialForm((current) => ({
-                            ...current,
-                            campaignBudgetRmb: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <Label htmlFor='special-loss'>
-                        {t('Maximum expected loss (RMB)')}
-                      </Label>
-                      <Input
-                        id='special-loss'
-                        inputMode='decimal'
-                        value={specialForm.maxExpectedLossRmb}
-                        onChange={(event) =>
-                          setSpecialForm((current) => ({
-                            ...current,
-                            maxExpectedLossRmb: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className='space-y-1'>
-                      <Label htmlFor='special-participants'>
-                        {t('Maximum participants')}
-                      </Label>
-                      <Input
-                        id='special-participants'
-                        inputMode='numeric'
-                        value={specialForm.maxParticipants}
-                        onChange={(event) =>
-                          setSpecialForm((current) => ({
-                            ...current,
-                            maxParticipants: event.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className='space-y-1'>
-                  <Label htmlFor='special-approval-reason'>
-                    {t('Approval reason')}
-                  </Label>
-                  <Textarea
-                    id='special-approval-reason'
-                    value={specialForm.approvalReason}
-                    onChange={(event) =>
-                      setSpecialForm((current) => ({
+                    onChange={(key, value) =>
+                      setForm((current) => ({
                         ...current,
-                        approvalReason: event.target.value,
+                        [key === 'proposedPoints' ? 'points' : key]: value,
                       }))
                     }
-                    aria-invalid={
-                      specialSubmitted &&
-                      specialForm.approvalReason.trim().length < 8
+                    onBlur={(key) =>
+                      setPriceTouched((current) => ({
+                        ...current,
+                        [key === 'proposedPoints' ? 'points' : key]: true,
+                      }))
                     }
                   />
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Required, 8 to 2000 characters')}
-                  </p>
-                </div>
-                <Button
-                  type='submit'
-                  disabled={!specialSource || createSpecial.isPending}
-                >
-                  {t('Review limited-time special')}
-                </Button>
-              </form>
-
-              <section
-                aria-label={t('Limited-time special records')}
-                className='space-y-3'
-              >
-                <h3 className='text-sm font-semibold'>
-                  {t('Limited-time special records')}
-                </h3>
-                {pricePromotions.length === 0 ? (
-                  <p className='text-muted-foreground text-sm'>
-                    {t('No limited-time specials')}
-                  </p>
-                ) : (
-                  pricePromotions.map((promotion) => (
-                    <div
-                      key={promotion.id}
-                      className='grid gap-3 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'
-                    >
-                      <div>
-                        <div className='font-medium'>
-                          {promotion.modelName} · {promotion.priceGroup} ·{' '}
-                          {promotion.combinationKey}
-                        </div>
-                        <div className='text-muted-foreground mt-1 text-sm'>
-                          {promotion.basePoints} →{' '}
-                          <span className='text-foreground font-semibold'>
-                            {promotion.specialPoints} {t('points')}
-                          </span>{' '}
-                          · {dateTime(promotion.startsAt)} —{' '}
-                          {dateTime(promotion.endsAt)}
-                        </div>
-                        <div className='text-muted-foreground mt-1 text-xs'>
-                          <BusinessTerm
-                            kind='configStatus'
-                            value={promotion.status}
-                          />{' '}
-                          · {t('Participants')}: {promotion.participants}/
-                          {promotion.maxParticipants ?? '∞'} ·{' '}
-                          {t('Budget used')}:{' '}
-                          {minorToRmb(promotion.usedBudgetMinor)} /{' '}
-                          {minorToRmb(promotion.campaignBudgetMinor)} {t('RMB')}
-                        </div>
-                      </div>
-                      {['APPROVED', 'ACTIVE'].includes(promotion.status) && (
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() =>
-                            setConfirmation({
-                              kind: 'cancel-special',
-                              promotionVersionId: promotion.id,
-                            })
+                  <fieldset className='max-w-3xl space-y-3 rounded-xl border p-4'>
+                    <legend className='px-1 text-sm font-semibold'>
+                      {t('When should this price take effect?')}
+                    </legend>
+                    <div className='grid gap-3 sm:grid-cols-2'>
+                      <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
+                        <input
+                          type='radio'
+                          name='price-activation-mode'
+                          value='immediate'
+                          checked={activationMode === 'immediate'}
+                          onChange={() => setActivationMode('immediate')}
+                        />
+                        <span>
+                          <span className='block text-sm font-medium'>
+                            {t('Immediately')}
+                          </span>
+                          <span className='text-muted-foreground block text-xs'>
+                            {t('New quotes use the price after confirmation.')}
+                          </span>
+                        </span>
+                      </label>
+                      <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
+                        <input
+                          type='radio'
+                          name='price-activation-mode'
+                          value='scheduled'
+                          checked={activationMode === 'scheduled'}
+                          onChange={() => setActivationMode('scheduled')}
+                        />
+                        <span>
+                          <span className='block text-sm font-medium'>
+                            {t('Schedule for later')}
+                          </span>
+                          <span className='text-muted-foreground block text-xs'>
+                            {t(
+                              'The current price stays active until the selected time.'
+                            )}
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                    {activationMode === 'scheduled' && (
+                      <div className='max-w-sm space-y-1'>
+                        <Label htmlFor='price-effective-at'>
+                          {t('Activation time')}
+                        </Label>
+                        <Input
+                          id='price-effective-at'
+                          type='datetime-local'
+                          value={scheduledAt}
+                          onChange={(event) =>
+                            setScheduledAt(event.target.value)
                           }
+                          aria-invalid={!scheduleValid}
+                          aria-describedby='price-effective-at-help'
+                        />
+                        <p
+                          id='price-effective-at-help'
+                          className='text-muted-foreground text-xs'
                         >
-                          {t('Cancel special')}
-                        </Button>
+                          {t('Uses your current time zone')}:{' '}
+                          {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                        </p>
+                        {!scheduleValid && (
+                          <p className='text-destructive text-xs' role='alert'>
+                            {t('Choose a future activation time')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </fieldset>
+                  <div className='max-w-3xl space-y-1'>
+                    <Label htmlFor='pricing-decision'>
+                      <PricingField value='DECISION' />
+                    </Label>
+                    <Textarea
+                      id='pricing-decision'
+                      aria-label={t('Decision summary')}
+                      value={form.decisionSummary}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          decisionSummary: event.target.value,
+                        }))
+                      }
+                      onBlur={() =>
+                        setPriceTouched((current) => ({
+                          ...current,
+                          decisionSummary: true,
+                        }))
+                      }
+                      aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
+                      aria-invalid={
+                        showPriceError('decisionSummary') &&
+                        Boolean(priceErrors.decisionSummary)
+                      }
+                    />
+                    <div
+                      id='pricing-decision-help'
+                      className='text-muted-foreground text-xs'
+                    >
+                      {t('Optional, up to 2000 characters')}
+                    </div>
+                    {showPriceError('decisionSummary') &&
+                      priceErrors.decisionSummary && (
+                        <div
+                          id='pricing-decision-error'
+                          className='text-destructive text-xs'
+                          role='alert'
+                        >
+                          {priceErrors.decisionSummary}
+                        </div>
+                      )}
+                  </div>
+                  <Button
+                    type='submit'
+                    className='w-full sm:w-auto'
+                    disabled={
+                      (!selected && !selectedInitial) ||
+                      selectedHasSchedule ||
+                      publishPrice.isPending
+                    }
+                  >
+                    {t('Review price change')}
+                  </Button>
+                  {selectedHasSchedule && (
+                    <p className='text-muted-foreground text-sm' role='status'>
+                      {t(
+                        'Cancel the existing schedule before creating another price change.'
+                      )}
+                    </p>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+          )}
+          {props.mode === 'campaigns' && (
+            <Card className='border-primary/30'>
+              <CardHeader>
+                <CardTitle className='flex items-center gap-2'>
+                  <Tag className='text-primary size-5' aria-hidden='true' />
+                  {t('Limited-time special')}
+                </CardTitle>
+                <CardDescription>
+                  {t(
+                    'Set a lower price for a start and end time. The original price returns automatically after the range, while accepted quotes keep their frozen price.'
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-5'>
+                <form
+                  aria-label={t('Schedule limited-time special')}
+                  className='space-y-4 rounded-xl border p-4'
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    setSpecialSubmitted(true)
+                    if (!specialFormValid) return
+                    setConfirmation({ kind: 'create-special' })
+                  }}
+                >
+                  <div className='grid gap-4 lg:grid-cols-2'>
+                    <div className='space-y-1 lg:col-span-2'>
+                      <Label htmlFor='special-source'>
+                        {t('Special pricing target')}
+                      </Label>
+                      <select
+                        id='special-source'
+                        className='border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-lg border px-3 text-sm outline-none focus-visible:ring-3'
+                        value={specialSource?.id ?? ''}
+                        onChange={(event) =>
+                          setSpecialSourceId(event.target.value)
+                        }
+                      >
+                        {published.map((price) => (
+                          <option key={price.id} value={price.id}>
+                            {price.modelName} · {price.priceGroup} ·{' '}
+                            {price.combinationKey} · {price.points}{' '}
+                            {t('points')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className='space-y-1'>
+                      <Label htmlFor='special-base-price'>
+                        {t('Original price')}
+                      </Label>
+                      <Input
+                        id='special-base-price'
+                        value={specialSource?.points ?? ''}
+                        readOnly
+                      />
+                      <p className='text-muted-foreground text-xs'>
+                        {t('The published base price is not modified.')}
+                      </p>
+                    </div>
+                    <div className='space-y-1'>
+                      <Label htmlFor='special-price'>
+                        {t('Special price')}
+                      </Label>
+                      <Input
+                        id='special-price'
+                        inputMode='numeric'
+                        value={specialForm.specialPoints}
+                        onChange={(event) =>
+                          setSpecialForm((current) => ({
+                            ...current,
+                            specialPoints: event.target.value,
+                          }))
+                        }
+                        aria-invalid={specialSubmitted && !specialPointsValid}
+                      />
+                      {specialSubmitted && !specialPointsValid && (
+                        <p className='text-destructive text-xs' role='alert'>
+                          {t(
+                            'Enter a positive integer below the original price'
+                          )}
+                        </p>
                       )}
                     </div>
-                  ))
-                )}
-              </section>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Price versions')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'All pricing inputs, derived values, snapshots, audit facts, and workflow states are shown below.'
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-3'>
-              {props.prices.some(
-                (price) => price.status === 'APPROVED' && price.effectiveAt
-              ) && (
-                <section
-                  className='border-primary/30 bg-primary/5 space-y-2 rounded-xl border p-4'
-                  aria-label={t('Scheduled price changes')}
-                >
-                  <h3 className='font-semibold'>
-                    {t('Scheduled price changes')}
-                  </h3>
-                  {props.prices
-                    .filter(
-                      (price) =>
-                        price.status === 'APPROVED' && price.effectiveAt
-                    )
-                    .map((price) => (
-                      <div
-                        key={price.id}
-                        className='bg-background flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+                    <div className='space-y-1'>
+                      <Label htmlFor='special-start'>{t('Start time')}</Label>
+                      <Input
+                        id='special-start'
+                        type='datetime-local'
+                        value={specialForm.startsAt}
+                        onChange={(event) =>
+                          setSpecialForm((current) => ({
+                            ...current,
+                            startsAt: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <Label htmlFor='special-end'>{t('End time')}</Label>
+                      <Input
+                        id='special-end'
+                        type='datetime-local'
+                        value={specialForm.endsAt}
+                        onChange={(event) =>
+                          setSpecialForm((current) => ({
+                            ...current,
+                            endsAt: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p className='text-muted-foreground flex items-center gap-2 text-xs'>
+                    <Clock3 className='size-4' aria-hidden='true' />
+                    {t('Uses your current time zone')}:{' '}
+                    {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  </p>
+                  {specialSubmitted &&
+                    (!specialStart ||
+                      specialStart.getTime() <= Date.now() ||
+                      !specialEnd ||
+                      specialEnd.getTime() <= specialStart.getTime()) && (
+                      <p className='text-destructive text-sm' role='alert'>
+                        {t('Choose a future start time and a later end time')}
+                      </p>
+                    )}
+                  <div
+                    className={`rounded-xl border p-4 ${specialIsNegative ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20'}`}
+                  >
+                    <div className='text-sm font-semibold'>
+                      {t('Campaign safeguards')}
+                    </div>
+                    <p className='text-muted-foreground mt-1 text-xs'>
+                      {specialContributionRate === null
+                        ? t('Enter a special price to preview contribution.')
+                        : t('Expected contribution rate: {{rate}}%', {
+                            rate: formatBusinessNumber(
+                              String(specialContributionRate * 100)
+                            ),
+                          })}
+                    </p>
+                    {specialIsNegative && (
+                      <p
+                        className='text-destructive mt-2 text-sm font-medium'
+                        role='alert'
                       >
-                        <div className='text-sm'>
+                        {t(
+                          'Negative contribution requires all three hard limits. New participation stops when any limit is reached.'
+                        )}
+                      </p>
+                    )}
+                    {specialScenario && (
+                      <div
+                        className='mt-3 space-y-1 text-sm'
+                        aria-live='polite'
+                      >
+                        <p>
+                          {t('Estimated task consumption')}:{' '}
+                          {formatExactPointQuantity(
+                            specialScenario.consumed,
+                            toIntlLocale(i18n.language)
+                          )}
+                        </p>
+                        <p>
+                          {t('Estimated task discount')}:{' '}
+                          {formatExactPointQuantity(
+                            specialScenario.discount,
+                            toIntlLocale(i18n.language)
+                          )}
+                        </p>
+                        <p>
+                          {t('RMB reference')}:{' '}
+                          {specialScenario.reference === null
+                            ? '—'
+                            : formatExactRmbReference(
+                                specialScenario.reference,
+                                toIntlLocale(i18n.language)
+                              )}
+                        </p>
+                        <p className='text-muted-foreground text-xs'>
+                          {t(
+                            'Reference estimate uses the current average point conversion price'
+                          )}
+                        </p>
+                      </div>
+                    )}
+                    <div className='mt-3 grid gap-3 md:grid-cols-3'>
+                      <div className='space-y-1'>
+                        <Label htmlFor='special-point-budget'>
+                          {t('Discount point budget')}
+                        </Label>
+                        <Input
+                          id='special-point-budget'
+                          inputMode='numeric'
+                          value={specialForm.pointBudget}
+                          aria-invalid={
+                            specialSubmitted &&
+                            !/^[1-9]\d{0,18}$/.test(
+                              specialForm.pointBudget.trim()
+                            )
+                          }
+                          onChange={(event) =>
+                            setSpecialForm((current) => ({
+                              ...current,
+                              pointBudget: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1'>
+                        <Label htmlFor='special-budget'>
+                          {t('Campaign budget (RMB)')}
+                        </Label>
+                        <Input
+                          id='special-budget'
+                          inputMode='decimal'
+                          value={specialForm.campaignBudgetRmb}
+                          onChange={(event) =>
+                            setSpecialForm((current) => ({
+                              ...current,
+                              campaignBudgetRmb: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1'>
+                        <Label htmlFor='special-loss'>
+                          {t('Maximum expected loss (RMB)')}
+                        </Label>
+                        <Input
+                          id='special-loss'
+                          inputMode='decimal'
+                          value={specialForm.maxExpectedLossRmb}
+                          onChange={(event) =>
+                            setSpecialForm((current) => ({
+                              ...current,
+                              maxExpectedLossRmb: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className='space-y-1'>
+                        <Label htmlFor='special-participants'>
+                          {t('Maximum participations')}
+                        </Label>
+                        <Input
+                          id='special-participants'
+                          inputMode='numeric'
+                          value={specialForm.maxParticipants}
+                          onChange={(event) =>
+                            setSpecialForm((current) => ({
+                              ...current,
+                              maxParticipants: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className='space-y-1'>
+                    <Label htmlFor='special-approval-reason'>
+                      {t('Approval reason')}
+                    </Label>
+                    <Textarea
+                      id='special-approval-reason'
+                      value={specialForm.approvalReason}
+                      onChange={(event) =>
+                        setSpecialForm((current) => ({
+                          ...current,
+                          approvalReason: event.target.value,
+                        }))
+                      }
+                      aria-invalid={
+                        specialSubmitted &&
+                        specialForm.approvalReason.trim().length < 8
+                      }
+                    />
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Required, 8 to 2000 characters')}
+                    </p>
+                  </div>
+                  <Button
+                    type='submit'
+                    disabled={!specialSource || createSpecial.isPending}
+                  >
+                    {t('Review limited-time special')}
+                  </Button>
+                </form>
+
+                <section
+                  aria-label={t('Limited-time special records')}
+                  className='space-y-3'
+                >
+                  <h3 className='text-sm font-semibold'>
+                    {t('Limited-time special records')}
+                  </h3>
+                  {pricePromotions.length === 0 ? (
+                    <p className='text-muted-foreground text-sm'>
+                      {t('No limited-time specials')}
+                    </p>
+                  ) : (
+                    pricePromotions.map((promotion) => (
+                      <div
+                        key={promotion.id}
+                        className='grid gap-3 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'
+                      >
+                        <div>
                           <div className='font-medium'>
-                            {price.modelName} · {price.priceGroup} ·{' '}
-                            {price.combinationKey}
+                            {promotion.modelName} · {promotion.priceGroup} ·{' '}
+                            {promotion.combinationKey}
                           </div>
-                          <div className='text-muted-foreground mt-1'>
-                            {price.points} {t('points')} · {t('Effective')}{' '}
-                            {dateTime(price.effectiveAt)}
+                          <div className='text-muted-foreground mt-1 text-sm'>
+                            {promotion.basePoints} →{' '}
+                            <span className='text-foreground font-semibold'>
+                              {promotion.specialPoints} {t('points')}
+                            </span>{' '}
+                            · {dateTime(promotion.startsAt)} —{' '}
+                            {dateTime(promotion.endsAt)}
+                          </div>
+                          <div className='text-muted-foreground mt-1 text-xs'>
+                            <BusinessTerm
+                              kind='configStatus'
+                              value={promotion.status}
+                            />{' '}
+                            · {t('Participants')}: {promotion.participants}/
+                            {promotion.maxParticipants ?? '∞'} ·{' '}
+                            {t('Budget used')}:{' '}
+                            {minorToRmb(promotion.usedBudgetMinor)} /{' '}
+                            {minorToRmb(promotion.campaignBudgetMinor)}{' '}
+                            {t('RMB')}
                           </div>
                         </div>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={() =>
-                            setConfirmation({
-                              kind: 'cancel-price',
-                              priceVersionId: price.id,
-                            })
-                          }
-                        >
-                          {t('Cancel schedule')}
-                        </Button>
+                        {['APPROVED', 'ACTIVE'].includes(promotion.status) && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() =>
+                              setConfirmation({
+                                kind: 'cancel-special',
+                                promotionVersionId: promotion.id,
+                              })
+                            }
+                          >
+                            {t('Cancel special')}
+                          </Button>
+                        )}
                       </div>
-                    ))}
-                </section>
-              )}
-              <div>
-                <h3 className='text-sm font-semibold'>
-                  {t('Price version records')}
-                </h3>
-                <p className='text-muted-foreground mt-1 text-xs'>
-                  {t(
-                    'Changes requiring action appear first; published history is paginated.'
+                    ))
                   )}
-                </p>
-              </div>
-              <PricingRecordsTable
-                columns={priceColumns}
-                data={props.prices}
-                filters={priceFilters}
-                getRowId={(price) => price.id}
-                initialSorting={[{ id: 'created', desc: true }]}
-                emptyTitle={t('No price version records')}
-              />
-            </CardContent>
-          </Card>
+                </section>
+              </CardContent>
+            </Card>
+          )}
+          {props.mode !== 'campaigns' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('Price versions')}</CardTitle>
+                <CardDescription>
+                  {t(
+                    'All pricing inputs, derived values, snapshots, audit facts, and workflow states are shown below.'
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-3'>
+                {props.prices.some(
+                  (price) => price.status === 'APPROVED' && price.effectiveAt
+                ) && (
+                  <section
+                    className='border-primary/30 bg-primary/5 space-y-2 rounded-xl border p-4'
+                    aria-label={t('Scheduled price changes')}
+                  >
+                    <h3 className='font-semibold'>
+                      {t('Scheduled price changes')}
+                    </h3>
+                    {props.prices
+                      .filter(
+                        (price) =>
+                          price.status === 'APPROVED' && price.effectiveAt
+                      )
+                      .map((price) => (
+                        <div
+                          key={price.id}
+                          className='bg-background flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+                        >
+                          <div className='text-sm'>
+                            <div className='font-medium'>
+                              {price.modelName} · {price.priceGroup} ·{' '}
+                              {price.combinationKey}
+                            </div>
+                            <div className='text-muted-foreground mt-1'>
+                              {price.points} {t('points')} · {t('Effective')}{' '}
+                              {dateTime(price.effectiveAt)}
+                            </div>
+                          </div>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() =>
+                              setConfirmation({
+                                kind: 'cancel-price',
+                                priceVersionId: price.id,
+                              })
+                            }
+                          >
+                            {t('Cancel schedule')}
+                          </Button>
+                        </div>
+                      ))}
+                  </section>
+                )}
+                <div>
+                  <h3 className='text-sm font-semibold'>
+                    {t('Price version records')}
+                  </h3>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    {t(
+                      'Changes requiring action appear first; published history is paginated.'
+                    )}
+                  </p>
+                </div>
+                <PricingRecordsTable
+                  columns={priceColumns}
+                  data={props.prices}
+                  filters={priceFilters}
+                  getRowId={(price) => price.id}
+                  initialSorting={[{ id: 'created', desc: true }]}
+                  emptyTitle={t('No price version records')}
+                />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 

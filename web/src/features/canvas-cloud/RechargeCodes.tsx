@@ -50,6 +50,7 @@ import {
   issueCanvasAdminRechargeCodes,
   revealCanvasCode,
 } from './api'
+import { getCanvasCampaigns } from './campaign-api'
 import { BusinessTerm, BusinessTermText } from './components/BusinessTerm'
 import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
 import { CanvasServerTable } from './components/CanvasServerTable'
@@ -88,6 +89,25 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('10')
   const [count, setCount] = useState('1')
+  const [promotionVersionId, setPromotionVersionId] = useState('')
+  const campaigns = useQuery({
+    queryKey: ['canvas-cloud', 'recharge-campaign-options'],
+    queryFn: ({ signal }) =>
+      getCanvasCampaigns(
+        {
+          page: 1,
+          pageSize: 100,
+          status: 'ACTIVE',
+          kind: 'RECHARGE_BONUS',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        },
+        signal
+      ),
+  })
+  const selectedCampaign = campaigns.data?.items.find(
+    (item) => item.id === promotionVersionId
+  )
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
   const [codesVisible, setCodesVisible] = useState(false)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
@@ -156,6 +176,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     name.trim().length <= 20 &&
     amountMinor !== null &&
     validCount &&
+    (!promotionVersionId ||
+      selectedCampaign?.draft?.rechargeAmountMinor === amountMinor) &&
     !issue.isPending
 
   const copyCodes = async () => {
@@ -187,8 +209,22 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (amountMinor === null || !validCount) return
-    issue.mutate({ name: name.trim(), amountMinor, count: parsedCount })
+    if (amountMinor === null || !validCount) {
+      return
+    }
+    if (
+      promotionVersionId &&
+      (!selectedCampaign?.draft ||
+        selectedCampaign.draft.rechargeAmountMinor !== amountMinor)
+    ) {
+      return
+    }
+    issue.mutate({
+      name: name.trim(),
+      amountMinor,
+      count: parsedCount,
+      ...(promotionVersionId ? { promotionVersionId } : {}),
+    })
   }
 
   const columns: ColumnDef<CanvasAdminRechargeCode, unknown>[] = [
@@ -233,6 +269,12 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       accessorKey: 'points',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Points')} />
+      ),
+      cell: ({ row }) => (
+        <span className='tabular-nums'>
+          {row.original.points} {t('Paid points')} + {row.original.bonusPoints}{' '}
+          {t('Bonus points')}
+        </span>
       ),
     },
     {
@@ -442,6 +484,50 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
               <legend className='sr-only'>
                 {t('Create Canvas recharge codes')}
               </legend>
+              <div className='space-y-1.5 md:col-span-2 lg:col-span-4'>
+                <Label htmlFor='canvas-code-campaign'>
+                  {t('Recharge bonus campaign')}
+                </Label>
+                <select
+                  id='canvas-code-campaign'
+                  className='border-input bg-background h-9 w-full rounded-lg border px-3 text-sm'
+                  value={promotionVersionId}
+                  onChange={(event) => {
+                    const id = event.target.value
+                    setPromotionVersionId(id)
+                    const minor = campaigns.data?.items.find(
+                      (item) => item.id === id
+                    )?.draft?.rechargeAmountMinor
+                    if (minor) {
+                      setAmount(
+                        `${BigInt(minor) / 100n}.${(BigInt(minor) % 100n).toString().padStart(2, '0')}`
+                      )
+                    }
+                  }}
+                >
+                  <option value=''>{t('No campaign')}</option>
+                  {campaigns.data?.items
+                    .filter((item) => item.draft)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · v{item.version} ·{' '}
+                        {item.draft?.bonusPoints} {t('Bonus points')}
+                      </option>
+                    ))}
+                </select>
+                {promotionVersionId &&
+                  selectedCampaign?.draft?.rechargeAmountMinor !==
+                    amountMinor && (
+                    <p role='alert' className='text-destructive text-sm'>
+                      {t('Recharge amount must match the selected campaign')}
+                    </p>
+                  )}
+                {campaigns.isError ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {t('Unable to load recharge bonus campaigns')}
+                  </p>
+                ) : null}
+              </div>
               <div className='space-y-1.5'>
                 <Label htmlFor='canvas-code-name'>{t('Name')}</Label>
                 <Input

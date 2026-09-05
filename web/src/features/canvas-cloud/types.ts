@@ -98,6 +98,7 @@ export interface CanvasAdminRechargeCode {
   currency: 'CNY'
   amountMinor: string
   points: string
+  bonusPoints: string
   createdAt: string
   expiresAt: string
   redeemedAt: string | null

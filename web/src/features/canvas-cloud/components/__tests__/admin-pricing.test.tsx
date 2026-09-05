@@ -95,12 +95,13 @@ const prices: CanvasAdminWorkspace['prices'] = [
 
 function renderPricing(
   onChanged = vi.fn().mockResolvedValue(undefined),
-  priceRows = prices
+  priceRows = prices,
+  mode: 'pricing' | 'campaigns' = 'pricing'
 ) {
   const queryClient = new QueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <AdminPricing prices={priceRows} onChanged={onChanged} />
+      <AdminPricing prices={priceRows} onChanged={onChanged} mode={mode} />
     </QueryClientProvider>
   )
 }
@@ -916,7 +917,11 @@ describe('Canvas administrator pricing', () => {
 
   it('schedules a limited-time special with an explicit local time range', async () => {
     const onChanged = vi.fn().mockResolvedValue(undefined)
-    renderPricing(onChanged)
+    renderPricing(onChanged, prices, 'campaigns')
+    expect(screen.queryByText('Adjust model price')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Discount point budget'), {
+      target: { value: '1000' },
+    })
 
     fireEvent.change(screen.getByLabelText('Special price'), {
       target: { value: '15' },

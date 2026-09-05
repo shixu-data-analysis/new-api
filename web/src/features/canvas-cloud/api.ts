@@ -196,6 +196,7 @@ export async function getCanvasAdminRechargeCodes(
 }
 
 export async function issueCanvasAdminRechargeCodes(input: {
+  promotionVersionId?: string
   name: string
   amountMinor: string
   count: number
@@ -532,6 +533,7 @@ export async function cancelScheduledCanvasPrice(priceVersionId: string) {
 }
 
 export interface CanvasLimitedPricePromotionInput {
+  pointBudget?: string
   sourcePriceVersionId: string
   specialPoints: string
   startsAt: string

@@ -25,8 +25,10 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasInviteCodeOptions: vi.fn(),
   revealCanvasCode: vi.fn(),
 }))
+const campaignMocks = vi.hoisted(() => ({ getCanvasCampaigns: vi.fn() }))
 
 vi.mock('../../api', () => apiMocks)
+vi.mock('../../campaign-api', () => campaignMocks)
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 function renderWithClient(element: React.ReactNode) {
@@ -64,6 +66,7 @@ describe('Canvas invite code management', () => {
       status: 'CONSUMED',
       customerId: 'customer-v1',
     })
+    campaignMocks.getCanvasCampaigns.mockResolvedValue({ items: [], total: 0 })
   })
 
   it('renders compact accessible invite configuration fields', async () => {
@@ -85,6 +88,53 @@ describe('Canvas invite code management', () => {
     const bonusBoundaryNote = screen.getByText(/promotional points, not cash/)
     expect(bonusBoundaryNote).toBeVisible()
     expect(bonusBoundaryNote).toHaveClass('text-muted-foreground', 'text-xs')
+  })
+
+  it('uses an active invite campaign bonus and promotion version', async () => {
+    campaignMocks.getCanvasCampaigns.mockResolvedValue({
+      items: [
+        {
+          id: 'invite-v2',
+          name: 'September invitation',
+          version: 2,
+          draft: { bonusPoints: '250', bonusTtlDays: 45 },
+        },
+      ],
+      total: 1,
+    })
+    apiMocks.createCanvasAdminInviteCode.mockResolvedValue({
+      code: 'CANVAS-INVITE',
+    })
+    renderWithClient(<InviteCodeManagement />)
+
+    const campaign = await screen.findByLabelText('Invite bonus campaign')
+    await screen.findByRole('option', { name: /September invitation/u })
+    fireEvent.change(campaign, { target: { value: 'invite-v2' } })
+    expect(screen.getByLabelText('Initial Bonus points')).toHaveValue('250')
+    expect(screen.getByLabelText('Bonus validity days')).toHaveValue('45')
+    expect(screen.getByLabelText('Initial Bonus points')).toBeDisabled()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review and create invite' })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+    await waitFor(() =>
+      expect(apiMocks.createCanvasAdminInviteCode.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          initialBonusPoints: '250',
+          initialBonusTtlDays: 45,
+          promotionVersionId: 'invite-v2',
+        })
+      )
+    )
+  })
+
+  it('shows invite campaign query errors without blocking direct bonus entry', async () => {
+    campaignMocks.getCanvasCampaigns.mockRejectedValue(new Error('offline'))
+    renderWithClient(<InviteCodeManagement />)
+    expect(
+      await screen.findByText('Unable to load invite bonus campaigns')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Initial Bonus points')).toBeEnabled()
   })
 
   it('shows field-level errors and blocks an invalid invite configuration', async () => {

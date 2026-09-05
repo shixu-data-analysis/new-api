@@ -66,11 +66,13 @@ import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CampaignManagement } from './components/CampaignManagement'
 import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
+import { PointConversionDashboard } from './components/PointConversionDashboard'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
 import { RuntimeConfiguration } from './components/RuntimeConfiguration'
@@ -88,6 +90,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   'usage-logs': 'Canvas Usage Logs',
   'task-logs': 'Canvas Task Logs',
   customers: 'Canvas Customers & Points',
+  'point-campaigns': 'Points & campaigns',
   agents: 'Inviter management',
   'recharge-codes': 'Canvas Recharge Codes',
   'invite-codes': 'Canvas Invite Codes',
@@ -578,6 +581,22 @@ function AdminContent(props: {
     )
   }
   if (props.section === 'agents') return <AgentManagement />
+  if (props.section === 'point-campaigns') {
+    return (
+      <div className='space-y-6'>
+        <PointConversionDashboard />
+        <CampaignManagement />
+        <AdminPricing
+          mode='campaigns'
+          prices={data.prices}
+          pricePromotions={data.pricePromotions ?? []}
+          onChanged={() =>
+            queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
+          }
+        />
+      </div>
+    )
+  }
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
   }

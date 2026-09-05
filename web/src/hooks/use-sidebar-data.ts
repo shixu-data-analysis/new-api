@@ -99,6 +99,11 @@ export function useSidebarData(): SidebarData {
                 icon: Users,
               },
               {
+                title: t('Points & campaigns'),
+                url: '/canvas-cloud/point-campaigns',
+                icon: Wallet,
+              },
+              {
                 title: t('Inviter management'),
                 url: '/canvas-cloud/agents',
                 icon: UserPlus,

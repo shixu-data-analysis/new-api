@@ -21,6 +21,7 @@ export const canvasAdminSections = [
   'usage-logs',
   'task-logs',
   'customers',
+  'point-campaigns',
   'agents',
   'recharge-codes',
   'invite-codes',

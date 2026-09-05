@@ -48,6 +48,7 @@ import {
   getCanvasInviteCodeOptions,
   revealCanvasCode,
 } from '../api'
+import { getCanvasCampaigns } from '../campaign-api'
 import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
@@ -107,6 +108,7 @@ export function InviteCodeManagement() {
     referralPrincipalId: '',
   })
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
+  const [promotionVersionId, setPromotionVersionId] = useState('')
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const tableState = useServerTableState('createdAt')
@@ -149,6 +151,24 @@ export function InviteCodeManagement() {
     queryKey: ['canvas-cloud', 'invite-code-options'],
     queryFn: getCanvasInviteCodeOptions,
   })
+  const campaigns = useQuery({
+    queryKey: ['canvas-cloud', 'invite-campaign-options'],
+    queryFn: ({ signal }) =>
+      getCanvasCampaigns(
+        {
+          page: 1,
+          pageSize: 100,
+          status: 'ACTIVE',
+          kind: 'INVITE_BONUS',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        },
+        signal
+      ),
+  })
+  const selectedCampaign = campaigns.data?.items.find(
+    (item) => item.id === promotionVersionId
+  )
   const selectedPriceGroupId =
     form.priceGroupId || options.data?.priceGroups[0]?.id || ''
   const selectedPriceGroup = options.data?.priceGroups.find(
@@ -165,7 +185,7 @@ export function InviteCodeManagement() {
         initialBonusTtlDays: form.initialBonusTtlDays
           ? Number(form.initialBonusTtlDays)
           : null,
-        promotionVersionId: null,
+        promotionVersionId: promotionVersionId || null,
         referralSource: null,
         referralPrincipalId: form.referralPrincipalId || null,
       }),
@@ -469,7 +489,9 @@ export function InviteCodeManagement() {
     },
   ]
 
-  if (codes.isPending || options.isPending) return <LoadingState />
+  if (codes.isPending || options.isPending || campaigns.isPending) {
+    return <LoadingState />
+  }
   if (codes.isError || options.isError) {
     return (
       <ErrorState
@@ -502,6 +524,19 @@ export function InviteCodeManagement() {
             (item) => item.id === selectedPriceGroupId
           )?.internalName ?? '—',
       },
+      ...(selectedCampaign
+        ? [
+            { label: t('Campaign'), value: selectedCampaign.name },
+            {
+              label: t('Initial Bonus points'),
+              value: form.initialBonusPoints,
+            },
+            {
+              label: t('Bonus validity days'),
+              value: form.initialBonusTtlDays,
+            },
+          ]
+        : []),
       {
         label: t('Inviter'),
         value:
@@ -730,6 +765,45 @@ export function InviteCodeManagement() {
                 <legend className='px-1 text-sm font-semibold'>
                   {t('Initial Bonus')}
                 </legend>
+                <div className='space-y-2'>
+                  <Label htmlFor='invite-bonus-campaign'>
+                    {t('Invite bonus campaign')}
+                  </Label>
+                  <select
+                    id='invite-bonus-campaign'
+                    className='border-input bg-background h-9 w-full rounded-md border px-3 text-sm'
+                    value={promotionVersionId}
+                    onChange={(event) => {
+                      const id = event.target.value
+                      setPromotionVersionId(id)
+                      const draft = campaigns.data?.items.find(
+                        (item) => item.id === id
+                      )?.draft
+                      if (draft) {
+                        setForm((current) => ({
+                          ...current,
+                          initialBonusPoints: draft.bonusPoints,
+                          initialBonusTtlDays: String(draft.bonusTtlDays),
+                        }))
+                      }
+                    }}
+                  >
+                    <option value=''>{t('No campaign')}</option>
+                    {campaigns.data?.items
+                      .filter((item) => item.draft)
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} · v{item.version} ·{' '}
+                          {item.draft?.bonusPoints} {t('Bonus points')}
+                        </option>
+                      ))}
+                  </select>
+                  {campaigns.isError ? (
+                    <p role='alert' className='text-destructive text-sm'>
+                      {t('Unable to load invite bonus campaigns')}
+                    </p>
+                  ) : null}
+                </div>
                 <div className='grid gap-4 md:grid-cols-2'>
                   <div className='space-y-2'>
                     <Label htmlFor='invite-bonus-points'>
@@ -745,6 +819,7 @@ export function InviteCodeManagement() {
                           : 'invite-bonus-help'
                       }
                       value={form.initialBonusPoints}
+                      disabled={Boolean(selectedCampaign)}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
@@ -772,6 +847,7 @@ export function InviteCodeManagement() {
                           : 'invite-bonus-help'
                       }
                       value={form.initialBonusTtlDays}
+                      disabled={Boolean(selectedCampaign)}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
