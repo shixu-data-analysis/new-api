@@ -44,6 +44,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { ROLE } from '@/lib/roles'
 
@@ -60,7 +61,7 @@ export function useSidebarData(): SidebarData {
   if (canvasSession.isPending) return { navGroups: [] }
 
   if (canvasSession.isSuccess) {
-    if (canvasSession.data.principalType === 'PLATFORM_ADMIN') {
+    if (isCanvasAdministrator(canvasSession.data.principalType)) {
       return {
         navGroups: [
           {
@@ -147,6 +148,11 @@ export function useSidebarData(): SidebarData {
               {
                 title: t('Canvas Runtime Configuration'),
                 url: '/canvas-cloud/runtime',
+                icon: Settings,
+              },
+              {
+                title: t('Execution settings'),
+                url: '/canvas-cloud/execution',
                 icon: Settings,
               },
             ],

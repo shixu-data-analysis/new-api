@@ -19,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
   bindCanvasProviderCredentials: vi.fn(),
   checkCanvasProviderCredentialGroup: vi.fn(),
   checkCanvasRuntimeStorage: vi.fn(),
+  getCanvasProviderConfiguration: vi.fn(),
   getCanvasRuntimeConfiguration: vi.fn(),
   publishCanvasProviderCredentialGroup: vi.fn(),
   publishCanvasRuntimeStorage: vi.fn(),
@@ -114,6 +115,17 @@ function renderRuntime() {
   )
 }
 
+function renderProviderConfiguration() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <RuntimeConfiguration providerOnly />
+    </QueryClientProvider>
+  )
+}
+
 describe('Canvas runtime configuration', () => {
   beforeAll(() =>
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
@@ -122,6 +134,23 @@ describe('Canvas runtime configuration', () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
     apiMocks.getCanvasRuntimeConfiguration.mockResolvedValue(runtime)
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...runtime,
+      storage: [],
+    })
+  })
+
+  it('uses the provider-only overview without exposing storage controls', async () => {
+    renderProviderConfiguration()
+
+    expect(await screen.findByText('Provider credential groups')).toBeVisible()
+    expect(screen.getByText('Model credential bindings')).toBeVisible()
+    expect(screen.queryByText('Runtime storage')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('form', { name: 'Publish runtime storage' })
+    ).not.toBeInTheDocument()
+    expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledTimes(1)
+    expect(apiMocks.getCanvasRuntimeConfiguration).not.toHaveBeenCalled()
   })
 
   it('shows ownership and latest checks without ever redisplaying secret values', async () => {

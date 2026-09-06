@@ -23,7 +23,9 @@ import { SystemBrand } from '../system-brand'
 
 const { canvasSessionState } = vi.hoisted(() => ({
   canvasSessionState: {
-    data: null as null | { principalType: 'CUSTOMER' | 'PLATFORM_ADMIN' },
+    data: null as null | {
+      principalType: 'CUSTOMER' | 'PLATFORM_ADMIN' | 'SUPER_ADMIN'
+    },
     isSuccess: false,
     isCanvasShell: false,
   },
@@ -90,6 +92,18 @@ describe('SystemBrand responsive layout', () => {
       'hidden',
       'sm:inline'
     )
+    expect(
+      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+    ).toHaveAttribute('href', '/canvas-cloud/$section')
+  })
+
+  it('uses the platform administrator dashboard for a Canvas super administrator', () => {
+    canvasSessionState.data = { principalType: 'SUPER_ADMIN' }
+    canvasSessionState.isSuccess = true
+    canvasSessionState.isCanvasShell = true
+
+    render(<SystemBrand variant='inline' />)
+
     expect(
       screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
     ).toHaveAttribute('href', '/canvas-cloud/$section')

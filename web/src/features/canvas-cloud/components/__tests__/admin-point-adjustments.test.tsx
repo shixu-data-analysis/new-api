@@ -303,9 +303,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
       screen.queryByPlaceholderText('Search Point Lots')
     ).not.toBeInTheDocument()
     expect(await screen.findByText('Task settlement')).toBeVisible()
-    expect(
-      screen.getAllByText('85000000-0000-7000-8000-000000000006').length
-    ).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /^Task$/ })).toBeVisible()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Tasks' }))
     expect(await screen.findByText('Canvas Image')).toBeVisible()

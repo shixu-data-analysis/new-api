@@ -24,6 +24,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
 import type { CanvasSession } from '@/features/canvas-cloud/types'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
@@ -91,7 +92,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
   const avatarFallbackStyle = getUserAvatarStyle(avatarName)
   const roleLabel = props.canvasSession
     ? t(
-        props.canvasSession.principalType === 'PLATFORM_ADMIN'
+        isCanvasAdministrator(props.canvasSession.principalType)
           ? 'Canvas Platform Administrator'
           : 'Canvas Customer'
       )

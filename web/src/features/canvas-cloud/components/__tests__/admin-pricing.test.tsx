@@ -29,7 +29,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
-import type { CanvasAdminWorkspace } from '../../types'
+import type {
+  CanvasAdminWorkspace,
+  CanvasProviderPricingRow,
+} from '../../types'
 import { AdminPricing } from '../AdminPricing'
 
 const apiMocks = vi.hoisted(() => ({
@@ -92,6 +95,53 @@ const prices: CanvasAdminWorkspace['prices'] = [
     effectiveAt: '2026-08-26T00:02:00.000Z',
   },
 ]
+const pricingMatrix: CanvasProviderPricingRow[] = [
+  {
+    providerId: 'provider-1',
+    providerCode: 'provider',
+    providerName: 'Provider',
+    channelId: 'channel-1',
+    channelCode: 'primary',
+    customerModelId: 'model-1',
+    modelKey: 'canvas.image',
+    modelName: 'Canvas Image',
+    combinationId: 'combination-1',
+    combinationKey: 'default',
+    parameters: {},
+    billingDimensions: { billingUnit: 'REQUEST' },
+    resolvedProviderModelId: 'image-v1',
+    rateId: 'rate-1',
+    rateVersion: 1,
+    rateStatus: 'PUBLISHED',
+    billingUnit: 'REQUEST',
+    nativeAmount: '0.16',
+    tokenRates: null,
+    currency: 'CNY',
+    normalizedAmountMinor: '0.16',
+    normalizedTokenRates: null,
+    failureChargePolicy: { mode: 'NONE' },
+    rateEffectiveAt: '2026-08-26T00:00:00.000Z',
+    prices: [
+      {
+        id: 'published-price',
+        groupId: 'group-1',
+        groupName: 'Standard',
+        billingUnit: 'REQUEST',
+        points: '20',
+        tokenRates: null,
+        version: 1,
+        status: 'PUBLISHED',
+        providerRateVersionId: 'rate-1',
+        effectiveAt: '2026-08-26T00:02:00.000Z',
+        breakEvenPoints: '10',
+        newBreakEvenPoints: '10',
+        belowBreakEven: false,
+        categoryRisks: [],
+      },
+    ],
+    riskDecision: null,
+  },
+]
 
 function renderPricing(
   onChanged = vi.fn().mockResolvedValue(undefined),
@@ -120,6 +170,14 @@ function confirmChange() {
   fireEvent.click(screen.getByRole('button', { name: 'Confirm change' }))
 }
 
+async function waitForPricingContract() {
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Review price change' })
+    ).toBeEnabled()
+  )
+}
+
 describe('Canvas administrator pricing', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
@@ -144,7 +202,7 @@ describe('Canvas administrator pricing', () => {
       status: 'STOPPED',
     })
     apiMocks.getCanvasAdminTestingModels.mockResolvedValue([])
-    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue([])
+    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue(pricingMatrix)
     apiMocks.getCanvasPointIssuanceRates.mockResolvedValue([
       {
         id: 'rate-v1',
@@ -263,6 +321,7 @@ describe('Canvas administrator pricing', () => {
 
   it('submits required administrator inputs without optional metadata', async () => {
     renderPricing()
+    await waitForPricingContract()
 
     const form = screen.getByRole('form', {
       name: 'Adjust model price',
@@ -276,6 +335,7 @@ describe('Canvas administrator pricing', () => {
     await waitFor(() => {
       expect(apiMocks.publishConfirmedCanvasPriceChange).toHaveBeenCalledWith({
         sourcePriceVersionId: 'published-price',
+        billingUnit: 'REQUEST',
         points: '20',
         targetMarginRate: '0.4',
         successProbability: '0.9',
@@ -293,11 +353,61 @@ describe('Canvas administrator pricing', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('routes token price edits away from the request questionnaire', async () => {
+    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue([
+      {
+        ...pricingMatrix[0],
+        billingUnit: 'MILLION_TOKENS',
+        billingDimensions: { billingUnit: 'MILLION_TOKENS' },
+        tokenRates: {
+          input: '1',
+          output: '2',
+          cacheRead: '0',
+          cacheWrite: '0',
+        },
+        normalizedTokenRates: {
+          input: '1',
+          output: '2',
+          cacheRead: '0',
+          cacheWrite: '0',
+        },
+        prices: [
+          {
+            ...pricingMatrix[0].prices[0],
+            billingUnit: 'MILLION_TOKENS',
+            points: '1',
+            tokenRates: {
+              input: '1',
+              output: '2',
+              cacheRead: '0',
+              cacheWrite: '0',
+            },
+          },
+        ],
+      },
+    ])
+    renderPricing()
+
+    expect(
+      await screen.findByText('Use unit-rate customer pricing')
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('textbox', { name: 'Proposed price points' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open unit-rate pricing' })
+    )
+    expect(
+      await screen.findByRole('combobox', { name: /Model and quality/ })
+    ).toBeVisible()
+  })
+
   it('schedules a future activation and explains that the current price stays active', async () => {
     apiMocks.publishConfirmedCanvasPriceChange.mockResolvedValue({
       status: 'APPROVED',
     })
     renderPricing()
+    await waitForPricingContract()
     fireEvent.click(screen.getByRole('radio', { name: /Schedule for later/ }))
     const localValue = '2099-08-29T09:30'
     fireEvent.change(screen.getByLabelText('Activation time'), {
@@ -323,6 +433,16 @@ describe('Canvas administrator pricing', () => {
   })
 
   it('publishes the first price for an internally tested model target', async () => {
+    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue([
+      {
+        ...pricingMatrix[0],
+        customerModelId: 'model-id',
+        modelKey: 'canvas.testing',
+        modelName: 'Canvas Testing',
+        combinationId: 'combination-id',
+        prices: [],
+      },
+    ])
     apiMocks.getCanvasAdminTestingModels.mockResolvedValue([
       {
         id: 'model-id',
@@ -343,7 +463,15 @@ describe('Canvas administrator pricing', () => {
           executionSnapshot: {},
         },
         publicCatalogSnapshot: {},
-        parameterCombinations: [],
+        parameterCombinations: [
+          {
+            id: 'combination-id',
+            key: 'default',
+            enabled: true,
+            normalizedParameters: {},
+            billingDimensionsSnapshot: { billingUnit: 'REQUEST' },
+          },
+        ],
         pricingTargets: [
           {
             priceGroupId: 'group-id',
@@ -372,6 +500,7 @@ describe('Canvas administrator pricing', () => {
         'initial:model-id:group-id:combination-id'
       )
     )
+    await waitForPricingContract()
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Proposed price points' }),
       { target: { value: '20' } }
@@ -384,6 +513,7 @@ describe('Canvas administrator pricing', () => {
         customerModelId: 'model-id',
         priceGroupId: 'group-id',
         parameterCombinationId: 'combination-id',
+        billingUnit: 'REQUEST',
         points: '20',
         targetMarginRate: '0.4',
         successProbability: '0.9',
@@ -462,6 +592,7 @@ describe('Canvas administrator pricing', () => {
 
   it('includes an optional price decision summary when provided', async () => {
     renderPricing()
+    await waitForPricingContract()
     const form = screen.getByRole('form', {
       name: 'Adjust model price',
     })

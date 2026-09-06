@@ -774,6 +774,7 @@ describe('Canvas Cloud API boundary', () => {
     await publishCanvasProviderRate({
       customerModelId: 'model-v1',
       parameterCombinationId: 'quality-4k',
+      billingUnit: 'REQUEST',
       nativeAmount: '0.40',
       currency: 'CNY',
       exchangeRateSnapshot: {

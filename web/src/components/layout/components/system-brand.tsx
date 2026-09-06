@@ -24,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { getCanvasHomeSection } from '@/features/canvas-cloud/access'
 import { getCanvasProductName } from '@/features/canvas-cloud/brand'
 import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
@@ -61,10 +62,9 @@ export function SystemBrand(props: SystemBrandProps) {
   const name = isCanvasShell
     ? canvasName
     : status?.system_name || props.defaultName || 'New API'
-  const homeSection =
-    canvasSession.data?.principalType === 'PLATFORM_ADMIN'
-      ? 'dashboard'
-      : 'overview'
+  const homeSection = canvasSession.data
+    ? getCanvasHomeSection(canvasSession.data.principalType)
+    : 'overview'
   const displayedLogo = isCanvasShell ? lingCatStudioIcon : logo
   const version =
     status?.version || props.defaultVersion || t('Unknown version')

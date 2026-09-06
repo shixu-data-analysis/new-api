@@ -354,10 +354,13 @@ export async function getCanvasProviderPricingMatrix(): Promise<
 export async function publishCanvasProviderRate(input: {
   customerModelId: string
   parameterCombinationId: string
+  billingUnit: import('./types').CanvasBillingUnit
   nativeAmount: string
+  tokenRates?: import('./types').CanvasTokenRateVector
   currency: string
   exchangeRateSnapshot: { rate: string; source: string; asOf: string }
   normalizedAmountMinor: string
+  normalizedTokenRates?: import('./types').CanvasTokenRateVector
   failureChargePolicy:
     | { mode: 'NONE' }
     | { mode: 'SAME_AS_SUCCESS' }
@@ -368,7 +371,7 @@ export async function publishCanvasProviderRate(input: {
   return (
     await api.post(
       `${webBase}/admin/provider-rate-versions/publications`,
-      { ...input, billingUnit: 'REQUEST', confirmed: true },
+      { ...input, confirmed: true },
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-provider-rate') },
         skipErrorHandler: true,
@@ -509,6 +512,8 @@ export async function publishCanvasPriceVersion(priceVersionId: string) {
 export interface CanvasPriceDraftInput {
   sourcePriceVersionId: string
   points: string
+  billingUnit?: import('./types').CanvasBillingUnit
+  tokenRates?: import('./types').CanvasTokenRateVector
   targetMarginRate: string
   successProbability: string
   successfulTaskCostRmb: string
@@ -657,6 +662,15 @@ export async function getCanvasRuntimeConfiguration(): Promise<CanvasRuntimeConf
       `${webBase}/admin/runtime-configuration`
     )
   ).data
+}
+
+export async function getCanvasProviderConfiguration(): Promise<CanvasRuntimeConfiguration> {
+  const data = (
+    await api.get<Omit<CanvasRuntimeConfiguration, 'storage'>>(
+      `${webBase}/admin/provider-configuration`
+    )
+  ).data
+  return { ...data, storage: [] }
 }
 
 export async function publishCanvasRuntimeStorage(input: {

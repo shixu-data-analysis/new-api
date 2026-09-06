@@ -30,16 +30,24 @@ export const canvasAdminSections = [
   'pricing-calculator',
   'channels',
   'runtime',
+  'execution',
+  'provider-configuration',
   'refunds',
   'audit',
 ] as const
 
 export const canvasAgentSections = ['agent-center'] as const
 
+export function isCanvasAdministrator(
+  principalType: CanvasPrincipalType
+): boolean {
+  return principalType === 'PLATFORM_ADMIN' || principalType === 'SUPER_ADMIN'
+}
+
 export function getCanvasHomeSection(
   principalType: CanvasPrincipalType
 ): 'dashboard' | 'overview' | 'agent-center' {
-  if (principalType === 'PLATFORM_ADMIN') return 'dashboard'
+  if (isCanvasAdministrator(principalType)) return 'dashboard'
   if (principalType === 'AGENT') return 'agent-center'
   return 'overview'
 }
@@ -66,7 +74,7 @@ export function isCanvasSectionAllowed(
   inviterEnabled = false
 ): boolean {
   let allowed: readonly string[] = canvasCustomerSections
-  if (principalType === 'PLATFORM_ADMIN') allowed = canvasAdminSections
+  if (isCanvasAdministrator(principalType)) allowed = canvasAdminSections
   if (principalType === 'AGENT') allowed = canvasAgentSections
   return (
     (allowed as readonly string[]).includes(section) ||

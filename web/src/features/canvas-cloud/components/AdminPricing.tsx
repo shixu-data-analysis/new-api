@@ -43,6 +43,7 @@ import {
   createCanvasLimitedPricePromotion,
   getCanvasPointIssuanceRates,
   getCanvasAdminTestingModels,
+  getCanvasProviderPricingMatrix,
   publishConfirmedCanvasInitialPrice,
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceChange,
@@ -67,6 +68,7 @@ import {
 import type {
   CanvasAdminWorkspace,
   CanvasPointIssuanceRateVersion,
+  CanvasProviderPricingRow,
 } from '../types'
 import { BusinessTerm } from './BusinessTerm'
 import { PriceGroupManagement } from './PriceGroupManagement'
@@ -222,6 +224,11 @@ export function AdminPricing(props: {
     queryFn: getCanvasAdminTestingModels,
     enabled: activeTab === 'prices' && props.mode !== 'campaigns',
   })
+  const pricingMatrix = useQuery({
+    queryKey: ['canvas-cloud', 'provider-pricing-matrix'],
+    queryFn: getCanvasProviderPricingMatrix,
+    enabled: activeTab === 'prices' && props.mode !== 'campaigns',
+  })
   const initialTargets = useMemo(
     () =>
       (testingModels.data ?? []).flatMap((model) =>
@@ -259,6 +266,36 @@ export function AdminPricing(props: {
       `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}` ===
       selectedId
   )
+  let selectedMatrixTarget:
+    | {
+        row?: CanvasProviderPricingRow
+        price?: CanvasProviderPricingRow['prices'][number]
+      }
+    | undefined
+  if (selected) {
+    selectedMatrixTarget = pricingMatrix.data
+      ?.flatMap((row) => row.prices.map((price) => ({ row, price })))
+      .find(({ price }) => price.id === selected.id)
+  } else if (selectedInitial) {
+    selectedMatrixTarget = {
+      row: pricingMatrix.data?.find(
+        (row) =>
+          row.customerModelId === selectedInitial.model.id &&
+          row.combinationId === selectedInitial.target.parameterCombinationId
+      ),
+    }
+  }
+  const selectedBillingUnit =
+    selectedMatrixTarget?.price?.billingUnit ??
+    selectedMatrixTarget?.row?.billingUnit ??
+    selectedMatrixTarget?.row?.billingDimensions.billingUnit
+  const selectedUsesUnitPricing =
+    selectedBillingUnit === 'SECOND' || selectedBillingUnit === 'MILLION_TOKENS'
+  const pricingContractUnavailable =
+    pricingMatrix.isError ||
+    (!pricingMatrix.isPending &&
+      Boolean(selected || selectedInitial) &&
+      !selectedMatrixTarget?.row)
   useEffect(() => {
     if (!selectedId && initialTargets[0]) {
       const { model, target } = initialTargets[0]
@@ -612,6 +649,9 @@ export function AdminPricing(props: {
   }
   const publishPrice = useMutation({
     mutationFn: async () => {
+      if (selectedBillingUnit !== 'REQUEST') {
+        throw new Error('Unit-rate prices must use the pricing matrix')
+      }
       const effectiveAt =
         activationMode === 'scheduled' && scheduledDate
           ? scheduledDate.toISOString()
@@ -621,6 +661,7 @@ export function AdminPricing(props: {
           customerModelId: selectedInitial.model.id,
           priceGroupId: selectedInitial.target.priceGroupId,
           parameterCombinationId: selectedInitial.target.parameterCombinationId,
+          billingUnit: 'REQUEST',
           points: priceValues.points,
           targetMarginRate: priceValues.targetMarginRate,
           successProbability: priceValues.successProbability,
@@ -637,6 +678,7 @@ export function AdminPricing(props: {
       if (!selected) throw new Error('No published price selected')
       return publishConfirmedCanvasPriceChange({
         sourcePriceVersionId: selected.id,
+        billingUnit: 'REQUEST',
         points: priceValues.points,
         targetMarginRate: priceValues.targetMarginRate,
         successProbability: priceValues.successProbability,
@@ -1492,7 +1534,14 @@ export function AdminPricing(props: {
                   onSubmit={(event) => {
                     event.preventDefault()
                     setPriceSubmitted(true)
-                    if (!priceFormValid) return
+                    if (
+                      !priceFormValid ||
+                      pricingMatrix.isPending ||
+                      pricingContractUnavailable ||
+                      selectedUsesUnitPricing
+                    ) {
+                      return
+                    }
                     setConfirmation({ kind: 'create-price' })
                   }}
                 >
@@ -1525,167 +1574,211 @@ export function AdminPricing(props: {
                       })}
                     </select>
                   </div>
-                  <PricingQuestionnaire
-                    idPrefix='pricing'
-                    answers={questionnaireAnswers}
-                    pointsPerRmb={questionnaireRate}
-                    currentPoints={selected?.points}
-                    errors={Object.fromEntries(
-                      Object.entries(priceErrors)
-                        .filter(([key]) => key !== 'decisionSummary')
-                        .map(([key, error]) => [
-                          key === 'points' ? 'proposedPoints' : key,
-                          showPriceError(key as keyof typeof priceTouched)
-                            ? error
-                            : null,
-                        ])
-                    )}
-                    onChange={(key, value) =>
-                      setForm((current) => ({
-                        ...current,
-                        [key === 'proposedPoints' ? 'points' : key]: value,
-                      }))
-                    }
-                    onBlur={(key) =>
-                      setPriceTouched((current) => ({
-                        ...current,
-                        [key === 'proposedPoints' ? 'points' : key]: true,
-                      }))
-                    }
-                  />
-                  <fieldset className='max-w-3xl space-y-3 rounded-xl border p-4'>
-                    <legend className='px-1 text-sm font-semibold'>
-                      {t('When should this price take effect?')}
-                    </legend>
-                    <div className='grid gap-3 sm:grid-cols-2'>
-                      <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
-                        <input
-                          type='radio'
-                          name='price-activation-mode'
-                          value='immediate'
-                          checked={activationMode === 'immediate'}
-                          onChange={() => setActivationMode('immediate')}
-                        />
-                        <span>
-                          <span className='block text-sm font-medium'>
-                            {t('Immediately')}
-                          </span>
-                          <span className='text-muted-foreground block text-xs'>
-                            {t('New quotes use the price after confirmation.')}
-                          </span>
-                        </span>
-                      </label>
-                      <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
-                        <input
-                          type='radio'
-                          name='price-activation-mode'
-                          value='scheduled'
-                          checked={activationMode === 'scheduled'}
-                          onChange={() => setActivationMode('scheduled')}
-                        />
-                        <span>
-                          <span className='block text-sm font-medium'>
-                            {t('Schedule for later')}
-                          </span>
-                          <span className='text-muted-foreground block text-xs'>
-                            {t(
-                              'The current price stays active until the selected time.'
-                            )}
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                    {activationMode === 'scheduled' && (
-                      <div className='max-w-sm space-y-1'>
-                        <Label htmlFor='price-effective-at'>
-                          {t('Activation time')}
-                        </Label>
-                        <Input
-                          id='price-effective-at'
-                          type='datetime-local'
-                          value={scheduledAt}
-                          onChange={(event) =>
-                            setScheduledAt(event.target.value)
-                          }
-                          aria-invalid={!scheduleValid}
-                          aria-describedby='price-effective-at-help'
-                        />
-                        <p
-                          id='price-effective-at-help'
-                          className='text-muted-foreground text-xs'
-                        >
-                          {t('Uses your current time zone')}:{' '}
-                          {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  {selectedUsesUnitPricing ? (
+                    <div className='border-primary/30 bg-primary/5 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between'>
+                      <div>
+                        <p className='font-medium'>
+                          {t('Use unit-rate customer pricing')}
                         </p>
-                        {!scheduleValid && (
-                          <p className='text-destructive text-xs' role='alert'>
-                            {t('Choose a future activation time')}
-                          </p>
-                        )}
+                        <p className='text-muted-foreground mt-1 text-sm'>
+                          {t(
+                            'Per-second and token prices use the model quality billing unit and are edited in the upstream-cost matrix.'
+                          )}
+                        </p>
                       </div>
-                    )}
-                  </fieldset>
-                  <div className='max-w-3xl space-y-1'>
-                    <Label htmlFor='pricing-decision'>
-                      <PricingField value='DECISION' />
-                    </Label>
-                    <Textarea
-                      id='pricing-decision'
-                      aria-label={t('Decision summary')}
-                      value={form.decisionSummary}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          decisionSummary: event.target.value,
-                        }))
-                      }
-                      onBlur={() =>
-                        setPriceTouched((current) => ({
-                          ...current,
-                          decisionSummary: true,
-                        }))
-                      }
-                      aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
-                      aria-invalid={
-                        showPriceError('decisionSummary') &&
-                        Boolean(priceErrors.decisionSummary)
-                      }
-                    />
-                    <div
-                      id='pricing-decision-help'
-                      className='text-muted-foreground text-xs'
-                    >
-                      {t('Optional, up to 2000 characters')}
+                      <Button
+                        type='button'
+                        className='shrink-0'
+                        onClick={() => setActiveTab('costs')}
+                      >
+                        {t('Open unit-rate pricing')}
+                      </Button>
                     </div>
-                    {showPriceError('decisionSummary') &&
-                      priceErrors.decisionSummary && (
-                        <div
-                          id='pricing-decision-error'
-                          className='text-destructive text-xs'
-                          role='alert'
-                        >
-                          {priceErrors.decisionSummary}
-                        </div>
-                      )}
-                  </div>
-                  <Button
-                    type='submit'
-                    className='w-full sm:w-auto'
-                    disabled={
-                      (!selected && !selectedInitial) ||
-                      selectedHasSchedule ||
-                      publishPrice.isPending
-                    }
-                  >
-                    {t('Review price change')}
-                  </Button>
-                  {selectedHasSchedule && (
-                    <p className='text-muted-foreground text-sm' role='status'>
+                  ) : null}
+                  {pricingContractUnavailable ? (
+                    <p className='text-destructive text-sm' role='alert'>
                       {t(
-                        'Cancel the existing schedule before creating another price change.'
+                        'Unable to verify the billing unit for this pricing target.'
                       )}
                     </p>
-                  )}
+                  ) : null}
+                  <div
+                    className={selectedUsesUnitPricing ? 'hidden' : 'contents'}
+                    aria-hidden={selectedUsesUnitPricing || undefined}
+                  >
+                    <PricingQuestionnaire
+                      idPrefix='pricing'
+                      answers={questionnaireAnswers}
+                      pointsPerRmb={questionnaireRate}
+                      currentPoints={selected?.points}
+                      errors={Object.fromEntries(
+                        Object.entries(priceErrors)
+                          .filter(([key]) => key !== 'decisionSummary')
+                          .map(([key, error]) => [
+                            key === 'points' ? 'proposedPoints' : key,
+                            showPriceError(key as keyof typeof priceTouched)
+                              ? error
+                              : null,
+                          ])
+                      )}
+                      onChange={(key, value) =>
+                        setForm((current) => ({
+                          ...current,
+                          [key === 'proposedPoints' ? 'points' : key]: value,
+                        }))
+                      }
+                      onBlur={(key) =>
+                        setPriceTouched((current) => ({
+                          ...current,
+                          [key === 'proposedPoints' ? 'points' : key]: true,
+                        }))
+                      }
+                    />
+                    <fieldset className='max-w-3xl space-y-3 rounded-xl border p-4'>
+                      <legend className='px-1 text-sm font-semibold'>
+                        {t('When should this price take effect?')}
+                      </legend>
+                      <div className='grid gap-3 sm:grid-cols-2'>
+                        <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
+                          <input
+                            type='radio'
+                            name='price-activation-mode'
+                            value='immediate'
+                            checked={activationMode === 'immediate'}
+                            onChange={() => setActivationMode('immediate')}
+                          />
+                          <span>
+                            <span className='block text-sm font-medium'>
+                              {t('Immediately')}
+                            </span>
+                            <span className='text-muted-foreground block text-xs'>
+                              {t(
+                                'New quotes use the price after confirmation.'
+                              )}
+                            </span>
+                          </span>
+                        </label>
+                        <label className='flex cursor-pointer gap-3 rounded-lg border p-3'>
+                          <input
+                            type='radio'
+                            name='price-activation-mode'
+                            value='scheduled'
+                            checked={activationMode === 'scheduled'}
+                            onChange={() => setActivationMode('scheduled')}
+                          />
+                          <span>
+                            <span className='block text-sm font-medium'>
+                              {t('Schedule for later')}
+                            </span>
+                            <span className='text-muted-foreground block text-xs'>
+                              {t(
+                                'The current price stays active until the selected time.'
+                              )}
+                            </span>
+                          </span>
+                        </label>
+                      </div>
+                      {activationMode === 'scheduled' && (
+                        <div className='max-w-sm space-y-1'>
+                          <Label htmlFor='price-effective-at'>
+                            {t('Activation time')}
+                          </Label>
+                          <Input
+                            id='price-effective-at'
+                            type='datetime-local'
+                            value={scheduledAt}
+                            onChange={(event) =>
+                              setScheduledAt(event.target.value)
+                            }
+                            aria-invalid={!scheduleValid}
+                            aria-describedby='price-effective-at-help'
+                          />
+                          <p
+                            id='price-effective-at-help'
+                            className='text-muted-foreground text-xs'
+                          >
+                            {t('Uses your current time zone')}:{' '}
+                            {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                          </p>
+                          {!scheduleValid && (
+                            <p
+                              className='text-destructive text-xs'
+                              role='alert'
+                            >
+                              {t('Choose a future activation time')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </fieldset>
+                    <div className='max-w-3xl space-y-1'>
+                      <Label htmlFor='pricing-decision'>
+                        <PricingField value='DECISION' />
+                      </Label>
+                      <Textarea
+                        id='pricing-decision'
+                        aria-label={t('Decision summary')}
+                        value={form.decisionSummary}
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            decisionSummary: event.target.value,
+                          }))
+                        }
+                        onBlur={() =>
+                          setPriceTouched((current) => ({
+                            ...current,
+                            decisionSummary: true,
+                          }))
+                        }
+                        aria-describedby={`pricing-decision-help${showPriceError('decisionSummary') && priceErrors.decisionSummary ? ' pricing-decision-error' : ''}`}
+                        aria-invalid={
+                          showPriceError('decisionSummary') &&
+                          Boolean(priceErrors.decisionSummary)
+                        }
+                      />
+                      <div
+                        id='pricing-decision-help'
+                        className='text-muted-foreground text-xs'
+                      >
+                        {t('Optional, up to 2000 characters')}
+                      </div>
+                      {showPriceError('decisionSummary') &&
+                        priceErrors.decisionSummary && (
+                          <div
+                            id='pricing-decision-error'
+                            className='text-destructive text-xs'
+                            role='alert'
+                          >
+                            {priceErrors.decisionSummary}
+                          </div>
+                        )}
+                    </div>
+                    <Button
+                      type='submit'
+                      className='w-full sm:w-auto'
+                      disabled={
+                        (!selected && !selectedInitial) ||
+                        pricingMatrix.isPending ||
+                        pricingContractUnavailable ||
+                        selectedUsesUnitPricing ||
+                        selectedHasSchedule ||
+                        publishPrice.isPending
+                      }
+                    >
+                      {t('Review price change')}
+                    </Button>
+                    {selectedHasSchedule && (
+                      <p
+                        className='text-muted-foreground text-sm'
+                        role='status'
+                      >
+                        {t(
+                          'Cancel the existing schedule before creating another price change.'
+                        )}
+                      </p>
+                    )}
+                  </div>
                 </form>
               </CardContent>
             </Card>

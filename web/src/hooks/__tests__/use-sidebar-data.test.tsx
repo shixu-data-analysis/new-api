@@ -21,7 +21,8 @@ const { canvasShellState } = vi.hoisted(() => ({
         principalType: 'PLATFORM_ADMIN' as
           | 'CUSTOMER'
           | 'AGENT'
-          | 'PLATFORM_ADMIN',
+          | 'PLATFORM_ADMIN'
+          | 'SUPER_ADMIN',
         inviterEnabled: false,
       },
     },
@@ -62,6 +63,7 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/task-logs',
       '/canvas-cloud/audit',
       '/canvas-cloud/customers',
+      '/canvas-cloud/point-campaigns',
       '/canvas-cloud/agents',
       '/canvas-cloud/recharge-codes',
       '/canvas-cloud/invite-codes',
@@ -69,6 +71,8 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/catalog',
       '/canvas-cloud/pricing',
       '/canvas-cloud/channels',
+      '/canvas-cloud/runtime',
+      '/canvas-cloud/execution',
       '/profile',
     ])
     expect(
@@ -77,6 +81,22 @@ describe('Canvas administrator primary sidebar', () => {
         .find((item) => 'url' in item && item.url === '/canvas-cloud/refunds')
         ?.title
     ).toBe('Refund point recovery')
+  })
+
+  it('gives a super administrator the same navigation as a platform administrator', () => {
+    const platformAdministrator = renderHook(() => useSidebarData())
+    const platformNavigation = platformAdministrator.result.current.navGroups
+    platformAdministrator.unmount()
+
+    canvasShellState.canvasSession.data = {
+      principalType: 'SUPER_ADMIN',
+      inviterEnabled: false,
+    }
+    const superAdministrator = renderHook(() => useSidebarData())
+
+    expect(superAdministrator.result.current.navGroups).toEqual(
+      platformNavigation
+    )
   })
 
   it('shows only activation and profile navigation before Canvas registration', () => {

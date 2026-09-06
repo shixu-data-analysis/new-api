@@ -10,8 +10,8 @@ This directory contains Canvas-owned pages embedded in the pinned New API web sh
 - Group dense list controls by purpose: primary search/status/page-size controls first, then date and sorting controls. Use a restrained bordered surface to distinguish filters from results without creating another oversized card.
 - Keep labels programmatically associated, preserve help text through `aria-describedby`, and use the existing `Card`, `Input`, `Label`, `Button`, and design tokens.
 
-## Verification gate
+## Verification
 
 - Add or update a focused React Testing Library regression for changed form behavior and accessible labels.
-- For the frozen candidate, run the parent `scripts/run-docker-affected-gate.sh` once with the changed test and source paths; its Docker Bun result subsumes focused tests, TypeScript checking, affected-file lint/format, and the production build, so do not rerun those stages separately.
+- The Canvas UI iteration exception and frozen-candidate Docker gate are defined solely in [`../../AGENTS.md`](../../../AGENTS.md). Follow that parent file; do not repeat its stages separately.
 - For layout changes, inspect the real page at approximately 390 px, 768 px, 1440 px, and the available wide desktop viewport. Confirm there is no page-level horizontal overflow, no detached or floating primary action, and no large blank region created solely by grid placement.

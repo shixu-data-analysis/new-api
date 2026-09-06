@@ -11,11 +11,13 @@ License, or (at your option) any later version.
 import { describe, expect, it } from 'vitest'
 
 import {
+  canvasAdminSections,
   canCanvasPrincipalManageAdvancedAuthentication,
   canCanvasPrincipalManageClientAccessToken,
   canCanvasPrincipalAccessPath,
   getCanvasHomeSection,
   isCanvasDefaultLandingPath,
+  isCanvasAdministrator,
   isCanvasSectionAllowed,
 } from '../access'
 import { getCanvasProductName, isCanvasProductName } from '../brand'
@@ -39,6 +41,18 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'reports')).toBe(false)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'overview')).toBe(false)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'recharge')).toBe(false)
+  })
+
+  it('gives Canvas super administrators every platform administrator section and dashboard home', () => {
+    expect(isCanvasAdministrator('PLATFORM_ADMIN')).toBe(true)
+    expect(isCanvasAdministrator('SUPER_ADMIN')).toBe(true)
+    expect(isCanvasAdministrator('CUSTOMER')).toBe(false)
+    expect(getCanvasHomeSection('SUPER_ADMIN')).toBe('dashboard')
+    for (const section of canvasAdminSections) {
+      expect(isCanvasSectionAllowed('SUPER_ADMIN', section)).toBe(
+        isCanvasSectionAllowed('PLATFORM_ADMIN', section)
+      )
+    }
   })
 
   it('keeps Agents on the single read-only inviter center', () => {

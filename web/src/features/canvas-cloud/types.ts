@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type CanvasPrincipalType = 'CUSTOMER' | 'AGENT' | 'PLATFORM_ADMIN'
+export type CanvasPrincipalType =
+  | 'CUSTOMER'
+  | 'AGENT'
+  | 'PLATFORM_ADMIN'
+  | 'SUPER_ADMIN'
 
 export interface CanvasSession {
   principalId: string
@@ -276,6 +280,21 @@ export interface CanvasAgentCustomerQuery {
   sortOrder: 'asc' | 'desc'
 }
 
+export type CanvasBillingUnit = 'REQUEST' | 'SECOND' | 'MILLION_TOKENS'
+export type CanvasTokenCategory =
+  | 'input'
+  | 'output'
+  | 'cacheRead'
+  | 'cacheWrite'
+export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
+export interface CanvasTokenCategoryRisk {
+  category: CanvasTokenCategory
+  providerRateRmb: string
+  customerRatePoints: string
+  breakEvenPointsCeil: string
+  belowBreakEven: boolean
+}
+
 export interface CanvasProviderPricingRow {
   providerId: string
   providerCode: string
@@ -293,16 +312,25 @@ export interface CanvasProviderPricingRow {
   rateId: string | null
   rateVersion: number | null
   rateStatus: string | null
-  billingUnit: 'REQUEST' | null
+  billingUnit: CanvasBillingUnit | null
   nativeAmount: string | null
+  tokenRates: CanvasTokenRateVector | null
   currency: string | null
   normalizedAmountMinor: string | null
+  normalizedTokenRates: CanvasTokenRateVector | null
+  failureChargePolicy:
+    | { mode: 'NONE' }
+    | { mode: 'SAME_AS_SUCCESS' }
+    | { mode: 'FIXED'; normalizedAmountMinor: string }
+    | null
   rateEffectiveAt: string | null
   prices: Array<{
     id: string
     groupId: string
     groupName: string
+    billingUnit: CanvasBillingUnit
     points: string
+    tokenRates: CanvasTokenRateVector | null
     version: number
     status: string
     providerRateVersionId: string | null
@@ -310,6 +338,10 @@ export interface CanvasProviderPricingRow {
     breakEvenPoints: string
     newBreakEvenPoints: string | null
     belowBreakEven: boolean
+    categoryRisks: CanvasTokenCategoryRisk[]
+    success_probability?: string
+    risk_buffer_minor?: string
+    pricing_assumptions_snapshot?: Record<string, unknown>
   }>
   riskDecision: {
     id: string
@@ -328,6 +360,8 @@ export interface CanvasCreatedInviteCode {
 
 export interface CanvasCustomerWorkspace {
   wallet: {
+    debtPoints?: string
+    netAvailablePoints?: string
     availablePoints: string
     paidAvailablePoints: string
     bonusAvailablePoints: string
@@ -353,6 +387,19 @@ export interface CanvasCustomerWorkspace {
     id: string
     modelName: string
     quotedPoints: string
+    settledPoints?: string
+    outstandingDebtPoints?: string
+    outputSummaries?: Array<{
+      outputIndex: number
+      executionStatus: string
+      billingStatus: string
+      quotedPoints: string
+      settledPoints: string | null
+      error?: {
+        code: string | null
+        messages: Record<string, string> | null
+      } | null
+    }>
     executionStatus: string
     customerBillingStatus: string
     providerReconcileStatus: string
@@ -489,6 +536,7 @@ export interface CanvasAdminWorkspace {
     customerName: string
     modelName: string
     quotedPoints: string
+    settledPoints?: string
     executionStatus: string
     customerBillingStatus: string
     providerReconcileStatus: string
@@ -767,6 +815,15 @@ export interface CanvasAdminTaskLog {
   customerName: string
   modelName: string
   quotedPoints: string
+  settledPoints?: string
+  outstandingDebtPoints?: string
+  outputSummaries?: Array<{
+    outputIndex: number
+    executionStatus: string
+    billingStatus: string
+    quotedPoints: string
+    settledPoints: string | null
+  }>
   executionStatus: string
   customerBillingStatus: string
   providerReconcileStatus: string

@@ -36,8 +36,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { normalizeInterfaceLanguage } from '@/i18n/languages'
 
 import {
+  isCanvasAdministrator,
   isCanvasSectionAllowed,
   type canvasAdminSections as adminSections,
   type canvasAgentSections as agentSections,
@@ -70,6 +72,7 @@ import { CampaignManagement } from './components/CampaignManagement'
 import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
+import { ExecutionSettings } from './components/ExecutionSettings'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PointConversionDashboard } from './components/PointConversionDashboard'
@@ -104,6 +107,8 @@ const sectionTitles: Record<CanvasSection, string> = {
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
   runtime: 'Canvas Runtime Configuration',
+  execution: 'Execution settings',
+  'provider-configuration': 'Provider configuration',
   refunds: 'Refund point recovery',
   audit: 'Canvas Audit Log',
   'agent-center': 'Inviter center',
@@ -214,7 +219,7 @@ function MetricCard(props: {
 }
 
 function CustomerContent(props: { section: CustomerSection }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const workspace = useQuery({
@@ -248,7 +253,7 @@ function CustomerContent(props: { section: CustomerSection }) {
     const consumedPoints = sumPoints(
       data.tasks
         .filter((task) => task.customerBillingStatus === 'SETTLED')
-        .map((task) => task.quotedPoints)
+        .map((task) => task.settledPoints ?? task.quotedPoints)
     )
     const usageByModel = Object.entries(
       data.tasks.reduce<Record<string, { count: number; points: bigint }>>(
@@ -257,7 +262,7 @@ function CustomerContent(props: { section: CustomerSection }) {
           const current = result[key] ?? { count: 0, points: 0n }
           current.count += 1
           if (task.customerBillingStatus === 'SETTLED') {
-            current.points += BigInt(task.quotedPoints)
+            current.points += BigInt(task.settledPoints ?? task.quotedPoints)
           }
           result[key] = current
           return result
@@ -270,7 +275,14 @@ function CustomerContent(props: { section: CustomerSection }) {
         <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
           <MetricCard
             title={t('Available points')}
-            value={data.wallet.availablePoints}
+            value={
+              data.wallet.netAvailablePoints ?? data.wallet.availablePoints
+            }
+            description={
+              data.wallet.debtPoints && data.wallet.debtPoints !== '0'
+                ? `${t('Outstanding points')}: ${data.wallet.debtPoints}`
+                : undefined
+            }
           />
           <MetricCard
             title={t('Points used')}
@@ -393,17 +405,39 @@ function CustomerContent(props: { section: CustomerSection }) {
           key: item.id,
           cells: [
             item.modelName,
-            <BusinessTerm
-              key='e'
-              kind='taskExecutionStatus'
-              value={item.executionStatus}
-            />,
+            <div key='e' className='space-y-1'>
+              <BusinessTerm
+                kind='taskExecutionStatus'
+                value={item.executionStatus}
+              />
+              {item.outputSummaries
+                ?.filter((output) => output.error?.code)
+                .map((output) => (
+                  <p
+                    key={output.outputIndex}
+                    className='text-muted-foreground max-w-md text-xs break-words whitespace-normal'
+                  >
+                    #{output.outputIndex + 1} ·{' '}
+                    {output.error?.messages?.[
+                      normalizeInterfaceLanguage(
+                        i18n.resolvedLanguage || i18n.language
+                      )
+                    ] ||
+                      output.error?.messages?.en ||
+                      t('Failed')}
+                    {' · '}
+                    {output.error?.code}
+                    {' · '}
+                    {item.id}
+                  </p>
+                ))}
+            </div>,
             <BusinessTerm
               key='b'
               kind='billingStatus'
               value={item.customerBillingStatus}
             />,
-            item.quotedPoints,
+            item.settledPoints ?? item.quotedPoints,
             formatDate(item.acceptedAt),
           ],
         }))}
@@ -431,6 +465,8 @@ function AdminContent(props: {
       'usage-logs',
       'task-logs',
       'runtime',
+      'execution',
+      'provider-configuration',
     ].includes(props.section),
   })
   const dates = useMemo(
@@ -459,6 +495,10 @@ function AdminContent(props: {
   if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
   if (props.section === 'task-logs') return <AdminTaskLogs kind='task' />
   if (props.section === 'runtime') return <RuntimeConfiguration />
+  if (props.section === 'execution') return <ExecutionSettings />
+  if (props.section === 'provider-configuration') {
+    return <RuntimeConfiguration providerOnly />
+  }
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -471,7 +511,7 @@ function AdminContent(props: {
     const settledPoints = sumPoints(
       data.recentTasks
         .filter((task) => task.customerBillingStatus === 'SETTLED')
-        .map((task) => task.quotedPoints)
+        .map((task) => task.settledPoints ?? task.quotedPoints)
     )
     const successfulTasks = data.recentTasks.filter(
       (task) => task.executionStatus === 'SUCCEEDED'
@@ -718,7 +758,7 @@ export function CanvasCloud() {
     content = <AgentCenter />
   } else if (session.data.principalType === 'CUSTOMER') {
     content = <CustomerContent section={section as CustomerSection} />
-  } else if (session.data.principalType === 'PLATFORM_ADMIN') {
+  } else if (isCanvasAdministrator(session.data.principalType)) {
     content = (
       <AdminContent
         section={section as AdminSection}

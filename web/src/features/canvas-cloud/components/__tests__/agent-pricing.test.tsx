@@ -7,7 +7,13 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -274,13 +280,29 @@ describe('Canvas Agent and provider pricing governance', () => {
 
   it('shows the new cost floor and requires an explicit risk action', async () => {
     renderWithClient(<ProviderPricingMatrix />)
-    fireEvent.change(await screen.findByLabelText('Model and quality'), {
-      target: { value: 'combination-v1' },
+    fireEvent.change(
+      await screen.findByRole('combobox', { name: /^Model and quality/ }),
+      { target: { value: 'combination-v1' } }
+    )
+    const modelRow = screen.getByText('Image Model').closest('tr')
+    if (!modelRow) throw new Error('Expected the model pricing table row')
+    expect(within(modelRow).getByText('Below break-even')).toBeVisible()
+    fireEvent.change(screen.getByRole('combobox', { name: /^Risk action/ }), {
+      target: { value: 'MANUAL_PAUSE' },
     })
-    expect(screen.getAllByText('Below break-even')).toHaveLength(2)
-    expect(
+    fireEvent.click(
       screen.getByRole('button', { name: 'Record risk decision' })
-    ).toBeDisabled()
+    )
+    expect(await screen.findByText('Enter at least 8 characters')).toBeVisible()
+    fireEvent.change(screen.getByRole('textbox', { name: /^Reason/ }), {
+      target: { value: 'Pause this quality until safe pricing is published' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Record risk decision' })
+    )
+    expect(
+      await screen.findByText('Confirm pricing risk decision?')
+    ).toBeVisible()
     expect(apiMocks.resolveCanvasProviderRateRisk).not.toHaveBeenCalled()
   })
 

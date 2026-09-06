@@ -31,6 +31,7 @@ import {
   bindCanvasProviderCredentials,
   checkCanvasProviderCredentialGroup,
   checkCanvasRuntimeStorage,
+  getCanvasProviderConfiguration,
   getCanvasRuntimeConfiguration,
   publishCanvasProviderCredentialGroup,
   publishCanvasRuntimeStorage,
@@ -103,7 +104,7 @@ const bindingSchema = z.object({
 })
 type BindingForm = z.infer<typeof bindingSchema>
 
-export function RuntimeConfiguration() {
+export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [confirmation, setConfirmation] = useState<
@@ -112,8 +113,13 @@ export function RuntimeConfiguration() {
   const [modelSearch, setModelSearch] = useState('')
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const runtime = useQuery({
-    queryKey: ['canvas-cloud', 'runtime-configuration'],
-    queryFn: getCanvasRuntimeConfiguration,
+    queryKey: [
+      'canvas-cloud',
+      props.providerOnly ? 'provider-configuration' : 'runtime-configuration',
+    ],
+    queryFn: props.providerOnly
+      ? getCanvasProviderConfiguration
+      : getCanvasRuntimeConfiguration,
   })
   const storage = useForm<StorageForm>({
     resolver: zodResolver(storageSchema),
@@ -149,7 +155,10 @@ export function RuntimeConfiguration() {
 
   const refresh = async () =>
     queryClient.invalidateQueries({
-      queryKey: ['canvas-cloud', 'runtime-configuration'],
+      queryKey: [
+        'canvas-cloud',
+        props.providerOnly ? 'provider-configuration' : 'runtime-configuration',
+      ],
     })
   const storageMutation = useMutation({
     mutationFn: (value: StorageForm) =>
@@ -310,220 +319,226 @@ export function RuntimeConfiguration() {
 
   return (
     <div className='space-y-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Runtime storage')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Configure private task-media and database-backup buckets separately. Secret values can be replaced but never viewed again.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='grid gap-3 lg:grid-cols-3'>
-            {runtime.data.storage.map((item) => (
-              <div key={item.id} className='rounded-lg border p-3 text-sm'>
-                <div className='flex items-center justify-between gap-2'>
-                  <strong>
-                    {item.environment} · v{item.version}
-                  </strong>
-                  <BusinessTerm kind='configStatus' value={item.status} />
+      {!props.providerOnly && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Runtime storage')}</CardTitle>
+            <CardDescription>
+              {t(
+                'Configure private task-media and database-backup buckets separately. Secret values can be replaced but never viewed again.'
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            <div className='grid gap-3 lg:grid-cols-3'>
+              {runtime.data.storage.map((item) => (
+                <div key={item.id} className='rounded-lg border p-3 text-sm'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <strong>
+                      {item.environment} · v{item.version}
+                    </strong>
+                    <BusinessTerm kind='configStatus' value={item.status} />
+                  </div>
+                  <dl className='mt-3 grid gap-1 text-xs'>
+                    <div>
+                      <dt className='text-muted-foreground'>
+                        {t('Task media bucket')}
+                      </dt>
+                      <dd className='break-all'>{item.mediaBucket}</dd>
+                    </div>
+                    <div>
+                      <dt className='text-muted-foreground'>
+                        {t('Database backup bucket')}
+                      </dt>
+                      <dd className='break-all'>{item.backupBucket}</dd>
+                    </div>
+                    <div>
+                      <dt className='text-muted-foreground'>
+                        {t('Retention and download')}
+                      </dt>
+                      <dd>
+                        {item.inputRetentionHours}h ·{' '}
+                        {item.outputRetentionHours}h ·{' '}
+                        {item.downloadUrlTtlSeconds}s
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className='text-muted-foreground'>
+                        {t('Updated by')}
+                      </dt>
+                      <dd>
+                        {item.updatedBy} ·{' '}
+                        {formatCanvasDateTime(item.createdAt)}
+                      </dd>
+                    </div>
+                    <ConnectionCheck
+                      label={t('Task media check')}
+                      value={item.checks.taskMedia}
+                    />
+                    <ConnectionCheck
+                      label={t('Backup check')}
+                      value={item.checks.databaseBackup}
+                    />
+                  </dl>
+                  <div className='mt-3 flex flex-wrap gap-2'>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      disabled={checkStorage.isPending}
+                      onClick={() =>
+                        checkStorage.mutate({ id: item.id, role: 'TASK_MEDIA' })
+                      }
+                    >
+                      {t('Check task media')}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      disabled={checkStorage.isPending}
+                      onClick={() =>
+                        checkStorage.mutate({ id: item.id, role: 'DB_BACKUP' })
+                      }
+                    >
+                      {t('Check backup')}
+                    </Button>
+                  </div>
                 </div>
-                <dl className='mt-3 grid gap-1 text-xs'>
-                  <div>
-                    <dt className='text-muted-foreground'>
-                      {t('Task media bucket')}
-                    </dt>
-                    <dd className='break-all'>{item.mediaBucket}</dd>
-                  </div>
-                  <div>
-                    <dt className='text-muted-foreground'>
-                      {t('Database backup bucket')}
-                    </dt>
-                    <dd className='break-all'>{item.backupBucket}</dd>
-                  </div>
-                  <div>
-                    <dt className='text-muted-foreground'>
-                      {t('Retention and download')}
-                    </dt>
-                    <dd>
-                      {item.inputRetentionHours}h · {item.outputRetentionHours}h
-                      · {item.downloadUrlTtlSeconds}s
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className='text-muted-foreground'>{t('Updated by')}</dt>
-                    <dd>
-                      {item.updatedBy} · {formatCanvasDateTime(item.createdAt)}
-                    </dd>
-                  </div>
-                  <ConnectionCheck
-                    label={t('Task media check')}
-                    value={item.checks.taskMedia}
-                  />
-                  <ConnectionCheck
-                    label={t('Backup check')}
-                    value={item.checks.databaseBackup}
-                  />
-                </dl>
-                <div className='mt-3 flex flex-wrap gap-2'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    disabled={checkStorage.isPending}
-                    onClick={() =>
-                      checkStorage.mutate({ id: item.id, role: 'TASK_MEDIA' })
-                    }
-                  >
-                    {t('Check task media')}
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    disabled={checkStorage.isPending}
-                    onClick={() =>
-                      checkStorage.mutate({ id: item.id, role: 'DB_BACKUP' })
-                    }
-                  >
-                    {t('Check backup')}
-                  </Button>
-                </div>
+              ))}
+            </div>
+            {runtime.data.storage.length === 0 && (
+              <div className='text-muted-foreground text-sm'>
+                {t('No runtime storage configured')}
               </div>
-            ))}
-          </div>
-          {runtime.data.storage.length === 0 && (
-            <div className='text-muted-foreground text-sm'>
-              {t('No runtime storage configured')}
-            </div>
-          )}
-          <form
-            aria-label={t('Publish runtime storage')}
-            className='bg-muted/20 grid gap-3 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-4'
-            onSubmit={storage.handleSubmit(() => setConfirmation('storage'))}
-          >
-            <Field
-              label={t('Environment')}
-              error={storage.formState.errors.environment?.message}
+            )}
+            <form
+              aria-label={t('Publish runtime storage')}
+              className='bg-muted/20 grid gap-3 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-4'
+              onSubmit={storage.handleSubmit(() => setConfirmation('storage'))}
             >
-              <NativeSelect
-                className='w-full'
-                {...storage.register('environment')}
+              <Field
+                label={t('Environment')}
+                error={storage.formState.errors.environment?.message}
               >
-                <NativeSelectOption value='UAT'>UAT</NativeSelectOption>
-                <NativeSelectOption value='STG'>STG</NativeSelectOption>
-                <NativeSelectOption value='PROD'>PROD</NativeSelectOption>
-              </NativeSelect>
-            </Field>
-            <Field
-              label={t('R2 endpoint')}
-              error={storage.formState.errors.endpoint?.message}
-            >
-              <Input
-                {...storage.register('endpoint')}
-                placeholder='https://…r2.cloudflarestorage.com'
-              />
-            </Field>
-            <Field
-              label={t('Task media bucket')}
-              error={storage.formState.errors.mediaBucket?.message}
-            >
-              <Input {...storage.register('mediaBucket')} />
-            </Field>
-            <Field
-              label={t('Database backup bucket')}
-              error={storage.formState.errors.backupBucket?.message}
-            >
-              <Input {...storage.register('backupBucket')} />
-            </Field>
-            <Field
-              label={t('Task media access key ID')}
-              error={storage.formState.errors.mediaAccessKeyId?.message}
-            >
-              <Input
-                autoComplete='off'
-                {...storage.register('mediaAccessKeyId')}
-              />
-            </Field>
-            <Field
-              label={t('Task media secret access key')}
-              error={storage.formState.errors.mediaSecretAccessKey?.message}
-            >
-              <Input
-                type='password'
-                autoComplete='new-password'
-                {...storage.register('mediaSecretAccessKey')}
-              />
-            </Field>
-            <Field
-              label={t('Backup access key ID')}
-              error={storage.formState.errors.backupAccessKeyId?.message}
-            >
-              <Input
-                autoComplete='off'
-                {...storage.register('backupAccessKeyId')}
-              />
-            </Field>
-            <Field
-              label={t('Backup secret access key')}
-              error={storage.formState.errors.backupSecretAccessKey?.message}
-            >
-              <Input
-                type='password'
-                autoComplete='new-password'
-                {...storage.register('backupSecretAccessKey')}
-              />
-            </Field>
-            <Field
-              label={t('Input retention hours')}
-              error={storage.formState.errors.inputRetentionHours?.message}
-            >
-              <Input
-                type='number'
-                min={1}
-                max={8760}
-                {...storage.register('inputRetentionHours', {
-                  valueAsNumber: true,
-                })}
-              />
-            </Field>
-            <Field
-              label={t('Output retention hours')}
-              error={storage.formState.errors.outputRetentionHours?.message}
-            >
-              <Input
-                type='number'
-                min={1}
-                max={8760}
-                {...storage.register('outputRetentionHours', {
-                  valueAsNumber: true,
-                })}
-              />
-            </Field>
-            <Field
-              label={t('Download URL seconds')}
-              error={storage.formState.errors.downloadUrlTtlSeconds?.message}
-            >
-              <Input
-                type='number'
-                min={60}
-                max={3600}
-                {...storage.register('downloadUrlTtlSeconds', {
-                  valueAsNumber: true,
-                })}
-              />
-            </Field>
-            <Field
-              label={t('Reason')}
-              error={storage.formState.errors.reason?.message}
-            >
-              <Input {...storage.register('reason')} />
-            </Field>
-            <div className='md:col-span-2 xl:col-span-4'>
-              <Button type='submit'>{t('Review storage publication')}</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                <NativeSelect
+                  className='w-full'
+                  {...storage.register('environment')}
+                >
+                  <NativeSelectOption value='UAT'>UAT</NativeSelectOption>
+                  <NativeSelectOption value='STG'>STG</NativeSelectOption>
+                  <NativeSelectOption value='PROD'>PROD</NativeSelectOption>
+                </NativeSelect>
+              </Field>
+              <Field
+                label={t('R2 endpoint')}
+                error={storage.formState.errors.endpoint?.message}
+              >
+                <Input
+                  {...storage.register('endpoint')}
+                  placeholder='https://…r2.cloudflarestorage.com'
+                />
+              </Field>
+              <Field
+                label={t('Task media bucket')}
+                error={storage.formState.errors.mediaBucket?.message}
+              >
+                <Input {...storage.register('mediaBucket')} />
+              </Field>
+              <Field
+                label={t('Database backup bucket')}
+                error={storage.formState.errors.backupBucket?.message}
+              >
+                <Input {...storage.register('backupBucket')} />
+              </Field>
+              <Field
+                label={t('Task media access key ID')}
+                error={storage.formState.errors.mediaAccessKeyId?.message}
+              >
+                <Input
+                  autoComplete='off'
+                  {...storage.register('mediaAccessKeyId')}
+                />
+              </Field>
+              <Field
+                label={t('Task media secret access key')}
+                error={storage.formState.errors.mediaSecretAccessKey?.message}
+              >
+                <Input
+                  type='password'
+                  autoComplete='new-password'
+                  {...storage.register('mediaSecretAccessKey')}
+                />
+              </Field>
+              <Field
+                label={t('Backup access key ID')}
+                error={storage.formState.errors.backupAccessKeyId?.message}
+              >
+                <Input
+                  autoComplete='off'
+                  {...storage.register('backupAccessKeyId')}
+                />
+              </Field>
+              <Field
+                label={t('Backup secret access key')}
+                error={storage.formState.errors.backupSecretAccessKey?.message}
+              >
+                <Input
+                  type='password'
+                  autoComplete='new-password'
+                  {...storage.register('backupSecretAccessKey')}
+                />
+              </Field>
+              <Field
+                label={t('Input retention hours')}
+                error={storage.formState.errors.inputRetentionHours?.message}
+              >
+                <Input
+                  type='number'
+                  min={1}
+                  max={8760}
+                  {...storage.register('inputRetentionHours', {
+                    valueAsNumber: true,
+                  })}
+                />
+              </Field>
+              <Field
+                label={t('Output retention hours')}
+                error={storage.formState.errors.outputRetentionHours?.message}
+              >
+                <Input
+                  type='number'
+                  min={1}
+                  max={8760}
+                  {...storage.register('outputRetentionHours', {
+                    valueAsNumber: true,
+                  })}
+                />
+              </Field>
+              <Field
+                label={t('Download URL seconds')}
+                error={storage.formState.errors.downloadUrlTtlSeconds?.message}
+              >
+                <Input
+                  type='number'
+                  min={60}
+                  max={3600}
+                  {...storage.register('downloadUrlTtlSeconds', {
+                    valueAsNumber: true,
+                  })}
+                />
+              </Field>
+              <Field
+                label={t('Reason')}
+                error={storage.formState.errors.reason?.message}
+              >
+                <Input {...storage.register('reason')} />
+              </Field>
+              <div className='md:col-span-2 xl:col-span-4'>
+                <Button type='submit'>{t('Review storage publication')}</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
