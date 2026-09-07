@@ -55,15 +55,6 @@ describe('Canvas role-scoped information architecture', () => {
     }
   })
 
-  it('keeps Agents on the single read-only inviter center', () => {
-    expect(isCanvasSectionAllowed('AGENT', 'agent-center')).toBe(true)
-    expect(isCanvasSectionAllowed('AGENT', 'overview')).toBe(false)
-    expect(isCanvasSectionAllowed('AGENT', 'pricing')).toBe(false)
-    expect(isCanvasSectionAllowed('AGENT', 'agents')).toBe(false)
-    expect(getCanvasHomeSection('AGENT')).toBe('agent-center')
-    expect(canCanvasPrincipalManageClientAccessToken('AGENT')).toBe(false)
-  })
-
   it('uses role homes only for the generic authenticated landing path', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'overview')).toBe(false)
     expect(getCanvasHomeSection('PLATFORM_ADMIN')).toBe('dashboard')
@@ -79,7 +70,6 @@ describe('Canvas role-scoped information architecture', () => {
     expect(canCanvasPrincipalManageClientAccessToken('PLATFORM_ADMIN')).toBe(
       false
     )
-    expect(canCanvasPrincipalManageClientAccessToken('AGENT')).toBe(false)
   })
 
   it('keeps Passkey and two-factor configuration hidden from every Canvas principal', () => {
@@ -89,7 +79,6 @@ describe('Canvas role-scoped information architecture', () => {
     expect(
       canCanvasPrincipalManageAdvancedAuthentication('PLATFORM_ADMIN')
     ).toBe(false)
-    expect(canCanvasPrincipalManageAdvancedAuthentication('AGENT')).toBe(false)
   })
 
   it('uses the approved localized LingCat product name without changing upstream attribution', () => {

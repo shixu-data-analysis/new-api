@@ -16,11 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type CanvasPrincipalType =
-  | 'CUSTOMER'
-  | 'AGENT'
-  | 'PLATFORM_ADMIN'
-  | 'SUPER_ADMIN'
+export type CanvasPrincipalType = 'CUSTOMER' | 'PLATFORM_ADMIN' | 'SUPER_ADMIN'
 
 export interface CanvasSession {
   principalId: string
@@ -31,20 +27,19 @@ export interface CanvasSession {
 }
 
 export interface CanvasRuntimeConfiguration {
+  environment: 'UAT' | 'STG' | 'PROD'
   providers: Array<{
     id: string
     code: string
     name: string
     credentialSchemes: string[]
   }>
-  storage: Array<{
+  taskMedia: {
     id: string
-    environment: 'UAT' | 'STG' | 'PROD'
     version: number
     status: string
     endpoint: string
-    mediaBucket: string
-    backupBucket: string
+    bucket: string
     inputRetentionHours: number
     outputRetentionHours: number
     downloadUrlTtlSeconds: number
@@ -53,11 +48,21 @@ export interface CanvasRuntimeConfiguration {
     createdByPrincipalId: string
     updatedBy: string
     createdAt: string
-    checks: {
-      taskMedia: CanvasRuntimeConnectionCheck | null
-      databaseBackup: CanvasRuntimeConnectionCheck | null
-    }
-  }>
+    latestCheck: CanvasRuntimeConnectionCheck | null
+  } | null
+  databaseBackup: {
+    id: string
+    version: number
+    status: string
+    endpoint: string
+    bucket: string
+    reason: string
+    effectiveAt: string | null
+    createdByPrincipalId: string
+    updatedBy: string
+    createdAt: string
+    latestCheck: CanvasRuntimeConnectionCheck | null
+  } | null
   credentialGroups: Array<{
     id: string
     credentialGroupId: string

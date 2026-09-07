@@ -28,7 +28,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDebounce } from '@/hooks'
@@ -45,9 +44,10 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminAuditLog } from './AdminAuditLog'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTerm } from './BusinessTerm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { useCanvasRechargeOrderColumns } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -158,16 +158,11 @@ function CustomerOrders({
               }
             >
               <SelectTrigger className='w-full' aria-label={t('Status')}>
-                <SelectValue>
-                  {status ? (
-                    <BusinessTermText
-                      kind='rechargeOrderStatus'
-                      value={status}
-                    />
-                  ) : (
-                    t('All statuses')
-                  )}
-                </SelectValue>
+                <CanvasLocalizedSelectValue
+                  value={status}
+                  emptyLabelKey='All statuses'
+                  termKind='rechargeOrderStatus'
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
@@ -388,16 +383,12 @@ function CustomerTasks({
           }
         >
           <SelectTrigger className='w-full'>
-            <SelectValue placeholder={t('Execution status')}>
-              {executionStatus ? (
-                <BusinessTermText
-                  kind='taskExecutionStatus'
-                  value={executionStatus}
-                />
-              ) : (
-                t('All execution statuses')
-              )}
-            </SelectValue>
+            <CanvasLocalizedSelectValue
+              value={executionStatus}
+              emptyLabelKey='All execution statuses'
+              placeholderKey='Execution status'
+              termKind='taskExecutionStatus'
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>{t('All execution statuses')}</SelectItem>
@@ -417,13 +408,12 @@ function CustomerTasks({
           }
         >
           <SelectTrigger className='w-full'>
-            <SelectValue placeholder={t('Billing status')}>
-              {billingStatus ? (
-                <BusinessTermText kind='billingStatus' value={billingStatus} />
-              ) : (
-                t('All billing statuses')
-              )}
-            </SelectValue>
+            <CanvasLocalizedSelectValue
+              value={billingStatus}
+              emptyLabelKey='All billing statuses'
+              placeholderKey='Billing status'
+              termKind='billingStatus'
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>{t('All billing statuses')}</SelectItem>
@@ -519,16 +509,32 @@ export function AdminCustomerOperations({
         if (value === 'facts') setSelection(undefined)
       }}
     >
-      <TabsList className='max-w-full justify-start overflow-x-auto'>
-        <TabsTrigger value='price-plan'>{t('Price plan')}</TabsTrigger>
-        <TabsTrigger value='orders'>{t('Recharge orders')}</TabsTrigger>
-        <TabsTrigger value='lots'>{t('Point Lots')}</TabsTrigger>
-        <TabsTrigger value='ledger'>{t('Point ledger')}</TabsTrigger>
-        <TabsTrigger value='tasks'>{t('Tasks')}</TabsTrigger>
-        <TabsTrigger ref={factsTabRef} value='facts'>
+      <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='price-plan'>
+          {t('Price plan')}
+        </TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='orders'>
+          {t('Recharge orders')}
+        </TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='lots'>
+          {t('Point Lots')}
+        </TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='ledger'>
+          {t('Point ledger')}
+        </TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='tasks'>
+          {t('Tasks')}
+        </TabsTrigger>
+        <TabsTrigger
+          className='h-8 min-h-8 flex-none px-3'
+          ref={factsTabRef}
+          value='facts'
+        >
           {t('Business facts')}
         </TabsTrigger>
-        <TabsTrigger value='audit'>{t('Customer audit')}</TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='audit'>
+          {t('Customer audit')}
+        </TabsTrigger>
       </TabsList>
       <TabsContent value='price-plan'>
         <CustomerPriceAssignment key={customerId} customerId={customerId} />

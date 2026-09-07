@@ -29,7 +29,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -46,6 +45,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm, BusinessTermText } from './BusinessTerm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import type { CustomerFactTarget } from './CustomerBusinessFacts'
@@ -431,11 +431,12 @@ export function CustomerPointHistory({
                   }
                 >
                   <SelectTrigger className='w-full' aria-label={t('Type')}>
-                    <SelectValue placeholder={t('Type')}>
-                      {lotType
-                        ? t(lotType === 'PAID' ? 'Paid points' : 'Bonus points')
-                        : t('All types')}
-                    </SelectValue>
+                    <CanvasLocalizedSelectValue
+                      value={lotType}
+                      emptyLabelKey='All types'
+                      placeholderKey='Type'
+                      termKind='pointLotType'
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='ALL'>{t('All types')}</SelectItem>
@@ -506,9 +507,12 @@ export function CustomerPointHistory({
                   }
                 >
                   <SelectTrigger className='w-full' aria-label={t('Event')}>
-                    <SelectValue placeholder={t('Event')}>
-                      {eventType ? t(eventType) : t('All events')}
-                    </SelectValue>
+                    <CanvasLocalizedSelectValue
+                      value={eventType}
+                      emptyLabelKey='All events'
+                      placeholderKey='Event'
+                      termKind='ledgerEvent'
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='ALL'>{t('All events')}</SelectItem>

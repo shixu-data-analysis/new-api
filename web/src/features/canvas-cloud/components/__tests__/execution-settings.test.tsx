@@ -132,12 +132,36 @@ beforeEach(() => {
         queueName: 'tasks',
         mode: 'MOCK',
         workerId: 'worker-1',
-        status: 'ACTIVE',
+        status: 'RUNNING',
         credentialsConfigured: true,
         startedAt: null,
         heartbeatAt: '2026-09-06T00:00:00Z',
-        leaseExpiresAt: null,
+        leaseExpiresAt: '2999-09-06T00:01:00Z',
         stoppedAt: null,
+        updatedAt: null,
+      },
+      {
+        queueName: 'tasks',
+        mode: 'MOCK',
+        workerId: 'worker-expired',
+        status: 'RUNNING',
+        credentialsConfigured: true,
+        startedAt: null,
+        heartbeatAt: '2026-09-05T00:00:00Z',
+        leaseExpiresAt: '2026-09-05T00:01:00Z',
+        stoppedAt: null,
+        updatedAt: null,
+      },
+      {
+        queueName: 'tasks',
+        mode: 'MOCK',
+        workerId: 'worker-stopped',
+        status: 'STOPPED',
+        credentialsConfigured: true,
+        startedAt: null,
+        heartbeatAt: '2026-09-05T00:00:00Z',
+        leaseExpiresAt: null,
+        stoppedAt: '2026-09-05T00:01:00Z',
         updatedAt: null,
       },
     ],
@@ -214,9 +238,24 @@ beforeEach(() => {
 describe('execution settings', () => {
   it('shows effective global policy, recovery facts, and executor ownership', async () => {
     mount()
-    expect(await screen.findByText('Global execution limits')).toBeVisible()
-    expect(screen.getByText('worker-1')).toBeVisible()
+    expect(await screen.findByText('worker-1')).toBeVisible()
+    expect(screen.getByRole('tablist')).toHaveClass(
+      'w-full',
+      'flex-nowrap',
+      'overflow-x-auto'
+    )
+    screen
+      .getAllByRole('tab')
+      .forEach((tab) => expect(tab).toHaveClass('h-8', 'flex-none', 'px-3'))
+    expect(screen.getAllByText('Global execution limits')).toHaveLength(2)
     expect(screen.getByText('System recovery')).toBeVisible()
+    expect(screen.getByText('Running workers')).toBeVisible()
+    expect(screen.getByText('Mock mode')).toBeVisible()
+    expect(screen.getByText('Running')).toBeVisible()
+    expect(screen.queryByText('MOCK')).not.toBeInTheDocument()
+    expect(screen.queryByText('RUNNING')).not.toBeInTheDocument()
+    expect(screen.queryByText('worker-expired')).not.toBeInTheDocument()
+    expect(screen.queryByText('worker-stopped')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Instance concurrency')).toHaveValue(16)
   })
 
@@ -245,6 +284,9 @@ describe('execution settings', () => {
 
   it('previews the edited error rule list without publishing it', async () => {
     mount()
+    fireEvent.click(
+      screen.getByRole('tab', { name: 'Channel execution policy' })
+    )
     fireEvent.click(await screen.findByRole('tab', { name: 'Error mappings' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Run preview' }))
     await waitFor(() =>
@@ -265,6 +307,9 @@ describe('execution settings', () => {
 
   it('publishes an administrator-added limit rule only after confirmation', async () => {
     mount()
+    fireEvent.click(
+      screen.getByRole('tab', { name: 'Channel execution policy' })
+    )
     fireEvent.click(await screen.findByRole('tab', { name: 'Limit rules' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Add rule' }))
 

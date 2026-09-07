@@ -37,7 +37,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   TableBody,
@@ -59,6 +58,7 @@ import {
   CanvasColumnFilterField,
   CanvasColumnFilterPanel,
 } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { CatalogModelPreview } from './CatalogModelPreview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -221,9 +221,13 @@ export function AdminModelCatalog() {
   return (
     <div className='space-y-4'>
       <Tabs defaultValue='published'>
-        <TabsList className='h-auto max-w-full flex-wrap justify-start gap-1'>
-          <TabsTrigger value='published'>{t('Published models')}</TabsTrigger>
-          <TabsTrigger value='import'>{t('Import and publish')}</TabsTrigger>
+        <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='published'>
+            {t('Published models')}
+          </TabsTrigger>
+          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='import'>
+            {t('Import and publish')}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value='published' className='mt-4'>
           <PublishedModelCatalog />
@@ -347,11 +351,17 @@ export function AdminModelCatalog() {
                   </div>
                 )}
                 <Tabs defaultValue='models'>
-                  <TabsList className='h-auto max-w-full flex-wrap justify-start gap-1'>
-                    <TabsTrigger value='models'>
+                  <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+                    <TabsTrigger
+                      className='h-8 min-h-8 flex-none px-3'
+                      value='models'
+                    >
                       {t('Client model preview')} ({plan.models.length})
                     </TabsTrigger>
-                    <TabsTrigger value='changes'>
+                    <TabsTrigger
+                      className='h-8 min-h-8 flex-none px-3'
+                      value='changes'
+                    >
                       {t('Database plan')} ({plan.changes.length})
                     </TabsTrigger>
                   </TabsList>
@@ -406,9 +416,10 @@ export function AdminModelCatalog() {
                             className='w-full'
                             aria-label={t('Action')}
                           >
-                            <SelectValue>
-                              {action === 'ALL' ? t('All') : t(action)}
-                            </SelectValue>
+                            <CanvasLocalizedSelectValue
+                              value={action === 'ALL' ? '' : action}
+                              emptyLabelKey='All'
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value='ALL'>{t('All')}</SelectItem>

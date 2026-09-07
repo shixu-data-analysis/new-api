@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { DataTableColumnHeader } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -134,6 +135,25 @@ function pricingColumn<TData>(
       <PricingTableColumnHeader column={column} term={term} />
     ),
     cell: ({ row }) => cell(row.original),
+  }
+}
+
+function recordColumn<TData>(
+  id: string,
+  label: string,
+  accessorFn: (row: TData) => unknown,
+  cell: (row: TData) => React.ReactNode,
+  options?: { enableSorting?: boolean }
+): ColumnDef<TData, unknown> {
+  return {
+    id,
+    accessorFn,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={label} />
+    ),
+    meta: { label },
+    cell: ({ row }) => cell(row.original),
+    enableSorting: options?.enableSorting,
   }
 }
 
@@ -1082,6 +1102,123 @@ export function AdminPricing(props: {
       ].map(([columnId, label]) => ({ columnId, label: t(label) })),
     [t]
   )
+  const pricePromotionColumns = useMemo<
+    ColumnDef<PricePromotion, unknown>[]
+  >(
+    () => [
+      recordColumn(
+        'model',
+        t('Model'),
+        (promotion) => `${promotion.modelName} ${promotion.modelKey}`,
+        (promotion) => (
+          <div>
+            <div className='font-medium'>{promotion.modelName}</div>
+            <div className='text-muted-foreground text-xs'>
+              {promotion.modelKey}
+            </div>
+          </div>
+        )
+      ),
+      recordColumn(
+        'priceGroup',
+        t('Price group'),
+        (promotion) =>
+          `${promotion.priceGroup} ${promotion.priceGroupCode}`,
+        (promotion) => (
+          <div>
+            <div>{promotion.priceGroup}</div>
+            <div className='text-muted-foreground text-xs'>
+              {promotion.priceGroupCode}
+            </div>
+          </div>
+        )
+      ),
+      recordColumn(
+        'combination',
+        t('Parameter combination'),
+        (promotion) => promotion.combinationKey,
+        (promotion) => promotion.combinationKey
+      ),
+      recordColumn(
+        'points',
+        t('Points'),
+        (promotion) => promotion.specialPoints,
+        (promotion) =>
+          `${promotion.basePoints} → ${promotion.specialPoints} ${t('points')}`,
+        { enableSorting: false }
+      ),
+      recordColumn(
+        'status',
+        t('Status'),
+        (promotion) =>
+          t(getCanvasBusinessTermLabelKey('configStatus', promotion.status)),
+        (promotion) => (
+          <BusinessTerm kind='configStatus' value={promotion.status} />
+        )
+      ),
+      recordColumn(
+        'startsAt',
+        t('Start time'),
+        (promotion) => promotion.startsAt,
+        (promotion) => dateTime(promotion.startsAt)
+      ),
+      recordColumn(
+        'endsAt',
+        t('End time'),
+        (promotion) => promotion.endsAt,
+        (promotion) => dateTime(promotion.endsAt)
+      ),
+      recordColumn(
+        'participants',
+        t('Participants'),
+        (promotion) => promotion.participants,
+        (promotion) =>
+          `${promotion.participants} / ${promotion.maxParticipants ?? '∞'}`,
+        { enableSorting: false }
+      ),
+      recordColumn(
+        'budgetUsed',
+        t('Budget used'),
+        (promotion) => promotion.usedBudgetMinor,
+        (promotion) =>
+          `${minorToRmb(promotion.usedBudgetMinor)} / ${minorToRmb(promotion.campaignBudgetMinor)} ${t('RMB')}`,
+        { enableSorting: false }
+      ),
+      recordColumn(
+        'actions',
+        t('Actions'),
+        (promotion) => promotion.status,
+        (promotion) =>
+          ['APPROVED', 'ACTIVE'].includes(promotion.status) ? (
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() =>
+                setConfirmation({
+                  kind: 'cancel-special',
+                  promotionVersionId: promotion.id,
+                })
+              }
+            >
+              {t('Cancel special')}
+            </Button>
+          ) : (
+            '—'
+          ),
+        { enableSorting: false }
+      ),
+    ],
+    [t]
+  )
+  const pricePromotionFilters = useMemo(
+    () => [
+      { columnId: 'model', label: t('Model') },
+      { columnId: 'priceGroup', label: t('Price group') },
+      { columnId: 'combination', label: t('Parameter combination') },
+      { columnId: 'status', label: t('Status') },
+    ],
+    [t]
+  )
 
   const confirmationDetails = (() => {
     if (!confirmation) return []
@@ -1268,7 +1405,7 @@ export function AdminPricing(props: {
   }
 
   return (
-    <div className='mx-auto w-full max-w-7xl space-y-4'>
+    <div className='space-y-4'>
       {props.mode !== 'campaigns' && (
         <Card>
           <CardHeader>
@@ -2079,59 +2216,14 @@ export function AdminPricing(props: {
                   <h3 className='text-sm font-semibold'>
                     {t('Limited-time special records')}
                   </h3>
-                  {pricePromotions.length === 0 ? (
-                    <p className='text-muted-foreground text-sm'>
-                      {t('No limited-time specials')}
-                    </p>
-                  ) : (
-                    pricePromotions.map((promotion) => (
-                      <div
-                        key={promotion.id}
-                        className='grid gap-3 rounded-xl border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'
-                      >
-                        <div>
-                          <div className='font-medium'>
-                            {promotion.modelName} · {promotion.priceGroup} ·{' '}
-                            {promotion.combinationKey}
-                          </div>
-                          <div className='text-muted-foreground mt-1 text-sm'>
-                            {promotion.basePoints} →{' '}
-                            <span className='text-foreground font-semibold'>
-                              {promotion.specialPoints} {t('points')}
-                            </span>{' '}
-                            · {dateTime(promotion.startsAt)} —{' '}
-                            {dateTime(promotion.endsAt)}
-                          </div>
-                          <div className='text-muted-foreground mt-1 text-xs'>
-                            <BusinessTerm
-                              kind='configStatus'
-                              value={promotion.status}
-                            />{' '}
-                            · {t('Participants')}: {promotion.participants}/
-                            {promotion.maxParticipants ?? '∞'} ·{' '}
-                            {t('Budget used')}:{' '}
-                            {minorToRmb(promotion.usedBudgetMinor)} /{' '}
-                            {minorToRmb(promotion.campaignBudgetMinor)}{' '}
-                            {t('RMB')}
-                          </div>
-                        </div>
-                        {['APPROVED', 'ACTIVE'].includes(promotion.status) && (
-                          <Button
-                            type='button'
-                            variant='outline'
-                            onClick={() =>
-                              setConfirmation({
-                                kind: 'cancel-special',
-                                promotionVersionId: promotion.id,
-                              })
-                            }
-                          >
-                            {t('Cancel special')}
-                          </Button>
-                        )}
-                      </div>
-                    ))
-                  )}
+                  <PricingRecordsTable
+                    columns={pricePromotionColumns}
+                    data={pricePromotions}
+                    filters={pricePromotionFilters}
+                    getRowId={(promotion) => promotion.id}
+                    initialSorting={[{ id: 'startsAt', desc: true }]}
+                    emptyTitle={t('No limited-time specials')}
+                  />
                 </section>
               </CardContent>
             </Card>

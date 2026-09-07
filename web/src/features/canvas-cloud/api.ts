@@ -666,20 +666,17 @@ export async function getCanvasRuntimeConfiguration(): Promise<CanvasRuntimeConf
 
 export async function getCanvasProviderConfiguration(): Promise<CanvasRuntimeConfiguration> {
   const data = (
-    await api.get<Omit<CanvasRuntimeConfiguration, 'storage'>>(
-      `${webBase}/admin/provider-configuration`
-    )
+    await api.get<
+      Omit<CanvasRuntimeConfiguration, 'taskMedia' | 'databaseBackup'>
+    >(`${webBase}/admin/provider-configuration`)
   ).data
-  return { ...data, storage: [] }
+  return { ...data, taskMedia: null, databaseBackup: null }
 }
 
-export async function publishCanvasRuntimeStorage(input: {
-  environment: 'UAT' | 'STG' | 'PROD'
+export async function publishCanvasTaskMediaStorage(input: {
   endpoint: string
   mediaBucket: string
-  backupBucket: string
   mediaCredentials: Record<string, string>
-  backupCredentials: Record<string, string>
   inputRetentionHours: number
   outputRetentionHours: number
   downloadUrlTtlSeconds: number
@@ -687,10 +684,32 @@ export async function publishCanvasRuntimeStorage(input: {
 }) {
   return (
     await api.post(
-      `${webBase}/admin/runtime-storage/publications`,
+      `${webBase}/admin/runtime-storage/task-media/publications`,
       { ...input, confirmed: true },
       {
-        headers: { 'Idempotency-Key': idempotencyKey('web-runtime-storage') },
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-task-media-storage'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasDatabaseBackupStorage(input: {
+  endpoint: string
+  backupBucket: string
+  backupCredentials: Record<string, string>
+  reason: string
+}) {
+  return (
+    await api.post(
+      `${webBase}/admin/runtime-storage/database-backup/publications`,
+      { ...input, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-database-backup-storage'),
+        },
         skipErrorHandler: true,
       }
     )
@@ -735,16 +754,32 @@ export async function bindCanvasProviderCredentials(input: {
   ).data
 }
 
-export async function checkCanvasRuntimeStorage(
-  storageConfigVersionId: string,
-  bucketRole: 'TASK_MEDIA' | 'DB_BACKUP'
+export async function checkCanvasTaskMediaStorage(
+  storageConfigVersionId: string
 ) {
   return (
     await api.post<import('./types').CanvasRuntimeConnectionCheck>(
-      `${webBase}/admin/runtime-storage/${storageConfigVersionId}/checks`,
-      { bucketRole },
+      `${webBase}/admin/runtime-storage/task-media/${storageConfigVersionId}/checks`,
+      undefined,
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-storage-check') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function checkCanvasDatabaseBackupStorage(
+  backupConfigVersionId: string
+) {
+  return (
+    await api.post<import('./types').CanvasRuntimeConnectionCheck>(
+      `${webBase}/admin/runtime-storage/database-backup/${backupConfigVersionId}/checks`,
+      undefined,
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-database-backup-check'),
+        },
         skipErrorHandler: true,
       }
     )

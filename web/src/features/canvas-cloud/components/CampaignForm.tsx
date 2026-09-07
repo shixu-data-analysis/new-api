@@ -29,7 +29,13 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,7 +44,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
@@ -55,6 +60,7 @@ import {
   formatExactPointQuantity,
   formatExactRmbReference,
 } from '../point-conversion-types'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 
 const campaignKinds: Exclude<CanvasCampaignKind, 'TASK_PRICE_SPECIAL'>[] = [
   'RECHARGE_BONUS',
@@ -67,6 +73,24 @@ function isPointQuantity(value: string): boolean {
   return /^[1-9]\d{0,18}$/u.test(value) && BigInt(value) <= maxPointQuantity
 }
 const positiveInteger = z.string().trim().refine(isPointQuantity)
+function rmbToMinor(value: string): string | null {
+  const match = /^(0|[1-9]\d{0,16})(?:\.(\d{1,2}))?$/u.exec(value.trim())
+  if (!match) return null
+  const minor =
+    BigInt(match[1] ?? '0') * 100n + BigInt((match[2] ?? '').padEnd(2, '0'))
+  return minor <= maxPointQuantity ? minor.toString() : null
+}
+
+function minorToRmb(value: string | undefined): string {
+  if (!value) return ''
+  const minor = BigInt(value)
+  return `${minor / 100n}.${(minor % 100n).toString().padStart(2, '0')}`
+}
+
+const rmbAmount = z
+  .string()
+  .trim()
+  .refine((value) => rmbToMinor(value) !== null)
 const campaignFormSchema = z
   .object({
     name: z.string().trim().min(1).max(128),
@@ -76,21 +100,15 @@ const campaignFormSchema = z
     startsAt: z.string().min(1),
     endsAt: z.string().min(1),
     pointBudget: positiveInteger,
-    referenceBudgetMinor: z
-      .string()
-      .trim()
-      .refine(
-        (value) =>
-          /^(0|[1-9]\d{0,18})$/u.test(value) &&
-          BigInt(value) <= maxPointQuantity
-      ),
+    referenceBudgetRmb: rmbAmount,
     maxParticipants: positiveInteger,
     expectedParticipants: positiveInteger,
     customerIds: z.array(z.string().uuid()).max(100),
-    rechargeAmountMinor: z.string().trim(),
+    rechargeAmountRmb: z.string().trim(),
     reason: z.string().trim().min(1).max(255),
   })
   .superRefine((value, context) => {
+    const rechargeAmountMinor = rmbToMinor(value.rechargeAmountRmb)
     const startsAt = new Date(value.startsAt)
     const endsAt = new Date(value.endsAt)
     if (
@@ -133,11 +151,11 @@ const campaignFormSchema = z
     }
     if (
       value.kind === 'RECHARGE_BONUS' &&
-      !/^[1-9]\d{0,18}$/u.test(value.rechargeAmountMinor)
+      (!rechargeAmountMinor || rechargeAmountMinor === '0')
     ) {
       context.addIssue({
         code: 'custom',
-        path: ['rechargeAmountMinor'],
+        path: ['rechargeAmountRmb'],
         message: 'Recharge amount is required',
       })
     }
@@ -172,22 +190,33 @@ function initialValues(campaign?: CanvasCampaign | null): CampaignFormValues {
     startsAt: datetimeLocal(draft?.startsAt ?? now.toISOString()),
     endsAt: datetimeLocal(draft?.endsAt ?? tomorrow.toISOString()),
     pointBudget: draft?.pointBudget ?? '1000',
-    referenceBudgetMinor: draft?.referenceBudgetMinor ?? '0',
+    referenceBudgetRmb: minorToRmb(draft?.referenceBudgetMinor ?? '0'),
     maxParticipants: draft?.maxParticipants ?? '10',
     expectedParticipants: draft?.expectedParticipants ?? '10',
     customerIds: draft?.customerIds ?? [],
-    rechargeAmountMinor: draft?.rechargeAmountMinor ?? '',
+    rechargeAmountRmb: minorToRmb(draft?.rechargeAmountMinor),
     reason: draft?.reason ?? '',
   }
 }
 
 function apiDraft(values: CampaignFormValues): CanvasCampaignDraft {
-  const { rechargeAmountMinor, ...draft } = values
+  const { rechargeAmountRmb, referenceBudgetRmb, ...draft } = values
+  const referenceBudgetMinor = rmbToMinor(referenceBudgetRmb)
+  const rechargeAmountMinor = rmbToMinor(rechargeAmountRmb)
+  if (
+    referenceBudgetMinor === null ||
+    (values.kind === 'RECHARGE_BONUS' && rechargeAmountMinor === null)
+  ) {
+    throw new Error('Validated campaign amount could not be normalized')
+  }
   return {
     ...draft,
+    referenceBudgetMinor,
     startsAt: new Date(values.startsAt).toISOString(),
     endsAt: new Date(values.endsAt).toISOString(),
-    ...(values.kind === 'RECHARGE_BONUS' ? { rechargeAmountMinor } : {}),
+    ...(values.kind === 'RECHARGE_BONUS'
+      ? { rechargeAmountMinor: rechargeAmountMinor as string }
+      : {}),
   }
 }
 
@@ -262,6 +291,11 @@ export function CampaignForm(props: {
             ? t('Edit point campaign draft')
             : t('Create point campaign')}
         </CardTitle>
+        <CardDescription>
+          {t(
+            'Set the campaign schedule, reward, budget, participation limit, and approval reason before previewing.'
+          )}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -269,126 +303,174 @@ export function CampaignForm(props: {
           onSubmit={review}
           aria-label={t('Point campaign form')}
         >
-          <CampaignField label={t('Campaign name')} error={fieldError('name')}>
-            <Input
-              {...form.register('name')}
-              aria-invalid={Boolean(fieldError('name'))}
-            />
-          </CampaignField>
-          <CampaignField label={t('Campaign kind')} error={fieldError('kind')}>
-            <Select
-              value={kind}
-              onValueChange={(value) => {
-                form.setValue('kind', value as CampaignFormValues['kind'], {
-                  shouldValidate: true,
-                })
-                if (value !== 'MANUAL_BONUS') form.setValue('customerIds', [])
-              }}
-            >
-              <SelectTrigger aria-label={t('Campaign kind')}>
-                <SelectValue>{t(kind)}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {campaignKinds.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {t(value)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CampaignField>
-          <CampaignField
-            label={t('Bonus points')}
-            error={fieldError('bonusPoints')}
-          >
-            <Input
-              inputMode='numeric'
-              {...form.register('bonusPoints')}
-              aria-invalid={Boolean(fieldError('bonusPoints'))}
-            />
-          </CampaignField>
-          <CampaignField
-            label={t('Bonus validity (days)')}
-            error={fieldError('bonusTtlDays')}
-          >
-            <Input
-              type='number'
-              min={1}
-              max={3650}
-              {...form.register('bonusTtlDays')}
-              aria-invalid={Boolean(fieldError('bonusTtlDays'))}
-            />
-          </CampaignField>
-          <CampaignField label={t('Starts at')} error={fieldError('startsAt')}>
-            <Input
-              type='datetime-local'
-              {...form.register('startsAt')}
-              aria-invalid={Boolean(fieldError('startsAt'))}
-            />
-          </CampaignField>
-          <CampaignField label={t('Ends at')} error={fieldError('endsAt')}>
-            <Input
-              type='datetime-local'
-              {...form.register('endsAt')}
-              aria-invalid={Boolean(fieldError('endsAt'))}
-            />
-          </CampaignField>
-          <CampaignField
-            label={t('Point budget')}
-            error={fieldError('pointBudget')}
-          >
-            <Input
-              inputMode='numeric'
-              {...form.register('pointBudget')}
-              aria-invalid={Boolean(fieldError('pointBudget'))}
-            />
-          </CampaignField>
-          <CampaignField
-            label={t('Reference budget (minor RMB)')}
-            error={fieldError('referenceBudgetMinor')}
-          >
-            <Input
-              inputMode='numeric'
-              {...form.register('referenceBudgetMinor')}
-              aria-invalid={Boolean(fieldError('referenceBudgetMinor'))}
-            />
-          </CampaignField>
-          <CampaignField
-            label={t('Maximum participations')}
-            error={fieldError('maxParticipants')}
-          >
-            <Input
-              inputMode='numeric'
-              {...form.register('maxParticipants')}
-              aria-invalid={Boolean(fieldError('maxParticipants'))}
-            />
-          </CampaignField>
-          <CampaignField
-            label={t('Planned participations')}
-            error={fieldError('expectedParticipants')}
-          >
-            <Input
-              inputMode='numeric'
-              {...form.register('expectedParticipants')}
-              aria-invalid={Boolean(fieldError('expectedParticipants'))}
-            />
-          </CampaignField>
-          {kind === 'RECHARGE_BONUS' ? (
+          <fieldset className='grid gap-4 rounded-lg border p-4 lg:col-span-3 lg:grid-cols-2'>
+            <legend className='px-1 text-sm font-semibold'>
+              {t('Campaign basics')}
+            </legend>
             <CampaignField
-              label={t('Recharge amount (minor RMB)')}
-              error={fieldError('rechargeAmountMinor')}
+              label={t('Campaign name')}
+              error={fieldError('name')}
+            >
+              <Input
+                {...form.register('name')}
+                aria-invalid={Boolean(fieldError('name'))}
+              />
+            </CampaignField>
+            <CampaignField
+              label={t('Campaign kind')}
+              error={fieldError('kind')}
+            >
+              <Select
+                value={kind}
+                onValueChange={(value) => {
+                  form.setValue('kind', value as CampaignFormValues['kind'], {
+                    shouldValidate: true,
+                  })
+                  if (value !== 'MANUAL_BONUS') form.setValue('customerIds', [])
+                }}
+              >
+                <SelectTrigger
+                  className='w-full'
+                  aria-label={t('Campaign kind')}
+                >
+                  <CanvasLocalizedSelectValue value={kind} />
+                </SelectTrigger>
+                <SelectContent>
+                  {campaignKinds.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(value)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CampaignField>
+            <CampaignField
+              label={t('Starts at')}
+              error={fieldError('startsAt')}
+            >
+              <Input
+                type='datetime-local'
+                {...form.register('startsAt')}
+                aria-invalid={Boolean(fieldError('startsAt'))}
+              />
+            </CampaignField>
+            <CampaignField label={t('Ends at')} error={fieldError('endsAt')}>
+              <Input
+                type='datetime-local'
+                {...form.register('endsAt')}
+                aria-invalid={Boolean(fieldError('endsAt'))}
+              />
+            </CampaignField>
+          </fieldset>
+
+          <fieldset className='grid gap-4 rounded-lg border p-4 lg:col-span-3 lg:grid-cols-3'>
+            <legend className='px-1 text-sm font-semibold'>
+              {t('Reward and budget')}
+            </legend>
+            <CampaignField
+              label={t('Bonus points')}
+              error={fieldError('bonusPoints')}
             >
               <Input
                 inputMode='numeric'
-                {...form.register('rechargeAmountMinor')}
-                aria-invalid={Boolean(fieldError('rechargeAmountMinor'))}
+                {...form.register('bonusPoints')}
+                aria-invalid={Boolean(fieldError('bonusPoints'))}
               />
             </CampaignField>
-          ) : null}
+            <CampaignField
+              label={t('Bonus validity (days)')}
+              error={fieldError('bonusTtlDays')}
+            >
+              <Input
+                type='number'
+                min={1}
+                max={3650}
+                {...form.register('bonusTtlDays')}
+                aria-invalid={Boolean(fieldError('bonusTtlDays'))}
+              />
+            </CampaignField>
+            <CampaignField
+              label={t('Point budget')}
+              error={fieldError('pointBudget')}
+            >
+              <Input
+                inputMode='numeric'
+                {...form.register('pointBudget')}
+                aria-invalid={Boolean(fieldError('pointBudget'))}
+              />
+            </CampaignField>
+            <CampaignField
+              label={t('Reference budget (RMB)')}
+              error={fieldError('referenceBudgetRmb')}
+            >
+              <Input
+                inputMode='decimal'
+                {...form.register('referenceBudgetRmb')}
+                onBlur={(event) => {
+                  const minor = rmbToMinor(event.currentTarget.value)
+                  if (minor !== null) {
+                    form.setValue('referenceBudgetRmb', minorToRmb(minor), {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                      shouldValidate: true,
+                    })
+                  } else {
+                    void form.trigger('referenceBudgetRmb')
+                  }
+                }}
+                aria-invalid={Boolean(fieldError('referenceBudgetRmb'))}
+              />
+            </CampaignField>
+            <CampaignField
+              label={t('Maximum participations')}
+              error={fieldError('maxParticipants')}
+            >
+              <Input
+                inputMode='numeric'
+                {...form.register('maxParticipants')}
+                aria-invalid={Boolean(fieldError('maxParticipants'))}
+              />
+            </CampaignField>
+            <CampaignField
+              label={t('Planned participations')}
+              error={fieldError('expectedParticipants')}
+            >
+              <Input
+                inputMode='numeric'
+                {...form.register('expectedParticipants')}
+                aria-invalid={Boolean(fieldError('expectedParticipants'))}
+              />
+            </CampaignField>
+            {kind === 'RECHARGE_BONUS' ? (
+              <CampaignField
+                label={t('Recharge amount (RMB)')}
+                error={fieldError('rechargeAmountRmb')}
+              >
+                <Input
+                  inputMode='decimal'
+                  {...form.register('rechargeAmountRmb')}
+                  onBlur={(event) => {
+                    const minor = rmbToMinor(event.currentTarget.value)
+                    if (minor !== null) {
+                      form.setValue('rechargeAmountRmb', minorToRmb(minor), {
+                        shouldDirty: true,
+                        shouldTouch: true,
+                        shouldValidate: true,
+                      })
+                    } else {
+                      void form.trigger('rechargeAmountRmb')
+                    }
+                  }}
+                  aria-invalid={Boolean(fieldError('rechargeAmountRmb'))}
+                />
+              </CampaignField>
+            ) : null}
+          </fieldset>
+
           <CampaignField
             label={t('Approval reason')}
             error={fieldError('reason')}
-            className='lg:col-span-2'
+            className='lg:col-span-3'
           >
             <Input
               {...form.register('reason')}
@@ -526,7 +608,11 @@ function CampaignPreview(props: { preview: CanvasCampaignPreview }) {
         label={t('Projected average RMB per point')}
         value={
           props.preview.projection.afterAverageRmbPerPoint
-            ? `RMB ${formatExactRmbReference(props.preview.projection.afterAverageRmbPerPoint, toIntlLocale(i18n.language))}`
+            ? `RMB ${formatExactRmbReference(
+                props.preview.projection.afterAverageRmbPerPoint,
+                toIntlLocale(i18n.language),
+                2
+              )}`
             : '—'
         }
       />

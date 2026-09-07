@@ -25,7 +25,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -34,9 +33,10 @@ import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTerm } from './BusinessTerm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { TaskCallHistory } from './TaskCallHistory'
 
@@ -286,13 +286,11 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
         onValueChange={(next) => setValue(next === 'ALL' ? '' : (next ?? ''))}
       >
         <SelectTrigger className='w-full' aria-label={label}>
-          <SelectValue>
-            {value ? (
-              <BusinessTermText kind={termKind} value={value} />
-            ) : (
-              t('All')
-            )}
-          </SelectValue>
+          <CanvasLocalizedSelectValue
+            value={value}
+            emptyLabelKey='All'
+            termKind={termKind}
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value='ALL'>{t('All')}</SelectItem>
@@ -365,13 +363,13 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
                   }
                 >
                   <SelectTrigger className='w-full' aria-label={t('Source')}>
-                    <SelectValue>
-                      {(() => {
-                        if (executionOrigin === 'MOCK') return t('Test')
-                        if (executionOrigin === 'REAL') return t('Production')
-                        return t('All')
-                      })()}
-                    </SelectValue>
+                    <CanvasLocalizedSelectValue
+                      value={executionOrigin}
+                      emptyLabelKey='All'
+                      valueLabelKey={
+                        executionOrigin === 'MOCK' ? 'Test' : 'Production'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='ALL'>{t('All')}</SelectItem>

@@ -57,7 +57,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import {
   Sheet,
@@ -91,8 +90,9 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminCustomerOperations } from './AdminCustomerOperations'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTerm } from './BusinessTerm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRechargeOrderSummary } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -399,16 +399,11 @@ export function AdminPointAdjustments({
                   }
                 >
                   <SelectTrigger className='w-full'>
-                    <SelectValue>
-                      {customerStatus ? (
-                        <BusinessTermText
-                          kind='customerStatus'
-                          value={customerStatus}
-                        />
-                      ) : (
-                        t('All statuses')
-                      )}
-                    </SelectValue>
+                    <CanvasLocalizedSelectValue
+                      value={customerStatus}
+                      emptyLabelKey='All statuses'
+                      termKind='customerStatus'
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

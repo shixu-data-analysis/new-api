@@ -29,7 +29,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
@@ -49,7 +48,7 @@ import type {
   CanvasCampaignKind,
   CanvasCampaignStatus,
 } from '../campaign-types'
-import { formatCanvasDateTime } from '../formatters'
+import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
 import {
   formatExactPointQuantity,
   formatExactRmbReference,
@@ -58,6 +57,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTermText } from './BusinessTerm'
 import { CampaignForm } from './CampaignForm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
@@ -83,6 +83,7 @@ export function CampaignManagement() {
   const [kind, setKind] = useState<CanvasCampaignKind | ''>('')
   const [status, setStatus] = useState<CanvasCampaignStatus | ''>('')
   const [selected, setSelected] = useState<CanvasCampaign | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [publishCandidate, setPublishCandidate] = useState<{
     id: string
     previewHash: string
@@ -119,6 +120,8 @@ export function CampaignManagement() {
   const save = useMutation({
     mutationFn: saveCanvasCampaignDraft,
     onSuccess: (result, variables) => {
+      setShowForm(false)
+      setSelected(null)
       setPublishCandidate({
         id: result.id,
         previewHash: result.previewHash,
@@ -177,7 +180,10 @@ export function CampaignManagement() {
           <button
             type='button'
             className='text-primary text-left underline-offset-4 hover:underline'
-            onClick={() => setSelected(row.original)}
+            onClick={() => {
+              setSelected(row.original)
+              setShowForm(false)
+            }}
           >
             {row.original.name}
           </button>
@@ -266,6 +272,18 @@ export function CampaignManagement() {
 
   return (
     <div className='space-y-4'>
+      <div className='flex justify-end'>
+        <Button
+          type='button'
+          variant='outline'
+          onClick={() => {
+            setSelected(null)
+            setShowForm(true)
+          }}
+        >
+          {t('Create point campaign')}
+        </Button>
+      </div>
       <CanvasServerTable
         data={campaigns.data?.items ?? []}
         columns={columns}
@@ -288,7 +306,10 @@ export function CampaignManagement() {
                 }}
               >
                 <SelectTrigger aria-label={t('Campaign kind')}>
-                  <SelectValue />
+                  <CanvasLocalizedSelectValue
+                    value={kind}
+                    emptyLabelKey='All campaign kinds'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='ALL'>{t('All campaign kinds')}</SelectItem>
@@ -314,7 +335,10 @@ export function CampaignManagement() {
                 }}
               >
                 <SelectTrigger aria-label={t('Status')}>
-                  <SelectValue />
+                  <CanvasLocalizedSelectValue
+                    value={status}
+                    emptyLabelKey='All statuses'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
@@ -338,11 +362,6 @@ export function CampaignManagement() {
         }}
         getRowId={(item) => item.id}
       />
-      <CampaignForm
-        campaign={canEdit ? selected : null}
-        saving={save.isPending}
-        onSave={handleSave}
-      />
       {selected ? (
         <CampaignDetail
           campaign={selected}
@@ -350,14 +369,15 @@ export function CampaignManagement() {
           loading={tracking.isPending}
           trackingError={tracking.isError}
           trackingState={trackingState}
-          onNewVersion={() =>
+          onNewVersion={() => {
             setSelected({
               ...selected,
               status: 'DRAFT',
               id: '',
               draft: selected.draft,
             })
-          }
+            setShowForm(true)
+          }}
           onStop={() => setStopCandidate(selected)}
           onPublish={() =>
             selected.id &&
@@ -368,6 +388,13 @@ export function CampaignManagement() {
               campaign: selected,
             })
           }
+        />
+      ) : null}
+      {showForm || canEdit ? (
+        <CampaignForm
+          campaign={canEdit ? selected : null}
+          saving={save.isPending}
+          onSave={handleSave}
         />
       ) : null}
       <PricingActionConfirmation
@@ -396,15 +423,22 @@ export function CampaignManagement() {
                   value: publishCandidate.campaign.draft?.pointBudget ?? '—',
                 },
                 {
-                  label: t('Recharge amount (minor RMB)'),
-                  value:
-                    publishCandidate.campaign.draft?.rechargeAmountMinor ?? '—',
+                  label: t('Recharge amount (RMB)'),
+                  value: publishCandidate.campaign.draft?.rechargeAmountMinor
+                    ? formatMoneyMinor(
+                        publishCandidate.campaign.draft.rechargeAmountMinor,
+                        'RMB'
+                      )
+                    : '—',
                 },
                 {
-                  label: t('Reference budget (minor RMB)'),
-                  value:
-                    publishCandidate.campaign.draft?.referenceBudgetMinor ??
-                    '—',
+                  label: t('Reference budget (RMB)'),
+                  value: publishCandidate.campaign.draft?.referenceBudgetMinor
+                    ? formatMoneyMinor(
+                        publishCandidate.campaign.draft.referenceBudgetMinor,
+                        'RMB'
+                      )
+                    : '—',
                 },
                 {
                   label: t('Maximum participations'),
@@ -526,6 +560,9 @@ function CampaignDetail(props: {
         signal
       ),
   })
+  const selectedCustomer = customers.data?.items.find(
+    (customer) => customer.customerId === customerId
+  )
   const grant = useMutation({
     mutationFn: () => grantCanvasCampaign(props.campaign.id, customerId),
     onSuccess: () => {
@@ -736,11 +773,11 @@ function CampaignDetail(props: {
             }
           />
           <DetailValue
-            label={t('Actual used reference (minor RMB)')}
+            label={t('Actual used reference')}
             value={
               props.campaign.draft
-                ? `${props.campaign.usage.reference} / ${props.campaign.draft.referenceBudgetMinor}`
-                : props.campaign.usage.reference
+                ? `${formatMoneyMinor(props.campaign.usage.reference, 'RMB')} / ${formatMoneyMinor(props.campaign.draft.referenceBudgetMinor ?? '0', 'RMB')}`
+                : formatMoneyMinor(props.campaign.usage.reference, 'RMB')
             }
           />
         </div>
@@ -774,7 +811,8 @@ function CampaignDetail(props: {
                 props.tracking
                   ? `RMB ${formatExactRmbReference(
                       props.tracking.taskTotals.referenceAmountRmb,
-                      toIntlLocale(i18n.language)
+                      toIntlLocale(i18n.language),
+                      2
                     )}`
                   : '—'
               }
@@ -825,7 +863,11 @@ function CampaignDetail(props: {
                 onValueChange={(value) => setCustomerId(value ?? '')}
               >
                 <SelectTrigger aria-label={t('Customer')}>
-                  <SelectValue placeholder={t('Select an active customer')} />
+                  <CanvasLocalizedSelectValue
+                    value={selectedCustomer?.username ?? customerId}
+                    displayValue={selectedCustomer?.username ?? customerId}
+                    placeholderKey='Select an active customer'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {(customers.data?.items ?? []).map((customer) => (
@@ -904,7 +946,8 @@ function CampaignDetail(props: {
                   · RMB{' '}
                   {formatExactRmbReference(
                     event.referenceAmountRmb,
-                    toIntlLocale(i18n.language)
+                    toIntlLocale(i18n.language),
+                    2
                   )}
                 </span>
               </div>

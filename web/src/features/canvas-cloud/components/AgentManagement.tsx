@@ -49,7 +49,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 
 import { getCanvasAgents, provisionCanvasAgent } from '../api'
@@ -57,6 +56,7 @@ import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAgentProfile } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
@@ -300,16 +300,16 @@ export function AgentManagement() {
               }
             >
               <SelectTrigger className='w-full'>
-                <SelectValue>
-                  {status ? (
+                <CanvasLocalizedSelectValue
+                  value={status}
+                  emptyLabelKey='All statuses'
+                  displayValue={
                     <CanvasStatusBadge
                       status={status}
                       label={t(status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
                     />
-                  ) : (
-                    t('All statuses')
-                  )}
-                </SelectValue>
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

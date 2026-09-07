@@ -100,11 +100,17 @@ describe('Published model catalog', () => {
       screen.queryByText('85000000-0000-7000-8000-000000000004')
     ).not.toBeInTheDocument()
     expect(screen.queryByText('canvas.image.alpha')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Column filters' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'View' })).toBeVisible()
+    expect(
+      screen.getByRole('combobox', { name: 'Rows per page' })
+    ).toBeVisible()
     let rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Alpha model')
     expect(rows[2]).toHaveTextContent('Zeta model')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sort by Version' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Version' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Asc' }))
     rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Zeta model')
     expect(rows[2]).toHaveTextContent('Alpha model')

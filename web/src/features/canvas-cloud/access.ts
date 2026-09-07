@@ -36,8 +36,6 @@ export const canvasAdminSections = [
   'audit',
 ] as const
 
-export const canvasAgentSections = ['agent-center'] as const
-
 export function isCanvasAdministrator(
   principalType: CanvasPrincipalType
 ): boolean {
@@ -46,9 +44,8 @@ export function isCanvasAdministrator(
 
 export function getCanvasHomeSection(
   principalType: CanvasPrincipalType
-): 'dashboard' | 'overview' | 'agent-center' {
+): 'dashboard' | 'overview' {
   if (isCanvasAdministrator(principalType)) return 'dashboard'
-  if (principalType === 'AGENT') return 'agent-center'
   return 'overview'
 }
 
@@ -75,7 +72,6 @@ export function isCanvasSectionAllowed(
 ): boolean {
   let allowed: readonly string[] = canvasCustomerSections
   if (isCanvasAdministrator(principalType)) allowed = canvasAdminSections
-  if (principalType === 'AGENT') allowed = canvasAgentSections
   return (
     (allowed as readonly string[]).includes(section) ||
     (principalType === 'CUSTOMER' &&

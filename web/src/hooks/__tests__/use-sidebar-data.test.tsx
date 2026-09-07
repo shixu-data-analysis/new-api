@@ -20,7 +20,6 @@ const { canvasShellState } = vi.hoisted(() => ({
       data: {
         principalType: 'PLATFORM_ADMIN' as
           | 'CUSTOMER'
-          | 'AGENT'
           | 'PLATFORM_ADMIN'
           | 'SUPER_ADMIN',
         inviterEnabled: false,

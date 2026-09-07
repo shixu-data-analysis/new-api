@@ -95,6 +95,23 @@ beforeEach(async () => {
   mocks.assignCanvasCustomerPriceGroup.mockResolvedValue({})
 })
 describe('customer price assignment', () => {
+  it('keeps the customer operation tabs in one horizontally scrollable row', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <AdminCustomerOperations customerId='customer-a' />
+      </QueryClientProvider>
+    )
+
+    const tabList = screen.getByRole('tablist')
+    expect(tabList).toHaveClass('w-full', 'flex-nowrap', 'overflow-x-auto')
+    screen
+      .getAllByRole('tab')
+      .forEach((tab) => expect(tab).toHaveClass('flex-none'))
+  })
+
   it('reviews normalized input and refreshes the current plan and history after confirmation', async () => {
     mount()
     const select = await screen.findByRole('combobox', {

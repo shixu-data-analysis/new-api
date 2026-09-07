@@ -18,6 +18,7 @@ import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 
 import { AgentCenter } from '../AgentCenter'
 import { AgentManagement } from '../AgentManagement'
@@ -54,6 +55,7 @@ function renderWithClient(element: React.ReactNode) {
 describe('Canvas Agent and provider pricing governance', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
   })
 
   beforeEach(async () => {
@@ -317,5 +319,34 @@ describe('Canvas Agent and provider pricing governance', () => {
       .map((element) => element.closest('td'))
       .find(Boolean)
     expect(qualityCell).toHaveClass('whitespace-normal', 'break-all')
+    expect(screen.getByRole('button', { name: 'Column filters' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'View' })).toBeVisible()
+    expect(
+      screen.getByRole('combobox', { name: 'Rows per page' })
+    ).toBeVisible()
+  })
+
+  it('localizes every upstream cost table heading in Chinese', async () => {
+    await i18next.changeLanguage('zh')
+    renderWithClient(<ProviderPricingMatrix />)
+
+    expect(
+      await screen.findByRole('columnheader', { name: '提供商' })
+    ).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '模型' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '质量' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '计费单位' })).toBeVisible()
+    expect(
+      screen.getByRole('columnheader', { name: '提供商费率版本' })
+    ).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '当前成本' })).toBeVisible()
+    expect(screen.getByRole('columnheader', { name: '定价风险' })).toBeVisible()
+    expect(
+      screen.getByRole('columnheader', { name: '客户价格对比' })
+    ).toBeVisible()
+    expect(screen.queryByText('Provider rate version')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Customer price comparison')
+    ).not.toBeInTheDocument()
   })
 })

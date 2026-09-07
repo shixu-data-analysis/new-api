@@ -135,7 +135,7 @@ describe('provider pricing matrix form', () => {
     const user = userEvent.setup()
     renderMatrix()
 
-    await user.click(await screen.findByText(/^View/))
+    await user.click(await screen.findByText(/^View \(/))
     await user.click(screen.getByRole('button', { name: 'Add customer price' }))
     await user.selectOptions(
       await screen.findByRole('combobox', { name: 'Price group' }),

@@ -42,7 +42,6 @@ import {
   isCanvasAdministrator,
   isCanvasSectionAllowed,
   type canvasAdminSections as adminSections,
-  type canvasAgentSections as agentSections,
   type canvasCustomerSections as customerSections,
 } from './access'
 import {
@@ -68,14 +67,13 @@ import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
-import { CampaignManagement } from './components/CampaignManagement'
 import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { ExecutionSettings } from './components/ExecutionSettings'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
-import { PointConversionDashboard } from './components/PointConversionDashboard'
+import { PointCampaignWorkspace } from './components/PointCampaignWorkspace'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
 import { RuntimeConfiguration } from './components/RuntimeConfiguration'
@@ -85,8 +83,7 @@ import { CanvasRechargeCodes } from './RechargeCodes'
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
-type AgentSection = (typeof agentSections)[number]
-type CanvasSection = CustomerSection | AdminSection | AgentSection
+type CanvasSection = CustomerSection | AdminSection | 'agent-center'
 
 const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
@@ -623,18 +620,13 @@ function AdminContent(props: {
   if (props.section === 'agents') return <AgentManagement />
   if (props.section === 'point-campaigns') {
     return (
-      <div className='space-y-6'>
-        <PointConversionDashboard />
-        <CampaignManagement />
-        <AdminPricing
-          mode='campaigns'
-          prices={data.prices}
-          pricePromotions={data.pricePromotions ?? []}
-          onChanged={() =>
-            queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
-          }
-        />
-      </div>
+      <PointCampaignWorkspace
+        prices={data.prices}
+        pricePromotions={data.pricePromotions ?? []}
+        onChanged={() =>
+          queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
+        }
+      />
     )
   }
   if (props.section === 'recharge-codes') {
@@ -706,7 +698,7 @@ export function CanvasCloud() {
   })
   if (session.isPending) {
     return (
-      <SectionPageLayout>
+      <SectionPageLayout fluid={false}>
         <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <LoadingState />
@@ -716,7 +708,7 @@ export function CanvasCloud() {
   }
   if (session.isError) {
     return (
-      <SectionPageLayout>
+      <SectionPageLayout fluid={false}>
         <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
@@ -741,7 +733,7 @@ export function CanvasCloud() {
     )
   ) {
     return (
-      <SectionPageLayout>
+      <SectionPageLayout fluid={false}>
         <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <ErrorState
@@ -774,7 +766,7 @@ export function CanvasCloud() {
     )
   } else content = <AgentCenter />
   return (
-    <SectionPageLayout>
+    <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
         {t(sectionTitles[section])}
       </SectionPageLayout.Title>

@@ -47,7 +47,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -64,8 +63,9 @@ import {
 import { formatMoneyMinor } from '../formatters'
 import type { CanvasAdminRechargeOrder, CanvasAdminRefund } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTerm } from './BusinessTerm'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import {
   CanvasRechargeOrderSummary,
@@ -481,16 +481,12 @@ export function AdminRefundRecovery({
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Status')}>
-                        {refundStatus ? (
-                          <BusinessTermText
-                            kind='refundStatus'
-                            value={refundStatus}
-                          />
-                        ) : (
-                          t('All statuses')
-                        )}
-                      </SelectValue>
+                      <CanvasLocalizedSelectValue
+                        value={refundStatus}
+                        emptyLabelKey='All statuses'
+                        placeholderKey='Status'
+                        termKind='refundStatus'
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

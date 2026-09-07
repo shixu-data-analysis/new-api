@@ -16,8 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import zh from '@/i18n/locales/zh.json'
 
 import { PointConversionDashboard } from '../PointConversionDashboard'
 
@@ -70,6 +73,8 @@ describe('point conversion dashboard', () => {
     expect(
       await screen.findByText('9,223,372,036,854,775,807')
     ).toBeInTheDocument()
+    expect(screen.getByText('RMB 100.00')).toBeInTheDocument()
+    expect(screen.getByText('RMB 0.10')).toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Expiring available points' })
@@ -81,5 +86,20 @@ describe('point conversion dashboard', () => {
         expect.any(AbortSignal)
       )
     })
+  })
+
+  it('shows localized labels instead of raw filter values in Chinese', async () => {
+    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
+    await i18next.changeLanguage('zh')
+    renderDashboard()
+
+    expect(
+      await screen.findByRole('combobox', { name: '积分类型' })
+    ).toHaveTextContent('全部积分类型')
+    expect(screen.getByRole('combobox', { name: '批次状态' })).toHaveTextContent(
+      '全部批次状态'
+    )
+
+    await i18next.changeLanguage('en')
   })
 })

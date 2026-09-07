@@ -40,7 +40,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -59,9 +58,10 @@ import type {
   CanvasInviteCodeStatus,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
@@ -340,16 +340,16 @@ export function AgentCenter() {
                   }
                 >
                   <SelectTrigger className='w-full'>
-                    <SelectValue>
-                      {inviteStatus ? (
+                    <CanvasLocalizedSelectValue
+                      value={inviteStatus}
+                      emptyLabelKey='All statuses'
+                      displayValue={
                         <CanvasStatusBadge
                           status={inviteStatus}
                           label={t(`Invite status ${inviteStatus}`)}
                         />
-                      ) : (
-                        t('All statuses')
-                      )}
-                    </SelectValue>
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
@@ -406,16 +406,11 @@ export function AgentCenter() {
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue>
-                        {customerStatus ? (
-                          <BusinessTermText
-                            kind='customerStatus'
-                            value={customerStatus}
-                          />
-                        ) : (
-                          t('All statuses')
-                        )}
-                      </SelectValue>
+                      <CanvasLocalizedSelectValue
+                        value={customerStatus}
+                        emptyLabelKey='All statuses'
+                        termKind='customerStatus'
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

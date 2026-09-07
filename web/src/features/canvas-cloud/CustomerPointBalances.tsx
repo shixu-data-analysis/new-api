@@ -29,13 +29,13 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
 import { getCanvasAdminCustomers } from './api'
-import { BusinessTerm, BusinessTermText } from './components/BusinessTerm'
+import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { CopyableText } from './components/CopyableText'
 import type { CanvasAdminCustomerPointBalance } from './types'
@@ -137,7 +137,7 @@ export function CanvasCustomerPointBalances() {
   )
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>{t('Canvas Customers')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
         <div className='space-y-3'>
@@ -183,16 +183,11 @@ export function CanvasCustomerPointBalances() {
                     }}
                   >
                     <SelectTrigger className='w-full' aria-label={t('Status')}>
-                      <SelectValue>
-                        {status ? (
-                          <BusinessTermText
-                            kind='customerStatus'
-                            value={status}
-                          />
-                        ) : (
-                          t('All statuses')
-                        )}
-                      </SelectValue>
+                      <CanvasLocalizedSelectValue
+                        value={status}
+                        emptyLabelKey='All statuses'
+                        termKind='customerStatus'
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

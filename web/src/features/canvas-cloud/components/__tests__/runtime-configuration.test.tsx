@@ -17,12 +17,14 @@ import { RuntimeConfiguration } from '../RuntimeConfiguration'
 
 const apiMocks = vi.hoisted(() => ({
   bindCanvasProviderCredentials: vi.fn(),
+  checkCanvasDatabaseBackupStorage: vi.fn(),
   checkCanvasProviderCredentialGroup: vi.fn(),
-  checkCanvasRuntimeStorage: vi.fn(),
+  checkCanvasTaskMediaStorage: vi.fn(),
   getCanvasProviderConfiguration: vi.fn(),
   getCanvasRuntimeConfiguration: vi.fn(),
+  publishCanvasDatabaseBackupStorage: vi.fn(),
   publishCanvasProviderCredentialGroup: vi.fn(),
-  publishCanvasRuntimeStorage: vi.fn(),
+  publishCanvasTaskMediaStorage: vi.fn(),
 }))
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -30,6 +32,7 @@ vi.mock('../../api', () => apiMocks)
 vi.mock('sonner', () => ({ toast: toastMocks }))
 
 const runtime = {
+  environment: 'UAT',
   providers: [
     {
       id: '85000000-0000-7000-8000-000000000001',
@@ -38,34 +41,40 @@ const runtime = {
       credentialSchemes: ['bearerAuth', 'googleApiKey'],
     },
   ],
-  storage: [
-    {
-      id: '85000000-0000-7000-8000-000000000002',
-      environment: 'UAT',
-      version: 1,
-      status: 'PUBLISHED',
-      endpoint: 'https://account.r2.cloudflarestorage.com',
-      mediaBucket: 'canvas-uat-task-media',
-      backupBucket: 'canvas-uat-db-backups',
-      inputRetentionHours: 24,
-      outputRetentionHours: 72,
-      downloadUrlTtlSeconds: 900,
-      reason: 'initial',
-      effectiveAt: '2026-09-04T00:00:00.000Z',
-      createdByPrincipalId: 'admin-id',
-      updatedBy: 'Platform Admin',
-      createdAt: '2026-09-04T00:00:00.000Z',
-      checks: {
-        taskMedia: {
-          outcome: 'PASSED',
-          reasonCode: null,
-          checkedBy: 'Platform Admin',
-          checkedAt: '2026-09-04T00:01:00.000Z',
-        },
-        databaseBackup: null,
-      },
+  taskMedia: {
+    id: '85000000-0000-7000-8000-000000000002',
+    version: 1,
+    status: 'PUBLISHED',
+    endpoint: 'https://account.r2.cloudflarestorage.com',
+    bucket: 'canvas-uat-task-media',
+    inputRetentionHours: 24,
+    outputRetentionHours: 72,
+    downloadUrlTtlSeconds: 900,
+    reason: 'initial',
+    effectiveAt: '2026-09-04T00:00:00.000Z',
+    createdByPrincipalId: 'admin-id',
+    updatedBy: 'Platform Admin',
+    createdAt: '2026-09-04T00:00:00.000Z',
+    latestCheck: {
+      outcome: 'PASSED',
+      reasonCode: null,
+      checkedBy: 'Platform Admin',
+      checkedAt: '2026-09-04T00:01:00.000Z',
     },
-  ],
+  },
+  databaseBackup: {
+    id: '85000000-0000-7000-8000-000000000007',
+    version: 2,
+    status: 'PUBLISHED',
+    endpoint: 'https://account.r2.cloudflarestorage.com',
+    bucket: 'canvas-uat-db-backups',
+    reason: 'separate backup',
+    effectiveAt: '2026-09-04T00:00:00.000Z',
+    createdByPrincipalId: 'admin-id',
+    updatedBy: 'Platform Admin',
+    createdAt: '2026-09-04T00:00:00.000Z',
+    latestCheck: null,
+  },
   credentialGroups: [
     {
       id: '85000000-0000-7000-8000-000000000003',
@@ -136,7 +145,8 @@ describe('Canvas runtime configuration', () => {
     apiMocks.getCanvasRuntimeConfiguration.mockResolvedValue(runtime)
     apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
       ...runtime,
-      storage: [],
+      taskMedia: null,
+      databaseBackup: null,
     })
   })
 
@@ -147,33 +157,78 @@ describe('Canvas runtime configuration', () => {
     expect(screen.getByText('Model credential bindings')).toBeVisible()
     expect(screen.queryByText('Runtime storage')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('form', { name: 'Publish runtime storage' })
+      screen.queryByRole('form', { name: 'Publish task media configuration' })
     ).not.toBeInTheDocument()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledTimes(1)
     expect(apiMocks.getCanvasRuntimeConfiguration).not.toHaveBeenCalled()
   })
 
+  it('shows only the backend environment and separates storage responsibilities', async () => {
+    renderRuntime()
+
+    const environment = await screen.findByText('Current environment: UAT')
+    expect(environment).toBeVisible()
+    expect(environment).toHaveClass('whitespace-nowrap')
+    expect(screen.getByRole('tablist')).toHaveClass(
+      'flex-nowrap',
+      'overflow-x-auto'
+    )
+    screen
+      .getAllByRole('tab')
+      .forEach((tab) => expect(tab).toHaveClass('h-8', 'flex-none', 'px-3'))
+    expect(
+      screen.queryByRole('combobox', { name: 'Environment' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Task media' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(screen.getByText('canvas-uat-task-media')).toBeVisible()
+    expect(
+      screen.queryByRole('form', {
+        name: 'Publish task media configuration',
+      })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('canvas-uat-db-backups')).not.toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update configuration' })
+    )
+    expect(
+      screen.getByRole('form', { name: 'Publish task media configuration' })
+    ).toBeVisible()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Database backups' }))
+    expect(screen.getByText('canvas-uat-db-backups')).toBeVisible()
+    expect(screen.queryByText('canvas-uat-task-media')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('form', {
+        name: 'Publish database backup configuration',
+      })
+    ).not.toBeInTheDocument()
+  })
+
   it('shows ownership and latest checks without ever redisplaying secret values', async () => {
     renderRuntime()
 
-    expect(await screen.findAllByText(/Platform Admin/)).not.toHaveLength(0)
-    expect(screen.getByText('Passed')).toBeVisible()
+    expect(await screen.findByText('Passed')).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('tab', { name: 'Provider credential groups' })
+    )
+    expect(screen.getAllByText(/Platform Admin/)).not.toHaveLength(0)
     expect(screen.getByText('Failed')).toBeVisible()
     expect(screen.queryByText(/stored-secret/i)).not.toBeInTheDocument()
-    expect(
-      screen
-        .getAllByLabelText(/secret/i)
-        .every(
-          (input) =>
-            input.getAttribute('type') === 'password' &&
-            (input as HTMLInputElement).value === ''
-        )
-    ).toBe(true)
+    expect(screen.queryByLabelText(/secret/i)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Replace secret' }))
     await waitFor(() =>
       expect(screen.getByLabelText('Secret value · bearerAuth')).toHaveFocus()
     )
+    expect(screen.getByLabelText('Secret value · bearerAuth')).toHaveAttribute(
+      'type',
+      'password'
+    )
+    expect(screen.getByLabelText('Secret value · bearerAuth')).toHaveValue('')
     expect(screen.getByLabelText('Provider')).toBeDisabled()
     expect(
       screen
@@ -185,6 +240,12 @@ describe('Canvas runtime configuration', () => {
   it('derives fixed credential scheme fields from the selected provider', async () => {
     renderRuntime()
 
+    fireEvent.click(
+      await screen.findByRole('tab', { name: 'Provider credential groups' })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage credential groups' })
+    )
     fireEvent.change(await screen.findByLabelText('Provider'), {
       target: { value: '85000000-0000-7000-8000-000000000001' },
     })
@@ -212,8 +273,9 @@ describe('Canvas runtime configuration', () => {
     renderRuntime()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Check connection' })
+      await screen.findByRole('tab', { name: 'Provider credential groups' })
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Check connection' }))
 
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(

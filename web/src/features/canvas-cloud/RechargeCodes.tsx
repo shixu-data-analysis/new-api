@@ -41,7 +41,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -51,8 +50,9 @@ import {
   revealCanvasCode,
 } from './api'
 import { getCanvasCampaigns } from './campaign-api'
-import { BusinessTerm, BusinessTermText } from './components/BusinessTerm'
+import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { cnyToMinor } from './recharge-code-amount'
 import type {
@@ -402,16 +402,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   className='w-full'
                   aria-label={t('Status')}
                 >
-                  <SelectValue>
-                    {status ? (
-                      <BusinessTermText
-                        kind='rechargeCodeStatus'
-                        value={status}
-                      />
-                    ) : (
-                      t('All statuses')
-                    )}
-                  </SelectValue>
+                  <CanvasLocalizedSelectValue
+                    value={status}
+                    emptyLabelKey='All statuses'
+                    termKind='rechargeCodeStatus'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
@@ -644,7 +639,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   if (props.embedded) return content
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
         {t('Canvas Recharge Codes')}
       </SectionPageLayout.Title>

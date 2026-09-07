@@ -26,4 +26,21 @@ describe('exact decimal display', () => {
     expect(formatExactRmbReference('-1234.50000000', 'en-US')).toBe('-1,234.5')
     expect(formatExactRmbReference('0.00000000', 'en-US')).toBe('0')
   })
+
+  it.each(['en-US', 'zh-CN', 'zh-TW', 'fr', 'ru', 'ja', 'vi'])(
+    'rounds to a fixed two-decimal display without converting through Number in %s',
+    (locale) => {
+      const decimal = new Intl.NumberFormat(locale)
+        .formatToParts(1.1)
+        .find((part) => part.type === 'decimal')?.value
+      const integer = new Intl.NumberFormat(locale).format(9007199254740993n)
+      expect(formatExactRmbReference('9007199254740993.126', locale, 2)).toBe(
+        `${integer}${decimal}13`
+      )
+      expect(formatExactRmbReference('-0.005', locale, 2)).toBe(
+        `-0${decimal}01`
+      )
+      expect(formatExactRmbReference('0', locale, 2)).toBe(`0${decimal}00`)
+    }
+  )
 })

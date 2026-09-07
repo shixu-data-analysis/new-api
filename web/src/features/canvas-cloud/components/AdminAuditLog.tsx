@@ -29,7 +29,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -40,6 +39,7 @@ import type { CanvasAuditEventPage } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 
@@ -254,9 +254,10 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
           }
         >
           <SelectTrigger className='w-full'>
-            <SelectValue>
-              {category ? t(category) : t('All categories')}
-            </SelectValue>
+            <CanvasLocalizedSelectValue
+              value={category}
+              emptyLabelKey='All categories'
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>{t('All categories')}</SelectItem>
@@ -276,9 +277,10 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
           }
         >
           <SelectTrigger className='w-full'>
-            <SelectValue>
-              {outcome ? t(outcome) : t('All outcomes')}
-            </SelectValue>
+            <CanvasLocalizedSelectValue
+              value={outcome}
+              emptyLabelKey='All outcomes'
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>{t('All outcomes')}</SelectItem>

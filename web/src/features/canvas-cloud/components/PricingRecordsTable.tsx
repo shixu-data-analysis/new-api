@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type DataTableColumnClassName,
   DataTablePagination,
   DataTableToolbar,
   DataTableView,
@@ -50,6 +51,7 @@ export function PricingRecordsTable<TData>(props: {
   getRowId: (row: TData) => string
   initialSorting?: SortingState
   emptyTitle: string
+  getColumnClassName?: DataTableColumnClassName
 }) {
   const { t } = useTranslation()
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -122,6 +124,7 @@ export function PricingRecordsTable<TData>(props: {
         tableContainerClassName='overflow-x-auto'
         tableClassName='min-w-max'
         applyHeaderSize
+        getColumnClassName={props.getColumnClassName}
         emptyTitle={props.emptyTitle}
         emptyDescription={t('No records found. Try adjusting your filters.')}
       />

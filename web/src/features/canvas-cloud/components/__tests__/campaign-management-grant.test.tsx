@@ -43,7 +43,9 @@ vi.mock('../../api', () => ({
   getCanvasAdminCustomers: mocks.getCanvasAdminCustomers,
 }))
 vi.mock('sonner', () => ({ toast: toastMocks }))
-vi.mock('../CampaignForm', () => ({ CampaignForm: () => null }))
+vi.mock('../CampaignForm', () => ({
+  CampaignForm: () => <section aria-label='Campaign editor' />,
+}))
 vi.mock('../CanvasServerTable', () => ({
   CanvasServerTable: (props: {
     columns: Array<{ id?: string; cell?: (context: unknown) => ReactNode }>
@@ -122,6 +124,24 @@ const campaign = {
 }
 
 describe('manual campaign grant confirmation', () => {
+  it('keeps the campaign editor closed until the administrator starts creating', async () => {
+    mocks.getCanvasCampaigns.mockResolvedValue({ items: [], total: 0 })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CampaignManagement />
+      </QueryClientProvider>
+    )
+
+    expect(screen.queryByLabelText('Campaign editor')).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create point campaign' })
+    )
+    expect(screen.getByLabelText('Campaign editor')).toBeVisible()
+  })
+
   it('selects an active customer and mutates only after explicit confirmation', async () => {
     mocks.getCanvasCampaigns.mockResolvedValue({ items: [campaign], total: 1 })
     mocks.getCanvasCampaignTracking.mockResolvedValue({

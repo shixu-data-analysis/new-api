@@ -96,8 +96,37 @@ export function formatExactPointQuantity(
 /** Keeps the server's fixed decimal reference precise while applying locale grouping. */
 export function formatExactRmbReference(
   value: string,
-  locale?: string
+  locale?: string,
+  fractionDigits?: number
 ): string {
+  if (fractionDigits !== undefined) {
+    const match = /^(-?)(\d+)(?:\.(\d*))?$/u.exec(value)
+    if (!match || !Number.isInteger(fractionDigits) || fractionDigits < 0) {
+      throw new RangeError('Invalid fixed decimal value')
+    }
+    const [, sign = '', integer = '0', sourceFraction = ''] = match
+    const scale = 10n ** BigInt(fractionDigits)
+    const keptFraction = sourceFraction
+      .slice(0, fractionDigits)
+      .padEnd(fractionDigits, '0')
+    let scaled = BigInt(integer) * scale + BigInt(keptFraction || '0')
+    if ((sourceFraction[fractionDigits] ?? '0') >= '5') scaled += 1n
+    const formattedInteger = formatExactPointQuantity(
+      (scaled / scale).toString(),
+      locale
+    )
+    const parts = new Intl.NumberFormat(locale).formatToParts(-1.1)
+    const minus = parts.find((part) => part.type === 'minusSign')?.value ?? '-'
+    if (fractionDigits === 0) {
+      return `${sign && scaled ? minus : ''}${formattedInteger}`
+    }
+    const decimal = parts.find((part) => part.type === 'decimal')?.value ?? '.'
+    return `${sign && scaled ? minus : ''}${formattedInteger}${decimal}${(
+      scaled % scale
+    )
+      .toString()
+      .padStart(fractionDigits, '0')}`
+  }
   const [integer, fraction = ''] = value.split('.')
   const formattedInteger = formatExactPointQuantity(integer, locale)
   const significantFraction = fraction.replace(/0+$/u, '')

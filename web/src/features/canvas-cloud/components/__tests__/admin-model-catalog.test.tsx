@@ -138,6 +138,14 @@ describe('Canvas model catalog folder upload', () => {
     })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Client preview model')).toBeInTheDocument()
+    screen
+      .getAllByRole('tablist')
+      .forEach((tabList) =>
+        expect(tabList).toHaveClass('w-full', 'flex-nowrap', 'overflow-x-auto')
+      )
+    screen
+      .getAllByRole('tab')
+      .forEach((tab) => expect(tab).toHaveClass('flex-none'))
     expect(screen.getByText('canvas.image.preview')).toBeInTheDocument()
     expect(
       screen.getByText('Internal testing until pricing is published')

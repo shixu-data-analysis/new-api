@@ -165,28 +165,6 @@ export function useSidebarData(): SidebarData {
         ],
       }
     }
-    if (canvasSession.data.principalType === 'AGENT') {
-      return {
-        navGroups: [
-          {
-            id: 'canvas-agent',
-            title: t('Canvas Cloud'),
-            items: [
-              {
-                title: t('Inviter center'),
-                url: '/canvas-cloud/agent-center',
-                icon: Users,
-              },
-            ],
-          },
-          {
-            id: 'account',
-            title: t('Account'),
-            items: [{ title: t('Profile'), url: '/profile', icon: User }],
-          },
-        ],
-      }
-    }
     return {
       navGroups: [
         {

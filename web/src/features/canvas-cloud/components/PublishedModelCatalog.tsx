@@ -15,11 +15,18 @@ If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { StaticDataTable } from '@/components/data-table'
+import {
+  DataTableColumnHeader,
+  DataTablePagination,
+  DataTableToolbar,
+  DataTableView,
+  useDataTable,
+} from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -43,15 +50,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
@@ -59,15 +58,13 @@ import {
   publishCanvasModelPresentation,
 } from '../api'
 import type { CanvasAdminTestingModel } from '../types'
-import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import {
   CanvasColumnFilterField,
   CanvasColumnFilterPanel,
 } from './CanvasColumnFilterPanel'
-import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
-
-type SortKey = 'name' | 'capability' | 'version' | 'visibility' | 'pricing'
 
 function visibilityRank(model: CanvasAdminTestingModel) {
   if (!model.enabled) return 0
@@ -82,9 +79,6 @@ export function PublishedModelCatalog() {
   const [search, setSearch] = useState('')
   const [modelId, setModelId] = useState('')
   const [visibility, setVisibility] = useState('ALL')
-  const [sort, setSort] = useState<SortKey>('name')
-  const [descending, setDescending] = useState(false)
-  const [page, setPage] = useState(1)
   const [editing, setEditing] = useState<CanvasAdminTestingModel | null>(null)
   const [toggling, setToggling] = useState<CanvasAdminTestingModel | null>(null)
   const [displayName, setDisplayName] = useState('')
@@ -124,63 +118,186 @@ export function PublishedModelCatalog() {
         (!idQuery || providerModelIds.includes(idQuery))
       )
     })
-    const direction = descending ? -1 : 1
-    return matches.sort((left, right) => {
-      let result = 0
-      if (sort === 'name') result = left.name.localeCompare(right.name)
-      if (sort === 'capability') {
-        result = String(
-          left.publicCatalogSnapshot.capability ?? ''
-        ).localeCompare(String(right.publicCatalogSnapshot.capability ?? ''))
-      }
-      if (sort === 'version') result = left.version - right.version
-      if (sort === 'visibility') {
-        result = visibilityRank(left) - visibilityRank(right)
-      }
-      if (sort === 'pricing') {
-        const leftProgress = left.totalTargets
-          ? left.pricedTargets / left.totalTargets
-          : 0
-        const rightProgress = right.totalTargets
-          ? right.pricedTargets / right.totalTargets
-          : 0
-        result = leftProgress - rightProgress
-      }
-      return result * direction
-    })
-  }, [descending, modelId, models.data, search, sort, visibility])
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 20))
-  const currentPage = Math.min(page, pageCount)
-  const visibleModels = filtered.slice((currentPage - 1) * 20, currentPage * 20)
+    return matches
+  }, [modelId, models.data, search, visibility])
   let visibilityFilterLabel = t('All')
   if (visibility === 'CUSTOMER') {
     visibilityFilterLabel = t('Visible to customers')
   } else if (visibility === 'INTERNAL') {
     visibilityFilterLabel = t('Internal only')
   }
-  function startEdit(model: CanvasAdminTestingModel) {
+  const startEdit = useCallback((model: CanvasAdminTestingModel) => {
     setDisplayName(model.name)
     setDescription(model.description)
     setEditing(model)
-  }
-  function changeSort(next: SortKey) {
-    if (sort === next) setDescending((value) => !value)
-    else {
-      setSort(next)
-      setDescending(false)
-    }
-    setPage(1)
-  }
-  function sortHeader(label: string, key: SortKey) {
-    return (
-      <CanvasStaticSortHeader
-        active={sort === key}
-        descending={descending}
-        label={t(label)}
-        onClick={() => changeSort(key)}
-      />
-    )
-  }
+  }, [])
+  const columns = useMemo<ColumnDef<CanvasAdminTestingModel, unknown>[]>(
+    () => [
+      {
+        id: 'name',
+        accessorFn: (model) => model.name,
+        size: 208,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Client model')} />
+        ),
+        meta: { label: t('Client model') },
+        cell: ({ row }) => {
+          const model = row.original
+          return (
+            <div className='whitespace-normal'>
+              <div className='font-medium break-words'>{model.name}</div>
+              {model.description && (
+                <div className='text-muted-foreground mt-1 max-w-md'>
+                  {model.description}
+                </div>
+              )}
+              <div className='text-muted-foreground mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 font-mono text-xs'>
+                <span>{t('Model ID')}:</span>
+                <div className='min-w-0 space-y-0.5'>
+                  {model.modelIds.length > 0 ? (
+                    model.modelIds.map(({ quality, modelId }) => (
+                      <div
+                        key={`${quality ?? 'default'}:${modelId}`}
+                        className='break-all'
+                      >
+                        {quality ? `${quality}: ${modelId}` : modelId}
+                      </div>
+                    ))
+                  ) : (
+                    <div>—</div>
+                  )}
+                </div>
+              </div>
+              <details className='mt-2'>
+                <summary className='text-primary cursor-pointer text-xs'>
+                  {t('View client display configuration')}
+                </summary>
+                <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded p-3 text-xs'>
+                  {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'capability',
+        accessorFn: (model) =>
+          typeof model.publicCatalogSnapshot.capability === 'string'
+            ? model.publicCatalogSnapshot.capability
+            : '',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Capability')} />
+        ),
+        meta: { label: t('Capability') },
+        cell: ({ getValue }) => t(String(getValue() || '—')),
+      },
+      {
+        id: 'version',
+        accessorFn: (model) => model.version,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Version')} />
+        ),
+        meta: { label: t('Version') },
+        cell: ({ row }) => (
+          <div className='tabular-nums'>
+            <div>
+              {t('Technical')} v{row.original.version}
+            </div>
+            {row.original.presentationVersion && (
+              <div className='text-muted-foreground mt-1 text-xs'>
+                {t('Presentation')} v{row.original.presentationVersion}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'visibility',
+        accessorFn: visibilityRank,
+        size: 208,
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Customer visibility')}
+          />
+        ),
+        meta: { label: t('Customer visibility') },
+        cell: ({ row }) => {
+          const model = row.original
+          let label = t('Internal testing until pricing is published')
+          if (!model.enabled) label = t('Disabled')
+          else if (!model.resourceEnabled) {
+            label = t('Disabled by technical control')
+          } else if (model.customerVisible) {
+            label = t('Visible to customers')
+          }
+          return label
+        },
+      },
+      {
+        id: 'pricing',
+        accessorFn: (model) =>
+          model.totalTargets ? model.pricedTargets / model.totalTargets : 0,
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Pricing progress')}
+          />
+        ),
+        meta: { label: t('Pricing progress') },
+        cell: ({ row }) => (
+          <span className='tabular-nums'>
+            {row.original.pricedTargets} / {row.original.totalTargets}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        size: 128,
+        header: t('Actions'),
+        meta: { label: t('Actions') },
+        enableSorting: false,
+        enableHiding: false,
+        cell: ({ row }) => {
+          const model = row.original
+          return (
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => startEdit(model)}
+              >
+                {t('Modify basic information')}
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setToggling(model)}
+              >
+                {model.enabled ? t('Disable') : t('Enable')}
+              </Button>
+            </div>
+          )
+        },
+      },
+    ],
+    [startEdit, t]
+  )
+  const sizedColumns = useMemo(
+    () => withCanvasTableColumnSizes(columns),
+    [columns]
+  )
+  const { table } = useDataTable({
+    data: filtered,
+    columns: sizedColumns,
+    getRowId: (model) => model.id,
+    columnFilters: [],
+    globalFilter: '',
+    initialSorting: [{ id: 'name', desc: false }],
+    initialPagination: { pageIndex: 0, pageSize: 20 },
+    autoResetPageIndex: true,
+  })
   return (
     <Card>
       <CardHeader>
@@ -192,195 +309,81 @@ export function PublishedModelCatalog() {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <CanvasColumnFilterPanel
-          activeCount={
-            [search, modelId, visibility === 'ALL' ? '' : visibility].filter(
-              Boolean
-            ).length
+        <DataTableToolbar
+          table={table}
+          stableGrid
+          customSearch={
+            <CanvasColumnFilterPanel
+              activeCount={
+                [
+                  search,
+                  modelId,
+                  visibility === 'ALL' ? '' : visibility,
+                ].filter(Boolean).length
+              }
+            >
+              <CanvasColumnFilterField label={t('Client model')}>
+                <Input
+                  value={search}
+                  placeholder={t('Client model')}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </CanvasColumnFilterField>
+              <CanvasColumnFilterField label={t('Model ID')}>
+                <Input
+                  value={modelId}
+                  placeholder={t('Model ID')}
+                  onChange={(event) => setModelId(event.target.value)}
+                />
+              </CanvasColumnFilterField>
+              <CanvasColumnFilterField label={t('Customer visibility')}>
+                <Select
+                  value={visibility}
+                  onValueChange={(value) => setVisibility(value ?? 'ALL')}
+                >
+                  <SelectTrigger
+                    className='w-full'
+                    aria-label={t('Customer visibility')}
+                  >
+                    <CanvasLocalizedSelectValue
+                      value={visibility}
+                      displayValue={visibilityFilterLabel}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All')}</SelectItem>
+                    <SelectItem value='CUSTOMER'>
+                      {t('Visible to customers')}
+                    </SelectItem>
+                    <SelectItem value='INTERNAL'>
+                      {t('Internal only')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </CanvasColumnFilterField>
+            </CanvasColumnFilterPanel>
           }
-          onClear={() => {
+          hasAdditionalFilters={Boolean(
+            search || modelId || visibility !== 'ALL'
+          )}
+          onReset={() => {
             setSearch('')
             setModelId('')
             setVisibility('ALL')
-            setPage(1)
           }}
-        >
-          <CanvasColumnFilterField label={t('Client model')}>
-            <Input
-              value={search}
-              placeholder={t('Client model')}
-              onChange={(event) => {
-                setSearch(event.target.value)
-                setPage(1)
-              }}
-            />
-          </CanvasColumnFilterField>
-          <CanvasColumnFilterField label={t('Model ID')}>
-            <Input
-              value={modelId}
-              placeholder={t('Model ID')}
-              onChange={(event) => {
-                setModelId(event.target.value)
-                setPage(1)
-              }}
-            />
-          </CanvasColumnFilterField>
-          <CanvasColumnFilterField label={t('Customer visibility')}>
-            <Select
-              value={visibility}
-              onValueChange={(value) => {
-                setVisibility(value ?? 'ALL')
-                setPage(1)
-              }}
-            >
-              <SelectTrigger
-                className='w-full'
-                aria-label={t('Customer visibility')}
-              >
-                <SelectValue>{visibilityFilterLabel}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='ALL'>{t('All')}</SelectItem>
-                <SelectItem value='CUSTOMER'>
-                  {t('Visible to customers')}
-                </SelectItem>
-                <SelectItem value='INTERNAL'>{t('Internal only')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </CanvasColumnFilterField>
-        </CanvasColumnFilterPanel>
-        <StaticDataTable tableClassName='min-w-[980px] table-fixed'>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={canvasStaticColumnWidth.wide}>
-                {sortHeader('Client model', 'name')}
-              </TableHead>
-              <TableHead className={canvasStaticColumnWidth.standard}>
-                {sortHeader('Capability', 'capability')}
-              </TableHead>
-              <TableHead className={canvasStaticColumnWidth.compact}>
-                {sortHeader('Version', 'version')}
-              </TableHead>
-              <TableHead className={canvasStaticColumnWidth.wide}>
-                {sortHeader('Customer visibility', 'visibility')}
-              </TableHead>
-              <TableHead className={canvasStaticColumnWidth.standard}>
-                {sortHeader('Pricing progress', 'pricing')}
-              </TableHead>
-              <TableHead className={canvasStaticColumnWidth.compact}>
-                {t('Actions')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visibleModels.map((model) => {
-              const capability =
-                typeof model.publicCatalogSnapshot.capability === 'string'
-                  ? model.publicCatalogSnapshot.capability
-                  : '—'
-              let visibilityLabel = t(
-                'Internal testing until pricing is published'
-              )
-              if (!model.enabled) {
-                visibilityLabel = t('Disabled')
-              } else if (!model.resourceEnabled) {
-                visibilityLabel = t('Disabled by technical control')
-              } else if (model.customerVisible) {
-                visibilityLabel = t('Visible to customers')
-              }
-              return (
-                <TableRow key={model.id} className='align-top'>
-                  <TableCell className='whitespace-normal'>
-                    <div className='font-medium break-words'>{model.name}</div>
-                    {model.description && (
-                      <div className='text-muted-foreground mt-1 max-w-md'>
-                        {model.description}
-                      </div>
-                    )}
-                    <div className='text-muted-foreground mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 font-mono text-xs'>
-                      <span>{t('Model ID')}:</span>
-                      <div className='min-w-0 space-y-0.5'>
-                        {model.modelIds.length > 0 ? (
-                          model.modelIds.map(({ quality, modelId }) => (
-                            <div
-                              key={`${quality ?? 'default'}:${modelId}`}
-                              className='break-all'
-                            >
-                              {quality ? `${quality}: ${modelId}` : modelId}
-                            </div>
-                          ))
-                        ) : (
-                          <div>—</div>
-                        )}
-                      </div>
-                    </div>
-                    <details className='mt-2'>
-                      <summary className='text-primary cursor-pointer text-xs'>
-                        {t('View client display configuration')}
-                      </summary>
-                      <pre className='bg-muted/50 mt-2 max-h-64 overflow-auto rounded p-3 text-xs'>
-                        {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
-                      </pre>
-                    </details>
-                  </TableCell>
-                  <TableCell>{t(capability)}</TableCell>
-                  <TableCell className='tabular-nums'>
-                    <div>
-                      {t('Technical')} v{model.version}
-                    </div>
-                    {model.presentationVersion && (
-                      <div className='text-muted-foreground mt-1 text-xs'>
-                        {t('Presentation')} v{model.presentationVersion}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{visibilityLabel}</TableCell>
-                  <TableCell className='tabular-nums'>
-                    {model.pricedTargets} / {model.totalTargets}
-                  </TableCell>
-                  <TableCell>
-                    <div className='flex flex-wrap gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => startEdit(model)}
-                      >
-                        {t('Modify basic information')}
-                      </Button>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => setToggling(model)}
-                      >
-                        {model.enabled ? t('Disable') : t('Enable')}
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </StaticDataTable>
-        <div className='flex items-center justify-between'>
-          <span className='text-muted-foreground text-sm'>
-            {filtered.length} {t('models')} · {currentPage} / {pageCount}
-          </span>
-          <div className='flex gap-2'>
-            <Button
-              variant='outline'
-              disabled={currentPage <= 1}
-              onClick={() => setPage((value) => value - 1)}
-            >
-              {t('Previous')}
-            </Button>
-            <Button
-              variant='outline'
-              disabled={currentPage >= pageCount}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              {t('Next')}
-            </Button>
-          </div>
+        />
+        <DataTableView
+          table={table}
+          isLoading={models.isPending}
+          tableContainerClassName='overflow-x-auto'
+          tableClassName='min-w-max'
+          tableBodyRowClassName='align-top'
+          applyHeaderSize
+          emptyTitle={t('No matching models')}
+          emptyDescription={t('No records found. Try adjusting your filters.')}
+        />
+        <div className='pt-2'>
+          <DataTablePagination table={table} />
         </div>
       </CardContent>
       <Dialog

@@ -27,7 +27,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -42,6 +41,7 @@ import {
 } from '../point-conversion-types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 
 const lotTypes: CanvasPointLotType[] = ['PAID', 'BONUS', 'GRACE_BONUS']
@@ -160,7 +160,7 @@ export function PointConversionDashboard() {
         ),
         meta: { label: t('RMB reference') },
         cell: ({ row }) =>
-          `RMB ${formatExactRmbReference(row.original.referenceAmountRmb, locale)}`,
+          `RMB ${formatExactRmbReference(row.original.referenceAmountRmb, locale, 2)}`,
       },
       {
         id: 'expiresAt',
@@ -220,7 +220,7 @@ export function PointConversionDashboard() {
           label={t('RMB reference')}
           value={
             summary
-              ? `RMB ${formatExactRmbReference(summary.referenceAmountRmb, locale)}`
+              ? `RMB ${formatExactRmbReference(summary.referenceAmountRmb, locale, 2)}`
               : '—'
           }
           onClick={() => applyDrilldown({})}
@@ -229,7 +229,7 @@ export function PointConversionDashboard() {
           label={t('Average RMB per point')}
           value={
             summary?.averageRmbPerPoint
-              ? `RMB ${formatExactRmbReference(summary.averageRmbPerPoint, locale)}`
+              ? `RMB ${formatExactRmbReference(summary.averageRmbPerPoint, locale, 2)}`
               : '—'
           }
           onClick={() => applyDrilldown({})}
@@ -298,7 +298,10 @@ export function PointConversionDashboard() {
                 }
               >
                 <SelectTrigger aria-label={t('Point type')}>
-                  <SelectValue />
+                  <CanvasLocalizedSelectValue
+                    value={lotType}
+                    emptyLabelKey='All point types'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='ALL'>{t('All point types')}</SelectItem>
@@ -324,7 +327,10 @@ export function PointConversionDashboard() {
                 }
               >
                 <SelectTrigger aria-label={t('Lot state')}>
-                  <SelectValue />
+                  <CanvasLocalizedSelectValue
+                    value={state}
+                    emptyLabelKey='All lot states'
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='ALL'>{t('All lot states')}</SelectItem>

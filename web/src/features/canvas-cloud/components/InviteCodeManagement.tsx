@@ -37,7 +37,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
@@ -53,6 +52,7 @@ import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
@@ -956,16 +956,16 @@ export function InviteCodeManagement() {
                     }
                   >
                     <SelectTrigger className='w-full'>
-                      <SelectValue>
-                        {status ? (
+                      <CanvasLocalizedSelectValue
+                        value={status}
+                        emptyLabelKey='All statuses'
+                        displayValue={
                           <CanvasStatusBadge
                             status={status}
                             label={t(`Invite status ${status}`)}
                           />
-                        ) : (
-                          t('All statuses')
-                        )}
-                      </SelectValue>
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value='ALL'>{t('All statuses')}</SelectItem>

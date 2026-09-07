@@ -48,9 +48,18 @@ describe('point campaign form', () => {
     mocks.previewCanvasCampaign.mockResolvedValue({
       plannedParticipants: '1',
       plannedBonusPoints: '100',
-      projection: { addedPoints: '100', afterAverageRmbPerPoint: null },
+      projection: {
+        addedPoints: '100',
+        afterAverageRmbPerPoint: '0.12600000',
+      },
     })
     renderForm()
+
+    expect(screen.getByRole('group', { name: 'Campaign basics' })).toBeVisible()
+    expect(
+      screen.getByRole('group', { name: 'Reward and budget' })
+    ).toBeVisible()
+    expect(screen.getByLabelText('Reference budget (RMB)')).toHaveValue('0.00')
 
     const name = screen.getByLabelText('Campaign name')
     fireEvent.change(name, { target: { value: '' } })
@@ -69,8 +78,17 @@ describe('point campaign form', () => {
     fireEvent.change(screen.getByLabelText('Approval reason'), {
       target: { value: 'UAT review' },
     })
+    fireEvent.change(screen.getByLabelText('Reference budget (RMB)'), {
+      target: { value: '12.3' },
+    })
+    fireEvent.blur(screen.getByLabelText('Reference budget (RMB)'))
+    expect(screen.getByLabelText('Reference budget (RMB)')).toHaveValue('12.30')
     fireEvent.click(screen.getByRole('button', { name: 'Preview campaign' }))
     await screen.findByText('Planned bonus points')
+    expect(screen.getByText('RMB 0.13')).toBeInTheDocument()
+    expect(mocks.previewCanvasCampaign.mock.calls[0][0]).toMatchObject({
+      referenceBudgetMinor: '1230',
+    })
     expect(mocks.previewCanvasCampaign.mock.calls[0][0]).not.toHaveProperty(
       'rechargeAmountMinor'
     )

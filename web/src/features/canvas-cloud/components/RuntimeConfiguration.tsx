@@ -17,6 +17,7 @@ import * as z from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -26,15 +27,18 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
   bindCanvasProviderCredentials,
+  checkCanvasDatabaseBackupStorage,
   checkCanvasProviderCredentialGroup,
-  checkCanvasRuntimeStorage,
+  checkCanvasTaskMediaStorage,
   getCanvasProviderConfiguration,
   getCanvasRuntimeConfiguration,
+  publishCanvasDatabaseBackupStorage,
   publishCanvasProviderCredentialGroup,
-  publishCanvasRuntimeStorage,
+  publishCanvasTaskMediaStorage,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasRuntimeConnectionCheck } from '../types'
@@ -57,25 +61,25 @@ function isHttpsOrigin(value: string) {
   }
 }
 
-const storageSchema = z
-  .object({
-    environment: z.enum(['UAT', 'STG', 'PROD']),
-    endpoint: z.string().url().refine(isHttpsOrigin),
-    mediaBucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
-    backupBucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
-    mediaAccessKeyId: z.string().min(1),
-    mediaSecretAccessKey: z.string().min(1),
-    backupAccessKeyId: z.string().min(1),
-    backupSecretAccessKey: z.string().min(1),
-    inputRetentionHours: z.number().int().min(1).max(8760),
-    outputRetentionHours: z.number().int().min(1).max(8760),
-    downloadUrlTtlSeconds: z.number().int().min(60).max(3600),
-    reason: z.string().trim().min(1).max(255),
-  })
-  .refine((value) => value.mediaBucket !== value.backupBucket, {
-    path: ['backupBucket'],
-  })
-type StorageForm = z.infer<typeof storageSchema>
+const taskMediaSchema = z.object({
+  endpoint: z.string().url().refine(isHttpsOrigin),
+  bucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
+  accessKeyId: z.string().min(1),
+  secretAccessKey: z.string().min(1),
+  inputRetentionHours: z.number().int().min(1).max(8760),
+  outputRetentionHours: z.number().int().min(1).max(8760),
+  downloadUrlTtlSeconds: z.number().int().min(60).max(3600),
+  reason: z.string().trim().min(1).max(255),
+})
+type TaskMediaForm = z.infer<typeof taskMediaSchema>
+const databaseBackupSchema = z.object({
+  endpoint: z.string().url().refine(isHttpsOrigin),
+  bucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
+  accessKeyId: z.string().min(1),
+  secretAccessKey: z.string().min(1),
+  reason: z.string().trim().min(1).max(255),
+})
+type DatabaseBackupForm = z.infer<typeof databaseBackupSchema>
 
 const credentialSchema = z.object({
   providerId: z.string().uuid(),
@@ -107,8 +111,14 @@ type BindingForm = z.infer<typeof bindingSchema>
 export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [activeSection, setActiveSection] = useState<
+    'taskMedia' | 'databaseBackup' | 'providerCredentials'
+  >('taskMedia')
+  const [openEditor, setOpenEditor] = useState<
+    'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
+  >(null)
   const [confirmation, setConfirmation] = useState<
-    'storage' | 'credential' | 'binding' | null
+    'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
   >(null)
   const [modelSearch, setModelSearch] = useState('')
   const [selectedModels, setSelectedModels] = useState<string[]>([])
@@ -121,20 +131,26 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
       ? getCanvasProviderConfiguration
       : getCanvasRuntimeConfiguration,
   })
-  const storage = useForm<StorageForm>({
-    resolver: zodResolver(storageSchema),
+  const taskMedia = useForm<TaskMediaForm>({
+    resolver: zodResolver(taskMediaSchema),
     defaultValues: {
-      environment: 'UAT',
       endpoint: '',
-      mediaBucket: 'canvas-uat-task-media',
-      backupBucket: 'canvas-uat-db-backups',
-      mediaAccessKeyId: '',
-      mediaSecretAccessKey: '',
-      backupAccessKeyId: '',
-      backupSecretAccessKey: '',
+      bucket: '',
+      accessKeyId: '',
+      secretAccessKey: '',
       inputRetentionHours: 24,
       outputRetentionHours: 72,
       downloadUrlTtlSeconds: 900,
+      reason: '',
+    },
+  })
+  const databaseBackup = useForm<DatabaseBackupForm>({
+    resolver: zodResolver(databaseBackupSchema),
+    defaultValues: {
+      endpoint: '',
+      bucket: '',
+      accessKeyId: '',
+      secretAccessKey: '',
       reason: '',
     },
   })
@@ -160,20 +176,14 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
         props.providerOnly ? 'provider-configuration' : 'runtime-configuration',
       ],
     })
-  const storageMutation = useMutation({
-    mutationFn: (value: StorageForm) =>
-      publishCanvasRuntimeStorage({
-        environment: value.environment,
+  const taskMediaMutation = useMutation({
+    mutationFn: (value: TaskMediaForm) =>
+      publishCanvasTaskMediaStorage({
         endpoint: value.endpoint,
-        mediaBucket: value.mediaBucket,
-        backupBucket: value.backupBucket,
+        mediaBucket: value.bucket,
         mediaCredentials: {
-          accessKeyId: value.mediaAccessKeyId,
-          secretAccessKey: value.mediaSecretAccessKey,
-        },
-        backupCredentials: {
-          accessKeyId: value.backupAccessKeyId,
-          secretAccessKey: value.backupSecretAccessKey,
+          accessKeyId: value.accessKeyId,
+          secretAccessKey: value.secretAccessKey,
         },
         inputRetentionHours: value.inputRetentionHours,
         outputRetentionHours: value.outputRetentionHours,
@@ -182,14 +192,34 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
       }),
     onSuccess: async () => {
       setConfirmation(null)
-      storage.resetField('mediaAccessKeyId')
-      storage.resetField('mediaSecretAccessKey')
-      storage.resetField('backupAccessKeyId')
-      storage.resetField('backupSecretAccessKey')
-      toast.success(t('Runtime storage configuration published'))
+      setOpenEditor(null)
+      taskMedia.resetField('accessKeyId')
+      taskMedia.resetField('secretAccessKey')
+      toast.success(t('Task media configuration published'))
       await refresh()
     },
-    onError: () => toast.error(t('Runtime storage configuration failed')),
+    onError: () => toast.error(t('Task media configuration failed')),
+  })
+  const databaseBackupMutation = useMutation({
+    mutationFn: (value: DatabaseBackupForm) =>
+      publishCanvasDatabaseBackupStorage({
+        endpoint: value.endpoint,
+        backupBucket: value.bucket,
+        backupCredentials: {
+          accessKeyId: value.accessKeyId,
+          secretAccessKey: value.secretAccessKey,
+        },
+        reason: value.reason,
+      }),
+    onSuccess: async () => {
+      setConfirmation(null)
+      setOpenEditor(null)
+      databaseBackup.resetField('accessKeyId')
+      databaseBackup.resetField('secretAccessKey')
+      toast.success(t('Database backup configuration published'))
+      await refresh()
+    },
+    onError: () => toast.error(t('Database backup configuration failed')),
   })
   const credentialMutation = useMutation({
     mutationFn: (value: CredentialForm) =>
@@ -206,6 +236,7 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
       }),
     onSuccess: async () => {
       setConfirmation(null)
+      setOpenEditor(null)
       credential.reset({
         providerId: '',
         credentialGroupId: undefined,
@@ -226,6 +257,7 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
       }),
     onSuccess: async () => {
       setConfirmation(null)
+      setOpenEditor(null)
       setSelectedModels([])
       toast.success(t('Model credential bindings published'))
       await refresh()
@@ -241,9 +273,13 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
     }
     await refresh()
   }
-  const checkStorage = useMutation({
-    mutationFn: (input: { id: string; role: 'TASK_MEDIA' | 'DB_BACKUP' }) =>
-      checkCanvasRuntimeStorage(input.id, input.role),
+  const checkTaskMedia = useMutation({
+    mutationFn: checkCanvasTaskMediaStorage,
+    onSuccess: reportCheck,
+    onError: () => toast.error(t('Connection check failed')),
+  })
+  const checkDatabaseBackup = useMutation({
+    mutationFn: checkCanvasDatabaseBackupStorage,
     onSuccess: reportCheck,
     onError: () => toast.error(t('Connection check failed')),
   })
@@ -273,12 +309,18 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
   let confirmationDetails = [
     { label: t('Selected models'), value: String(selectedModels.length) },
   ]
-  if (confirmation === 'storage') {
+  if (confirmation === 'taskMedia') {
     confirmationDetails = [
-      { label: t('Environment'), value: storage.getValues('environment') },
+      { label: t('Environment'), value: runtime.data?.environment ?? '—' },
+      { label: t('Task media bucket'), value: taskMedia.getValues('bucket') },
+    ]
+  }
+  if (confirmation === 'databaseBackup') {
+    confirmationDetails = [
+      { label: t('Environment'), value: runtime.data?.environment ?? '—' },
       {
-        label: t('Buckets'),
-        value: `${storage.getValues('mediaBucket')} · ${storage.getValues('backupBucket')}`,
+        label: t('Database backup bucket'),
+        value: databaseBackup.getValues('bucket'),
       },
     ]
   }
@@ -318,48 +360,361 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
   }
 
   return (
-    <div className='space-y-4'>
+    <Tabs
+      value={props.providerOnly ? 'providerCredentials' : activeSection}
+      onValueChange={(value) => {
+        setActiveSection(
+          value as 'taskMedia' | 'databaseBackup' | 'providerCredentials'
+        )
+        setOpenEditor(null)
+      }}
+      className='space-y-4'
+    >
       {!props.providerOnly && (
         <Card>
           <CardHeader>
             <CardTitle>{t('Runtime storage')}</CardTitle>
             <CardDescription>
               {t(
-                'Configure private task-media and database-backup buckets separately. Secret values can be replaced but never viewed again.'
+                'Task media and database backups use independent buckets, credentials, publications, and connection checks.'
               )}
             </CardDescription>
+            <CardAction>
+              <div className='bg-muted rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap'>
+                {t('Current environment')}: {runtime.data.environment}
+              </div>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+              <TabsTrigger
+                value='taskMedia'
+                className='h-8 min-h-8 flex-none px-3'
+              >
+                {t('Task media')}
+              </TabsTrigger>
+              <TabsTrigger
+                value='databaseBackup'
+                className='h-8 min-h-8 flex-none px-3'
+              >
+                {t('Database backups')}
+              </TabsTrigger>
+              <TabsTrigger
+                value='providerCredentials'
+                className='h-8 min-h-8 flex-none px-3'
+              >
+                {t('Provider credential groups')}
+              </TabsTrigger>
+            </TabsList>
+          </CardContent>
+        </Card>
+      )}
+
+      {!props.providerOnly && (
+        <TabsContent value='taskMedia'>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Task media')}</CardTitle>
+              <CardDescription>
+                {t(
+                  'Stores task inputs and generated outputs with separate retention controls.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-5'>
+              {runtime.data.taskMedia ? (
+                <StorageSummary
+                  bucketLabel={t('Task media bucket')}
+                  item={runtime.data.taskMedia}
+                  details={`${t('Input retention hours')}: ${runtime.data.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${runtime.data.taskMedia.outputRetentionHours}h · ${t('Download URL seconds')}: ${runtime.data.taskMedia.downloadUrlTtlSeconds}s`}
+                  checkLabel={t('Task media check')}
+                  buttonLabel={t('Check task media')}
+                  editLabel={t('Update configuration')}
+                  onCheck={() =>
+                    checkTaskMedia.mutate(runtime.data.taskMedia!.id)
+                  }
+                  checking={checkTaskMedia.isPending}
+                  editing={openEditor === 'taskMedia'}
+                  onEdit={() =>
+                    setOpenEditor(
+                      openEditor === 'taskMedia' ? null : 'taskMedia'
+                    )
+                  }
+                />
+              ) : (
+                <p className='text-muted-foreground text-sm'>
+                  {t('Not configured')}
+                </p>
+              )}
+              {!runtime.data.taskMedia && (
+                <Button
+                  variant='outline'
+                  onClick={() => setOpenEditor('taskMedia')}
+                  aria-expanded={openEditor === 'taskMedia'}
+                >
+                  {t('Update configuration')}
+                </Button>
+              )}
+              {openEditor === 'taskMedia' && (
+                <form
+                  aria-label={t('Publish task media configuration')}
+                  className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
+                  onSubmit={taskMedia.handleSubmit(() =>
+                    setConfirmation('taskMedia')
+                  )}
+                >
+                  <Field
+                    label={t('R2 endpoint')}
+                    error={taskMedia.formState.errors.endpoint?.message}
+                  >
+                    <Input
+                      {...taskMedia.register('endpoint')}
+                      placeholder='https://…r2.cloudflarestorage.com'
+                    />
+                  </Field>
+                  <Field
+                    label={t('Task media bucket')}
+                    error={taskMedia.formState.errors.bucket?.message}
+                  >
+                    <Input {...taskMedia.register('bucket')} />
+                  </Field>
+                  <Field
+                    label={t('Access key ID')}
+                    error={taskMedia.formState.errors.accessKeyId?.message}
+                  >
+                    <Input
+                      autoComplete='off'
+                      {...taskMedia.register('accessKeyId')}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Secret access key')}
+                    error={taskMedia.formState.errors.secretAccessKey?.message}
+                  >
+                    <Input
+                      type='password'
+                      autoComplete='new-password'
+                      {...taskMedia.register('secretAccessKey')}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Input retention hours')}
+                    error={
+                      taskMedia.formState.errors.inputRetentionHours?.message
+                    }
+                  >
+                    <Input
+                      type='number'
+                      min={1}
+                      max={8760}
+                      {...taskMedia.register('inputRetentionHours', {
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Output retention hours')}
+                    error={
+                      taskMedia.formState.errors.outputRetentionHours?.message
+                    }
+                  >
+                    <Input
+                      type='number'
+                      min={1}
+                      max={8760}
+                      {...taskMedia.register('outputRetentionHours', {
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Download URL seconds')}
+                    error={
+                      taskMedia.formState.errors.downloadUrlTtlSeconds?.message
+                    }
+                  >
+                    <Input
+                      type='number'
+                      min={60}
+                      max={3600}
+                      {...taskMedia.register('downloadUrlTtlSeconds', {
+                        valueAsNumber: true,
+                      })}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Reason')}
+                    error={taskMedia.formState.errors.reason?.message}
+                  >
+                    <Input {...taskMedia.register('reason')} />
+                  </Field>
+                  <div className='sm:col-span-2'>
+                    <Button type='submit'>
+                      {t('Review task media publication')}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      )}
+
+      {!props.providerOnly && (
+        <TabsContent value='databaseBackup'>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Database backups')}</CardTitle>
+              <CardDescription>
+                {t(
+                  'Stores database backups with dedicated credentials and lifecycle managed outside task media.'
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-5'>
+              {runtime.data.databaseBackup ? (
+                <StorageSummary
+                  bucketLabel={t('Database backup bucket')}
+                  item={runtime.data.databaseBackup}
+                  checkLabel={t('Backup check')}
+                  buttonLabel={t('Check backup')}
+                  editLabel={t('Update configuration')}
+                  onCheck={() =>
+                    checkDatabaseBackup.mutate(runtime.data.databaseBackup!.id)
+                  }
+                  checking={checkDatabaseBackup.isPending}
+                  editing={openEditor === 'databaseBackup'}
+                  onEdit={() =>
+                    setOpenEditor(
+                      openEditor === 'databaseBackup' ? null : 'databaseBackup'
+                    )
+                  }
+                />
+              ) : (
+                <p className='text-muted-foreground text-sm'>
+                  {t('Not configured')}
+                </p>
+              )}
+              {!runtime.data.databaseBackup && (
+                <Button
+                  variant='outline'
+                  onClick={() => setOpenEditor('databaseBackup')}
+                  aria-expanded={openEditor === 'databaseBackup'}
+                >
+                  {t('Update configuration')}
+                </Button>
+              )}
+              {openEditor === 'databaseBackup' && (
+                <form
+                  aria-label={t('Publish database backup configuration')}
+                  className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
+                  onSubmit={databaseBackup.handleSubmit(() =>
+                    setConfirmation('databaseBackup')
+                  )}
+                >
+                  <Field
+                    label={t('R2 endpoint')}
+                    error={databaseBackup.formState.errors.endpoint?.message}
+                  >
+                    <Input
+                      {...databaseBackup.register('endpoint')}
+                      placeholder='https://…r2.cloudflarestorage.com'
+                    />
+                  </Field>
+                  <Field
+                    label={t('Database backup bucket')}
+                    error={databaseBackup.formState.errors.bucket?.message}
+                  >
+                    <Input {...databaseBackup.register('bucket')} />
+                  </Field>
+                  <Field
+                    label={t('Access key ID')}
+                    error={databaseBackup.formState.errors.accessKeyId?.message}
+                  >
+                    <Input
+                      autoComplete='off'
+                      {...databaseBackup.register('accessKeyId')}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Secret access key')}
+                    error={
+                      databaseBackup.formState.errors.secretAccessKey?.message
+                    }
+                  >
+                    <Input
+                      type='password'
+                      autoComplete='new-password'
+                      {...databaseBackup.register('secretAccessKey')}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Reason')}
+                    error={databaseBackup.formState.errors.reason?.message}
+                  >
+                    <Input {...databaseBackup.register('reason')} />
+                  </Field>
+                  <div className='self-end sm:col-span-2'>
+                    <Button type='submit'>
+                      {t('Review database backup publication')}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      )}
+
+      <TabsContent value='providerCredentials' className='space-y-4'>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Provider credential groups')}</CardTitle>
+            <CardDescription>
+              {t(
+                'Keep multiple named credential groups per provider and replace secrets through immutable versions.'
+              )}
+            </CardDescription>
+            <CardAction>
+              <Button
+                variant='outline'
+                aria-expanded={openEditor === 'credential'}
+                onClick={() => {
+                  if (openEditor === 'credential') {
+                    setOpenEditor(null)
+                    return
+                  }
+                  credential.reset({
+                    providerId: '',
+                    credentialGroupId: undefined,
+                    name: '',
+                    entries: [],
+                    reason: '',
+                  })
+                  setOpenEditor('credential')
+                }}
+              >
+                {t('Manage credential groups')}
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent className='space-y-4'>
-            <div className='grid gap-3 lg:grid-cols-3'>
-              {runtime.data.storage.map((item) => (
-                <div key={item.id} className='rounded-lg border p-3 text-sm'>
-                  <div className='flex items-center justify-between gap-2'>
+            <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
+              {runtime.data.credentialGroups.map((item) => (
+                <div className='rounded-lg border p-3 text-sm' key={item.id}>
+                  <div className='flex items-center justify-between'>
                     <strong>
-                      {item.environment} · v{item.version}
+                      {item.providerCode} · {item.name}
                     </strong>
                     <BusinessTerm kind='configStatus' value={item.status} />
                   </div>
-                  <dl className='mt-3 grid gap-1 text-xs'>
+                  <dl className='mt-2 grid gap-1 text-xs'>
                     <div>
                       <dt className='text-muted-foreground'>
-                        {t('Task media bucket')}
-                      </dt>
-                      <dd className='break-all'>{item.mediaBucket}</dd>
-                    </div>
-                    <div>
-                      <dt className='text-muted-foreground'>
-                        {t('Database backup bucket')}
-                      </dt>
-                      <dd className='break-all'>{item.backupBucket}</dd>
-                    </div>
-                    <div>
-                      <dt className='text-muted-foreground'>
-                        {t('Retention and download')}
+                        {t('Credential schemes')}
                       </dt>
                       <dd>
-                        {item.inputRetentionHours}h ·{' '}
-                        {item.outputRetentionHours}h ·{' '}
-                        {item.downloadUrlTtlSeconds}s
+                        v{item.version} · {item.schemeNames.join(', ')}
                       </dd>
                     </div>
                     <div>
@@ -372,467 +727,290 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
                       </dd>
                     </div>
                     <ConnectionCheck
-                      label={t('Task media check')}
-                      value={item.checks.taskMedia}
-                    />
-                    <ConnectionCheck
-                      label={t('Backup check')}
-                      value={item.checks.databaseBackup}
+                      label={t('Last check')}
+                      value={item.latestCheck}
                     />
                   </dl>
-                  <div className='mt-3 flex flex-wrap gap-2'>
+                  <div className='mt-3 flex gap-2'>
                     <Button
                       size='sm'
                       variant='outline'
-                      disabled={checkStorage.isPending}
-                      onClick={() =>
-                        checkStorage.mutate({ id: item.id, role: 'TASK_MEDIA' })
-                      }
+                      disabled={checkCredential.isPending}
+                      onClick={() => checkCredential.mutate(item.id)}
                     >
-                      {t('Check task media')}
+                      {t('Check connection')}
                     </Button>
                     <Button
                       size='sm'
                       variant='outline'
-                      disabled={checkStorage.isPending}
-                      onClick={() =>
-                        checkStorage.mutate({ id: item.id, role: 'DB_BACKUP' })
-                      }
+                      onClick={() => {
+                        credential.reset({
+                          providerId: item.providerId,
+                          credentialGroupId: item.credentialGroupId,
+                          name: item.name,
+                          entries:
+                            runtime.data.providers
+                              .find(
+                                (provider) => provider.id === item.providerId
+                              )
+                              ?.credentialSchemes.map((schemeName) => ({
+                                schemeName,
+                                secret: '',
+                              })) ?? [],
+                          reason: '',
+                        })
+                        setOpenEditor('credential')
+                        requestAnimationFrame(() =>
+                          credential.setFocus('entries.0.secret')
+                        )
+                      }}
                     >
-                      {t('Check backup')}
+                      {t('Replace secret')}
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
-            {runtime.data.storage.length === 0 && (
-              <div className='text-muted-foreground text-sm'>
-                {t('No runtime storage configured')}
-              </div>
-            )}
-            <form
-              aria-label={t('Publish runtime storage')}
-              className='bg-muted/20 grid gap-3 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-4'
-              onSubmit={storage.handleSubmit(() => setConfirmation('storage'))}
-            >
-              <Field
-                label={t('Environment')}
-                error={storage.formState.errors.environment?.message}
+            {openEditor === 'credential' && (
+              <form
+                aria-label={t('Publish provider credential group')}
+                className='bg-muted/20 grid gap-3 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-3'
+                onSubmit={credential.handleSubmit(() =>
+                  setConfirmation('credential')
+                )}
               >
-                <NativeSelect
-                  className='w-full'
-                  {...storage.register('environment')}
+                <Field
+                  label={t('Provider')}
+                  error={credential.formState.errors.providerId?.message}
                 >
-                  <NativeSelectOption value='UAT'>UAT</NativeSelectOption>
-                  <NativeSelectOption value='STG'>STG</NativeSelectOption>
-                  <NativeSelectOption value='PROD'>PROD</NativeSelectOption>
-                </NativeSelect>
-              </Field>
-              <Field
-                label={t('R2 endpoint')}
-                error={storage.formState.errors.endpoint?.message}
-              >
-                <Input
-                  {...storage.register('endpoint')}
-                  placeholder='https://…r2.cloudflarestorage.com'
-                />
-              </Field>
-              <Field
-                label={t('Task media bucket')}
-                error={storage.formState.errors.mediaBucket?.message}
-              >
-                <Input {...storage.register('mediaBucket')} />
-              </Field>
-              <Field
-                label={t('Database backup bucket')}
-                error={storage.formState.errors.backupBucket?.message}
-              >
-                <Input {...storage.register('backupBucket')} />
-              </Field>
-              <Field
-                label={t('Task media access key ID')}
-                error={storage.formState.errors.mediaAccessKeyId?.message}
-              >
-                <Input
-                  autoComplete='off'
-                  {...storage.register('mediaAccessKeyId')}
-                />
-              </Field>
-              <Field
-                label={t('Task media secret access key')}
-                error={storage.formState.errors.mediaSecretAccessKey?.message}
-              >
-                <Input
-                  type='password'
-                  autoComplete='new-password'
-                  {...storage.register('mediaSecretAccessKey')}
-                />
-              </Field>
-              <Field
-                label={t('Backup access key ID')}
-                error={storage.formState.errors.backupAccessKeyId?.message}
-              >
-                <Input
-                  autoComplete='off'
-                  {...storage.register('backupAccessKeyId')}
-                />
-              </Field>
-              <Field
-                label={t('Backup secret access key')}
-                error={storage.formState.errors.backupSecretAccessKey?.message}
-              >
-                <Input
-                  type='password'
-                  autoComplete='new-password'
-                  {...storage.register('backupSecretAccessKey')}
-                />
-              </Field>
-              <Field
-                label={t('Input retention hours')}
-                error={storage.formState.errors.inputRetentionHours?.message}
-              >
-                <Input
-                  type='number'
-                  min={1}
-                  max={8760}
-                  {...storage.register('inputRetentionHours', {
-                    valueAsNumber: true,
-                  })}
-                />
-              </Field>
-              <Field
-                label={t('Output retention hours')}
-                error={storage.formState.errors.outputRetentionHours?.message}
-              >
-                <Input
-                  type='number'
-                  min={1}
-                  max={8760}
-                  {...storage.register('outputRetentionHours', {
-                    valueAsNumber: true,
-                  })}
-                />
-              </Field>
-              <Field
-                label={t('Download URL seconds')}
-                error={storage.formState.errors.downloadUrlTtlSeconds?.message}
-              >
-                <Input
-                  type='number'
-                  min={60}
-                  max={3600}
-                  {...storage.register('downloadUrlTtlSeconds', {
-                    valueAsNumber: true,
-                  })}
-                />
-              </Field>
-              <Field
-                label={t('Reason')}
-                error={storage.formState.errors.reason?.message}
-              >
-                <Input {...storage.register('reason')} />
-              </Field>
-              <div className='md:col-span-2 xl:col-span-4'>
-                <Button type='submit'>{t('Review storage publication')}</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Provider credential groups')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Keep multiple named credential groups per provider and replace secrets through immutable versions.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
-            {runtime.data.credentialGroups.map((item) => (
-              <div className='rounded-lg border p-3 text-sm' key={item.id}>
-                <div className='flex items-center justify-between'>
-                  <strong>
-                    {item.providerCode} · {item.name}
-                  </strong>
-                  <BusinessTerm kind='configStatus' value={item.status} />
-                </div>
-                <dl className='mt-2 grid gap-1 text-xs'>
-                  <div>
-                    <dt className='text-muted-foreground'>
-                      {t('Credential schemes')}
-                    </dt>
-                    <dd>
-                      v{item.version} · {item.schemeNames.join(', ')}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className='text-muted-foreground'>{t('Updated by')}</dt>
-                    <dd>
-                      {item.updatedBy} · {formatCanvasDateTime(item.createdAt)}
-                    </dd>
-                  </div>
-                  <ConnectionCheck
-                    label={t('Last check')}
-                    value={item.latestCheck}
-                  />
-                </dl>
-                <div className='mt-3 flex gap-2'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    disabled={checkCredential.isPending}
-                    onClick={() => checkCredential.mutate(item.id)}
-                  >
-                    {t('Check connection')}
-                  </Button>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    onClick={() => {
-                      credential.reset({
-                        providerId: item.providerId,
-                        credentialGroupId: item.credentialGroupId,
-                        name: item.name,
-                        entries:
-                          runtime.data.providers
-                            .find((provider) => provider.id === item.providerId)
-                            ?.credentialSchemes.map((schemeName) => ({
+                  <NativeSelect
+                    className='w-full'
+                    disabled={Boolean(credential.watch('credentialGroupId'))}
+                    {...credential.register('providerId', {
+                      onChange: (event) => {
+                        const provider = runtime.data.providers.find(
+                          (item) => item.id === event.target.value
+                        )
+                        credential.setValue(
+                          'entries',
+                          (provider?.credentialSchemes ?? []).map(
+                            (schemeName) => ({
                               schemeName,
                               secret: '',
-                            })) ?? [],
-                        reason: '',
-                      })
-                      requestAnimationFrame(() =>
-                        credential.setFocus('entries.0.secret')
-                      )
-                    }}
+                            })
+                          )
+                        )
+                      },
+                    })}
                   >
-                    {t('Replace secret')}
+                    <NativeSelectOption value=''>
+                      {t('Select provider')}
+                    </NativeSelectOption>
+                    {runtime.data.providers.map((provider) => (
+                      <NativeSelectOption key={provider.id} value={provider.id}>
+                        {provider.code}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </Field>
+                <Field
+                  label={t('Credential group')}
+                  error={credential.formState.errors.name?.message}
+                >
+                  <Input
+                    disabled={Boolean(credential.watch('credentialGroupId'))}
+                    {...credential.register('name')}
+                  />
+                </Field>
+                <Field
+                  label={t('Reason')}
+                  error={credential.formState.errors.reason?.message}
+                >
+                  <Input {...credential.register('reason')} />
+                </Field>
+                <div className='space-y-2 md:col-span-2 xl:col-span-3'>
+                  {credential.watch('entries').map((entry, index) => (
+                    <div
+                      key={entry.schemeName}
+                      className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
+                    >
+                      <div className='min-w-0 space-y-1'>
+                        <div className='text-sm font-medium'>
+                          {t('Security scheme name')}
+                        </div>
+                        <div className='bg-muted rounded-lg border px-2.5 py-1.5 font-mono text-sm'>
+                          {entry.schemeName}
+                        </div>
+                      </div>
+                      <Field
+                        label={`${t('Secret value')} · ${entry.schemeName}`}
+                        error={
+                          credential.formState.errors.entries?.[index]?.secret
+                            ?.message
+                        }
+                      >
+                        <Input
+                          type='password'
+                          autoComplete='new-password'
+                          {...credential.register(`entries.${index}.secret`)}
+                        />
+                      </Field>
+                    </div>
+                  ))}
+                  {credential.watch('entries').length === 0 && (
+                    <div className='text-muted-foreground text-sm'>
+                      {t('Not configured')}
+                    </div>
+                  )}
+                </div>
+                <div className='md:col-span-2 xl:col-span-3'>
+                  <Button type='submit'>
+                    {t('Review credential publication')}
                   </Button>
                 </div>
-              </div>
-            ))}
-          </div>
-          <form
-            aria-label={t('Publish provider credential group')}
-            className='bg-muted/20 grid gap-3 rounded-xl border p-4 md:grid-cols-2 xl:grid-cols-3'
-            onSubmit={credential.handleSubmit(() =>
-              setConfirmation('credential')
+              </form>
             )}
-          >
-            <Field
-              label={t('Provider')}
-              error={credential.formState.errors.providerId?.message}
-            >
-              <NativeSelect
-                className='w-full'
-                disabled={Boolean(credential.watch('credentialGroupId'))}
-                {...credential.register('providerId', {
-                  onChange: (event) => {
-                    const provider = runtime.data.providers.find(
-                      (item) => item.id === event.target.value
-                    )
-                    credential.setValue(
-                      'entries',
-                      (provider?.credentialSchemes ?? []).map((schemeName) => ({
-                        schemeName,
-                        secret: '',
-                      }))
-                    )
-                  },
-                })}
-              >
-                <NativeSelectOption value=''>
-                  {t('Select provider')}
-                </NativeSelectOption>
-                {runtime.data.providers.map((provider) => (
-                  <NativeSelectOption key={provider.id} value={provider.id}>
-                    {provider.code}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field
-              label={t('Credential group')}
-              error={credential.formState.errors.name?.message}
-            >
-              <Input
-                disabled={Boolean(credential.watch('credentialGroupId'))}
-                {...credential.register('name')}
-              />
-            </Field>
-            <Field
-              label={t('Reason')}
-              error={credential.formState.errors.reason?.message}
-            >
-              <Input {...credential.register('reason')} />
-            </Field>
-            <div className='space-y-2 md:col-span-2 xl:col-span-3'>
-              {credential.watch('entries').map((entry, index) => (
-                <div
-                  key={entry.schemeName}
-                  className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
-                >
-                  <div className='min-w-0 space-y-1'>
-                    <div className='text-sm font-medium'>
-                      {t('Security scheme name')}
-                    </div>
-                    <div className='bg-muted rounded-lg border px-2.5 py-1.5 font-mono text-sm'>
-                      {entry.schemeName}
-                    </div>
-                  </div>
-                  <Field
-                    label={`${t('Secret value')} · ${entry.schemeName}`}
-                    error={
-                      credential.formState.errors.entries?.[index]?.secret
-                        ?.message
-                    }
-                  >
-                    <Input
-                      type='password'
-                      autoComplete='new-password'
-                      {...credential.register(`entries.${index}.secret`)}
-                    />
-                  </Field>
-                </div>
-              ))}
-              {credential.watch('entries').length === 0 && (
-                <div className='text-muted-foreground text-sm'>
-                  {t('Not configured')}
-                </div>
-              )}
-            </div>
-            <div className='md:col-span-2 xl:col-span-3'>
-              <Button type='submit'>
-                {t('Review credential publication')}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Model credential bindings')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Search and select models, including all current filtered results. Publication is atomic for every selected model.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-3'>
-          <form
-            aria-label={t('Publish model credential bindings')}
-            className='space-y-3'
-            onSubmit={binding.handleSubmit(
-              () => selectedModels.length > 0 && setConfirmation('binding')
-            )}
-          >
-            <div className='grid gap-3 md:grid-cols-3'>
-              <Field
-                label={t('Credential group')}
-                error={
-                  binding.formState.errors.credentialGroupVersionId?.message
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Model credential bindings')}</CardTitle>
+            <CardDescription>
+              {t(
+                'Search and select models, including all current filtered results. Publication is atomic for every selected model.'
+              )}
+            </CardDescription>
+            <CardAction>
+              <Button
+                variant='outline'
+                aria-expanded={openEditor === 'binding'}
+                onClick={() =>
+                  setOpenEditor(openEditor === 'binding' ? null : 'binding')
                 }
               >
-                <NativeSelect
-                  className='w-full'
-                  {...binding.register('credentialGroupVersionId')}
-                  onChange={(event) => {
-                    binding.setValue(
-                      'credentialGroupVersionId',
-                      event.target.value,
-                      { shouldValidate: true }
-                    )
-                    setSelectedModels([])
-                  }}
-                >
-                  <NativeSelectOption value=''>
-                    {t('Select credential group')}
-                  </NativeSelectOption>
-                  {runtime.data.credentialGroups.map((group) => (
-                    <NativeSelectOption key={group.id} value={group.id}>
-                      {group.providerCode} · {group.name} v{group.version}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field label={t('Search models')}>
-                <Input
-                  value={modelSearch}
-                  onChange={(event) => setModelSearch(event.target.value)}
-                />
-              </Field>
-              <Field
-                label={t('Reason')}
-                error={binding.formState.errors.reason?.message}
+                {t('Manage model bindings')}
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            {openEditor === 'binding' && (
+              <form
+                aria-label={t('Publish model credential bindings')}
+                className='space-y-3'
+                onSubmit={binding.handleSubmit(
+                  () => selectedModels.length > 0 && setConfirmation('binding')
+                )}
               >
-                <Input {...binding.register('reason')} />
-              </Field>
-            </div>
-            <div className='overflow-hidden rounded-lg border'>
-              <label className='bg-muted/30 flex items-center gap-3 border-b p-3 text-sm font-medium'>
-                <Checkbox
-                  checked={allFilteredSelected}
-                  onCheckedChange={(checked) =>
-                    setSelectedModels(
-                      checked
-                        ? [
-                            ...new Set([
-                              ...selectedModels,
-                              ...filteredModels.map((model) => model.id),
-                            ]),
-                          ]
-                        : selectedModels.filter(
-                            (id) =>
-                              !filteredModels.some((model) => model.id === id)
-                          )
-                    )
-                  }
-                />
-                {t('Select current filtered results')} ({filteredModels.length})
-              </label>
-              <div className='max-h-72 overflow-auto'>
-                {filteredModels.map((model) => (
-                  <label
-                    key={model.id}
-                    className='hover:bg-muted/20 flex items-start gap-3 border-b p-3 text-sm last:border-b-0'
+                <div className='grid gap-3 md:grid-cols-3'>
+                  <Field
+                    label={t('Credential group')}
+                    error={
+                      binding.formState.errors.credentialGroupVersionId?.message
+                    }
                   >
+                    <NativeSelect
+                      className='w-full'
+                      {...binding.register('credentialGroupVersionId')}
+                      onChange={(event) => {
+                        binding.setValue(
+                          'credentialGroupVersionId',
+                          event.target.value,
+                          { shouldValidate: true }
+                        )
+                        setSelectedModels([])
+                      }}
+                    >
+                      <NativeSelectOption value=''>
+                        {t('Select credential group')}
+                      </NativeSelectOption>
+                      {runtime.data.credentialGroups.map((group) => (
+                        <NativeSelectOption key={group.id} value={group.id}>
+                          {group.providerCode} · {group.name} v{group.version}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </Field>
+                  <Field label={t('Search models')}>
+                    <Input
+                      value={modelSearch}
+                      onChange={(event) => setModelSearch(event.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label={t('Reason')}
+                    error={binding.formState.errors.reason?.message}
+                  >
+                    <Input {...binding.register('reason')} />
+                  </Field>
+                </div>
+                <div className='overflow-hidden rounded-lg border'>
+                  <label className='bg-muted/30 flex items-center gap-3 border-b p-3 text-sm font-medium'>
                     <Checkbox
-                      checked={selectedModels.includes(model.id)}
+                      checked={allFilteredSelected}
                       onCheckedChange={(checked) =>
                         setSelectedModels(
                           checked
-                            ? [...selectedModels, model.id]
-                            : selectedModels.filter((id) => id !== model.id)
+                            ? [
+                                ...new Set([
+                                  ...selectedModels,
+                                  ...filteredModels.map((model) => model.id),
+                                ]),
+                              ]
+                            : selectedModels.filter(
+                                (id) =>
+                                  !filteredModels.some(
+                                    (model) => model.id === id
+                                  )
+                              )
                         )
                       }
                     />
-                    <span>
-                      <span className='font-medium'>{model.publicName}</span>
-                      <span className='text-muted-foreground block text-xs'>
-                        {model.providerCode} · {model.modelKey} ·{' '}
-                        {model.credentialGroupName ?? t('Not configured')}
-                      </span>
-                    </span>
+                    {t('Select current filtered results')} (
+                    {filteredModels.length})
                   </label>
-                ))}
-                {filteredModels.length === 0 && (
-                  <div className='text-muted-foreground p-4 text-center text-sm'>
-                    {t('No matching models')}
+                  <div className='max-h-72 overflow-auto'>
+                    {filteredModels.map((model) => (
+                      <label
+                        key={model.id}
+                        className='hover:bg-muted/20 flex items-start gap-3 border-b p-3 text-sm last:border-b-0'
+                      >
+                        <Checkbox
+                          checked={selectedModels.includes(model.id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedModels(
+                              checked
+                                ? [...selectedModels, model.id]
+                                : selectedModels.filter((id) => id !== model.id)
+                            )
+                          }
+                        />
+                        <span>
+                          <span className='font-medium'>
+                            {model.publicName}
+                          </span>
+                          <span className='text-muted-foreground block text-xs'>
+                            {model.providerCode} · {model.modelKey} ·{' '}
+                            {model.credentialGroupName ?? t('Not configured')}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                    {filteredModels.length === 0 && (
+                      <div className='text-muted-foreground p-4 text-center text-sm'>
+                        {t('No matching models')}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-            <Button type='submit' disabled={selectedModels.length === 0}>
-              {t('Review model bindings')} ({selectedModels.length})
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+                </div>
+                <Button type='submit' disabled={selectedModels.length === 0}>
+                  {t('Review model bindings')} ({selectedModels.length})
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
 
       <PricingActionConfirmation
         open={confirmation !== null}
@@ -844,13 +1022,17 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
         details={confirmationDetails}
         confirmLabel={t('Confirm publication')}
         pending={
-          storageMutation.isPending ||
+          taskMediaMutation.isPending ||
+          databaseBackupMutation.isPending ||
           credentialMutation.isPending ||
           bindingMutation.isPending
         }
         onConfirm={() => {
-          if (confirmation === 'storage') {
-            storageMutation.mutate(storage.getValues())
+          if (confirmation === 'taskMedia') {
+            taskMediaMutation.mutate(taskMedia.getValues())
+          }
+          if (confirmation === 'databaseBackup') {
+            databaseBackupMutation.mutate(databaseBackup.getValues())
           }
           if (confirmation === 'credential') {
             credentialMutation.mutate(credential.getValues())
@@ -860,6 +1042,89 @@ export function RuntimeConfiguration(props: { providerOnly?: boolean } = {}) {
           }
         }}
       />
+    </Tabs>
+  )
+}
+
+function StorageSummary(props: {
+  bucketLabel: string
+  item: {
+    version: number
+    status: string
+    endpoint: string
+    bucket: string
+    updatedBy: string
+    createdAt: string
+    latestCheck: CanvasRuntimeConnectionCheck | null
+  }
+  details?: string
+  checkLabel: string
+  buttonLabel: string
+  editLabel: string
+  checking: boolean
+  editing: boolean
+  onCheck: () => void
+  onEdit: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className='space-y-5 text-sm'>
+      <div className='flex flex-wrap items-center gap-2'>
+        <BusinessTerm kind='configStatus' value={props.item.status} />
+        <span className='bg-muted rounded-md px-2 py-1 text-xs font-medium tabular-nums'>
+          v{props.item.version}
+        </span>
+      </div>
+      <dl className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
+        <div className='bg-muted/30 min-w-0 rounded-lg p-3 xl:col-span-2'>
+          <dt className='text-muted-foreground text-xs'>{t('R2 endpoint')}</dt>
+          <dd className='mt-1 font-medium break-all'>{props.item.endpoint}</dd>
+        </div>
+        <div className='bg-muted/30 min-w-0 rounded-lg p-3'>
+          <dt className='text-muted-foreground text-xs'>{props.bucketLabel}</dt>
+          <dd className='mt-1 font-medium break-all'>{props.item.bucket}</dd>
+        </div>
+        {props.details && (
+          <div className='bg-muted/30 min-w-0 rounded-lg p-3 md:col-span-2'>
+            <dt className='text-muted-foreground text-xs'>
+              {t('Retention and download')}
+            </dt>
+            <dd className='mt-1 font-medium'>{props.details}</dd>
+          </div>
+        )}
+        <div className='bg-muted/30 min-w-0 rounded-lg p-3'>
+          <dt className='text-muted-foreground text-xs'>{t('Updated by')}</dt>
+          <dd className='mt-1 font-medium'>
+            {props.item.updatedBy} ·{' '}
+            {formatCanvasDateTime(props.item.createdAt)}
+          </dd>
+        </div>
+      </dl>
+      <div className='bg-muted/30 flex flex-col gap-3 rounded-lg px-4 py-3 sm:flex-row sm:items-center sm:justify-between'>
+        <dl className='min-w-0 text-xs'>
+          <ConnectionCheck
+            label={props.checkLabel}
+            value={props.item.latestCheck}
+          />
+        </dl>
+        <div className='flex shrink-0 flex-wrap gap-2'>
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={props.checking}
+            onClick={props.onCheck}
+          >
+            {props.buttonLabel}
+          </Button>
+          <Button
+            size='sm'
+            aria-expanded={props.editing}
+            onClick={props.onEdit}
+          >
+            {props.editLabel}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

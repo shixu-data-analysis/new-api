@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -46,7 +47,13 @@ import type {
   LimitRule,
 } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
+import { BusinessTerm } from './BusinessTerm'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
+
+const executorModeLabelKeys: Record<string, string> = {
+  MOCK: 'Mock mode',
+  REAL: 'Real mode',
+}
 
 const integer = (minimum: number, maximum: number) =>
   z.number().int().min(minimum).max(maximum)
@@ -271,6 +278,7 @@ export function ExecutionSettings() {
   const overview = useQuery({
     queryKey: ['canvas-cloud', 'execution'],
     queryFn: ({ signal }) => getCanvasExecutionOverview(signal),
+    refetchInterval: 10_000,
   })
   const matrix = useQuery({
     queryKey: ['canvas-cloud', 'provider-pricing-matrix'],
@@ -316,167 +324,195 @@ export function ExecutionSettings() {
   })
 
   return (
-    <div className='space-y-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Execution settings')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Versioned limits, channel behavior, and safe provider error mapping.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          {(overview.isPending || matrix.isPending) && (
-            <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
-          )}
-          {(overview.isError || matrix.isError) && (
-            <Button
-              variant='outline'
-              onClick={() => {
-                void overview.refetch()
-                void matrix.refetch()
-              }}
-            >
-              {t('Retry')}
-            </Button>
-          )}
-          {overview.data && (
-            <GlobalSection
-              data={overview.data.global.effective}
-              version={overview.data.global.version}
-              recovery={overview.data.systemRecovery}
-              instances={overview.data.instances}
-              onReview={setConfirmation}
-              onPublish={(config) =>
-                publish.mutate({
-                  kind: 'GLOBAL_LIMITS',
-                  scopeKey: 'GLOBAL',
-                  config,
-                })
-              }
-              pending={publish.isPending}
-            />
-          )}
-        </CardContent>
-      </Card>
+    <Tabs defaultValue='global' className='space-y-4'>
+      <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='global'>
+          {t('Global execution limits')}
+        </TabsTrigger>
+        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='channel'>
+          {t('Channel execution policy')}
+        </TabsTrigger>
+      </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Channel execution policy')}</CardTitle>
-          <CardDescription>
-            {t('Select a published runtime channel before editing its policy.')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className='space-y-4'>
-          <div className='max-w-2xl space-y-1'>
-            <Label htmlFor='execution-channel'>{t('Provider channel')}</Label>
-            <NativeSelect
-              id='execution-channel'
-              value={selectedChannelId}
-              onChange={(event) => setSelectedChannelId(event.target.value)}
-            >
-              <NativeSelectOption value=''>
-                {t('Select a channel')}
-              </NativeSelectOption>
-              {channels.map((item) => (
-                <NativeSelectOption key={item.id} value={item.id}>
-                  {item.label}
+      <TabsContent value='global' className='mt-0'>
+        {overview.isPending && (
+          <Card size='sm'>
+            <CardContent className='text-muted-foreground text-sm'>
+              {t('Loading')}
+            </CardContent>
+          </Card>
+        )}
+        {overview.isError && (
+          <Card size='sm'>
+            <CardContent>
+              <Button variant='outline' onClick={() => void overview.refetch()}>
+                {t('Retry')}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {overview.data && (
+          <GlobalSection
+            data={overview.data.global.effective}
+            version={overview.data.global.version}
+            recovery={overview.data.systemRecovery}
+            instances={overview.data.instances}
+            onReview={setConfirmation}
+            onPublish={(config) =>
+              publish.mutate({
+                kind: 'GLOBAL_LIMITS',
+                scopeKey: 'GLOBAL',
+                config,
+              })
+            }
+            pending={publish.isPending}
+          />
+        )}
+      </TabsContent>
+
+      <TabsContent value='channel' className='mt-0'>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('Channel execution policy')}</CardTitle>
+            <CardDescription>
+              {t(
+                'Select a published runtime channel before editing its policy.'
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            <div className='bg-muted/30 max-w-2xl space-y-1 rounded-lg border p-3'>
+              <Label htmlFor='execution-channel'>{t('Provider channel')}</Label>
+              <NativeSelect
+                id='execution-channel'
+                value={selectedChannelId}
+                onChange={(event) => setSelectedChannelId(event.target.value)}
+              >
+                <NativeSelectOption value=''>
+                  {t('Select a channel')}
                 </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          {selectedChannelId && channel.isPending && (
-            <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
-          )}
-          {channel.isError && (
-            <Button variant='outline' onClick={() => void channel.refetch()}>
-              {t('Retry')}
-            </Button>
-          )}
-          {channel.data && matrix.data && (
-            <Tabs defaultValue='channel'>
-              <TabsList className='h-auto max-w-full flex-wrap justify-start'>
-                <TabsTrigger value='channel'>
-                  {t('Timeouts and concurrency')}
-                </TabsTrigger>
-                <TabsTrigger value='limits'>{t('Limit rules')}</TabsTrigger>
-                <TabsTrigger value='errors'>{t('Error mappings')}</TabsTrigger>
-              </TabsList>
-              <TabsContent value='channel' className='mt-4'>
-                <ChannelSection
-                  data={channel.data.channel.effective}
-                  version={channel.data.channel.version}
-                  onReview={setConfirmation}
-                  onPublish={(config) =>
-                    publish.mutate({
-                      kind: 'CHANNEL_POLICY',
-                      scopeKey: selectedChannelId,
-                      config,
-                    })
-                  }
-                  pending={publish.isPending}
-                />
-              </TabsContent>
-              <TabsContent value='limits' className='mt-4'>
-                <LimitSection
-                  key={`limits-${selectedChannelId}-${channel.data.limits.version}`}
-                  rules={channel.data.limits.effective.rules}
-                  credentialGroups={
-                    overview.data?.credentialGroups
-                      .filter(
-                        (item) => item.providerId === channel.data.providerId
-                      )
-                      .map((item) => ({
-                        credentialGroupId: item.id,
-                        name: item.name,
-                      })) ?? []
-                  }
-                  models={[
-                    ...new Map(
-                      matrix.data
-                        .filter((item) => item.channelId === selectedChannelId)
-                        .map((item) => [
-                          item.customerModelId,
-                          {
-                            id: item.customerModelId,
-                            publicName: item.modelName,
-                          },
-                        ])
-                    ).values(),
-                  ]}
-                  onReview={setConfirmation}
-                  onPublish={(rules) =>
-                    publish.mutate({
-                      kind: 'LIMIT_RULES',
-                      scopeKey: selectedChannelId,
-                      config: { rules },
-                    })
-                  }
-                  pending={publish.isPending}
-                />
-              </TabsContent>
-              <TabsContent value='errors' className='mt-4'>
-                <ErrorSection
-                  key={`errors-${channel.data.providerId}-${channel.data.errors.version}`}
-                  channelId={selectedChannelId}
-                  providerId={channel.data.providerId}
-                  rules={channel.data.errors.effective.rules}
-                  onReview={setConfirmation}
-                  onPublish={(rules) =>
-                    publish.mutate({
-                      kind: 'ERROR_MAPPING',
-                      scopeKey: channel.data.providerId,
-                      config: { rules },
-                    })
-                  }
-                  pending={publish.isPending}
-                />
-              </TabsContent>
-            </Tabs>
-          )}
-        </CardContent>
-      </Card>
+                {channels.map((item) => (
+                  <NativeSelectOption key={item.id} value={item.id}>
+                    {item.label}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            {matrix.isPending && (
+              <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+            )}
+            {matrix.isError && (
+              <Button variant='outline' onClick={() => void matrix.refetch()}>
+                {t('Retry')}
+              </Button>
+            )}
+            {selectedChannelId && channel.isPending && (
+              <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+            )}
+            {channel.isError && (
+              <Button variant='outline' onClick={() => void channel.refetch()}>
+                {t('Retry')}
+              </Button>
+            )}
+            {channel.data && matrix.data && (
+              <Tabs defaultValue='channel'>
+                <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+                  <TabsTrigger
+                    className='h-8 min-h-8 flex-none px-3'
+                    value='channel'
+                  >
+                    {t('Timeouts and concurrency')}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    className='h-8 min-h-8 flex-none px-3'
+                    value='limits'
+                  >
+                    {t('Limit rules')}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    className='h-8 min-h-8 flex-none px-3'
+                    value='errors'
+                  >
+                    {t('Error mappings')}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='channel' className='mt-4'>
+                  <ChannelSection
+                    data={channel.data.channel.effective}
+                    version={channel.data.channel.version}
+                    onReview={setConfirmation}
+                    onPublish={(config) =>
+                      publish.mutate({
+                        kind: 'CHANNEL_POLICY',
+                        scopeKey: selectedChannelId,
+                        config,
+                      })
+                    }
+                    pending={publish.isPending}
+                  />
+                </TabsContent>
+                <TabsContent value='limits' className='mt-4'>
+                  <LimitSection
+                    key={`limits-${selectedChannelId}-${channel.data.limits.version}`}
+                    rules={channel.data.limits.effective.rules}
+                    credentialGroups={
+                      overview.data?.credentialGroups
+                        .filter(
+                          (item) => item.providerId === channel.data.providerId
+                        )
+                        .map((item) => ({
+                          credentialGroupId: item.id,
+                          name: item.name,
+                        })) ?? []
+                    }
+                    models={[
+                      ...new Map(
+                        matrix.data
+                          .filter(
+                            (item) => item.channelId === selectedChannelId
+                          )
+                          .map((item) => [
+                            item.customerModelId,
+                            {
+                              id: item.customerModelId,
+                              publicName: item.modelName,
+                            },
+                          ])
+                      ).values(),
+                    ]}
+                    onReview={setConfirmation}
+                    onPublish={(rules) =>
+                      publish.mutate({
+                        kind: 'LIMIT_RULES',
+                        scopeKey: selectedChannelId,
+                        config: { rules },
+                      })
+                    }
+                    pending={publish.isPending}
+                  />
+                </TabsContent>
+                <TabsContent value='errors' className='mt-4'>
+                  <ErrorSection
+                    key={`errors-${channel.data.providerId}-${channel.data.errors.version}`}
+                    channelId={selectedChannelId}
+                    providerId={channel.data.providerId}
+                    rules={channel.data.errors.effective.rules}
+                    onReview={setConfirmation}
+                    onPublish={(rules) =>
+                      publish.mutate({
+                        kind: 'ERROR_MAPPING',
+                        scopeKey: channel.data.providerId,
+                        config: { rules },
+                      })
+                    }
+                    pending={publish.isPending}
+                  />
+                </TabsContent>
+              </Tabs>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
       <PricingActionConfirmation
         open={Boolean(confirmation)}
         onOpenChange={(open) => {
@@ -489,7 +525,7 @@ export function ExecutionSettings() {
         pending={publish.isPending}
         onConfirm={() => confirmation?.run()}
       />
-    </div>
+    </Tabs>
   )
 }
 
@@ -509,12 +545,19 @@ function GlobalSection(props: {
     status: string
     credentialsConfigured: boolean
     heartbeatAt: string | null
+    leaseExpiresAt: string | null
   }>
   pending: boolean
   onReview: (value: Confirmation) => void
   onPublish: (config: Record<string, unknown>) => void
 }) {
   const { t } = useTranslation()
+  const visibleInstances = props.instances.filter(
+    (instance) =>
+      instance.status !== 'STOPPED' &&
+      instance.leaseExpiresAt !== null &&
+      Date.parse(instance.leaseExpiresAt) > Date.now()
+  )
   const form = useForm<GlobalForm>({
     resolver: zodResolver(globalSchema),
     values: props.data,
@@ -534,105 +577,130 @@ function GlobalSection(props: {
     })
   )
   return (
-    <div className='space-y-6'>
-      <form
-        aria-label={t('Global execution limits')}
-        className='space-y-4'
-        onSubmit={review}
-      >
-        <div className='flex flex-wrap items-center gap-2'>
-          <h3 className='font-semibold'>{t('Global execution limits')}</h3>
-          <Badge variant='secondary'>
-            {t('Version')} {props.version ?? t('Default')}
-          </Badge>
-        </div>
-        <div className='grid gap-4 md:grid-cols-3'>
-          <NumberField
-            id='instance-concurrency'
-            label={t('Instance concurrency')}
-            registration={form.register('instanceConcurrency', {
-              valueAsNumber: true,
-            })}
-            error={form.formState.errors.instanceConcurrency?.message}
-          />
-          <NumberField
-            id='query-reserved-concurrency'
-            label={t('Query reserved concurrency')}
-            registration={form.register('queryReservedConcurrency', {
-              valueAsNumber: true,
-            })}
-            error={form.formState.errors.queryReservedConcurrency?.message}
-          />
-          <NumberField
-            id='user-output-limit'
-            label={t('User output limit')}
-            registration={form.register('userOutputLimit', {
-              valueAsNumber: true,
-            })}
-            error={form.formState.errors.userOutputLimit?.message}
-          />
-        </div>
-        <div className='flex flex-wrap gap-2'>
-          <Button type='submit' disabled={props.pending}>
-            {t('Review publication')}
-          </Button>
-          <Button
-            type='button'
-            variant='outline'
-            disabled={props.pending}
-            onClick={() =>
-              props.onReview({
-                title: t('Restore global defaults'),
-                description: t(
-                  'The next version will inherit every global default.'
-                ),
-                details: [{ label: t('Scope'), value: 'GLOBAL' }],
-                confirmLabel: t('Restore defaults'),
-                run: () => props.onPublish({}),
-              })
-            }
+    <div className='space-y-4'>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('Global execution limits')}</CardTitle>
+          <CardDescription>
+            {t('This creates a new version and changes executor capacity.')}
+          </CardDescription>
+          <CardAction>
+            <Badge variant='secondary'>
+              {t('Version')} {props.version ?? t('Default')}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <form
+            aria-label={t('Global execution limits')}
+            className='space-y-4'
+            onSubmit={review}
           >
-            {t('Restore defaults')}
-          </Button>
-        </div>
-      </form>
-      <div className='grid gap-4 xl:grid-cols-2'>
-        <ReadOnlyFacts
-          title={t('System recovery')}
-          facts={Object.entries(props.recovery).map(([label, value]) => [
-            t(label),
-            String(value),
-          ])}
-        />
-        <div className='space-y-2'>
-          <h3 className='font-semibold'>{t('Executor instances')}</h3>
-          {props.instances.length === 0 ? (
-            <p className='text-muted-foreground text-sm'>
-              {t('No executor instances reported')}
-            </p>
-          ) : (
-            props.instances.map((instance) => (
-              <div
-                key={`${instance.queueName}-${instance.workerId}`}
-                className='rounded-lg border p-3 text-sm'
+            <div className='grid gap-4 md:grid-cols-3'>
+              <NumberField
+                id='instance-concurrency'
+                label={t('Instance concurrency')}
+                registration={form.register('instanceConcurrency', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.instanceConcurrency?.message}
+              />
+              <NumberField
+                id='query-reserved-concurrency'
+                label={t('Query reserved concurrency')}
+                registration={form.register('queryReservedConcurrency', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.queryReservedConcurrency?.message}
+              />
+              <NumberField
+                id='user-output-limit'
+                label={t('User output limit')}
+                registration={form.register('userOutputLimit', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.userOutputLimit?.message}
+              />
+            </div>
+            <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={props.pending}
+                onClick={() =>
+                  props.onReview({
+                    title: t('Restore global defaults'),
+                    description: t(
+                      'The next version will inherit every global default.'
+                    ),
+                    details: [{ label: t('Scope'), value: 'GLOBAL' }],
+                    confirmLabel: t('Restore defaults'),
+                    run: () => props.onPublish({}),
+                  })
+                }
               >
-                <div className='flex flex-wrap items-center gap-2'>
-                  <span className='font-medium'>{instance.queueName}</span>
-                  <Badge variant='outline'>{instance.mode}</Badge>
-                  <Badge variant='secondary'>{instance.status}</Badge>
+                {t('Restore defaults')}
+              </Button>
+              <Button type='submit' disabled={props.pending}>
+                {t('Review publication')}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+      <div className='grid gap-4 xl:grid-cols-2'>
+        <Card size='sm'>
+          <CardHeader>
+            <CardTitle>{t('System recovery')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ReadOnlyFacts
+              facts={Object.entries(props.recovery).map(([label, value]) => [
+                t(label),
+                String(value),
+              ])}
+            />
+          </CardContent>
+        </Card>
+        <Card size='sm'>
+          <CardHeader>
+            <CardTitle>{t('Running workers')}</CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-2'>
+            {visibleInstances.length === 0 ? (
+              <p className='text-muted-foreground text-sm'>
+                {t('No running executor instances')}
+              </p>
+            ) : (
+              visibleInstances.map((instance) => (
+                <div
+                  key={`${instance.queueName}-${instance.workerId}`}
+                  className='bg-muted/30 rounded-lg border p-3 text-sm'
+                >
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <span className='font-medium'>{instance.queueName}</span>
+                    <Badge variant='outline'>
+                      {t(executorModeLabelKeys[instance.mode] ?? 'Unknown')}
+                    </Badge>
+                    <BusinessTerm
+                      kind='executorStatus'
+                      value={instance.status}
+                    />
+                  </div>
+                  <p className='text-muted-foreground mt-1 break-all'>
+                    {instance.workerId}
+                  </p>
+                  <p className='text-muted-foreground mt-1'>
+                    {t('Credentials configured')}:{' '}
+                    {instance.credentialsConfigured ? t('Yes') : t('No')} ·{' '}
+                    {t('Heartbeat')}:{' '}
+                    {formatCanvasDateTime(instance.heartbeatAt)}
+                  </p>
                 </div>
-                <p className='text-muted-foreground mt-1 break-all'>
-                  {instance.workerId}
-                </p>
-                <p className='text-muted-foreground mt-1'>
-                  {t('Credentials configured')}:{' '}
-                  {instance.credentialsConfigured ? t('Yes') : t('No')} ·{' '}
-                  {t('Heartbeat')}: {formatCanvasDateTime(instance.heartbeatAt)}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
@@ -696,10 +764,7 @@ function ChannelSection(props: {
           />
         ))}
       </div>
-      <div className='flex flex-wrap gap-2'>
-        <Button type='submit' disabled={props.pending}>
-          {t('Review publication')}
-        </Button>
+      <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
         <Button
           type='button'
           variant='outline'
@@ -717,6 +782,9 @@ function ChannelSection(props: {
           }
         >
           {t('Restore defaults')}
+        </Button>
+        <Button type='submit' disabled={props.pending}>
+          {t('Review publication')}
         </Button>
       </div>
     </form>
@@ -943,9 +1011,11 @@ function LimitSection(props: {
       })}
       {Object.keys(form.formState.errors).length > 0 &&
         fieldError(t('Fix the highlighted rule fields'))}
-      <Button type='submit' disabled={props.pending}>
-        {t('Review publication')}
-      </Button>
+      <div className='flex justify-end border-t pt-4'>
+        <Button type='submit' disabled={props.pending}>
+          {t('Review publication')}
+        </Button>
+      </div>
     </form>
   )
 }
@@ -1133,9 +1203,11 @@ function ErrorSection(props: {
         ))}
         {Object.keys(form.formState.errors).length > 0 &&
           fieldError(t('Fix the highlighted rule fields'))}
-        <Button type='submit' disabled={props.pending}>
-          {t('Review publication')}
-        </Button>
+        <div className='flex justify-end border-t pt-4'>
+          <Button type='submit' disabled={props.pending}>
+            {t('Review publication')}
+          </Button>
+        </div>
       </form>
       <Card className='h-fit'>
         <CardHeader>
@@ -1174,22 +1246,24 @@ function ErrorSection(props: {
             />
           </div>
           {previewError && fieldError(previewError)}
-          <Button
-            type='button'
-            variant='outline'
-            disabled={preview.isPending}
-            onClick={() => {
-              setPreviewError('')
-              try {
-                JSON.parse(previewJson)
-                preview.mutate()
-              } catch {
-                setPreviewError(t('Enter valid JSON'))
-              }
-            }}
-          >
-            {t('Run preview')}
-          </Button>
+          <div className='flex justify-end border-t pt-4'>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={preview.isPending}
+              onClick={() => {
+                setPreviewError('')
+                try {
+                  JSON.parse(previewJson)
+                  preview.mutate()
+                } catch {
+                  setPreviewError(t('Enter valid JSON'))
+                }
+              }}
+            >
+              {t('Run preview')}
+            </Button>
+          </div>
           {preview.data && (
             <ReadOnlyFacts
               title={t('Preview result')}
@@ -1299,12 +1373,12 @@ function SelectField(props: {
   )
 }
 function ReadOnlyFacts(props: {
-  title: string
+  title?: string
   facts: Array<[string, string]>
 }) {
   return (
     <div className='space-y-2'>
-      <h3 className='font-semibold'>{props.title}</h3>
+      {props.title && <h3 className='font-semibold'>{props.title}</h3>}
       <dl className='grid gap-2 rounded-lg border p-3 text-sm'>
         {props.facts.map(([label, value]) => (
           <div

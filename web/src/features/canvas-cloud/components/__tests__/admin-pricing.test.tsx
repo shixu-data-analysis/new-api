@@ -95,6 +95,34 @@ const prices: CanvasAdminWorkspace['prices'] = [
     effectiveAt: '2026-08-26T00:02:00.000Z',
   },
 ]
+const pricePromotions: CanvasAdminWorkspace['pricePromotions'] = [
+  {
+    id: 'special-v1',
+    version: 1,
+    status: 'STOPPED',
+    sourcePriceVersionId: 'published-price',
+    modelKey: 'canvas.image',
+    modelName: 'Canvas Image',
+    priceGroupCode: 'STANDARD',
+    priceGroup: 'Standard',
+    combinationKey: 'quality=1K',
+    basePoints: '60',
+    specialPoints: '59',
+    expectedContributionRate: '0.10',
+    campaignBudgetMinor: '200',
+    maxExpectedLossMinor: null,
+    maxParticipants: '1',
+    usedBudgetMinor: '2',
+    usedExpectedLossMinor: '0',
+    participants: '1',
+    approvalReason: 'Approved UAT special',
+    startsAt: '2026-09-05T12:09:00.000Z',
+    endsAt: '2026-09-05T12:39:00.000Z',
+    createdAt: '2026-09-05T12:00:00.000Z',
+    approvedAt: '2026-09-05T12:01:00.000Z',
+    effectiveAt: '2026-09-05T12:09:00.000Z',
+  },
+]
 const pricingMatrix: CanvasProviderPricingRow[] = [
   {
     providerId: 'provider-1',
@@ -146,12 +174,18 @@ const pricingMatrix: CanvasProviderPricingRow[] = [
 function renderPricing(
   onChanged = vi.fn().mockResolvedValue(undefined),
   priceRows = prices,
-  mode: 'pricing' | 'campaigns' = 'pricing'
+  mode: 'pricing' | 'campaigns' = 'pricing',
+  promotionRows: CanvasAdminWorkspace['pricePromotions'] = []
 ) {
   const queryClient = new QueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <AdminPricing prices={priceRows} onChanged={onChanged} mode={mode} />
+      <AdminPricing
+        prices={priceRows}
+        pricePromotions={promotionRows}
+        onChanged={onChanged}
+        mode={mode}
+      />
     </QueryClientProvider>
   )
 }
@@ -1084,5 +1118,18 @@ describe('Canvas administrator pricing', () => {
       )
     })
     expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('shows limited-time special records in the shared records table', () => {
+    renderPricing(undefined, prices, 'campaigns', pricePromotions)
+
+    const table = screen.getByRole('table')
+    expect(within(table).getByRole('columnheader', { name: 'Model' })).toBeVisible()
+    expect(within(table).getByText('Canvas Image')).toBeVisible()
+    expect(within(table).getByText('quality=1K')).toBeVisible()
+    expect(within(table).getByText('60 → 59 points')).toBeVisible()
+    expect(within(table).getByText('Stopped')).toBeVisible()
+    expect(within(table).getByText('1 / 1')).toBeVisible()
+    expect(within(table).getByText('0.02 / 2.00 RMB')).toBeVisible()
   })
 })

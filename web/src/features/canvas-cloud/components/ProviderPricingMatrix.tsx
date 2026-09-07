@@ -18,12 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type ReactNode } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { StaticDataTable } from '@/components/data-table'
+import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -73,13 +74,10 @@ import {
   type ProviderRiskFormValues,
 } from '../provider-pricing'
 import type { CanvasBillingUnit, CanvasProviderPricingRow } from '../types'
-import { canvasStaticColumnWidth } from './canvas-table-layout'
-import {
-  CanvasColumnFilterField,
-  CanvasColumnFilterPanel,
-} from './CanvasColumnFilterPanel'
+import { BusinessTerm } from './BusinessTerm'
 import { CustomerPriceEditor } from './CustomerPriceEditor'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { PricingRecordsTable } from './PricingRecordsTable'
 
 type RateReview = {
   values: ProviderRateFormValues
@@ -141,10 +139,6 @@ export function ProviderPricingMatrix() {
   const [riskReview, setRiskReview] = useState<RiskReview | null>(null)
   const [customerPriceTarget, setCustomerPriceTarget] =
     useState<CustomerPriceTarget | null>(null)
-  const [providerFilter, setProviderFilter] = useState('')
-  const [modelFilter, setModelFilter] = useState('')
-  const [qualityFilter, setQualityFilter] = useState('')
-  const [page, setPage] = useState(1)
   const selectedId = rateForm.watch('targetId')
   const billingUnit = rateForm.watch('billingUnit')
   const failureMode = rateForm.watch('failureMode')
@@ -205,22 +199,6 @@ export function ProviderPricingMatrix() {
       toast.error(t('Pricing risk decision could not be recorded')),
   })
 
-  const filteredRows = useMemo(() => {
-    const provider = providerFilter.trim().toLocaleLowerCase()
-    const model = modelFilter.trim().toLocaleLowerCase()
-    const quality = qualityFilter.trim().toLocaleLowerCase()
-    return (matrix.data ?? []).filter(
-      (row) =>
-        (!provider ||
-          row.providerName.toLocaleLowerCase().includes(provider)) &&
-        (!model || row.modelName.toLocaleLowerCase().includes(model)) &&
-        (!quality ||
-          String(row.parameters.quality ?? row.combinationKey)
-            .toLocaleLowerCase()
-            .includes(quality))
-    )
-  }, [matrix.data, modelFilter, providerFilter, qualityFilter])
-
   if (matrix.isPending) return <LoadingState />
   if (matrix.isError) {
     return <ErrorState onRetry={() => void matrix.refetch()} />
@@ -228,12 +206,6 @@ export function ProviderPricingMatrix() {
 
   const hasUnsafePrices = selected?.prices.some(
     (price) => price.status === 'PUBLISHED' && price.belowBreakEven
-  )
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 20))
-  const currentPage = Math.min(page, pageCount)
-  const visibleRows = filteredRows.slice(
-    (currentPage - 1) * 20,
-    currentPage * 20
   )
   const exact = (value: string | null) =>
     value ? formatExactRmbReference(value, locale) : '—'
@@ -508,64 +480,12 @@ export function ProviderPricingMatrix() {
         />
       ) : null}
 
-      <CanvasColumnFilterPanel
-        activeCount={
-          [providerFilter, modelFilter, qualityFilter].filter(Boolean).length
-        }
-        onClear={() => {
-          setProviderFilter('')
-          setModelFilter('')
-          setQualityFilter('')
-          setPage(1)
-        }}
-      >
-        <FilterInput
-          label={t('Provider')}
-          value={providerFilter}
-          setValue={setProviderFilter}
-          resetPage={() => setPage(1)}
-        />
-        <FilterInput
-          label={t('Model')}
-          value={modelFilter}
-          setValue={setModelFilter}
-          resetPage={() => setPage(1)}
-        />
-        <FilterInput
-          label={t('Quality')}
-          value={qualityFilter}
-          setValue={setQualityFilter}
-          resetPage={() => setPage(1)}
-        />
-      </CanvasColumnFilterPanel>
-
       <PricingTable
-        rows={visibleRows}
+        rows={matrix.data}
         exact={exact}
         onCreate={(row) => setCustomerPriceTarget({ row })}
         onEdit={(row, price) => setCustomerPriceTarget({ row, price })}
       />
-      <div className='flex items-center justify-between'>
-        <span className='text-muted-foreground text-sm'>
-          {filteredRows.length} {t('records')} · {currentPage} / {pageCount}
-        </span>
-        <div className='flex gap-2'>
-          <Button
-            variant='outline'
-            disabled={currentPage <= 1}
-            onClick={() => setPage((value) => value - 1)}
-          >
-            {t('Previous')}
-          </Button>
-          <Button
-            variant='outline'
-            disabled={currentPage >= pageCount}
-            onClick={() => setPage((value) => value + 1)}
-          >
-            {t('Next')}
-          </Button>
-        </div>
-      </div>
 
       <PricingActionConfirmation
         open={Boolean(rateReview)}
@@ -689,26 +609,6 @@ function RateInput(props: {
   )
 }
 
-function FilterInput(props: {
-  label: string
-  value: string
-  setValue: (value: string) => void
-  resetPage: () => void
-}) {
-  return (
-    <CanvasColumnFilterField label={props.label}>
-      <Input
-        value={props.value}
-        placeholder={props.label}
-        onChange={(event) => {
-          props.setValue(event.target.value)
-          props.resetPage()
-        }}
-      />
-    </CanvasColumnFilterField>
-  )
-}
-
 function RiskForm(props: {
   form: ReturnType<typeof useForm<ProviderRiskFormValues>>
   pending: boolean
@@ -822,36 +722,75 @@ function PricingTable(props: {
   ) => void
 }) {
   const { t } = useTranslation()
-  const headings: Array<[string, string]> = [
-    ['Provider', canvasStaticColumnWidth.standard],
-    ['Model', canvasStaticColumnWidth.wide],
-    ['Quality', canvasStaticColumnWidth.standard],
-    ['Billing unit', canvasStaticColumnWidth.standard],
-    ['Provider rate version', canvasStaticColumnWidth.standard],
-    ['Current cost', canvasStaticColumnWidth.detail],
-    ['Pricing risk', canvasStaticColumnWidth.standard],
-    ['Customer price comparison', canvasStaticColumnWidth.detail],
-  ]
-  return (
-    <StaticDataTable tableClassName='min-w-[1240px] table-fixed'>
-      <TableHeader>
-        <TableRow>
-          {headings.map(([label, width]) => (
-            <TableHead
-              key={label}
-              className={`${width} h-auto py-2 whitespace-normal`}
-            >
-              {t(label)}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {props.rows.map((row) => {
+  const columns = useMemo<
+    ColumnDef<CanvasProviderPricingRow, unknown>[]
+  >(() => {
+    const column = (
+      id: string,
+      label: string,
+      accessorFn: (row: CanvasProviderPricingRow) => unknown,
+      cell: (row: CanvasProviderPricingRow) => React.ReactNode,
+      size?: number
+    ): ColumnDef<CanvasProviderPricingRow, unknown> => ({
+      id,
+      accessorFn,
+      header: ({ column: tableColumn }) => (
+        <DataTableColumnHeader column={tableColumn} title={t(label)} />
+      ),
+      meta: { label: t(label) },
+      cell: ({ row }) => cell(row.original),
+      size,
+    })
+
+    return [
+      column(
+        'provider',
+        'Provider',
+        (row) => row.providerName,
+        (row) => row.providerName
+      ),
+      column(
+        'model',
+        'Model',
+        (row) => row.modelName,
+        (row) => row.modelName
+      ),
+      column(
+        'quality',
+        'Quality',
+        (row) => String(row.parameters.quality ?? row.combinationKey),
+        (row) => String(row.parameters.quality ?? row.combinationKey)
+      ),
+      column(
+        'billingUnit',
+        'Billing unit',
+        (row) => t(billingUnitLabel[providerBillingUnit(row)]),
+        (row) => t(billingUnitLabel[providerBillingUnit(row)])
+      ),
+      column(
+        'rateVersion',
+        'Provider rate version',
+        (row) => row.rateVersion ?? 0,
+        (row) =>
+          row.rateVersion ? (
+            <div className='flex flex-wrap items-center gap-1.5'>
+              <span>v{row.rateVersion}</span>
+              {row.rateStatus ? (
+                <BusinessTerm kind='configStatus' value={row.rateStatus} />
+              ) : null}
+            </div>
+          ) : (
+            t('Not priced')
+          )
+      ),
+      column(
+        'currentCost',
+        'Current cost',
+        (row) => row.normalizedAmountMinor ?? row.nativeAmount ?? '',
+        (row) => {
           const unit = providerBillingUnit(row)
-          let currentCost: ReactNode = t('Not priced')
           if (unit === 'MILLION_TOKENS' && row.tokenRates) {
-            currentCost = providerTokenCategories.map((category) => (
+            return providerTokenCategories.map((category) => (
               <div key={category}>
                 <span className='text-muted-foreground'>
                   {t(providerTokenCategoryLabel[category])}:
@@ -859,108 +798,122 @@ function PricingTable(props: {
                 {row.currency} {props.exact(row.tokenRates?.[category] ?? null)}
               </div>
             ))
-          } else if (row.nativeAmount && row.currency) {
-            currentCost = `${row.currency} ${props.exact(row.nativeAmount)}`
           }
-          return (
-            <TableRow key={row.combinationId} className='align-top'>
-              <TableCell className='break-words whitespace-normal'>
-                {row.providerName}
-              </TableCell>
-              <TableCell className='break-words whitespace-normal'>
-                {row.modelName}
-              </TableCell>
-              <TableCell className='break-all whitespace-normal'>
-                {String(row.parameters.quality ?? row.combinationKey)}
-              </TableCell>
-              <TableCell>{t(billingUnitLabel[unit])}</TableCell>
-              <TableCell>
-                {row.rateVersion
-                  ? `v${row.rateVersion} · ${row.rateStatus}`
-                  : t('Not priced')}
-              </TableCell>
-              <TableCell className='break-words whitespace-normal'>
-                {currentCost}
-              </TableCell>
-              <TableCell className='break-words whitespace-normal'>
-                {row.prices.some((price) => price.belowBreakEven)
-                  ? t('Below break-even')
-                  : t('No active risk')}
-              </TableCell>
-              <TableCell>
-                <details>
-                  <summary className='text-primary cursor-pointer'>
-                    {t('View')} ({row.prices.length})
-                  </summary>
-                  <div className='mt-2 min-w-0 space-y-2 text-xs whitespace-normal'>
+          return row.nativeAmount && row.currency
+            ? `${row.currency} ${props.exact(row.nativeAmount)}`
+            : t('Not priced')
+        },
+        256
+      ),
+      column(
+        'risk',
+        'Pricing risk',
+        (row) => row.prices.some((price) => price.belowBreakEven),
+        (row) =>
+          row.prices.some((price) => price.belowBreakEven)
+            ? t('Below break-even')
+            : t('No active risk')
+      ),
+      column(
+        'comparison',
+        'Customer price comparison',
+        (row) => row.prices.length,
+        (row) => (
+          <details>
+            <summary className='text-primary cursor-pointer'>
+              {t('View')} ({row.prices.length})
+            </summary>
+            <div className='mt-2 min-w-0 space-y-2 text-xs whitespace-normal'>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                onClick={() => props.onCreate(row)}
+              >
+                {t('Add customer price')}
+              </Button>
+              {row.prices.map((price) => (
+                <div
+                  key={price.id}
+                  className={
+                    price.belowBreakEven
+                      ? 'text-destructive break-words'
+                      : 'text-muted-foreground break-words'
+                  }
+                >
+                  <div className='font-medium'>
+                    {price.groupName} · v{price.version} ·{' '}
+                    {t(billingUnitLabel[price.billingUnit])}
+                  </div>
+                  {price.billingUnit === 'MILLION_TOKENS' &&
+                  price.tokenRates ? (
+                    providerTokenCategories.map((category) => {
+                      const categoryRisk = price.categoryRisks.find(
+                        (item) => item.category === category
+                      )
+                      return (
+                        <div key={category}>
+                          {t(providerTokenCategoryLabel[category])}:{' '}
+                          {props.exact(price.tokenRates?.[category] ?? null)}{' '}
+                          {t('points')} ·{' '}
+                          {categoryRisk?.belowBreakEven
+                            ? t('Below break-even')
+                            : t('Safe')}
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div>
+                      {props.exact(price.points)} {t('points')} ·{' '}
+                      {price.belowBreakEven ? t('Below break-even') : t('Safe')}
+                    </div>
+                  )}
+                  {price.status === 'PUBLISHED' ? (
                     <Button
                       type='button'
                       size='sm'
-                      variant='outline'
-                      onClick={() => props.onCreate(row)}
+                      variant='ghost'
+                      className='mt-1'
+                      onClick={() => props.onEdit(row, price)}
                     >
-                      {t('Add customer price')}
+                      {t('Edit customer price')}
                     </Button>
-                    {row.prices.map((price) => (
-                      <div
-                        key={price.id}
-                        className={
-                          price.belowBreakEven
-                            ? 'text-destructive break-words'
-                            : 'text-muted-foreground break-words'
-                        }
-                      >
-                        <div className='font-medium'>
-                          {price.groupName} · v{price.version} ·{' '}
-                          {t(billingUnitLabel[price.billingUnit])}
-                        </div>
-                        {price.billingUnit === 'MILLION_TOKENS' &&
-                        price.tokenRates ? (
-                          providerTokenCategories.map((category) => {
-                            const categoryRisk = price.categoryRisks.find(
-                              (item) => item.category === category
-                            )
-                            return (
-                              <div key={category}>
-                                {t(providerTokenCategoryLabel[category])}:{' '}
-                                {props.exact(
-                                  price.tokenRates?.[category] ?? null
-                                )}{' '}
-                                {t('points')} ·{' '}
-                                {categoryRisk?.belowBreakEven
-                                  ? t('Below break-even')
-                                  : t('Safe')}
-                              </div>
-                            )
-                          })
-                        ) : (
-                          <div>
-                            {props.exact(price.points)} {t('points')} ·{' '}
-                            {price.belowBreakEven
-                              ? t('Below break-even')
-                              : t('Safe')}
-                          </div>
-                        )}
-                        {price.status === 'PUBLISHED' ? (
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant='ghost'
-                            className='mt-1'
-                            onClick={() => props.onEdit(row, price)}
-                          >
-                            {t('Edit customer price')}
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </TableCell>
-            </TableRow>
-          )
-        })}
-      </TableBody>
-    </StaticDataTable>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </details>
+        ),
+        256
+      ),
+    ]
+  }, [props, t])
+
+  return (
+    <PricingRecordsTable
+      columns={columns}
+      data={props.rows}
+      filters={[
+        { columnId: 'provider', label: t('Provider') },
+        { columnId: 'model', label: t('Model') },
+        { columnId: 'quality', label: t('Quality') },
+      ]}
+      getRowId={(row) => row.combinationId}
+      initialSorting={[{ id: 'provider', desc: false }]}
+      emptyTitle={t('No data')}
+      getColumnClassName={(columnId, kind) => {
+        if (kind !== 'cell') return undefined
+        if (columnId === 'quality') return 'whitespace-normal break-all'
+        if (
+          columnId === 'provider' ||
+          columnId === 'model' ||
+          columnId === 'currentCost' ||
+          columnId === 'risk'
+        ) {
+          return 'whitespace-normal break-words'
+        }
+        return undefined
+      }}
+    />
   )
 }

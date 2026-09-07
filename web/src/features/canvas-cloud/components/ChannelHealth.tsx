@@ -9,7 +9,13 @@ import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -363,11 +369,13 @@ export function ChannelHealth() {
       />
       {selected && (
         <Card>
-          <CardHeader className='flex flex-row items-center justify-between gap-2'>
+          <CardHeader>
             <CardTitle>{t('Channel health details')}</CardTitle>
-            <Button variant='ghost' onClick={() => setSelected(undefined)}>
-              {t('Close')}
-            </Button>
+            <CardAction>
+              <Button variant='ghost' onClick={() => setSelected(undefined)}>
+                {t('Close')}
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent className='min-w-0 space-y-4'>
             {detail.isError && (

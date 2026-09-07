@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { isAuthBundle, refreshAuthentication } from '@/lib/auth-session'
 import { useAuthStore, type AuthBundle } from '@/stores/auth-store'
 
-export type CanvasManualUatRole = 'customer' | 'admin' | 'agent'
+export type CanvasManualUatRole = 'customer' | 'admin' | 'inviter'
 
 interface CanvasManualUatConfig {
   enabled: boolean
@@ -28,7 +28,7 @@ interface CanvasManualUatConfig {
   requestedRole: string | null
   customerLogin: string
   adminLogin: string
-  agentLogin: string
+  inviterLogin: string
 }
 
 interface CanvasManualUatLogin {
@@ -41,13 +41,16 @@ type CanvasManualUatLoginRequest = (
   credentials: CanvasManualUatLogin
 ) => Promise<unknown>
 
-const customerOriginRoles = new Set<CanvasManualUatRole>(['customer', 'agent'])
+const customerOriginRoles = new Set<CanvasManualUatRole>([
+  'customer',
+  'inviter',
+])
 const roleStorageKey = 'canvas-manual-uat-role'
 
 function isCanvasManualUatRole(
   value: string | null
 ): value is CanvasManualUatRole {
-  return value === 'customer' || value === 'admin' || value === 'agent'
+  return value === 'customer' || value === 'admin' || value === 'inviter'
 }
 
 export function isCanvasManualUatActive(): boolean {
@@ -92,7 +95,7 @@ export function resolveCanvasManualUatEntryHref(
   const role = resolveCanvasManualUatRole(hostname, requestedRole)
   let section = 'overview'
   if (role === 'admin') section = 'dashboard'
-  if (role === 'agent') section = 'agent-center'
+  if (role === 'inviter') section = 'agent-center'
   return `/canvas-cloud/${section}?canvas-uat-role=${role}`
 }
 
@@ -119,7 +122,7 @@ export function resolveCanvasManualUatLogin(
   const role = resolveCanvasManualUatRole(config.hostname, config.requestedRole)
   let encodedLogin = config.customerLogin
   if (role === 'admin') encodedLogin = config.adminLogin
-  if (role === 'agent') encodedLogin = config.agentLogin
+  if (role === 'inviter') encodedLogin = config.inviterLogin
   if (!encodedLogin) {
     throw new Error(`Canvas manual UAT ${role} login config is missing`)
   }
@@ -223,8 +226,8 @@ export async function initializeCanvasManualUat(): Promise<void> {
       import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN?.trim() || '',
     adminLogin:
       import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN?.trim() || '',
-    agentLogin:
-      import.meta.env.VITE_CANVAS_MANUAL_UAT_AGENT_LOGIN?.trim() || '',
+    inviterLogin:
+      import.meta.env.VITE_CANVAS_MANUAL_UAT_INVITER_LOGIN?.trim() || '',
   })
   if (!login) return
 
