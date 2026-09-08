@@ -62,6 +62,12 @@ interface MultiSelectProps {
   id?: string
   /** Disable the entire control. */
   disabled?: boolean
+  /** For form-controller blur validation. */
+  onBlur?: React.FocusEventHandler<HTMLInputElement>
+  /** Connect field validation state to the combobox input. */
+  ariaInvalid?: boolean
+  /** IDs of help and validation text for the combobox input. */
+  ariaDescribedBy?: string
   /**
    * Limits rendered chips while keeping all values selected.
    * Hidden values remain searchable/removable from the dropdown.
@@ -154,8 +160,8 @@ export function MultiSelect(props: MultiSelectProps) {
     !inputMatchesExisting
 
   // We expose all known option values + every currently selected value to Base
-  // UI's items list. This way Base UI filters them by the search query and the
-  // user can still see the chip labels mapped correctly.
+  // UI's items list. Base UI searches their display labels while retaining raw
+  // values for form submission and selected chips.
   const items = React.useMemo(() => {
     const set = new Set<string>(props.options.map((option) => option.value))
     for (const value of props.selected) {
@@ -164,7 +170,7 @@ export function MultiSelect(props: MultiSelectProps) {
     if (canCreate) {
       set.add(trimmedInput)
     }
-    return Array.from(set)
+    return [...set]
   }, [props.options, props.selected, canCreate, trimmedInput])
 
   const addValues = React.useCallback(
@@ -249,6 +255,7 @@ export function MultiSelect(props: MultiSelectProps) {
     <Combobox
       multiple
       items={items}
+      itemToStringLabel={(item) => labelMap.get(item) ?? item}
       value={props.selected}
       onValueChange={handleValueChange}
       inputValue={inputValue}
@@ -346,7 +353,10 @@ export function MultiSelect(props: MultiSelectProps) {
               : undefined
           }
           onKeyDown={handleKeyDown}
+          onBlur={props.onBlur}
           aria-label={placeholder}
+          aria-invalid={props.ariaInvalid || undefined}
+          aria-describedby={props.ariaDescribedBy}
         />
       </ComboboxChips>
 

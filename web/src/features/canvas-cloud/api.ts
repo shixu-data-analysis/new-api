@@ -54,6 +54,14 @@ import type {
   CanvasPage,
   CanvasPointLedgerItem,
   CanvasRuntimeConfiguration,
+  CanvasProviderConfiguration,
+  CanvasProviderConfigurationQuery,
+  CanvasProviderCredentialVersion,
+  CanvasProviderCredentialHistoryQuery,
+  CanvasCredentialVersionAffectedModels,
+  CanvasModelCredentialBindingVersion,
+  CanvasCredentialRotationPreview,
+  CanvasModelBindingPreview,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -664,13 +672,80 @@ export async function getCanvasRuntimeConfiguration(): Promise<CanvasRuntimeConf
   ).data
 }
 
-export async function getCanvasProviderConfiguration(): Promise<CanvasRuntimeConfiguration> {
-  const data = (
-    await api.get<
-      Omit<CanvasRuntimeConfiguration, 'taskMedia' | 'databaseBackup'>
-    >(`${webBase}/admin/provider-configuration`)
+export async function getCanvasProviderConfiguration(
+  query: CanvasProviderConfigurationQuery,
+  signal?: AbortSignal
+): Promise<CanvasProviderConfiguration> {
+  return (
+    await api.get<CanvasProviderConfiguration>(
+      `${webBase}/admin/provider-configuration`,
+      { params: query, signal }
+    )
   ).data
-  return { ...data, taskMedia: null, databaseBackup: null }
+}
+
+export async function getCanvasProviderCredentialHistory(
+  credentialGroupId: string,
+  query: CanvasProviderCredentialHistoryQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasProviderCredentialVersion>> {
+  return (
+    await api.get<CanvasPage<CanvasProviderCredentialVersion>>(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/versions`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasCredentialVersionAffectedModels(
+  credentialGroupVersionId: string,
+  query: { page: number; pageSize: number },
+  signal?: AbortSignal
+): Promise<CanvasCredentialVersionAffectedModels> {
+  return (
+    await api.get<CanvasCredentialVersionAffectedModels>(
+      `${webBase}/admin/provider-credential-group-versions/${encodeURIComponent(credentialGroupVersionId)}/affected-models`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasModelCredentialBindingHistory(
+  customerModelId: string,
+  query: { page: number; pageSize: number },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasModelCredentialBindingVersion>> {
+  return (
+    await api.get<CanvasPage<CanvasModelCredentialBindingVersion>>(
+      `${webBase}/admin/provider-models/${encodeURIComponent(customerModelId)}/credential-bindings`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasCredentialRotationPreview(
+  credentialGroupId: string,
+  signal?: AbortSignal
+): Promise<CanvasCredentialRotationPreview> {
+  return (
+    await api.get<CanvasCredentialRotationPreview>(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/rotation-preview`,
+      { signal }
+    )
+  ).data
+}
+
+export async function previewCanvasProviderCredentialBindings(input: {
+  credentialGroupVersionId: string
+  customerModelIds: string[]
+}): Promise<CanvasModelBindingPreview> {
+  return (
+    await api.post<CanvasModelBindingPreview>(
+      `${webBase}/admin/provider-credential-bindings/preview`,
+      input,
+      { skipErrorHandler: true }
+    )
+  ).data
 }
 
 export async function publishCanvasTaskMediaStorage(input: {
@@ -720,7 +795,13 @@ export async function publishCanvasProviderCredentialGroup(input: {
   providerId: string
   credentialGroupId?: string
   name: string
-  credentials: Record<string, string>
+  apiKey: string
+  expectedCredentialGroupVersionId?: string
+  expectedBindings?: Array<{
+    customerModelId: string
+    bindingId: string
+    bindingVersion: number
+  }>
   reason: string
 }) {
   return (
@@ -740,7 +821,12 @@ export async function publishCanvasProviderCredentialGroup(input: {
 export async function bindCanvasProviderCredentials(input: {
   credentialGroupVersionId: string
   customerModelIds: string[]
-  reason: string
+  expectedBindings: Array<{
+    customerModelId: string
+    bindingId: string | null
+    bindingVersion: number | null
+  }>
+  reason?: string
 }) {
   return (
     await api.post(
@@ -786,15 +872,17 @@ export async function checkCanvasDatabaseBackupStorage(
   ).data
 }
 
-export async function checkCanvasProviderCredentialGroup(
-  credentialGroupVersionId: string
+export async function checkCanvasCustomerModelAccessPermission(
+  customerModelId: string
 ) {
   return (
-    await api.post<import('./types').CanvasRuntimeConnectionCheck>(
-      `${webBase}/admin/provider-credential-groups/${credentialGroupVersionId}/checks`,
+    await api.post<import('./types').CanvasModelAccessPermissionCheck>(
+      `${webBase}/admin/customer-models/${customerModelId}/access-permission-checks`,
       undefined,
       {
-        headers: { 'Idempotency-Key': idempotencyKey('web-credential-check') },
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-model-access-check'),
+        },
         skipErrorHandler: true,
       }
     )

@@ -28,41 +28,72 @@ export interface CanvasSession {
 
 export interface CanvasRuntimeConfiguration {
   environment: 'UAT' | 'STG' | 'PROD'
+  taskMedia: CanvasRuntimeTaskMediaConfiguration | null
+  databaseBackup: CanvasRuntimeDatabaseBackupConfiguration | null
+}
+
+export interface CanvasRuntimeTaskMediaConfiguration {
+  id: string
+  version: number
+  status: string
+  endpoint: string
+  bucket: string
+  inputRetentionHours: number
+  outputRetentionHours: number
+  downloadUrlTtlSeconds: number
+  reason: string
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  createdAt: string
+  latestCheck: CanvasRuntimeConnectionCheck | null
+}
+
+export interface CanvasRuntimeDatabaseBackupConfiguration {
+  id: string
+  version: number
+  status: string
+  endpoint: string
+  bucket: string
+  reason: string
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  createdAt: string
+  latestCheck: CanvasRuntimeConnectionCheck | null
+}
+
+export interface CanvasProviderConfigurationQuery {
+  providerId?: string
+  credentialGroupId?: string
+  credentialGroupVersionId?: string
+  modelId?: string
+  modelScope: 'BOUND_TO_GROUP' | 'ELIGIBLE'
+  modelName?: string
+  modelKey?: string
+  modelStatus?: string
+  credentialGroup?: string
+  bindingStatus?: 'BOUND' | 'UNBOUND'
+  sortBy: 'publicName' | 'modelKey' | 'status' | 'credentialGroup'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasProviderConfiguration {
+  environment: 'UAT' | 'STG' | 'PROD'
+  selectedProviderId: string | null
+  selectedCredentialGroupId: string | null
+  navigationTarget: {
+    modelId: string
+    bindingStatus: 'BOUND' | 'UNBOUND'
+  } | null
   providers: Array<{
     id: string
     code: string
     name: string
     credentialSchemes: string[]
   }>
-  taskMedia: {
-    id: string
-    version: number
-    status: string
-    endpoint: string
-    bucket: string
-    inputRetentionHours: number
-    outputRetentionHours: number
-    downloadUrlTtlSeconds: number
-    reason: string
-    effectiveAt: string | null
-    createdByPrincipalId: string
-    updatedBy: string
-    createdAt: string
-    latestCheck: CanvasRuntimeConnectionCheck | null
-  } | null
-  databaseBackup: {
-    id: string
-    version: number
-    status: string
-    endpoint: string
-    bucket: string
-    reason: string
-    effectiveAt: string | null
-    createdByPrincipalId: string
-    updatedBy: string
-    createdAt: string
-    latestCheck: CanvasRuntimeConnectionCheck | null
-  } | null
   credentialGroups: Array<{
     id: string
     credentialGroupId: string
@@ -77,23 +108,117 @@ export interface CanvasRuntimeConfiguration {
     createdByPrincipalId: string
     updatedBy: string
     createdAt: string
-    latestCheck: CanvasRuntimeConnectionCheck | null
+    boundModelCount: number
+    versionCount: number
   }>
-  models: Array<{
-    id: string
-    modelKey: string
+  models: CanvasPage<CanvasProviderModel>
+}
+
+export interface CanvasProviderModel {
+  id: string
+  modelKey: string
+  publicName: string
+  status: string
+  providerId: string
+  providerCode: string
+  providerChannelId: string
+  credentialBindingId: string | null
+  credentialBindingVersion: number | null
+  credentialBindingEffectiveAt: string | null
+  credentialGroupId: string | null
+  credentialGroupName: string | null
+  credentialGroupVersionId: string | null
+  credentialGroupVersion: number | null
+  latestAccessCheck: CanvasModelAccessPermissionCheck | null
+}
+
+export interface CanvasProviderCredentialVersion {
+  id: string
+  credentialGroupId: string
+  providerId: string
+  providerCode: string
+  name: string
+  version: number
+  status: string
+  schemeNames: string[]
+  reason: string
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  affectedModelCount: number | null
+  createdAt: string
+}
+
+export interface CanvasProviderCredentialHistoryQuery {
+  targetVersionId?: string
+  version?: number
+  operator?: string
+  reason?: string
+  sortBy: 'version' | 'effectiveAt' | 'updatedBy' | 'reason'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasCredentialVersionAffectedModels extends CanvasPage<{
+  id: string
+  publicName: string
+}> {
+  factAvailable: boolean
+}
+
+export interface CanvasModelCredentialBindingVersion {
+  id: string
+  version: number
+  status: string
+  credentialGroupId: string
+  credentialGroupVersionId: string
+  credentialGroupVersion: number
+  credentialGroupName: string
+  reason: string | null
+  effectiveAt: string | null
+  updatedBy: string
+  createdAt: string
+}
+
+export interface CanvasCredentialRotationPreview {
+  credentialGroupId: string
+  providerId: string
+  name: string
+  currentCredentialGroupVersionId: string
+  currentVersion: number
+  nextVersion: number
+  affectedModels: Array<{
+    customerModelId: string
     publicName: string
-    status: string
-    providerId: string
-    providerCode: string
-    providerChannelId: string
-    credentialGroupName: string | null
-    credentialGroupVersionId: string | null
+    bindingId: string
+    bindingVersion: number
+  }>
+}
+
+export interface CanvasModelBindingPreview {
+  credentialGroupVersionId: string
+  targetCredentialGroupName: string
+  targetCredentialGroupVersion: number
+  models: Array<{
+    customerModelId: string
+    publicName: string
+    currentCredentialGroupName: string | null
+    currentCredentialGroupVersion: number | null
+    bindingId: string | null
+    bindingVersion: number | null
   }>
 }
 
 export interface CanvasRuntimeConnectionCheck {
   outcome: 'PASSED' | 'FAILED'
+  reasonCode: string | null
+  checkedBy?: string
+  checkedAt: string
+}
+
+export interface CanvasModelAccessPermissionCheck {
+  outcome: 'PASSED' | 'FAILED' | 'UNVERIFIABLE'
   reasonCode: string | null
   checkedBy?: string
   checkedAt: string

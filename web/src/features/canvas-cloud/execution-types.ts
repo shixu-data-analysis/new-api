@@ -12,6 +12,14 @@ export type ExecutionPolicyKind =
   | 'CHANNEL_POLICY'
   | 'ERROR_MAPPING'
   | 'LIMIT_RULES'
+  | 'CREDENTIAL_GROUP_POLICY'
+  | 'CREDENTIAL_GROUP_LIMITS'
+
+export type PublishableExecutionPolicyKind =
+  | 'GLOBAL_LIMITS'
+  | 'ERROR_MAPPING'
+  | 'CREDENTIAL_GROUP_POLICY'
+  | 'CREDENTIAL_GROUP_LIMITS'
 
 export type ExecutionLocale = 'zhCN' | 'en' | 'fr' | 'ru' | 'ja' | 'vi' | 'zhTW'
 
@@ -44,15 +52,25 @@ export type ErrorCategory =
   | 'PROVIDER_GATEWAY_TIMEOUT'
   | 'PROVIDER_UNKNOWN_ERROR'
 
+export type ErrorRuleType = 'HTTP_STATUS' | 'JSON'
+export type ErrorConditionOperator = 'EQUALS' | 'CONTAINS'
+export type ErrorConditionValueType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'NULL'
+
+export interface ErrorJsonCondition {
+  path: string
+  operator: ErrorConditionOperator
+  valueType: ErrorConditionValueType
+  value: string | number | boolean | null
+}
+
 export interface ErrorRule {
   id: string
   version: number
   enabled: boolean
+  ruleType: ErrorRuleType
   httpStatus: number | null
-  upstreamCode: string | null
-  messageContains: string | null
+  conditions: ErrorJsonCondition[]
   category: ErrorCategory
-  priority: number
   clientMessages: Partial<Record<ExecutionLocale, string>>
   adminNote: string
   source: 'SYSTEM' | 'OVERRIDE' | 'CUSTOM'
@@ -68,7 +86,13 @@ export interface TokenIncludes {
 export interface LimitRule {
   id: string
   enabled: boolean
-  scope: 'CHANNEL' | 'CREDENTIAL' | 'MODEL' | 'MODEL_GROUP' | 'CREDENTIAL_MODEL'
+  scope:
+    | 'CHANNEL'
+    | 'CREDENTIAL_GROUP'
+    | 'CREDENTIAL'
+    | 'MODEL'
+    | 'MODEL_GROUP'
+    | 'CREDENTIAL_MODEL'
   credentialGroupId?: string
   modelIds?: string[]
   sharedGroup?: string
@@ -132,13 +156,18 @@ export interface ExecutionOverview {
   }
 }
 
-export interface ChannelExecutionOverview {
+export interface CredentialGroupExecutionOverview {
   global: GlobalPolicy
-  channelId: string
+  credentialGroupId: string
   providerId: string
-  channel: ChannelPolicy
+  group: ChannelPolicy
   errors: ErrorPolicy
   limits: LimitPolicy
+  models: Array<{
+    id: string
+    publicName: string
+    providerChannelId: string
+  }>
 }
 
 export interface ErrorPreviewResult {
@@ -156,6 +185,8 @@ export interface ErrorPreviewResult {
     ruleVersion: number
     category: ErrorCategory
     clientMessage: string
+    messageSource: 'CUSTOM' | 'SYSTEM_DEFAULT'
+    clientHttpStatus: number
   }
 }
 

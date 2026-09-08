@@ -44,6 +44,7 @@ export function PricingActionConfirmation(props: {
   destructive?: boolean
   pending: boolean
   onConfirm: () => void
+  children?: React.ReactNode
 }) {
   const { t } = useTranslation()
 
@@ -66,6 +67,7 @@ export function PricingActionConfirmation(props: {
             </div>
           ))}
         </dl>
+        {props.children}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={props.pending}>
             {t('Cancel')}

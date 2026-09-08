@@ -87,6 +87,9 @@ const runtimeConfigurationKeys = [
   'Review task media publication',
   'Review database backup publication',
   'Credential entries',
+  'Current credential group',
+  'Provider credential group',
+  'Credential group and version',
   'Selected models',
   'Mock mode',
   'Real mode',
@@ -99,6 +102,160 @@ const runtimeConfigurationKeys = [
   'Please check this field',
   'No matching models',
   'Passed',
+  'Runtime management',
+  'Monitor executor capacity, manage provider credential groups, and maintain storage through separate operational boundaries.',
+  'Execution overview',
+  'Storage and backups',
+  'Choose one provider and credential group. The overview keeps current status, bound models, and version history together.',
+  'Add credential group',
+  'Select credential group',
+  'Overview',
+  'Current version',
+  'Bound models',
+  'Eligible models',
+  'Select this page ({{count}})',
+  'Selected models: {{count}}',
+  'Reason (optional)',
+  'Finish managing bindings',
+  'No eligible models',
+  'No bound models',
+  'Binding time',
+  'Credential version history',
+  'Model credential bindings',
+  'Publish model credential bindings',
+  'Version rows are read-only. Expand a row to load its recorded affected models.',
+  'Expand affected models',
+  'Collapse affected models',
+  'No recorded affected-model snapshot is available for this version.',
+  'Affected model',
+  'No affected models',
+  'Binding target',
+  'Select model',
+  'Binding history',
+  'No binding history',
+  'Version change',
+  'Select a credential group to edit its execution policy.',
+  'Credential group execution policy',
+  'Timeouts, concurrency, and shared limits apply to every bound model. Error mappings remain shared by the provider.',
+  'Selected credential group',
+  'Publish credential group execution policy',
+  'This creates a new policy version for the selected credential group.',
+  'Restore credential group defaults',
+  'The next version will inherit every credential group default.',
+  'This replaces the configured limit-rule list for the selected credential group.',
+  'Configure credential-group, credential, model, shared-group, and token limits.',
+  'Bind at least one model before previewing provider errors.',
+  'Discard unsaved changes?',
+  'Changing the provider or credential group will discard the current unsubmitted form and model selection.',
+  'Discard changes',
+  'This model is not bound to a credential group. Select the intended group before managing bindings.',
+  'Configuration changed. Preview again before confirming.',
+  'The credential version changed. Refresh and select the current version.',
+  'Some selected models no longer belong to this provider. Review the filters and selection.',
+  'The credential scheme no longer matches every selected model. Update the credential group or selection.',
+  'The configuration no longer exists. Refresh and try again.',
+  'Credential publication failed. Check the required schemes and preview again.',
+  'Model binding failed. Refresh the model list and preview the selection again.',
+  'Preview failed. Refresh the configuration and try again.',
+  'Enter a credential group name',
+  'Use no more than 191 characters',
+  'Enter an API Key',
+  'Use no more than 65536 characters',
+  'API Key contains an invalid character',
+  'Enter a reason',
+  'Use no more than 255 characters',
+] as const
+const limitEditorKeys = [
+  'Limit target',
+  'Entire API Key group',
+  'Single model',
+  'Multiple models share',
+  'Current API Key group',
+  'All bound models in this API Key group share this limit.',
+  'Select a bound model',
+  'Select bound models',
+  'Search bound models',
+  'Selected models ({{count}})',
+  'No bound models are available. Manage bindings before adding a model limit.',
+  'Selected models share this limit.',
+  'Models',
+  'Previous limit target',
+  'New limit target',
+  'Removed limit target',
+  'No prior rule',
+  'No longer configured',
+  'Single model: {{models}}',
+  'Multiple models share: {{models}}',
+  'Entire API Key group: {{group}}',
+  'Shared counting key',
+  'Counted token types: {{types}}',
+  'Select at least one model',
+  'Select exactly one model',
+  'Enter a positive whole number',
+  'Limit is too large',
+  'Fix the highlighted rule fields',
+] as const
+const executionPolicyKeys = [
+  'Add JSON condition',
+  'All models in this credential group share this limit.',
+  ...limitEditorKeys,
+  'Asynchronous in-flight requests',
+  'Blank languages use the system message for the selected category.',
+  'Client HTTP status',
+  'Client output',
+  'Client response language',
+  'Concurrent requests',
+  'Credential',
+  'Credential and model scope',
+  'Credential group scope',
+  'Credential scope',
+  'Custom JSON mapping',
+  'Custom JSON mappings run in list order, followed by the HTTP status mapping and the system default message.',
+  'Custom JSON order',
+  'Custom mapping',
+  'Custom message',
+  'Customized',
+  'Error mapping preview request failed',
+  'Every language uses the system message for the selected category.',
+  'HTTP status mapping',
+  'Invalid request',
+  'JSON field path',
+  'Language',
+  'Mapping type',
+  'Match method',
+  'Match upstream error',
+  'Match value',
+  'Message source',
+  'Model group',
+  'Model group scope',
+  'Move mapping down',
+  'Move mapping up',
+  'New custom mapping',
+  'No model-group source is available. Configure model groups before publishing this scope.',
+  'Other languages',
+  'Preview fields do not match the error rule contract',
+  'Return to client',
+  'Rule details',
+  'Shared limit meaning',
+  'Stable error code',
+  'System built-in',
+  'Test current edits without saving',
+  'Test error mappings',
+  'The built-in matching condition cannot be changed.',
+  'This simulates the final mapping result for the current unsaved rule list and does not call the provider.',
+  'Upstream HTTP status',
+  'Upstream HTTP status (optional)',
+  'Upstream HTTP status must be between 100 and 599',
+  'Upstream error JSON must be an object',
+  'Upstream error response JSON',
+  'Use custom client messages',
+  'Uses system default',
+  'Value type',
+  'Test result is out of date. Run preview again.',
+  'Changes',
+  'Added',
+  'Previous custom JSON order',
+  'New custom JSON order',
 ] as const
 const pointAdjustmentKeys = [
   'Username',
@@ -138,6 +295,26 @@ describe('Canvas interface localization', () => {
       for (const key of runtimeConfigurationKeys) {
         expect(translations[key], key).toBeTypeOf('string')
         expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+  it.each(Object.entries(localizedResources))(
+    'translates execution-policy labels in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of executionPolicyKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+  it.each(Object.entries({ en, ...localizedResources }))(
+    'defines every limit-editor label in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of limitEditorKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe('')
       }
     }
   )
@@ -279,6 +456,61 @@ describe('Canvas interface localization', () => {
     expect(zh.translation.View).toBe('显示')
     expect(zhTW.translation.View).toBe('顯示')
   })
+
+  it('uses the confirmed Chinese model-selection wording', () => {
+    expect(zh.translation['Current credential group']).toBe('当前 API Key 组')
+    expect(zh.translation['Select this page ({{count}})']).toBe(
+      '选择本页（{{count}}）'
+    )
+    expect(zh.translation['Selected models: {{count}}']).toBe(
+      '已选 {{count}} 个模型'
+    )
+    expect(zh.translation['Reason (optional)']).toBe('原因（选填）')
+  })
+
+  it.each([
+    ['en', en, 'API Key group', 'Add API Key group', 'Provider API Key groups'],
+    ['zh', zh, 'API Key 组', '新增 API Key 组', '服务商 API Key 组'],
+    ['zh-TW', zhTW, 'API Key 群組', '新增 API Key 群組', '供應商 API Key 群組'],
+    [
+      'fr',
+      fr,
+      'Groupe d’API Key',
+      'Ajouter un groupe d’API Key',
+      'Groupes d’API Key du fournisseur',
+    ],
+    [
+      'ru',
+      ru,
+      'Группа API Key',
+      'Добавить группу API Key',
+      'Группы API Key поставщика',
+    ],
+    [
+      'ja',
+      ja,
+      'API Key グループ',
+      'API Key グループを追加',
+      'プロバイダー API Key グループ',
+    ],
+    [
+      'vi',
+      vi,
+      'Nhóm API Key',
+      'Thêm nhóm API Key',
+      'Nhóm API Key của nhà cung cấp',
+    ],
+  ] as const)(
+    'uses the API Key group product term in %s',
+    (_locale, resource, group, addGroup, providerGroups) => {
+      expect(resource.translation['Credential group']).toBe(group)
+      expect(resource.translation['Add credential group']).toBe(addGroup)
+      expect(resource.translation['Provider credential groups']).toBe(
+        providerGroups
+      )
+      expect(resource.translation['Replace API Key']).toBeTruthy()
+    }
+  )
 })
 
 it('localizes customer price assignment labels in every supported language', () => {

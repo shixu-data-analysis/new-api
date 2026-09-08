@@ -1102,9 +1102,7 @@ export function AdminPricing(props: {
       ].map(([columnId, label]) => ({ columnId, label: t(label) })),
     [t]
   )
-  const pricePromotionColumns = useMemo<
-    ColumnDef<PricePromotion, unknown>[]
-  >(
+  const pricePromotionColumns = useMemo<ColumnDef<PricePromotion, unknown>[]>(
     () => [
       recordColumn(
         'model',
@@ -1122,8 +1120,7 @@ export function AdminPricing(props: {
       recordColumn(
         'priceGroup',
         t('Price group'),
-        (promotion) =>
-          `${promotion.priceGroup} ${promotion.priceGroupCode}`,
+        (promotion) => `${promotion.priceGroup} ${promotion.priceGroupCode}`,
         (promotion) => (
           <div>
             <div>{promotion.priceGroup}</div>

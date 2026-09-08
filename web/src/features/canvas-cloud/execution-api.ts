@@ -10,11 +10,11 @@ the Free Software Foundation, either version 3 of the License, or
 import { api } from '@/lib/api'
 
 import type {
-  ChannelExecutionOverview,
+  CredentialGroupExecutionOverview,
   ErrorPreviewResult,
   ExecutionLocale,
   ExecutionOverview,
-  ExecutionPolicyKind,
+  PublishableExecutionPolicyKind,
   PublishedExecutionPolicy,
 } from './execution-types'
 
@@ -32,20 +32,20 @@ export async function getCanvasExecutionOverview(
   ).data
 }
 
-export async function getCanvasChannelExecution(
-  channelId: string,
+export async function getCanvasCredentialGroupExecution(
+  credentialGroupId: string,
   signal?: AbortSignal
-): Promise<ChannelExecutionOverview> {
+): Promise<CredentialGroupExecutionOverview> {
   return (
-    await api.get<ChannelExecutionOverview>(
-      `${webBase}/admin/channels/${encodeURIComponent(channelId)}/execution`,
+    await api.get<CredentialGroupExecutionOverview>(
+      `${webBase}/admin/credential-groups/${encodeURIComponent(credentialGroupId)}/execution`,
       { signal }
     )
   ).data
 }
 
 export async function publishCanvasExecutionPolicy(input: {
-  kind: ExecutionPolicyKind
+  kind: PublishableExecutionPolicyKind
   scopeKey: string
   config: Record<string, unknown>
 }): Promise<PublishedExecutionPolicy> {
@@ -62,7 +62,7 @@ export async function publishCanvasExecutionPolicy(input: {
 }
 
 export async function previewCanvasExecutionError(input: {
-  channelId: string
+  providerId: string
   httpStatus?: number
   response: Record<string, unknown>
   locale: ExecutionLocale
@@ -70,7 +70,7 @@ export async function previewCanvasExecutionError(input: {
 }): Promise<ErrorPreviewResult> {
   return (
     await api.post<ErrorPreviewResult>(
-      `${webBase}/admin/channels/${encodeURIComponent(input.channelId)}/error-preview`,
+      `${webBase}/admin/providers/${encodeURIComponent(input.providerId)}/error-preview`,
       {
         ...(input.httpStatus === undefined
           ? {}

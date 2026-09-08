@@ -96,9 +96,9 @@ describe('point conversion dashboard', () => {
     expect(
       await screen.findByRole('combobox', { name: '积分类型' })
     ).toHaveTextContent('全部积分类型')
-    expect(screen.getByRole('combobox', { name: '批次状态' })).toHaveTextContent(
-      '全部批次状态'
-    )
+    expect(
+      screen.getByRole('combobox', { name: '批次状态' })
+    ).toHaveTextContent('全部批次状态')
 
     await i18next.changeLanguage('en')
   })

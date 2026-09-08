@@ -1124,7 +1124,9 @@ describe('Canvas administrator pricing', () => {
     renderPricing(undefined, prices, 'campaigns', pricePromotions)
 
     const table = screen.getByRole('table')
-    expect(within(table).getByRole('columnheader', { name: 'Model' })).toBeVisible()
+    expect(
+      within(table).getByRole('columnheader', { name: 'Model' })
+    ).toBeVisible()
     expect(within(table).getByText('Canvas Image')).toBeVisible()
     expect(within(table).getByText('quality=1K')).toBeVisible()
     expect(within(table).getByText('60 → 59 points')).toBeVisible()

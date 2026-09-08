@@ -31,6 +31,10 @@ const canvasCloudSearchSchema = z.object({
   customerName: z.string().trim().min(1).max(191).optional().catch(undefined),
   orderId: z.string().uuid().optional().catch(undefined),
   orderNumber: z.string().trim().min(1).max(191).optional().catch(undefined),
+  providerId: z.string().uuid().optional().catch(undefined),
+  credentialGroupId: z.string().uuid().optional().catch(undefined),
+  credentialGroupVersionId: z.string().uuid().optional().catch(undefined),
+  modelId: z.string().uuid().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({

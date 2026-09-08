@@ -70,13 +70,13 @@ import { BusinessTerm } from './components/BusinessTerm'
 import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
-import { ExecutionSettings } from './components/ExecutionSettings'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PointCampaignWorkspace } from './components/PointCampaignWorkspace'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
-import { RuntimeConfiguration } from './components/RuntimeConfiguration'
+import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
+import { RuntimeManagement } from './components/RuntimeManagement'
 import { formatMoneyMinor } from './formatters'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
@@ -448,6 +448,7 @@ function CustomerContent(props: { section: CustomerSection }) {
 function AdminContent(props: {
   section: AdminSection
   refundPrefill: AdminRefundRecoveryPrefill
+  providerTarget: CanvasProviderNavigationTarget
   onOpenRefundRecovery: (prefill: RefundRecoveryPrefill) => void
 }) {
   const { t } = useTranslation()
@@ -491,10 +492,19 @@ function AdminContent(props: {
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
   if (props.section === 'task-logs') return <AdminTaskLogs kind='task' />
-  if (props.section === 'runtime') return <RuntimeConfiguration />
-  if (props.section === 'execution') return <ExecutionSettings />
+  if (props.section === 'runtime') {
+    return <RuntimeManagement initialView='storage' />
+  }
+  if (props.section === 'execution') {
+    return <RuntimeManagement initialView='execution' />
+  }
   if (props.section === 'provider-configuration') {
-    return <RuntimeConfiguration providerOnly />
+    return (
+      <RuntimeManagement
+        initialView='provider'
+        providerTarget={props.providerTarget}
+      />
+    )
   }
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
@@ -755,6 +765,7 @@ export function CanvasCloud() {
       <AdminContent
         section={section as AdminSection}
         refundPrefill={search}
+        providerTarget={search}
         onOpenRefundRecovery={(prefill) =>
           void navigate({
             to: '/canvas-cloud/$section',

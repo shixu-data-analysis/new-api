@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ColumnDef, Row } from '@tanstack/react-table'
-import { useId } from 'react'
+import type { ColumnDef, Row, VisibilityState } from '@tanstack/react-table'
+import { useId, type ReactNode } from 'react'
 
 import {
   DataTablePage,
@@ -47,6 +47,8 @@ export function CanvasServerTable<TData>({
   onResetFilters,
   getRowId,
   getRowClassName,
+  renderRow,
+  initialColumnVisibility,
 }: {
   data: TData[]
   columns: ColumnDef<TData, unknown>[]
@@ -64,6 +66,8 @@ export function CanvasServerTable<TData>({
     row: Row<TData>,
     context: { isMobile: boolean }
   ) => string | undefined
+  renderRow?: (row: Row<TData>) => ReactNode
+  initialColumnVisibility?: VisibilityState
 }) {
   const { pagination, setPagination, sorting, setSorting, search, setSearch } =
     state
@@ -89,6 +93,7 @@ export function CanvasServerTable<TData>({
     manualPagination: true,
     manualSorting: true,
     getRowId,
+    initialColumnVisibility,
   })
 
   return (
@@ -101,6 +106,7 @@ export function CanvasServerTable<TData>({
       fixedHeight={false}
       paginationInFooter={false}
       getRowClassName={getRowClassName}
+      renderRow={renderRow ? (row) => renderRow(row) : undefined}
       applyHeaderSize
       toolbar={
         <DataTableToolbar
