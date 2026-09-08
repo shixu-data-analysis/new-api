@@ -69,6 +69,12 @@ const inviteStatusKeys = [
   'Invite status EXPIRED',
 ] as const
 const paidExpiryKeys = [
+  'Decision summary (optional)',
+  'Default configuration',
+  'Pricing and point rules',
+  'Price plans',
+  'Recharge rules',
+  'Quote and release rules',
   'Task and point policy settings',
   'Paid points validity',
   'Whole days from 1 to 3650. Default: 90 days (3 months).',
@@ -76,6 +82,17 @@ const paidExpiryKeys = [
   'Enter a whole number from 1 to 3650',
   'Published settings are versioned. Paid validity applies only to newly redeemed Paid points; Bonus keeps its own independent validity and failure-grace rules.',
 ] as const
+
+it('uses the confirmed concise Chinese pricing labels', () => {
+  expect(zh.translation['Decision summary (optional)']).toBe('决策摘要（选填）')
+  expect(zh.translation['Default configuration']).toBe('默认配置')
+  expect(zh.translation['Price group name']).toBe('方案名称')
+  expect(zh.translation['Price group code']).toBe('方案编码')
+  expect(zh.translation['Group version']).toBe('方案版本')
+  expect(zh.translation['Price group records']).toBe('方案记录')
+  expect(zh.translation['Review new price group']).toBe('核对新方案')
+  expect(zh.translation['points per RMB']).toBe('积分／元')
+})
 const runtimeConfigurationKeys = [
   'Current environment',
   'Task media',
@@ -288,6 +305,34 @@ const pointAdjustmentKeys = [
 ] as const
 
 describe('Canvas interface localization', () => {
+  it('uses business language instead of internal model names in rule tooltips', () => {
+    const fields = [
+      'GROUP_VERSION',
+      'GROUP_STATUS',
+      'GROUP_CREATED',
+      'GROUP_EFFECTIVE',
+      'RATE_VERSION',
+      'RATE_STATUS',
+      'RATE_DECISION',
+      'RATE_CREATED',
+    ] as const
+    for (const resource of [en, ...Object.values(localizedResources)]) {
+      const translations = resource.translation as Record<string, string>
+      for (const field of fields) {
+        const key = canvasBusinessTermConfig.pricingField.helpKeys[field]
+        expect(translations[key]).toBeTruthy()
+        expect(translations[key]).not.toMatch(
+          /PriceGroup|ConfigVersion|payload/
+        )
+      }
+    }
+    expect(
+      (zh.translation as Record<string, string>)[
+        canvasBusinessTermConfig.pricingField.helpKeys.GROUP_EFFECTIVE
+      ]
+    ).toBe('此版本发布后，可用于新的定价和客户方案分配。')
+  })
+
   it.each(Object.entries(localizedResources))(
     'translates runtime configuration labels in %s',
     (_locale, resource) => {

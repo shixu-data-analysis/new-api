@@ -27,6 +27,7 @@ export const canvasAdminSections = [
   'invite-codes',
   'catalog',
   'pricing',
+  'pricing-point-rules',
   'pricing-calculator',
   'channels',
   'runtime',

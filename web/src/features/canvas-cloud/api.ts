@@ -890,9 +890,9 @@ export async function checkCanvasCustomerModelAccessPermission(
 }
 
 export async function publishConfirmedCanvasTaskPolicySettings(input: {
-  quoteTtlSeconds: number
-  bonusFailureGraceDays: number
-  paidExpiryDays: number
+  quoteTtlSeconds?: number
+  bonusFailureGraceDays?: number
+  paidExpiryDays?: number
 }) {
   return (
     await api.post<import('./types').CanvasTaskPolicySettings>(

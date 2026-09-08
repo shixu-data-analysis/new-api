@@ -136,6 +136,11 @@ export function useSidebarData(): SidebarData {
                 icon: Box,
               },
               {
+                title: t('Pricing and point rules'),
+                url: '/canvas-cloud/pricing-point-rules',
+                icon: CircleDollarSign,
+              },
+              {
                 title: t('Canvas Pricing'),
                 url: '/canvas-cloud/pricing',
                 icon: CircleDollarSign,

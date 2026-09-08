@@ -470,6 +470,19 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
+  it('posts only the reviewed policy field with confirmation and idempotency', async () => {
+    mocks.post.mockResolvedValue({ data: {} })
+    await publishConfirmedCanvasTaskPolicySettings({ paidExpiryDays: 120 })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/task-policy-settings/publications',
+      { paidExpiryDays: 120, confirmed: true },
+      expect.objectContaining({
+        headers: { 'Idempotency-Key': expect.any(String) },
+        skipErrorHandler: true,
+      })
+    )
+  })
+
   it('sends the future timestamp and protects scheduled cancellation', async () => {
     mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
     const effectiveAt = '2026-08-29T00:00:00.000Z'

@@ -74,6 +74,7 @@ import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PointCampaignWorkspace } from './components/PointCampaignWorkspace'
 import { PricingCalculator } from './components/PricingCalculator'
+import { PricingPointRules } from './components/PricingPointRules'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
 import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
 import { RuntimeManagement } from './components/RuntimeManagement'
@@ -101,6 +102,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   tasks: 'My Tasks',
   consumption: 'Point History',
   pricing: 'Canvas Pricing',
+  'pricing-point-rules': 'Pricing and point rules',
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
   runtime: 'Canvas Runtime Configuration',
@@ -465,6 +467,7 @@ function AdminContent(props: {
       'runtime',
       'execution',
       'provider-configuration',
+      'pricing-point-rules',
     ].includes(props.section),
   })
   const dates = useMemo(
@@ -506,6 +509,7 @@ function AdminContent(props: {
       />
     )
   }
+  if (props.section === 'pricing-point-rules') return <PricingPointRules />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />

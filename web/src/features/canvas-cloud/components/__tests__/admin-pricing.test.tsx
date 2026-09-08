@@ -190,16 +190,6 @@ function renderPricing(
   )
 }
 
-function openTab(
-  name:
-    | 'Model prices'
-    | 'Price groups'
-    | 'Point issuance rate'
-    | 'Task and point policy settings'
-) {
-  fireEvent.click(screen.getByRole('tab', { name }))
-}
-
 function confirmChange() {
   fireEvent.click(screen.getByRole('button', { name: 'Confirm change' }))
 }
@@ -320,15 +310,6 @@ describe('Canvas administrator pricing', () => {
     expect(screen.queryByText('FROZEN v1.0 baseline')).not.toBeInTheDocument()
     expect(screen.queryByText('baseline://v1')).not.toBeInTheDocument()
     expect(screen.queryByText('platform-admin')).not.toBeInTheDocument()
-  })
-
-  it('exposes the administrator task policy settings entry', async () => {
-    renderPricing()
-    openTab('Task and point policy settings')
-
-    expect(await screen.findByLabelText('Quote validity')).toHaveValue('300')
-    expect(screen.getByLabelText('Bonus failure grace')).toHaveValue('7')
-    expect(screen.getByLabelText('Paid points validity')).toHaveValue('90')
   })
 
   it('shows pricing records in a table and keeps raw assumptions collapsed', () => {
@@ -559,71 +540,6 @@ describe('Canvas administrator pricing', () => {
     )
   })
 
-  it('creates a governed price group with a server-generated code and a multilingual name', async () => {
-    renderPricing()
-    expect(
-      screen.queryByRole('form', { name: 'Create price group' })
-    ).not.toBeInTheDocument()
-    openTab('Price groups')
-    const form = screen.getByRole('form', { name: 'Create price group' })
-    fireEvent.submit(form)
-    expect(apiMocks.publishConfirmedCanvasPriceGroup).not.toHaveBeenCalled()
-    expect(within(form).getAllByText('This field is required')).toHaveLength(1)
-    expect(
-      within(form).queryByRole('textbox', { name: /Price group code/ })
-    ).not.toBeInTheDocument()
-    expect(
-      within(form).getByText(
-        'A unique immutable code is generated automatically.'
-      )
-    ).toBeVisible()
-    expect(
-      within(form).getByRole('textbox', { name: /Price group name/ })
-    ).toHaveAttribute('aria-invalid', 'true')
-
-    fireEvent.change(
-      within(form).getByRole('textbox', { name: /Price group name/ }),
-      { target: { value: '测试客户・VIP' } }
-    )
-    fireEvent.submit(form)
-    expect(screen.getByText('Generated automatically')).toBeVisible()
-    confirmChange()
-
-    await waitFor(() => {
-      expect(apiMocks.publishConfirmedCanvasPriceGroup).toHaveBeenCalledWith({
-        internalName: '测试客户・VIP',
-      })
-    })
-    expect(screen.getByText('UAT-STANDARD')).toBeVisible()
-    expect(screen.getByText('Manual UAT standard group')).toBeVisible()
-  })
-
-  it('does not expose redundant self-approval actions for historical price groups', async () => {
-    apiMocks.getCanvasPriceGroups.mockResolvedValue([
-      {
-        id: 'group-draft',
-        code: 'VIP',
-        internalName: 'VIP customers',
-        version: 1,
-        status: 'DRAFT',
-        createdAt: '2026-08-26T00:00:00.000Z',
-        approvedAt: null,
-        effectiveAt: null,
-      },
-    ])
-    renderPricing()
-    openTab('Price groups')
-    await screen.findByText('VIP customers')
-    const card = screen.getByText('VIP customers').closest('[data-slot="card"]')
-    expect(card).not.toBeNull()
-    expect(
-      within(card as HTMLElement).queryByRole('button', { name: 'Approve' })
-    ).not.toBeInTheDocument()
-    expect(
-      within(card as HTMLElement).queryByRole('button', { name: 'Publish' })
-    ).not.toBeInTheDocument()
-  })
-
   it('includes an optional price decision summary when provided', async () => {
     renderPricing()
     await waitForPricingContract()
@@ -726,69 +642,6 @@ describe('Canvas administrator pricing', () => {
     ).toBeVisible()
   })
 
-  it('publishes a confirmed rate change and keeps history read-only', async () => {
-    renderPricing()
-    expect(
-      screen.queryByRole('form', { name: 'Adjust point issuance rate' })
-    ).not.toBeInTheDocument()
-    openTab('Point issuance rate')
-    const form = screen.getByRole('form', {
-      name: 'Adjust point issuance rate',
-    })
-    fireEvent.change(
-      within(form).getByRole('textbox', { name: /Point issuance rate/ }),
-      { target: { value: '60' } }
-    )
-    fireEvent.submit(form)
-    expect(
-      apiMocks.publishConfirmedCanvasPointIssuanceRate
-    ).not.toHaveBeenCalled()
-    confirmChange()
-    await waitFor(() => {
-      expect(
-        apiMocks.publishConfirmedCanvasPointIssuanceRate
-      ).toHaveBeenCalledWith({ pointsPerRmb: '60' })
-    })
-    expect(
-      within(form).getByText('Optional, up to 2000 characters')
-    ).toBeVisible()
-    expect(
-      within(form).queryByRole('textbox', { name: /Evidence references/ })
-    ).not.toBeInTheDocument()
-    expect(screen.getAllByText('50 points per RMB').length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByRole('textbox', { name: /Point issuance rate/ })
-    ).toHaveLength(1)
-  })
-
-  it('includes the optional decision summary when the administrator provides it', async () => {
-    renderPricing()
-    openTab('Point issuance rate')
-    const form = screen.getByRole('form', {
-      name: 'Adjust point issuance rate',
-    })
-    await waitFor(() =>
-      expect(
-        within(form).getByRole('textbox', { name: /Point issuance rate/ })
-      ).toHaveValue('50')
-    )
-    fireEvent.change(
-      within(form).getByRole('textbox', { name: /Decision summary/ }),
-      { target: { value: 'Optional administrator context' } }
-    )
-    fireEvent.submit(form)
-    confirmChange()
-
-    await waitFor(() => {
-      expect(
-        apiMocks.publishConfirmedCanvasPointIssuanceRate
-      ).toHaveBeenCalledWith({
-        pointsPerRmb: '50',
-        decisionSummary: 'Optional administrator context',
-      })
-    })
-  })
-
   it('keeps the calculator entry on model prices only', async () => {
     const focus = vi.fn()
     const popup = vi
@@ -808,27 +661,6 @@ describe('Canvas administrator pricing', () => {
       'popup=yes,width=760,height=900,resizable=yes,scrollbars=yes'
     )
     expect(focus).toHaveBeenCalledOnce()
-
-    openTab('Point issuance rate')
-    expect(
-      screen.queryByRole('button', { name: 'Open pricing calculator' })
-    ).not.toBeInTheDocument()
-
-    const form = screen.getByRole('form', {
-      name: 'Adjust point issuance rate',
-    })
-    const rate = within(form).getByRole('textbox', {
-      name: /Point issuance rate/,
-    })
-    await waitFor(() => expect(rate).toHaveValue('50'))
-    fireEvent.change(rate, { target: { value: '60.123' } })
-    fireEvent.blur(rate)
-    expect(
-      within(form).getByRole('button', { name: 'Review rate change' })
-    ).toBeEnabled()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Enter a positive value with up to 2 decimals'
-    )
   })
 
   it('keeps the pricing tabs on one horizontally scrollable row', () => {
@@ -845,68 +677,6 @@ describe('Canvas administrator pricing', () => {
     }
   })
 
-  it('shows the only required rate error below the rate field', async () => {
-    renderPricing()
-    openTab('Point issuance rate')
-    const form = screen.getByRole('form', {
-      name: 'Adjust point issuance rate',
-    })
-    await waitFor(() =>
-      expect(
-        within(form).getByRole('textbox', { name: /Point issuance rate/ })
-      ).toHaveValue('50')
-    )
-
-    const rate = within(form).getByRole('textbox', {
-      name: /Point issuance rate/,
-    })
-    fireEvent.change(rate, { target: { value: '' } })
-    fireEvent.submit(form)
-
-    expect(
-      apiMocks.publishConfirmedCanvasPointIssuanceRate
-    ).not.toHaveBeenCalled()
-    expect(rate).toHaveAttribute('aria-invalid', 'true')
-    expect(
-      within(form).getByRole('textbox', { name: /Decision summary/ })
-    ).toHaveAttribute('aria-invalid', 'false')
-    expect(within(form).getByText('This field is required')).toBeVisible()
-  })
-
-  it('shows the localized server rejection reason with only the status icon', async () => {
-    apiMocks.publishConfirmedCanvasPointIssuanceRate.mockRejectedValue({
-      response: {
-        data: {
-          code: 'VALIDATION_FAILED',
-          message: 'Request validation failed',
-        },
-      },
-    })
-    renderPricing()
-    openTab('Point issuance rate')
-    const form = screen.getByRole('form', {
-      name: 'Adjust point issuance rate',
-    })
-    await waitFor(() =>
-      expect(
-        within(form).getByRole('textbox', { name: /Point issuance rate/ })
-      ).toHaveValue('50')
-    )
-    fireEvent.submit(form)
-    confirmChange()
-
-    await waitFor(() => {
-      expect(toastMocks.error).toHaveBeenCalledWith(
-        'Point issuance rate publication failed',
-        {
-          description:
-            'The submitted rate change did not pass server validation. Check the field requirements and try again.',
-          closeButton: false,
-        }
-      )
-    })
-  })
-
   it('contains wide records inside a dedicated horizontal table scroller', () => {
     const { container } = renderPricing()
 
@@ -917,7 +687,7 @@ describe('Canvas administrator pricing', () => {
     expect(container.querySelector('.lg\\:grid-cols-4')).toBeInTheDocument()
   })
 
-  it('mounts only the selected pricing tab and paginates published history', async () => {
+  it('paginates published history without mounting separate policy settings', async () => {
     const queryClient = new QueryClient()
     const history = Array.from({ length: 21 }, (_, index) => ({
       ...prices[0],
@@ -932,7 +702,6 @@ describe('Canvas administrator pricing', () => {
     )
 
     expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalledTimes(1)
-    expect(apiMocks.getCanvasPriceGroups).not.toHaveBeenCalled()
     expect(screen.getByText('Canvas Model 1')).toBeVisible()
     expect(screen.getByText('Canvas Model 20')).toBeVisible()
     expect(screen.queryByText('Canvas Model 21')).not.toBeInTheDocument()
@@ -943,21 +712,9 @@ describe('Canvas administrator pricing', () => {
     expect(screen.getByText('Canvas Model 21')).toBeVisible()
     expect(screen.queryByText('Canvas Model 1')).not.toBeInTheDocument()
 
-    openTab('Point issuance rate')
     expect(
-      screen.queryByRole('form', { name: 'Adjust model price' })
+      screen.queryByRole('tab', { name: 'Point issuance rate' })
     ).not.toBeInTheDocument()
-    await waitFor(() =>
-      expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalledOnce()
-    )
-
-    openTab('Price groups')
-    expect(
-      screen.queryByRole('form', { name: 'Adjust point issuance rate' })
-    ).not.toBeInTheDocument()
-    await waitFor(() =>
-      expect(apiMocks.getCanvasPriceGroups).toHaveBeenCalled()
-    )
   })
 
   it('filters the full record set and exposes sorting for every column', async () => {
@@ -1004,7 +761,7 @@ describe('Canvas administrator pricing', () => {
     expect(columnFiltersButton).toBeVisible()
   })
 
-  it('renders every pricing record area as a sortable filterable table with visible pagination', async () => {
+  it('renders model pricing records as a sortable filterable table with visible pagination', () => {
     renderPricing()
 
     expect(screen.getByRole('table')).toBeVisible()
@@ -1012,29 +769,6 @@ describe('Canvas administrator pricing', () => {
       screen.getByRole('combobox', { name: 'Rows per page' })
     ).toHaveTextContent('20')
     expect(screen.getByText('Page 1 of 1')).toBeVisible()
-
-    openTab('Point issuance rate')
-    await waitFor(() =>
-      expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalledOnce()
-    )
-    expect(screen.getByRole('table')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Rate version' })).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
-    expect(screen.getByLabelText('Rate version')).toBeInTheDocument()
-
-    openTab('Price groups')
-    await waitFor(() =>
-      expect(apiMocks.getCanvasPriceGroups).toHaveBeenCalledOnce()
-    )
-    expect(screen.getByRole('table')).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Price group code' })
-    ).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
-    expect(screen.getByLabelText('Price group code')).toBeInTheDocument()
-    expect(
-      screen.getByRole('combobox', { name: 'Rows per page' })
-    ).toHaveTextContent('20')
   })
 
   it('moves the draft source to the newly published version after publication', async () => {

@@ -1041,10 +1041,7 @@ function LimitSection(props: {
             )}
           </p>
         </div>
-        <Button
-          type='button'
-          onClick={() => fields.append(emptyLimitRule())}
-        >
+        <Button type='button' onClick={() => fields.append(emptyLimitRule())}>
           {t('Add rule')}
         </Button>
       </div>
@@ -1520,10 +1517,7 @@ function ErrorSection(props: {
           >
             {t('Test error mappings')}
           </Button>
-          <Button
-            type='button'
-            onClick={() => fields.append(emptyErrorRule())}
-          >
+          <Button type='button' onClick={() => fields.append(emptyErrorRule())}>
             {t('Add custom mapping')}
           </Button>
         </div>
@@ -2283,6 +2277,7 @@ function SelectField(props: {
   registration?: Record<string, unknown>
   value?: string
   onChange?: (value: string) => void
+  onBlur?: () => void
   options: Array<string | { value: string; label: string }>
   includeBlank?: boolean
   blankLabel?: string

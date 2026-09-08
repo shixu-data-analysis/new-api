@@ -68,6 +68,7 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/invite-codes',
       '/canvas-cloud/refunds',
       '/canvas-cloud/catalog',
+      '/canvas-cloud/pricing-point-rules',
       '/canvas-cloud/pricing',
       '/canvas-cloud/channels',
       '/canvas-cloud/runtime',

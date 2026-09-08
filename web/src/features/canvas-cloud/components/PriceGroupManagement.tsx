@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { getCanvasPriceGroups, publishConfirmedCanvasPriceGroup } from '../api'
 import { getCanvasBusinessTermLabelKey } from '../business-terms'
@@ -41,9 +42,9 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingRecordsTable } from './PricingRecordsTable'
 import { PricingTableColumnHeader } from './PricingTableColumnHeader'
 
-function dateTime(value: string | null): string {
+function dateTime(value: string | null, language: string): string {
   return value
-    ? new Intl.DateTimeFormat(undefined, {
+    ? new Intl.DateTimeFormat(toIntlLocale(language), {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(value))
@@ -67,7 +68,7 @@ function groupColumn(
 }
 
 export function PriceGroupManagement() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [form, setForm] = useState({
     internalName: '',
   })
@@ -135,22 +136,25 @@ export function PriceGroupManagement() {
         'created',
         'GROUP_CREATED',
         (group) => group.createdAt,
-        (group) => dateTime(group.createdAt)
+        (group) =>
+          dateTime(group.createdAt, i18n.resolvedLanguage ?? i18n.language)
       ),
       groupColumn(
         'approved',
         'GROUP_APPROVED',
         (group) => group.approvedAt ?? '',
-        (group) => dateTime(group.approvedAt)
+        (group) =>
+          dateTime(group.approvedAt, i18n.resolvedLanguage ?? i18n.language)
       ),
       groupColumn(
         'effective',
         'GROUP_EFFECTIVE',
         (group) => group.effectiveAt ?? '',
-        (group) => dateTime(group.effectiveAt)
+        (group) =>
+          dateTime(group.effectiveAt, i18n.resolvedLanguage ?? i18n.language)
       ),
     ],
-    [t]
+    [t, i18n.resolvedLanguage, i18n.language]
   )
   const groupFilters = useMemo(
     () => [
@@ -173,7 +177,7 @@ export function PriceGroupManagement() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('Price groups')}</CardTitle>
+        <CardTitle>{t('Price plans')}</CardTitle>
         <CardDescription>
           {t(
             'Price groups define internal customer pricing segments. Review and confirm a new group before it is published for pricing.'
@@ -193,7 +197,7 @@ export function PriceGroupManagement() {
         >
           <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start'>
             <div className='space-y-1'>
-              <Label htmlFor='price-group-name'>
+              <Label htmlFor='price-group-name' className='min-h-5'>
                 <BusinessTerm kind='pricingField' value='PRICE_GROUP_NAME' />
                 <span className='text-destructive ml-1' aria-hidden='true'>
                   *
@@ -210,21 +214,13 @@ export function PriceGroupManagement() {
                 }
                 onBlur={() => setNameTouched(true)}
                 aria-required='true'
-                aria-describedby={`price-group-name-help price-group-code-help${(submitted || nameTouched) && nameError ? ' price-group-name-error' : ''}`}
+                aria-describedby={
+                  (submitted || nameTouched) && nameError
+                    ? 'price-group-name-error'
+                    : undefined
+                }
                 aria-invalid={(submitted || nameTouched) && Boolean(nameError)}
               />
-              <div
-                id='price-group-name-help'
-                className='text-muted-foreground text-xs'
-              >
-                {t('Any language, up to 128 characters')}
-              </div>
-              <div
-                id='price-group-code-help'
-                className='text-muted-foreground text-xs'
-              >
-                {t('A unique immutable code is generated automatically.')}
-              </div>
               {(submitted || nameTouched) && nameError && (
                 <div
                   id='price-group-name-error'
@@ -258,11 +254,6 @@ export function PriceGroupManagement() {
             <h3 className='text-sm font-semibold'>
               {t('Price group records')}
             </h3>
-            <p className='text-muted-foreground mt-1 text-xs'>
-              {t(
-                'Changes requiring action appear first; published history is paginated.'
-              )}
-            </p>
           </div>
           <PricingRecordsTable
             columns={groupColumns}

@@ -34,6 +34,18 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasSectionAllowed('CUSTOMER', 'agents', true)).toBe(false)
   })
 
+  it('limits pricing and point rules to Canvas administrators', () => {
+    expect(
+      isCanvasSectionAllowed('PLATFORM_ADMIN', 'pricing-point-rules')
+    ).toBe(true)
+    expect(isCanvasSectionAllowed('SUPER_ADMIN', 'pricing-point-rules')).toBe(
+      true
+    )
+    expect(
+      isCanvasSectionAllowed('CUSTOMER', 'pricing-point-rules', true)
+    ).toBe(false)
+  })
+
   it('allows platform administrators only the administration sections', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'dashboard')).toBe(true)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'usage-logs')).toBe(true)

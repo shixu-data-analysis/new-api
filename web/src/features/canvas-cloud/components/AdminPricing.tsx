@@ -46,7 +46,6 @@ import {
   getCanvasAdminTestingModels,
   getCanvasProviderPricingMatrix,
   publishConfirmedCanvasInitialPrice,
-  publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceChange,
 } from '../api'
 import { getCanvasBusinessTermLabelKey } from '../business-terms'
@@ -66,19 +65,13 @@ import {
   probabilityPercentToDecimal,
   type PricingQuestionnaireAnswers,
 } from '../pricing-simulation'
-import type {
-  CanvasAdminWorkspace,
-  CanvasPointIssuanceRateVersion,
-  CanvasProviderPricingRow,
-} from '../types'
+import type { CanvasAdminWorkspace, CanvasProviderPricingRow } from '../types'
 import { BusinessTerm } from './BusinessTerm'
-import { PriceGroupManagement } from './PriceGroupManagement'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { PricingRecordsTable } from './PricingRecordsTable'
 import { PricingTableColumnHeader } from './PricingTableColumnHeader'
 import { ProviderPricingMatrix } from './ProviderPricingMatrix'
-import { TaskPolicySettings } from './TaskPolicySettings'
 
 type Price = CanvasAdminWorkspace['prices'][number]
 type PricePromotion = CanvasAdminWorkspace['pricePromotions'][number]
@@ -228,7 +221,6 @@ export function AdminPricing(props: {
   const [activeTab, setActiveTab] = useState('prices')
   const [confirmation, setConfirmation] = useState<
     | { kind: 'create-price' }
-    | { kind: 'create-rate' }
     | { kind: 'cancel-price'; priceVersionId: string }
     | { kind: 'create-special' }
     | { kind: 'cancel-special'; promotionVersionId: string }
@@ -248,6 +240,11 @@ export function AdminPricing(props: {
     queryKey: ['canvas-cloud', 'provider-pricing-matrix'],
     queryFn: getCanvasProviderPricingMatrix,
     enabled: activeTab === 'prices' && props.mode !== 'campaigns',
+  })
+  const rates = useQuery({
+    queryKey: ['canvas-cloud', 'point-issuance-rates'],
+    queryFn: getCanvasPointIssuanceRates,
+    enabled: activeTab === 'prices',
   })
   const initialTargets = useMemo(
     () =>
@@ -361,44 +358,6 @@ export function AdminPricing(props: {
     decisionSummary: false,
   })
   const [priceSubmitted, setPriceSubmitted] = useState(false)
-  const [rateForm, setRateForm] = useState({
-    pointsPerRmb: '',
-    decisionSummary: '',
-  })
-  const [rateTouched, setRateTouched] = useState({
-    pointsPerRmb: false,
-    decisionSummary: false,
-  })
-  const [rateSubmitted, setRateSubmitted] = useState(false)
-  const rates = useQuery({
-    queryKey: ['canvas-cloud', 'point-issuance-rates'],
-    queryFn: getCanvasPointIssuanceRates,
-    enabled: activeTab === 'rate' || activeTab === 'prices',
-  })
-  const trimmedRate = rateForm.pointsPerRmb.trim()
-  const trimmedDecision = rateForm.decisionSummary.trim()
-  const rateInputValid =
-    /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmedRate) &&
-    Number(trimmedRate) > 0
-  let rateValueError: string | null = null
-  if (trimmedRate.length === 0) {
-    rateValueError = t('This field is required')
-  } else if (!rateInputValid) {
-    rateValueError = t('Enter a positive value with up to 2 decimals')
-  }
-  let rateDecisionError: string | null = null
-  if (trimmedDecision.length > 2000) {
-    rateDecisionError = t('Use no more than 2000 characters')
-  }
-  const rateErrors = {
-    pointsPerRmb: rateValueError,
-    decisionSummary: rateDecisionError,
-  }
-  const rateFormValid = Object.values(rateErrors).every(
-    (error) => error === null
-  )
-  const showRateError = (field: keyof typeof rateTouched) =>
-    rateSubmitted || rateTouched[field]
 
   const priceValues = {
     points: form.points.trim(),
@@ -482,9 +441,6 @@ export function AdminPricing(props: {
     Object.values(priceErrors).every((error) => error === null) && scheduleValid
   const showPriceError = (field: keyof typeof priceTouched) =>
     priceSubmitted || priceTouched[field]
-  const publishedIssuanceRate = rates.data?.find(
-    (rate) => rate.status === 'PUBLISHED'
-  )
   const questionnaireAnswers: PricingQuestionnaireAnswers = {
     targetMarginPercent: priceValues.targetMarginPercent,
     successProbabilityPercent: priceValues.successProbabilityPercent,
@@ -494,6 +450,9 @@ export function AdminPricing(props: {
     riskBufferRmb: priceValues.riskBufferRmb,
     proposedPoints: priceValues.points,
   }
+  const publishedIssuanceRate = rates.data?.find(
+    (rate) => rate.status === 'PUBLISHED'
+  )
   const questionnaireRate =
     publishedIssuanceRate?.pointsPerRmb ?? selected?.baseRatePointsPerRmb ?? '0'
   const questionnaireResult = calculateQuestionnairePricing(
@@ -609,19 +568,6 @@ export function AdminPricing(props: {
       (specialForm.campaignBudgetRmb.trim().length > 0 &&
         specialForm.maxExpectedLossRmb.trim().length > 0 &&
         specialForm.maxParticipants.trim().length > 0))
-
-  useEffect(() => {
-    const current = rates.data?.find((rate) => rate.status === 'PUBLISHED')
-    if (!current) return
-    setRateForm((form) =>
-      form.pointsPerRmb
-        ? form
-        : {
-            ...form,
-            pointsPerRmb: formatBusinessNumber(current.pointsPerRmb),
-          }
-    )
-  }, [rates.data])
 
   useEffect(() => {
     if (selectedInitial) {
@@ -800,115 +746,6 @@ export function AdminPricing(props: {
       toast.error(payload.message ?? t('Unable to cancel limited-time special'))
     },
   })
-  const refreshRates = async () => {
-    await Promise.all([rates.refetch(), changed()])
-  }
-  const createRate = useMutation({
-    mutationFn: () =>
-      publishConfirmedCanvasPointIssuanceRate({
-        pointsPerRmb: trimmedRate,
-        ...(trimmedDecision ? { decisionSummary: trimmedDecision } : {}),
-      }),
-    onSuccess: async () => {
-      setConfirmation(null)
-      toast.success(t('Point issuance rate published'))
-      setRateForm((current) => ({
-        ...current,
-        decisionSummary: '',
-      }))
-      setRateTouched({
-        pointsPerRmb: false,
-        decisionSummary: false,
-      })
-      setRateSubmitted(false)
-      await refreshRates()
-    },
-    onError: (error) => {
-      const failure = serverErrorPayload(error)
-      let description: string
-      if (failure.code === 'VALIDATION_FAILED') {
-        description = t(
-          'The submitted rate change did not pass server validation. Check the field requirements and try again.'
-        )
-      } else if (failure.code === 'UNAUTHORIZED') {
-        description = t(
-          'You are not authorized to manage point issuance rates.'
-        )
-      } else if (failure.code === 'IDEMPOTENCY_CONFLICT') {
-        description = t(
-          'This request conflicts with an earlier submission. Refresh the page and try again.'
-        )
-      } else if (failure.code === 'INVALID_STATE_TRANSITION') {
-        description = t(
-          'The rate workflow state changed. Refresh the page and try again.'
-        )
-      } else if (failure.message) {
-        description = t('Server response: {{reason}}', {
-          reason: failure.message,
-        })
-      } else {
-        description = t(
-          'The request failed before the server returned a reason.'
-        )
-      }
-      toast.error(t('Point issuance rate publication failed'), {
-        description,
-        closeButton: false,
-      })
-    },
-  })
-  const rateColumns = useMemo<
-    ColumnDef<CanvasPointIssuanceRateVersion, unknown>[]
-  >(
-    () => [
-      pricingColumn(
-        'version',
-        'RATE_VERSION',
-        (rate) => rate.version,
-        (rate) => `v${rate.version}`
-      ),
-      pricingColumn(
-        'status',
-        'RATE_STATUS',
-        (rate) => t(getCanvasBusinessTermLabelKey('configStatus', rate.status)),
-        (rate) => <BusinessTerm kind='configStatus' value={rate.status} />
-      ),
-      pricingColumn(
-        'rate',
-        'ISSUANCE_RATE',
-        (rate) => Number(rate.pointsPerRmb),
-        (rate) =>
-          `${formatBusinessNumber(rate.pointsPerRmb)} ${t('points per RMB')}`
-      ),
-      pricingColumn(
-        'created',
-        'RATE_CREATED',
-        (rate) => rate.createdAt,
-        (rate) => dateTime(rate.createdAt)
-      ),
-      pricingColumn(
-        'approved',
-        'RATE_APPROVED',
-        (rate) => rate.approvedAt ?? '',
-        (rate) => dateTime(rate.approvedAt)
-      ),
-      pricingColumn(
-        'effective',
-        'RATE_EFFECTIVE',
-        (rate) => rate.effectiveAt ?? '',
-        (rate) => dateTime(rate.effectiveAt)
-      ),
-    ],
-    [t]
-  )
-  const rateFilters = useMemo(
-    () => [
-      { columnId: 'version', label: t('Rate version') },
-      { columnId: 'status', label: t('Status') },
-      { columnId: 'rate', label: t('Point issuance rate') },
-    ],
-    [t]
-  )
   const priceColumns = useMemo<ColumnDef<Price, unknown>[]>(
     () => [
       pricingColumn(
@@ -1280,18 +1117,6 @@ export function AdminPricing(props: {
         { label: t('Effective'), value: dateTime(price?.effectiveAt ?? null) },
       ]
     }
-    if (confirmation.kind === 'create-rate') {
-      return [
-        {
-          label: t('Point issuance rate'),
-          value: `${trimmedRate} ${t('points per RMB')}`,
-        },
-        {
-          label: t('Decision summary'),
-          value: trimmedDecision || t('Not provided'),
-        },
-      ]
-    }
     if (confirmation.kind === 'create-price') {
       return [
         {
@@ -1350,7 +1175,6 @@ export function AdminPricing(props: {
   const confirmAction = () => {
     if (!confirmation) return
     if (confirmation.kind === 'create-price') publishPrice.mutate()
-    if (confirmation.kind === 'create-rate') createRate.mutate()
     if (confirmation.kind === 'cancel-price') {
       cancelScheduledPrice.mutate(confirmation.priceVersionId)
     }
@@ -1362,7 +1186,6 @@ export function AdminPricing(props: {
 
   const confirmationPending =
     publishPrice.isPending ||
-    createRate.isPending ||
     cancelScheduledPrice.isPending ||
     createSpecial.isPending ||
     cancelSpecial.isPending
@@ -1423,24 +1246,6 @@ export function AdminPricing(props: {
                 >
                   {t('Upstream cost')}
                 </TabsTrigger>
-                <TabsTrigger
-                  className='h-8 min-h-8 flex-none px-3'
-                  value='groups'
-                >
-                  {t('Price groups')}
-                </TabsTrigger>
-                <TabsTrigger
-                  className='h-8 min-h-8 flex-none px-3'
-                  value='rate'
-                >
-                  {t('Point issuance rate')}
-                </TabsTrigger>
-                <TabsTrigger
-                  className='h-8 min-h-8 flex-none px-3'
-                  value='task-policy'
-                >
-                  {t('Task and point policy settings')}
-                </TabsTrigger>
               </TabsList>
             </Tabs>
           </CardContent>
@@ -1475,179 +1280,6 @@ export function AdminPricing(props: {
       )}
 
       {activeTab === 'costs' && <ProviderPricingMatrix />}
-
-      {activeTab === 'rate' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Point issuance rate')}</CardTitle>
-            <CardDescription>
-              {t(
-                'The published rate applies only to new prices and new recharge facts. Historical snapshots are never recalculated.'
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            <form
-              aria-label={t('Adjust point issuance rate')}
-              className='bg-muted/20 max-w-5xl overflow-hidden rounded-xl border'
-              onSubmit={(event) => {
-                event.preventDefault()
-                setRateSubmitted(true)
-                if (!rateFormValid) return
-                setConfirmation({ kind: 'create-rate' })
-              }}
-            >
-              <div className='border-b px-4 py-3'>
-                <div className='text-sm font-medium'>
-                  {t('Adjust point issuance rate')}
-                </div>
-              </div>
-              <div className='space-y-4 p-4'>
-                <div className='grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]'>
-                  <div className='space-y-1'>
-                    <Label htmlFor='issuance-rate-value'>
-                      <PricingField value='ISSUANCE_RATE' />
-                      <span
-                        className='text-destructive ml-1'
-                        aria-hidden='true'
-                      >
-                        *
-                      </span>
-                    </Label>
-                    <Input
-                      id='issuance-rate-value'
-                      inputMode='decimal'
-                      value={rateForm.pointsPerRmb}
-                      onChange={(event) =>
-                        setRateForm((current) => ({
-                          ...current,
-                          pointsPerRmb: event.target.value,
-                        }))
-                      }
-                      onBlur={() =>
-                        setRateTouched((current) => ({
-                          ...current,
-                          pointsPerRmb: true,
-                        }))
-                      }
-                      aria-required='true'
-                      aria-describedby={`issuance-rate-unit${showRateError('pointsPerRmb') && rateErrors.pointsPerRmb ? ' issuance-rate-error' : ''}`}
-                      aria-invalid={
-                        showRateError('pointsPerRmb') &&
-                        Boolean(rateErrors.pointsPerRmb)
-                      }
-                    />
-                    <div
-                      id='issuance-rate-unit'
-                      className='text-muted-foreground text-xs'
-                    >
-                      {t('points per RMB, up to 2 decimals')}
-                    </div>
-                    {showRateError('pointsPerRmb') &&
-                      rateErrors.pointsPerRmb && (
-                        <div
-                          id='issuance-rate-error'
-                          className='text-destructive text-xs'
-                          role='alert'
-                        >
-                          {rateErrors.pointsPerRmb}
-                        </div>
-                      )}
-                  </div>
-                  <div className='space-y-1'>
-                    <Label htmlFor='issuance-rate-decision'>
-                      <PricingField value='RATE_DECISION' />
-                    </Label>
-                    <Input
-                      id='issuance-rate-decision'
-                      value={rateForm.decisionSummary}
-                      onChange={(event) =>
-                        setRateForm((current) => ({
-                          ...current,
-                          decisionSummary: event.target.value,
-                        }))
-                      }
-                      onBlur={() =>
-                        setRateTouched((current) => ({
-                          ...current,
-                          decisionSummary: true,
-                        }))
-                      }
-                      aria-describedby={
-                        showRateError('decisionSummary') &&
-                        rateErrors.decisionSummary
-                          ? 'issuance-rate-decision-help issuance-rate-decision-error'
-                          : 'issuance-rate-decision-help'
-                      }
-                      aria-invalid={
-                        showRateError('decisionSummary') &&
-                        Boolean(rateErrors.decisionSummary)
-                      }
-                    />
-                    <div
-                      id='issuance-rate-decision-help'
-                      className='text-muted-foreground text-xs'
-                    >
-                      {t('Optional, up to 2000 characters')}
-                    </div>
-                    {showRateError('decisionSummary') &&
-                      rateErrors.decisionSummary && (
-                        <div
-                          id='issuance-rate-decision-error'
-                          className='text-destructive text-xs'
-                          role='alert'
-                        >
-                          {rateErrors.decisionSummary}
-                        </div>
-                      )}
-                  </div>
-                </div>
-                <div className='flex justify-end border-t pt-4'>
-                  <Button
-                    type='submit'
-                    className='w-full sm:w-auto'
-                    disabled={createRate.isPending}
-                  >
-                    {t('Review rate change')}
-                  </Button>
-                </div>
-              </div>
-            </form>
-            {rates.isPending && (
-              <div className='text-muted-foreground text-sm'>
-                {t('Loading')}
-              </div>
-            )}
-            {rates.isError && (
-              <Button variant='outline' onClick={() => void rates.refetch()}>
-                {t('Retry')}
-              </Button>
-            )}
-            <div className='space-y-3'>
-              <div>
-                <h3 className='text-sm font-semibold'>{t('Rate records')}</h3>
-                <p className='text-muted-foreground mt-1 text-xs'>
-                  {t(
-                    'Changes requiring action appear first; published history is paginated.'
-                  )}
-                </p>
-              </div>
-              <PricingRecordsTable
-                columns={rateColumns}
-                data={rates.data ?? []}
-                filters={rateFilters}
-                getRowId={(rate) => rate.id}
-                initialSorting={[{ id: 'version', desc: true }]}
-                emptyTitle={t('No rate records')}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === 'groups' && <PriceGroupManagement />}
-
-      {activeTab === 'task-policy' && <TaskPolicySettings />}
 
       {activeTab === 'prices' && (
         <>
