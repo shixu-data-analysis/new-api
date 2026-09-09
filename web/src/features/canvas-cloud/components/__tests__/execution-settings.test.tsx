@@ -496,9 +496,11 @@ describe('execution settings', () => {
     )
     const dialog = await screen.findByRole('alertdialog')
     const previous = within(dialog).getByText(
-      'Previous custom JSON order'
+      'Previous custom JSON order:'
     ).parentElement
-    const next = within(dialog).getByText('New custom JSON order').parentElement
+    const next = within(dialog).getByText(
+      'New custom JSON order:'
+    ).parentElement
     expect(dialog).toHaveTextContent(
       /Updated: From: Provider authentication failed.*AUTH.*Old authentication message.*To: Provider authentication failed.*DENIED.*New authentication message/
     )

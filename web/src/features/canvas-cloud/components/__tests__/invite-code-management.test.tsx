@@ -7,7 +7,13 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -235,8 +241,15 @@ describe('Canvas invite code management', () => {
         'Pausing blocks new activations until you resume it. Customers who already activated are not affected.'
       )
     ).toBeVisible()
-    expect(screen.getByText('Current status')).toBeVisible()
-    expect(screen.getByText('New status')).toBeVisible()
+    const dialog = screen.getByRole('alertdialog', {
+      name: 'Pause this invite code?',
+    })
+    expect(
+      within(dialog).getByText('Current status:').parentElement
+    ).toHaveTextContent('Valid')
+    expect(
+      within(dialog).getByText('New status:').parentElement
+    ).toHaveTextContent('Paused')
     expect(apiMocks.changeCanvasAdminInviteCodeStatus).not.toHaveBeenCalled()
   })
 

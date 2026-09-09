@@ -68,12 +68,7 @@ const questionnaire = {
   evidenceRefs: ['evidence-1'],
 }
 function legacyFacts(
-  values: Omit<
-    Partial<CanvasModelPricingLegacyFacts>,
-    'id' | 'version' | 'status' | 'billingUnit' | 'tokenRates' | 'effectiveAt'
-  > & {
-    billingUnit?: CanvasModelPricingLegacyFacts['billingUnit']
-  } = {}
+  values: Partial<CanvasModelPricingLegacyFacts> = {}
 ): CanvasModelPricingLegacyFacts {
   return {
     id: 'legacy-fact-1',
@@ -99,7 +94,7 @@ const providerRate = {
   normalizedTokenRates: null,
   failureChargePolicy: { mode: 'NONE' as const },
 }
-const unified: CanvasModelPricingPublication = {
+const unified = {
   id: 'publication-1',
   customerModelId: 'model-1',
   source: 'UNIFIED',
@@ -184,7 +179,7 @@ const unified: CanvasModelPricingPublication = {
       },
     ],
   },
-}
+} satisfies CanvasModelPricingPublication
 
 const scopeVariants = [
   { id: 'default-scope', key: 'default', parameters: {} },
@@ -470,7 +465,7 @@ describe('UnifiedModelPricingHistory', () => {
     expect(screen.queryByText('legacy-price-v1')).not.toBeInTheDocument()
     expect(screen.getByText(/Frozen reason/)).toBeVisible()
   })
-  it('hides missing legacy questionnaire fields', async () => {
+  it('hides nullable legacy questionnaire fields', async () => {
     mocks.history.mockResolvedValue({
       items: [
         {
@@ -488,7 +483,6 @@ describe('UnifiedModelPricingHistory', () => {
               successfulTaskCostRmb: null,
               failedUnrecoverableCostRmb: null,
               otherVariableCostRmb: null,
-              riskBufferRmb: null,
             },
           }),
         },
@@ -506,7 +500,7 @@ describe('UnifiedModelPricingHistory', () => {
     expect(screen.queryByText(/Successful task cost:/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Failure cost:/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Other variable cost:/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Risk buffer:/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Risk buffer:/)).toBeVisible()
   })
   it('shows legacy provider cost snapshots without inventing a customer price', async () => {
     mocks.history.mockResolvedValue({
@@ -733,7 +727,6 @@ describe('UnifiedModelPricingHistory', () => {
     expect(
       screen.getByRole('columnheader', {
         name: 'Before adjustment',
-        exact: true,
       })
     ).toBeVisible()
   })
@@ -944,7 +937,6 @@ describe('UnifiedModelPricingHistory', () => {
     expect(
       screen.queryByRole('columnheader', {
         name: 'Before adjustment',
-        exact: true,
       })
     ).not.toBeInTheDocument()
     expect(screen.getByText('12 Points / per second')).toBeVisible()
@@ -977,7 +969,6 @@ describe('UnifiedModelPricingHistory', () => {
     expect(
       screen.getByRole('columnheader', {
         name: 'Before adjustment',
-        exact: true,
       })
     ).toBeVisible()
     expect(screen.getByText('Not recorded')).toBeVisible()

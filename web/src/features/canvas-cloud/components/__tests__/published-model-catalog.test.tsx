@@ -206,7 +206,9 @@ describe('Published model catalog', () => {
     expect(screen.getByText('Visible to customers')).toBeVisible()
     expect(screen.getAllByText('Priced 3 / 6 targets')).toHaveLength(2)
     expect(
-      screen.getByRole('switch', { name: 'Customer display for Display off model' })
+      screen.getByRole('switch', {
+        name: 'Customer display for Display off model',
+      })
     ).not.toBeChecked()
     expect(
       screen.queryByText(
@@ -289,7 +291,7 @@ describe('Published model catalog', () => {
       screen.getByRole('combobox', { name: 'Rows per page' })
     ).toBeVisible()
     const rows = screen
-      .getByRole('columnheader', { name: 'Model', exact: true })
+      .getByRole('columnheader', { name: 'Model' })
       .closest('table')?.rows
     if (!rows) throw new Error('Model list table is missing')
     expect(rows[1]).toHaveTextContent('Alpha model')

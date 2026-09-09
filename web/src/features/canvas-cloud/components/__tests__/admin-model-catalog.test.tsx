@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   plan: vi.fn(),
   publish: vi.fn(),
   published: vi.fn(),
+  priceGroups: vi.fn(),
   presentation: vi.fn(),
   navigate: vi.fn(),
 }))
@@ -33,6 +34,7 @@ vi.mock('../../api', () => ({
   planCanvasModelCatalogBundle: mocks.plan,
   publishCanvasModelCatalogBundle: mocks.publish,
   getCanvasAdminTestingModels: mocks.published,
+  getCanvasPriceGroups: mocks.priceGroups,
   publishCanvasModelPresentation: mocks.presentation,
 }))
 
@@ -65,6 +67,8 @@ describe('Canvas model catalog folder upload', () => {
     mocks.publish.mockReset()
     mocks.published.mockReset()
     mocks.published.mockResolvedValue([])
+    mocks.priceGroups.mockReset()
+    mocks.priceGroups.mockResolvedValue([])
     mocks.presentation.mockReset()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {

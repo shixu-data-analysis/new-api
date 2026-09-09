@@ -341,6 +341,7 @@ describe('Canvas administrator point adjustments and refund recovery', () => {
           category: 'POINTS',
           action: 'points.manual_deduction.posted',
           outcome: 'SUCCESS',
+          publicMetadata: {},
         },
       ],
     })

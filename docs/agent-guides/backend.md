@@ -68,3 +68,26 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - New or substantially rewritten Go backend tests MUST use `github.com/stretchr/testify/require` for setup and fatal assertions, and `github.com/stretchr/testify/assert` for non-fatal value checks.
 - Avoid hand-written assertion helpers unless they encode a reusable project-specific invariant.
 - When cleaning tests, preserve meaningful regression coverage. If a deleted test covered a real contract indirectly, replace it with a smaller test that asserts that contract directly.
+
+## 项目结构
+
+分层架构：路由 → 控制器 → 服务 → 模型。
+
+```text
+router/          — HTTP 路由（API、中继、管理面板、Web）
+controller/      — 请求处理器
+service/         — 业务逻辑
+model/           — 数据模型和数据库访问（GORM）
+relay/           — AI API 中继／代理及服务商适配器
+  relay/channel/ — 服务商专属适配器（openai/、claude/、gemini/、aws/ 等）
+middleware/      — 认证、限流、CORS、日志、分发
+setting/         — 配置管理（倍率、模型、操作、系统、性能）
+common/          — 共用工具（JSON、加密、Redis、环境、限流等）
+dto/             — 请求／响应结构体
+constant/        — API 类型、渠道类型、上下文键
+types/           — 中继格式和文件来源类型
+i18n/            — 后端国际化（go-i18n，en/zh）
+oauth/           — OAuth 服务商实现
+pkg/             — 内部包（cachex、ionet）
+web/             — 前端（React 19、Rsbuild、Base UI、Tailwind）
+```
