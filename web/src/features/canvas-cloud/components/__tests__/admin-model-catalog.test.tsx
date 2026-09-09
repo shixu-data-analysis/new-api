@@ -10,6 +10,24 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   published: vi.fn(),
   presentation: vi.fn(),
+  navigate: vi.fn(),
+}))
+vi.mock('@tanstack/react-router', async (original) => ({
+  ...(await original<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => mocks.navigate,
+}))
+vi.mock('../UnifiedModelPricing', () => ({
+  UnifiedModelPricing: (props: {
+    initialModelId?: string
+    onBack: () => void
+  }) => (
+    <div>
+      Selected pricing: {props.initialModelId}
+      <button type='button' onClick={props.onBack}>
+        Return to models
+      </button>
+    </div>
+  ),
 }))
 vi.mock('../../api', () => ({
   planCanvasModelCatalogBundle: mocks.plan,
@@ -48,6 +66,79 @@ describe('Canvas model catalog folder upload', () => {
     mocks.published.mockReset()
     mocks.published.mockResolvedValue([])
     mocks.presentation.mockReset()
+  })
+  it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {
+    mocks.published.mockResolvedValue(
+      Array.from({ length: 21 }, (_, index) => ({
+        id: `model-${index}`,
+        modelKey: `model-${index}`,
+        modelIds: [],
+        version: 1,
+        name: `Series ${String(index).padStart(2, '0')}`,
+        description: '',
+        enabled: true,
+        resourceEnabled: true,
+        presentationVersion: null,
+        status: 'ACTIVE',
+        customerVisible: false,
+        pricedTargets: 0,
+        totalTargets: 1,
+        provider: { code: 'api', name: 'API provider' },
+        channel: {
+          code: 'api',
+          version: 1,
+          status: 'ACTIVE',
+          protocolAdapter: 'openai',
+          upstreamModel: 'x',
+          executionSnapshot: {},
+        },
+        publicCatalogSnapshot: { capability: 'image.generate' },
+        parameterCombinations: [],
+        pricingTargets: [],
+        createdAt: '2026-09-08T00:00:00Z',
+        effectiveAt: null,
+      }))
+    )
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const page = (modelId?: string) => (
+      <QueryClientProvider client={client}>
+        <AdminModelCatalog initialPricingModelId={modelId} />
+      </QueryClientProvider>
+    )
+    const view = render(page())
+    await screen.findByText('Series 00')
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.change(screen.getByPlaceholderText('Model'), {
+      target: { value: 'Series' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
+    await screen.findByText('Series 20')
+    fireEvent.click(screen.getByRole('button', { name: 'Manage prices' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/canvas-cloud/$section',
+      params: { section: 'pricing' },
+      search: { modelId: 'model-20' },
+    })
+    view.rerender(page('model-20'))
+    expect(screen.getByText('Selected pricing: model-20')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Manage prices' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Return to models' }))
+    expect(mocks.navigate).toHaveBeenLastCalledWith({
+      to: '/canvas-cloud/$section',
+      params: { section: 'catalog' },
+      search: {},
+    })
+    view.rerender(page())
+    expect(screen.getByText('Series 20')).toBeVisible()
+    expect(screen.queryByText('Series 00')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    expect(screen.getByPlaceholderText('Model')).toHaveValue('Series')
+    client.clear()
   })
   it('assembles only the files referenced by manifest.json', async () => {
     const bundle = await buildCatalogBundle([

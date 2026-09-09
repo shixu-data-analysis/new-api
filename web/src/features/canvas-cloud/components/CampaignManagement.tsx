@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -56,7 +57,6 @@ import {
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTermText } from './BusinessTerm'
 import { CampaignForm } from './CampaignForm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -294,7 +294,7 @@ export function CampaignManagement() {
         emptyTitle={t('No point campaigns')}
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Campaign kind')}>
+            <DataTableColumnFilterField label={t('Campaign kind')}>
               <Select
                 value={kind || 'ALL'}
                 onValueChange={(value) => {
@@ -320,8 +320,8 @@ export function CampaignManagement() {
                   ))}
                 </SelectContent>
               </Select>
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Status')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Status')}>
               <Select
                 value={status || 'ALL'}
                 onValueChange={(value) => {
@@ -349,7 +349,7 @@ export function CampaignManagement() {
                   ))}
                 </SelectContent>
               </Select>
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
           </>
         }
         hasActiveFilters={Boolean(kind || status)}

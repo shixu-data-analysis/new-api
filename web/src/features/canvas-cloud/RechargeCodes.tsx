@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -51,7 +52,6 @@ import {
 } from './api'
 import { getCanvasCampaigns } from './campaign-api'
 import { BusinessTerm } from './components/BusinessTerm'
-import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { cnyToMinor } from './recharge-code-amount'
@@ -375,7 +375,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         }
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Code')}>
+            <DataTableColumnFilterField label={t('Code')}>
               <Input
                 value={code}
                 placeholder={t('Code')}
@@ -384,8 +384,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   resetPage()
                 }}
               />
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Status')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Status')}>
               <Select
                 value={status || 'ALL'}
                 onValueChange={(value) => {
@@ -417,8 +417,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   ))}
                 </SelectContent>
               </Select>
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Created from')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Created from')}>
               <Input
                 id='canvas-code-created-from'
                 className='w-full'
@@ -430,8 +430,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   resetPage()
                 }}
               />
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Created to')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Created to')}>
               <Input
                 id='canvas-code-created-to'
                 className='w-full'
@@ -443,7 +443,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   resetPage()
                 }}
               />
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
           </>
         }
         hasActiveFilters={Boolean(code || status || createdFrom || createdTo)}

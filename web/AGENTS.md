@@ -15,7 +15,7 @@ Canvas Cloud forms, validation, localization, and tables also require [`../../do
 
 ## Canvas UI iteration exception
 
-Until the user explicitly says `complete`, a large Canvas UI task uses only a seconds-scale focused check for the changed behavior; do not run full Canvas tests, production builds, full typecheck, or the aggregate Docker gate for visual iteration. Confirm layout and visual containment through the authorized hot-reload page. For business logic, permissions, data, shared interfaces, or other high-risk contracts, run the smallest affected check promptly.
+Until the user explicitly says `complete`, a large Canvas UI task uses only a seconds-scale focused check for the changed behavior; do not run full Canvas tests, production builds, full typecheck, or the aggregate Docker gate for visual iteration. Use the workspace risk/evidence rules for visual validation timing and reuse; pure visual iterations use the user’s hot-reload review rather than a mandatory full browser matrix after each edit. For business logic, permissions, data, shared interfaces, or other high-risk contracts, run the smallest affected check promptly.
 
 ## Frozen-candidate gate
 

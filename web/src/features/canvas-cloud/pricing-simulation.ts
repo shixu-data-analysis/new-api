@@ -103,6 +103,48 @@ function fixed(value: string, scale: number): bigint {
   )
 }
 
+// All monetary assumptions belong to this category, per million tokens.
+export function calculateTokenCategoryPricing(
+  assumptions: Pick<
+    PricingQuestionnaireAnswers,
+    | 'targetMarginPercent'
+    | 'successProbabilityPercent'
+    | 'otherVariableCostRmb'
+    | 'riskBufferRmb'
+  >,
+  pointsPerRmb: string,
+  providerRateRmb: string,
+  failureMode: 'NONE' | 'SAME_AS_SUCCESS',
+  customerRatePoints: string
+) {
+  const result = calculateQuestionnairePricing(
+    {
+      ...assumptions,
+      successfulTaskCostRmb: providerRateRmb,
+      failedUnrecoverableCostRmb:
+        failureMode === 'SAME_AS_SUCCESS' ? providerRateRmb : '0',
+      proposedPoints: '1',
+    },
+    pointsPerRmb
+  )
+  if (!result) return null
+  const positiveCost = fixed(result.kPricingRmb, 8) > 0n
+  const floor = BigInt(result.breakEvenPoints)
+  const target = BigInt(result.targetMarginPoints)
+  const recommended = positiveCost && target <= floor ? floor + 1n : target
+  let verdict: PricingSimulationResult['verdict'] | null = null
+  try {
+    const entered = fixed(customerRatePoints, 8)
+    if (positiveCost && entered <= floor * 100_000_000n) {
+      verdict = 'BELOW_BREAK_EVEN'
+    } else if (entered < target * 100_000_000n) verdict = 'BELOW_TARGET'
+    else verdict = 'MEETS_TARGET'
+  } catch {
+    // An incomplete or invalid rate has no computed risk verdict.
+  }
+  return { ...result, recommendedPoints: recommended.toString(), verdict }
+}
+
 function ceilDivide(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator - 1n) / denominator
 }

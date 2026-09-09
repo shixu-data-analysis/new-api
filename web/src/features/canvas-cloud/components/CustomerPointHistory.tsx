@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -43,7 +44,6 @@ import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminPointLot, CanvasPointLedgerItem } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm, BusinessTermText } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -413,7 +413,7 @@ export function CustomerPointHistory({
           additionalFilters={
             <>
               {customerId ? (
-                <CanvasColumnFilterField label={t('Canvas recharge order')}>
+                <DataTableColumnFilterField label={t('Canvas recharge order')}>
                   <Input
                     value={rechargeOrderNumber}
                     placeholder={t('Canvas recharge order')}
@@ -421,9 +421,9 @@ export function CustomerPointHistory({
                       setRechargeOrderNumber(event.target.value)
                     }
                   />
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               ) : null}
-              <CanvasColumnFilterField label={t('Type')}>
+              <DataTableColumnFilterField label={t('Type')}>
                 <Select
                   value={lotType || 'ALL'}
                   onValueChange={(value) =>
@@ -444,7 +444,7 @@ export function CustomerPointHistory({
                     <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
                   </SelectContent>
                 </Select>
-              </CanvasColumnFilterField>
+              </DataTableColumnFilterField>
               <div className='sm:col-span-2'>
                 <CanvasDateRangeFilter
                   from={lotFrom}
@@ -483,23 +483,23 @@ export function CustomerPointHistory({
             <>
               {customerId ? (
                 <>
-                  <CanvasColumnFilterField label={t('Task ID')}>
+                  <DataTableColumnFilterField label={t('Task ID')}>
                     <Input
                       value={taskId}
                       placeholder={t('Task ID')}
                       onChange={(event) => setTaskId(event.target.value)}
                     />
-                  </CanvasColumnFilterField>
-                  <CanvasColumnFilterField label={t('Refund record ID')}>
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Refund record ID')}>
                     <Input
                       value={refundId}
                       placeholder={t('Refund record ID')}
                       onChange={(event) => setRefundId(event.target.value)}
                     />
-                  </CanvasColumnFilterField>
+                  </DataTableColumnFilterField>
                 </>
               ) : null}
-              <CanvasColumnFilterField label={t('Event')}>
+              <DataTableColumnFilterField label={t('Event')}>
                 <Select
                   value={eventType || 'ALL'}
                   onValueChange={(value) =>
@@ -523,7 +523,7 @@ export function CustomerPointHistory({
                     ))}
                   </SelectContent>
                 </Select>
-              </CanvasColumnFilterField>
+              </DataTableColumnFilterField>
               <div className='sm:col-span-2'>
                 <CanvasDateRangeFilter
                   from={ledgerFrom}

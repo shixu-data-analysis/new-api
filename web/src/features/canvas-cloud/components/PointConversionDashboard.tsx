@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -40,7 +41,6 @@ import {
   type CanvasPointLotType,
 } from '../point-conversion-types'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 
@@ -284,7 +284,7 @@ export function PointConversionDashboard() {
         emptyTitle={t('No point lots')}
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Point type')}>
+            <DataTableColumnFilterField label={t('Point type')}>
               <Select
                 value={lotType || 'ALL'}
                 onValueChange={(value) =>
@@ -312,8 +312,8 @@ export function PointConversionDashboard() {
                   ))}
                 </SelectContent>
               </Select>
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Lot state')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Lot state')}>
               <Select
                 value={state || 'ALL'}
                 onValueChange={(value) =>
@@ -341,8 +341,8 @@ export function PointConversionDashboard() {
                   ))}
                 </SelectContent>
               </Select>
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField
               label={t('Expiry window (days)')}
               htmlFor='point-conversion-expiry-days'
             >
@@ -360,7 +360,7 @@ export function PointConversionDashboard() {
                   }))
                 }}
               />
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
           </>
         }
         hasActiveFilters={Boolean(

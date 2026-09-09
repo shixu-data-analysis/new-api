@@ -24,14 +24,14 @@ import {
   DataTableToolbar,
   useDataTable,
 } from '@/components/data-table'
+import {
+  DataTableColumnFilterField,
+  DataTableColumnFilterPanel,
+} from '@/components/data-table/toolbar/column-filter-panel'
 import { Input } from '@/components/ui/input'
 
 import type { CanvasServerTableState } from '../use-server-table-state'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
-import {
-  CanvasColumnFilterField,
-  CanvasColumnFilterPanel,
-} from './CanvasColumnFilterPanel'
 
 export function CanvasServerTable<TData>({
   data,
@@ -48,6 +48,7 @@ export function CanvasServerTable<TData>({
   getRowId,
   getRowClassName,
   renderRow,
+  renderExpandedContent,
   initialColumnVisibility,
 }: {
   data: TData[]
@@ -67,6 +68,7 @@ export function CanvasServerTable<TData>({
     context: { isMobile: boolean }
   ) => string | undefined
   renderRow?: (row: Row<TData>) => ReactNode
+  renderExpandedContent?: (row: Row<TData>) => ReactNode
   initialColumnVisibility?: VisibilityState
 }) {
   const { pagination, setPagination, sorting, setSorting, search, setSearch } =
@@ -107,15 +109,18 @@ export function CanvasServerTable<TData>({
       paginationInFooter={false}
       getRowClassName={getRowClassName}
       renderRow={renderRow ? (row) => renderRow(row) : undefined}
+      mobileProps={{ renderExpandedContent }}
       applyHeaderSize
       toolbar={
         <DataTableToolbar
           table={table}
-          stableGrid
-          customSearch={
-            <CanvasColumnFilterPanel activeCount={visibleActiveFilterCount}>
+          filterPanel={
+            <DataTableColumnFilterPanel activeCount={visibleActiveFilterCount}>
               {searchLabel ? (
-                <CanvasColumnFilterField label={searchLabel} htmlFor={searchId}>
+                <DataTableColumnFilterField
+                  label={searchLabel}
+                  htmlFor={searchId}
+                >
                   <Input
                     id={searchId}
                     className='min-w-0'
@@ -123,10 +128,10 @@ export function CanvasServerTable<TData>({
                     placeholder={searchLabel}
                     onChange={(event) => setSearch(event.target.value)}
                   />
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               ) : null}
               {additionalFilters}
-            </CanvasColumnFilterPanel>
+            </DataTableColumnFilterPanel>
           }
           onReset={() => {
             setSearch('')

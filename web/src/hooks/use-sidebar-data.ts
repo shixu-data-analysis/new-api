@@ -141,7 +141,7 @@ export function useSidebarData(): SidebarData {
                 icon: CircleDollarSign,
               },
               {
-                title: t('Canvas Pricing'),
+                title: t('Model management'),
                 url: '/canvas-cloud/pricing',
                 icon: CircleDollarSign,
               },

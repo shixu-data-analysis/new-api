@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -27,7 +28,6 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTermText } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -328,7 +328,7 @@ function FactPage({
         getRowId={(row) => `${row.kind}:${row.id}`}
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Type')}>
+            <DataTableColumnFilterField label={t('Type')}>
               <select
                 className='border-input bg-background h-9 w-full min-w-0 rounded-md border px-3 text-sm'
                 aria-label={t('Type')}
@@ -345,8 +345,8 @@ function FactPage({
                   </option>
                 ))}
               </select>
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Status')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Status')}>
               <select
                 className='border-input bg-background h-9 w-full min-w-0 rounded-md border px-3 text-sm'
                 aria-label={t('Status')}
@@ -366,7 +366,7 @@ function FactPage({
                     </option>
                   ))}
               </select>
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
             <div className='sm:col-span-2'>
               <CanvasDateRangeFilter
                 from={from}

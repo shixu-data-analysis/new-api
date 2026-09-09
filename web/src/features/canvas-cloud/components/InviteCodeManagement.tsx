@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -51,7 +52,6 @@ import { getCanvasCampaigns } from '../campaign-api'
 import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -934,21 +934,21 @@ export function InviteCodeManagement() {
             emptyTitle={t('No invite codes')}
             additionalFilters={
               <>
-                <CanvasColumnFilterField label={t('Price group')}>
+                <DataTableColumnFilterField label={t('Price group')}>
                   <Input
                     value={priceGroup}
                     placeholder={t('Price group')}
                     onChange={(event) => setPriceGroup(event.target.value)}
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField label={t('Inviter username')}>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Inviter username')}>
                   <Input
                     value={inviter}
                     placeholder={t('Inviter username')}
                     onChange={(event) => setInviter(event.target.value)}
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField label={t('Status')}>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Status')}>
                   <Select
                     value={status || 'ALL'}
                     onValueChange={(value) =>
@@ -981,7 +981,7 @@ export function InviteCodeManagement() {
                       )}
                     </SelectContent>
                   </Select>
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               </>
             }
             hasActiveFilters={Boolean(priceGroup || inviter || status)}

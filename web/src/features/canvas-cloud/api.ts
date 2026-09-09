@@ -62,6 +62,13 @@ import type {
   CanvasModelCredentialBindingVersion,
   CanvasCredentialRotationPreview,
   CanvasModelBindingPreview,
+  CanvasModelPricingHistory,
+  CanvasModelPricingDetail,
+  CanvasModelPricingPreview,
+  CanvasModelPricingPublication,
+  CanvasModelPricingPublicationResult,
+  CanvasModelPricingScope,
+  CanvasModelPricingWorkspace,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -174,6 +181,110 @@ export async function getCanvasAdminTestingModels(): Promise<
 > {
   return (
     await api.get<CanvasAdminTestingModel[]>(`${webBase}/admin/testing-models`)
+  ).data
+}
+
+export async function getCanvasModelPricingWorkspace(): Promise<CanvasModelPricingWorkspace> {
+  return (await api.get(`${webBase}/admin/model-pricing/models`)).data
+}
+
+export async function getCanvasModelPricingModel(
+  modelId: string
+): Promise<CanvasModelPricingDetail> {
+  return (await api.get(`${webBase}/admin/model-pricing/models/${modelId}`))
+    .data
+}
+
+export async function getCanvasModelPricingPublication(
+  publicationId: string
+): Promise<CanvasModelPricingPublication> {
+  return (
+    await api.get(
+      `${webBase}/admin/model-pricing/publications/${publicationId}`
+    )
+  ).data
+}
+
+export async function previewCanvasModelPricing(input: {
+  customerModelId: string
+  billingUnit: import('./types').CanvasBillingUnit
+  effectiveAt?: string
+  decisionSummary?: string
+  scopes: CanvasModelPricingScope[]
+  costRiskResolution?:
+    | {
+        type: 'TEMPORARY_LOSS'
+        lossEndsAt: string
+        maxExpectedLossPoints: string
+        reason: string
+      }
+    | { type: 'MANUAL_PAUSE'; reason: string }
+}): Promise<CanvasModelPricingPreview> {
+  return (
+    await api.post(`${webBase}/admin/model-pricing/previews`, input, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function publishCanvasModelPricing(
+  previewId: string,
+  publishIdempotencyKey: string
+): Promise<CanvasModelPricingPublicationResult> {
+  return (
+    await api.post(
+      `${webBase}/admin/model-pricing/publications`,
+      { previewId, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': publishIdempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasModelPricingHistory(
+  modelId: string,
+  query: {
+    page: number
+    pageSize: number
+    sortBy?: 'effectiveAt'
+    sortDirection?: 'asc' | 'desc'
+    combinationId?: string
+    priceGroupId?: string
+    change?: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT'
+    status?:
+      | 'SCHEDULED'
+      | 'CANCELLED'
+      | 'CURRENT'
+      | 'PARTIALLY_CURRENT'
+      | 'SUPERSEDED'
+    from?: string
+    to?: string
+  }
+): Promise<CanvasModelPricingHistory> {
+  return (
+    await api.get(`${webBase}/admin/model-pricing/models/${modelId}/history`, {
+      params: query,
+    })
+  ).data
+}
+
+export async function cancelCanvasModelPricingSchedule(
+  publicationId: string,
+  reason?: string
+): Promise<CanvasModelPricingPublicationResult> {
+  return (
+    await api.post(
+      `${webBase}/admin/model-pricing/publications/${publicationId}/cancel-schedule`,
+      { confirmed: true, reason },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-model-pricing-cancel'),
+        },
+        skipErrorHandler: true,
+      }
+    )
   ).data
 }
 
@@ -479,6 +590,7 @@ export async function publishCanvasModelPresentation(input: {
   displayName: string
   description: string
   enabled: boolean
+  expectedVersion?: number
 }) {
   return (
     await api.post(

@@ -133,7 +133,7 @@ describe('Canvas pricing calculator', () => {
     fireEvent.change(screen.getByLabelText('Target margin rate'), {
       target: { value: '25' },
     })
-    expect(screen.getByText('25%')).toBeVisible()
+    expect(screen.getByLabelText('Target margin rate')).toHaveValue('25')
     fireEvent.change(screen.getByLabelText('Proposed price points'), {
       target: { value: '' },
     })
@@ -149,12 +149,17 @@ describe('Canvas pricing calculator', () => {
     expect(
       await screen.findByText(/meets or exceeds this price version/)
     ).toBeVisible()
-    expect(screen.getByText('2.17 RMB')).toBeVisible()
-    expect(screen.getByText('2.37 RMB')).toBeVisible()
+    const calculationDetails = screen
+      .getByText('Show calculation details')
+      .closest('details')
+    expect(calculationDetails).not.toHaveAttribute('open')
+    expect(calculationDetails).toHaveTextContent('2.17 RMB')
+    expect(calculationDetails).toHaveTextContent('2.37 RMB')
 
     fireEvent.click(screen.getByText('Show calculation details'))
-    expect(screen.getByText('1.95 RMB')).toBeVisible()
-    expect(screen.getByText('118.33 points')).toBeVisible()
-    expect(screen.queryByText('118.333333 points')).not.toBeInTheDocument()
+    expect(calculationDetails).toHaveAttribute('open')
+    expect(screen.getByText(/Break-even ≈/)).toBeVisible()
+    expect(calculationDetails).toHaveTextContent('118.33')
+    expect(calculationDetails).not.toHaveTextContent('118.333333')
   })
 })

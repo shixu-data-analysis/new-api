@@ -940,6 +940,83 @@ describe('Canvas runtime configuration', () => {
     })
   })
 
+  it('requires an explicit credential group before opening an unbound model binding target', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'UNBOUND' },
+    })
+    renderProviderConfiguration({
+      providerId: providerRuntime.providers[0].id,
+      modelId: model.id,
+    })
+
+    const group = await screen.findByRole('combobox', {
+      name: 'API Key group',
+    })
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalled())
+    await waitFor(() => expect(group).toHaveValue(''))
+    expect(
+      screen.queryByRole('form', { name: /Publish model.*bindings/ })
+    ).not.toBeInTheDocument()
+
+    fireEvent.change(group, {
+      target: { value: providerRuntime.credentialGroups[0].credentialGroupId },
+    })
+    expect(
+      await screen.findByRole('form', {
+        name: /Publish model.*bindings/,
+      })
+    ).toBeVisible()
+    expect(
+      await screen.findByLabelText(`Select model ${model.publicName}`)
+    ).toBeChecked()
+  })
+
+  it('drops an unbound model target when the provider selection changes', async () => {
+    const secondProviderId = '85000000-0000-7000-8000-000000000012'
+    const secondGroupId = '85000000-0000-7000-8000-000000000013'
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'UNBOUND' },
+      providers: [
+        ...providerRuntime.providers,
+        {
+          id: secondProviderId,
+          code: 'provider-b',
+          name: 'Provider B',
+          credentialSchemes: ['bearerAuth'],
+        },
+      ],
+      credentialGroups: [
+        ...providerRuntime.credentialGroups,
+        {
+          ...providerRuntime.credentialGroups[0],
+          id: '85000000-0000-7000-8000-000000000014',
+          credentialGroupId: secondGroupId,
+          providerId: secondProviderId,
+          providerCode: 'provider-b',
+          name: 'Secondary',
+        },
+      ],
+    })
+    renderProviderConfiguration({
+      providerId: providerRuntime.providers[0].id,
+      modelId: model.id,
+    })
+
+    await waitFor(() => expect(toastMocks.error).toHaveBeenCalled())
+    fireEvent.change(screen.getByRole('combobox', { name: 'Provider' }), {
+      target: { value: secondProviderId },
+    })
+    const group = screen.getByRole('combobox', { name: 'API Key group' })
+    fireEvent.change(group, { target: { value: secondGroupId } })
+
+    await waitFor(() => expect(group).toHaveValue(secondGroupId))
+    expect(
+      screen.queryByRole('form', { name: /Publish model.*bindings/ })
+    ).not.toBeInTheDocument()
+  })
+
   it('discards a late binding preview after the selected models change', async () => {
     let resolvePreview!: (value: CanvasModelBindingPreview) => void
     apiMocks.previewCanvasProviderCredentialBindings.mockReturnValueOnce(

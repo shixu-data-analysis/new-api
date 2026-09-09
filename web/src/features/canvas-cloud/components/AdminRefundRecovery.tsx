@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -64,7 +65,6 @@ import { formatMoneyMinor } from '../formatters'
 import type { CanvasAdminRechargeOrder, CanvasAdminRefund } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
@@ -332,13 +332,13 @@ export function AdminRefundRecovery({
             searchLabel={t('Canvas recharge order number')}
             additionalFilters={
               prefill.customerId ? null : (
-                <CanvasColumnFilterField label={t('Customer')}>
+                <DataTableColumnFilterField label={t('Customer')}>
                   <Input
                     value={orderCustomer}
                     placeholder={t('Customer')}
                     onChange={(event) => setOrderCustomer(event.target.value)}
                   />
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               )
             }
             hasActiveFilters={Boolean(orderCustomer)}
@@ -451,7 +451,7 @@ export function AdminRefundRecovery({
             emptyTitle={t('No refunds')}
             additionalFilters={
               <>
-                <CanvasColumnFilterField
+                <DataTableColumnFilterField
                   label={t('Canvas recharge order number')}
                 >
                   <Input
@@ -461,8 +461,8 @@ export function AdminRefundRecovery({
                       setRefundOrderNumber(event.target.value)
                     }
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField
                   label={t('Customer confirmation reference')}
                 >
                   <Input
@@ -472,8 +472,8 @@ export function AdminRefundRecovery({
                       setCustomerConfirmation(event.target.value)
                     }
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField label={t('Status')}>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Status')}>
                   <Select
                     value={refundStatus || 'ALL'}
                     onValueChange={(value) =>
@@ -501,7 +501,7 @@ export function AdminRefundRecovery({
                       ))}
                     </SelectContent>
                   </Select>
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
                 <div className='sm:col-span-2'>
                   <CanvasDateRangeFilter
                     from={refundFrom}

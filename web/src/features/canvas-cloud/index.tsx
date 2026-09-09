@@ -58,7 +58,6 @@ import {
   AdminPointAdjustments,
   type RefundRecoveryPrefill,
 } from './components/AdminPointAdjustments'
-import { AdminPricing } from './components/AdminPricing'
 import {
   AdminRefundRecovery,
   type AdminRefundRecoveryPrefill,
@@ -95,13 +94,13 @@ const sectionTitles: Record<CanvasSection, string> = {
   agents: 'Inviter management',
   'recharge-codes': 'Canvas Recharge Codes',
   'invite-codes': 'Canvas Invite Codes',
-  catalog: 'Canvas Model Catalog',
+  catalog: 'Model management',
   overview: 'Canvas Usage Overview',
   recharge: 'Redeem Points',
   models: 'Available Models',
   tasks: 'My Tasks',
   consumption: 'Point History',
-  pricing: 'Canvas Pricing',
+  pricing: 'Model management',
   'pricing-point-rules': 'Pricing and point rules',
   'pricing-calculator': 'Canvas Pricing Calculator',
   channels: 'Canvas Channels',
@@ -447,10 +446,12 @@ function CustomerContent(props: { section: CustomerSection }) {
   return null
 }
 
-function AdminContent(props: {
+export function AdminContent(props: {
   section: AdminSection
   refundPrefill: AdminRefundRecoveryPrefill
   providerTarget: CanvasProviderNavigationTarget
+  initialPricingModelId?: string
+  initialPricingPublicationId?: string
   onOpenRefundRecovery: (prefill: RefundRecoveryPrefill) => void
 }) {
   const { t } = useTranslation()
@@ -468,6 +469,8 @@ function AdminContent(props: {
       'execution',
       'provider-configuration',
       'pricing-point-rules',
+      'catalog',
+      'pricing',
     ].includes(props.section),
   })
   const dates = useMemo(
@@ -510,6 +513,14 @@ function AdminContent(props: {
     )
   }
   if (props.section === 'pricing-point-rules') return <PricingPointRules />
+  if (props.section === 'catalog' || props.section === 'pricing') {
+    return (
+      <AdminModelCatalog
+        initialPricingModelId={props.initialPricingModelId}
+        initialPricingPublicationId={props.initialPricingPublicationId}
+      />
+    )
+  }
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -647,18 +658,6 @@ function AdminContent(props: {
     return <CanvasRechargeCodes embedded />
   }
   if (props.section === 'invite-codes') return <InviteCodeManagement />
-  if (props.section === 'catalog') return <AdminModelCatalog />
-  if (props.section === 'pricing') {
-    return (
-      <AdminPricing
-        prices={data.prices}
-        pricePromotions={data.pricePromotions ?? []}
-        onChanged={() =>
-          queryClient.invalidateQueries({ queryKey: ['canvas-cloud', 'admin'] })
-        }
-      />
-    )
-  }
   if (props.section === 'pricing-calculator') {
     return <PricingCalculator />
   }
@@ -770,6 +769,8 @@ export function CanvasCloud() {
         section={section as AdminSection}
         refundPrefill={search}
         providerTarget={search}
+        initialPricingModelId={search.modelId}
+        initialPricingPublicationId={search.publicationId}
         onOpenRefundRecovery={(prefill) =>
           void navigate({
             to: '/canvas-cloud/$section',

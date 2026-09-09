@@ -16,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
@@ -29,6 +32,51 @@ import zh from '@/i18n/locales/zh.json'
 import { canvasBusinessTermConfig } from '../business-terms'
 
 const localizedResources = { fr, ja, ru, vi, 'zh-TW': zhTW, zh }
+const unifiedPricingSources = [
+  'UnifiedModelPricing.tsx',
+  'UnifiedModelPricingHistory.tsx',
+  'PricingQuestionnaire.tsx',
+]
+const unifiedPricingKeys = [
+  'Cancel the scheduled customer price before publishing a new change.',
+  'Cancel the scheduled provider rate before publishing a new change.',
+  'Resolve the limited-price special conflict before publishing.',
+  'Resolve the price validation issue before publishing.',
+  'Initial',
+  'Provider cost and customer price',
+  'Customer price retained',
+  'Scheduled',
+  'Current',
+  'Partially current',
+  'Superseded',
+  'Cancelled',
+  'Input tokens',
+  'Output tokens',
+  'Cache read',
+  'Cache write',
+  ...new Set(
+    unifiedPricingSources.flatMap((file) => {
+      const source = readFileSync(
+        resolve('src/features/canvas-cloud/components', file),
+        'utf8'
+      )
+      return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+        (match) => match[2]
+      )
+    })
+  ),
+]
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every unified pricing UI message in %s without missing-key fallback',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of unifiedPricingKeys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
 const canvasKeys = Object.keys(en.translation).filter((key) =>
   key.includes('Canvas')
 )

@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { SectionPageLayout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import {
@@ -34,7 +35,6 @@ import { useDebounce } from '@/hooks'
 
 import { getCanvasAdminCustomers } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
-import { CanvasColumnFilterField } from './components/CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { CopyableText } from './components/CopyableText'
@@ -156,7 +156,7 @@ export function CanvasCustomerPointBalances() {
             emptyTitle={t('No Canvas customers')}
             additionalFilters={
               <>
-                <CanvasColumnFilterField label={t('Email')}>
+                <DataTableColumnFilterField label={t('Email')}>
                   <Input
                     value={email}
                     placeholder={t('Email')}
@@ -168,8 +168,8 @@ export function CanvasCustomerPointBalances() {
                       }))
                     }}
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField label={t('Status')}>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Status')}>
                   <Select
                     value={status || 'ALL'}
                     onValueChange={(value) => {
@@ -198,7 +198,7 @@ export function CanvasCustomerPointBalances() {
                       ))}
                     </SelectContent>
                   </Select>
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               </>
             }
             hasActiveFilters={Boolean(email || status)}

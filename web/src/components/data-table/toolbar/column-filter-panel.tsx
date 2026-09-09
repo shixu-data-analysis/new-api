@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-export function CanvasColumnFilterPanel({
+export function DataTableColumnFilterPanel({
   activeCount,
   children,
   onClear,
@@ -66,7 +66,7 @@ export function CanvasColumnFilterPanel({
   )
 }
 
-export function CanvasColumnFilterField({
+export function DataTableColumnFilterField({
   label,
   children,
   className,

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,7 +35,6 @@ import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -280,7 +280,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
     values: readonly string[],
     termKind: StatusTermKind
   ) => (
-    <CanvasColumnFilterField label={label}>
+    <DataTableColumnFilterField label={label}>
       <Select
         value={value || 'ALL'}
         onValueChange={(next) => setValue(next === 'ALL' ? '' : (next ?? ''))}
@@ -301,7 +301,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
           ))}
         </SelectContent>
       </Select>
-    </CanvasColumnFilterField>
+    </DataTableColumnFilterField>
   )
 
   return (
@@ -320,7 +320,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
         }
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Model')}>
+            <DataTableColumnFilterField label={t('Model')}>
               <Input
                 className='w-full'
                 value={model}
@@ -328,7 +328,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
                 placeholder={t('Model')}
                 onChange={(event) => setModel(event.target.value)}
               />
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
             {props.kind === 'task'
               ? statusSelect(
                   executionStatus,
@@ -355,7 +355,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
                 )
               : null}
             {props.kind === 'task' ? (
-              <CanvasColumnFilterField label={t('Source')}>
+              <DataTableColumnFilterField label={t('Source')}>
                 <Select
                   value={executionOrigin || 'ALL'}
                   onValueChange={(value) =>
@@ -377,7 +377,7 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
                     <SelectItem value='REAL'>{t('Production')}</SelectItem>
                   </SelectContent>
                 </Select>
-              </CanvasColumnFilterField>
+              </DataTableColumnFilterField>
             ) : null}
             <div className='sm:col-span-2'>
               <CanvasDateRangeFilter

@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -45,7 +46,6 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { AdminAuditLog } from './AdminAuditLog'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { useCanvasRechargeOrderColumns } from './CanvasRechargeOrder'
@@ -150,7 +150,7 @@ function CustomerOrders({
       emptyTitle={t('No recharge orders')}
       additionalFilters={
         <>
-          <CanvasColumnFilterField label={t('Status')}>
+          <DataTableColumnFilterField label={t('Status')}>
             <Select
               value={status || 'ALL'}
               onValueChange={(value) =>
@@ -173,7 +173,7 @@ function CustomerOrders({
                 ))}
               </SelectContent>
             </Select>
-          </CanvasColumnFilterField>
+          </DataTableColumnFilterField>
           <div className='sm:col-span-2'>
             <CanvasDateRangeFilter
               from={from}
@@ -361,21 +361,21 @@ function CustomerTasks({
   )
   const filters = (
     <>
-      <CanvasColumnFilterField label={t('Model')}>
+      <DataTableColumnFilterField label={t('Model')}>
         <Input
           value={model}
           placeholder={t('Model')}
           onChange={(event) => setModel(event.target.value)}
         />
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Upstream task ID')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Upstream task ID')}>
         <Input
           value={upstreamTaskId}
           placeholder={t('Upstream task ID')}
           onChange={(event) => setUpstreamTaskId(event.target.value)}
         />
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Execution status')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Execution status')}>
         <Select
           value={executionStatus || 'ALL'}
           onValueChange={(value) =>
@@ -399,8 +399,8 @@ function CustomerTasks({
             ))}
           </SelectContent>
         </Select>
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Billing status')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Billing status')}>
         <Select
           value={billingStatus || 'ALL'}
           onValueChange={(value) =>
@@ -424,7 +424,7 @@ function CustomerTasks({
             ))}
           </SelectContent>
         </Select>
-      </CanvasColumnFilterField>
+      </DataTableColumnFilterField>
       <div className='sm:col-span-2'>
         <CanvasDateRangeFilter
           from={from}

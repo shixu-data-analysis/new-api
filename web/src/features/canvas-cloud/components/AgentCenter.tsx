@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -60,7 +61,6 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -332,7 +332,7 @@ export function AgentCenter() {
             loading={invites.isPending || invites.isFetching}
             emptyTitle={t('No invite codes')}
             additionalFilters={
-              <CanvasColumnFilterField label={t('Status')}>
+              <DataTableColumnFilterField label={t('Status')}>
                 <Select
                   value={inviteStatus || 'ALL'}
                   onValueChange={(value) =>
@@ -365,7 +365,7 @@ export function AgentCenter() {
                     )}
                   </SelectContent>
                 </Select>
-              </CanvasColumnFilterField>
+              </DataTableColumnFilterField>
             }
             hasActiveFilters={Boolean(inviteStatus)}
             onResetFilters={() => setInviteStatus('')}
@@ -391,14 +391,14 @@ export function AgentCenter() {
             emptyTitle={t('No customers')}
             additionalFilters={
               <>
-                <CanvasColumnFilterField label={t('Email')}>
+                <DataTableColumnFilterField label={t('Email')}>
                   <Input
                     value={customerEmail}
                     placeholder={t('Email')}
                     onChange={(event) => setCustomerEmail(event.target.value)}
                   />
-                </CanvasColumnFilterField>
-                <CanvasColumnFilterField label={t('Status')}>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Status')}>
                   <Select
                     value={customerStatus || 'ALL'}
                     onValueChange={(value) =>
@@ -421,7 +421,7 @@ export function AgentCenter() {
                       ))}
                     </SelectContent>
                   </Select>
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               </>
             }
             hasActiveFilters={Boolean(customerEmail || customerStatus)}

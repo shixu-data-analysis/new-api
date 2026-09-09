@@ -619,6 +619,11 @@ export const STATIC_I18N_KEYS = [
   'REPRICE_SCHEDULED',
   'MANUAL_PAUSE',
   'TEMPORARY_LOSS',
+  'Scheduled',
+  'Current',
+  'Partially current',
+  'Superseded',
+  'Cancelled',
 
   // Misc
   'Cancel',
@@ -641,4 +646,11 @@ export const STATIC_I18N_KEYS = [
   'This user account is disabled.',
   'Telegram binding failed. Please try again.',
   'Verification scope is missing',
+  'Pricing steps',
+  'Cost and assumptions',
+  'Set customer price',
+  'Review and publish',
+  'Applicable scope',
+  'Changed field',
+  'Initial pricing',
 ] as const

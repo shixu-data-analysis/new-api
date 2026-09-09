@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { DateTimePicker } from '@/components/datetime-picker'
 import {
   sideDrawerContentClassName,
@@ -91,7 +92,6 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { AdminCustomerOperations } from './AdminCustomerOperations'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRechargeOrderSummary } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -391,7 +391,7 @@ export function AdminPointAdjustments({
             loading={customers.isLoading || customers.isFetching}
             emptyTitle={t('No customers')}
             additionalFilters={
-              <CanvasColumnFilterField label={t('Status')}>
+              <DataTableColumnFilterField label={t('Status')}>
                 <Select
                   value={customerStatus || 'ALL'}
                   onValueChange={(value) =>
@@ -414,7 +414,7 @@ export function AdminPointAdjustments({
                     ))}
                   </SelectContent>
                 </Select>
-              </CanvasColumnFilterField>
+              </DataTableColumnFilterField>
             }
             hasActiveFilters={Boolean(customerStatus)}
             onResetFilters={() => setCustomerStatus('')}

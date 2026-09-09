@@ -305,7 +305,7 @@ describe('Canvas administrator pricing', () => {
     expect(
       screen.queryByRole('textbox', { name: /K_pricing/ })
     ).not.toBeInTheDocument()
-    expect(screen.getAllByText('50 points per RMB')).toHaveLength(2)
+    expect(screen.getByText('50 points per RMB')).toBeVisible()
     expect(screen.getByText('Not eligible or unavailable')).toBeVisible()
     expect(screen.queryByText('FROZEN v1.0 baseline')).not.toBeInTheDocument()
     expect(screen.queryByText('baseline://v1')).not.toBeInTheDocument()
@@ -571,8 +571,6 @@ describe('Canvas administrator pricing', () => {
       'Proposed price points',
       'Target margin rate',
       'Expected success rate',
-      'Service provider cost when successful',
-      'Unrecoverable service provider cost when failed',
       'Other variable cost for every attempt',
       'Risk buffer',
     ]
@@ -591,7 +589,7 @@ describe('Canvas administrator pricing', () => {
         'true'
       )
     }
-    expect(within(form).getAllByText('This field is required')).toHaveLength(7)
+    expect(within(form).getAllByText('This field is required')).toHaveLength(5)
     expect(
       within(form).getByRole('textbox', { name: 'Decision summary' })
     ).toHaveAttribute('aria-invalid', 'false')
@@ -619,7 +617,7 @@ describe('Canvas administrator pricing', () => {
     )
     fireEvent.change(
       within(form).getByRole('textbox', {
-        name: 'Service provider cost when successful',
+        name: 'Other variable cost for every attempt',
       }),
       { target: { value: '0.123456789' } }
     )
@@ -684,7 +682,7 @@ describe('Canvas administrator pricing', () => {
     expect(container.querySelector('.overflow-x-auto')).toBeInTheDocument()
     expect(container.querySelector('.min-w-max')).toBeInTheDocument()
     expect(container.querySelector('.sm\\:grid-cols-2')).toBeInTheDocument()
-    expect(container.querySelector('.lg\\:grid-cols-4')).toBeInTheDocument()
+    expect(container.querySelector('.max-w-2xl')).toBeInTheDocument()
   })
 
   it('paginates published history without mounting separate policy settings', async () => {
@@ -808,9 +806,9 @@ describe('Canvas administrator pricing', () => {
       ).toHaveValue('30')
       expect(
         screen.getByRole('textbox', {
-          name: 'Service provider cost when successful',
+          name: 'Other variable cost for every attempt',
         })
-      ).toHaveValue('0.3')
+      ).toHaveValue('0')
     })
   })
 

@@ -143,6 +143,7 @@ export type DataTablePageProps<TData> = {
   mobileProps?: {
     getRowKey?: (row: Row<TData>) => string | number
     getRowClassName?: (row: Row<TData>) => string | undefined
+    renderExpandedContent?: (row: Row<TData>) => React.ReactNode
   }
 
   /**
@@ -469,6 +470,7 @@ function renderMobile<TData>(
           emptyDescription={props.emptyDescription}
           getRowKey={props.mobileProps?.getRowKey}
           getRowClassName={mobileGetRowClassName}
+          renderExpandedContent={props.mobileProps?.renderExpandedContent}
         />
       )
     }

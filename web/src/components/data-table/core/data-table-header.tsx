@@ -268,10 +268,22 @@ function renderHeaderContent<TData>(header: Header<TData, unknown>) {
   // A function (including TanStack's default accessor-key fallback) is passed
   // through as-is. meta.label is kept as a fallback for legacy columns.
   if (typeof headerDef === 'string') {
-    return <DataTableColumnHeader column={header.column} title={headerDef} />
+    return (
+      <DataTableColumnHeader
+        column={header.column}
+        title={headerDef}
+        description={meta?.description}
+      />
+    )
   }
   if (meta?.label) {
-    return <DataTableColumnHeader column={header.column} title={meta.label} />
+    return (
+      <DataTableColumnHeader
+        column={header.column}
+        title={meta.label}
+        description={meta.description}
+      />
+    )
   }
   return flexRender(headerDef, header.getContext())
 }

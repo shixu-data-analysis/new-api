@@ -22,6 +22,7 @@ import {
   ArrowUp as ArrowUpIcon,
   ArrowUpDown as SortIcon,
   EyeOff as EyeNoneIcon,
+  CircleHelp,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +34,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 type DataTableColumnHeaderProps<TData, TValue> = Omit<
@@ -41,12 +47,14 @@ type DataTableColumnHeaderProps<TData, TValue> = Omit<
 > & {
   column: Column<TData, TValue>
   title: React.ReactNode
+  description?: string
 }
 
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
   className,
+  description,
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const { t } = useTranslation()
   if (!column.getCanSort()) {
@@ -64,18 +72,30 @@ export function DataTableColumnHeader<TData, TValue>({
   })()
 
   return (
-    <div className={cn('flex items-center', className)}>
+    <div
+      className={cn(
+        'flex items-center',
+        description && 'min-w-0 gap-1',
+        className
+      )}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8 gap-1.5 px-3'
+              className={cn(
+                'data-popup-open:bg-accent -ms-3 h-8 gap-1.5 px-3',
+                description &&
+                  'ms-0 h-auto min-w-0 shrink px-0 py-2 whitespace-normal'
+              )}
             />
           }
         >
-          <span>{title}</span>
+          <span className={description ? 'min-w-0 text-left' : undefined}>
+            {title}
+          </span>
           {sortIcon}
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
@@ -98,6 +118,25 @@ export function DataTableColumnHeader<TData, TValue>({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {description && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='text-muted-foreground size-5 shrink-0'
+                aria-label={description}
+              />
+            }
+          >
+            <CircleHelp className='size-4' aria-hidden='true' />
+          </TooltipTrigger>
+          <TooltipContent className='max-w-80 text-sm whitespace-normal'>
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }

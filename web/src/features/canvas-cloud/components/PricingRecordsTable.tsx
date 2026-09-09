@@ -31,13 +31,13 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
+import {
+  DataTableColumnFilterField,
+  DataTableColumnFilterPanel,
+} from '@/components/data-table/toolbar/column-filter-panel'
 import { Input } from '@/components/ui/input'
 
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
-import {
-  CanvasColumnFilterField,
-  CanvasColumnFilterPanel,
-} from './CanvasColumnFilterPanel'
 
 export type PricingRecordFilter = {
   columnId: string
@@ -87,14 +87,13 @@ export function PricingRecordsTable<TData>(props: {
     <div className='space-y-3'>
       <DataTableToolbar
         table={table}
-        stableGrid
-        customSearch={
-          <CanvasColumnFilterPanel activeCount={columnFilters.length}>
+        filterPanel={
+          <DataTableColumnFilterPanel activeCount={columnFilters.length}>
             {props.filters.map((filter) => {
               const column = table.getColumn(filter.columnId)
               if (!column) return null
               return (
-                <CanvasColumnFilterField
+                <DataTableColumnFilterField
                   key={filter.columnId}
                   label={filter.label}
                   htmlFor={`pricing-filter-${filter.columnId}`}
@@ -109,10 +108,10 @@ export function PricingRecordsTable<TData>(props: {
                     }
                     placeholder={filter.label}
                   />
-                </CanvasColumnFilterField>
+                </DataTableColumnFilterField>
               )
             })}
-          </CanvasColumnFilterPanel>
+          </DataTableColumnFilterPanel>
         }
         hasAdditionalFilters={columnFilters.length > 0}
         onReset={() => setColumnFilters([])}

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -31,7 +32,6 @@ import type {
   ChannelHealthWindow,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -333,7 +333,7 @@ export function ChannelHealth() {
         }}
         additionalFilters={
           <>
-            <CanvasColumnFilterField
+            <DataTableColumnFilterField
               label={t('Provider')}
               htmlFor='health-provider'
             >
@@ -343,8 +343,8 @@ export function ChannelHealth() {
                 placeholder={t('Provider')}
                 onChange={(event) => setProvider(event.target.value)}
               />
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField
               label={t('Status')}
               htmlFor='health-status'
             >
@@ -361,7 +361,7 @@ export function ChannelHealth() {
                   {t('Disabled')}
                 </NativeSelectOption>
               </NativeSelect>
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
           </>
         }
         emptyTitle={t('No provider channels')}

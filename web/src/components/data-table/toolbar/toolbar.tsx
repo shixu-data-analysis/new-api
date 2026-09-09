@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Table } from '@tanstack/react-table'
-import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
+import { Loader2, X as Cross2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +27,10 @@ import { Input } from '@/components/ui/input'
 import { useDebounce } from '@/hooks'
 import { cn } from '@/lib/utils'
 
+import {
+  DataTableColumnFilterField,
+  DataTableColumnFilterPanel,
+} from './column-filter-panel'
 import { DataTableFacetedFilter } from './faceted-filter'
 import { DataTableViewOptions } from './view-options'
 
@@ -65,22 +69,19 @@ export type DataTableToolbarProps<TData> = {
    */
   searchKey?: string
   /**
-   * Column-level filter chips (faceted multi-select / single-select).
+   * Column filters displayed inside the shared column-filter panel.
    */
   filters?: FilterDef[]
   /**
-   * Replaces the default search input entirely. Use when the primary
-   * "search" is something custom — e.g. a date-time range picker.
+   * An existing column-filter panel that replaces the default panel.
    */
-  customSearch?: ReactNode
+  filterPanel?: ReactNode
   /**
-   * Extra inputs/selects displayed in the primary row alongside the
-   * search input and filter chips.
+   * Additional labeled fields displayed inside the column-filter panel.
    */
   additionalSearch?: ReactNode
   /**
-   * Whether non-table filters (e.g. `additionalSearch` or `expandable`
-   * inputs) are currently active. Controls Reset button visibility
+   * Whether non-table filter inputs are currently active. Controls Reset button visibility
    * when no column filters are set.
    */
   hasAdditionalFilters?: boolean
@@ -89,18 +90,7 @@ export type DataTableToolbarProps<TData> = {
    */
   onReset?: () => void
   /**
-   * Additional filter inputs hidden behind an Expand/Collapse toggle.
-   * Inputs flow inline with the primary row when expanded.
-   */
-  expandable?: ReactNode
-  /**
-   * When `expandable` is collapsed, highlights the toggle if any of
-   * the expandable inputs currently hold a value.
-   */
-  hasExpandedActiveFilters?: boolean
-  /**
-   * Custom action buttons rendered BEFORE the built-in
-   * Reset / Search / View buttons.
+   * Business actions rendered below the fixed filter and view row.
    */
   preActions?: ReactNode
   /**
@@ -124,50 +114,25 @@ export type DataTableToolbarProps<TData> = {
    */
   viewToggle?: ReactNode
   /**
-   * Content rendered on the LEFT side of the secondary action row. When
-   * provided the toolbar splits into two visual rows:
-   *   Row 1: search inputs / filter chips …… Expand
-   *   Row 2: expanded filters
-   *   Row 3: leftActions …… Reset / Search / ViewOptions
+   * Business actions displayed in a separate row below the fixed toolbar.
    */
   leftActions?: ReactNode
   /**
    * Outer wrapper className override.
    */
   className?: string
-  /** Keep search, business filters, and actions in explicit responsive areas. */
-  stableGrid?: boolean
-  /** Use a shorter primary search track for compact field-specific filters. */
-  compactSearch?: boolean
-  /** Keep business filters on one scrollable row at desktop widths. */
-  singleLineFilters?: boolean
 }
 
-/**
- * Unified data-table filter panel — Ant Design Pro inspired.
- *
- * Layout (single flex-wrap row):
- * - Filters (search input + additional inputs + filter chips + expandable
- *   inputs) flow horizontally and wrap as needed.
- * - The action cluster (Reset / Search / View / Expand) hugs the right
- *   edge via `ms-auto`. When filters fill a row, the cluster naturally
- *   wraps to the next line — still right-aligned — matching the
- *   collapsed/expanded states from the user's reference design.
- *
- * No background panel, no row separators — relies on whitespace and the
- * adjacent table border for visual hierarchy.
- */
+/** Shared toolbar: column filters on the left, column visibility on the right. */
 export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
   const [isSearchComposing, setIsSearchComposing] = useState(false)
 
   const filters = props.filters ?? []
-  const hasExpandable = props.expandable != null
   const hasSearch = props.onSearch != null
 
   const isFiltered =
-    props.table.getState().columnFilters.length > 0 ||
+    (props.table.getState().columnFilters?.length ?? 0) > 0 ||
     !!props.table.getState().globalFilter ||
     !!props.hasAdditionalFilters
 
@@ -251,6 +216,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
   const searchInput = (
     <Input
+      aria-label={placeholder}
       placeholder={placeholder}
       value={searchValue}
       onChange={handleSearchChange}
@@ -260,7 +226,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     />
   )
 
-  const filterChips = React.useMemo(
+  const columnFields = React.useMemo(
     () =>
       filters.map((filter) => {
         const column = props.table.getColumn(filter.columnId)
@@ -284,6 +250,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     setSearchDraft(null)
     props.table.resetColumnFilters()
     props.table.setGlobalFilter('')
+    props.table.setPageIndex(0)
     props.onReset?.()
   }
 
@@ -323,120 +290,48 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
   const viewToggleNode = props.viewToggle ?? null
 
-  const expandToggle = hasExpandable ? (
-    <Button
-      variant='ghost'
-      onClick={() => setExpanded((p) => !p)}
-      aria-expanded={expanded}
-      className={cn(
-        'text-muted-foreground hover:text-foreground gap-1 px-2',
-        props.hasExpandedActiveFilters &&
-          !expanded &&
-          'text-primary hover:text-primary'
-      )}
-    >
-      {expanded ? t('Collapse') : t('Expand')}
-      <ChevronDown
-        className={cn(
-          'size-3.5 transition-transform duration-200',
-          expanded && 'rotate-180'
-        )}
-      />
-    </Button>
-  ) : null
-
-  const hasLeftActions = props.leftActions != null
-
-  if (hasLeftActions) {
-    return (
-      <div className={cn('flex flex-col gap-2', props.className)}>
-        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-          {props.customSearch !== undefined ? props.customSearch : searchInput}
-          {props.additionalSearch}
-          {filterChips}
-          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-            {expandToggle}
-          </div>
-        </div>
-
-        {expanded && hasExpandable && (
-          <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-            {props.expandable}
-          </div>
-        )}
-
-        <div className='flex flex-wrap items-center gap-2 sm:gap-3'>
-          {props.leftActions}
-          <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-            {props.preActions}
-            {resetButton}
-            {searchButton}
-            {viewToggleNode}
-            {viewOptionsNode}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (props.stableGrid) {
-    return (
-      <div
-        className={cn(
-          'grid grid-cols-1 items-start gap-2 sm:gap-3',
-          props.compactSearch
-            ? 'md:grid-cols-[11rem_minmax(0,1fr)] xl:grid-cols-[11rem_minmax(0,1fr)_auto]'
-            : 'md:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)_auto]',
-          props.className
-        )}
-      >
-        <div className='min-w-0'>
-          {props.customSearch !== undefined ? props.customSearch : searchInput}
-        </div>
-        <div
-          className={cn(
-            'flex min-w-0 items-start gap-2 sm:gap-3',
-            props.singleLineFilters
-              ? 'flex-wrap md:flex-nowrap md:overflow-x-auto md:pb-1'
-              : 'flex-wrap'
-          )}
-        >
-          {props.additionalSearch}
-          {filterChips}
-          {expanded && hasExpandable && props.expandable}
-        </div>
-        <div className='flex shrink-0 items-center gap-1.5 justify-self-end md:col-span-2 xl:col-span-1'>
-          {props.preActions}
-          {resetButton}
-          {searchButton}
-          {viewToggleNode}
-          {viewOptionsNode}
-          {expandToggle}
-        </div>
-      </div>
-    )
-  }
+  const activeCount =
+    (props.table.getState().columnFilters?.length ?? 0) +
+    (props.table.getState().globalFilter ? 1 : 0) +
+    (props.hasAdditionalFilters ? 1 : 0)
+  const filterPanel = props.filterPanel ?? (
+    <DataTableColumnFilterPanel activeCount={activeCount}>
+      <DataTableColumnFilterField label={placeholder}>
+        {searchInput}
+      </DataTableColumnFilterField>
+      {props.additionalSearch}
+      {columnFields}
+    </DataTableColumnFilterPanel>
+  )
 
   return (
-    <div
-      className={cn(
-        'flex flex-wrap items-center gap-2 sm:gap-3',
-        props.className
-      )}
-    >
-      {props.customSearch !== undefined ? props.customSearch : searchInput}
-      {props.additionalSearch}
-      {filterChips}
-      {expanded && hasExpandable && props.expandable}
-
-      <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
-        {props.preActions}
-        {resetButton}
-        {searchButton}
-        {viewToggleNode}
-        {viewOptionsNode}
-        {expandToggle}
+    <div className={cn('space-y-2', props.className)}>
+      <div
+        className='grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2'
+        data-slot='data-table-toolbar'
+      >
+        <div
+          className='flex min-w-0 flex-wrap items-center gap-2 justify-self-start'
+          data-slot='data-table-filters'
+        >
+          {filterPanel}
+          {resetButton}
+          {searchButton}
+        </div>
+        <div
+          className='flex shrink-0 items-center justify-end gap-2 justify-self-end'
+          data-slot='data-table-view-options'
+        >
+          {viewToggleNode}
+          {viewOptionsNode}
+        </div>
       </div>
+      {(props.leftActions || props.preActions) && (
+        <div className='flex flex-wrap items-center gap-2'>
+          {props.leftActions}
+          {props.preActions}
+        </div>
+      )}
     </div>
   )
 }

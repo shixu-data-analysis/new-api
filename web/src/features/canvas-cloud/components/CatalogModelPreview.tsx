@@ -20,16 +20,16 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table'
+import {
+  DataTableColumnFilterField,
+  DataTableColumnFilterPanel,
+} from '@/components/data-table/toolbar/column-filter-panel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import type { CanvasModelCatalogPlanModel } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
-import {
-  CanvasColumnFilterField,
-  CanvasColumnFilterPanel,
-} from './CanvasColumnFilterPanel'
 
 export function CatalogModelPreview(props: {
   models: CanvasModelCatalogPlanModel[]
@@ -58,7 +58,7 @@ export function CatalogModelPreview(props: {
 
   return (
     <div className='space-y-3'>
-      <CanvasColumnFilterPanel
+      <DataTableColumnFilterPanel
         activeCount={[search, productKey, capability].filter(Boolean).length}
         onClear={() => {
           setSearch('')
@@ -67,7 +67,7 @@ export function CatalogModelPreview(props: {
           setPage(1)
         }}
       >
-        <CanvasColumnFilterField label={t('Client model')}>
+        <DataTableColumnFilterField label={t('Client model')}>
           <Input
             value={search}
             placeholder={t('Client model')}
@@ -76,8 +76,8 @@ export function CatalogModelPreview(props: {
               setPage(1)
             }}
           />
-        </CanvasColumnFilterField>
-        <CanvasColumnFilterField label={t('Key')}>
+        </DataTableColumnFilterField>
+        <DataTableColumnFilterField label={t('Key')}>
           <Input
             value={productKey}
             placeholder={t('Key')}
@@ -86,8 +86,8 @@ export function CatalogModelPreview(props: {
               setPage(1)
             }}
           />
-        </CanvasColumnFilterField>
-        <CanvasColumnFilterField label={t('Capability')}>
+        </DataTableColumnFilterField>
+        <DataTableColumnFilterField label={t('Capability')}>
           <Input
             value={capability}
             placeholder={t('Capability')}
@@ -96,8 +96,8 @@ export function CatalogModelPreview(props: {
               setPage(1)
             }}
           />
-        </CanvasColumnFilterField>
-      </CanvasColumnFilterPanel>
+        </DataTableColumnFilterField>
+      </DataTableColumnFilterPanel>
       <StaticDataTable
         tableClassName='min-w-[920px] table-fixed'
         columns={[

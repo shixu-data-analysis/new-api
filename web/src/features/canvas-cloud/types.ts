@@ -417,12 +417,28 @@ export type CanvasTokenCategory =
   | 'cacheRead'
   | 'cacheWrite'
 export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
+export type CanvasModelPricingTokenRateVector = {
+  input: string
+  output: string
+  cacheRead?: string
+  cacheWrite?: string
+}
 export interface CanvasTokenCategoryRisk {
   category: CanvasTokenCategory
   providerRateRmb: string
   customerRatePoints: string
   breakEvenPointsCeil: string
   belowBreakEven: boolean
+  otherVariableCostRmb?: string
+  failedUnrecoverableCostRmb?: string
+  riskBufferRmb?: string
+  kTheoryRmb?: string
+  kPricingRmb?: string
+  pricingBreakEvenPointsCeil?: string
+  targetMarginPointsCeil?: string
+  recommendedCustomerRatePoints?: string
+  belowPricingBreakEven?: boolean
+  belowTargetMargin?: boolean
 }
 
 export interface CanvasProviderPricingRow {
@@ -760,7 +776,16 @@ export interface CanvasAdminTestingModel {
   customerVisible: boolean
   pricedTargets: number
   totalTargets: number
-  provider: { code: string; name: string }
+  provider: { id: string; code: string; name: string }
+  binding: {
+    status: 'BOUND' | 'UNBOUND'
+    credentialGroupId: string | null
+    credentialGroupName: string | null
+    credentialGroupVersionId: string | null
+    credentialGroupVersion: number | null
+  }
+  billingUnit: CanvasBillingUnit | null
+  billingUnits: CanvasBillingUnit[]
   channel: {
     code: string
     version: number
@@ -792,6 +817,265 @@ export interface CanvasAdminTestingModel {
   createdAt: string
   effectiveAt: string | null
 }
+
+export type CanvasModelPricingFailureChargePolicy =
+  | { mode: 'NONE' }
+  | { mode: 'SAME_AS_SUCCESS' }
+  | { mode: 'FIXED'; nativeAmount: string; normalizedAmountMinor?: string }
+
+export type CanvasTokenCategoryAssumptions = Partial<
+  Record<
+    CanvasTokenCategory,
+    {
+      otherVariableCostRmb: string
+      riskBufferRmb: string
+    }
+  >
+>
+
+export interface CanvasModelPricingQuestionnaire {
+  targetMarginRate: string
+  successProbability: string
+  successfulTaskCostRmb: string | null
+  failedUnrecoverableCostRmb: string | null
+  otherVariableCostRmb: string | null
+  riskBufferRmb: string
+  decisionSummary: string
+  evidenceRefs: string[]
+  tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions | null
+}
+
+export interface CanvasModelPricingCalculation {
+  baseRatePointsPerRmb: string
+  kTheoryRmb: string
+  kPricingRmb: string
+  breakEvenPointsCeil: string
+  targetMarginPointsCeil: string
+}
+
+export interface CanvasModelPricingProviderRate {
+  billingUnit: CanvasBillingUnit
+  nativeAmount: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  currency: string
+  exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+  normalizedAmountMinor: string
+  normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+  failureChargePolicy: CanvasModelPricingFailureChargePolicy
+  id?: string
+  version?: number
+  status?: string
+  decisionSummary?: string
+  effectiveAt?: string | null
+}
+
+export interface CanvasModelPricingPriceSnapshot {
+  billingUnit: CanvasBillingUnit
+  points: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  questionnaire: CanvasModelPricingQuestionnaire
+  calculation?: CanvasModelPricingCalculation
+  id?: string
+  version?: number
+  status?: string
+  effectiveAt?: string | null
+  providerRateVersionId?: string | null
+  assumptions?: {
+    schemaVersion: number
+    billingContractVersion: number
+    billingUnit: CanvasBillingUnit
+    tokenRates: CanvasModelPricingTokenRateVector | null
+    tokenCategoryRisks: CanvasTokenCategoryRisk[]
+    tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions | null
+    sourcePriceVersionId: string | null
+    pointIssuanceRateConfigVersionId: string
+    pointIssuanceRateVersion: number
+    targetMarginRate: string
+    successfulTaskCostRmb: string
+    failedUnrecoverableCostRmb: string
+    otherVariableCostRmb: string
+    decisionSummary: string
+    evidenceRefs: string[]
+  }
+}
+
+export interface CanvasModelPricingScope {
+  parameterCombinationId: string
+  providerRate:
+    | {
+        action?: 'SET'
+        nativeAmount: string
+        currency: string
+        exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+        tokenRates?: CanvasModelPricingTokenRateVector
+        failureChargePolicy: CanvasModelPricingFailureChargePolicy
+      }
+    | {
+        action: 'KEEP'
+        sourceProviderRateVersionId: string
+      }
+  prices: Array<{
+    priceGroupId: string
+    action: 'KEEP' | 'SET'
+    sourcePriceVersionId?: string
+    points?: string
+    tokenRates?: CanvasModelPricingTokenRateVector
+    targetMarginRate?: string
+    tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions
+    successProbability?: string
+    otherVariableCostRmb?: string
+    riskBufferRmb?: string
+    decisionSummary?: string
+    evidenceRefs?: string[]
+  }>
+}
+
+export interface CanvasModelPricingModel {
+  id: string
+  modelKey: string
+  name: string
+  capability: string
+  status: string
+  billingUnit: CanvasBillingUnit | null
+  allowedBillingUnits: CanvasBillingUnit[]
+  tokenCategories: CanvasTokenCategory[]
+  combinations: Array<{
+    id: string
+    key: string
+    parameters: Record<string, unknown>
+    enabled: boolean
+  }>
+  hasPublishedPricing: boolean
+}
+
+export interface CanvasModelPricingWorkspace {
+  models: CanvasModelPricingModel[]
+  priceGroups: Array<{ id: string; code: string; internalName: string }>
+}
+
+export interface CanvasModelPricingDetail {
+  model: CanvasModelPricingModel
+  priceGroups: CanvasModelPricingWorkspace['priceGroups']
+  pricingScopes: Array<{
+    parameterCombinationId: string
+    combinationKey: string
+    parameters: Record<string, unknown>
+    enabled: boolean
+    currentProviderRate: CanvasModelPricingProviderRate | null
+    prices: Array<{
+      priceGroupId: string
+      priceGroupCode: string
+      priceGroupName: string
+      current: CanvasModelPricingPriceSnapshot | null
+    }>
+  }>
+}
+
+export interface CanvasModelPricingPreviewPrice {
+  priceGroupId: string
+  action: 'KEEP' | 'SET'
+  current: CanvasModelPricingPriceSnapshot | null
+  proposed: CanvasModelPricingPriceSnapshot | null
+  calculation: CanvasModelPricingCalculation | null
+  changed: boolean
+}
+
+export interface CanvasModelPricingPreview {
+  id: string
+  expiresAt: string
+  customerModelId: string
+  billingUnit: CanvasBillingUnit
+  effectiveAt: string
+  pointIssuanceRate: { id: string; version: number; pointsPerRmb: string }
+  unitChange: {
+    from: CanvasBillingUnit | null
+    to: CanvasBillingUnit
+    changed: boolean
+  }
+  scopes: Array<{
+    parameterCombinationId: string
+    combinationKey: string
+    parameters: Record<string, unknown>
+    currentProviderRate: CanvasModelPricingProviderRate | null
+    proposedProviderRate: CanvasModelPricingProviderRate
+    costChanged: boolean
+    prices: CanvasModelPricingPreviewPrice[]
+  }>
+  conflicts: Array<{
+    code: string
+    parameterCombinationId?: string
+    priceGroupId?: string
+    message: string
+  }>
+  canPublish: boolean
+}
+
+export interface CanvasModelPricingLegacyFacts {
+  id: string
+  version: number
+  status: string
+  billingUnit: CanvasBillingUnit
+  nativeAmount?: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  currency?: string
+  exchangeRateSnapshot?: { rate: string; source: string; asOf: string }
+  normalizedAmountMinor?: string
+  normalizedTokenRates?: CanvasModelPricingTokenRateVector | null
+  failureChargePolicy?: CanvasModelPricingFailureChargePolicy
+  points?: string
+  questionnaire?: CanvasModelPricingQuestionnaire
+  calculation?: CanvasModelPricingCalculation
+  effectiveAt: string
+  providerRateVersionId?: string | null
+}
+
+export interface CanvasModelPricingPublicationResult {
+  id: string
+  customerModelId: string
+  version: number
+  status: 'APPROVED' | 'PUBLISHED' | 'CANCELLED'
+  effectiveAt: string
+  billingUnit: CanvasBillingUnit
+  providerRateVersionIds: string[]
+  priceVersionIds: string[]
+  changed: { cost: boolean; price: boolean }
+}
+
+export interface CanvasModelPricingPublication {
+  id: string
+  customerModelId: string
+  version: number
+  source: 'UNIFIED' | 'LEGACY_PROVIDER_RATE' | 'LEGACY_PRICE'
+  status:
+    | 'SCHEDULED'
+    | 'CANCELLED'
+    | 'CURRENT'
+    | 'PARTIALLY_CURRENT'
+    | 'SUPERSEDED'
+  change: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT'
+  effectiveAt: string
+  billingUnit: CanvasBillingUnit
+  createdAt: string
+  decisionSummary: string
+  scopeSummary: Array<{
+    combinationId: string
+    priceGroupId: string | null
+    changeKind: string
+    providerRateVersionId: string | null
+    priceVersionId: string | null
+    rateCurrent: boolean | null
+    priceCurrent: boolean | null
+  }>
+  preview: CanvasModelPricingPreview | null
+  before?: CanvasModelPricingLegacyFacts | null
+  after?: CanvasModelPricingLegacyFacts | null
+  beforeUnavailableReason?:
+    | 'LEGACY_SOURCE_NOT_RECORDED'
+    | 'SOURCE_PRICE_VERSION_UNAVAILABLE'
+  actor: { principalId: string; displayName: string; principalType: string }
+}
+
+export interface CanvasModelPricingHistory extends CanvasPage<CanvasModelPricingPublication> {}
 
 export interface CanvasPriceGroupVersion {
   id: string

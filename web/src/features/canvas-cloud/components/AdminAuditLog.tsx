@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -37,7 +39,6 @@ import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAuditEventPage } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -62,6 +63,7 @@ const auditActorLabelKeys: Record<string, string> = {
 }
 const auditResourceLabelKeys: Record<string, string> = {
   POINT_LEDGER: 'Point ledger',
+  MODEL_PRICING_PUBLICATION: 'Model pricing',
 }
 const auditReasonLabelKeys: Record<string, string> = {
   SELECTED_LOT_DEDUCTION: 'Selected Point Lot deduction',
@@ -201,6 +203,24 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
                 row.original.resourceType,
                 'Unknown resource'
               )
+          const modelId = row.original.publicMetadata.customerModelId
+          if (
+            row.original.resourceType === 'MODEL_PRICING_PUBLICATION' &&
+            row.original.resourceId &&
+            typeof modelId === 'string' &&
+            modelId
+          ) {
+            return (
+              <Link
+                className='text-primary underline underline-offset-4'
+                to='/canvas-cloud/$section'
+                params={{ section: 'pricing' }}
+                search={{ modelId, publicationId: row.original.resourceId }}
+              >
+                {resourceLabel}
+              </Link>
+            )
+          }
           return (
             <span>
               {resourceLabel}
@@ -232,21 +252,21 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
   )
   const filters = (
     <>
-      <CanvasColumnFilterField label={t('Resource')}>
+      <DataTableColumnFilterField label={t('Resource')}>
         <Input
           value={resource}
           placeholder={t('Resource')}
           onChange={(event) => setResource(event.target.value)}
         />
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Reason')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Reason')}>
         <Input
           value={reason}
           placeholder={t('Reason')}
           onChange={(event) => setReason(event.target.value)}
         />
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Category')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Category')}>
         <Select
           value={category || 'ALL'}
           onValueChange={(value) =>
@@ -268,8 +288,8 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
             ))}
           </SelectContent>
         </Select>
-      </CanvasColumnFilterField>
-      <CanvasColumnFilterField label={t('Outcome')}>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Outcome')}>
         <Select
           value={outcome || 'ALL'}
           onValueChange={(value) =>
@@ -291,7 +311,7 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
             ))}
           </SelectContent>
         </Select>
-      </CanvasColumnFilterField>
+      </DataTableColumnFilterField>
       <div className='sm:col-span-2'>
         <CanvasDateRangeFilter
           from={from}

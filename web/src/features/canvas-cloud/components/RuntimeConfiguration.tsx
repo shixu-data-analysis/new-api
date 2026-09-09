@@ -29,6 +29,7 @@ import {
   DataTableRow,
   StaticDataTable,
 } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import {
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
@@ -98,7 +99,6 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -215,6 +215,8 @@ export function RuntimeConfiguration(
     value: string
   } | null>(null)
   const [navigationTargetApplied, setNavigationTargetApplied] = useState(false)
+  const [unboundTargetPending, setUnboundTargetPending] = useState(false)
+  const [unboundTargetModelId, setUnboundTargetModelId] = useState('')
   const [confirmation, setConfirmation] = useState<
     'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
   >(null)
@@ -262,6 +264,8 @@ export function RuntimeConfiguration(
     setSelectedProviderId(targetProviderId ?? '')
     setSelectedCredentialGroupId(targetCredentialGroupId ?? '')
     setNavigationTargetApplied(false)
+    setUnboundTargetPending(false)
+    setUnboundTargetModelId('')
     rotationPreviewRequestRef.current += 1
     bindingPreviewRequestRef.current += 1
   }, [
@@ -427,11 +431,19 @@ export function RuntimeConfiguration(
     if (change.kind === 'provider') {
       setSelectedProviderId(change.value)
       setSelectedCredentialGroupId('')
+      setUnboundTargetPending(false)
+      setUnboundTargetModelId('')
     } else {
       setSelectedProviderId(
         (current) => current || providerData?.selectedProviderId || ''
       )
       setSelectedCredentialGroupId(change.value)
+      if (unboundTargetPending && unboundTargetModelId) {
+        setUnboundTargetPending(false)
+        setOpenEditor('binding')
+        setSelectedModels([unboundTargetModelId])
+        binding.reset({ reason: '' })
+      }
     }
     setProviderTab('overview')
   }
@@ -645,7 +657,9 @@ export function RuntimeConfiguration(
   const effectiveProviderId =
     selectedProviderId || providerData?.selectedProviderId || ''
   const effectiveCredentialGroupId =
-    selectedCredentialGroupId || providerData?.selectedCredentialGroupId || ''
+    selectedCredentialGroupId ||
+    (unboundTargetPending ? '' : providerData?.selectedCredentialGroupId) ||
+    ''
   const providerGroups = (providerData?.credentialGroups ?? []).filter(
     (item) => item.providerId === effectiveProviderId
   )
@@ -662,8 +676,16 @@ export function RuntimeConfiguration(
     ) {
       return
     }
+    if (
+      providerData.navigationTarget.modelId !== activeProviderTarget.modelId
+    ) {
+      return
+    }
     setNavigationTargetApplied(true)
     if (providerData.navigationTarget.bindingStatus === 'UNBOUND') {
+      setUnboundTargetPending(true)
+      setUnboundTargetModelId(activeProviderTarget.modelId)
+      setSelectedCredentialGroupId('')
       toast.error(
         t(
           'This model is not bound to a credential group. Select the intended group before managing bindings.'
@@ -1485,7 +1507,9 @@ export function RuntimeConfiguration(
                           }
                           additionalFilters={
                             <>
-                              <CanvasColumnFilterField label={t('Model key')}>
+                              <DataTableColumnFilterField
+                                label={t('Model key')}
+                              >
                                 <Input
                                   value={modelKeyFilter}
                                   placeholder={t('Model key')}
@@ -1493,8 +1517,8 @@ export function RuntimeConfiguration(
                                     setModelKeyFilter(event.target.value)
                                   }
                                 />
-                              </CanvasColumnFilterField>
-                              <CanvasColumnFilterField label={t('Status')}>
+                              </DataTableColumnFilterField>
+                              <DataTableColumnFilterField label={t('Status')}>
                                 <NativeSelect
                                   className='w-full'
                                   aria-label={t('Status')}
@@ -1513,10 +1537,10 @@ export function RuntimeConfiguration(
                                     {t('Retired')}
                                   </NativeSelectOption>
                                 </NativeSelect>
-                              </CanvasColumnFilterField>
+                              </DataTableColumnFilterField>
                               {openEditor === 'binding' && (
                                 <>
-                                  <CanvasColumnFilterField
+                                  <DataTableColumnFilterField
                                     label={t('Current credential group')}
                                   >
                                     <Input
@@ -1530,8 +1554,8 @@ export function RuntimeConfiguration(
                                         )
                                       }
                                     />
-                                  </CanvasColumnFilterField>
-                                  <CanvasColumnFilterField
+                                  </DataTableColumnFilterField>
+                                  <DataTableColumnFilterField
                                     label={t('Binding status')}
                                   >
                                     <NativeSelect
@@ -1554,7 +1578,7 @@ export function RuntimeConfiguration(
                                         {t('Not configured')}
                                       </NativeSelectOption>
                                     </NativeSelect>
-                                  </CanvasColumnFilterField>
+                                  </DataTableColumnFilterField>
                                 </>
                               )}
                             </>
@@ -2247,7 +2271,7 @@ function CredentialVersionHistory(props: {
         getRowId={(version) => version.id}
         additionalFilters={
           <>
-            <CanvasColumnFilterField label={t('Version')}>
+            <DataTableColumnFilterField label={t('Version')}>
               <Input
                 inputMode='numeric'
                 value={versionFilter}
@@ -2256,14 +2280,14 @@ function CredentialVersionHistory(props: {
                   setVersionFilter(event.target.value.replaceAll(/\D/g, ''))
                 }
               />
-            </CanvasColumnFilterField>
-            <CanvasColumnFilterField label={t('Updated by')}>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Updated by')}>
               <Input
                 value={operatorFilter}
                 placeholder={t('Updated by')}
                 onChange={(event) => setOperatorFilter(event.target.value)}
               />
-            </CanvasColumnFilterField>
+            </DataTableColumnFilterField>
           </>
         }
         hasActiveFilters={Boolean(versionFilter || operatorFilter)}

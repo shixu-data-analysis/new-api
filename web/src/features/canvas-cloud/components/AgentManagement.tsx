@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -55,7 +56,6 @@ import { getCanvasAgents, provisionCanvasAgent } from '../api'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAgentProfile } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasColumnFilterField } from './CanvasColumnFilterPanel'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -292,7 +292,7 @@ export function AgentManagement() {
         loading={agents.isFetching}
         emptyTitle={t('No inviters')}
         additionalFilters={
-          <CanvasColumnFilterField label={t('Status')}>
+          <DataTableColumnFilterField label={t('Status')}>
             <Select
               value={status || 'ALL'}
               onValueChange={(value) =>
@@ -321,7 +321,7 @@ export function AgentManagement() {
                 </SelectItem>
               </SelectContent>
             </Select>
-          </CanvasColumnFilterField>
+          </DataTableColumnFilterField>
         }
         hasActiveFilters={Boolean(status)}
         onResetFilters={() => setStatus('')}
