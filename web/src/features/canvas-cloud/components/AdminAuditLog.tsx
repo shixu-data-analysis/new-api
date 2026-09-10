@@ -213,9 +213,9 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
             return (
               <Link
                 className='text-primary underline underline-offset-4'
-                to='/canvas-cloud/$section'
-                params={{ section: 'pricing' }}
-                search={{ modelId, publicationId: row.original.resourceId }}
+                to='/canvas-cloud/model-management/$modelId/pricing'
+                params={{ modelId }}
+                search={{ tab: 'history', publicationId: row.original.resourceId }}
               >
                 {resourceLabel}
               </Link>

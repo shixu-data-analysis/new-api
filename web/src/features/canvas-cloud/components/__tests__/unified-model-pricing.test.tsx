@@ -55,15 +55,19 @@ vi.mock('@tanstack/react-router', () => ({
   useBlocker: (...args: unknown[]) => mocks.blocker(...args),
 }))
 
-function renderPricing(initialModelId?: string) {
+function renderPricing(
+  initialModelId?: string,
+  props: Partial<React.ComponentProps<typeof UnifiedModelPricing>> = {}
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
-      <UnifiedModelPricing initialModelId={initialModelId} onBack={vi.fn()} />
+      <UnifiedModelPricing initialModelId={initialModelId} onBack={vi.fn()} {...props} />
     </QueryClientProvider>
   )
+  return { client, ...view }
 }
 
 async function openPricing() {
@@ -933,7 +937,7 @@ describe('UnifiedModelPricing', () => {
     ).toHaveAttribute('aria-invalid', 'true')
     expect(mocks.preview).toHaveBeenCalledTimes(1)
     fireEvent.change(screen.getByLabelText('Loss deadline'), {
-      target: { value: '2026-09-10T00:00' },
+      target: { value: '2099-09-10T00:00' },
     })
     fireEvent.change(screen.getByLabelText('Maximum expected loss points'), {
       target: { value: '100' },
@@ -1332,7 +1336,9 @@ describe('UnifiedModelPricing', () => {
       await user.click(
         screen.getByRole('button', { name: labels['History versions'] })
       )
+      await user.click(screen.getByRole('button', { name: labels.Leave }))
       await user.click(screen.getByRole('tab', { name: labels['Set prices'] }))
+      await user.click(screen.getByRole('button', { name: labels.Leave }))
       expect(
         screen.getByLabelText(labels['Change reason (optional)'])
       ).toHaveValue('localized conflict review')
@@ -1366,6 +1372,66 @@ describe('UnifiedModelPricing', () => {
       expect(mocks.blocker).toHaveBeenLastCalledWith(
         expect.objectContaining({ condition: true })
       )
+    )
+  })
+
+  it('asks before switching away from a dirty pricing tab and only switches after confirmation', async () => {
+    renderPricing('model-1')
+    await openPricing()
+    fireEvent.change(screen.getByLabelText('Service provider cost'), {
+      target: { value: '0.15' },
+    })
+
+    await userEvent.setup().click(
+      screen.getByRole('tab', { name: 'History versions' })
+    )
+    expect(await screen.findByText('Unsaved changes')).toBeVisible()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Leave' }))
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'History versions' })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+    )
+  })
+
+  it('leaves a dirty controlled tab to the route guard until its tab prop changes', async () => {
+    const onTabChange = vi.fn()
+    const { client, rerender } = renderPricing('model-1', {
+      tab: 'set',
+      onTabChange,
+    })
+    await screen.findByLabelText('Service provider cost')
+    fireEvent.change(screen.getByLabelText('Service provider cost'), {
+      target: { value: '0.15' },
+    })
+
+    await userEvent.setup().click(
+      screen.getByRole('tab', { name: 'History versions' })
+    )
+
+    expect(onTabChange).toHaveBeenCalledWith('history')
+    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Set prices' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <UnifiedModelPricing
+          initialModelId='model-1'
+          onBack={vi.fn()}
+          onTabChange={onTabChange}
+          tab='history'
+        />
+      </QueryClientProvider>
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('tab', { name: 'History versions' })
+      ).toHaveAttribute('aria-selected', 'true')
     )
   })
 })

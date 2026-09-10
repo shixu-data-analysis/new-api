@@ -34,6 +34,7 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
@@ -65,6 +66,7 @@ import {
   publishCanvasModelPricing,
 } from '../api'
 import { formatExactRmbReference } from '../point-conversion-types'
+import { pricingLoadErrorTitle } from '../model-pricing-error'
 import { pricingScopeLabel as scopeLabel } from '../pricing-scope-label'
 import {
   type ProviderRiskFormValues,
@@ -264,6 +266,8 @@ export function UnifiedModelPricing(props: {
   onBack: () => void
   initialModelId?: string
   initialPublicationId?: string
+  tab?: 'current' | 'set' | 'history'
+  onTabChange?: (tab: 'current' | 'set' | 'history') => void
 }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage ?? i18n.language)
@@ -273,7 +277,9 @@ export function UnifiedModelPricing(props: {
     queryFn: getCanvasModelPricingWorkspace,
   })
   const [modelId, setModelId] = useState('')
-  const [tab, setTab] = useState('current')
+  const [tab, setTab] = useState<'current' | 'set' | 'history'>(
+    props.tab ?? 'current'
+  )
   const [billingUnit, setBillingUnit] = useState<CanvasBillingUnit>('REQUEST')
   const [activeScopeId, setActiveScopeId] = useState('')
   const [activePriceGroupId, setActivePriceGroupId] = useState('')
@@ -322,6 +328,9 @@ export function UnifiedModelPricing(props: {
   const effectiveAt = form.watch('effectiveAt')
   const effectiveMode = form.watch('effectiveMode')
   const [hasEdits, setHasEdits] = useState(false)
+  const [pendingTab, setPendingTab] = useState<
+    'current' | 'set' | 'history' | null
+  >(null)
   const [initializedModelId, setInitializedModelId] = useState<string | null>(
     null
   )
@@ -329,6 +338,30 @@ export function UnifiedModelPricing(props: {
   useEffect(() => {
     if (props.initialModelId) setModelId(props.initialModelId)
   }, [props.initialModelId])
+  useEffect(() => {
+    if (props.tab) setTab(props.tab)
+  }, [props.tab])
+  const changeTab = (next: 'current' | 'set' | 'history') => {
+    if (next === tab) return
+    if (props.onTabChange) {
+      props.onTabChange(next)
+      return
+    }
+    if (isDirty) {
+      setPendingTab(next)
+      return
+    }
+    setTab(next)
+  }
+  const confirmTabChange = () => {
+    if (!pendingTab) return
+    setTab(pendingTab)
+    setPendingTab(null)
+  }
+
+  const cancelTabChange = () => {
+    setPendingTab(null)
+  }
 
   const questionnaireKey = `${activeScopeId}:${activePriceGroupId}`
   const questionnaire = questionnaires[questionnaireKey] ?? emptyQuestionnaire
@@ -1112,7 +1145,12 @@ export function UnifiedModelPricing(props: {
     return (
       <Card>
         <CardContent className='space-y-3'>
-          <p role='alert'>{t('Model pricing could not be loaded')}</p>
+          <p role='alert'>
+            {pricingLoadErrorTitle(
+              workspace.isError ? workspace.error : detail.error,
+              t
+            )}
+          </p>
           <Button
             variant='outline'
             onClick={() =>
@@ -1131,9 +1169,11 @@ export function UnifiedModelPricing(props: {
         <CardHeader>
           <CardTitle>{t('Model pricing')}</CardTitle>
           <CardDescription>
-            {t(
-              'Choose a model to configure its provider costs and customer prices together.'
-            )}
+            {props.initialModelId
+              ? t('The requested model was not found or is unavailable.')
+              : t(
+                  'Choose a model to configure its provider costs and customer prices together.'
+                )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1347,6 +1387,18 @@ export function UnifiedModelPricing(props: {
   return (
     <div className='space-y-4'>
       <FormNavigationGuard when={isDirty} />
+      <ConfirmDialog
+        open={Boolean(pendingTab)}
+        onOpenChange={(open) => {
+          if (!open) cancelTabChange()
+        }}
+        title={t('Unsaved changes')}
+        desc={t('You have unsaved changes. Are you sure you want to leave?')}
+        confirmText={t('Leave')}
+        cancelBtnText={t('Stay')}
+        destructive
+        handleConfirm={confirmTabChange}
+      />
       {pendingScopeIds.length > 0 && (
         <div
           role='status'
@@ -1378,7 +1430,14 @@ export function UnifiedModelPricing(props: {
           </Link>
         </div>
       </div>
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          if (value === 'current' || value === 'set' || value === 'history') {
+            changeTab(value)
+          }
+        }}
+      >
         <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
           <TabsTrigger value='current' className='h-8 min-h-8 flex-none px-3'>
             {t('Current pricing')}
@@ -1396,7 +1455,7 @@ export function UnifiedModelPricing(props: {
             onAdjust={(scopeId, planId) => {
               setActiveScopeId(scopeId)
               setActivePriceGroupId(planId)
-              setTab('set')
+              changeTab('set')
             }}
           />
         </TabsContent>
@@ -2311,7 +2370,7 @@ export function UnifiedModelPricing(props: {
             variant='outline'
             onClick={() => {
               setConfirming(false)
-              setTab('history')
+              changeTab('history')
             }}
           >
             {t('History versions')}

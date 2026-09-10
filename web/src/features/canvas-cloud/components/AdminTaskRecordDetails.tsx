@@ -64,6 +64,7 @@ import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import { getLocalizedErrorMessage } from '../localized-error-message'
 import { TaskCallHistory } from './TaskCallHistory'
 
 const executionLabels: Record<string, string> = {
@@ -142,28 +143,6 @@ function taskCompletionTime(
     return t('Not completed')
   }
   return t('Not recorded')
-}
-
-function localizedErrorMessage(
-  error: {
-    sanitizedMessage?: string | null
-    messages?: Record<string, string> | null
-  } | null,
-  language: string
-) {
-  if (!error) return null
-  if (error.sanitizedMessage) return error.sanitizedMessage
-  let normalized = language
-  if (language === 'zhCN' || language === 'zh-CN') normalized = 'zh'
-  if (language === 'zhTW') normalized = 'zh-TW'
-  const localized = [language, normalized, 'en']
-    .map((locale) => error.messages?.[locale])
-    .find((message): message is string => Boolean(message?.trim()))
-  if (localized) return localized.trim()
-  return Object.values(error.messages ?? {}).find(
-    (value): value is string =>
-      typeof value === 'string' && value.trim().length > 0
-  )
 }
 
 function executionSummary(
@@ -290,12 +269,12 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
         cell: (output) => (
           <div className='space-y-1'>
             <div>{statusLabel(t, output.executionStatus, executionLabels)}</div>
-            {localizedErrorMessage(
+            {getLocalizedErrorMessage(
               output.error,
               i18n.resolvedLanguage || i18n.language
             ) ? (
               <div className='text-destructive text-xs [overflow-wrap:anywhere]'>
-                {localizedErrorMessage(
+                {getLocalizedErrorMessage(
                   output.error,
                   i18n.resolvedLanguage || i18n.language
                 )}
@@ -756,13 +735,13 @@ export function AdminTaskRecordDetails({
     )
   }
   const task = query.data
-  const taskErrorMessage = localizedErrorMessage(
+  const taskErrorMessage = getLocalizedErrorMessage(
     task.taskError,
     i18n.resolvedLanguage || i18n.language
   )
   const singleOutputErrorMessage =
     task.outputs.length === 1
-      ? localizedErrorMessage(
+      ? getLocalizedErrorMessage(
           task.outputs[0].error,
           i18n.resolvedLanguage || i18n.language
         )

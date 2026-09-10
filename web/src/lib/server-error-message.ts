@@ -53,13 +53,24 @@ function serverErrorPayload(value: unknown): Record<string, unknown> | null {
   return value
 }
 
-export function getServerErrorMessageKey(value: unknown): string | null {
+export function getServerErrorStatus(value: unknown): number | null {
+  if (!isRecord(value) || !isRecord(value.response)) return null
+  const status = value.response.status
+  return typeof status === 'number' ? status : null
+}
+
+export function getServerErrorCode(value: unknown): string | null {
   const payload = serverErrorPayload(value)
-  if (!payload || typeof payload.code !== 'string') return null
+  return payload && typeof payload.code === 'string' ? payload.code : null
+}
+
+export function getServerErrorMessageKey(value: unknown): string | null {
+  const code = getServerErrorCode(value)
+  if (!code) return null
 
   return (
     serverErrorMessageKeys[
-      payload.code as keyof typeof serverErrorMessageKeys
+      code as keyof typeof serverErrorMessageKeys
     ] ?? null
   )
 }

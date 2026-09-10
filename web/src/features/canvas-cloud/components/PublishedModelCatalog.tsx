@@ -16,8 +16,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ColumnDef } from '@tanstack/react-table'
-import { Info } from 'lucide-react'
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+} from '@tanstack/react-table'
 import {
   useCallback,
   useEffect,
@@ -73,16 +76,10 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { toIntlLocale } from '@/i18n/languages'
 
 import {
   getCanvasAdminTestingModels,
-  getCanvasPriceGroups,
+  publishCanvasExecutionTargetPresentation,
   publishCanvasModelPresentation,
 } from '../api'
 import {
@@ -90,6 +87,7 @@ import {
   type ModelPresentationFormValues,
   hasModelPresentationChanges,
 } from '../lib/model-presentation-schema'
+import { useOptionalModelManagementNavigation } from '../model-management-navigation'
 import type { CanvasAdminTestingModel } from '../types'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -103,118 +101,76 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
   return enabled ? t('Turn off display switch') : t('Turn on display switch')
 }
 
-function visibilityRank(model: CanvasAdminTestingModel) {
-  return model.customerVisible ? 1 : 0
-}
-
-function CustomerVisibilityCell(props: { model: CanvasAdminTestingModel }) {
-  const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-  const model = props.model
-  const enabledScopes = model.parameterCombinations.filter(
-    (scope) => scope.enabled
-  )
-  const priceGroups = useQuery({
-    queryKey: ['canvas-cloud', 'price-groups'],
-    queryFn: getCanvasPriceGroups,
-    enabled: open && !model.customerVisible && enabledScopes.length === 0,
-  })
-  const hasPublishedPlans = priceGroups.data?.some(
-    (group) =>
-      group.status === 'PUBLISHED' &&
-      group.effectiveAt !== null &&
-      Date.parse(group.effectiveAt) <= Date.now()
-  )
-  if (model.customerVisible) {
-    return (
-      <span className='min-w-0 break-words whitespace-normal'>
-        {t('Visible to customers')}
-      </span>
-    )
-  }
-  const reasons: string[] = []
-  if (!model.enabled) reasons.push(t('Display switch is off'))
-  if (!model.resourceEnabled) reasons.push(t('Technical control is off'))
-  const plans = new Map<string, Set<string>>()
-  for (const target of model.pricingTargets) {
-    const pricedScopes = plans.get(target.priceGroupId) ?? new Set<string>()
-    if (target.priced) pricedScopes.add(target.parameterCombinationId)
-    plans.set(target.priceGroupId, pricedScopes)
-  }
-  if (enabledScopes.length === 0) {
-    reasons.push(t('No enabled parameter combinations'))
-  }
-  const hasPlans = enabledScopes.length > 0 ? plans.size > 0 : hasPublishedPlans
-  if (hasPlans === false) reasons.push(t('No published price plans'))
-  if (
-    enabledScopes.length > 0 &&
-    hasPlans &&
-    ![...plans.values()].some((pricedScopes) =>
-      enabledScopes.every((scope) => pricedScopes.has(scope.id))
-    )
-  ) {
-    reasons.push(t('No price plan covers all enabled parameter combinations'))
-  }
-  if (reasons.length === 0) {
-    reasons.push(t('No specific reason for non-display was provided.'))
-  }
-  return (
-    <span className='inline-flex min-w-0 items-center gap-1 whitespace-normal'>
-      <span className='min-w-0 break-words'>{t('Not displayed')}</span>
-      <Tooltip open={open} onOpenChange={setOpen}>
-        <TooltipTrigger
-          closeOnClick={false}
-          render={
-            <Button
-              type='button'
-              variant='ghost'
-              size='icon'
-              className='text-muted-foreground size-6 shrink-0'
-              aria-label={t('Why not displayed')}
-              onClick={() => setOpen(true)}
-            />
-          }
-        >
-          <Info className='size-4' aria-hidden='true' />
-        </TooltipTrigger>
-        <TooltipContent className='max-w-80 whitespace-normal'>
-          <ul className='space-y-1'>
-            {reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        </TooltipContent>
-      </Tooltip>
-    </span>
-  )
+function executionTargetLabel(
+  target: CanvasAdminTestingModel['executionTargets'][number]
+) {
+  return target.parameterCombinations.map((combination) => combination.label).join(' · ')
 }
 
 export function PublishedModelCatalog(props: {
-  onManagePricing: (modelId: string) => void
+  onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
+  onManageMonitoring?: (
+    modelId: string,
+    executionTargetId: string,
+    returnContext?: { nonce: string }
+  ) => void
+  onManageBindings?: (modelId: string, returnContext?: { nonce: string }) => void
 }) {
   const onManagePricing = props.onManagePricing
-  const { t, i18n } = useTranslation()
-  const numberFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat(
-        toIntlLocale(i18n.resolvedLanguage ?? i18n.language)
-      ),
-    [i18n.language, i18n.resolvedLanguage]
-  )
+  const navigation = useOptionalModelManagementNavigation()
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [modelId, setModelId] = useState('')
-  const [provider, setProvider] = useState('')
-  const [capability, setCapability] = useState('')
-  const [visibility, setVisibility] = useState('ALL')
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
+  const [search, setSearch] = useState(() => navigation?.listState.search ?? '')
+  const [modelId, setModelId] = useState(
+    () => navigation?.listState.modelId ?? ''
+  )
+  const [provider, setProvider] = useState(
+    () => navigation?.listState.provider ?? ''
+  )
+  const [capability, setCapability] = useState(
+    () => navigation?.listState.capability ?? ''
+  )
+  const [visibility, setVisibility] = useState(
+    () => navigation?.listState.visibility ?? 'ALL'
+  )
+  const [pagination, setPagination] = useState<PaginationState>(
+    () => navigation?.listState.pagination ?? { pageIndex: 0, pageSize: 20 }
+  )
+  const [sorting, setSorting] = useState<SortingState>(
+    () => navigation?.listState.sorting ?? [{ id: 'name', desc: false }]
+  )
   const tableContentRef = useRef<HTMLDivElement>(null)
+  const hasAppliedInitialFilters = useRef(false)
   const [actionColumnSize, setActionColumnSize] = useState(208)
   useEffect(() => {
+    if (!hasAppliedInitialFilters.current) {
+      hasAppliedInitialFilters.current = true
+      return
+    }
     setPagination((current) =>
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
     )
   }, [capability, modelId, provider, search, visibility])
+  useEffect(() => {
+    navigation?.updateListState({
+      search,
+      modelId,
+      provider,
+      capability,
+      visibility,
+      pagination,
+      sorting,
+    })
+  }, [
+    capability,
+    modelId,
+    navigation,
+    pagination,
+    provider,
+    search,
+    sorting,
+    visibility,
+  ])
   const ensurePageInRange = useCallback((pageCount: number) => {
     setPagination((current) =>
       current.pageIndex < Math.max(1, pageCount)
@@ -223,7 +179,10 @@ export function PublishedModelCatalog(props: {
     )
   }, [])
   const [editing, setEditing] = useState<CanvasAdminTestingModel | null>(null)
-  const [toggling, setToggling] = useState<CanvasAdminTestingModel | null>(null)
+  const [toggling, setToggling] = useState<{
+    model: CanvasAdminTestingModel
+    target: CanvasAdminTestingModel['executionTargets'][number]
+  } | null>(null)
   const [discardingEdit, setDiscardingEdit] = useState(false)
   const [formServerError, setFormServerError] = useState<string | null>(null)
   const [presentationConflict, setPresentationConflict] = useState(false)
@@ -240,6 +199,24 @@ export function PublishedModelCatalog(props: {
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
   })
+  useEffect(() => {
+    if (!navigation?.listState.focusModelId || !models.data) return
+    const modelIdToFocus = navigation.listState.focusModelId
+    const frame = requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(
+        `[data-model-navigation-id="${modelIdToFocus}"]`
+      )
+      if (!target) return
+      window.scrollTo({ top: navigation.listState.scrollY })
+      target.focus()
+      const context = (window.history.state as Record<string, unknown> | null)
+        ?.canvasModelManagementReturn
+      if (context && typeof context === 'object' && 'nonce' in context) {
+        navigation.consumeReturnContext(String(context.nonce))
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [models.data, navigation])
   const publisher = useMutation({
     mutationFn: publishCanvasModelPresentation,
     onSuccess: async () => {
@@ -277,13 +254,49 @@ export function PublishedModelCatalog(props: {
       setFormServerError('Model display settings publication failed')
     },
   })
-  const presentationBusy = publisher.isPending || reloadingPresentation
+  const targetPresentation = useMutation({
+    mutationFn: publishCanvasExecutionTargetPresentation,
+    onSuccess: async () => {
+      const modelId = toggling?.model.id
+      const executionTargetId = toggling?.target.id
+      const invalidations = [
+        queryClient.invalidateQueries({
+          queryKey: ['canvas-cloud', 'admin-testing-models'],
+        }),
+      ]
+      if (modelId && executionTargetId) {
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: ['canvas-cloud', 'model-monitoring-targets', modelId],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: [
+              'canvas-cloud',
+              'model-monitoring',
+              modelId,
+              executionTargetId,
+            ],
+          })
+        )
+      }
+      await Promise.all(invalidations)
+      setToggling(null)
+      setFormServerError(null)
+    },
+    onError: () => {
+      setFormServerError(
+        t('Target display change failed. Refresh the target state before retrying.')
+      )
+    },
+  })
+  const presentationBusy =
+    publisher.isPending || targetPresentation.isPending || reloadingPresentation
   async function reloadPresentation() {
     if (presentationBusy) return
     setReloadingPresentation(true)
     const result = await models.refetch()
     const current = result.data?.find(
-      (model) => model.id === (editing ?? toggling)?.id
+      (model) => model.id === (editing ?? toggling?.model)?.id
     )
     if (result.isError || !current) {
       setFormServerError(
@@ -312,7 +325,10 @@ export function PublishedModelCatalog(props: {
         description: current.description,
       })
     } else if (toggling) {
-      setToggling(current)
+      const target = current.executionTargets.find(
+        (candidate) => candidate.id === toggling.target.id
+      )
+      if (target) setToggling({ model: current, target })
     }
     setFormServerError(null)
     setPresentationConflict(false)
@@ -350,8 +366,8 @@ export function PublishedModelCatalog(props: {
       const visible =
         visibility === 'ALL' ||
         (visibility === 'CUSTOMER'
-          ? model.customerVisible
-          : !model.customerVisible)
+          ? model.executionTargets.some((target) => target.customerVisible)
+          : model.executionTargets.some((target) => !target.customerVisible))
       return (
         visible &&
         (!query || model.name.toLocaleLowerCase().includes(query)) &&
@@ -487,71 +503,6 @@ export function PublishedModelCatalog(props: {
         },
       },
       {
-        id: 'visibility',
-        accessorFn: visibilityRank,
-        size: 160,
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={t('Customer display')}
-          />
-        ),
-        meta: {
-          label: t('Customer display'),
-        },
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <Switch
-              checked={row.original.enabled}
-              disabled={presentationBusy}
-              aria-label={t('Customer display for {{model}}', {
-                model: row.original.name,
-              })}
-              onCheckedChange={() => {
-                if (presentationBusy) return
-                setFormServerError(null)
-                setPresentationConflict(false)
-                setToggling(row.original)
-              }}
-            />
-            {row.original.enabled && (
-              <CustomerVisibilityCell model={row.original} />
-            )}
-          </div>
-        ),
-      },
-      {
-        id: 'pricing',
-        size: 128,
-        accessorFn: (model) =>
-          model.totalTargets ? model.pricedTargets / model.totalTargets : 0,
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={t('Pricing coverage')}
-          />
-        ),
-        meta: {
-          label: t('Pricing coverage'),
-        },
-        cell: ({ row }) => {
-          const model = row.original
-          const enabledScopes = model.parameterCombinations.filter(
-            (scope) => scope.enabled
-          ).length
-          let label = t('Priced {{priced}} / {{total}} targets', {
-            priced: numberFormatter.format(model.pricedTargets),
-            total: numberFormatter.format(model.totalTargets),
-          })
-          if (enabledScopes === 0) {
-            label = t('No pricing scopes')
-          } else if (model.totalTargets === 0) {
-            label = t('No published price plans')
-          }
-          return <span className='whitespace-normal tabular-nums'>{label}</span>
-        },
-      },
-      {
         id: 'actions',
         size: actionColumnSize,
         header: t('Actions'),
@@ -561,24 +512,117 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div
-              data-model-actions
-              className='flex w-max items-center justify-start gap-2'
-            >
-              <Button
-                variant='outline'
-                disabled={presentationBusy}
-                onClick={() => onManagePricing(model.id)}
-              >
-                {t('Manage prices')}
-              </Button>
-              <Button
-                variant='outline'
-                disabled={presentationBusy}
-                onClick={() => startEdit(model)}
-              >
-                {t('Edit display information')}
-              </Button>
+            <div data-model-actions className='grid min-w-80 gap-3'>
+              {model.executionTargets.map((target) => {
+                const targetLabel = executionTargetLabel(target)
+                const displayStatus = target.customerVisible
+                  ? t('Visible to customers')
+                  : !target.enabled
+                    ? t('Display switch is off')
+                    : !target.runtimeEnabled
+                      ? t('Runtime is unavailable')
+                      : !target.pricingComplete
+                        ? t('Pricing is incomplete')
+                        : t('Not shown to customers')
+                return (
+                  <section
+                    key={target.id}
+                    className='bg-muted/40 grid gap-2 rounded-md border p-3'
+                    aria-label={`${t('Execution target')}: ${targetLabel}`}
+                  >
+                    <div className='grid gap-1'>
+                      <span className='font-medium break-words'>{targetLabel}</span>
+                      <span className='text-muted-foreground break-all text-sm'>
+                        {t('Channel ID')}: {target.channelId}
+                      </span>
+                      <span className='text-muted-foreground break-all text-sm'>
+                        {t('Upstream model ID')}: {target.upstreamModelId}
+                      </span>
+                    </div>
+                    <div className='grid gap-1 text-sm'>
+                      <span>
+                        {t('Pricing coverage')}: {target.pricingCoverage.length
+                          ? target.pricingCoverage
+                              .map((coverage) =>
+                                coverage.complete
+                                  ? `${coverage.priceGroupCode}: ${t('Complete')}`
+                                  : `${coverage.priceGroupCode}: ${t('Incomplete')}`
+                              )
+                              .join(' · ')
+                          : t('No published price plans')}
+                      </span>
+                      <span>
+                        {t('Customer display')}: {displayStatus}
+                      </span>
+                    </div>
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Switch
+                        checked={target.enabled}
+                        disabled={presentationBusy}
+                        aria-label={t('Customer display for {{model}}', {
+                          model: `${model.name} · ${targetLabel} · ${target.channelId}`,
+                        })}
+                        onCheckedChange={() => {
+                          if (presentationBusy) return
+                          setFormServerError(null)
+                          setPresentationConflict(false)
+                          setToggling({ model, target })
+                        }}
+                      />
+                      <Button
+                        variant='outline'
+                        disabled={presentationBusy || !props.onManageMonitoring}
+                        data-model-navigation-id={`${model.id}:monitoring:${target.id}`}
+                        onClick={() => {
+                          props.onManageMonitoring?.(
+                            model.id,
+                            target.id,
+                            navigation?.captureReturnContext(
+                              `${model.id}:monitoring:${target.id}`
+                            )
+                          )
+                        }}
+                      >
+                        {t('Runtime monitoring')}
+                      </Button>
+                    </div>
+                  </section>
+                )
+              })}
+              <div className='grid w-max grid-cols-2 gap-2 max-sm:grid-cols-1'>
+                <Button
+                  variant='outline'
+                  disabled={presentationBusy}
+                  data-model-navigation-id={`${model.id}:pricing`}
+                  onClick={(event) => {
+                    const returnContext = navigation?.captureReturnContext(`${model.id}:pricing`)
+                    event.currentTarget.focus()
+                    onManagePricing(model.id, returnContext)
+                  }}
+                >
+                  {t('Manage prices')}
+                </Button>
+                <Button
+                  variant='outline'
+                  disabled={presentationBusy || !props.onManageBindings}
+                  data-model-navigation-id={`${model.id}:bindings`}
+                  onClick={() => {
+                    props.onManageBindings?.(
+                      model.id,
+                      navigation?.captureReturnContext(`${model.id}:bindings`)
+                    )
+                  }}
+                >
+                  {t('Manage API Key bindings')}
+                </Button>
+                <Button
+                  variant='outline'
+                  disabled={presentationBusy}
+                  onClick={() => startEdit(model)}
+                >
+                  {t('Edit display information')}
+                </Button>
+              </div>
             </div>
           )
         },
@@ -586,9 +630,11 @@ export function PublishedModelCatalog(props: {
     ],
     [
       actionColumnSize,
-      numberFormatter,
+      navigation,
       onManagePricing,
       presentationBusy,
+      props.onManageBindings,
+      props.onManageMonitoring,
       startEdit,
       t,
     ]
@@ -605,6 +651,8 @@ export function PublishedModelCatalog(props: {
     columnFilters: [],
     globalFilter: '',
     initialSorting: [{ id: 'name', desc: false }],
+    sorting,
+    onSortingChange: setSorting,
     pagination,
     onPaginationChange: setPagination,
     ensurePageInRange,
@@ -737,9 +785,6 @@ export function PublishedModelCatalog(props: {
             if (section === 'cell') {
               return `px-2 py-2 whitespace-normal ${columnId === 'actions' ? 'align-middle' : 'align-top'}`
             }
-            if (columnId === 'visibility' || columnId === 'pricing') {
-              return 'px-2 [&_button]:ms-0 [&_button]:h-auto [&_button]:min-h-8 [&_button]:w-full [&_button]:justify-start [&_button]:px-0 [&_button]:whitespace-normal [&_button_span]:min-w-0 [&_button_span]:text-left'
-            }
             return 'px-2'
           }}
           emptyTitle={t('No matching models')}
@@ -780,7 +825,6 @@ export function PublishedModelCatalog(props: {
                 modelKey: editing.modelKey,
                 displayName: value.displayName.trim(),
                 description: value.description.trim(),
-                enabled: editing.enabled,
                 expectedVersion: presentationVersion(editing),
               })
             })}
@@ -905,30 +949,36 @@ export function PublishedModelCatalog(props: {
           <AlertDialogContent aria-busy={presentationBusy}>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {toggling.enabled
+                {toggling.target.enabled
                   ? t('Turn off display switch?')
                   : t('Turn on display switch?')}
               </AlertDialogTitle>
             </AlertDialogHeader>
             <dl className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm'>
               <dt className='text-muted-foreground'>{t('Model')}</dt>
-              <dd>{toggling.name}</dd>
+              <dd>{toggling.model.name}</dd>
+              <dt className='text-muted-foreground'>{t('Execution target')}</dt>
+              <dd>{executionTargetLabel(toggling.target)}</dd>
+              <dt className='text-muted-foreground'>{t('Channel ID')}</dt>
+              <dd className='break-all'>{toggling.target.channelId}</dd>
+              <dt className='text-muted-foreground'>{t('Upstream model ID')}</dt>
+              <dd className='break-all'>{toggling.target.upstreamModelId}</dd>
               <dt className='text-muted-foreground'>{t('Display switch')}</dt>
               <dd>
-                {toggling.enabled
+                {toggling.target.enabled
                   ? t('Display switch on state')
                   : t('Display switch off state')}{' '}
                 →{' '}
-                {toggling.enabled
+                {toggling.target.enabled
                   ? t('Display switch off state')
                   : t('Display switch on state')}
               </dd>
             </dl>
             <AlertDialogDescription>
-              {toggling.enabled
-                ? t('When disabled, the model is not shown to customers.')
+              {toggling.target.enabled
+                ? t('When disabled, this target is not shown to customers.')
                 : t(
-                    'When enabled, the model is shown to customers only when technical and pricing conditions are met.'
+                    'When enabled, this target is shown to customers only when runtime and pricing conditions are met.'
                   )}
             </AlertDialogDescription>
             {presentationFeedback}
@@ -937,22 +987,20 @@ export function PublishedModelCatalog(props: {
                 {t('Cancel')}
               </AlertDialogCancel>
               <AlertDialogAction
-                variant={toggling.enabled ? 'destructive' : 'default'}
+                variant={toggling.target.enabled ? 'destructive' : 'default'}
                 disabled={presentationBusy || presentationConflict}
                 onClick={() => {
                   if (presentationBusy || presentationConflict) return
-                  publisher.mutate({
-                    modelKey: toggling.modelKey,
-                    displayName: toggling.name,
-                    description: toggling.description,
-                    enabled: !toggling.enabled,
-                    expectedVersion: presentationVersion(toggling),
+                  targetPresentation.mutate({
+                    executionTargetId: toggling.target.id,
+                    enabled: !toggling.target.enabled,
+                    expectedVersion: toggling.target.presentationVersion ?? 0,
                   })
                 }}
               >
-                {publisher.isPending
+                {targetPresentation.isPending
                   ? t('Publishing...')
-                  : customerDisplayAction(toggling.enabled, t)}
+                  : customerDisplayAction(toggling.target.enabled, t)}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -34,6 +34,10 @@ import {
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
+import {
+  pricingLoadErrorTitle,
+  pricingPublicationErrorTitle,
+} from '../model-pricing-error'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import {
   providerTokenCategories,
@@ -246,6 +250,12 @@ export function UnifiedModelPricingHistory(props: {
         <FocusedRecord
           loading={focused.isPending}
           failed={focused.isError}
+          error={focused.error}
+          missing={
+            !focused.isPending &&
+            !focused.isError &&
+            focused.data?.customerModelId !== props.modelId
+          }
           item={
             focused.data?.customerModelId === props.modelId
               ? focused.data
@@ -263,7 +273,7 @@ export function UnifiedModelPricingHistory(props: {
       ) : null}
       {history.isError ? (
         <p role='alert'>
-          {t('Unable to load model pricing history')}{' '}
+          {pricingLoadErrorTitle(history.error, t)}{' '}
           <Button variant='outline' onClick={() => void history.refetch()}>
             {t('Retry')}
           </Button>
@@ -436,6 +446,8 @@ export function UnifiedModelPricingHistory(props: {
 function FocusedRecord(props: {
   loading: boolean
   failed: boolean
+  error: unknown
+  missing: boolean
   item: CanvasModelPricingPublication | undefined
   onRetry: () => void
   combinationName: (id: string) => string
@@ -445,9 +457,21 @@ function FocusedRecord(props: {
   if (props.loading) return <p>{t('Loading')}</p>
   if (props.failed) {
     return (
-      <Button variant='outline' onClick={props.onRetry}>
-        {t('Retry')}
-      </Button>
+      <div className='space-y-2'>
+        <p role='alert' className='text-destructive text-sm'>
+          {pricingPublicationErrorTitle(props.error, t)}
+        </p>
+        <Button variant='outline' onClick={props.onRetry}>
+          {t('Retry')}
+        </Button>
+      </div>
+    )
+  }
+  if (props.missing) {
+    return (
+      <p role='alert' className='text-destructive text-sm'>
+        {t('This pricing publication does not belong to the selected model.')}
+      </p>
     )
   }
   if (!props.item) return null

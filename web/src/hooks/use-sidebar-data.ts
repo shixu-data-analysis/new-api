@@ -119,18 +119,14 @@ export function useSidebarData(): SidebarData {
             title: t('Models & Cost'),
             items: [
               {
-                title: t('Canvas Model Catalog'),
-                url: '/canvas-cloud/catalog',
-                icon: Box,
-              },
-              {
                 title: t('Pricing and point rules'),
                 url: '/canvas-cloud/pricing-point-rules',
                 icon: CircleDollarSign,
               },
               {
                 title: t('Model management'),
-                url: '/canvas-cloud/pricing',
+                url: '/canvas-cloud/model-management',
+                activeUrls: ['/canvas-cloud/model-management/'],
                 icon: CircleDollarSign,
               },
               {

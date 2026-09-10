@@ -21,15 +21,19 @@ const mocks = vi.hoisted(() => ({ audit: vi.fn() }))
 vi.mock('../../api', () => ({ getCanvasAuditEvents: mocks.audit }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
+    to,
     params,
     search,
     children,
   }: {
-    params: { section: string }
+    to: string
+    params: { modelId: string }
     search: Record<string, string>
     children: ReactNode
   }) => (
-    <a href={`/canvas-cloud/${params.section}?${new URLSearchParams(search)}`}>
+    <a
+      href={to.replace('$modelId', params.modelId) + `?${new URLSearchParams(search)}`}
+    >
       {children}
     </a>
   ),
@@ -86,7 +90,7 @@ describe('unified pricing audit links', () => {
     renderLog()
     const link = await screen.findByRole('link', { name: 'Model pricing' })
     expect(link.getAttribute('href')).toBe(
-      `/canvas-cloud/pricing?modelId=${modelId}&publicationId=${publicationId}`
+      `/canvas-cloud/model-management/${modelId}/pricing?tab=history&publicationId=${publicationId}`
     )
   })
 

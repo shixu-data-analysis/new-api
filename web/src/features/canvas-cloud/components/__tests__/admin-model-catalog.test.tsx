@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   published: vi.fn(),
   priceGroups: vi.fn(),
   presentation: vi.fn(),
+  targetPresentation: vi.fn(),
   navigate: vi.fn(),
 }))
 vi.mock('@tanstack/react-router', async (original) => ({
@@ -36,6 +37,7 @@ vi.mock('../../api', () => ({
   getCanvasAdminTestingModels: mocks.published,
   getCanvasPriceGroups: mocks.priceGroups,
   publishCanvasModelPresentation: mocks.presentation,
+  publishCanvasExecutionTargetPresentation: mocks.targetPresentation,
 }))
 
 function catalogFile(path: string, value: unknown): File {
@@ -70,6 +72,7 @@ describe('Canvas model catalog folder upload', () => {
     mocks.priceGroups.mockReset()
     mocks.priceGroups.mockResolvedValue([])
     mocks.presentation.mockReset()
+    mocks.targetPresentation.mockReset()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {
     mocks.published.mockResolvedValue(
@@ -77,6 +80,7 @@ describe('Canvas model catalog folder upload', () => {
         id: `model-${index}`,
         modelKey: `model-${index}`,
         modelIds: [],
+        executionTargets: [],
         version: 1,
         name: `Series ${String(index).padStart(2, '0')}`,
         description: '',

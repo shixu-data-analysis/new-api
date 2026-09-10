@@ -57,6 +57,11 @@ import {
   publishCanvasPointIssuanceRate,
   publishCanvasModelCatalogBundle,
   publishCanvasModelPresentation,
+  publishCanvasExecutionTargetPresentation,
+  getCanvasModelMonitoring,
+  getCanvasModelMonitoringControls,
+  getCanvasModelMonitoringTargets,
+  controlCanvasModelMonitoring,
   redeemCanvasRechargeCode,
   getCanvasAgents,
   getCanvasAgentWorkspace,
@@ -347,11 +352,28 @@ describe('Canvas Cloud API boundary', () => {
   })
 
   it('uses protected administrator routes for testing models and initial pricing', async () => {
-    mocks.get.mockResolvedValue({ data: [] })
-    await getCanvasAdminTestingModels()
+    mocks.get.mockResolvedValue({
+      data: [
+        {
+          executionTargets: [
+            {
+              providerEnabled: true,
+              channelEnabled: true,
+              effectiveEnabled: true,
+            },
+          ],
+        },
+      ],
+    })
+    const models = await getCanvasAdminTestingModels()
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/testing-models'
     )
+    expect(models[0].executionTargets[0]).toMatchObject({
+      providerEnabled: true,
+      channelEnabled: true,
+      effectiveEnabled: true,
+    })
 
     const input = {
       customerModelId: 'model-id',
@@ -408,12 +430,80 @@ describe('Canvas Cloud API boundary', () => {
       modelKey: 'canvas.image.test',
       displayName: '测试模型',
       description: '客户端说明',
-      enabled: false,
     }
     await publishCanvasModelPresentation(input)
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/model-presentations/publications',
       { ...input, confirmed: true },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+  })
+
+  it('keeps execution-target monitoring and display updates target-scoped', async () => {
+    mocks.get.mockResolvedValue({ data: {} })
+    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
+    const targetId = '85000000-0000-7000-8000-000000000002'
+    const modelId = '85000000-0000-7000-8000-000000000001'
+
+    await getCanvasModelMonitoringTargets(modelId)
+    await getCanvasModelMonitoring(modelId, targetId, { window: 'day', origin: 'REAL' })
+    await getCanvasModelMonitoringControls(modelId, targetId, {
+      page: 1,
+      pageSize: 20,
+      sortBy: 'occurredAt',
+      sortOrder: 'desc',
+    })
+    await controlCanvasModelMonitoring(modelId, targetId, {
+      enabled: false,
+      expectedVersion: 4,
+      reasonCode: 'OTHER',
+      note: 'target review',
+      confirmed: true,
+    })
+    await publishCanvasExecutionTargetPresentation({
+      executionTargetId: targetId,
+      enabled: false,
+      expectedVersion: 3,
+    })
+
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      1,
+      `/canvas-api/v1/web/admin/model-monitoring/models/${modelId}/targets`,
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      2,
+      `/canvas-api/v1/web/admin/models/${modelId}/monitoring/targets/${targetId}`,
+      expect.objectContaining({ params: { window: 'day', origin: 'REAL' } })
+    )
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      3,
+      `/canvas-api/v1/web/admin/models/${modelId}/monitoring/targets/${targetId}/controls`,
+      expect.objectContaining({
+        params: {
+          page: 1,
+          pageSize: 20,
+          sortBy: 'occurredAt',
+          sortOrder: 'desc',
+        },
+      })
+    )
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      `/canvas-api/v1/web/admin/models/${modelId}/monitoring/targets/${targetId}/control`,
+      {
+        enabled: false,
+        expectedVersion: 4,
+        reasonCode: 'OTHER',
+        note: 'target review',
+        confirmed: true,
+      },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      `/canvas-api/v1/web/admin/model-execution-targets/${targetId}/presentation`,
+      { enabled: false, expectedVersion: 3, confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

@@ -23,6 +23,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import type { ModelManagementReturnContext } from '../model-management-navigation'
+
 import { StaticDataTable } from '@/components/data-table'
 import {
   DataTableColumnFilterField,
@@ -105,6 +107,21 @@ export function AdminModelCatalog(
   props: {
     initialPricingModelId?: string
     initialPricingPublicationId?: string
+    tab?: 'published' | 'import'
+    onTabChange?: (tab: 'published' | 'import') => void
+    onManagePricing?: (
+      modelId: string,
+      returnContext?: ModelManagementReturnContext
+    ) => void
+    onManageMonitoring?: (
+      modelId: string,
+      executionTargetId: string,
+      returnContext?: ModelManagementReturnContext
+    ) => void
+    onManageBindings?: (
+      modelId: string,
+      returnContext?: ModelManagementReturnContext
+    ) => void
   } = {}
 ) {
   const { t } = useTranslation()
@@ -116,7 +133,9 @@ export function AdminModelCatalog(
     details: string[]
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [activeTab, setActiveTab] = useState('published')
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] =
+    useState<'published' | 'import'>('published')
+  const activeTab = props.tab ?? uncontrolledActiveTab
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [resourceType, setResourceType] = useState('')
@@ -243,7 +262,14 @@ export function AdminModelCatalog(
         />
       )}
       <div className='space-y-4' hidden={Boolean(props.initialPricingModelId)}>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            if (value !== 'published' && value !== 'import') return
+            if (props.tab === undefined) setUncontrolledActiveTab(value)
+            props.onTabChange?.(value)
+          }}
+        >
           <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
             <TabsTrigger
               className='h-8 min-h-8 flex-none px-3'
@@ -257,13 +283,19 @@ export function AdminModelCatalog(
           </TabsList>
           <TabsContent value='published' className='mt-4'>
             <PublishedModelCatalog
-              onManagePricing={(modelId) =>
+              onManagePricing={(modelId, returnContext) => {
+                if (props.onManagePricing) {
+                  props.onManagePricing(modelId, returnContext)
+                  return
+                }
                 void navigate({
                   to: '/canvas-cloud/$section',
                   params: { section: 'pricing' },
                   search: { modelId },
                 })
-              }
+              }}
+              onManageMonitoring={props.onManageMonitoring}
+              onManageBindings={props.onManageBindings}
             />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>

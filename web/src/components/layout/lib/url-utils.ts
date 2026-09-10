@@ -61,7 +61,16 @@ export function checkIsActive(
 ): boolean {
   const hrefWithoutQuery = href.split('?')[0]
 
-  if (item.activeUrls?.some((url) => urlToString(url) === hrefWithoutQuery)) {
+  if (
+    item.activeUrls?.some((url) => {
+      const activeUrl = urlToString(url)
+      if (!activeUrl) return false
+      if (activeUrl.endsWith('/')) {
+        return hrefWithoutQuery.startsWith(activeUrl)
+      }
+      return activeUrl === hrefWithoutQuery
+    })
+  ) {
     return true
   }
 

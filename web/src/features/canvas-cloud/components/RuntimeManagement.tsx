@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 
 import { ExecutionSettings } from './ExecutionSettings'
 import {
@@ -28,6 +29,7 @@ export type RuntimeManagementView = 'execution' | 'provider' | 'storage'
 export function RuntimeManagement(props: {
   initialView?: RuntimeManagementView
   providerTarget?: CanvasProviderNavigationTarget
+  onReturnToModelList?: () => void
 }) {
   const { t } = useTranslation()
   return (
@@ -42,6 +44,16 @@ export function RuntimeManagement(props: {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {props.onReturnToModelList && props.initialView === 'provider' ? (
+            <Button
+              className='mb-4'
+              type='button'
+              variant='outline'
+              onClick={props.onReturnToModelList}
+            >
+              {t('Back to model list')}
+            </Button>
+          ) : null}
           <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
             <TabsTrigger
               value='execution'

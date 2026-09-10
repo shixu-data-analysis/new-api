@@ -9,12 +9,15 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  useNavigate,
 } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminModelCatalog } from '../AdminModelCatalog'
+import { UnifiedModelPricing } from '../UnifiedModelPricing'
+import { ModelManagementNavigationProvider } from '../../model-management-navigation'
 
 const api = vi.hoisted(() => ({
   models: vi.fn(),
@@ -30,8 +33,13 @@ vi.mock('../../api', async (original) => ({
   getCanvasPointIssuanceRates: api.issuance,
 }))
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('Model pricing route continuity', () => {
-  it('retains list pagination across actual routes and guards the model-bound API Key link', async () => {
+  it('retains list pagination across model-management routes and opens its model-bound API Key action', async () => {
+    vi.stubGlobal('scrollTo', vi.fn())
     const user = userEvent.setup()
     const model = {
       id: 'model-20',
@@ -67,6 +75,7 @@ describe('Model pricing route continuity', () => {
         binding: { status: 'UNBOUND' },
         billingUnits: ['REQUEST'],
         modelIds: [],
+        executionTargets: [],
         channel: {
           code: 'channel',
           version: 1,
@@ -112,26 +121,62 @@ describe('Model pricing route continuity', () => {
     ])
 
     const root = createRootRoute({ component: Outlet })
-    const route = createRoute({
+    const listRoute = createRoute({
       getParentRoute: () => root,
-      path: '/canvas-cloud/$section',
+      path: '/canvas-cloud/model-management',
+      component: ModelList,
+    })
+    const pricingRoute = createRoute({
+      getParentRoute: () => root,
+      path: '/canvas-cloud/model-management/$modelId/pricing',
+      component: ModelPricing,
+    })
+    const bindingsRoute = createRoute({
+      getParentRoute: () => root,
+      path: '/canvas-cloud/provider-configuration',
       validateSearch: (search: Record<string, unknown>) => ({
         modelId:
           typeof search.modelId === 'string' ? search.modelId : undefined,
       }),
-      component: () => {
-        const { section } = route.useParams()
-        const { modelId } = route.useSearch()
-        if (section === 'provider-configuration') {
-          return <p>Bindings for {modelId}</p>
-        }
-        return <AdminModelCatalog initialPricingModelId={modelId} />
-      },
+      component: () => <p>Bindings for {bindingsRoute.useSearch().modelId}</p>,
     })
+    function ModelList() {
+      const navigate = useNavigate()
+      return (
+        <ModelManagementNavigationProvider>
+          <AdminModelCatalog
+            onManagePricing={(modelId) =>
+              void navigate({
+                to: '/canvas-cloud/model-management/$modelId/pricing',
+                params: { modelId },
+              })
+            }
+            onManageBindings={(modelId) =>
+              void navigate({
+                to: '/canvas-cloud/provider-configuration',
+                search: { modelId },
+              })
+            }
+          />
+        </ModelManagementNavigationProvider>
+      )
+    }
+    function ModelPricing() {
+      const navigate = useNavigate()
+      const { modelId } = pricingRoute.useParams()
+      return (
+        <UnifiedModelPricing
+          initialModelId={modelId}
+          onBack={() =>
+            void navigate({ to: '/canvas-cloud/model-management' })
+          }
+        />
+      )
+    }
     const router = createRouter({
-      routeTree: root.addChildren([route]),
+      routeTree: root.addChildren([listRoute, pricingRoute, bindingsRoute]),
       history: createMemoryHistory({
-        initialEntries: ['/canvas-cloud/catalog'],
+        initialEntries: ['/canvas-cloud/model-management'],
       }),
       defaultPendingMinMs: 0,
     })
@@ -155,38 +200,17 @@ describe('Model pricing route continuity', () => {
     await user.click(screen.getByRole('button', { name: 'Go to next page' }))
     await screen.findByText('Series 20')
     await user.click(screen.getByRole('button', { name: 'Manage prices' }))
-    const link = await screen.findByRole('link', {
-      name: 'Manage API Key bindings',
-    })
-    expect(link).toHaveAttribute(
-      'href',
-      '/canvas-cloud/provider-configuration?modelId=model-20'
-    )
+    await screen.findByText('Series 20')
     await user.click(screen.getByRole('button', { name: 'Back to model list' }))
     await waitFor(() =>
-      expect(router.state.location.pathname).toBe('/canvas-cloud/catalog')
+      expect(router.state.location.pathname).toBe('/canvas-cloud/model-management')
     )
     expect(await screen.findByText('Series 20')).toBeVisible()
     expect(screen.queryByText('Series 00')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^Column filters/ }))
     expect(screen.getByPlaceholderText('Model')).toHaveValue('Series')
     await user.click(screen.getByRole('button', { name: /^Column filters/ }))
-
-    await user.click(screen.getByRole('button', { name: 'Manage prices' }))
-    await user.click((await screen.findAllByTestId('adjust-pricing'))[0])
-    fireEvent.change(screen.getByLabelText('Service provider cost'), {
-      target: { value: '0.15' },
-    })
-    await user.click(
-      screen.getByRole('link', { name: 'Manage API Key bindings' })
-    )
-    await user.click(await screen.findByRole('button', { name: 'Stay' }))
-    expect(screen.getByLabelText('Service provider cost')).toHaveValue('0.15')
-    expect(router.state.location.pathname).toBe('/canvas-cloud/pricing')
-    await user.click(
-      screen.getByRole('link', { name: 'Manage API Key bindings' })
-    )
-    await user.click(await screen.findByRole('button', { name: 'Leave' }))
+    await user.click(screen.getByRole('button', { name: 'Manage API Key bindings' }))
     expect(await screen.findByText('Bindings for model-20')).toBeVisible()
     view.unmount()
     client.clear()

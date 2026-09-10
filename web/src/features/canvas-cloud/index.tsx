@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getRouteApi } from '@tanstack/react-router'
+import { getRouteApi, useLocation } from '@tanstack/react-router'
 import type { Column } from '@tanstack/react-table'
 import { RefreshCw } from 'lucide-react'
 import { isValidElement, useMemo, useState, type ReactNode } from 'react'
@@ -71,6 +71,10 @@ import { PricingRecordsTable } from './components/PricingRecordsTable'
 import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
 import { RuntimeManagement } from './components/RuntimeManagement'
 import { formatMoneyMinor } from './formatters'
+import {
+  getModelManagementReturnContext,
+  modelManagementReturnStateKey,
+} from './model-management-navigation'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
@@ -445,6 +449,7 @@ export function AdminContent(props: {
   initialCustomerId?: string
   initialOrderId?: string
   onCustomerChange?: (customerId?: string) => void
+  onReturnToModelList?: () => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -497,6 +502,7 @@ export function AdminContent(props: {
       <RuntimeManagement
         initialView='provider'
         providerTarget={props.providerTarget}
+        onReturnToModelList={props.onReturnToModelList}
       />
     )
   }
@@ -652,6 +658,7 @@ export function AdminContent(props: {
   if (props.section === 'channels') {
     return (
       <div className='space-y-4'>
+        <ChannelHealth />
         <DataTable
           empty={t('No data')}
           headers={[
@@ -679,7 +686,6 @@ export function AdminContent(props: {
             ],
           }))}
         />
-        <ChannelHealth />
       </div>
     )
   }
@@ -746,6 +752,8 @@ export function CanvasCloud() {
     )
   }
   const section = params.section as CanvasSection
+  const locationState = useLocation({ select: (location) => location.state })
+  const modelManagementReturn = getModelManagementReturnContext(locationState)
   let content: ReactNode
   if (section === 'agent-center') {
     content = <AgentCenter />
@@ -772,6 +780,18 @@ export function CanvasCloud() {
             }),
             replace: true,
           })
+        }
+        onReturnToModelList={
+          modelManagementReturn
+            ? () =>
+                void navigate({
+                  to: '/canvas-cloud/model-management',
+                  search: {},
+                  state: {
+                    [modelManagementReturnStateKey]: modelManagementReturn,
+                  },
+                })
+            : undefined
         }
       />
     )

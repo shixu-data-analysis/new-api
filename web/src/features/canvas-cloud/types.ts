@@ -571,6 +571,7 @@ export interface CanvasCatalogModel {
   catalog: Record<string, unknown>
   parameterCombinations: Array<{
     id: string
+    executionTargetId: string
     parameters: Record<string, unknown>
     billingDimensions: Record<string, unknown>
     points: string
@@ -766,6 +767,33 @@ export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
   modelIds: Array<{ quality: string | null; modelId: string }>
+  executionTargets: Array<{
+    id: string
+    channelId: string
+    upstreamModelId: string
+    enabled: boolean
+    presentationVersion: number | null
+    runtimeEnabled: boolean
+    providerEnabled: boolean
+    channelEnabled: boolean
+    effectiveEnabled: boolean
+    customerVisible: boolean
+    pricingComplete: boolean
+    pricingCoverage: Array<{
+      priceGroupId: string
+      priceGroupCode: string
+      complete: boolean
+      pricedCombinationIds: string[]
+      missingCombinationIds: string[]
+    }>
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+      enabled: boolean
+    }>
+  }>
   version: number
   name: string
   description: string
@@ -1299,6 +1327,7 @@ export interface CanvasAdminTaskLog {
   customerName: string | null
   customerModelId: string | null
   modelName: string | null
+  outputSummaries: CanvasTaskOutputSummary[]
   derivedExecutionStatus: string
   executionSummary: CanvasTaskExecutionSummary
   settlementProgress: string
@@ -1308,14 +1337,31 @@ export interface CanvasAdminTaskLog {
   acceptedAt: string
 }
 
+export interface CanvasTaskOutputSummary {
+  id: string
+  outputIndex: number
+  quotedPoints: string
+  settledPoints: string | null
+  executionStatus: string
+  billingStatus: string
+  error: {
+    code?: string | null
+    messages?: Record<string, string> | null
+  } | null
+  completedAt: string | null
+  billingFinalizedAt: string | null
+}
+
 export interface CanvasAdminTaskLogQuery {
   taskId?: string
   customer?: string
   modelId?: string
+  executionTargetId?: string
   derivedExecutionStatus?: string
   settlementProgress?: string
   upstreamTaskId?: string
   billingStatus?: string
+  executionOrigin?: 'REAL' | 'MOCK'
   from?: string
   to?: string
   sortBy:
@@ -1327,6 +1373,149 @@ export interface CanvasAdminTaskLogQuery {
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export type CanvasModelMonitoringWindow =
+  | 'hour'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'custom'
+  | 'round'
+
+export interface CanvasModelMonitoringStats {
+  succeeded: number
+  failed: number
+  unknown: number
+  processing: number
+  resultCount: number
+  sampleCount: number
+  successRate: number | null
+}
+
+export interface CanvasModelMonitoringQuery {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from?: string
+  to?: string
+}
+
+export interface CanvasModelMonitoringTargets {
+  customerModel: {
+    id: string
+    modelKey: string
+    name: string
+    version: number
+    status: string
+  }
+  targets: Array<{
+    id: string
+    channelId: string
+    upstreamModelId: string
+    manualEnabled: boolean
+    controlVersion: number
+    runtimeEnabled: boolean
+    providerEnabled: boolean
+    channelEnabled: boolean
+    effectiveEnabled: boolean
+    presentationEnabled: boolean
+    presentationVersion: number | null
+    pricingComplete: boolean
+    customerVisible: boolean
+    pricingCoverage: Array<{
+      priceGroupId: string
+      priceGroupCode: string
+      complete: boolean
+      pricedCombinationIds: string[]
+      missingCombinationIds: string[]
+    }>
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+    }>
+  }>
+}
+
+export interface CanvasModelMonitoring {
+  customerModel: {
+    id: string
+    modelKey: string
+    name: string
+    version: number
+    capability: string | null
+    status: string
+  }
+  executionTarget: {
+    id: string
+    channelId: string
+    upstreamModelId: string
+    presentationEnabled: boolean
+    presentationVersion: number | null
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+    }>
+  }
+  manualEnabled: boolean
+  controlVersion: number
+  providerEnabled: boolean
+  channelEnabled: boolean
+  effectiveEnabled: boolean
+  blockingReasons: string[]
+  roundStartedAt: string
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from: string
+  to: string
+  bucketSeconds: number
+  summary: CanvasModelMonitoringStats
+  trend: Array<
+    CanvasModelMonitoringStats & {
+      from: string
+      to: string
+    }
+  >
+  failures: Array<{ category: string; count: number }>
+}
+
+export interface CanvasModelMonitoringControlQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  action?: 'DISABLE' | 'ENABLE'
+  actor?: string
+  from?: string
+  to?: string
+  reasonCode?: string
+  sortBy: 'occurredAt' | 'version' | 'action' | 'reason' | 'actor'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasModelMonitoringControlRecord {
+  id: string
+  version: number
+  occurredAt: string
+  action: 'DISABLE' | 'ENABLE'
+  enabled: boolean
+  previousEnabled: boolean | null
+  actor: {
+    principalId: string
+    userId: string | null
+    name: string | null
+  }
+  reasonCode: string | null
+  note: string | null
+  legacyReason: string | null
+}
+
+export interface CanvasModelMonitoringControlResult {
+  id: string
+  version: number
+  status: 'PUBLISHED'
+  effectiveAt: string
 }
 
 export interface CanvasTaskLogOptions {

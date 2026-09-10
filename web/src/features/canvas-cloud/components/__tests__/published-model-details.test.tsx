@@ -11,6 +11,7 @@ function model(
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
     modelIds: [{ quality: null, modelId: 'provider-alpha' }],
+    executionTargets: [],
     version: 2,
     name: 'Alpha model',
     description: '',

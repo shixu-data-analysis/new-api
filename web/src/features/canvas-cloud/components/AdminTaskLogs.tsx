@@ -14,11 +14,6 @@ import { useTranslation } from 'react-i18next'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import {
-  sideDrawerContentClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-} from '@/components/drawer-layout'
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -30,12 +25,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -43,11 +32,11 @@ import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const executionStatuses = [
   'ACCEPTED',
@@ -141,9 +130,7 @@ export function AdminTaskLogs() {
   const setPagination = state.setPagination
   const listScrollY = useRef(0)
   const taskTrigger = useRef<HTMLButtonElement | null>(null)
-  const drawerScroll = useRef<HTMLDivElement | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
-  const [selectedLedgerId, setSelectedLedgerId] = useState<string>()
   const [taskId, setTaskId] = useState('')
   const [customer, setCustomer] = useState('')
   const [model, setModel] = useState('')
@@ -220,7 +207,6 @@ export function AdminTaskLogs() {
   })
   const closeTaskDetails = () => {
     setSelectedTaskId(undefined)
-    setSelectedLedgerId(undefined)
     requestAnimationFrame(() => {
       window.scrollTo({ top: listScrollY.current })
       taskTrigger.current?.focus()
@@ -520,37 +506,10 @@ export function AdminTaskLogs() {
           columnId === 'settledPoints' ? 'text-right' : undefined
         }
       />
-      <Sheet
-        open={Boolean(selectedTaskId)}
-        onOpenChange={(open) => {
-          if (!open) closeTaskDetails()
-        }}
-      >
-        <SheetContent
-          className={sideDrawerContentClassName('max-w-none sm:!max-w-[720px]')}
-        >
-          <SheetHeader className={sideDrawerHeaderClassName()}>
-            <SheetTitle>
-              {selectedLedgerId
-                ? t('Point ledger details')
-                : `${t('Task details')} ${selectedTaskId ? `· ${selectedTaskId}` : ''}`}
-            </SheetTitle>
-            {selectedTaskId && !selectedLedgerId ? (
-              <CopyableText value={selectedTaskId} hideValue />
-            ) : null}
-          </SheetHeader>
-          <div ref={drawerScroll} className={sideDrawerFormClassName()}>
-            {selectedTaskId ? (
-              <AdminTaskRecordDetails
-                key={selectedTaskId}
-                taskId={selectedTaskId}
-                scrollContainerRef={drawerScroll}
-                onLedgerDetailsChange={setSelectedLedgerId}
-              />
-            ) : null}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <TaskRecordDetailsSheet
+        taskId={selectedTaskId}
+        onClose={closeTaskDetails}
+      />
     </>
   )
 }

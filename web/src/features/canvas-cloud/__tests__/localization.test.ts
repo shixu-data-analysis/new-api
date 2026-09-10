@@ -125,6 +125,34 @@ const adminRework005Keys = [
   'Lot frozen points',
   ...taskParameterLabelKeys,
 ]
+const adminRework006Sources = [
+  'ModelControlDialog.tsx',
+  'ModelManagementLayout.tsx',
+  'ModelMonitoring.tsx',
+  'PublishedModelCatalog.tsx',
+  'TaskRecordDetailsSheet.tsx',
+  'UnifiedModelPricing.tsx',
+  'UnifiedModelPricingHistory.tsx',
+]
+const adminRework006RouteSources = [
+  'src/routes/_authenticated/canvas-cloud/model-management/index.tsx',
+  'src/routes/_authenticated/canvas-cloud/model-management/$modelId/pricing.tsx',
+  'src/routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId.tsx',
+  'src/routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/index.tsx',
+  'src/features/canvas-cloud/model-pricing-error.ts',
+]
+const adminRework006Keys = [
+  ...new Set(
+    [...adminRework006Sources.map((file) => resolve('src/features/canvas-cloud/components', file)), ...adminRework006RouteSources].flatMap(
+      (file) => {
+        const source = readFileSync(file, 'utf8')
+        return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+          (match) => match[2]
+        )
+      }
+    )
+  ),
+]
 
 it.each(Object.entries({ en, ...localizedResources }))(
   'defines every ADMIN-REWORK-004 customer-management message in %s',
@@ -144,6 +172,33 @@ it.each(Object.entries({ en, ...localizedResources }))(
     for (const key of adminRework005Keys) {
       expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
       expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every ADMIN-REWORK-006 model-management message in %s',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of adminRework006Keys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
+
+it.each(Object.entries(localizedResources))(
+  'does not fall back to English for model availability reasons in %s',
+  (_locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    const english = en.translation as Record<string, string>
+    for (const key of [
+      'Model manually disabled',
+      'Model inactive',
+      'Channel disabled',
+    ]) {
+      expect(translations[key]).toBeTruthy()
+      expect(translations[key]).not.toBe(english[key])
     }
   }
 )

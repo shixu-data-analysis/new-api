@@ -76,6 +76,12 @@ import type {
   CanvasModelPricingPublicationResult,
   CanvasModelPricingScope,
   CanvasModelPricingWorkspace,
+  CanvasModelMonitoring,
+  CanvasModelMonitoringTargets,
+  CanvasModelMonitoringControlQuery,
+  CanvasModelMonitoringControlRecord,
+  CanvasModelMonitoringControlResult,
+  CanvasModelMonitoringQuery,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -178,6 +184,69 @@ export async function getCanvasAdminTaskLogs(
     await api.get<CanvasPage<CanvasAdminTaskLog>>(
       `${webBase}/admin/task-logs`,
       { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasModelMonitoring(
+  customerModelId: string,
+  executionTargetId: string,
+  query: CanvasModelMonitoringQuery,
+  signal?: AbortSignal
+): Promise<CanvasModelMonitoring> {
+  return (
+    await api.get<CanvasModelMonitoring>(
+      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}`,
+      { params: query, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasModelMonitoringTargets(
+  customerModelId: string,
+  signal?: AbortSignal
+): Promise<CanvasModelMonitoringTargets> {
+  return (
+    await api.get<CanvasModelMonitoringTargets>(
+      `${webBase}/admin/model-monitoring/models/${encodeURIComponent(customerModelId)}/targets`,
+      { signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasModelMonitoringControls(
+  customerModelId: string,
+  executionTargetId: string,
+  query: CanvasModelMonitoringControlQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasModelMonitoringControlRecord>> {
+  return (
+    await api.get<CanvasPage<CanvasModelMonitoringControlRecord>>(
+      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}/controls`,
+      { params: query, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function controlCanvasModelMonitoring(
+  customerModelId: string,
+  executionTargetId: string,
+  input: {
+    enabled: boolean
+    expectedVersion: number
+    reasonCode: string
+    note: string
+    confirmed: true
+  }
+): Promise<CanvasModelMonitoringControlResult> {
+  return (
+    await api.post<CanvasModelMonitoringControlResult>(
+      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}/control`,
+      input,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-model-control') },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }
@@ -650,7 +719,6 @@ export async function publishCanvasModelPresentation(input: {
   modelKey: string
   displayName: string
   description: string
-  enabled: boolean
   expectedVersion?: number
 }) {
   return (
@@ -660,6 +728,26 @@ export async function publishCanvasModelPresentation(input: {
       {
         headers: {
           'Idempotency-Key': idempotencyKey('web-model-presentation'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasExecutionTargetPresentation(input: {
+  executionTargetId: string
+  enabled: boolean
+  expectedVersion: number
+}) {
+  const { executionTargetId, enabled, expectedVersion } = input
+  return (
+    await api.post(
+      `${webBase}/admin/model-execution-targets/${encodeURIComponent(executionTargetId)}/presentation`,
+      { enabled, expectedVersion, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-execution-target-presentation'),
         },
         skipErrorHandler: true,
       }
