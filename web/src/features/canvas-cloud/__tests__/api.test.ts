@@ -67,15 +67,17 @@ import {
   publishCanvasProviderRate,
   resolveCanvasProviderRateRisk,
   revealCanvasCode,
-  createCanvasRefund,
   deductCanvasPointLot,
   getCanvasAdminCustomerPointLots,
   getCanvasAdminCustomerPointLedger,
   getCanvasAdminCustomerTasks,
   getCanvasAdminTaskLogs,
   getCanvasAdminRechargeOrders,
+  getCanvasOrderPointReturns,
   grantCanvasManualBonus,
   grantCanvasPaidCorrection,
+  previewCanvasOrderPointReturn,
+  createCanvasOrderPointReturn,
 } from '../api'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
@@ -133,7 +135,7 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/admin/workspace')
   })
 
-  it('keeps refund point calculation server-owned and routes governed Lot adjustments', async () => {
+  it('keeps point-return calculation server-owned and routes governed Lot adjustments', async () => {
     mocks.get.mockResolvedValue({ data: { items: [] } })
     await getCanvasAdminRechargeOrders({
       orderNumber: 'CANVAS-001',
@@ -208,26 +210,58 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/task-logs',
     ])
 
-    mocks.post.mockResolvedValue({ data: { id: 'created' } })
-    const refund = {
-      refundConfirmationReference: 'REFUND-001',
+    await getCanvasOrderPointReturns('customer-id', 'order-id', {
+      operator: 'Canvas Admin',
+      reason: 'offline refund',
+      from: '2026-09-01T00:00:00.000Z',
+      to: '2026-09-30T23:59:59.000Z',
+      sortOrder: 'asc',
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/customers/customer-id/recharge-orders/order-id/point-returns',
+      {
+        params: {
+          page: 1,
+          pageSize: 20,
+          operator: 'Canvas Admin',
+          reason: 'offline refund',
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-30T23:59:59.000Z',
+          sortOrder: 'asc',
+        },
+        signal: undefined,
+      }
+    )
+
+    mocks.post.mockResolvedValue({ data: { id: 'point-return' } })
+    await previewCanvasOrderPointReturn({
       rechargeOrderId: 'order-id',
-      confirmedRefundAmountMinor: '1000',
-      customerConfirmationReference: 'CUSTOMER-001',
-      reason: 'confirmed externally',
+      points: '10',
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/point-returns/preview',
+      { rechargeOrderId: 'order-id', points: '10' },
+      { skipErrorHandler: true }
+    )
+    const returnInput = {
+      rechargeOrderId: 'order-id',
+      points: '10',
+      reason: 'offline refund reference',
+      expectedAvailablePaidPoints: '100',
+      expectedCumulativeReturnedPoints: '0',
+      expectedReferenceAmountMinor: '20',
     }
-    await createCanvasRefund(refund)
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/refunds',
-      { ...refund, confirmed: true },
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'Idempotency-Key': expect.any(String),
-        }),
-      })
+    await createCanvasOrderPointReturn(returnInput, 'point-return-request')
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/point-returns',
+      { ...returnInput, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': 'point-return-request' },
+        skipErrorHandler: true,
+      }
     )
     expect(JSON.stringify(mocks.post.mock.calls.at(-1))).not.toContain(
-      'pointsRequested'
+      'confirmedRefundAmountMinor'
     )
 
     await grantCanvasManualBonus({

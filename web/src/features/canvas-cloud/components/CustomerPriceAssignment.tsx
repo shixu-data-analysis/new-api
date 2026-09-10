@@ -11,8 +11,24 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  SideDrawerSection,
+} from '@/components/drawer-layout'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -21,8 +37,16 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { Textarea } from '@/components/ui/textarea'
 
 import {
   assignCanvasCustomerPriceGroup,
@@ -37,12 +61,27 @@ import { formatCanvasDateTime } from '../formatters'
 import type { CanvasCustomerPriceAssignment } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
-import { PricingActionConfirmation } from './PricingActionConfirmation'
 
-export function CustomerPriceAssignment(props: { customerId: string }) {
+type Drawer = 'adjust' | 'history' | null
+
+export function CustomerPriceAssignment(props: {
+  customerId: string
+  customerName?: string
+}) {
   const { t } = useTranslation()
   const client = useQueryClient()
   const state = useServerTableState('effectiveAt')
+  const [drawer, setDrawer] = useState<Drawer>(null)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const [review, setReview] = useState<
+    | (CustomerPriceAssignmentValues & {
+        key: string
+        plan: string
+        current: string
+      })
+    | null
+  >(null)
+  const submitting = useRef(false)
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -66,25 +105,21 @@ export function CustomerPriceAssignment(props: { customerId: string }) {
     queryKey: ['canvas-cloud', 'price-groups'],
     queryFn: getCanvasPriceGroups,
   })
-  const available = (groups.data ?? []).filter(
-    (group) =>
-      group.status === 'PUBLISHED' && group.id !== query.data?.currentGroup.id
-  )
   const form = useForm<CustomerPriceAssignmentValues>({
     resolver: zodResolver(customerPriceAssignmentSchema),
     mode: 'onTouched',
     defaultValues: { priceGroupId: '', reason: '' },
   })
-  const [review, setReview] = useState<
-    | (CustomerPriceAssignmentValues & {
-        key: string
-        plan: string
-        current: string
-      })
-    | null
-  >(null)
-  const [reviewOpen, setReviewOpen] = useState(false)
-  const submitting = useRef(false)
+  const formDirty = form.formState.isDirty
+  const current = query.data?.currentGroup
+  const currentLabel = current
+    ? `${current.internalName} · v${current.version}`
+    : '—'
+  const available = (groups.data ?? []).filter(
+    (group) => group.status === 'PUBLISHED' && group.id !== current?.id
+  )
+  const disabled =
+    query.isFetching || groups.isFetching || query.isError || groups.isError
   const mutation = useMutation({
     mutationFn: (value: NonNullable<typeof review>) =>
       assignCanvasCustomerPriceGroup(
@@ -95,14 +130,17 @@ export function CustomerPriceAssignment(props: { customerId: string }) {
     onSuccess: async () => {
       form.reset()
       setReview(null)
-      setReviewOpen(false)
-      toast.success(t('Customer price plan updated'))
+      setDrawer(null)
+      toast.success(t('Price plan updated'))
       await client.invalidateQueries({
         queryKey: [
           'canvas-cloud',
           'customer-price-assignments',
           props.customerId,
         ],
+      })
+      await client.invalidateQueries({
+        queryKey: ['canvas-cloud', 'admin-customer', props.customerId],
       })
     },
     onError: () =>
@@ -156,171 +194,268 @@ export function CustomerPriceAssignment(props: { customerId: string }) {
     ],
     [t]
   )
-  const current = query.data?.currentGroup
-  const currentLabel = current
-    ? `${current.internalName} · v${current.version}`
-    : '—'
-  const disabled =
-    mutation.isPending ||
-    query.isFetching ||
-    groups.isFetching ||
-    query.isError ||
-    groups.isError ||
-    !query.data
+  const close = () => {
+    if (mutation.isPending) return
+    submitting.current = false
+    form.reset()
+    setReview(null)
+    setDrawer(null)
+  }
+  const requestClose = () => {
+    if (mutation.isPending) return
+    if (drawer === 'adjust' && formDirty) setDiscardOpen(true)
+    else close()
+  }
   return (
-    <Card className='min-w-0'>
-      <CardHeader>
-        <CardTitle>{t('Customer price plan')}</CardTitle>
-      </CardHeader>
-      <CardContent className='min-w-0 space-y-4'>
-        <p className='text-sm break-words'>
-          {t('Current price plan')}: {currentLabel}
-        </p>
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'Only new quotes use the new plan. Existing quotes and tasks keep their original prices.'
-          )}
-        </p>
-        {(query.isError || groups.isError) && (
-          <div role='alert' className='text-destructive text-sm'>
-            {t('Unable to load price plans or assignment history')}
-          </div>
-        )}
-        <Button
-          type='button'
-          variant='outline'
-          disabled={mutation.isPending || query.isFetching || groups.isFetching}
-          onClick={() => {
-            void query.refetch()
-            void groups.refetch()
-          }}
-        >
-          {t('Refresh')}
-        </Button>
-        <Form {...form}>
-          <form
-            noValidate
-            onSubmit={form.handleSubmit((value) => {
-              if (disabled) return
-              const group = available.find(
-                (item) => item.id === value.priceGroupId
-              )
-              if (!group) {
-                form.setError('priceGroupId', {
-                  message: t('Select a published price plan'),
-                })
-                return
-              }
-              setReview((previous) => ({
-                ...value,
-                key:
-                  previous?.priceGroupId === value.priceGroupId &&
-                  previous.reason === value.reason
-                    ? previous.key
-                    : `customer-price:${crypto.randomUUID()}`,
-                plan: `${group.internalName} · v${group.version}`,
-                current: currentLabel,
-              }))
-              setReviewOpen(true)
-            })}
-            className='grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]'
+    <div className='mt-4 flex flex-wrap items-center gap-2 border-t pt-4 text-sm'>
+      <span>
+        {t('Price plan')}: <strong>{currentLabel}</strong>
+      </span>
+      <Button
+        type='button'
+        size='sm'
+        variant='outline'
+        disabled={disabled}
+        onClick={() => setDrawer('adjust')}
+      >
+        {t('Adjust')}
+      </Button>
+      <Button
+        type='button'
+        size='sm'
+        variant='ghost'
+        onClick={() => setDrawer('history')}
+      >
+        {t('View history')}
+      </Button>
+      {query.isError || groups.isError ? (
+        <span role='alert' className='flex flex-wrap items-center gap-2'>
+          {t('Unable to load price plans or assignment history')}
+          <Button
+            type='button'
+            size='sm'
+            variant='outline'
+            onClick={() => {
+              void query.refetch()
+              void groups.refetch()
+            }}
           >
-            <FormField
-              control={form.control}
-              name='priceGroupId'
-              render={({ field }) => (
-                <FormItem className='min-w-0'>
-                  <FormLabel className='min-h-5'>
-                    {t('New price plan')} *
-                  </FormLabel>
-                  <FormControl>
-                    <NativeSelect
-                      {...field}
-                      className='w-full min-w-0'
-                      disabled={disabled || available.length === 0}
-                    >
-                      <NativeSelectOption value=''>
-                        {t('Select a published price plan')}
-                      </NativeSelectOption>
-                      {available.map((group) => (
-                        <NativeSelectOption key={group.id} value={group.id}>
-                          {group.internalName} · v{group.version}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            {t('Retry')}
+          </Button>
+        </span>
+      ) : null}
+
+      <Sheet
+        open={drawer === 'adjust'}
+        onOpenChange={(open) => !open && requestClose()}
+      >
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[560px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>
+              {review
+                ? t('Confirm adjustment · {{username}}', {
+                    username: props.customerName ?? t('Unknown'),
+                  })
+                : t('Adjust price plan · {{username}}', {
+                    username: props.customerName ?? t('Unknown'),
+                  })}
+            </SheetTitle>
+            <SheetDescription>
+              {t(
+                'Only new quotes use the new plan. Existing quotes and tasks keep their original prices.'
               )}
-            />
-            <FormField
-              control={form.control}
-              name='reason'
-              render={({ field }) => (
-                <FormItem className='min-w-0'>
-                  <FormLabel className='min-h-5'>{t('Reason')} *</FormLabel>
-                  <FormControl>
-                    <Input {...field} disabled={disabled} maxLength={255} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button
-              type='submit'
-              disabled={disabled || available.length === 0}
-              className='w-full lg:mt-7 lg:w-auto'
-            >
-              {t('Review price plan change')}
-            </Button>
-          </form>
-        </Form>
-        {!groups.isLoading && !groups.isError && available.length === 0 && (
-          <p className='text-muted-foreground text-sm'>
-            {t('No other published price plans')}
-          </p>
-        )}
-        <PricingActionConfirmation
-          open={reviewOpen}
-          onOpenChange={(open) => {
-            if (!mutation.isPending) setReviewOpen(open)
-          }}
-          title={t('Confirm price plan change')}
-          description={t(
-            'Only new quotes use the new plan. Existing quotes and tasks keep their original prices.'
+            </SheetDescription>
+          </SheetHeader>
+          {review ? (
+            <div className={sideDrawerFormClassName()}>
+              <SideDrawerSection>
+                <dl className='grid gap-4'>
+                  <div>
+                    <dt className='text-muted-foreground text-sm'>
+                      {t('Current price plan')}
+                    </dt>
+                    <dd>{review.current}</dd>
+                  </div>
+                  <div>
+                    <dt className='text-muted-foreground text-sm'>
+                      {t('New price plan')}
+                    </dt>
+                    <dd>{review.plan}</dd>
+                  </div>
+                  <div>
+                    <dt className='text-muted-foreground text-sm'>
+                      {t('Reason')}
+                    </dt>
+                    <dd className='break-words'>{review.reason}</dd>
+                  </div>
+                </dl>
+              </SideDrawerSection>
+            </div>
+          ) : (
+            <Form {...form}>
+              <form
+                id='customer-price-plan-form'
+                className={sideDrawerFormClassName()}
+                onSubmit={form.handleSubmit((value) => {
+                  const group = available.find(
+                    (item) => item.id === value.priceGroupId
+                  )
+                  if (!group) return
+                  setReview({
+                    ...value,
+                    key: `customer-price:${crypto.randomUUID()}`,
+                    plan: `${group.internalName} · v${group.version}`,
+                    current: currentLabel,
+                  })
+                })}
+              >
+                <SideDrawerSection>
+                  <p className='text-sm'>
+                    {t('Current price plan')}: {currentLabel}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name='priceGroupId'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('New price plan')} *</FormLabel>
+                        <FormControl>
+                          <NativeSelect
+                            {...field}
+                            disabled={disabled || available.length === 0}
+                          >
+                            <NativeSelectOption value=''>
+                              {t('Select a published price plan')}
+                            </NativeSelectOption>
+                            {available.map((group) => (
+                              <NativeSelectOption
+                                key={group.id}
+                                value={group.id}
+                              >
+                                {group.internalName} · v{group.version}
+                              </NativeSelectOption>
+                            ))}
+                          </NativeSelect>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name='reason'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Adjustment reason')} *</FormLabel>
+                        <FormControl>
+                          <Textarea rows={4} maxLength={255} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {!groups.isLoading &&
+                  !groups.isError &&
+                  available.length === 0 ? (
+                    <p className='text-muted-foreground text-sm'>
+                      {t('No other published price plans')}
+                    </p>
+                  ) : null}
+                </SideDrawerSection>
+              </form>
+            </Form>
           )}
-          details={[
-            {
-              label: t('Customer'),
-              value: query.data?.customerName ?? t('Unknown'),
-            },
-            {
-              label: t('Current price plan'),
-              value: review?.current ?? currentLabel,
-            },
-            { label: t('New price plan'), value: review?.plan ?? '' },
-            { label: t('Reason'), value: review?.reason ?? '' },
-          ]}
-          confirmLabel={t('Confirm')}
-          pending={mutation.isPending}
-          onConfirm={() => {
-            if (!review || submitting.current) return
-            submitting.current = true
-            mutation.mutate(review)
-          }}
-        />
-        <h3 className='text-sm font-medium'>{t('Price plan history')}</h3>
-        <CanvasServerTable
-          data={query.data?.items ?? []}
-          columns={columns}
-          total={query.data?.total ?? 0}
-          state={state}
-          searchLabel={t('Price plan')}
-          loading={query.isFetching}
-          emptyTitle={t('No price plan history')}
-          getRowId={(row) => row.id}
-        />
-      </CardContent>
-    </Card>
+          <SheetFooter className={sideDrawerFooterClassName()}>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={mutation.isPending}
+              onClick={() => (review ? setReview(null) : requestClose())}
+            >
+              {review ? t('Back to edit') : t('Cancel')}
+            </Button>
+            <Button
+              type={review ? 'button' : 'submit'}
+              form={review ? undefined : 'customer-price-plan-form'}
+              disabled={
+                mutation.isPending ||
+                (!review && (disabled || available.length === 0))
+              }
+              onClick={
+                review
+                  ? () => {
+                      if (submitting.current) return
+                      submitting.current = true
+                      mutation.mutate(review)
+                    }
+                  : undefined
+              }
+            >
+              {review ? t('Confirm adjustment') : t('Next')}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Discard changes?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('Your unsaved entries will be lost.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('Keep editing')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDiscardOpen(false)
+                close()
+              }}
+            >
+              {t('Discard')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet
+        open={drawer === 'history'}
+        onOpenChange={(open) => !open && close()}
+      >
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[880px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>
+              {t('Price plan history · {{username}}', {
+                username: props.customerName ?? t('Unknown'),
+              })}
+            </SheetTitle>
+            <SheetDescription>
+              {t('Current price plan')}: {currentLabel}
+            </SheetDescription>
+          </SheetHeader>
+          <div className={sideDrawerFormClassName()}>
+            <CanvasServerTable
+              data={query.data?.items ?? []}
+              columns={columns}
+              total={query.data?.total ?? 0}
+              state={state}
+              searchLabel={t('Price plan')}
+              loading={query.isFetching}
+              error={query.isError}
+              errorTitle={t('Unable to load price plans or assignment history')}
+              onRetry={() => void query.refetch()}
+              emptyTitle={t('No price plan history')}
+              filteredEmptyTitle={t('No matching results')}
+              getRowId={(row) => row.id}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }

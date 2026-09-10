@@ -21,14 +21,11 @@ import {
   factStatusTerms,
 } from '../../business-facts'
 import { getCanvasBusinessTerm } from '../../business-terms'
-import { AdminCustomerOperations } from '../AdminCustomerOperations'
 import { CustomerBusinessFacts } from '../CustomerBusinessFacts'
 
 const getFacts = vi.hoisted(() => vi.fn())
-const getOrders = vi.hoisted(() => vi.fn())
 vi.mock('../../api', () => ({
   getCanvasCustomerBusinessFacts: getFacts,
-  getCanvasAdminRechargeOrders: getOrders,
 }))
 const at = '2026-09-05T12:00:00Z'
 const task = {
@@ -198,57 +195,6 @@ describe('customer business facts', () => {
       )
     )
   })
-  it('opens an existing order and clears its target when the selected customer changes', async () => {
-    getOrders.mockResolvedValue({
-      page: 1,
-      pageSize: 20,
-      total: 1,
-      items: [
-        {
-          id: 'order-a',
-          orderNumber: 'RECHARGE-001',
-          status: 'CODE_ACTIVATED',
-          expectedPaidPoints: '100',
-          issuedPaidPoints: '100',
-          availablePaidPoints: '80',
-          createdAt: at,
-          redeemedAt: at,
-        },
-      ],
-    })
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
-    const view = (customerId: string) => (
-      <QueryClientProvider client={client}>
-        <AdminCustomerOperations customerId={customerId} />
-      </QueryClientProvider>
-    )
-    const rendered = render(view('customer-a'))
-    fireEvent.click(await screen.findByRole('button', { name: 'RECHARGE-001' }))
-    await waitFor(() =>
-      expect(getFacts).toHaveBeenLastCalledWith(
-        'customer-a',
-        expect.any(Object),
-        { kind: 'order', id: 'order-a' },
-        expect.any(AbortSignal)
-      )
-    )
-    rendered.rerender(view('customer-b'))
-    await waitFor(() =>
-      expect(getFacts).toHaveBeenLastCalledWith(
-        'customer-b',
-        expect.any(Object),
-        undefined,
-        expect.any(AbortSignal)
-      )
-    )
-    expect(
-      getFacts.mock.calls.some(
-        ([customer, , root]) => customer === 'customer-b' && root
-      )
-    ).toBe(false)
-  })
   it('renders upstream cost decimals in Russian without converting currency or losing the negative sign', async () => {
     await i18next.changeLanguage('ru')
     const cost = {
@@ -284,6 +230,149 @@ describe('customer business facts', () => {
     expect(screen.getByText('USD')).toBeVisible()
     expect(screen.getByText('7,1')).toBeVisible()
     expect(screen.getByText('-87,6543138')).toBeVisible()
+  })
+
+  it('shows point-return allocation links and follows their exact fact ids', async () => {
+    getFacts.mockImplementation(async (_customer, query, root) => ({
+      ...query,
+      total: 0,
+      items: [],
+      fact: {
+        kind: root?.kind ?? 'pointReturn',
+        id: root?.id ?? 'return-a',
+        name: 'RECHARGE-001',
+        status: 'POSTED',
+        at,
+        fields: {
+          pointsReturned: '1000',
+          allocations: [
+            {
+              pointLotId: 'lot-a',
+              pointLedgerId: 'ledger-a',
+              points: '1000',
+              expiresAt: null,
+            },
+          ],
+        },
+      },
+    }))
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerBusinessFacts
+          customerId='customer-a'
+          initial={{ kind: 'pointReturn', id: 'return-a' }}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findAllByText('1,000')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'ledger-a' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'lot-a' }))
+    await waitFor(() =>
+      expect(getFacts).toHaveBeenLastCalledWith(
+        'customer-a',
+        expect.any(Object),
+        { kind: 'lot', id: 'lot-a' },
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
+  it('routes a related recharge order to its exact table row instead of an order detail', async () => {
+    const onOpenOrder = vi.fn()
+    getFacts.mockImplementation(async (_customer, query, root) => ({
+      ...query,
+      total: 1,
+      items: [
+        {
+          kind: 'order',
+          id: 'order-a',
+          name: 'RECHARGE-001',
+          status: 'CODE_ACTIVATED',
+          at,
+        },
+      ],
+      fact: {
+        kind: root?.kind ?? 'lot',
+        id: root?.id ?? 'lot-a',
+        name: 'Paid points',
+        status: 'PAID',
+        at,
+        fields: {},
+      },
+    }))
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerBusinessFacts
+          customerId='customer-a'
+          initial={{ kind: 'lot', id: 'lot-a' }}
+          onOpenOrder={onOpenOrder}
+        />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'RECHARGE-001' }))
+    expect(onOpenOrder).toHaveBeenCalledWith('order-a')
+    expect(
+      getFacts.mock.calls.some(([, , root]) => root?.kind === 'order')
+    ).toBe(false)
+  })
+
+  it('opens the shared deduction form from an available lot detail', async () => {
+    const onDeductLot = vi.fn()
+    getFacts.mockImplementation(async (_customer, query, root) => ({
+      ...query,
+      total: 0,
+      items: [],
+      fact: {
+        kind: 'lot',
+        id: root?.id ?? 'lot-a',
+        name: 'RECHARGE-001',
+        status: 'PAID',
+        at,
+        fields: {
+          lotType: 'PAID',
+          sourceType: 'RECHARGE_CODE',
+          rechargeOrderId: 'order-a',
+          rechargeOrderNumber: 'RECHARGE-001',
+          initialPoints: '1500',
+          remainingPoints: '1200',
+          availablePoints: '1000',
+          reservedPoints: '200',
+          expiresAt: null,
+        },
+      },
+    }))
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerBusinessFacts
+          customerId='customer-a'
+          initial={{ kind: 'lot', id: 'lot-a' }}
+          onDeductLot={onDeductLot}
+        />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Deduct points' })
+    )
+    expect(onDeductLot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'lot-a',
+        availablePoints: '1000',
+        reservedPoints: '200',
+        rechargeOrderId: 'order-a',
+      })
+    )
   })
 
   it.each([

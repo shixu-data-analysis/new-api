@@ -53,6 +53,9 @@ import type {
   CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
+  CanvasOrderPointReturn,
+  CanvasOrderPointReturnPreview,
+  CanvasOrderPointReturnRecord,
   CanvasRuntimeConfiguration,
   CanvasProviderConfiguration,
   CanvasProviderConfigurationQuery,
@@ -1158,27 +1161,9 @@ export async function reconcileCanvasTask(
   ).data
 }
 
-export async function createCanvasRefund(input: {
-  refundConfirmationReference: string
-  rechargeOrderId: string
-  confirmedRefundAmountMinor: string
-  customerConfirmationReference: string
-  reason: string
-}) {
-  return (
-    await api.post(
-      `${webBase}/admin/refunds`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-refund') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
 export async function getCanvasAdminRechargeOrders(
   input: {
+    orderId?: string
     orderNumber?: string
     customer?: string
     customerId?: string
@@ -1190,19 +1175,23 @@ export async function getCanvasAdminRechargeOrders(
       | 'PAYMENT_PENDING'
       | 'PAID'
       | 'CODE_ACTIVATED'
-      | 'REFUND_REVIEW'
-      | 'REFUNDED'
       | 'CANCELLED'
     timeField?: 'createdAt' | 'redeemedAt'
     from?: string
     to?: string
+    createdFrom?: string
+    createdTo?: string
+    redeemedFrom?: string
+    redeemedTo?: string
     sortBy?:
       | 'orderNumber'
       | 'customer'
       | 'status'
-      | 'expectedPaidPoints'
-      | 'issuedPaidPoints'
+      | 'amount'
+      | 'purchasedPoints'
+      | 'issuedBonusPoints'
       | 'availablePaidPoints'
+      | 'availableBonusPoints'
       | 'remainingCorrectionPoints'
       | 'createdAt'
       | 'redeemedAt'
@@ -1223,12 +1212,23 @@ export async function getCanvasAdminCustomerPointLots(
   query: {
     lotId?: string
     rechargeOrderNumber?: string
-    type?: 'PAID' | 'BONUS'
+    type?: 'PAID' | 'BONUS' | 'GRACE_BONUS'
+    sourceType?:
+      | 'RECHARGE_CODE'
+      | 'REGISTRATION_BONUS'
+      | 'INVITE_BONUS'
+      | 'PROMOTION'
+      | 'CUSTOMER_SERVICE'
+      | 'MANUAL_GRANT'
+      | 'GRACE_TRANSFER'
     availableOnly?: boolean
     from?: string
     to?: string
+    expiresFrom?: string
+    expiresTo?: string
     sortBy?:
       | 'type'
+      | 'source'
       | 'availablePoints'
       | 'reservedPoints'
       | 'expiresAt'
@@ -1250,9 +1250,11 @@ export async function getCanvasAdminCustomerPointLots(
 export async function getCanvasAdminCustomerPointLedger(
   customerId: string,
   query: {
+    relatedRecord?: string
     reason?: string
     taskId?: string
     refundId?: string
+    pointReturnId?: string
     eventType?: string
     from?: string
     to?: string
@@ -1323,6 +1325,74 @@ export async function getCanvasAdminCustomers(
   ).data
 }
 
+export async function getCanvasAdminCustomer(
+  customerId: string,
+  signal?: AbortSignal
+): Promise<CanvasAdminCustomerPointBalance> {
+  return (
+    await api.get<CanvasAdminCustomerPointBalance>(
+      `${webBase}/admin/customers/${customerId}`,
+      { signal }
+    )
+  ).data
+}
+
+export async function getCanvasOrderPointReturns(
+  customerId: string,
+  rechargeOrderId: string,
+  query: {
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+    operator?: string
+    reason?: string
+    from?: string
+    to?: string
+    sortOrder?: 'asc' | 'desc'
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasOrderPointReturnRecord>> {
+  return (
+    await api.get(
+      `${webBase}/admin/customers/${customerId}/recharge-orders/${rechargeOrderId}/point-returns`,
+      { params: { page: 1, pageSize: 20, ...query }, signal }
+    )
+  ).data
+}
+
+export async function previewCanvasOrderPointReturn(input: {
+  rechargeOrderId: string
+  points: string
+}): Promise<CanvasOrderPointReturnPreview> {
+  return (
+    await api.post(`${webBase}/admin/point-returns/preview`, input, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function createCanvasOrderPointReturn(
+  input: {
+    rechargeOrderId: string
+    points: string
+    reason: string
+    expectedAvailablePaidPoints: string
+    expectedCumulativeReturnedPoints: string
+    expectedReferenceAmountMinor: string
+  },
+  requestKey = idempotencyKey('web-point-return')
+): Promise<CanvasOrderPointReturn> {
+  return (
+    await api.post(
+      `${webBase}/admin/point-returns`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': requestKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function getCanvasAdminRefunds(
   query: {
     refundReference?: string
@@ -1361,9 +1431,11 @@ export async function getCanvasCustomerPointLots(
 
 export async function getCanvasCustomerPointLedger(
   query: {
+    relatedRecord?: string
     reason?: string
     taskId?: string
     refundId?: string
+    pointReturnId?: string
     eventType?: string
     from?: string
     to?: string

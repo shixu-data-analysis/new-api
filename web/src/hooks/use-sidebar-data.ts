@@ -32,7 +32,6 @@ import {
   MessageSquare,
   Radio,
   ReceiptText,
-  RotateCcw,
   ServerCog,
   Settings,
   Ticket,
@@ -95,7 +94,7 @@ export function useSidebarData(): SidebarData {
             title: t('Business'),
             items: [
               {
-                title: t('Canvas Customers & Points'),
+                title: t('Customer management'),
                 url: '/canvas-cloud/customers',
                 icon: Users,
               },
@@ -118,11 +117,6 @@ export function useSidebarData(): SidebarData {
                 title: t('Canvas Invite Codes'),
                 url: '/canvas-cloud/invite-codes',
                 icon: UserPlus,
-              },
-              {
-                title: t('Refund point recovery'),
-                url: '/canvas-cloud/refunds',
-                icon: RotateCcw,
               },
             ],
           },

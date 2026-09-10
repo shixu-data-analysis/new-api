@@ -66,6 +66,37 @@ const unifiedPricingKeys = [
     })
   ),
 ]
+const adminRework004Sources = [
+  'AdminPointAdjustments.tsx',
+  'AdminCustomerOperations.tsx',
+  'CustomerPointHistory.tsx',
+  'CustomerPriceAssignment.tsx',
+  'CustomerBusinessFacts.tsx',
+]
+const adminRework004Keys = [
+  ...new Set(
+    adminRework004Sources.flatMap((file) => {
+      const source = readFileSync(
+        resolve('src/features/canvas-cloud/components', file),
+        'utf8'
+      )
+      return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+        (match) => match[2]
+      )
+    })
+  ),
+]
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every ADMIN-REWORK-004 customer-management message in %s',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of adminRework004Keys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
 
 it.each(Object.entries({ en, ...localizedResources }))(
   'defines every unified pricing UI message in %s without missing-key fallback',

@@ -1147,6 +1147,9 @@ export interface CanvasAdminCustomerPointBalance {
   availablePoints: string
   paidAvailablePoints: string
   bonusAvailablePoints: string
+  debtPoints?: string
+  netAvailablePoints?: string
+  currentPriceGroupId?: string | null
   createdAt?: string
 }
 
@@ -1162,11 +1165,16 @@ export interface CanvasAdminRechargeOrder {
   rechargeCodeMask: string | null
   rechargeCodeStatus: string | null
   expectedPaidPoints: string
+  purchasedPoints: string
   originalPaidPoints: string
   correctedPaidPoints: string
   issuedPaidPoints: string
+  issuedBonusPoints: string
   availablePaidPoints: string
   availableBonusPoints: string
+  pointReturnCount: number
+  returnedPoints: string
+  returnedReferenceAmountMinor: string
   remainingCorrectionPoints: string
   eligibleForPaidCorrection: boolean
   paidCorrectionIneligibleReason: string | null
@@ -1202,10 +1210,55 @@ export interface CanvasPointLedgerItem {
   eventPoints: string
   remainingDelta: string
   reservedDelta: string
+  availableDelta: string
   taskId: string | null
+  taskOutputId: string | null
+  outputIndex: number | null
   refundLinkId: string | null
+  pointReturnId: string | null
+  rechargeOrderId: string | null
+  rechargeOrderNumber: string | null
   reason: string | null
   occurredAt: string
+}
+
+export interface CanvasOrderPointReturnPreview {
+  rechargeOrderId: string
+  orderNumber: string
+  customerId: string
+  currency: string
+  originalOrderAmountMinor: string
+  originalPurchasedPoints: string
+  availablePaidPoints: string
+  cumulativeReturnedPoints: string
+  cumulativeReferenceAmountMinor: string
+  returnPoints: string
+  referenceAmountMinor: string
+  remainingAvailablePaidPoints: string
+}
+
+export interface CanvasOrderPointReturnRecord {
+  id: string
+  rechargeOrderId: string
+  customerId: string
+  points: string
+  referenceAmountMinor: string
+  currency: string
+  actorName: string | null
+  reason: string
+  createdAt: string
+}
+
+export interface CanvasOrderPointReturn extends CanvasOrderPointReturnPreview {
+  id: string
+  ledgerGroupId: string
+  createdAt: string
+  allocations: Array<{
+    pointLotId: string
+    pointLedgerId: string
+    points: string
+    expiresAt: string | null
+  }>
 }
 
 export interface CanvasAdminCustomerTask {
@@ -1218,6 +1271,23 @@ export interface CanvasAdminCustomerTask {
   executionStatus: string
   customerBillingStatus: string
   providerReconcileStatus: string
+  debtPoints?: string
+  repaidDebtPoints?: string
+  outstandingDebtPoints?: string
+  outputSummaries?: Array<{
+    id?: string
+    outputIndex: number
+    executionStatus: string
+    billingStatus: string
+    quotedPoints: string
+    settledPoints: string | null
+    completedAt?: string | null
+    billingFinalizedAt?: string | null
+    error?: {
+      code?: string | null
+      messages?: Record<string, string> | null
+    } | null
+  }>
   upstreamTaskId: string | null
   acceptedAt: string
   completedAt: string | null
@@ -1403,12 +1473,16 @@ export interface CanvasCustomerPriceAssignments extends CanvasPage<CanvasCustome
 
 export type CanvasBusinessFactKind =
   | 'task'
+  | 'output'
+  | 'debt'
+  | 'repayment'
   | 'quote'
   | 'lot'
   | 'ledger'
   | 'allocation'
   | 'order'
   | 'payment'
+  | 'pointReturn'
   | 'refund'
   | 'recovery'
   | 'cost'
@@ -1421,7 +1495,17 @@ export interface CanvasBusinessFact {
   at: string
 }
 export interface CanvasBusinessFactDetail extends CanvasBusinessFact {
-  fields: Record<string, string | null>
+  fields: Record<
+    string,
+    | string
+    | null
+    | Array<{
+        pointLotId: string
+        pointLedgerId: string
+        points: string
+        expiresAt: string | null
+      }>
+  >
 }
 export interface CanvasBusinessFactPage extends CanvasPage<CanvasBusinessFact> {
   fact?: CanvasBusinessFactDetail

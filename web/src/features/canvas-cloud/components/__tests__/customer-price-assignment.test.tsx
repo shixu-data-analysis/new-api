@@ -15,17 +15,16 @@ import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
 import { customerPriceAssignmentSchema } from '../../form-validation'
-import { AdminCustomerOperations } from '../AdminCustomerOperations'
 import { CustomerPriceAssignment } from '../CustomerPriceAssignment'
 
 const mocks = vi.hoisted(() => ({
-  getCanvasAdminRechargeOrders: vi.fn(),
   getCanvasCustomerPriceAssignments: vi.fn(),
   getCanvasPriceGroups: vi.fn(),
   assignCanvasCustomerPriceGroup: vi.fn(),
 }))
 vi.mock('../../api', () => mocks)
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
 const oldId = '85000000-0000-7000-8000-000000000001'
 const newId = '85000000-0000-7000-8000-000000000002'
 const oldGroup = {
@@ -60,16 +59,24 @@ const initial = {
     },
   ],
 }
+
 function mount() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <CustomerPriceAssignment customerId='customer-a' />
+      <CustomerPriceAssignment customerId='customer-a' customerName='Alice' />
     </QueryClientProvider>
   )
 }
+
+async function openAdjustment() {
+  await screen.findByText('Standard · v1')
+  fireEvent.click(screen.getByRole('button', { name: 'Adjust' }))
+  return screen.findByRole('dialog')
+}
+
 beforeAll(async () => {
   await i18next.init({
     lng: 'en',
@@ -77,15 +84,10 @@ beforeAll(async () => {
     fallbackLng: 'en',
   })
 })
+
 beforeEach(async () => {
   vi.clearAllMocks()
   await i18next.changeLanguage('en')
-  mocks.getCanvasAdminRechargeOrders.mockResolvedValue({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    items: [],
-  })
   mocks.getCanvasCustomerPriceAssignments.mockResolvedValue(initial)
   mocks.getCanvasPriceGroups.mockResolvedValue([
     oldGroup,
@@ -94,57 +96,37 @@ beforeEach(async () => {
   ])
   mocks.assignCanvasCustomerPriceGroup.mockResolvedValue({})
 })
+
 describe('customer price assignment', () => {
-  it('keeps the customer operation tabs in one horizontally scrollable row', () => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
-    render(
-      <QueryClientProvider client={client}>
-        <AdminCustomerOperations customerId='customer-a' />
-      </QueryClientProvider>
-    )
-
-    const tabList = screen.getByRole('tablist')
-    expect(tabList).toHaveClass('w-full', 'flex-nowrap', 'overflow-x-auto')
-    screen
-      .getAllByRole('tab')
-      .forEach((tab) => expect(tab).toHaveClass('flex-none'))
-  })
-
-  it('reviews normalized input and refreshes the current plan and history after confirmation', async () => {
+  it('reviews normalized input in the same drawer and refreshes after confirmation', async () => {
     mount()
-    const select = await screen.findByRole('combobox', {
+    let drawer = await openAdjustment()
+    const select = within(drawer).getByRole('combobox', {
       name: /New price plan/,
     })
-    await waitFor(() => expect(select).not.toBeDisabled())
     expect(within(select).queryByText('Draft plan')).not.toBeInTheDocument()
     expect(within(select).queryByText('Standard · v1')).not.toBeInTheDocument()
     fireEvent.change(select, { target: { value: newId } })
-    fireEvent.change(screen.getByRole('textbox', { name: /Reason/ }), {
-      target: { value: '  Move to partner plan  ' },
-    })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review price plan change' })
+    fireEvent.change(
+      within(drawer).getByRole('textbox', { name: /Adjustment reason/ }),
+      { target: { value: '  Move to partner plan  ' } }
     )
-    const dialog = await screen.findByRole('alertdialog')
-    expect(within(dialog).getByText('Alice')).toBeInTheDocument()
-    expect(within(dialog).getByText('Move to partner plan')).toBeInTheDocument()
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Next' }))
+
+    drawer = await screen.findByRole('dialog')
+    expect(within(drawer).getByText('Confirm adjustment · Alice')).toBeVisible()
+    expect(within(drawer).getByText('Standard · v1')).toBeVisible()
+    expect(within(drawer).getByText('Partner · v2')).toBeVisible()
+    expect(within(drawer).getByText('Move to partner plan')).toBeVisible()
     expect(mocks.assignCanvasCustomerPriceGroup).not.toHaveBeenCalled()
+
     mocks.getCanvasCustomerPriceAssignments.mockResolvedValue({
       ...initial,
       currentGroup: newGroup,
-      items: [
-        {
-          ...initial.items[0],
-          id: 'assignment-2',
-          internalName: 'Partner',
-          version: 2,
-          reason: 'Move to partner plan',
-        },
-      ],
     })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Confirm adjustment' })
+    )
     await waitFor(() =>
       expect(mocks.assignCanvasCustomerPriceGroup).toHaveBeenCalledWith(
         'customer-a',
@@ -152,188 +134,97 @@ describe('customer price assignment', () => {
         expect.stringMatching(/^customer-price:/)
       )
     )
-    expect(
-      await screen.findByText('Current price plan: Partner · v2')
-    ).toBeInTheDocument()
-    expect(await screen.findByText('Move to partner plan')).toBeInTheDocument()
+    expect(await screen.findByText('Partner · v2')).toBeVisible()
   })
-  it('keeps invalid input out of confirmation and supports non-default language with populated history', async () => {
-    await i18next.changeLanguage('zhCN')
-    mount()
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: '复核方案调整' })
-      ).not.toBeDisabled()
-    )
-    expect(
-      screen.queryByText('请输入 8–255 个字符的原因')
-    ).not.toBeInTheDocument()
-    fireEvent.change(screen.getByRole('combobox', { name: /新价格方案/ }), {
-      target: { value: newId },
-    })
-    fireEvent.change(screen.getByRole('textbox', { name: /原因/ }), {
-      target: { value: 'short' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: '复核方案调整' }))
-    expect(
-      await screen.findByText('请输入 8–255 个字符的原因')
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(screen.getByText('Admin')).toBeInTheDocument()
-    expect(mocks.assignCanvasCustomerPriceGroup).not.toHaveBeenCalled()
-  })
-  it('disables changes on read failure and permits an explicit refresh', async () => {
-    mocks.getCanvasCustomerPriceAssignments.mockRejectedValueOnce(
-      new Error('offline')
-    )
-    mount()
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Unable to load price plans or assignment history'
-    )
-    expect(
-      screen.getByRole('button', { name: 'Review price plan change' })
-    ).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Review price plan change' })
-      ).not.toBeDisabled()
-    )
-  })
-  it('blocks repeated confirmation while pending and reuses the request key after a failed response', async () => {
-    let rejectRequest: (error: Error) => void = () => {}
-    mocks.assignCanvasCustomerPriceGroup.mockImplementationOnce(
-      () =>
-        new Promise((_resolve, reject) => {
-          rejectRequest = reject
-        })
-    )
-    mount()
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Review price plan change' })
-      ).not.toBeDisabled()
-    )
-    fireEvent.change(screen.getByRole('combobox', { name: /New price plan/ }), {
-      target: { value: newId },
-    })
-    fireEvent.change(screen.getByRole('textbox', { name: /Reason/ }), {
-      target: { value: 'Reviewed partner plan' },
-    })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review price plan change' })
-    )
-    let dialog = await screen.findByRole('alertdialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
-    await waitFor(() =>
-      expect(mocks.assignCanvasCustomerPriceGroup).toHaveBeenCalledTimes(1)
-    )
-    expect(
-      within(dialog).getByRole('button', { name: 'Confirm' })
-    ).toBeDisabled()
-    const firstKey = mocks.assignCanvasCustomerPriceGroup.mock.calls[0]?.[2]
-    rejectRequest(new Error('lost response'))
-    await waitFor(() =>
-      expect(
-        within(dialog).getByRole('button', { name: 'Cancel' })
-      ).not.toBeDisabled()
-    )
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Review price plan change' })
-      ).not.toBeDisabled()
-    )
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review price plan change' })
-    )
-    dialog = await screen.findByRole('alertdialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }))
-    await waitFor(() =>
-      expect(mocks.assignCanvasCustomerPriceGroup).toHaveBeenCalledTimes(2)
-    )
-    expect(mocks.assignCanvasCustomerPriceGroup.mock.calls[1]?.[2]).toBe(
-      firstKey
-    )
-  })
-  it('opens the plan from customer details and clears the draft when switching customers', async () => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
-    const view = render(
-      <QueryClientProvider client={client}>
-        <AdminCustomerOperations customerId='customer-a' />
-      </QueryClientProvider>
-    )
-    fireEvent.click(screen.getByRole('tab', { name: 'Price plan' }))
-    const reason = await screen.findByRole('textbox', { name: /Reason/ })
-    await waitFor(() => expect(reason).not.toBeDisabled())
-    fireEvent.change(reason, {
-      target: { value: 'Unsubmitted customer A reason' },
-    })
-    view.rerender(
-      <QueryClientProvider client={client}>
-        <AdminCustomerOperations customerId='customer-b' />
-      </QueryClientProvider>
-    )
-    await waitFor(() =>
-      expect(mocks.getCanvasCustomerPriceAssignments).toHaveBeenCalledWith(
-        'customer-b',
-        expect.any(Object),
-        expect.any(AbortSignal)
-      )
-    )
-    expect(screen.getByRole('textbox', { name: /Reason/ })).toHaveValue('')
-    expect(mocks.assignCanvasCustomerPriceGroup).not.toHaveBeenCalled()
-  })
-  it('disables review when no different published plan exists', async () => {
-    mocks.getCanvasPriceGroups.mockResolvedValue([oldGroup])
-    mount()
-    expect(
-      await screen.findByText('No other published price plans')
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Review price plan change' })
-    ).toBeDisabled()
-  })
-  it('localizes invitation history while preserving administrator reasons', async () => {
+
+  it('keeps invalid input in edit mode and supports localized history', async () => {
     await i18next.changeLanguage('zhCN')
     mocks.getCanvasCustomerPriceAssignments.mockResolvedValue({
       ...initial,
       total: 2,
       items: [
         { ...initial.items[0], reason: 'INVITE_REGISTRATION' },
-        {
-          ...initial.items[0],
-          id: 'manual-reason',
-          reason: '客户要求保留此原文说明',
-        },
+        { ...initial.items[0], id: 'manual', reason: '客户要求保留此原文说明' },
       ],
     })
     mount()
-    expect(await screen.findByText('邀请注册')).toBeInTheDocument()
-    expect(screen.queryByText('INVITE_REGISTRATION')).not.toBeInTheDocument()
-    expect(screen.getByText('客户要求保留此原文说明')).toBeInTheDocument()
-  })
-  it('fills the plan column and keeps labels aligned above desktop controls', async () => {
-    mount()
-    const select = await screen.findByRole('combobox', {
-      name: /New price plan/,
-    })
-    expect(select.closest('[data-slot="native-select-wrapper"]')).toHaveClass(
-      'w-full',
-      'min-w-0'
+    await screen.findByText('Standard · v1')
+    fireEvent.click(screen.getByRole('button', { name: '调整' }))
+    const drawer = await screen.findByRole('dialog')
+    fireEvent.change(
+      within(drawer).getByRole('combobox', { name: /新价格方案/ }),
+      { target: { value: newId } }
     )
+    fireEvent.change(
+      within(drawer).getByRole('textbox', { name: /调整原因/ }),
+      { target: { value: 'short' } }
+    )
+    fireEvent.click(within(drawer).getByRole('button', { name: '下一步' }))
     expect(
-      screen.getByText('New price plan', { exact: false, selector: 'label' })
-    ).toHaveClass('min-h-5')
+      await within(drawer).findByText('请输入 8–255 个字符的原因')
+    ).toBeVisible()
     expect(
-      screen.getByText('Reason', { exact: false, selector: 'label' })
-    ).toHaveClass('min-h-5')
+      within(drawer).queryByText('确认调整 · Alice')
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(drawer).getByRole('button', { name: '取消' }))
+    fireEvent.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: '放弃',
+      })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '查看历史' }))
+    const history = await screen.findByRole('dialog')
+    expect(within(history).getByText('邀请注册')).toBeVisible()
+    expect(within(history).getByText('客户要求保留此原文说明')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: 'Review price plan change' })
-    ).toHaveClass('w-full', 'lg:mt-7', 'lg:w-auto')
+      within(history).queryByText('INVITE_REGISTRATION')
+    ).not.toBeInTheDocument()
   })
+
+  it('guards a dirty drawer before discarding its draft', async () => {
+    mount()
+    const drawer = await openAdjustment()
+    fireEvent.change(
+      within(drawer).getByRole('textbox', { name: /Adjustment reason/ }),
+      { target: { value: 'Unsubmitted reason' } }
+    )
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+    let alert = await screen.findByRole('alertdialog')
+    expect(
+      within(alert).getByText('Your unsaved entries will be lost.')
+    ).toBeVisible()
+    fireEvent.click(within(alert).getByRole('button', { name: 'Keep editing' }))
+    expect(
+      screen.getByRole('textbox', { name: /Adjustment reason/ })
+    ).toHaveValue('Unsubmitted reason')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    alert = await screen.findByRole('alertdialog')
+    fireEvent.click(within(alert).getByRole('button', { name: 'Discard' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+  })
+
+  it('disables adjustment on read failure and when no other published plan exists', async () => {
+    mocks.getCanvasCustomerPriceAssignments.mockRejectedValueOnce(
+      new Error('offline')
+    )
+    const view = mount()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Adjust' })).toBeDisabled()
+    )
+    view.unmount()
+
+    mocks.getCanvasPriceGroups.mockResolvedValue([oldGroup])
+    mount()
+    const drawer = await openAdjustment()
+    expect(
+      within(drawer).getByText('No other published price plans')
+    ).toBeVisible()
+    expect(within(drawer).getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
   it('enforces trimmed reason length and UUID boundaries', () => {
     for (const reason of ['', '       ', '1234567', 'x'.repeat(256)]) {
       expect(

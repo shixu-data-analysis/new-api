@@ -22,6 +22,7 @@ import { isCanvasDateRangeValid } from '../date-range'
 import { formatMoneyMinor } from '../formatters'
 import { formatExactRmbReference } from '../point-conversion-types'
 import type {
+  CanvasAdminPointLot,
   CanvasBusinessFact,
   CanvasBusinessFactDetail,
   CanvasBusinessFactKind,
@@ -42,11 +43,27 @@ function FactStatus({ fact }: { fact: CanvasBusinessFact }) {
     <>{t(factValueLabels[fact.status] ?? 'Unknown')}</>
   )
 }
-function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
+function FactFields({
+  fact,
+  onOpen,
+  onDeductLot,
+}: {
+  fact: CanvasBusinessFactDetail
+  onOpen: (target: CustomerFactTarget) => void
+  onDeductLot?: (lot: CanvasAdminPointLot) => void
+}) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.language)
-  const renderValue = (key: string, value: string | null) => {
+  const stringField = (key: string) => {
+    const value = fact.fields[key]
+    return typeof value === 'string' ? value : null
+  }
+  const renderValue = (
+    key: string,
+    value: CanvasBusinessFactDetail['fields'][string]
+  ) => {
     if (value === null) return t('Not recorded')
+    if (typeof value !== 'string') return t('Not recorded')
     if (key.endsWith('At')) {
       return new Intl.DateTimeFormat(locale, {
         dateStyle: 'medium',
@@ -78,11 +95,17 @@ function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
     }
     if (key === 'cashEffect') return t(value === 'true' ? 'Yes' : 'No')
     if (
-      ['listedAmountMinor', 'cashAmountMinor', 'signedAmountMinor'].includes(
-        key
-      )
+      [
+        'listedAmountMinor',
+        'cashAmountMinor',
+        'signedAmountMinor',
+        'referenceAmountMinor',
+        'originalOrderAmountMinor',
+        'cumulativeReferenceAmountMinorBefore',
+        'cumulativeReferenceAmountMinorAfter',
+      ].includes(key)
     ) {
-      return formatMoneyMinor(value, fact.fields.currency ?? 'CNY')
+      return formatMoneyMinor(value, stringField('currency') ?? 'CNY')
     }
     if (
       ['sourceType', 'paymentEvent', 'costEvent', 'classification'].includes(
@@ -105,6 +128,61 @@ function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
     }
     return value
   }
+  let pointReturnAllocations: Array<{
+    pointLotId: string
+    pointLedgerId: string
+    points: string
+    expiresAt: string | null
+  }> = []
+  if (fact.kind === 'pointReturn' && fact.fields.allocations) {
+    try {
+      const parsed = Array.isArray(fact.fields.allocations)
+        ? fact.fields.allocations
+        : JSON.parse(fact.fields.allocations)
+      if (Array.isArray(parsed)) {
+        pointReturnAllocations = parsed.filter(
+          (entry): entry is (typeof pointReturnAllocations)[number] =>
+            entry !== null &&
+            typeof entry === 'object' &&
+            typeof entry.pointLotId === 'string' &&
+            typeof entry.pointLedgerId === 'string' &&
+            typeof entry.points === 'string' &&
+            /^\d+$/.test(entry.points) &&
+            (entry.expiresAt === null || typeof entry.expiresAt === 'string')
+        )
+      }
+    } catch {
+      pointReturnAllocations = []
+    }
+  }
+  const lotType = stringField('lotType')
+  const sourceType = stringField('sourceType')
+  const initialPoints = stringField('initialPoints')
+  const remainingPoints = stringField('remainingPoints')
+  const reservedPoints = stringField('reservedPoints')
+  const availablePoints = stringField('availablePoints')
+  const deductionLot: CanvasAdminPointLot | undefined =
+    fact.kind === 'lot' &&
+    lotType &&
+    sourceType &&
+    initialPoints &&
+    remainingPoints &&
+    reservedPoints &&
+    availablePoints
+      ? {
+          id: fact.id,
+          type: lotType,
+          sourceType,
+          rechargeOrderId: stringField('rechargeOrderId'),
+          rechargeOrderNumber: stringField('rechargeOrderNumber'),
+          initialPoints,
+          remainingPoints,
+          reservedPoints,
+          availablePoints,
+          expiresAt: stringField('expiresAt'),
+          issuedAt: fact.at,
+        }
+      : undefined
   const sections =
     fact.kind === 'task'
       ? [
@@ -132,10 +210,23 @@ function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
           {
             title: 'Details',
             keys: Object.keys(fact.fields).filter(
-              (key) => !['upstreamTaskId', 'pricePlanCode'].includes(key)
+              (key) =>
+                ![
+                  'upstreamTaskId',
+                  'pricePlanCode',
+                  'rechargeOrderId',
+                  'pointReturnId',
+                  'allocations',
+                ].includes(key) &&
+                !(
+                  key === 'rechargeOrderNumber' &&
+                  fact.fields.rechargeOrderNumber === null
+                )
             ),
           },
         ]
+  const pricePlanCode = stringField('pricePlanCode')
+  const upstreamTaskId = stringField('upstreamTaskId')
   return (
     <div className='space-y-4'>
       {sections.map((section) => (
@@ -155,6 +246,74 @@ function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
           </dl>
         </section>
       ))}
+      {pointReturnAllocations.length > 0 ? (
+        <section className='rounded-md border p-4'>
+          <h3 className='mb-3 font-medium'>{t('Point lots')}</h3>
+          <div className='space-y-3'>
+            {pointReturnAllocations.map((allocation) => (
+              <div
+                key={allocation.pointLedgerId}
+                className='grid gap-2 rounded-md border p-3 text-sm sm:grid-cols-3'
+              >
+                <div>
+                  <div className='text-muted-foreground'>{t('Point Lot')}</div>
+                  <Button
+                    type='button'
+                    variant='link'
+                    className='h-auto max-w-full justify-start p-0 text-start [overflow-wrap:anywhere]'
+                    onClick={() =>
+                      onOpen({ kind: 'lot', id: allocation.pointLotId })
+                    }
+                  >
+                    {allocation.pointLotId}
+                  </Button>
+                </div>
+                <div>
+                  <div className='text-muted-foreground'>{t('Points')}</div>
+                  <div className='tabular-nums'>
+                    {new Intl.NumberFormat(locale).format(
+                      BigInt(allocation.points)
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className='text-muted-foreground'>
+                    {t('Point ledger')}
+                  </div>
+                  <Button
+                    type='button'
+                    variant='link'
+                    className='h-auto max-w-full justify-start p-0 text-start [overflow-wrap:anywhere]'
+                    onClick={() =>
+                      onOpen({ kind: 'ledger', id: allocation.pointLedgerId })
+                    }
+                  >
+                    {allocation.pointLedgerId}
+                  </Button>
+                </div>
+                <div className='sm:col-span-3'>
+                  <span className='text-muted-foreground'>
+                    {t('Expires at')}:{' '}
+                  </span>
+                  {allocation.expiresAt
+                    ? new Intl.DateTimeFormat(locale, {
+                        dateStyle: 'medium',
+                        timeStyle: 'medium',
+                      }).format(new Date(allocation.expiresAt))
+                    : t('No expiry')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {deductionLot &&
+      onDeductLot &&
+      BigInt(deductionLot.availablePoints) > 0n ? (
+        <Button type='button' onClick={() => onDeductLot(deductionLot)}>
+          {t('Deduct points')}
+        </Button>
+      ) : null}
       {fact.kind === 'refund' && (
         <p className='text-muted-foreground text-sm'>
           {t(
@@ -165,16 +324,14 @@ function FactFields({ fact }: { fact: CanvasBusinessFactDetail }) {
       <details className='text-muted-foreground text-sm'>
         <summary className='cursor-pointer'>{t('Internal reference')}</summary>
         <CopyableText value={fact.id} />
-        {fact.fields.pricePlanCode && (
+        {pricePlanCode && (
           <p>
-            {t('Price plan')}:{' '}
-            <CopyableText value={fact.fields.pricePlanCode} />
+            {t('Price plan')}: <CopyableText value={pricePlanCode} />
           </p>
         )}
-        {fact.fields.upstreamTaskId && (
+        {upstreamTaskId && (
           <p>
-            {t('Upstream task ID')}:{' '}
-            <CopyableText value={fact.fields.upstreamTaskId} />
+            {t('Upstream task ID')}: <CopyableText value={upstreamTaskId} />
           </p>
         )}
       </details>
@@ -185,10 +342,12 @@ function FactPage({
   customerId,
   root,
   onOpen,
+  onDeductLot,
 }: {
   customerId: string
   root?: CustomerFactTarget
   onOpen: (target: CustomerFactTarget) => void
+  onDeductLot?: (lot: CanvasAdminPointLot) => void
 }) {
   const { t, i18n } = useTranslation()
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -313,7 +472,11 @@ function FactPage({
               timeStyle: 'medium',
             }).format(new Date(query.data.fact.at))}
           </p>
-          <FactFields fact={query.data.fact} />
+          <FactFields
+            fact={query.data.fact}
+            onOpen={onOpen}
+            onDeductLot={onDeductLot}
+          />
           <h3 className='font-medium'>{t('Related business timeline')}</h3>
         </>
       )}
@@ -391,9 +554,13 @@ function FactPage({
 export function CustomerBusinessFacts({
   customerId,
   initial,
+  onDeductLot,
+  onOpenOrder,
 }: {
   customerId: string
   initial?: CustomerFactTarget
+  onDeductLot?: (lot: CanvasAdminPointLot) => void
+  onOpenOrder?: (orderId: string) => void
 }) {
   const { t } = useTranslation()
   const [history, setHistory] = useState<CustomerFactTarget[]>(
@@ -424,9 +591,14 @@ export function CustomerBusinessFacts({
         key={`${customerId}:${root?.kind ?? ''}:${root?.id ?? ''}`}
         customerId={customerId}
         root={root}
-        onOpen={(target) =>
+        onOpen={(target) => {
+          if (target.kind === 'order') {
+            onOpenOrder?.(target.id)
+            return
+          }
           setHistory((h) => [...h, { kind: target.kind, id: target.id }])
-        }
+        }}
+        onDeductLot={onDeductLot}
       />
     </div>
   )

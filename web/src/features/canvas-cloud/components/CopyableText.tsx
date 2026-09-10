@@ -23,19 +23,25 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 
-export function CopyableText({ value }: { value: string }) {
+export function CopyableText({
+  value,
+  hideValue = false,
+}: {
+  value: string
+  hideValue?: boolean
+}) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   return (
     <span className='inline-flex min-w-0 items-center gap-1'>
-      <span className='truncate'>{value}</span>
+      {!hideValue && <span className='truncate'>{value}</span>}
       <Button
         type='button'
         variant='ghost'
         size='icon-sm'
         className='shrink-0'
-        aria-label={t('Copy')}
+        aria-label={hideValue ? `${t('Copy')} ${value}` : t('Copy')}
         onClick={async (event) => {
           event.stopPropagation()
           await navigator.clipboard.writeText(value)

@@ -108,8 +108,108 @@ describe('Customer point history', () => {
           remainingDelta: '-25',
           reservedDelta: '-25',
           taskId,
+          outputIndex: null,
+          pointReturnId: null,
           refundLinkId: null,
+          rechargeOrderId: 'order-a',
+          rechargeOrderNumber: 'ORD-001',
           reason: 'Task succeeded',
+          occurredAt: '2026-09-03T00:55:45.000Z',
+        },
+      ],
+    })
+    const onInspect = vi.fn()
+    const onOpenOrder = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerPointHistory
+          customerId='customer-a'
+          view='ledger'
+          onInspect={onInspect}
+          onOpenOrder={onOpenOrder}
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: zh.translation.Task,
+      })
+    )
+    expect(onInspect).toHaveBeenCalledWith({ kind: 'task', id: taskId })
+    expect(onOpenOrder).not.toHaveBeenCalled()
+    expect(screen.queryByText(taskId)).not.toBeInTheDocument()
+    expect(apiMocks.getCanvasCustomerPointLedger).not.toHaveBeenCalled()
+  })
+
+  it('renders an ordinary related-record placeholder when no real target exists', async () => {
+    apiMocks.getCanvasAdminCustomerPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'ledger-unlinked',
+          pointLotId: null,
+          eventType: 'ISSUE',
+          eventPoints: '25',
+          remainingDelta: '25',
+          reservedDelta: '0',
+          availableDelta: '25',
+          taskId: null,
+          taskOutputId: null,
+          outputIndex: null,
+          pointReturnId: null,
+          refundLinkId: null,
+          rechargeOrderId: null,
+          rechargeOrderNumber: null,
+          reason: 'Manual gift',
+          occurredAt: '2026-09-03T00:55:45.000Z',
+        },
+      ],
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerPointHistory customerId='customer-a' view='ledger' />
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText('无关联记录')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: zh.translation.Task })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: zh.translation['Point Lot'] })
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the related Point Lot for an administrator ledger entry without a more specific record', async () => {
+    apiMocks.getCanvasAdminCustomerPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'ledger-gift',
+          pointLotId: 'lot-gift',
+          eventType: 'ISSUE',
+          eventPoints: '25',
+          remainingDelta: '25',
+          reservedDelta: '0',
+          availableDelta: '25',
+          taskId: null,
+          taskOutputId: null,
+          outputIndex: null,
+          pointReturnId: null,
+          refundLinkId: null,
+          rechargeOrderId: null,
+          rechargeOrderNumber: null,
+          reason: 'Manual gift',
           occurredAt: '2026-09-03T00:55:45.000Z',
         },
       ],
@@ -129,12 +229,11 @@ describe('Customer point history', () => {
     )
     fireEvent.click(
       await screen.findByRole('button', {
-        name: zh.translation.Task,
+        name: zh.translation['Point Lot'],
       })
     )
-    expect(onInspect).toHaveBeenCalledWith({ kind: 'task', id: taskId })
-    expect(screen.queryByText(taskId)).not.toBeInTheDocument()
-    expect(apiMocks.getCanvasCustomerPointLedger).not.toHaveBeenCalled()
+    expect(onInspect).toHaveBeenCalledWith({ kind: 'lot', id: 'lot-gift' })
+    expect(screen.queryByText('lot-gift')).not.toBeInTheDocument()
   })
 
   it('shows customer-readable point fields without internal identifiers', async () => {

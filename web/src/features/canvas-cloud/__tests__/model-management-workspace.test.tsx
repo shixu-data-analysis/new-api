@@ -29,10 +29,8 @@ describe('Model management entry', () => {
         <QueryClientProvider client={client}>
           <AdminContent
             section={section}
-            refundPrefill={{}}
             providerTarget={{}}
             initialPricingModelId='selected-model'
-            onOpenRefundRecovery={vi.fn()}
           />
         </QueryClientProvider>
       )

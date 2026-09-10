@@ -28,6 +28,7 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
+import { ErrorState } from '@/components/error-state'
 import { Input } from '@/components/ui/input'
 
 import type { CanvasServerTableState } from '../use-server-table-state'
@@ -40,7 +41,11 @@ export function CanvasServerTable<TData>({
   state,
   searchLabel,
   loading,
+  error = false,
+  errorTitle,
+  onRetry,
   emptyTitle,
+  filteredEmptyTitle,
   additionalFilters,
   hasActiveFilters = false,
   activeFilterCount,
@@ -57,7 +62,11 @@ export function CanvasServerTable<TData>({
   state: CanvasServerTableState
   searchLabel?: string
   loading?: boolean
+  error?: boolean
+  errorTitle?: string
+  onRetry?: () => void
   emptyTitle: string
+  filteredEmptyTitle?: string
   additionalFilters?: React.ReactNode
   hasActiveFilters?: boolean
   activeFilterCount?: number
@@ -98,13 +107,27 @@ export function CanvasServerTable<TData>({
     initialColumnVisibility,
   })
 
+  if (error) {
+    return (
+      <ErrorState
+        className='min-h-[240px]'
+        title={errorTitle}
+        onRetry={onRetry}
+      />
+    )
+  }
+
   return (
     <DataTablePage
       table={table}
       columns={sizedColumns}
       isLoading={loading}
       isFetching={loading}
-      emptyTitle={emptyTitle}
+      emptyTitle={
+        filteredEmptyTitle && (search.trim() || hasActiveFilters)
+          ? filteredEmptyTitle
+          : emptyTitle
+      }
       fixedHeight={false}
       paginationInFooter={false}
       getRowClassName={getRowClassName}

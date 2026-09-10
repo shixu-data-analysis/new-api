@@ -54,14 +54,7 @@ import {
 } from './api'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
-import {
-  AdminPointAdjustments,
-  type RefundRecoveryPrefill,
-} from './components/AdminPointAdjustments'
-import {
-  AdminRefundRecovery,
-  type AdminRefundRecoveryPrefill,
-} from './components/AdminRefundRecovery'
+import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentManagement } from './components/AgentManagement'
@@ -89,7 +82,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
   'usage-logs': 'Canvas Usage Logs',
   'task-logs': 'Canvas Task Logs',
-  customers: 'Canvas Customers & Points',
+  customers: 'Customer management',
   'point-campaigns': 'Points & campaigns',
   agents: 'Inviter management',
   'recharge-codes': 'Canvas Recharge Codes',
@@ -107,7 +100,6 @@ const sectionTitles: Record<CanvasSection, string> = {
   runtime: 'Canvas Runtime Configuration',
   execution: 'Execution settings',
   'provider-configuration': 'Provider configuration',
-  refunds: 'Refund point recovery',
   audit: 'Canvas Audit Log',
   'agent-center': 'Inviter center',
 }
@@ -448,11 +440,12 @@ function CustomerContent(props: { section: CustomerSection }) {
 
 export function AdminContent(props: {
   section: AdminSection
-  refundPrefill: AdminRefundRecoveryPrefill
   providerTarget: CanvasProviderNavigationTarget
   initialPricingModelId?: string
   initialPricingPublicationId?: string
-  onOpenRefundRecovery: (prefill: RefundRecoveryPrefill) => void
+  initialCustomerId?: string
+  initialOrderId?: string
+  onCustomerChange?: (customerId?: string) => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -461,7 +454,6 @@ export function AdminContent(props: {
     queryFn: getCanvasAdminWorkspace,
     enabled: ![
       'customers',
-      'refunds',
       'audit',
       'usage-logs',
       'task-logs',
@@ -488,12 +480,11 @@ export function AdminContent(props: {
   if (props.section === 'customers') {
     return (
       <AdminPointAdjustments
-        onOpenRefundRecovery={props.onOpenRefundRecovery}
+        customerId={props.initialCustomerId}
+        onCustomerChange={props.onCustomerChange}
+        orderId={props.initialOrderId}
       />
     )
-  }
-  if (props.section === 'refunds') {
-    return <AdminRefundRecovery prefill={props.refundPrefill} />
   }
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
@@ -767,15 +758,22 @@ export function CanvasCloud() {
     content = (
       <AdminContent
         section={section as AdminSection}
-        refundPrefill={search}
         providerTarget={search}
         initialPricingModelId={search.modelId}
         initialPricingPublicationId={search.publicationId}
-        onOpenRefundRecovery={(prefill) =>
+        initialCustomerId={search.customerId}
+        initialOrderId={search.orderId}
+        onCustomerChange={(customerId) =>
           void navigate({
             to: '/canvas-cloud/$section',
-            params: { section: 'refunds' },
-            search: prefill,
+            params: { section: 'customers' },
+            search: (previous) => ({
+              ...previous,
+              customerId,
+              orderId: undefined,
+              orderNumber: undefined,
+            }),
+            replace: true,
           })
         }
       />
@@ -784,7 +782,11 @@ export function CanvasCloud() {
   return (
     <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
-        {t(sectionTitles[section])}
+        {t(
+          section === 'customers' && search.customerId
+            ? 'Customer details'
+            : sectionTitles[section]
+        )}
       </SectionPageLayout.Title>
       {section !== 'pricing-calculator' && (
         <SectionPageLayout.Actions>

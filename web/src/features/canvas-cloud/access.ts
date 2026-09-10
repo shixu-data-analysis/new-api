@@ -33,7 +33,6 @@ export const canvasAdminSections = [
   'runtime',
   'execution',
   'provider-configuration',
-  'refunds',
   'audit',
 ] as const
 
@@ -82,6 +81,12 @@ export function isCanvasSectionAllowed(
 }
 
 export function canCanvasPrincipalAccessPath(pathname: string): boolean {
+  if (
+    pathname === '/canvas-cloud/refunds' ||
+    pathname.startsWith('/canvas-cloud/refunds/')
+  ) {
+    return false
+  }
   return (
     pathname.startsWith('/canvas-cloud/') || pathname.startsWith('/profile')
   )

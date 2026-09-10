@@ -66,7 +66,6 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/agents',
       '/canvas-cloud/recharge-codes',
       '/canvas-cloud/invite-codes',
-      '/canvas-cloud/refunds',
       '/canvas-cloud/catalog',
       '/canvas-cloud/pricing-point-rules',
       '/canvas-cloud/pricing',
@@ -78,9 +77,16 @@ describe('Canvas administrator primary sidebar', () => {
     expect(
       result.current.navGroups
         .flatMap((group) => group.items)
-        .find((item) => 'url' in item && item.url === '/canvas-cloud/refunds')
+        .find((item) => 'url' in item && item.url === '/canvas-cloud/customers')
         ?.title
-    ).toBe('Refund point recovery')
+    ).toBe('Customer management')
+    expect(
+      result.current.navGroups.some((group) =>
+        group.items.some(
+          (item) => 'url' in item && item.url === '/canvas-cloud/refunds'
+        )
+      )
+    ).toBe(false)
   })
 
   it('gives a super administrator the same navigation as a platform administrator', () => {

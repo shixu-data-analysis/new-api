@@ -117,5 +117,6 @@ describe('Canvas role-scoped information architecture', () => {
     expect(canCanvasPrincipalAccessPath('/dashboard/overview')).toBe(false)
     expect(canCanvasPrincipalAccessPath('/usage-logs/common')).toBe(false)
     expect(canCanvasPrincipalAccessPath('/channels')).toBe(false)
+    expect(canCanvasPrincipalAccessPath('/canvas-cloud/refunds')).toBe(false)
   })
 })

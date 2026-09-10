@@ -23,7 +23,7 @@ import {
   bonusAdjustmentSchema,
   deductionSchema,
   paidCorrectionSchema,
-  refundRecoverySchema,
+  pointReturnSchema,
 } from '../form-validation'
 
 describe('Canvas governed form validation', () => {
@@ -58,11 +58,9 @@ describe('Canvas governed form validation', () => {
       }).success
     ).toBe(false)
     expect(
-      refundRecoverySchema.safeParse({
+      pointReturnSchema('10').safeParse({
         rechargeOrderId: '85000000-0000-7000-8000-000000000001',
-        confirmedRefundAmountMinor: '1',
-        refundConfirmationReference: 'refund',
-        customerConfirmationReference: 'customer',
+        points: '11',
         reason: '',
       }).success
     ).toBe(false)

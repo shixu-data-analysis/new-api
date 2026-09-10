@@ -56,20 +56,22 @@ export const deductionSchema = (availablePoints: string) =>
     reason: requiredTrimmedText(255),
   })
 
-export const refundRecoverySchema = z.object({
-  rechargeOrderId: z.string().uuid('Select a Canvas recharge order'),
-  confirmedRefundAmountMinor: positiveIntegerText,
-  refundConfirmationReference: requiredTrimmedText(191),
-  customerConfirmationReference: requiredTrimmedText(191),
-  reason: requiredTrimmedText(255),
-})
+export const pointReturnSchema = (availablePoints: string) =>
+  z.object({
+    rechargeOrderId: z.string().uuid('Select a Canvas recharge order'),
+    points: positiveIntegerText.refine(
+      (value) => BigInt(value) <= BigInt(availablePoints || '0'),
+      'Points cannot exceed the available balance'
+    ),
+    reason: requiredTrimmedText(255),
+  })
 
 export type BonusAdjustmentValues = z.infer<typeof bonusAdjustmentSchema>
 export type PaidCorrectionValues = z.infer<
   ReturnType<typeof paidCorrectionSchema>
 >
 export type DeductionValues = z.infer<ReturnType<typeof deductionSchema>>
-export type RefundRecoveryValues = z.infer<typeof refundRecoverySchema>
+export type PointReturnValues = z.infer<ReturnType<typeof pointReturnSchema>>
 
 export const customerPriceAssignmentSchema = z.object({
   priceGroupId: z.string().uuid('Select a published price plan'),

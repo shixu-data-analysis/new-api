@@ -18,11 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnHeader, DataTableRow } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -30,25 +44,34 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDebounce } from '@/hooks'
+import { toIntlLocale } from '@/i18n/languages'
 
 import {
   getCanvasAdminCustomerTasks,
+  getCanvasOrderPointReturns,
   getCanvasAdminRechargeOrders,
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
-import { formatCanvasDateTime } from '../formatters'
+import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
 import type {
   CanvasAdminCustomerTask,
   CanvasAdminRechargeOrder,
+  CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { AdminAuditLog } from './AdminAuditLog'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
-import { useCanvasRechargeOrderColumns } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import {
@@ -56,15 +79,13 @@ import {
   type CustomerFactTarget,
 } from './CustomerBusinessFacts'
 import { CustomerPointHistory } from './CustomerPointHistory'
-import { CustomerPriceAssignment } from './CustomerPriceAssignment'
+import { CustomerRecordDetails } from './CustomerRecordDetails'
 
 const orderStatuses = [
   'CREATED',
   'PAYMENT_PENDING',
   'PAID',
   'CODE_ACTIVATED',
-  'REFUND_REVIEW',
-  'REFUNDED',
   'CANCELLED',
 ] as const
 const executionStatuses = [
@@ -83,21 +104,48 @@ const billingStatuses = [
 
 function CustomerOrders({
   customerId,
+  targetOrderId,
   selectedOrderId,
   onCorrectOrder,
+  onReturnOrder,
   onInspect,
+  onReturnFromOrderTarget,
 }: {
-  onInspect: (target: CustomerFactTarget) => void
   customerId: string
+  targetOrderId?: string
   selectedOrderId?: string
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
+  onReturnOrder?: (order: CanvasAdminRechargeOrder) => void
+  onInspect: (target: CustomerFactTarget) => void
+  onReturnFromOrderTarget?: () => void
 }) {
-  const { t } = useTranslation()
-  const state = useServerTableState('createdAt')
+  const { t, i18n } = useTranslation()
+  const browseState = useServerTableState('createdAt')
+  const targetState = useServerTableState('createdAt')
+  const state = targetOrderId ? targetState : browseState
+  const setBrowsePagination = browseState.setPagination
   const [status, setStatus] = useState('')
-  const [from, setFrom] = useState<Date>()
-  const [to, setTo] = useState<Date>()
-  const rangeValid = isCanvasDateRangeValid(from, to)
+  const [createdFrom, setCreatedFrom] = useState<Date>()
+  const [createdTo, setCreatedTo] = useState<Date>()
+  const [redeemedFrom, setRedeemedFrom] = useState<Date>()
+  const [redeemedTo, setRedeemedTo] = useState<Date>()
+  const [expandedOrderId, setExpandedOrderId] = useState<string>()
+  const lastScrolledOrderId = useRef<string | undefined>(undefined)
+  const rangeValid =
+    isCanvasDateRangeValid(createdFrom, createdTo) &&
+    isCanvasDateRangeValid(redeemedFrom, redeemedTo)
+  useEffect(() => {
+    setBrowsePagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [
+    createdFrom,
+    createdTo,
+    redeemedFrom,
+    redeemedTo,
+    setBrowsePagination,
+    status,
+  ])
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -106,21 +154,420 @@ function CustomerOrders({
       'recharge-orders',
       state.query,
       status,
+      createdFrom?.toISOString(),
+      createdTo?.toISOString(),
+      redeemedFrom?.toISOString(),
+      redeemedTo?.toISOString(),
+      targetOrderId,
+    ],
+    queryFn: ({ signal }) =>
+      getCanvasAdminRechargeOrders(
+        targetOrderId
+          ? {
+              page: targetState.query.page,
+              pageSize: targetState.query.pageSize,
+              sortBy: targetState.query.sortBy,
+              sortOrder: targetState.query.sortOrder,
+              customerId,
+              orderId: targetOrderId,
+            }
+          : {
+              page: browseState.query.page,
+              pageSize: browseState.query.pageSize,
+              sortBy: browseState.query.sortBy,
+              sortOrder: browseState.query.sortOrder,
+              ...(browseState.query.search
+                ? { orderNumber: browseState.query.search }
+                : {}),
+              customerId,
+              ...(status
+                ? { status: status as (typeof orderStatuses)[number] }
+                : {}),
+              ...(createdFrom
+                ? { createdFrom: createdFrom.toISOString() }
+                : {}),
+              ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
+              ...(redeemedFrom
+                ? { redeemedFrom: redeemedFrom.toISOString() }
+                : {}),
+              ...(redeemedTo ? { redeemedTo: redeemedTo.toISOString() } : {}),
+            },
+        signal
+      ),
+    enabled: rangeValid,
+  })
+  useEffect(() => {
+    if (
+      !targetOrderId ||
+      !query.data?.items.some((item) => item.id === targetOrderId) ||
+      lastScrolledOrderId.current === targetOrderId
+    ) {
+      return
+    }
+    lastScrolledOrderId.current = targetOrderId
+    requestAnimationFrame(() =>
+      document
+        .querySelector(`#recharge-order-${targetOrderId}`)
+        ?.scrollIntoView({ block: 'center' })
+    )
+  }, [query.data, targetOrderId])
+  const number = useCallback(
+    (value: string) =>
+      new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value)),
+    [i18n.language]
+  )
+  const columns = useMemo<ColumnDef<CanvasAdminRechargeOrder, unknown>[]>(
+    () => [
+      {
+        id: 'orderNumber',
+        accessorKey: 'orderNumber',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Recharge order number')}
+          />
+        ),
+        meta: { label: t('Recharge order number') },
+        cell: ({ row }) => <CopyableText value={row.original.orderNumber} />,
+      },
+      {
+        id: 'amount',
+        accessorKey: 'listedAmountMinor',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Recharge amount')} />
+        ),
+        meta: { label: t('Recharge amount') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {formatMoneyMinor(
+              row.original.listedAmountMinor,
+              row.original.currency
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'purchasedPoints',
+        accessorKey: 'purchasedPoints',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Purchased points')}
+          />
+        ),
+        meta: { label: t('Purchased points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(
+              row.original.purchasedPoints ?? row.original.expectedPaidPoints
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'issuedBonusPoints',
+        accessorKey: 'issuedBonusPoints',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Recharge bonus points')}
+          />
+        ),
+        meta: { label: t('Recharge bonus points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.issuedBonusPoints ?? '0')}
+          </div>
+        ),
+      },
+      {
+        id: 'availablePaidPoints',
+        accessorKey: 'availablePaidPoints',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Available recharge points')}
+          />
+        ),
+        meta: { label: t('Available recharge points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.availablePaidPoints)}
+          </div>
+        ),
+      },
+      {
+        id: 'availableBonusPoints',
+        accessorKey: 'availableBonusPoints',
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Available bonus points')}
+          />
+        ),
+        meta: { label: t('Available bonus points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.availableBonusPoints)}
+          </div>
+        ),
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Status')} />
+        ),
+        meta: { label: t('Status') },
+        cell: ({ row }) => (
+          <BusinessTerm
+            kind='rechargeOrderStatus'
+            value={row.original.status}
+          />
+        ),
+      },
+      {
+        id: 'redeemedAt',
+        accessorKey: 'redeemedAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Redeemed at')} />
+        ),
+        meta: { label: t('Redeemed at') },
+        cell: ({ row }) =>
+          formatCanvasDateTime(row.original.redeemedAt, t('Not redeemed')),
+      },
+      {
+        id: 'actions',
+        enableSorting: false,
+        enableHiding: false,
+        header: t('Actions'),
+        cell: ({ row }) => (
+          <div className='flex flex-wrap gap-1'>
+            {onReturnOrder && BigInt(row.original.availablePaidPoints) > 0n ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                onClick={() => onReturnOrder(row.original)}
+              >
+                {t('Return points')}
+              </Button>
+            ) : null}
+            {onCorrectOrder &&
+            row.original.eligibleForPaidCorrection &&
+            BigInt(row.original.remainingCorrectionPoints) > 0n ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                onClick={() => onCorrectOrder(row.original)}
+              >
+                {t('Correct Paid points')}
+              </Button>
+            ) : null}
+            {row.original.pointReturnCount > 0 ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='ghost'
+                aria-expanded={expandedOrderId === row.original.id}
+                onClick={() =>
+                  setExpandedOrderId((value) =>
+                    value === row.original.id ? undefined : row.original.id
+                  )
+                }
+              >
+                {t('Return history')}
+              </Button>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [expandedOrderId, number, onCorrectOrder, onReturnOrder, t]
+  )
+  return (
+    <div className='space-y-4'>
+      {targetOrderId && onReturnFromOrderTarget ? (
+        <Button
+          type='button'
+          variant='outline'
+          onClick={onReturnFromOrderTarget}
+        >
+          {t('Back to point details')}
+        </Button>
+      ) : null}
+      <CanvasServerTable<CanvasAdminRechargeOrder>
+        data={query.data?.items ?? []}
+        columns={columns}
+        total={query.data?.total ?? 0}
+        state={state}
+        searchLabel={targetOrderId ? undefined : t('Recharge order number')}
+        loading={query.isLoading || query.isFetching}
+        error={query.isError}
+        errorTitle={
+          targetOrderId
+            ? t('Unable to load the linked recharge order')
+            : undefined
+        }
+        onRetry={() => void query.refetch()}
+        emptyTitle={
+          targetOrderId
+            ? t('The linked recharge order is unavailable')
+            : t('No recharge orders')
+        }
+        filteredEmptyTitle={t('No matching results')}
+        additionalFilters={
+          targetOrderId ? undefined : (
+            <>
+              <DataTableColumnFilterField label={t('Status')}>
+                <Select
+                  value={status || 'ALL'}
+                  onValueChange={(value) =>
+                    setStatus(value === 'ALL' ? '' : (value ?? ''))
+                  }
+                >
+                  <SelectTrigger className='w-full' aria-label={t('Status')}>
+                    <CanvasLocalizedSelectValue
+                      value={status}
+                      emptyLabelKey='All statuses'
+                      termKind='rechargeOrderStatus'
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                    {orderStatuses.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        <BusinessTerm
+                          kind='rechargeOrderStatus'
+                          value={value}
+                        />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </DataTableColumnFilterField>
+              <div className='sm:col-span-2'>
+                <p className='mb-2 text-sm font-medium'>{t('Created time')}</p>
+                <CanvasDateRangeFilter
+                  from={createdFrom}
+                  to={createdTo}
+                  onFromChange={setCreatedFrom}
+                  onToChange={setCreatedTo}
+                />
+              </div>
+              <div className='sm:col-span-2'>
+                <p className='mb-2 text-sm font-medium'>{t('Redeemed time')}</p>
+                <CanvasDateRangeFilter
+                  from={redeemedFrom}
+                  to={redeemedTo}
+                  onFromChange={setRedeemedFrom}
+                  onToChange={setRedeemedTo}
+                />
+              </div>
+            </>
+          )
+        }
+        hasActiveFilters={Boolean(
+          !targetOrderId &&
+          (status || createdFrom || createdTo || redeemedFrom || redeemedTo)
+        )}
+        onResetFilters={() => {
+          setStatus('')
+          setCreatedFrom(undefined)
+          setCreatedTo(undefined)
+          setRedeemedFrom(undefined)
+          setRedeemedTo(undefined)
+        }}
+        getRowId={(row) => row.id}
+        getRowClassName={(row) =>
+          (targetOrderId ?? selectedOrderId) === row.original.id
+            ? 'bg-primary/5'
+            : undefined
+        }
+        renderRow={(row) => (
+          <Fragment key={row.id}>
+            <DataTableRow
+              id={`recharge-order-${row.original.id}`}
+              row={row}
+              cellRenderColumns={columns}
+              aria-expanded={expandedOrderId === row.original.id}
+            />
+            {expandedOrderId === row.original.id ? (
+              <TableRow>
+                <TableCell
+                  colSpan={row.getVisibleCells().length}
+                  className='bg-muted/20 p-4'
+                >
+                  <OrderPointReturnHistory
+                    customerId={customerId}
+                    order={row.original}
+                    onInspect={onInspect}
+                  />
+                </TableCell>
+              </TableRow>
+            ) : null}
+          </Fragment>
+        )}
+        renderExpandedContent={(row) =>
+          expandedOrderId === row.original.id ? (
+            <OrderPointReturnHistory
+              customerId={customerId}
+              order={row.original}
+              onInspect={onInspect}
+            />
+          ) : null
+        }
+      />
+    </div>
+  )
+}
+
+function OrderPointReturnHistory({
+  customerId,
+  order,
+  onInspect,
+}: {
+  customerId: string
+  order: CanvasAdminRechargeOrder
+  onInspect: (target: CustomerFactTarget) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const state = useServerTableState('createdAt')
+  const setPagination = state.setPagination
+  const [operator, setOperator] = useState('')
+  const debouncedOperator = useDebounce(operator.trim(), 300)
+  const [from, setFrom] = useState<Date>()
+  const [to, setTo] = useState<Date>()
+  const rangeValid = isCanvasDateRangeValid(from, to)
+  useEffect(() => {
+    setPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [debouncedOperator, from, setPagination, to])
+  const query = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin-customer',
+      customerId,
+      'order',
+      order.id,
+      'point-returns',
+      state.query,
+      debouncedOperator,
       from?.toISOString(),
       to?.toISOString(),
     ],
     queryFn: ({ signal }) =>
-      getCanvasAdminRechargeOrders(
+      getCanvasOrderPointReturns(
+        customerId,
+        order.id,
         {
           page: state.query.page,
           pageSize: state.query.pageSize,
-          sortBy: state.query.sortBy,
           sortOrder: state.query.sortOrder,
-          ...(state.query.search ? { orderNumber: state.query.search } : {}),
-          customerId,
-          ...(status
-            ? { status: status as (typeof orderStatuses)[number] }
-            : {}),
+          ...(state.query.search ? { reason: state.query.search } : {}),
+          ...(debouncedOperator ? { operator: debouncedOperator } : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
         },
@@ -128,70 +575,127 @@ function CustomerOrders({
       ),
     enabled: rangeValid,
   })
-  const columns = useCanvasRechargeOrderColumns({
-    onInspect: (order) => onInspect({ kind: 'order', id: order.id }),
-    showCorrectionDetails: Boolean(onCorrectOrder),
-    selectedOrderId,
-    isSelectable: (order) =>
-      order.eligibleForPaidCorrection &&
-      BigInt(order.remainingCorrectionPoints) > 0n,
-    onSelect: onCorrectOrder,
-    actionLabel: t('Correct Paid points'),
-    hideUnavailableAction: true,
-  })
-  return (
-    <CanvasServerTable<CanvasAdminRechargeOrder>
-      data={query.data?.items ?? []}
-      columns={columns}
-      total={query.data?.total ?? 0}
-      state={state}
-      searchLabel={t('Canvas recharge order number')}
-      loading={query.isLoading || query.isFetching}
-      emptyTitle={t('No recharge orders')}
-      additionalFilters={
-        <>
-          <DataTableColumnFilterField label={t('Status')}>
-            <Select
-              value={status || 'ALL'}
-              onValueChange={(value) =>
-                setStatus(value === 'ALL' ? '' : (value ?? ''))
-              }
-            >
-              <SelectTrigger className='w-full' aria-label={t('Status')}>
-                <CanvasLocalizedSelectValue
-                  value={status}
-                  emptyLabelKey='All statuses'
-                  termKind='rechargeOrderStatus'
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                {orderStatuses.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    <BusinessTerm kind='rechargeOrderStatus' value={value} />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </DataTableColumnFilterField>
-          <div className='sm:col-span-2'>
-            <CanvasDateRangeFilter
-              from={from}
-              to={to}
-              onFromChange={setFrom}
-              onToChange={setTo}
-            />
+  const number = useCallback(
+    (value: string) =>
+      new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value)),
+    [i18n.language]
+  )
+  const columns = useMemo<ColumnDef<CanvasOrderPointReturnRecord, unknown>[]>(
+    () => [
+      {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Time')} />
+        ),
+        meta: { label: t('Time') },
+        cell: ({ row }) => (
+          <Button
+            type='button'
+            variant='link'
+            className='h-auto p-0 font-normal'
+            onClick={() =>
+              onInspect({ kind: 'pointReturn', id: row.original.id })
+            }
+          >
+            {formatCanvasDateTime(row.original.createdAt)}
+          </Button>
+        ),
+      },
+      {
+        id: 'points',
+        accessorKey: 'points',
+        enableSorting: false,
+        header: t('Returned points'),
+        meta: { label: t('Returned points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.points)}
           </div>
-        </>
-      }
-      hasActiveFilters={Boolean(status || from || to)}
-      onResetFilters={() => {
-        setStatus('')
-        setFrom(undefined)
-        setTo(undefined)
-      }}
-      getRowId={(row) => row.id}
-    />
+        ),
+      },
+      {
+        id: 'referenceAmountMinor',
+        accessorKey: 'referenceAmountMinor',
+        enableSorting: false,
+        header: t('Refund reference amount'),
+        meta: { label: t('Refund reference amount') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {formatMoneyMinor(
+              row.original.referenceAmountMinor,
+              row.original.currency
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'actorName',
+        accessorKey: 'actorName',
+        enableSorting: false,
+        header: t('Operator'),
+        meta: { label: t('Operator') },
+        cell: ({ row }) => row.original.actorName ?? t('Unknown'),
+      },
+      {
+        id: 'reason',
+        accessorKey: 'reason',
+        enableSorting: false,
+        header: t('Reason'),
+        meta: { label: t('Reason') },
+      },
+    ],
+    [number, onInspect, t]
+  )
+  return (
+    <div className='space-y-3 rounded-md border p-4'>
+      <h3 className='font-medium'>
+        {t('Return history')} · {order.orderNumber}
+      </h3>
+      <CanvasServerTable
+        data={query.data?.items ?? []}
+        columns={columns}
+        total={query.data?.total ?? 0}
+        state={state}
+        searchLabel={t('Reason')}
+        loading={query.isLoading || query.isFetching}
+        error={query.isError}
+        errorTitle={t('Unable to load return history')}
+        onRetry={() => void query.refetch()}
+        emptyTitle={t('No return records')}
+        filteredEmptyTitle={t('No matching results')}
+        additionalFilters={
+          <>
+            <DataTableColumnFilterField label={t('Operator')}>
+              <Input
+                value={operator}
+                placeholder={t('Operator')}
+                onChange={(event) => setOperator(event.target.value)}
+              />
+            </DataTableColumnFilterField>
+            <div className='sm:col-span-2'>
+              <p className='mb-2 text-sm font-medium'>{t('Time')}</p>
+              <CanvasDateRangeFilter
+                from={from}
+                to={to}
+                onFromChange={setFrom}
+                onToChange={setTo}
+              />
+            </div>
+          </>
+        }
+        hasActiveFilters={Boolean(operator || from || to)}
+        activeFilterCount={
+          [state.search, operator, from || to].filter(Boolean).length
+        }
+        onResetFilters={() => {
+          setOperator('')
+          setFrom(undefined)
+          setTo(undefined)
+        }}
+        getRowId={(row) => row.id}
+      />
+    </div>
   )
 }
 
@@ -202,7 +706,7 @@ function CustomerTasks({
   customerId: string
   onInspect: (target: CustomerFactTarget) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const state = useServerTableState('acceptedAt')
   const setPagination = state.setPagination
   const [executionStatus, setExecutionStatus] = useState('')
@@ -263,16 +767,32 @@ function CustomerTasks({
       ),
     enabled: rangeValid,
   })
+  const number = useCallback(
+    (value: string) =>
+      new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value)),
+    [i18n.language]
+  )
   const columns = useMemo<ColumnDef<CanvasAdminCustomerTask, unknown>[]>(
     () => [
       {
         id: 'taskId',
         accessorKey: 'id',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Task ID')} />
+          <DataTableColumnHeader column={column} title={t('Task number')} />
         ),
-        meta: { label: t('Task ID') },
-        cell: ({ row }) => <CopyableText value={row.original.id} />,
+        meta: { label: t('Task number') },
+        cell: ({ row }) => (
+          <span className='inline-flex min-w-0 items-center gap-1'>
+            <button
+              type='button'
+              className='text-primary min-w-0 truncate text-start underline underline-offset-4 focus-visible:ring-2'
+              onClick={() => onInspect({ kind: 'task', id: row.original.id })}
+            >
+              {row.original.id}
+            </button>
+            <CopyableText value={row.original.id} hideValue />
+          </span>
+        ),
       },
       {
         id: 'model',
@@ -281,15 +801,7 @@ function CustomerTasks({
           <DataTableColumnHeader column={column} title={t('Model')} />
         ),
         meta: { label: t('Model') },
-        cell: ({ row }) => (
-          <button
-            type='button'
-            className='text-primary text-start underline underline-offset-4'
-            onClick={() => onInspect({ kind: 'task', id: row.original.id })}
-          >
-            {row.original.modelName}
-          </button>
-        ),
+        cell: ({ row }) => row.original.modelName,
       },
       {
         id: 'quotedPoints',
@@ -298,14 +810,24 @@ function CustomerTasks({
           <DataTableColumnHeader column={column} title={t('Quoted points')} />
         ),
         meta: { label: t('Quoted points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.quotedPoints)}
+          </div>
+        ),
       },
       {
         id: 'settledPoints',
         accessorKey: 'settledPoints',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Consumed points')} />
+          <DataTableColumnHeader column={column} title={t('Settled points')} />
         ),
-        meta: { label: t('Consumed points') },
+        meta: { label: t('Settled points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {number(row.original.settledPoints)}
+          </div>
+        ),
       },
       {
         id: 'executionStatus',
@@ -357,7 +879,7 @@ function CustomerTasks({
         cell: ({ row }) => formatCanvasDateTime(row.original.completedAt, '—'),
       },
     ],
-    [t, onInspect]
+    [number, onInspect, t]
   )
   const filters = (
     <>
@@ -441,9 +963,12 @@ function CustomerTasks({
       columns={columns}
       total={query.data?.total ?? 0}
       state={state}
-      searchLabel={t('Task ID')}
+      searchLabel={t('Task number')}
       loading={query.isLoading || query.isFetching}
+      error={query.isError}
+      onRetry={() => void query.refetch()}
       emptyTitle={t('No Canvas tasks')}
+      filteredEmptyTitle={t('No matching results')}
       additionalFilters={filters}
       hasActiveFilters={Boolean(
         model ||
@@ -469,113 +994,183 @@ function CustomerTasks({
 export function AdminCustomerOperations({
   customerId,
   selectedOrderId,
+  initialOrderId,
   selectedLotId,
   onCorrectOrder,
+  onReturnOrder,
   onDeductLot,
 }: {
   customerId: string
   selectedOrderId?: string
+  initialOrderId?: string
   selectedLotId?: string
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
+  onReturnOrder?: (order: CanvasAdminRechargeOrder) => void
   onDeductLot?: (lot: import('../types').CanvasAdminPointLot) => void
 }) {
-  const { t, i18n } = useTranslation()
-  const factsTabRef = useRef<HTMLButtonElement>(null)
+  const { t } = useTranslation()
   const [tab, setTab] = useState('orders')
+  const [pointTab, setPointTab] = useState('lots')
+  const [targetOrderId, setTargetOrderId] = useState(initialOrderId)
+  const [orderSourcePointTab, setOrderSourcePointTab] = useState<
+    'lots' | 'ledger'
+  >()
+  const pointSourceScrollY = useRef<number | undefined>(undefined)
   const [selection, setSelection] = useState<
     CustomerFactTarget & { customerId: string }
   >()
-  useEffect(() => {
-    if (tab === 'facts') {
-      factsTabRef.current?.scrollIntoView?.({
-        block: 'nearest',
-        inline: 'nearest',
-      })
-    }
-  }, [tab, i18n.language])
   const target =
     selection?.customerId === customerId
       ? { kind: selection.kind, id: selection.id }
       : undefined
+  let detailTitle = t('Record details')
+  if (target?.kind === 'task') detailTitle = t('Task details')
+  if (target?.kind === 'lot') detailTitle = t('Point lot details')
   const inspect = (value: CustomerFactTarget) => {
     setSelection({ ...value, customerId })
-    setTab('facts')
   }
+  const openOrder = (orderId: string) => {
+    const sourcePointTab =
+      tab === 'points' ? (pointTab as 'lots' | 'ledger') : undefined
+    setOrderSourcePointTab(sourcePointTab)
+    pointSourceScrollY.current =
+      sourcePointTab === undefined ? undefined : window.scrollY
+    setSelection(undefined)
+    setTargetOrderId(orderId)
+    setTab('orders')
+  }
+  const returnFromOrderTarget = () => {
+    const scrollY = pointSourceScrollY.current
+    setTargetOrderId(undefined)
+    setTab('points')
+    if (orderSourcePointTab) setPointTab(orderSourcePointTab)
+    setOrderSourcePointTab(undefined)
+    pointSourceScrollY.current = undefined
+    if (scrollY !== undefined) {
+      requestAnimationFrame(() => window.scrollTo({ top: scrollY }))
+    }
+  }
+  useEffect(() => {
+    setSelection(undefined)
+    setTargetOrderId(initialOrderId)
+    setOrderSourcePointTab(undefined)
+    pointSourceScrollY.current = undefined
+    setTab('orders')
+    setPointTab('lots')
+  }, [customerId, initialOrderId])
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => {
-        setTab(value)
-        if (value === 'facts') setSelection(undefined)
-      }}
-    >
-      <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='price-plan'>
-          {t('Price plan')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='orders'>
-          {t('Recharge orders')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='lots'>
-          {t('Point Lots')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='ledger'>
-          {t('Point ledger')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='tasks'>
-          {t('Tasks')}
-        </TabsTrigger>
-        <TabsTrigger
-          className='h-8 min-h-8 flex-none px-3'
-          ref={factsTabRef}
-          value='facts'
+    <>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value)
+        }}
+      >
+        <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
+          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='orders'>
+            {t('Recharge records')}
+          </TabsTrigger>
+          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='points'>
+            {t('Point details')}
+          </TabsTrigger>
+          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='tasks'>
+            {t('Consumption tasks')}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value='orders' keepMounted>
+          <CustomerOrders
+            customerId={customerId}
+            targetOrderId={targetOrderId}
+            selectedOrderId={selectedOrderId}
+            onCorrectOrder={onCorrectOrder}
+            onReturnOrder={onReturnOrder}
+            onInspect={inspect}
+            onReturnFromOrderTarget={
+              orderSourcePointTab ? returnFromOrderTarget : undefined
+            }
+          />
+        </TabsContent>
+        <TabsContent value='points' keepMounted>
+          <Tabs value={pointTab} onValueChange={setPointTab}>
+            <TabsList>
+              <TabsTrigger value='lots'>{t('Point lots')}</TabsTrigger>
+              <TabsTrigger value='ledger'>{t('Change ledger')}</TabsTrigger>
+            </TabsList>
+            <TabsContent value='lots' keepMounted>
+              <CustomerPointHistory
+                customerId={customerId}
+                view='lots'
+                selectedLotId={selectedLotId}
+                onDeductLot={onDeductLot}
+                onInspect={inspect}
+                onOpenOrder={openOrder}
+              />
+            </TabsContent>
+            <TabsContent value='ledger' keepMounted>
+              <CustomerPointHistory
+                customerId={customerId}
+                view='ledger'
+                onInspect={inspect}
+                onOpenOrder={openOrder}
+              />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+        <TabsContent value='tasks' keepMounted>
+          <CustomerTasks customerId={customerId} onInspect={inspect} />
+        </TabsContent>
+      </Tabs>
+      <Sheet
+        open={Boolean(target)}
+        onOpenChange={(open) => !open && setSelection(undefined)}
+      >
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[640px]')}
         >
-          {t('Business facts')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='audit'>
-          {t('Customer audit')}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value='price-plan'>
-        <CustomerPriceAssignment key={customerId} customerId={customerId} />
-      </TabsContent>
-      <TabsContent value='orders'>
-        <CustomerOrders
-          customerId={customerId}
-          selectedOrderId={selectedOrderId}
-          onCorrectOrder={onCorrectOrder}
-          onInspect={inspect}
-        />
-      </TabsContent>
-      <TabsContent value='lots'>
-        <CustomerPointHistory
-          customerId={customerId}
-          view='lots'
-          selectedLotId={selectedLotId}
-          onDeductLot={onDeductLot}
-          onInspect={inspect}
-        />
-      </TabsContent>
-      <TabsContent value='ledger'>
-        <CustomerPointHistory
-          customerId={customerId}
-          view='ledger'
-          onInspect={inspect}
-        />
-      </TabsContent>
-      <TabsContent value='tasks'>
-        <CustomerTasks customerId={customerId} onInspect={inspect} />
-      </TabsContent>
-      <TabsContent value='facts'>
-        <CustomerBusinessFacts
-          key={`${customerId}:${target?.kind ?? ''}:${target?.id ?? ''}`}
-          customerId={customerId}
-          initial={target}
-        />
-      </TabsContent>
-      <TabsContent value='audit'>
-        <AdminAuditLog customerId={customerId} />
-      </TabsContent>
-    </Tabs>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>{detailTitle}</SheetTitle>
+          </SheetHeader>
+          {target ? (
+            <div className={sideDrawerFormClassName()}>
+              {target.kind === 'task' || target.kind === 'lot' ? (
+                <CustomerRecordDetails
+                  customerId={customerId}
+                  target={
+                    target.kind === 'task'
+                      ? { kind: 'task', id: target.id }
+                      : { kind: 'lot', id: target.id }
+                  }
+                  onOpenOrder={openOrder}
+                />
+              ) : (
+                <CustomerBusinessFacts
+                  key={`${customerId}:${target.kind}:${target.id}`}
+                  customerId={customerId}
+                  initial={target}
+                  onDeductLot={
+                    onDeductLot
+                      ? (lot) => {
+                          setSelection(undefined)
+                          onDeductLot(lot)
+                        }
+                      : undefined
+                  }
+                  onOpenOrder={openOrder}
+                />
+              )}
+            </div>
+          ) : null}
+          <SheetFooter className={sideDrawerFooterClassName('grid-cols-1')}>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setSelection(undefined)}
+            >
+              {t('Close')}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
