@@ -50,6 +50,10 @@ import type {
   CanvasAdminCustomerTask,
   CanvasAdminTaskLog,
   CanvasAdminTaskLogQuery,
+  CanvasAdminTaskRecordDetail,
+  CanvasTaskLogOptions,
+  CanvasTaskPointLedgerDetail,
+  CanvasTaskPointLedgerItem,
   CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
@@ -167,14 +171,68 @@ export async function getCanvasAuditEvents(
 }
 
 export async function getCanvasAdminTaskLogs(
-  kind: 'usage' | 'task',
   query: CanvasAdminTaskLogQuery,
   signal?: AbortSignal
 ): Promise<CanvasPage<CanvasAdminTaskLog>> {
   return (
     await api.get<CanvasPage<CanvasAdminTaskLog>>(
-      `${webBase}/admin/${kind}-logs`,
+      `${webBase}/admin/task-logs`,
       { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasTaskLogOptions(
+  signal?: AbortSignal
+): Promise<CanvasTaskLogOptions> {
+  return (
+    await api.get<CanvasTaskLogOptions>(`${webBase}/admin/task-log-options`, {
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAdminTaskRecord(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<CanvasAdminTaskRecordDetail> {
+  return (
+    await api.get<CanvasAdminTaskRecordDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}`,
+      { signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasTaskPointLedger(
+  taskId: string,
+  query: {
+    changeType?: string
+    lotType?: string
+    from?: string
+    to?: string
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasTaskPointLedgerItem>> {
+  return (
+    await api.get<CanvasPage<CanvasTaskPointLedgerItem>>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/point-ledger`,
+      { params: query, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasTaskPointLedgerDetail(
+  taskId: string,
+  ledgerId: string,
+  signal?: AbortSignal
+): Promise<CanvasTaskPointLedgerDetail> {
+  return (
+    await api.get<CanvasTaskPointLedgerDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/point-ledger/${encodeURIComponent(ledgerId)}`,
+      { signal, skipErrorHandler: true }
     )
   ).data
 }

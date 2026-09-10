@@ -80,8 +80,7 @@ type CanvasSection = CustomerSection | AdminSection | 'agent-center'
 
 const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
-  'usage-logs': 'Canvas Usage Logs',
-  'task-logs': 'Canvas Task Logs',
+  'task-logs': 'Task Records',
   customers: 'Customer management',
   'point-campaigns': 'Points & campaigns',
   agents: 'Inviter management',
@@ -455,7 +454,6 @@ export function AdminContent(props: {
     enabled: ![
       'customers',
       'audit',
-      'usage-logs',
       'task-logs',
       'runtime',
       'execution',
@@ -487,8 +485,7 @@ export function AdminContent(props: {
     )
   }
   if (props.section === 'audit') return <AdminAuditLog />
-  if (props.section === 'usage-logs') return <AdminTaskLogs kind='usage' />
-  if (props.section === 'task-logs') return <AdminTaskLogs kind='task' />
+  if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {
     return <RuntimeManagement initialView='storage' />
   }

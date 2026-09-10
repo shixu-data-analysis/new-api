@@ -20,6 +20,7 @@ import type { ColumnDef, Row, VisibilityState } from '@tanstack/react-table'
 import { useId, type ReactNode } from 'react'
 
 import {
+  type DataTableColumnClassName,
   DataTablePage,
   DataTableToolbar,
   useDataTable,
@@ -55,6 +56,7 @@ export function CanvasServerTable<TData>({
   renderRow,
   renderExpandedContent,
   initialColumnVisibility,
+  getColumnClassName,
 }: {
   data: TData[]
   columns: ColumnDef<TData, unknown>[]
@@ -79,6 +81,7 @@ export function CanvasServerTable<TData>({
   renderRow?: (row: Row<TData>) => ReactNode
   renderExpandedContent?: (row: Row<TData>) => ReactNode
   initialColumnVisibility?: VisibilityState
+  getColumnClassName?: DataTableColumnClassName
 }) {
   const { pagination, setPagination, sorting, setSorting, search, setSearch } =
     state
@@ -131,6 +134,7 @@ export function CanvasServerTable<TData>({
       fixedHeight={false}
       paginationInFooter={false}
       getRowClassName={getRowClassName}
+      getColumnClassName={getColumnClassName}
       renderRow={renderRow ? (row) => renderRow(row) : undefined}
       mobileProps={{ renderExpandedContent }}
       applyHeaderSize

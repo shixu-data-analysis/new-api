@@ -51,9 +51,20 @@ export interface CanvasTaskCallPage {
   items: CanvasTaskCall[]
 }
 
+export interface CanvasTaskCallQuery {
+  callType?: string
+  state?: string
+  outputIndex?: number
+  httpStatus?: number
+  from?: string
+  to?: string
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
 export async function getCanvasTaskCalls(
   taskId: string,
-  query: { page: number; pageSize: 10 | 20 | 50 | 100 },
+  query: CanvasTaskCallQuery,
   signal?: AbortSignal
 ): Promise<CanvasTaskCallPage> {
   return (

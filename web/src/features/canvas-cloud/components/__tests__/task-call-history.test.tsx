@@ -81,16 +81,27 @@ describe('TaskCallHistory', () => {
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenCalledWith(
         'task-1',
-        { page: 1, pageSize: 20 },
+        { page: 1, pageSize: 20, callType: 'SUBMIT' },
         expect.any(AbortSignal)
       )
     )
     expect(await screen.findByText('Page 1 of 2')).toBeVisible()
+    const headerRow = screen.getByText('Call time').closest('tr')
+    expect(headerRow).not.toBeNull()
+    expect(
+      [...(headerRow?.querySelectorAll('th') ?? [])].map(
+        (header) => header.textContent
+      )
+    ).toEqual(['Call time', 'Call', 'Related results', 'Response', 'Duration'])
+    expect(screen.queryByText('Attempts')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('combobox', { name: 'Call type' })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
         'task-1',
-        { page: 2, pageSize: 20 },
+        { page: 2, pageSize: 20, callType: 'SUBMIT' },
         expect.any(AbortSignal)
       )
     )
@@ -104,13 +115,41 @@ describe('TaskCallHistory', () => {
     expect(
       await screen.findByText('Unable to load task call history.')
     ).toBeVisible()
+    expect(screen.queryByText('No task call history')).not.toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenCalledTimes(2)
     )
   })
 
-  it('renders failed query-call evidence without hiding output positions or sanitized details', async () => {
+  it('debounces numeric filters and omits an invalid value from the call query', async () => {
+    mount()
+    await screen.findByText('Page 1 of 2')
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Output index' }), {
+      target: { value: '3' },
+    })
+    await waitFor(() =>
+      expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
+        'task-1',
+        { page: 1, pageSize: 20, callType: 'SUBMIT', outputIndex: 3 },
+        expect.any(AbortSignal)
+      )
+    )
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Output index' }), {
+      target: { value: '-1' },
+    })
+    await waitFor(() =>
+      expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
+        'task-1',
+        { page: 1, pageSize: 20, callType: 'SUBMIT' },
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
+  it('renders failed submission evidence without hiding output positions or sanitized details', async () => {
     mocks.getCanvasTaskCalls.mockResolvedValue({
       page: 1,
       pageSize: 20,
@@ -118,7 +157,7 @@ describe('TaskCallHistory', () => {
       items: [
         {
           ...call,
-          callType: 'QUERY',
+          callType: 'SUBMIT',
           executionOrigin: 'REAL',
           outputIndices: [1],
           upstreamRequestId: null,
@@ -134,15 +173,18 @@ describe('TaskCallHistory', () => {
     })
     mount()
 
-    expect(await screen.findByText(/Provider query.*Responded/)).toBeVisible()
-    expect(screen.getByText(/Production.*Attempt 2/)).toBeVisible()
-    expect(screen.getByRole('cell', { name: '1' })).toBeVisible()
+    expect(await screen.findByText('Provider submission')).toBeVisible()
+    expect(screen.getByText('Responded')).toBeVisible()
+    expect(screen.queryByText('Attempts')).not.toBeInTheDocument()
+    expect(screen.getByText('Result 2')).toBeVisible()
     expect(screen.getByText('429')).toBeVisible()
     expect(
       screen.getByRole('cell', {
-        name: /Provider rate limited.*RATE_LIMIT.*provider\.rate-limit v3.*Retry after 30 seconds/,
+        name: /Provider rate limited.*Retry after 30 seconds/,
       })
     ).toBeVisible()
-    expect(screen.getByText(/call-1.*upstream-retry-1/)).toBeVisible()
+    expect(screen.queryByText(/RATE_LIMIT/)).not.toBeInTheDocument()
+    expect(screen.getByText('call-1')).toBeVisible()
+    expect(screen.getByText('upstream-retry-1')).toBeVisible()
   })
 })

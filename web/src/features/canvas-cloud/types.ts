@@ -1296,49 +1296,118 @@ export interface CanvasAdminCustomerTask {
 export interface CanvasAdminTaskLog {
   id: string
   customerId: string
-  customerName: string
-  modelName: string
-  quotedPoints: string
-  settledPoints?: string
-  outstandingDebtPoints?: string
-  outputSummaries?: Array<{
-    outputIndex: number
-    executionStatus: string
-    billingStatus: string
-    quotedPoints: string
-    settledPoints: string | null
-  }>
-  executionStatus: string
+  customerName: string | null
+  customerModelId: string | null
+  modelName: string | null
+  derivedExecutionStatus: string
+  executionSummary: CanvasTaskExecutionSummary
+  settlementProgress: string
   customerBillingStatus: string
-  providerReconcileStatus: string
-  executionOrigin: 'MOCK' | 'REAL' | null
-  upstreamTaskId: string | null
+  settledPoints: string | null
+  outstandingDebtPoints: string | null
   acceptedAt: string
-  completedAt: string | null
 }
 
 export interface CanvasAdminTaskLogQuery {
+  taskId?: string
   customer?: string
-  model?: string
-  executionStatus?: string
+  modelId?: string
+  derivedExecutionStatus?: string
+  settlementProgress?: string
+  upstreamTaskId?: string
   billingStatus?: string
-  reconciliationStatus?: string
-  executionOrigin?: 'MOCK' | 'REAL'
   from?: string
   to?: string
   sortBy:
     | 'customer'
-    | 'model'
-    | 'quotedPoints'
-    | 'executionStatus'
-    | 'billingStatus'
-    | 'reconciliationStatus'
-    | 'source'
+    | 'taskId'
+    | 'derivedExecutionStatus'
+    | 'settledPoints'
     | 'acceptedAt'
-    | 'completedAt'
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasTaskLogOptions {
+  models: Array<{ id: string; name: string }>
+}
+
+export interface CanvasTaskExecutionSummary {
+  expectedResults: number | null
+  recordedResults: number
+  acceptedResults: number
+  processingResults: number
+  succeededResults: number
+  failedResults: number
+  unknownResults: number
+  resultsIncomplete: boolean
+}
+
+export interface CanvasAdminTaskRecordOutput {
+  id: string | null
+  outputIndex: number
+  quotedPoints: string
+  settledPoints: string | null
+  executionStatus: string
+  billingStatus: string
+  error: {
+    code?: string | null
+    messages?: Record<string, string> | null
+    sanitizedMessage?: string | null
+  } | null
+  usageSnapshot: Record<string, string | number | boolean | null> | null
+  completedAt: string | null
+  billingFinalizedAt: string | null
+}
+
+export interface CanvasAdminTaskRecordDetail {
+  id: string
+  customerId: string
+  customerName: string | null
+  customerModelId: string | null
+  modelName: string | null
+  quotedPoints: string
+  settledPoints: string | null
+  deductedPoints: string | null
+  releasedPoints: string | null
+  outstandingDebtPoints: string | null
+  derivedExecutionStatus: string
+  executionSummary: CanvasTaskExecutionSummary
+  settlementProgress: string
+  executionStatus: string
+  customerBillingStatus: string
+  billingUnit: string | null
+  billingFinalizedAt: string | null
+  parameters: Record<string, string | number | boolean | null> | null
+  outputs: CanvasAdminTaskRecordOutput[]
+  upstreamTaskId: string | null
+  taskError: {
+    code?: string | null
+    messages?: Record<string, string> | null
+  } | null
+  acceptedAt: string
+  completedAt: string | null
+}
+
+export interface CanvasTaskPointLedgerItem {
+  id: string
+  occurredAt: string
+  eventType: string
+  eventPoints: string
+  pointLotId: string | null
+  lotType: string | null
+  taskOutputId: string | null
+  outputIndex: number | null
+  debtId: string | null
+  reason: string | null
+}
+
+export interface CanvasTaskPointLedgerDetail extends CanvasTaskPointLedgerItem {
+  remainingBefore: string | null
+  remainingAfter: string | null
+  reservedBefore: string | null
+  reservedAfter: string | null
 }
 
 export interface CanvasAdminPointLot {

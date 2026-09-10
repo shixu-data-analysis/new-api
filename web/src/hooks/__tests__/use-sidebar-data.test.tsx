@@ -58,7 +58,6 @@ describe('Canvas administrator primary sidebar', () => {
       )
     ).toEqual([
       '/canvas-cloud/dashboard',
-      '/canvas-cloud/usage-logs',
       '/canvas-cloud/task-logs',
       '/canvas-cloud/audit',
       '/canvas-cloud/customers',

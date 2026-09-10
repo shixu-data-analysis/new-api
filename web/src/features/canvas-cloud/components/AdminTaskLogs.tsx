@@ -8,18 +8,21 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  sideDrawerContentClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -27,61 +30,137 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { useDebounce } from '@/hooks'
+import { toIntlLocale } from '@/i18n/languages'
 
-import { getCanvasAdminTaskLogs } from '../api'
+import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
-import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm } from './BusinessTerm'
+import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
-import { TaskCallHistory } from './TaskCallHistory'
+import { CopyableText } from './CopyableText'
 
 const executionStatuses = [
   'ACCEPTED',
   'PROCESSING',
   'SUCCEEDED',
+  'PARTIAL_SUCCESS',
   'CONFIRMED_FAILED',
   'UNKNOWN',
 ] as const
+const settlementProgresses = ['PENDING', 'PROCESSING', 'COMPLETED'] as const
 const billingStatuses = [
   'FROZEN',
   'SETTLED',
   'RELEASED_FAILED',
   'RELEASED_TIMEOUT',
 ] as const
-const reconciliationStatuses = [
-  'PENDING',
-  'COST_CONFIRMED',
-  'RECONCILED',
-  'DISPUTED',
-] as const
+const executionLabels: Record<string, string> = {
+  ACCEPTED: 'Accepted',
+  PROCESSING: 'Processing',
+  SUCCEEDED: 'Succeeded',
+  PARTIAL_SUCCESS: 'Partial success',
+  CONFIRMED_FAILED: 'Confirmed failed',
+  UNKNOWN: 'Unknown',
+}
+const settlementLabels: Record<string, string> = {
+  PENDING: 'Pending',
+  PROCESSING: 'Settlement in progress',
+  COMPLETED: 'Settlement complete',
+}
+const billingLabels: Record<string, string> = {
+  FROZEN: 'Frozen',
+  SETTLED: 'Settled',
+  RELEASED_FAILED: 'Released after failure',
+  RELEASED_TIMEOUT: 'Released after timeout',
+}
 
-type StatusTermKind =
-  | 'taskExecutionStatus'
-  | 'billingStatus'
-  | 'reconciliationStatus'
+function executionSummary(
+  summary: CanvasAdminTaskLog['executionSummary'],
+  t: (key: string, values?: Record<string, number>) => string
+) {
+  const parts = [
+    summary.acceptedResults
+      ? t('Accepted count', { count: summary.acceptedResults })
+      : null,
+    summary.processingResults
+      ? t('Processing count', { count: summary.processingResults })
+      : null,
+    summary.succeededResults
+      ? t('Succeeded count', { count: summary.succeededResults })
+      : null,
+    summary.failedResults
+      ? t('Failed count', { count: summary.failedResults })
+      : null,
+    summary.unknownResults
+      ? t('Unknown count', { count: summary.unknownResults })
+      : null,
+  ].filter((part): part is string => Boolean(part))
+  if (summary.resultsIncomplete) parts.push(t('Results are incomplete'))
+  return parts.join(' · ')
+}
 
-export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
-  const { t } = useTranslation()
+function settlementSummary(
+  row: CanvasAdminTaskLog,
+  t: (key: string) => string
+) {
+  const progress = t(settlementLabels[row.settlementProgress] ?? 'Pending')
+  if (row.customerBillingStatus === 'SETTLED') {
+    if (
+      row.settlementProgress === 'COMPLETED' &&
+      (row.executionSummary.expectedResults ??
+        row.executionSummary.recordedResults) <= 1
+    ) {
+      return null
+    }
+    return progress
+  }
+  const billing = t(billingLabels[row.customerBillingStatus] ?? 'Unknown')
+  if (
+    row.customerBillingStatus === 'FROZEN' &&
+    row.settlementProgress === 'PROCESSING'
+  ) {
+    return `${billing} · ${progress}`
+  }
+  return billing
+}
+
+export function AdminTaskLogs() {
+  const { t, i18n } = useTranslation()
   const state =
     useServerTableState<CanvasAdminTaskLogQuery['sortBy']>('acceptedAt')
   const setPagination = state.setPagination
-  const [executionStatus, setExecutionStatus] = useState('')
-  const [billingStatus, setBillingStatus] = useState('')
-  const [reconciliationStatus, setReconciliationStatus] = useState('')
+  const listScrollY = useRef(0)
+  const taskTrigger = useRef<HTMLButtonElement | null>(null)
+  const drawerScroll = useRef<HTMLDivElement | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string>()
+  const [selectedLedgerId, setSelectedLedgerId] = useState<string>()
+  const [taskId, setTaskId] = useState('')
+  const [customer, setCustomer] = useState('')
   const [model, setModel] = useState('')
-  const [executionOrigin, setExecutionOrigin] = useState('')
+  const [derivedExecutionStatus, setDerivedExecutionStatus] = useState('')
+  const [settlementProgress, setSettlementProgress] = useState('')
+  const [upstreamTaskId, setUpstreamTaskId] = useState('')
+  const [billingStatus, setBillingStatus] = useState('')
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
-  const [selectedTask, setSelectedTask] = useState<CanvasAdminTaskLog | null>(
-    null
-  )
-  const debouncedModel = useDebounce(model.trim(), 300)
-  const dateRangeValid = isCanvasDateRangeValid(from, to)
+  const debouncedTaskId = useDebounce(taskId.trim(), 300)
+  const debouncedCustomer = useDebounce(customer.trim(), 300)
+  const debouncedUpstreamTaskId = useDebounce(upstreamTaskId.trim(), 300)
+  const valid = isCanvasDateRangeValid(from, to)
+  const options = useQuery({
+    queryKey: ['canvas-cloud', 'task-log-options'],
+    queryFn: ({ signal }) => getCanvasTaskLogOptions(signal),
+  })
 
   useEffect(() => {
     setPagination((value) =>
@@ -89,221 +168,317 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
     )
   }, [
     billingStatus,
-    debouncedModel,
-    executionOrigin,
-    executionStatus,
+    debouncedCustomer,
+    debouncedTaskId,
+    debouncedUpstreamTaskId,
+    derivedExecutionStatus,
     from,
-    reconciliationStatus,
+    model,
+    settlementProgress,
     setPagination,
     to,
   ])
+
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
-      `${props.kind}-logs`,
+      'admin-task-logs',
       state.query,
-      debouncedModel,
-      executionStatus,
+      debouncedTaskId,
+      debouncedCustomer,
+      model,
+      derivedExecutionStatus,
+      settlementProgress,
+      debouncedUpstreamTaskId,
       billingStatus,
-      reconciliationStatus,
-      executionOrigin,
       from?.toISOString(),
       to?.toISOString(),
     ],
     queryFn: ({ signal }) =>
       getCanvasAdminTaskLogs(
-        props.kind,
         {
           page: state.query.page,
           pageSize: state.query.pageSize,
           sortBy: state.query.sortBy,
           sortOrder: state.query.sortOrder,
-          ...(state.query.search ? { customer: state.query.search } : {}),
-          ...(debouncedModel ? { model: debouncedModel } : {}),
-          ...(props.kind === 'task' && executionStatus
-            ? { executionStatus }
+          ...(debouncedTaskId ? { taskId: debouncedTaskId } : {}),
+          ...(debouncedCustomer ? { customer: debouncedCustomer } : {}),
+          ...(model ? { modelId: model } : {}),
+          ...(derivedExecutionStatus ? { derivedExecutionStatus } : {}),
+          ...(settlementProgress ? { settlementProgress } : {}),
+          ...(debouncedUpstreamTaskId
+            ? { upstreamTaskId: debouncedUpstreamTaskId }
             : {}),
           ...(billingStatus ? { billingStatus } : {}),
-          ...(props.kind === 'task' && reconciliationStatus
-            ? { reconciliationStatus }
-            : {}),
-          ...(props.kind === 'task' && executionOrigin
-            ? { executionOrigin: executionOrigin as 'MOCK' | 'REAL' }
-            : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
         },
         signal
       ),
     placeholderData: (previous) => previous,
-    enabled: dateRangeValid,
+    enabled: valid,
   })
-
-  const columns = useMemo<ColumnDef<CanvasAdminTaskLog, unknown>[]>(() => {
-    const shared: ColumnDef<CanvasAdminTaskLog, unknown>[] = [
-      {
-        id: 'details',
-        enableSorting: false,
-        header: t('Details'),
-        cell: ({ row }) => (
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => setSelectedTask(row.original)}
-          >
-            {t('Details')}
-          </Button>
-        ),
-      },
+  const closeTaskDetails = () => {
+    setSelectedTaskId(undefined)
+    setSelectedLedgerId(undefined)
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: listScrollY.current })
+      taskTrigger.current?.focus()
+    })
+  }
+  const columns = useMemo<ColumnDef<CanvasAdminTaskLog, unknown>[]>(
+    () => [
       {
         id: 'customer',
         accessorKey: 'customerName',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Customer')} />
+        header: t('Customer'),
+        cell: ({ row }) =>
+          row.original.customerName ? (
+            <a
+              href={`/canvas-cloud/customers?customerId=${encodeURIComponent(row.original.customerId)}`}
+              className='text-primary min-w-0 break-words underline underline-offset-4'
+            >
+              {row.original.customerName}
+            </a>
+          ) : (
+            t('Unknown customer')
+          ),
+      },
+      {
+        id: 'taskId',
+        accessorKey: 'id',
+        enableHiding: false,
+        header: t('Task'),
+        cell: ({ row }) => (
+          <div className='min-w-0 space-y-1'>
+            <div className='flex min-w-0 items-center gap-1'>
+              <button
+                ref={(node) => {
+                  if (node && row.original.id === selectedTaskId) {
+                    taskTrigger.current = node
+                  }
+                }}
+                type='button'
+                className='text-primary min-w-0 text-start break-all underline underline-offset-4 focus-visible:ring-2'
+                onClick={(event) => {
+                  taskTrigger.current = event.currentTarget
+                  listScrollY.current = window.scrollY
+                  setSelectedTaskId(row.original.id)
+                }}
+              >
+                {row.original.id}
+              </button>
+              <CopyableText value={row.original.id} hideValue />
+            </div>
+            <div className='text-muted-foreground text-sm break-words'>
+              {row.original.modelName ?? t('Unknown model')}
+            </div>
+          </div>
         ),
       },
       {
-        id: 'model',
-        accessorKey: 'modelName',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Model')} />
+        id: 'derivedExecutionStatus',
+        accessorKey: 'derivedExecutionStatus',
+        header: t('Execution status'),
+        cell: ({ row }) => (
+          <div className='space-y-1'>
+            <div>
+              {t(
+                executionLabels[row.original.derivedExecutionStatus] ??
+                  'Unknown'
+              )}
+            </div>
+            {executionSummary(row.original.executionSummary, t) ? (
+              <div className='text-muted-foreground text-xs'>
+                {executionSummary(row.original.executionSummary, t)}
+              </div>
+            ) : null}
+          </div>
         ),
       },
-    ]
-    if (props.kind === 'usage') {
-      return [
-        ...shared,
-        {
-          id: 'quotedPoints',
-          accessorKey: 'quotedPoints',
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('Quoted points')} />
-          ),
-        },
-        {
-          id: 'settledPoints',
-          enableSorting: false,
-          header: t('Points used'),
-          cell: ({ row }) => row.original.settledPoints ?? '—',
-        },
-        {
-          id: 'billingStatus',
-          accessorKey: 'customerBillingStatus',
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('Billing')} />
-          ),
-          cell: ({ row }) => (
-            <BusinessTerm
-              kind='billingStatus'
-              value={row.original.customerBillingStatus}
-            />
-          ),
-        },
-        {
-          id: 'acceptedAt',
-          accessorKey: 'acceptedAt',
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title={t('Time')} />
-          ),
-          cell: ({ row }) => formatCanvasDateTime(row.original.acceptedAt),
-        },
-      ]
-    }
-    return [
-      ...shared,
       {
-        id: 'executionStatus',
-        accessorKey: 'executionStatus',
+        id: 'settledPoints',
+        accessorKey: 'settledPoints',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Execution')} />
+          <DataTableColumnHeader
+            column={column}
+            title={t('Settled points')}
+            className='justify-end [&>button]:justify-end'
+          />
         ),
         cell: ({ row }) => (
-          <BusinessTerm
-            kind='taskExecutionStatus'
-            value={row.original.executionStatus}
-          />
+          <div className='text-right tabular-nums'>
+            {row.original.settledPoints === null
+              ? '—'
+              : new Intl.NumberFormat(
+                  toIntlLocale(i18n.resolvedLanguage || i18n.language)
+                ).format(BigInt(row.original.settledPoints))}
+            {settlementSummary(row.original, t) ? (
+              <div className='text-muted-foreground text-xs'>
+                {settlementSummary(row.original, t)}
+              </div>
+            ) : null}
+            {row.original.outstandingDebtPoints &&
+            BigInt(row.original.outstandingDebtPoints) > 0n ? (
+              <div className='text-destructive text-xs'>
+                {t('Outstanding debt')}:{' '}
+                {new Intl.NumberFormat(
+                  toIntlLocale(i18n.resolvedLanguage || i18n.language)
+                ).format(BigInt(row.original.outstandingDebtPoints))}
+              </div>
+            ) : null}
+          </div>
         ),
       },
-      {
-        id: 'billingStatus',
-        accessorKey: 'customerBillingStatus',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Billing')} />
-        ),
-        cell: ({ row }) => (
-          <BusinessTerm
-            kind='billingStatus'
-            value={row.original.customerBillingStatus}
-          />
-        ),
-      },
-      {
-        id: 'reconciliationStatus',
-        accessorKey: 'providerReconcileStatus',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Reconciliation')} />
-        ),
-        cell: ({ row }) => (
-          <BusinessTerm
-            kind='reconciliationStatus'
-            value={row.original.providerReconcileStatus}
-          />
-        ),
-      },
-      {
-        id: 'source',
-        accessorKey: 'executionOrigin',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Source')} />
-        ),
-        cell: ({ row }) => {
-          if (row.original.executionOrigin === 'MOCK') return t('Test')
-          if (row.original.executionOrigin === 'REAL') return t('Production')
-          return '—'
-        },
-      },
-      {
-        id: 'acceptedAt',
-        accessorKey: 'acceptedAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Accepted')} />
-        ),
-        cell: ({ row }) => formatCanvasDateTime(row.original.acceptedAt),
-      },
-    ]
-  }, [props.kind, t])
-
-  const statusSelect = (
-    value: string,
-    setValue: (value: string) => void,
-    label: string,
-    values: readonly string[],
-    termKind: StatusTermKind
-  ) => (
-    <DataTableColumnFilterField label={label}>
-      <Select
-        value={value || 'ALL'}
-        onValueChange={(next) => setValue(next === 'ALL' ? '' : (next ?? ''))}
-      >
-        <SelectTrigger className='w-full' aria-label={label}>
-          <CanvasLocalizedSelectValue
-            value={value}
-            emptyLabelKey='All'
-            termKind={termKind}
-          />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>{t('All')}</SelectItem>
-          {values.map((status) => (
-            <SelectItem key={status} value={status}>
-              <BusinessTerm kind={termKind} value={status} />
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </DataTableColumnFilterField>
+    ],
+    [i18n.language, i18n.resolvedLanguage, selectedTaskId, t]
   )
-
+  const filters = (
+    <>
+      <DataTableColumnFilterField label={t('Task number')}>
+        <Input
+          aria-label={t('Task number')}
+          value={taskId}
+          placeholder={t('Task number')}
+          onChange={(event) => setTaskId(event.target.value)}
+        />
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Customer')}>
+        <Input
+          aria-label={t('Customer')}
+          value={customer}
+          placeholder={t('Customer')}
+          onChange={(event) => setCustomer(event.target.value)}
+        />
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Model')}>
+        <Select
+          value={model || 'ALL'}
+          onValueChange={(value) =>
+            setModel(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full' aria-label={t('Model')}>
+            <CanvasLocalizedSelectValue
+              value={model}
+              displayValue={
+                options.data?.models.find((option) => option.id === model)?.name
+              }
+              emptyLabelKey='All'
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            {(options.data?.models ?? []).map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Execution status')}>
+        <Select
+          value={derivedExecutionStatus || 'ALL'}
+          onValueChange={(value) =>
+            setDerivedExecutionStatus(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger className='w-full' aria-label={t('Execution status')}>
+            <CanvasLocalizedSelectValue
+              value={derivedExecutionStatus}
+              emptyLabelKey='All'
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            {executionStatuses.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(executionLabels[value])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Settlement progress')}>
+        <Select
+          value={settlementProgress || 'ALL'}
+          onValueChange={(value) =>
+            setSettlementProgress(value === 'ALL' ? '' : (value ?? ''))
+          }
+        >
+          <SelectTrigger
+            className='w-full'
+            aria-label={t('Settlement progress')}
+          >
+            <CanvasLocalizedSelectValue
+              value={settlementProgress}
+              emptyLabelKey='All'
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            {settlementProgresses.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(settlementLabels[value])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </DataTableColumnFilterField>
+      <div className='sm:col-span-2'>
+        <CanvasDateRangeFilter
+          from={from}
+          to={to}
+          onFromChange={setFrom}
+          onToChange={setTo}
+        />
+      </div>
+      <div className='sm:col-span-3'>
+        <Collapsible>
+          <CollapsibleTrigger className='text-primary text-sm underline underline-offset-4'>
+            {t('More conditions')}
+          </CollapsibleTrigger>
+          <CollapsibleContent className='grid gap-3 pt-3 sm:grid-cols-2'>
+            <DataTableColumnFilterField label={t('Upstream task ID')}>
+              <Input
+                aria-label={t('Upstream task ID')}
+                value={upstreamTaskId}
+                placeholder={t('Upstream task ID')}
+                onChange={(event) => setUpstreamTaskId(event.target.value)}
+              />
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Raw billing status')}>
+              <Select
+                value={billingStatus || 'ALL'}
+                onValueChange={(value) =>
+                  setBillingStatus(value === 'ALL' ? '' : (value ?? ''))
+                }
+              >
+                <SelectTrigger
+                  className='w-full'
+                  aria-label={t('Raw billing status')}
+                >
+                  <CanvasLocalizedSelectValue
+                    value={billingStatus}
+                    emptyLabelKey='All'
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All')}</SelectItem>
+                  {billingStatuses.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(billingLabels[value])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DataTableColumnFilterField>
+          </CollapsibleContent>
+        </Collapsible>
+      </div>
+    </>
+  )
   return (
     <>
       <CanvasServerTable
@@ -311,162 +486,71 @@ export function AdminTaskLogs(props: { kind: 'usage' | 'task' }) {
         columns={columns}
         total={query.data?.total ?? 0}
         state={state}
-        searchLabel={t('Customer')}
         loading={query.isPending || query.isFetching}
-        emptyTitle={
-          props.kind === 'usage'
-            ? t('No consumption records')
-            : t('No Canvas tasks')
-        }
-        additionalFilters={
-          <>
-            <DataTableColumnFilterField label={t('Model')}>
-              <Input
-                className='w-full'
-                value={model}
-                aria-label={t('Model')}
-                placeholder={t('Model')}
-                onChange={(event) => setModel(event.target.value)}
-              />
-            </DataTableColumnFilterField>
-            {props.kind === 'task'
-              ? statusSelect(
-                  executionStatus,
-                  setExecutionStatus,
-                  t('Execution status'),
-                  executionStatuses,
-                  'taskExecutionStatus'
-                )
-              : null}
-            {statusSelect(
-              billingStatus,
-              setBillingStatus,
-              t('Billing status'),
-              billingStatuses,
-              'billingStatus'
-            )}
-            {props.kind === 'task'
-              ? statusSelect(
-                  reconciliationStatus,
-                  setReconciliationStatus,
-                  t('Reconciliation'),
-                  reconciliationStatuses,
-                  'reconciliationStatus'
-                )
-              : null}
-            {props.kind === 'task' ? (
-              <DataTableColumnFilterField label={t('Source')}>
-                <Select
-                  value={executionOrigin || 'ALL'}
-                  onValueChange={(value) =>
-                    setExecutionOrigin(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger className='w-full' aria-label={t('Source')}>
-                    <CanvasLocalizedSelectValue
-                      value={executionOrigin}
-                      emptyLabelKey='All'
-                      valueLabelKey={
-                        executionOrigin === 'MOCK' ? 'Test' : 'Production'
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All')}</SelectItem>
-                    <SelectItem value='MOCK'>{t('Test')}</SelectItem>
-                    <SelectItem value='REAL'>{t('Production')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-            ) : null}
-            <div className='sm:col-span-2'>
-              <CanvasDateRangeFilter
-                from={from}
-                to={to}
-                onFromChange={setFrom}
-                onToChange={setTo}
-              />
-            </div>
-          </>
-        }
+        error={query.isError}
+        errorTitle={t('Unable to load task records')}
+        onRetry={() => void query.refetch()}
+        emptyTitle={t('No task records')}
+        filteredEmptyTitle={t('No matching results')}
+        additionalFilters={filters}
         hasActiveFilters={Boolean(
+          taskId ||
+          customer ||
           model ||
-          executionStatus ||
+          derivedExecutionStatus ||
+          settlementProgress ||
+          upstreamTaskId ||
           billingStatus ||
-          reconciliationStatus ||
-          executionOrigin ||
           from ||
           to
         )}
-        activeFilterCount={
-          [
-            state.search,
-            model,
-            props.kind === 'task' ? executionStatus : '',
-            billingStatus,
-            props.kind === 'task' ? reconciliationStatus : '',
-            props.kind === 'task' ? executionOrigin : '',
-            from,
-            to,
-          ].filter(Boolean).length
-        }
         onResetFilters={() => {
+          setTaskId('')
+          setCustomer('')
           setModel('')
-          setExecutionStatus('')
+          setDerivedExecutionStatus('')
+          setSettlementProgress('')
+          setUpstreamTaskId('')
           setBillingStatus('')
-          setReconciliationStatus('')
-          setExecutionOrigin('')
           setFrom(undefined)
           setTo(undefined)
         }}
         getRowId={(row) => row.id}
+        getColumnClassName={(columnId) =>
+          columnId === 'settledPoints' ? 'text-right' : undefined
+        }
       />
-      <Dialog
-        open={selectedTask !== null}
+      <Sheet
+        open={Boolean(selectedTaskId)}
         onOpenChange={(open) => {
-          if (!open) setSelectedTask(null)
+          if (!open) closeTaskDetails()
         }}
       >
-        <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-6xl'>
-          <DialogHeader>
-            <DialogTitle>{t('Details')}</DialogTitle>
-          </DialogHeader>
-          {selectedTask && (
-            <div className='min-w-0 space-y-4'>
-              <p className='text-sm break-all'>
-                {selectedTask.modelName} · {selectedTask.id}
-              </p>
-              <p className='text-sm'>
-                {t('Points used')}: {selectedTask.settledPoints ?? '—'} ·{' '}
-                {t('Outstanding points')}:{' '}
-                {selectedTask.outstandingDebtPoints ?? '0'}
-              </p>
-              <div className='space-y-2'>
-                {selectedTask.outputSummaries?.map((output) => (
-                  <div
-                    key={output.outputIndex}
-                    className='flex flex-wrap items-center gap-2 rounded border p-2 text-sm'
-                  >
-                    <span>#{output.outputIndex + 1}</span>
-                    <BusinessTerm
-                      kind='taskExecutionStatus'
-                      value={output.executionStatus}
-                    />
-                    <BusinessTerm
-                      kind='billingStatus'
-                      value={output.billingStatus}
-                    />
-                    <span>
-                      {t('Points used')}: {output.settledPoints ?? '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <TaskCallHistory key={selectedTask.id} taskId={selectedTask.id} />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        <SheetContent
+          className={sideDrawerContentClassName('max-w-none sm:!max-w-[720px]')}
+        >
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>
+              {selectedLedgerId
+                ? t('Point ledger details')
+                : `${t('Task details')} ${selectedTaskId ? `· ${selectedTaskId}` : ''}`}
+            </SheetTitle>
+            {selectedTaskId && !selectedLedgerId ? (
+              <CopyableText value={selectedTaskId} hideValue />
+            ) : null}
+          </SheetHeader>
+          <div ref={drawerScroll} className={sideDrawerFormClassName()}>
+            {selectedTaskId ? (
+              <AdminTaskRecordDetails
+                key={selectedTaskId}
+                taskId={selectedTaskId}
+                scrollContainerRef={drawerScroll}
+                onLedgerDetailsChange={setSelectedLedgerId}
+              />
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   )
 }

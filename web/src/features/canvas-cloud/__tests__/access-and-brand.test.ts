@@ -48,7 +48,7 @@ describe('Canvas role-scoped information architecture', () => {
 
   it('allows platform administrators only the administration sections', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'dashboard')).toBe(true)
-    expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'usage-logs')).toBe(true)
+    expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'usage-logs')).toBe(false)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'task-logs')).toBe(true)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'reports')).toBe(false)
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'overview')).toBe(false)
@@ -118,5 +118,6 @@ describe('Canvas role-scoped information architecture', () => {
     expect(canCanvasPrincipalAccessPath('/usage-logs/common')).toBe(false)
     expect(canCanvasPrincipalAccessPath('/channels')).toBe(false)
     expect(canCanvasPrincipalAccessPath('/canvas-cloud/refunds')).toBe(false)
+    expect(canCanvasPrincipalAccessPath('/canvas-cloud/usage-logs')).toBe(false)
   })
 })

@@ -72,8 +72,12 @@ import {
   getCanvasAdminCustomerPointLedger,
   getCanvasAdminCustomerTasks,
   getCanvasAdminTaskLogs,
+  getCanvasAdminTaskRecord,
   getCanvasAdminRechargeOrders,
   getCanvasOrderPointReturns,
+  getCanvasTaskLogOptions,
+  getCanvasTaskPointLedger,
+  getCanvasTaskPointLedgerDetail,
   grantCanvasManualBonus,
   grantCanvasPaidCorrection,
   previewCanvasOrderPointReturn,
@@ -199,16 +203,49 @@ describe('Canvas Cloud API boundary', () => {
       page: 2,
       pageSize: 20 as const,
       customer: 'uatcustomer',
-      model: 'Canvas Image',
+      modelId: 'model-id',
       sortBy: 'acceptedAt' as const,
       sortOrder: 'desc' as const,
     }
-    await getCanvasAdminTaskLogs('usage', logQuery)
-    await getCanvasAdminTaskLogs('task', logQuery)
-    expect(mocks.get.mock.calls.slice(-2).map((call) => call[0])).toEqual([
-      '/canvas-api/v1/web/admin/usage-logs',
+    await getCanvasAdminTaskLogs(logQuery)
+    expect(mocks.get).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/admin/task-logs',
-    ])
+      { params: logQuery, signal: undefined }
+    )
+    await getCanvasTaskLogOptions()
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/task-log-options',
+      { signal: undefined }
+    )
+    await getCanvasAdminTaskRecord('task-id')
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/tasks/task-id',
+      { signal: undefined, skipErrorHandler: true }
+    )
+    await getCanvasTaskPointLedger('task-id', {
+      changeType: 'SETTLE',
+      lotType: 'PAID',
+      page: 1,
+      pageSize: 20,
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/tasks/task-id/point-ledger',
+      {
+        params: {
+          changeType: 'SETTLE',
+          lotType: 'PAID',
+          page: 1,
+          pageSize: 20,
+        },
+        signal: undefined,
+        skipErrorHandler: true,
+      }
+    )
+    await getCanvasTaskPointLedgerDetail('task-id', 'ledger-id')
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/tasks/task-id/point-ledger/ledger-id',
+      { signal: undefined, skipErrorHandler: true }
+    )
 
     await getCanvasOrderPointReturns('customer-id', 'order-id', {
       operator: 'Canvas Admin',

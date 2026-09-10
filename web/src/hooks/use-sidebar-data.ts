@@ -31,7 +31,6 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
-  ReceiptText,
   ServerCog,
   Settings,
   Ticket,
@@ -73,12 +72,7 @@ export function useSidebarData(): SidebarData {
                 icon: BarChart3,
               },
               {
-                title: t('Canvas Usage Logs'),
-                url: '/canvas-cloud/usage-logs',
-                icon: ReceiptText,
-              },
-              {
-                title: t('Canvas Task Logs'),
+                title: t('Task Records'),
                 url: '/canvas-cloud/task-logs',
                 icon: ListTodo,
               },

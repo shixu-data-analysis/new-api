@@ -18,7 +18,6 @@ export const canvasCustomerSections = [
 
 export const canvasAdminSections = [
   'dashboard',
-  'usage-logs',
   'task-logs',
   'customers',
   'point-campaigns',
@@ -83,7 +82,9 @@ export function isCanvasSectionAllowed(
 export function canCanvasPrincipalAccessPath(pathname: string): boolean {
   if (
     pathname === '/canvas-cloud/refunds' ||
-    pathname.startsWith('/canvas-cloud/refunds/')
+    pathname.startsWith('/canvas-cloud/refunds/') ||
+    pathname === '/canvas-cloud/usage-logs' ||
+    pathname.startsWith('/canvas-cloud/usage-logs/')
   ) {
     return false
   }

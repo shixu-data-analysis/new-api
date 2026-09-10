@@ -86,12 +86,62 @@ const adminRework004Keys = [
     })
   ),
 ]
+const adminRework005Sources = [
+  'AdminTaskLogs.tsx',
+  'AdminTaskRecordDetails.tsx',
+  'TaskCallHistory.tsx',
+]
+const taskParameterLabelKeys = [
+  'Quality',
+  'Size',
+  'Resolution',
+  'Output aspect ratio',
+  'Quantity',
+  'Duration',
+  'Max Tokens',
+  'Seed',
+  'Generate audio',
+]
+const adminRework005Keys = [
+  ...new Set(
+    adminRework005Sources.flatMap((file) => {
+      const source = readFileSync(
+        resolve('src/features/canvas-cloud/components', file),
+        'utf8'
+      )
+      return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+        (match) => match[2]
+      )
+    })
+  ),
+  'Task deduction from paid points',
+  'Task deduction from bonus points',
+  'Task deduction from grace bonus points',
+  'Paid points debt repayment',
+  'Bonus points debt repayment',
+  'Grace bonus points debt repayment',
+  'Task released points',
+  'Lot remaining points',
+  'Lot frozen points',
+  ...taskParameterLabelKeys,
+]
 
 it.each(Object.entries({ en, ...localizedResources }))(
   'defines every ADMIN-REWORK-004 customer-management message in %s',
   (locale, resource) => {
     const translations = resource.translation as Record<string, string>
     for (const key of adminRework004Keys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every ADMIN-REWORK-005 task-record message in %s',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of adminRework005Keys) {
       expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
       expect(translations[key], `${locale}: ${key}`).not.toBe('')
     }
