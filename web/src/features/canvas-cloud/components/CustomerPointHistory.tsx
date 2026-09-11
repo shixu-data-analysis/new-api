@@ -200,7 +200,9 @@ export function CustomerPointHistory({
     ],
     queryFn: ({ signal }) => {
       let primarySearch: Record<string, string> = {}
-      if (lotsState.query.search) {
+      if (customerId && selectedLotId) {
+        primarySearch = { lotId: selectedLotId }
+      } else if (lotsState.query.search) {
         primarySearch = customerId
           ? { lotId: lotsState.query.search }
           : { rechargeOrderNumber: lotsState.query.search }

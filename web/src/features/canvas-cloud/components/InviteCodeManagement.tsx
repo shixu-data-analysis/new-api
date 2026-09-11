@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 
+import { getCanvasBindableBonusActivities } from '../activity-api'
 import {
   changeCanvasAdminInviteCodeStatus,
   createCanvasAdminInviteCode,
@@ -48,7 +49,6 @@ import {
   getCanvasInviteCodeOptions,
   revealCanvasCode,
 } from '../api'
-import { getCanvasCampaigns } from '../campaign-api'
 import type { CanvasAdminInviteCode, CanvasInviteCodeStatus } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
@@ -103,8 +103,6 @@ export function InviteCodeManagement() {
     maxRegistrations: '1',
     ...initialDates,
     priceGroupId: '',
-    initialBonusPoints: '',
-    initialBonusTtlDays: '',
     referralPrincipalId: '',
   })
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
@@ -154,19 +152,9 @@ export function InviteCodeManagement() {
   const campaigns = useQuery({
     queryKey: ['canvas-cloud', 'invite-campaign-options'],
     queryFn: ({ signal }) =>
-      getCanvasCampaigns(
-        {
-          page: 1,
-          pageSize: 100,
-          status: 'ACTIVE',
-          kind: 'INVITE_BONUS',
-          sortBy: 'createdAt',
-          sortOrder: 'desc',
-        },
-        signal
-      ),
+      getCanvasBindableBonusActivities('INVITE_BONUS', signal),
   })
-  const selectedCampaign = campaigns.data?.items.find(
+  const selectedCampaign = campaigns.data?.find(
     (item) => item.id === promotionVersionId
   )
   const selectedPriceGroupId =
@@ -181,10 +169,8 @@ export function InviteCodeManagement() {
         validFrom: new Date(form.validFrom).toISOString(),
         expiresAt: new Date(form.expiresAt).toISOString(),
         priceGroupId: selectedPriceGroupId,
-        initialBonusPoints: form.initialBonusPoints || null,
-        initialBonusTtlDays: form.initialBonusTtlDays
-          ? Number(form.initialBonusTtlDays)
-          : null,
+        initialBonusPoints: selectedCampaign?.points ?? null,
+        initialBonusTtlDays: selectedCampaign?.ttlDays ?? null,
         promotionVersionId: promotionVersionId || null,
         referralSource: null,
         referralPrincipalId: form.referralPrincipalId || null,
@@ -235,12 +221,6 @@ export function InviteCodeManagement() {
     BigInt(form.maxRegistrations) <= BigInt(Number.MAX_SAFE_INTEGER)
   const validFromTime = new Date(form.validFrom).getTime()
   const expiresAtTime = new Date(form.expiresAt).getTime()
-  const bonusConfigured =
-    form.initialBonusPoints !== '' || form.initialBonusTtlDays !== ''
-  const bonusPointsValid = /^[1-9]\d*$/.test(form.initialBonusPoints)
-  const bonusTtlValid = /^[1-9]\d*$/.test(form.initialBonusTtlDays)
-  const bonusTtlInRange =
-    bonusTtlValid && Number(form.initialBonusTtlDays) <= 3650
   let expiryError: string | null = null
   if (!Number.isFinite(expiresAtTime)) {
     expiryError = t('Enter a valid expiry time')
@@ -248,22 +228,6 @@ export function InviteCodeManagement() {
     expiryError = t('Expiry must be after the start time')
   } else if (expiresAtTime <= Date.now()) {
     expiryError = t('Expiry must be in the future')
-  }
-  let bonusPointsError: string | null = null
-  let bonusTtlError: string | null = null
-  if (
-    bonusConfigured &&
-    (!form.initialBonusPoints || !form.initialBonusTtlDays)
-  ) {
-    bonusPointsError = t('Enter both promotional points and validity days')
-    bonusTtlError = t('Enter both promotional points and validity days')
-  } else if (bonusConfigured) {
-    if (!bonusPointsValid) {
-      bonusPointsError = t('Promotional points must be a positive whole number')
-    }
-    if (!bonusTtlInRange) {
-      bonusTtlError = t('Validity must be a whole number from 1 to 3650 days')
-    }
   }
   const errors = {
     capacity: capacityIsSafe
@@ -276,8 +240,6 @@ export function InviteCodeManagement() {
       ? null
       : t('Enter a valid start time'),
     expiresAt: expiryError,
-    bonusPoints: bonusPointsError,
-    bonusTtl: bonusTtlError,
   }
   const valid = Object.values(errors).every((error) => error === null)
 
@@ -529,11 +491,11 @@ export function InviteCodeManagement() {
             { label: t('Campaign'), value: selectedCampaign.name },
             {
               label: t('Initial Bonus points'),
-              value: form.initialBonusPoints,
+              value: selectedCampaign.points,
             },
             {
               label: t('Bonus validity days'),
-              value: form.initialBonusTtlDays,
+              value: String(selectedCampaign.ttlDays),
             },
           ]
         : []),
@@ -776,27 +738,15 @@ export function InviteCodeManagement() {
                     onChange={(event) => {
                       const id = event.target.value
                       setPromotionVersionId(id)
-                      const draft = campaigns.data?.items.find(
-                        (item) => item.id === id
-                      )?.draft
-                      if (draft) {
-                        setForm((current) => ({
-                          ...current,
-                          initialBonusPoints: draft.bonusPoints,
-                          initialBonusTtlDays: String(draft.bonusTtlDays),
-                        }))
-                      }
                     }}
                   >
                     <option value=''>{t('No campaign')}</option>
-                    {campaigns.data?.items
-                      .filter((item) => item.draft)
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} · v{item.version} ·{' '}
-                          {item.draft?.bonusPoints} {t('Bonus points')}
-                        </option>
-                      ))}
+                    {campaigns.data?.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · v{item.version} · {item.points}{' '}
+                        {t('Bonus points')}
+                      </option>
+                    ))}
                   </select>
                   {campaigns.isError ? (
                     <p role='alert' className='text-destructive text-sm'>
@@ -804,72 +754,20 @@ export function InviteCodeManagement() {
                     </p>
                   ) : null}
                 </div>
-                <div className='grid gap-4 md:grid-cols-2'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='invite-bonus-points'>
-                      {t('Initial Bonus points')}
-                    </Label>
-                    <Input
-                      id='invite-bonus-points'
-                      inputMode='numeric'
-                      aria-invalid={Boolean(errors.bonusPoints)}
-                      aria-describedby={
-                        errors.bonusPoints
-                          ? 'invite-bonus-help invite-bonus-points-error'
-                          : 'invite-bonus-help'
-                      }
-                      value={form.initialBonusPoints}
-                      disabled={Boolean(selectedCampaign)}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          initialBonusPoints: event.target.value,
-                        }))
-                      }
-                      placeholder={t('Optional')}
-                    />
-                    <FieldError
-                      id='invite-bonus-points-error'
-                      message={errors.bonusPoints}
-                    />
+                {selectedCampaign ? (
+                  <div className='grid gap-2 text-sm md:grid-cols-2'>
+                    <p>
+                      {t('Bonus per new customer')}: {selectedCampaign.points}{' '}
+                      {t('points')}
+                    </p>
+                    <p>
+                      {t('Bonus validity')}:{' '}
+                      {t('Valid for {{days}} days after registration credit', {
+                        days: selectedCampaign.ttlDays,
+                      })}
+                    </p>
                   </div>
-                  <div className='space-y-2'>
-                    <Label htmlFor='invite-bonus-ttl'>
-                      {t('Bonus validity days')}
-                    </Label>
-                    <Input
-                      id='invite-bonus-ttl'
-                      inputMode='numeric'
-                      aria-invalid={Boolean(errors.bonusTtl)}
-                      aria-describedby={
-                        errors.bonusTtl
-                          ? 'invite-bonus-help invite-bonus-ttl-error'
-                          : 'invite-bonus-help'
-                      }
-                      value={form.initialBonusTtlDays}
-                      disabled={Boolean(selectedCampaign)}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          initialBonusTtlDays: event.target.value,
-                        }))
-                      }
-                      placeholder={t('Optional')}
-                    />
-                    <FieldError
-                      id='invite-bonus-ttl-error'
-                      message={errors.bonusTtl}
-                    />
-                  </div>
-                </div>
-                <p
-                  id='invite-bonus-help'
-                  className='text-muted-foreground text-xs'
-                >
-                  {t(
-                    'Set promotional points and validity days together, or leave both empty.'
-                  )}
-                </p>
+                ) : null}
               </fieldset>
             </div>
             <div>

@@ -136,10 +136,12 @@ export function AdminPointAdjustments({
   customerId: controlledCustomerId,
   onCustomerChange,
   orderId,
+  pointLotId,
 }: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
   orderId?: string
+  pointLotId?: string
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -852,6 +854,7 @@ export function AdminPointAdjustments({
         customerId={customer.customerId}
         selectedOrderId={selectedOrder?.id}
         initialOrderId={orderId}
+        initialLotId={pointLotId}
         selectedLotId={selectedLot?.id}
         onCorrectOrder={openPaidSheet}
         onDeductLot={openDeductionSheet}

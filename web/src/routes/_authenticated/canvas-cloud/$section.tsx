@@ -38,6 +38,7 @@ export const canvasCloudSearchSchema = z.object({
   customerId: optionalUuidSearch,
   customerName: z.string().trim().min(1).max(191).optional().catch(undefined),
   orderId: optionalUuidSearch,
+  pointLotId: optionalUuidSearch,
   orderNumber: z.string().trim().min(1).max(191).optional().catch(undefined),
   providerId: optionalUuidSearch,
   credentialGroupId: optionalUuidSearch,
@@ -54,7 +55,9 @@ function withoutInvalidUuidSearchValues(
   search: z.output<typeof canvasCloudSearchSchema>
 ) {
   return Object.fromEntries(
-    Object.entries(search).filter(([, value]) => !isInvalidUuidSearchValue(value))
+    Object.entries(search).filter(
+      ([, value]) => !isInvalidUuidSearchValue(value)
+    )
   )
 }
 

@@ -1,0 +1,10 @@
+{
+  "Activity status WAITING": "Waiting to grant",
+  "Redeemed to": "Redeemed to",
+  "No binding records match the current filters": "No binding records match the current filters",
+  "No grant records match the current filters": "No grant records match the current filters",
+  "The current contract preserves the pricing cost basis.": "The current contract preserves the pricing cost basis.",
+  "No participation tasks match the current filters": "No participation tasks match the current filters",
+  "New quotes will use the applicable normal price. Accepted tasks retain their frozen special price.": "New quotes will use the applicable normal price. Accepted tasks retain their frozen special price.",
+  "The original plan remains effective until this update is confirmed.": "The original plan remains effective until this update is confirmed."
+}

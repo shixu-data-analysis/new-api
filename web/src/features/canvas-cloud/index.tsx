@@ -52,6 +52,7 @@ import {
   getCanvasSession,
   redeemCanvasRechargeCode,
 } from './api'
+import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
@@ -64,7 +65,6 @@ import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
 import { InviteCodeManagement } from './components/InviteCodeManagement'
-import { PointCampaignWorkspace } from './components/PointCampaignWorkspace'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingPointRules } from './components/PricingPointRules'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
@@ -86,7 +86,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
   'task-logs': 'Task Records',
   customers: 'Customer management',
-  'point-campaigns': 'Points & campaigns',
+  'point-campaigns': 'Activity management',
   agents: 'Inviter management',
   'recharge-codes': 'Canvas Recharge Codes',
   'invite-codes': 'Canvas Invite Codes',
@@ -225,9 +225,17 @@ function CustomerContent(props: { section: CustomerSection }) {
   })
   const redeem = useMutation({
     mutationFn: redeemCanvasRechargeCode,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setCode('')
-      toast.success(t('Recharge code redeemed'))
+      toast.success(
+        t(
+          'Recharge code redeemed · Purchased {{purchased}} points · Bonus {{bonus}} points',
+          {
+            purchased: result.purchasedPoints,
+            bonus: result.bonusPoints,
+          }
+        )
+      )
       await queryClient.invalidateQueries({
         queryKey: ['canvas-cloud', 'customer'],
       })
@@ -447,11 +455,11 @@ export function AdminContent(props: {
   initialPricingPublicationId?: string
   initialCustomerId?: string
   initialOrderId?: string
+  initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   onReturnToModelList?: () => void
 }) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
     queryFn: getCanvasAdminWorkspace,
@@ -465,6 +473,7 @@ export function AdminContent(props: {
       'pricing-point-rules',
       'catalog',
       'pricing',
+      'point-campaigns',
     ].includes(props.section),
   })
   const dates = useMemo(
@@ -485,6 +494,7 @@ export function AdminContent(props: {
         customerId={props.initialCustomerId}
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
+        pointLotId={props.initialPointLotId}
       />
     )
   }
@@ -514,6 +524,7 @@ export function AdminContent(props: {
       />
     )
   }
+  if (props.section === 'point-campaigns') return <ActivityManagement />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -636,17 +647,6 @@ export function AdminContent(props: {
     )
   }
   if (props.section === 'agents') return <AgentManagement />
-  if (props.section === 'point-campaigns') {
-    return (
-      <PointCampaignWorkspace
-        prices={data.prices}
-        pricePromotions={data.pricePromotions ?? []}
-        onChanged={() =>
-          queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
-        }
-      />
-    )
-  }
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
   }
@@ -767,6 +767,7 @@ export function CanvasCloud() {
         initialPricingPublicationId={search.publicationId}
         initialCustomerId={search.customerId}
         initialOrderId={search.orderId}
+        initialPointLotId={search.pointLotId}
         onCustomerChange={(customerId) =>
           void navigate({
             to: '/canvas-cloud/$section',
@@ -775,6 +776,7 @@ export function CanvasCloud() {
               ...previous,
               customerId,
               orderId: undefined,
+              pointLotId: undefined,
               orderNumber: undefined,
             }),
             replace: true,

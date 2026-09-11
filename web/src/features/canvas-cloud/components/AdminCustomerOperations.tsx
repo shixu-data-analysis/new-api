@@ -995,6 +995,7 @@ export function AdminCustomerOperations({
   customerId,
   selectedOrderId,
   initialOrderId,
+  initialLotId,
   selectedLotId,
   onCorrectOrder,
   onReturnOrder,
@@ -1003,6 +1004,7 @@ export function AdminCustomerOperations({
   customerId: string
   selectedOrderId?: string
   initialOrderId?: string
+  initialLotId?: string
   selectedLotId?: string
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
   onReturnOrder?: (order: CanvasAdminRechargeOrder) => void
@@ -1057,7 +1059,14 @@ export function AdminCustomerOperations({
     pointSourceScrollY.current = undefined
     setTab('orders')
     setPointTab('lots')
-  }, [customerId, initialOrderId])
+  }, [customerId, initialLotId, initialOrderId])
+  useEffect(() => {
+    if (!initialLotId) return
+    setTargetOrderId(undefined)
+    setTab('points')
+    setPointTab('lots')
+    setSelection({ kind: 'lot', id: initialLotId, customerId })
+  }, [customerId, initialLotId])
   return (
     <>
       <Tabs
@@ -1100,7 +1109,7 @@ export function AdminCustomerOperations({
               <CustomerPointHistory
                 customerId={customerId}
                 view='lots'
-                selectedLotId={selectedLotId}
+                selectedLotId={initialLotId ?? selectedLotId}
                 onDeductLot={onDeductLot}
                 onInspect={inspect}
                 onOpenOrder={openOrder}

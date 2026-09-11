@@ -93,7 +93,7 @@ export function useSidebarData(): SidebarData {
                 icon: Users,
               },
               {
-                title: t('Points & campaigns'),
+                title: t('Activity management'),
                 url: '/canvas-cloud/point-campaigns',
                 icon: Wallet,
               },

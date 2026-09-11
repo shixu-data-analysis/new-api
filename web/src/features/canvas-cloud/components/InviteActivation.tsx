@@ -30,8 +30,12 @@ export function InviteActivation() {
   const [code, setCode] = useState('')
   const activation = useMutation({
     mutationFn: () => activateCanvasInvite(code.trim()),
-    onSuccess: async () => {
-      toast.success(t('Canvas access activated'))
+    onSuccess: async (result) => {
+      toast.success(
+        t('Canvas access activated · Bonus points credited: {{points}}', {
+          points: result.bonusPoints,
+        })
+      )
       await queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
     },
     onError: () => toast.error(t('Invite code is invalid or unavailable')),

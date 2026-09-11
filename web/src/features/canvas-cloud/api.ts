@@ -465,6 +465,7 @@ export async function issueCanvasAdminRechargeCodes(input: {
 export async function activateCanvasInvite(code: string): Promise<{
   status: 'CONSUMED'
   customerId: string
+  bonusPoints: string
 }> {
   return (
     await api.post(
@@ -747,7 +748,9 @@ export async function publishCanvasExecutionTargetPresentation(input: {
       { enabled, expectedVersion, confirmed: true },
       {
         headers: {
-          'Idempotency-Key': idempotencyKey('web-execution-target-presentation'),
+          'Idempotency-Key': idempotencyKey(
+            'web-execution-target-presentation'
+          ),
         },
         skipErrorHandler: true,
       }
@@ -755,7 +758,13 @@ export async function publishCanvasExecutionTargetPresentation(input: {
   ).data
 }
 
-export async function redeemCanvasRechargeCode(code: string) {
+export async function redeemCanvasRechargeCode(code: string): Promise<{
+  rechargeCodeId: string
+  redeemedAt: string
+  purchasedPoints: string
+  bonusPoints: string
+  issuedLots: Array<{ id: string }>
+}> {
   return (
     await api.post(
       '/canvas-api/v1/recharge-code-redemptions',
