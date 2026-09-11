@@ -6,13 +6,18 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { createFileRoute, useLocation, useNavigate } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  useLocation,
+  useNavigate,
+} from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
 import { ModelMonitoring } from '@/features/canvas-cloud/components/ModelMonitoring'
 import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation'
+import { executionTargetRouteIdSchema } from '@/features/canvas-cloud/model-monitoring-route-params'
 
 export const Route = createFileRoute(
   '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
@@ -26,7 +31,9 @@ function ModelMonitoringRoute() {
   const params = Route.useParams()
   const locationState = useLocation({ select: (location) => location.state })
   const modelId = z.string().uuid().safeParse(params.modelId)
-  const executionTargetId = z.string().uuid().safeParse(params.executionTargetId)
+  const executionTargetId = executionTargetRouteIdSchema.safeParse(
+    params.executionTargetId
+  )
   if (!modelId.success || !executionTargetId.success) {
     return <ErrorState title={t('Invalid model monitoring target')} />
   }
@@ -38,7 +45,10 @@ function ModelMonitoringRoute() {
       onSelectTarget={(nextExecutionTargetId) =>
         void navigate({
           to: '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId',
-          params: { modelId: modelId.data, executionTargetId: nextExecutionTargetId },
+          params: {
+            modelId: modelId.data,
+            executionTargetId: nextExecutionTargetId,
+          },
         })
       }
       onBack={() =>
@@ -46,7 +56,10 @@ function ModelMonitoringRoute() {
           to: '/canvas-cloud/model-management',
           search: {},
           state: locationState[modelManagementReturnStateKey]
-            ? { [modelManagementReturnStateKey]: locationState[modelManagementReturnStateKey] }
+            ? {
+                [modelManagementReturnStateKey]:
+                  locationState[modelManagementReturnStateKey],
+              }
             : undefined,
         })
       }
