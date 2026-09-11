@@ -127,6 +127,7 @@ const adminRework005Keys = [
 ]
 const adminRework006Sources = [
   'ModelControlDialog.tsx',
+  'ExecutionTargetCoverage.tsx',
   'ModelManagementLayout.tsx',
   'ModelMonitoring.tsx',
   'PublishedModelCatalog.tsx',
@@ -143,15 +144,21 @@ const adminRework006RouteSources = [
 ]
 const adminRework006Keys = [
   ...new Set(
-    [...adminRework006Sources.map((file) => resolve('src/features/canvas-cloud/components', file)), ...adminRework006RouteSources].flatMap(
-      (file) => {
-        const source = readFileSync(file, 'utf8')
-        return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
-          (match) => match[2]
-        )
-      }
-    )
+    [
+      ...adminRework006Sources.map((file) =>
+        resolve('src/features/canvas-cloud/components', file)
+      ),
+      ...adminRework006RouteSources,
+    ].flatMap((file) => {
+      const source = readFileSync(file, 'utf8')
+      return [...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+        (match) => match[2]
+      )
+    })
   ),
+  'Missing pricing',
+  'Model unavailable',
+  'Internal routing unavailable',
 ]
 
 it.each(Object.entries({ en, ...localizedResources }))(
@@ -194,8 +201,9 @@ it.each(Object.entries(localizedResources))(
     const english = en.translation as Record<string, string>
     for (const key of [
       'Model manually disabled',
-      'Model inactive',
-      'Channel disabled',
+      'Model unavailable',
+      'Provider unavailable',
+      'Internal routing unavailable',
     ]) {
       expect(translations[key]).toBeTruthy()
       expect(translations[key]).not.toBe(english[key])

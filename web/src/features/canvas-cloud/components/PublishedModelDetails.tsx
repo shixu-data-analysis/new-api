@@ -28,45 +28,11 @@ export function PublishedModelDetails({
   return (
     <details className='min-w-0'>
       <summary className='text-primary cursor-pointer text-xs'>
-        {t('Technical information')}
+        {t('Original catalog configuration')}
       </summary>
-      <div className='mt-2 min-w-0 space-y-3 text-xs [overflow-wrap:anywhere]'>
-        <div>
-          <span className='text-muted-foreground'>
-            {t('API provider code')}:{' '}
-          </span>
-          {model.provider.code || t('Not recorded')}
-        </div>
-        <div className='min-w-0'>
-          <div className='text-muted-foreground mb-1'>
-            {t('Upstream model ID')}
-          </div>
-          {model.modelIds.length === 0 && <div>{t('Not recorded')}</div>}
-          <div className='space-y-1'>
-            {model.modelIds.map((entry) => (
-              <div
-                key={`${entry.quality ?? ''}:${entry.modelId}`}
-                className='flex min-w-0 gap-1.5'
-              >
-                {entry.quality !== null && (
-                  <span className='shrink-0'>{entry.quality} →</span>
-                )}
-                <span className='min-w-0 [overflow-wrap:anywhere]'>
-                  {entry.modelId || t('Not recorded')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <details className='min-w-0'>
-          <summary className='cursor-pointer'>
-            {t('Original catalog configuration')}
-          </summary>
-          <pre className='bg-muted/50 mt-2 max-h-64 max-w-full overflow-auto rounded p-3 text-xs whitespace-pre'>
-            {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
-          </pre>
-        </details>
-      </div>
+      <pre className='bg-muted/50 mt-2 max-h-64 max-w-full overflow-auto rounded p-3 text-xs whitespace-pre'>
+        {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
+      </pre>
     </details>
   )
 }

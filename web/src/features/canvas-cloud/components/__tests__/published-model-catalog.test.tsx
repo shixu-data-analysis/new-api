@@ -17,6 +17,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CanvasAdminTestingModel } from '../../types'
+import { executionTargetLabel } from '../execution-target-label'
 import { PublishedModelCatalog } from '../PublishedModelCatalog'
 
 const mocks = vi.hoisted(() => ({
@@ -37,23 +38,28 @@ function executionTarget(
 ): CanvasAdminTestingModel['executionTargets'][number] {
   return {
     id: '85000000-0000-7000-8000-000000000005',
-    channelId: '85000000-0000-7000-8000-000000000010',
     upstreamModelId: 'provider-alpha',
     enabled: true,
     presentationVersion: 3,
-    runtimeEnabled: true,
-    providerEnabled: true,
-    channelEnabled: true,
     effectiveEnabled: true,
-    customerVisible: true,
-    pricingComplete: true,
+    blockingReasons: [],
+    customerVisible: false,
+    pricingComplete: false,
     pricingCoverage: [
       {
         priceGroupId: '85000000-0000-7000-8000-000000000006',
         priceGroupCode: 'STANDARD',
-        complete: true,
+        priceGroupName: 'Standard',
+        requiredCount: 3,
+        pricedCount: 1,
+        complete: false,
+        customerVisible: false,
+        invisibleReasons: ['MISSING_PRICING'],
         pricedCombinationIds: ['85000000-0000-7000-8000-000000000007'],
-        missingCombinationIds: [],
+        missingCombinationIds: [
+          '85000000-0000-7000-8000-000000000009',
+          '85000000-0000-7000-8000-000000000010',
+        ],
       },
     ],
     parameterCombinations: [
@@ -62,6 +68,20 @@ function executionTarget(
         key: 'quality=1K',
         label: '1K',
         normalizedParameters: { quality: '1K' },
+        enabled: true,
+      },
+      {
+        id: '85000000-0000-7000-8000-000000000009',
+        key: 'quality=2K',
+        label: '2K',
+        normalizedParameters: { quality: '2K' },
+        enabled: true,
+      },
+      {
+        id: '85000000-0000-7000-8000-000000000010',
+        key: 'quality=4K',
+        label: '4K',
+        normalizedParameters: { quality: '4K' },
         enabled: true,
       },
     ],
@@ -97,14 +117,6 @@ function model(
     },
     billingUnit: null,
     billingUnits: [],
-    channel: {
-      code: 'official.primary',
-      version: 1,
-      status: 'ACTIVE',
-      protocolAdapter: 'openai',
-      upstreamModel: 'alpha',
-      executionSnapshot: {},
-    },
     publicCatalogSnapshot: { capability: 'image.generate' },
     parameterCombinations: [],
     pricingTargets: [],
@@ -140,14 +152,27 @@ describe('Published model catalog', () => {
     mocks.publishTargetPresentation.mockResolvedValue({ status: 'PUBLISHED' })
   })
 
-  it('keeps identical same-upstream targets separate by their channel IDs', async () => {
+  it('uses backend labels rather than internal parameter keys for target labels', () => {
+    const t = (key: string) => ({ '1K': '一千', Default: '默认' })[key] ?? key
+
+    expect(
+      executionTargetLabel(
+        {
+          upstreamModelId: 'provider-alpha',
+          parameterCombinations: [{ label: '1K' }, { label: 'Default' }],
+        },
+        t
+      )
+    ).toBe('一千 · 默认 · provider-alpha')
+  })
+
+  it('keeps identical upstream targets separate without exposing internal routing facts', async () => {
     mocks.list.mockResolvedValue([
       model({
         executionTargets: [
           executionTarget(),
           executionTarget({
             id: '85000000-0000-7000-8000-000000000008',
-            channelId: '85000000-0000-7000-8000-000000000011',
           }),
         ],
       }),
@@ -156,19 +181,18 @@ describe('Published model catalog', () => {
     renderCatalog()
 
     await screen.findByText('Alpha model')
-    expect(screen.getAllByText('1K')).toHaveLength(2)
+    expect(screen.getAllByText('1K · 2K · 4K')).toHaveLength(2)
+    expect(screen.getAllByText('provider-alpha').length).toBeGreaterThanOrEqual(
+      2
+    )
     expect(
-      screen.getByText('Channel ID: 85000000-0000-7000-8000-000000000010')
-    ).toBeVisible()
-    expect(
-      screen.getByText('Channel ID: 85000000-0000-7000-8000-000000000011')
-    ).toBeVisible()
-    expect(screen.getAllByText(/Upstream model ID: provider-alpha/)).toHaveLength(2)
-    expect(
-      screen.getByRole('switch', {
-        name: 'Customer display for Alpha model · 1K · 85000000-0000-7000-8000-000000000011',
+      screen.getAllByRole('switch', {
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
       })
-    ).toBeVisible()
+    ).toHaveLength(2)
+    expect(
+      screen.queryByText(/85000000-0000-7000-8000-000000000010/)
+    ).toBeNull()
   })
 
   it('keeps all parameter combinations of one target under one display switch', async () => {
@@ -204,6 +228,57 @@ describe('Published model catalog', () => {
     expect(screen.getAllByRole('switch')).toHaveLength(1)
   })
 
+  it('shows missing 2K and 4K specifications for a three-quality target with one priced combination', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({
+            pricingCoverage: [
+              {
+                priceGroupId: '85000000-0000-7000-8000-000000000006',
+                priceGroupCode: 'STANDARD',
+                priceGroupName: 'Standard',
+                requiredCount: 3,
+                pricedCount: 1,
+                complete: false,
+                customerVisible: false,
+                invisibleReasons: ['MISSING_PRICING'],
+                pricedCombinationIds: ['85000000-0000-7000-8000-000000000007'],
+                missingCombinationIds: [
+                  '85000000-0000-7000-8000-000000000009',
+                  '85000000-0000-7000-8000-000000000010',
+                ],
+              },
+            ],
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    expect(
+      await screen.findByText(
+        'Price plan: Standard · 1/3 Not shown to customers'
+      )
+    ).toBeVisible()
+    expect(screen.getByText('No price plans visible (0/1)')).toBeVisible()
+    expect(screen.getByText('Reason: Missing pricing')).toBeVisible()
+    expect(screen.getByText('Missing specifications: 2K · 4K')).toBeVisible()
+  })
+
+  it('keeps the raw catalog configuration in its own model-table column', async () => {
+    renderCatalog()
+
+    expect(
+      await screen.findByText('Original catalog configuration')
+    ).toBeVisible()
+    expect(await screen.findByText('Alpha model')).toBeVisible()
+    expect(screen.getByText('Alpha model').closest('td')).not.toHaveTextContent(
+      'Original catalog configuration'
+    )
+  })
+
   it('publishes only the selected target display switch after confirmation', async () => {
     const targetId = '85000000-0000-7000-8000-000000000005'
     const { client } = renderCatalog()
@@ -212,11 +287,11 @@ describe('Published model catalog', () => {
     await screen.findByText('Alpha model')
     fireEvent.click(
       screen.getByRole('switch', {
-        name: 'Customer display for Alpha model · 1K · 85000000-0000-7000-8000-000000000010',
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
       })
     )
     const confirmation = screen.getByRole('alertdialog')
-    expect(confirmation).toHaveTextContent('1K')
+    expect(confirmation).toHaveTextContent('1K · 2K · 4K')
     expect(confirmation).toHaveTextContent('provider-alpha')
     fireEvent.click(
       within(confirmation).getByRole('button', {
@@ -236,7 +311,11 @@ describe('Published model catalog', () => {
     )
     await waitFor(() =>
       expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: ['canvas-cloud', 'model-monitoring-targets', '85000000-0000-7000-8000-000000000004'],
+        queryKey: [
+          'canvas-cloud',
+          'model-monitoring-targets',
+          '85000000-0000-7000-8000-000000000004',
+        ],
       })
     )
     expect(invalidateQueries).toHaveBeenCalledWith({
@@ -261,7 +340,7 @@ describe('Published model catalog', () => {
     await screen.findByText('Alpha model')
     fireEvent.click(
       screen.getByRole('switch', {
-        name: 'Customer display for Alpha model · 1K · 85000000-0000-7000-8000-000000000010',
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
       })
     )
     fireEvent.click(

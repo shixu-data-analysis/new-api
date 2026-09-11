@@ -7,16 +7,18 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import z from 'zod'
 import { useTranslation } from 'react-i18next'
+import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
 import { AdminModelCatalog } from '@/features/canvas-cloud/components/AdminModelCatalog'
-import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation'
+import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation-state'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
-  legacyError: z.enum(['invalid-model', 'invalid-publication', 'missing-model']).optional(),
+  legacyError: z
+    .enum(['invalid-model', 'invalid-publication', 'missing-model'])
+    .optional(),
 })
 
 export const Route = createFileRoute(
@@ -31,13 +33,18 @@ function ModelManagementIndex() {
   const navigate = useNavigate()
   const search = Route.useSearch()
   if (search.legacyError) {
-    const description =
-      search.legacyError === 'missing-model'
-        ? t('A model is required to open this pricing publication.')
-        : search.legacyError === 'invalid-publication'
-          ? t('The pricing publication parameter is invalid.')
-          : t('The model parameter is invalid.')
-    return <ErrorState title={t('Invalid model-management link')} description={description} />
+    let description = t('The model parameter is invalid.')
+    if (search.legacyError === 'missing-model') {
+      description = t('A model is required to open this pricing publication.')
+    } else if (search.legacyError === 'invalid-publication') {
+      description = t('The pricing publication parameter is invalid.')
+    }
+    return (
+      <ErrorState
+        title={t('Invalid model-management link')}
+        description={description}
+      />
+    )
   }
   const tab = search.tab === 'import' ? 'import' : 'published'
   return (
@@ -54,7 +61,10 @@ function ModelManagementIndex() {
           to: '/canvas-cloud/model-management/$modelId/pricing',
           params: { modelId },
           state: returnContext
-            ? { [modelManagementReturnStateKey]: returnContext }
+            ? (previous) => ({
+                ...previous,
+                [modelManagementReturnStateKey]: returnContext,
+              })
             : undefined,
         })
       }
@@ -63,7 +73,10 @@ function ModelManagementIndex() {
           to: '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId',
           params: { modelId, executionTargetId },
           state: returnContext
-            ? { [modelManagementReturnStateKey]: returnContext }
+            ? (previous) => ({
+                ...previous,
+                [modelManagementReturnStateKey]: returnContext,
+              })
             : undefined,
         })
       }
@@ -73,7 +86,10 @@ function ModelManagementIndex() {
           params: { section: 'provider-configuration' },
           search: { modelId },
           state: returnContext
-            ? { [modelManagementReturnStateKey]: returnContext }
+            ? (previous) => ({
+                ...previous,
+                [modelManagementReturnStateKey]: returnContext,
+              })
             : undefined,
         })
       }

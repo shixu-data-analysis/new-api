@@ -763,29 +763,33 @@ export interface CanvasTaskPolicySettings {
   paidExpiryEffectiveAt: string | null
 }
 
+export interface CanvasExecutionTargetPricingCoverage {
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  requiredCount: number
+  pricedCount: number
+  complete: boolean
+  customerVisible: boolean
+  invisibleReasons: string[]
+  pricedCombinationIds: string[]
+  missingCombinationIds: string[]
+}
+
 export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
   modelIds: Array<{ quality: string | null; modelId: string }>
   executionTargets: Array<{
     id: string
-    channelId: string
     upstreamModelId: string
     enabled: boolean
     presentationVersion: number | null
-    runtimeEnabled: boolean
-    providerEnabled: boolean
-    channelEnabled: boolean
     effectiveEnabled: boolean
+    blockingReasons: string[]
     customerVisible: boolean
     pricingComplete: boolean
-    pricingCoverage: Array<{
-      priceGroupId: string
-      priceGroupCode: string
-      complete: boolean
-      pricedCombinationIds: string[]
-      missingCombinationIds: string[]
-    }>
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
     parameterCombinations: Array<{
       id: string
       key: string
@@ -814,14 +818,6 @@ export interface CanvasAdminTestingModel {
   }
   billingUnit: CanvasBillingUnit | null
   billingUnits: CanvasBillingUnit[]
-  channel: {
-    code: string
-    version: number
-    status: string
-    protocolAdapter: string
-    upstreamModel: string
-    executionSnapshot: Record<string, unknown>
-  }
   publicCatalogSnapshot: Record<string, unknown>
   parameterCombinations: Array<{
     id: string
@@ -1405,30 +1401,22 @@ export interface CanvasModelMonitoringTargets {
     id: string
     modelKey: string
     name: string
+    providerName: string
     version: number
     status: string
   }
   targets: Array<{
     id: string
-    channelId: string
     upstreamModelId: string
     manualEnabled: boolean
     controlVersion: number
-    runtimeEnabled: boolean
-    providerEnabled: boolean
-    channelEnabled: boolean
     effectiveEnabled: boolean
+    blockingReasons: string[]
     presentationEnabled: boolean
     presentationVersion: number | null
     pricingComplete: boolean
     customerVisible: boolean
-    pricingCoverage: Array<{
-      priceGroupId: string
-      priceGroupCode: string
-      complete: boolean
-      pricedCombinationIds: string[]
-      missingCombinationIds: string[]
-    }>
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
     parameterCombinations: Array<{
       id: string
       key: string
@@ -1443,16 +1431,18 @@ export interface CanvasModelMonitoring {
     id: string
     modelKey: string
     name: string
+    providerName: string
     version: number
     capability: string | null
     status: string
   }
   executionTarget: {
     id: string
-    channelId: string
     upstreamModelId: string
     presentationEnabled: boolean
     presentationVersion: number | null
+    customerVisible: boolean
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
     parameterCombinations: Array<{
       id: string
       key: string
@@ -1462,8 +1452,6 @@ export interface CanvasModelMonitoring {
   }
   manualEnabled: boolean
   controlVersion: number
-  providerEnabled: boolean
-  channelEnabled: boolean
   effectiveEnabled: boolean
   blockingReasons: string[]
   roundStartedAt: string

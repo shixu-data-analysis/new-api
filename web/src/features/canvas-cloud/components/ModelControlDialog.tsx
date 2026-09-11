@@ -32,13 +32,14 @@ import {
   channelReasonLabels,
 } from '../channel-health'
 import type { CanvasModelMonitoring } from '../types'
+import { executionTargetLabel } from './execution-target-label'
 
 type ReasonForm = { reasonCode: string; note: string }
 
 const blockingReasonLabels: Record<string, string> = {
-  MODEL_INACTIVE: 'Model inactive',
-  PROVIDER_DISABLED: 'Provider disabled',
-  CHANNEL_DISABLED: 'Channel disabled',
+  MODEL_UNAVAILABLE: 'Model unavailable',
+  PROVIDER_UNAVAILABLE: 'Provider unavailable',
+  INTERNAL_ROUTING_UNAVAILABLE: 'Internal routing unavailable',
 }
 
 export function ModelControlDialog(props: {
@@ -73,11 +74,15 @@ export function ModelControlDialog(props: {
   })
   const action = enabled ? t('Restore model') : t('Disable model')
   const upperLevelBlockingReasons = props.monitoring.blockingReasons.filter(
-    (reason) => reason !== 'MODEL_MANUALLY_DISABLED'
+    (reason) => reason !== 'MANUALLY_DISABLED'
   )
   const impact = enabled
-    ? t('Restoring starts a new monitoring round for this execution target and keeps prior history. New quotes and new task acceptance resume when upper-level controls allow it.')
-    : t('Disabling affects only this execution target. It blocks new quotes, tasks from quotes accepted before the disablement, and new task acceptance. Accepted tasks continue. Other models on the same channel are unaffected.')
+    ? t(
+        'Restoring starts a new monitoring round for this execution target and keeps prior history. New quotes and new task acceptance resume when upper-level controls allow it.'
+      )
+    : t(
+        'Disabling affects only this execution target. It blocks new quotes, tasks from quotes accepted before the disablement, and new task acceptance. Accepted tasks continue. Other execution targets are unaffected.'
+      )
   return (
     <Dialog
       open
@@ -90,14 +95,16 @@ export function ModelControlDialog(props: {
           <DialogTitle>{action}</DialogTitle>
           <DialogDescription>
             {props.monitoring.customerModel.name} ·{' '}
-            {props.monitoring.executionTarget.channelId} ·{' '}
-            {props.monitoring.executionTarget.upstreamModelId}
+            {executionTargetLabel(props.monitoring.executionTarget, t)}
           </DialogDescription>
         </DialogHeader>
         <p className='text-muted-foreground text-sm'>{impact}</p>
         {upperLevelBlockingReasons.length > 0 ? (
           <p className='text-muted-foreground text-sm'>
-            {t('Upper-level availability still applies')}: {upperLevelBlockingReasons.map((reason) => t(blockingReasonLabels[reason] ?? 'Upper-level availability still applies')).join(' · ')}
+            {t('Upper-level availability still applies')}:{' '}
+            {upperLevelBlockingReasons
+              .map((reason) => t(blockingReasonLabels[reason] ?? 'Unavailable'))
+              .join(' · ')}
           </p>
         ) : null}
         <form
@@ -107,54 +114,77 @@ export function ModelControlDialog(props: {
             mutation.mutate(value)
           })}
         >
-            <div className='space-y-1'>
-              <Label htmlFor='model-control-reason'>{t('Reason')} *</Label>
-              <NativeSelect
-                id='model-control-reason'
-                {...form.register('reasonCode')}
-                aria-invalid={Boolean(form.formState.errors.reasonCode)}
-                aria-describedby='model-control-reason-error'
-              >
-                <NativeSelectOption value=''>
-                  {t(enabled ? 'Select a restore reason' : 'Select a disable reason')}
-                </NativeSelectOption>
-                {(enabled ? channelEnableReasons : channelDisableReasons).map(
-                  (reason) => (
-                    <NativeSelectOption key={reason} value={reason}>
-                      {t(channelReasonLabels[reason])}
-                    </NativeSelectOption>
-                  )
+          <div className='space-y-1'>
+            <Label htmlFor='model-control-reason'>{t('Reason')} *</Label>
+            <NativeSelect
+              id='model-control-reason'
+              {...form.register('reasonCode')}
+              aria-invalid={Boolean(form.formState.errors.reasonCode)}
+              aria-describedby='model-control-reason-error'
+            >
+              <NativeSelectOption value=''>
+                {t(
+                  enabled
+                    ? 'Select a restore reason'
+                    : 'Select a disable reason'
                 )}
-              </NativeSelect>
-              {form.formState.errors.reasonCode ? (
-                <p id='model-control-reason-error' role='alert' className='text-destructive text-sm'>
-                  {t('Select a reason')}
-                </p>
-              ) : null}
-            </div>
-            <div className='space-y-1'>
-              <Label htmlFor='model-control-note'>{t('Additional explanation (required for Other)')}</Label>
-              <Textarea
-                id='model-control-note'
-                {...form.register('note')}
-                maxLength={1000}
-                aria-invalid={Boolean(form.formState.errors.note)}
-                aria-describedby='model-control-note-error'
-              />
-              {form.formState.errors.note ? (
-                <p id='model-control-note-error' role='alert' className='text-destructive text-sm'>
-                  {t('Provide an explanation of up to 1000 characters')}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button type='button' variant='outline' disabled={mutation.isPending} onClick={props.onClose}>
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' variant={enabled ? 'default' : 'destructive'} disabled={mutation.isPending}>
-                {mutation.isPending ? t('Saving...') : action}
-              </Button>
-            </DialogFooter>
+              </NativeSelectOption>
+              {(enabled ? channelEnableReasons : channelDisableReasons).map(
+                (reason) => (
+                  <NativeSelectOption key={reason} value={reason}>
+                    {t(channelReasonLabels[reason])}
+                  </NativeSelectOption>
+                )
+              )}
+            </NativeSelect>
+            {form.formState.errors.reasonCode ? (
+              <p
+                id='model-control-reason-error'
+                role='alert'
+                className='text-destructive text-sm'
+              >
+                {t('Select a reason')}
+              </p>
+            ) : null}
+          </div>
+          <div className='space-y-1'>
+            <Label htmlFor='model-control-note'>
+              {t('Additional explanation (required for Other)')}
+            </Label>
+            <Textarea
+              id='model-control-note'
+              {...form.register('note')}
+              maxLength={1000}
+              aria-invalid={Boolean(form.formState.errors.note)}
+              aria-describedby='model-control-note-error'
+            />
+            {form.formState.errors.note ? (
+              <p
+                id='model-control-note-error'
+                role='alert'
+                className='text-destructive text-sm'
+              >
+                {t('Provide an explanation of up to 1000 characters')}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={mutation.isPending}
+              onClick={props.onClose}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='submit'
+              variant={enabled ? 'default' : 'destructive'}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? t('Saving...') : action}
+            </Button>
+          </DialogFooter>
         </form>
         {mutation.isError ? (
           <p role='alert' className='text-destructive text-sm'>

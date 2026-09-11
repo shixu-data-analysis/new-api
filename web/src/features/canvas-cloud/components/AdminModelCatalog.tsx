@@ -23,8 +23,6 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import type { ModelManagementReturnContext } from '../model-management-navigation'
-
 import { StaticDataTable } from '@/components/data-table'
 import {
   DataTableColumnFilterField,
@@ -59,6 +57,7 @@ import {
   publishCanvasModelCatalogBundle,
 } from '../api'
 import { buildCatalogBundle } from '../catalogBundleReader'
+import type { ModelManagementReturnContext } from '../model-management-navigation-state'
 import type { CanvasModelCatalogBundle, CanvasModelCatalogPlan } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -133,8 +132,9 @@ export function AdminModelCatalog(
     details: string[]
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] =
-    useState<'published' | 'import'>('published')
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<
+    'published' | 'import'
+  >('published')
   const activeTab = props.tab ?? uncontrolledActiveTab
   const navigate = useNavigate()
   const [search, setSearch] = useState('')

@@ -16,7 +16,7 @@ import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
 import { ModelMonitoring } from '@/features/canvas-cloud/components/ModelMonitoring'
-import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation'
+import { forwardModelManagementReturnState } from '@/features/canvas-cloud/model-management-navigation-state'
 import { executionTargetRouteIdSchema } from '@/features/canvas-cloud/model-monitoring-route-params'
 
 export const Route = createFileRoute(
@@ -49,18 +49,20 @@ function ModelMonitoringRoute() {
             modelId: modelId.data,
             executionTargetId: nextExecutionTargetId,
           },
+          state: (previous) => ({
+            ...previous,
+            ...forwardModelManagementReturnState(locationState),
+          }),
         })
       }
       onBack={() =>
         void navigate({
           to: '/canvas-cloud/model-management',
           search: {},
-          state: locationState[modelManagementReturnStateKey]
-            ? {
-                [modelManagementReturnStateKey]:
-                  locationState[modelManagementReturnStateKey],
-              }
-            : undefined,
+          state: (previous) => ({
+            ...previous,
+            ...forwardModelManagementReturnState(locationState),
+          }),
         })
       }
     />

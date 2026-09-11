@@ -16,19 +16,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type {
-  ColumnDef,
-  PaginationState,
-  SortingState,
+import {
+  flexRender,
+  functionalUpdate,
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table'
 import {
+  Fragment,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -36,9 +38,9 @@ import { toast } from 'sonner'
 
 import {
   DataTableColumnHeader,
-  DataTablePagination,
+  DataTablePage,
   DataTableToolbar,
-  DataTableView,
+  StaticDataTable,
   useDataTable,
 } from '@/components/data-table'
 import {
@@ -75,6 +77,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
@@ -87,10 +90,15 @@ import {
   type ModelPresentationFormValues,
   hasModelPresentationChanges,
 } from '../lib/model-presentation-schema'
-import { useOptionalModelManagementNavigation } from '../model-management-navigation'
+import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
 import type { CanvasAdminTestingModel } from '../types'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import {
+  executionTargetLabel,
+  executionTargetSpecifications,
+} from './execution-target-label'
+import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
 import { PublishedModelDetails } from './PublishedModelDetails'
 
 function presentationVersion(model: CanvasAdminTestingModel) {
@@ -101,12 +109,6 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
   return enabled ? t('Turn off display switch') : t('Turn on display switch')
 }
 
-function executionTargetLabel(
-  target: CanvasAdminTestingModel['executionTargets'][number]
-) {
-  return target.parameterCombinations.map((combination) => combination.label).join(' · ')
-}
-
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
   onManageMonitoring?: (
@@ -114,7 +116,10 @@ export function PublishedModelCatalog(props: {
     executionTargetId: string,
     returnContext?: { nonce: string }
   ) => void
-  onManageBindings?: (modelId: string, returnContext?: { nonce: string }) => void
+  onManageBindings?: (
+    modelId: string,
+    returnContext?: { nonce: string }
+  ) => void
 }) {
   const onManagePricing = props.onManagePricing
   const navigation = useOptionalModelManagementNavigation()
@@ -139,9 +144,14 @@ export function PublishedModelCatalog(props: {
   const [sorting, setSorting] = useState<SortingState>(
     () => navigation?.listState.sorting ?? [{ id: 'name', desc: false }]
   )
-  const tableContentRef = useRef<HTMLDivElement>(null)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => navigation?.listState.columnVisibility ?? {}
+  )
+  useEffect(() => {
+    if (!navigation) return
+    setColumnVisibility(navigation.listState.columnVisibility)
+  }, [navigation, navigation?.listState.columnVisibility])
   const hasAppliedInitialFilters = useRef(false)
-  const [actionColumnSize, setActionColumnSize] = useState(208)
   useEffect(() => {
     if (!hasAppliedInitialFilters.current) {
       hasAppliedInitialFilters.current = true
@@ -160,6 +170,7 @@ export function PublishedModelCatalog(props: {
       visibility,
       pagination,
       sorting,
+      columnVisibility,
     })
   }, [
     capability,
@@ -169,6 +180,7 @@ export function PublishedModelCatalog(props: {
     provider,
     search,
     sorting,
+    columnVisibility,
     visibility,
   ])
   const ensurePageInRange = useCallback((pageCount: number) => {
@@ -285,7 +297,9 @@ export function PublishedModelCatalog(props: {
     },
     onError: () => {
       setFormServerError(
-        t('Target display change failed. Refresh the target state before retrying.')
+        t(
+          'Target display change failed. Refresh the target state before retrying.'
+        )
       )
     },
   })
@@ -384,24 +398,6 @@ export function PublishedModelCatalog(props: {
     })
     return matches
   }, [capability, modelId, models.data, provider, search, t, visibility])
-  useLayoutEffect(() => {
-    const actions = tableContentRef.current?.querySelector<HTMLElement>(
-      '[data-model-actions]'
-    )
-    if (!actions || actions.scrollWidth === 0) return
-    const cell = actions.closest('td')
-    if (!cell) return
-    const padding = getComputedStyle(cell)
-    const requiredWidth = Math.ceil(
-      actions.scrollWidth +
-        Number.parseFloat(padding.paddingLeft) +
-        Number.parseFloat(padding.paddingRight)
-    )
-    setActionColumnSize(
-      [128, 160, 208, 256].find((size) => size >= requiredWidth) ??
-        requiredWidth
-    )
-  }, [filtered, pagination.pageIndex, pagination.pageSize, t])
   let visibilityFilterLabel = t('All')
   if (visibility === 'CUSTOMER') {
     visibilityFilterLabel = t('Visible to customers')
@@ -443,11 +439,8 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='min-w-0 space-y-1 whitespace-normal'>
-              <div className='font-medium [overflow-wrap:anywhere]'>
-                {model.name}
-              </div>
-              <PublishedModelDetails model={model} />
+            <div className='min-w-0 font-medium [overflow-wrap:anywhere] whitespace-normal'>
+              {model.name}
             </div>
           )
         },
@@ -503,99 +496,38 @@ export function PublishedModelCatalog(props: {
         },
       },
       {
+        id: 'catalogConfiguration',
+        size: 224,
+        accessorFn: (model) => JSON.stringify(model.publicCatalogSnapshot),
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Original catalog configuration')}
+          />
+        ),
+        meta: { label: t('Original catalog configuration') },
+        cell: ({ row }) => <PublishedModelDetails model={row.original} />,
+      },
+      {
         id: 'actions',
-        size: actionColumnSize,
-        header: t('Actions'),
-        meta: { label: t('Actions') },
+        size: 208,
+        header: t('Model actions'),
+        meta: { label: t('Model actions') },
         enableSorting: false,
         enableHiding: false,
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div data-model-actions className='grid min-w-80 gap-3'>
-              {model.executionTargets.map((target) => {
-                const targetLabel = executionTargetLabel(target)
-                const displayStatus = target.customerVisible
-                  ? t('Visible to customers')
-                  : !target.enabled
-                    ? t('Display switch is off')
-                    : !target.runtimeEnabled
-                      ? t('Runtime is unavailable')
-                      : !target.pricingComplete
-                        ? t('Pricing is incomplete')
-                        : t('Not shown to customers')
-                return (
-                  <section
-                    key={target.id}
-                    className='bg-muted/40 grid gap-2 rounded-md border p-3'
-                    aria-label={`${t('Execution target')}: ${targetLabel}`}
-                  >
-                    <div className='grid gap-1'>
-                      <span className='font-medium break-words'>{targetLabel}</span>
-                      <span className='text-muted-foreground break-all text-sm'>
-                        {t('Channel ID')}: {target.channelId}
-                      </span>
-                      <span className='text-muted-foreground break-all text-sm'>
-                        {t('Upstream model ID')}: {target.upstreamModelId}
-                      </span>
-                    </div>
-                    <div className='grid gap-1 text-sm'>
-                      <span>
-                        {t('Pricing coverage')}: {target.pricingCoverage.length
-                          ? target.pricingCoverage
-                              .map((coverage) =>
-                                coverage.complete
-                                  ? `${coverage.priceGroupCode}: ${t('Complete')}`
-                                  : `${coverage.priceGroupCode}: ${t('Incomplete')}`
-                              )
-                              .join(' · ')
-                          : t('No published price plans')}
-                      </span>
-                      <span>
-                        {t('Customer display')}: {displayStatus}
-                      </span>
-                    </div>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <Switch
-                        checked={target.enabled}
-                        disabled={presentationBusy}
-                        aria-label={t('Customer display for {{model}}', {
-                          model: `${model.name} · ${targetLabel} · ${target.channelId}`,
-                        })}
-                        onCheckedChange={() => {
-                          if (presentationBusy) return
-                          setFormServerError(null)
-                          setPresentationConflict(false)
-                          setToggling({ model, target })
-                        }}
-                      />
-                      <Button
-                        variant='outline'
-                        disabled={presentationBusy || !props.onManageMonitoring}
-                        data-model-navigation-id={`${model.id}:monitoring:${target.id}`}
-                        onClick={() => {
-                          props.onManageMonitoring?.(
-                            model.id,
-                            target.id,
-                            navigation?.captureReturnContext(
-                              `${model.id}:monitoring:${target.id}`
-                            )
-                          )
-                        }}
-                      >
-                        {t('Runtime monitoring')}
-                      </Button>
-                    </div>
-                  </section>
-                )
-              })}
-              <div className='grid w-max grid-cols-2 gap-2 max-sm:grid-cols-1'>
+            <div className='grid gap-2'>
+              <div className='grid w-max gap-2'>
                 <Button
                   variant='outline'
                   disabled={presentationBusy}
                   data-model-navigation-id={`${model.id}:pricing`}
                   onClick={(event) => {
-                    const returnContext = navigation?.captureReturnContext(`${model.id}:pricing`)
+                    const returnContext = navigation?.captureReturnContext(
+                      `${model.id}:pricing`
+                    )
                     event.currentTarget.focus()
                     onManagePricing(model.id, returnContext)
                   }}
@@ -628,16 +560,7 @@ export function PublishedModelCatalog(props: {
         },
       },
     ],
-    [
-      actionColumnSize,
-      navigation,
-      onManagePricing,
-      presentationBusy,
-      props.onManageBindings,
-      props.onManageMonitoring,
-      startEdit,
-      t,
-    ]
+    [navigation, onManagePricing, presentationBusy, props, startEdit, t]
   )
   const sizedColumns = useMemo(
     () => withCanvasTableColumnSizes(columns),
@@ -655,144 +578,266 @@ export function PublishedModelCatalog(props: {
     onSortingChange: setSorting,
     pagination,
     onPaginationChange: setPagination,
+    columnVisibility,
+    onColumnVisibilityChange: (update) =>
+      setColumnVisibility((current) => functionalUpdate(update, current)),
     ensurePageInRange,
     autoResetPageIndex: false,
   })
-  const visibleColumns = table.getVisibleLeafColumns()
-  const flexibleColumn =
-    visibleColumns.find((column) => column.id === 'name') ??
-    visibleColumns.find((column) => column.id === 'provider')
-  const minimumTableWidth = visibleColumns.reduce(
-    (width, column) => width + column.getSize(),
-    0
-  )
+  const renderTargetDetails = (
+    model: CanvasAdminTestingModel,
+    mobile = false
+  ) => {
+    const displayControl = (
+      target: CanvasAdminTestingModel['executionTargets'][number]
+    ) => (
+      <Switch
+        checked={target.enabled}
+        disabled={presentationBusy}
+        aria-label={t('Customer display for {{model}}', {
+          model: `${model.name} · ${executionTargetLabel(target, t)}`,
+        })}
+        onCheckedChange={() => {
+          if (presentationBusy) return
+          setFormServerError(null)
+          setPresentationConflict(false)
+          setToggling({ model, target })
+        }}
+      />
+    )
+    const monitoringAction = (
+      target: CanvasAdminTestingModel['executionTargets'][number]
+    ) => (
+      <Button
+        variant='outline'
+        disabled={presentationBusy || !props.onManageMonitoring}
+        data-model-navigation-id={`${model.id}:monitoring:${target.id}`}
+        onClick={() => {
+          props.onManageMonitoring?.(
+            model.id,
+            target.id,
+            navigation?.captureReturnContext(
+              `${model.id}:monitoring:${target.id}`
+            )
+          )
+        }}
+      >
+        {t('Runtime monitoring')}
+      </Button>
+    )
+    if (mobile) {
+      return (
+        <div className='space-y-3' aria-label={t('Execution targets')}>
+          {model.executionTargets.map((target) => (
+            <section key={target.id} className='space-y-2'>
+              <p className='font-medium break-words'>
+                {executionTargetLabel(target, t)}
+              </p>
+              <dl className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm'>
+                <dt className='text-muted-foreground'>
+                  {t('Upstream model ID')}
+                </dt>
+                <dd className='break-all'>{target.upstreamModelId}</dd>
+                <dt className='text-muted-foreground'>
+                  {t('Price plans and customer visibility')}
+                </dt>
+                <dd>
+                  <ExecutionTargetCoverage
+                    coverage={target.pricingCoverage}
+                    parameterCombinations={target.parameterCombinations}
+                  />
+                </dd>
+                <dt className='text-muted-foreground'>
+                  {t('Display settings')}
+                </dt>
+                <dd>{displayControl(target)}</dd>
+              </dl>
+              {monitoringAction(target)}
+            </section>
+          ))}
+        </div>
+      )
+    }
+    return (
+      <StaticDataTable
+        data={model.executionTargets}
+        getRowKey={(target) => target.id}
+        columns={[
+          {
+            id: 'specification',
+            header: t('Specification'),
+            cell: (target) => executionTargetSpecifications(target, t) || '—',
+          },
+          {
+            id: 'upstreamModelId',
+            header: t('Upstream model ID'),
+            cell: (target) => (
+              <span className='break-all'>{target.upstreamModelId}</span>
+            ),
+          },
+          {
+            id: 'customerVisibility',
+            header: t('Price plans and customer visibility'),
+            cell: (target) => (
+              <ExecutionTargetCoverage
+                coverage={target.pricingCoverage}
+                parameterCombinations={target.parameterCombinations}
+              />
+            ),
+          },
+          {
+            id: 'display',
+            header: t('Display settings'),
+            cell: displayControl,
+          },
+          {
+            id: 'monitoring',
+            header: t('Actions'),
+            cell: monitoringAction,
+          },
+        ]}
+      />
+    )
+  }
   if (models.isError) {
     return <ErrorState onRetry={() => void models.refetch()} />
   }
   return (
     <Card>
-      <CardContent ref={tableContentRef} className='min-w-0 space-y-4'>
-        <DataTableToolbar
+      <CardContent className='min-w-0'>
+        <DataTablePage
           table={table}
-          filterPanel={
-            <DataTableColumnFilterPanel
-              activeCount={
-                [
-                  search,
-                  modelId,
-                  provider,
-                  capability,
-                  visibility === 'ALL' ? '' : visibility,
-                ].filter(Boolean).length
-              }
-            >
-              <DataTableColumnFilterField label={t('Model')}>
-                <Input
-                  value={search}
-                  placeholder={t('Model')}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Upstream model ID')}>
-                <Input
-                  value={modelId}
-                  placeholder={t('Upstream model ID')}
-                  onChange={(event) => setModelId(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('API provider')}>
-                <Input
-                  value={provider}
-                  placeholder={t('API provider')}
-                  onChange={(event) => setProvider(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Capability')}>
-                <Input
-                  value={capability}
-                  placeholder={t('Capability')}
-                  onChange={(event) => setCapability(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Customer display')}>
-                <Select
-                  value={visibility}
-                  onValueChange={(value) => setVisibility(value ?? 'ALL')}
-                >
-                  <SelectTrigger
-                    className='w-full'
-                    aria-label={t('Customer display')}
-                  >
-                    <CanvasLocalizedSelectValue
-                      value={visibility}
-                      displayValue={visibilityFilterLabel}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All')}</SelectItem>
-                    <SelectItem value='CUSTOMER'>
-                      {t('Visible to customers')}
-                    </SelectItem>
-                    <SelectItem value='INTERNAL'>
-                      {t('Not shown to customers')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-            </DataTableColumnFilterPanel>
-          }
-          hasAdditionalFilters={Boolean(
-            search || modelId || provider || capability || visibility !== 'ALL'
-          )}
-          onReset={() => {
-            setSearch('')
-            setModelId('')
-            setProvider('')
-            setCapability('')
-            setVisibility('ALL')
-          }}
-        />
-        <DataTableView
-          table={table}
+          columns={sizedColumns}
           isLoading={models.isPending}
-          tableContainerClassName='overflow-x-auto'
-          tableClassName={
-            flexibleColumn
-              ? 'w-full min-w-(--model-table-min-width) table-fixed'
-              : 'w-(--model-table-min-width) min-w-(--model-table-min-width) table-fixed'
-          }
-          containerProps={{
-            style: {
-              '--model-table-min-width': `${minimumTableWidth}px`,
-            } as CSSProperties,
-          }}
-          colgroup={
-            <colgroup>
-              {visibleColumns.map((column) => (
-                <col
-                  key={column.id}
-                  style={{
-                    width:
-                      column.id === flexibleColumn?.id
-                        ? undefined
-                        : column.getSize(),
-                  }}
-                />
-              ))}
-            </colgroup>
-          }
-          getColumnClassName={(columnId, section) => {
+          fixedHeight={false}
+          paginationInFooter={false}
+          applyHeaderSize
+          emptyTitle={t('No matching models')}
+          emptyDescription={t('No records found. Try adjusting your filters.')}
+          getColumnClassName={(_, section) => {
             if (section === 'cell') {
-              return `px-2 py-2 whitespace-normal ${columnId === 'actions' ? 'align-middle' : 'align-top'}`
+              return 'px-2 py-2 align-top whitespace-normal'
             }
             return 'px-2'
           }}
-          emptyTitle={t('No matching models')}
-          emptyDescription={t('No records found. Try adjusting your filters.')}
+          renderRow={(row, helpers) => (
+            <Fragment key={row.id}>
+              <TableRow>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className={helpers.getCellClassName(cell.column.id)}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+              <TableRow>
+                <TableCell
+                  colSpan={row.getVisibleCells().length}
+                  className='bg-muted/20 px-3 py-3'
+                >
+                  <div className='space-y-2'>
+                    <p className='text-sm font-medium'>
+                      {t('Execution targets')}
+                    </p>
+                    {renderTargetDetails(row.original)}
+                  </div>
+                </TableCell>
+              </TableRow>
+            </Fragment>
+          )}
+          mobileProps={{
+            renderExpandedContent: (row) =>
+              renderTargetDetails(row.original, true),
+          }}
+          toolbar={
+            <DataTableToolbar
+              table={table}
+              filterPanel={
+                <DataTableColumnFilterPanel
+                  activeCount={
+                    [
+                      search,
+                      modelId,
+                      provider,
+                      capability,
+                      visibility === 'ALL' ? '' : visibility,
+                    ].filter(Boolean).length
+                  }
+                >
+                  <DataTableColumnFilterField label={t('Model')}>
+                    <Input
+                      value={search}
+                      placeholder={t('Model')}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Upstream model ID')}>
+                    <Input
+                      value={modelId}
+                      placeholder={t('Upstream model ID')}
+                      onChange={(event) => setModelId(event.target.value)}
+                    />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('API provider')}>
+                    <Input
+                      value={provider}
+                      placeholder={t('API provider')}
+                      onChange={(event) => setProvider(event.target.value)}
+                    />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Capability')}>
+                    <Input
+                      value={capability}
+                      placeholder={t('Capability')}
+                      onChange={(event) => setCapability(event.target.value)}
+                    />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Customer display')}>
+                    <Select
+                      value={visibility}
+                      onValueChange={(value) => setVisibility(value ?? 'ALL')}
+                    >
+                      <SelectTrigger
+                        className='w-full'
+                        aria-label={t('Customer display')}
+                      >
+                        <CanvasLocalizedSelectValue
+                          value={visibility}
+                          displayValue={visibilityFilterLabel}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='ALL'>{t('All')}</SelectItem>
+                        <SelectItem value='CUSTOMER'>
+                          {t('Visible to customers')}
+                        </SelectItem>
+                        <SelectItem value='INTERNAL'>
+                          {t('Not shown to customers')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </DataTableColumnFilterField>
+                </DataTableColumnFilterPanel>
+              }
+              hasAdditionalFilters={Boolean(
+                search ||
+                modelId ||
+                provider ||
+                capability ||
+                visibility !== 'ALL'
+              )}
+              onReset={() => {
+                setSearch('')
+                setModelId('')
+                setProvider('')
+                setCapability('')
+                setVisibility('ALL')
+              }}
+            />
+          }
         />
-        <div className='pt-2'>
-          <DataTablePagination table={table} />
-        </div>
       </CardContent>
       <Dialog
         open={Boolean(editing)}
@@ -958,12 +1003,12 @@ export function PublishedModelCatalog(props: {
               <dt className='text-muted-foreground'>{t('Model')}</dt>
               <dd>{toggling.model.name}</dd>
               <dt className='text-muted-foreground'>{t('Execution target')}</dt>
-              <dd>{executionTargetLabel(toggling.target)}</dd>
-              <dt className='text-muted-foreground'>{t('Channel ID')}</dt>
-              <dd className='break-all'>{toggling.target.channelId}</dd>
-              <dt className='text-muted-foreground'>{t('Upstream model ID')}</dt>
+              <dd>{executionTargetLabel(toggling.target, t)}</dd>
+              <dt className='text-muted-foreground'>
+                {t('Upstream model ID')}
+              </dt>
               <dd className='break-all'>{toggling.target.upstreamModelId}</dd>
-              <dt className='text-muted-foreground'>{t('Display switch')}</dt>
+              <dt className='text-muted-foreground'>{t('Display settings')}</dt>
               <dd>
                 {toggling.target.enabled
                   ? t('Display switch on state')

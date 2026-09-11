@@ -9,15 +9,16 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  useLocation,
   useNavigate,
 } from '@tanstack/react-router'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { ModelManagementNavigationProvider } from '../../model-management-navigation'
 import { AdminModelCatalog } from '../AdminModelCatalog'
 import { UnifiedModelPricing } from '../UnifiedModelPricing'
-import { ModelManagementNavigationProvider } from '../../model-management-navigation'
 
 const api = vi.hoisted(() => ({
   models: vi.fn(),
@@ -76,12 +77,6 @@ describe('Model pricing route continuity', () => {
         billingUnits: ['REQUEST'],
         modelIds: [],
         executionTargets: [],
-        channel: {
-          code: 'channel',
-          version: 1,
-          status: 'ACTIVE',
-          executionSnapshot: {},
-        },
         publicCatalogSnapshot: { capability: 'image.generate' },
         parameterCombinations: [
           {
@@ -138,8 +133,15 @@ describe('Model pricing route continuity', () => {
         modelId:
           typeof search.modelId === 'string' ? search.modelId : undefined,
       }),
-      component: () => <p>Bindings for {bindingsRoute.useSearch().modelId}</p>,
+      component: BindingsRoute,
     })
+    function BindingsRoute() {
+      const modelId = useLocation({
+        select: (location) =>
+          new URLSearchParams(location.searchStr).get('modelId') ?? '',
+      })
+      return <p>Bindings for {modelId}</p>
+    }
     function ModelList() {
       const navigate = useNavigate()
       return (
@@ -155,7 +157,7 @@ describe('Model pricing route continuity', () => {
               void navigate({
                 to: '/canvas-cloud/provider-configuration',
                 search: { modelId },
-              })
+              } as never)
             }
           />
         </ModelManagementNavigationProvider>
@@ -167,9 +169,7 @@ describe('Model pricing route continuity', () => {
       return (
         <UnifiedModelPricing
           initialModelId={modelId}
-          onBack={() =>
-            void navigate({ to: '/canvas-cloud/model-management' })
-          }
+          onBack={() => void navigate({ to: '/canvas-cloud/model-management' })}
         />
       )
     }
@@ -192,6 +192,10 @@ describe('Model pricing route continuity', () => {
       </QueryClientProvider>
     )
     await screen.findByText('Series 00')
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'API provider' })
+    )
     await user.click(screen.getByRole('button', { name: /^Column filters/ }))
     fireEvent.change(screen.getByPlaceholderText('Model'), {
       target: { value: 'Series' },
@@ -203,14 +207,23 @@ describe('Model pricing route continuity', () => {
     await screen.findByText('Series 20')
     await user.click(screen.getByRole('button', { name: 'Back to model list' }))
     await waitFor(() =>
-      expect(router.state.location.pathname).toBe('/canvas-cloud/model-management')
+      expect(router.state.location.pathname).toBe(
+        '/canvas-cloud/model-management'
+      )
     )
     expect(await screen.findByText('Series 20')).toBeVisible()
     expect(screen.queryByText('Series 00')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'API provider' })
+    ).toHaveAttribute('aria-checked', 'false')
+    await user.click(screen.getByRole('button', { name: 'View' }))
     await user.click(screen.getByRole('button', { name: /^Column filters/ }))
     expect(screen.getByPlaceholderText('Model')).toHaveValue('Series')
     await user.click(screen.getByRole('button', { name: /^Column filters/ }))
-    await user.click(screen.getByRole('button', { name: 'Manage API Key bindings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Manage API Key bindings' })
+    )
     expect(await screen.findByText('Bindings for model-20')).toBeVisible()
     view.unmount()
     client.clear()

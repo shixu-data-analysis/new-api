@@ -74,7 +74,7 @@ import { formatMoneyMinor } from './formatters'
 import {
   getModelManagementReturnContext,
   modelManagementReturnStateKey,
-} from './model-management-navigation'
+} from './model-management-navigation-state'
 import { CanvasRechargeCodes } from './RechargeCodes'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
@@ -175,11 +175,10 @@ function DataTable(props: {
     cell: ({ row }: { row: { original: LocalTableRow } }) =>
       row.original.cells[index],
   }))
-  const filters = props.headers.flatMap((header, index) =>
-    filterableColumnIndexes.has(index)
-      ? [{ columnId: `${index}:${header}`, label: header }]
-      : []
-  )
+  const filters = props.headers.flatMap((header, index) => {
+    if (!filterableColumnIndexes.has(index)) return []
+    return [{ columnId: `${index}:${header}`, label: header }]
+  })
   return (
     <PricingRecordsTable
       columns={columns}
@@ -698,6 +697,8 @@ export function CanvasCloud() {
   const params = route.useParams()
   const search = route.useSearch()
   const navigate = route.useNavigate()
+  const locationState = useLocation({ select: (location) => location.state })
+  const modelManagementReturn = getModelManagementReturnContext(locationState)
   const session = useQuery({
     queryKey: ['canvas-cloud', 'session'],
     queryFn: getCanvasSession,
@@ -752,8 +753,6 @@ export function CanvasCloud() {
     )
   }
   const section = params.section as CanvasSection
-  const locationState = useLocation({ select: (location) => location.state })
-  const modelManagementReturn = getModelManagementReturnContext(locationState)
   let content: ReactNode
   if (section === 'agent-center') {
     content = <AgentCenter />
@@ -787,9 +786,10 @@ export function CanvasCloud() {
                 void navigate({
                   to: '/canvas-cloud/model-management',
                   search: {},
-                  state: {
+                  state: (previous) => ({
+                    ...previous,
                     [modelManagementReturnStateKey]: modelManagementReturn,
-                  },
+                  }),
                 })
             : undefined
         }
