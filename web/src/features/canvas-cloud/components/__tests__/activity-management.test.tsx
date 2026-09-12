@@ -117,6 +117,11 @@ describe('ADMIN-REWORK-007 activity management', () => {
 
   it('offers each of the four creation paths', async () => {
     const { unmount } = mount(<ActivityManagement />)
+    expect(
+      screen
+        .getByRole('combobox', { name: 'Create activity' })
+        .querySelector('[data-icon-kind="chevron-down"]')
+    ).not.toBeNull()
     await chooseCreateType('Manual bonus')
     expect(await screen.findByText('Points per customer')).toBeVisible()
     unmount()
@@ -136,6 +141,47 @@ describe('ADMIN-REWORK-007 activity management', () => {
 
     await chooseCreateType('Task price special')
     expect(await screen.findByLabelText('Source model')).toBeVisible()
+  })
+
+  it('shows created time first and uses localized labels in view options', async () => {
+    mount(<ActivityManagement />)
+
+    expect(
+      screen.getAllByRole('columnheader').map((header) => header.textContent)
+    ).toEqual(['Created', 'Activity name', 'Activity type', 'Status'])
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'View' }))
+
+    for (const label of [
+      'Activity name',
+      'Activity type',
+      'Status',
+      'Created',
+    ]) {
+      expect(
+        await screen.findByRole('menuitemcheckbox', { name: label })
+      ).toBeVisible()
+    }
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Name' })).toBeNull()
+    expect(screen.queryByText('CreatedAt')).toBeNull()
+  })
+
+  it('gives date range filters enough panel width', async () => {
+    mount(<ActivityManagement />)
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Column filters' }))
+
+    const createdField = screen.getByText('Created', {
+      selector: 'label',
+    }).parentElement
+    expect(createdField).toHaveClass('sm:col-span-2')
+    expect(
+      screen.getByText('Start time', { selector: 'p' }).parentElement
+    ).toHaveClass('min-w-0')
+    expect(
+      screen.getByText('End time', { selector: 'p' }).parentElement
+    ).toHaveClass('min-w-0')
   })
 
   it('uses a token only after every selected page is explicit and clears it when criteria change', async () => {
@@ -774,7 +820,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       models: [
         {
           id: 'model-token',
-          name: 'Canvas Token',
+          name: 'Canvas Token Model With A Complete Long Display Name',
           modelKey: 'canvas.token',
           hasPublishedPricing: true,
         },
@@ -784,6 +830,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pricingScopes: [
         {
           combinationKey: 'default',
+          parameters: {},
           prices: [
             {
               priceGroupName: 'Standard',
@@ -821,14 +868,24 @@ describe('ADMIN-REWORK-007 activity management', () => {
     await chooseCreateType('Task price special')
     const user = userEvent.setup()
     await user.click(screen.getByRole('combobox', { name: 'Source model' }))
-    await user.click(
-      await screen.findByRole('option', { name: 'Canvas Token · canvas.token' })
+    const modelOption = await screen.findByRole('option', {
+      name: 'Canvas Token Model With A Complete Long Display Name · canvas.token',
+    })
+    expect(modelOption.closest('[data-slot="select-content"]')).toHaveClass(
+      'w-max',
+      'max-w-[calc(100vw-2rem)]'
+    )
+    await user.click(modelOption)
+    expect(
+      screen.getByRole('combobox', { name: 'Source model' })
+    ).toHaveTextContent(
+      'Canvas Token Model With A Complete Long Display Name · canvas.token'
     )
     await user.click(
       await screen.findByRole('combobox', { name: 'Source price version' })
     )
     await user.click(
-      await screen.findByRole('option', { name: 'Standard · default' })
+      await screen.findByRole('option', { name: 'Standard · Default scope' })
     )
     await user.type(screen.getByLabelText('Special input token rate'), '0')
     await user.type(screen.getByLabelText('Special output token rate'), '10')

@@ -38,7 +38,7 @@ export function CanvasDateRangeFilter({
 
   return (
     <div className='grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2'>
-      <div className='space-y-1'>
+      <div className='min-w-0 space-y-1'>
         <p className='h-5 truncate text-sm leading-5 font-medium'>
           {t('Start time')}
         </p>
@@ -48,7 +48,7 @@ export function CanvasDateRangeFilter({
           placeholder={t('Start time')}
         />
       </div>
-      <div className='space-y-1'>
+      <div className='min-w-0 space-y-1'>
         <p className='h-5 truncate text-sm leading-5 font-medium'>
           {t('End time')}
         </p>

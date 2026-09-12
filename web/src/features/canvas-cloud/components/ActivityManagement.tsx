@@ -42,7 +42,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
-  SelectContent,
+  SelectContent as BaseSelectContent,
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
@@ -97,6 +97,7 @@ import {
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
+import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasModelPricingPriceSnapshot,
   CanvasTokenCategoryRisk,
@@ -152,6 +153,18 @@ type ActivityRecordNavigation = {
 
 const ActivityRecordNavigationContext =
   createContext<ActivityRecordNavigation | null>(null)
+
+function SelectContent(props: { children: ReactNode }) {
+  return (
+    <BaseSelectContent
+      align='start'
+      alignItemWithTrigger={false}
+      className='w-max max-w-[calc(100vw-2rem)] min-w-(--anchor-width) **:data-[slot=select-item-text]:min-w-0 **:data-[slot=select-item-text]:break-words **:data-[slot=select-item-text]:whitespace-normal'
+    >
+      {props.children}
+    </BaseSelectContent>
+  )
+}
 
 function readActivityReturnContext(): ActivityReturnContext | undefined {
   const value = (window.history.state as Record<string, unknown> | null)
@@ -269,6 +282,18 @@ const EMPTY_CUSTOMER_IDS: string[] = []
 
 function activityStatusKey(value: CanvasActivityStatus): string {
   return `Activity status ${value}`
+}
+
+function redemptionStatusKey(value: string): string {
+  return `Redemption status ${value}`
+}
+
+function executionStatusKey(value: string): string {
+  return `Execution status ${value}`
+}
+
+function settlementProgressKey(value: string): string {
+  return `Settlement progress ${value}`
 }
 
 function activityToListItem(
@@ -426,8 +451,18 @@ export function ActivityManagement() {
   const columns = useMemo<ColumnDef<CanvasActivity, unknown>[]>(
     () => [
       {
+        id: 'createdAt',
+        accessorKey: 'createdAt',
+        meta: { label: t('Created') },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Created')} />
+        ),
+        cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
+      },
+      {
         id: 'name',
         accessorKey: 'name',
+        meta: { label: t('Activity name') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Activity name')} />
         ),
@@ -450,6 +485,7 @@ export function ActivityManagement() {
       {
         id: 'type',
         accessorKey: 'type',
+        meta: { label: t('Activity type') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Activity type')} />
         ),
@@ -458,18 +494,11 @@ export function ActivityManagement() {
       {
         id: 'status',
         accessorKey: 'status',
+        meta: { label: t('Status') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
         cell: ({ row }) => t(activityStatusKey(row.original.status)),
-      },
-      {
-        id: 'createdAt',
-        accessorKey: 'createdAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Created')} />
-        ),
-        cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
       },
     ],
     [t]
@@ -549,6 +578,7 @@ export function ActivityManagement() {
         >
           <SelectTrigger
             aria-label={t('Create activity')}
+            icon='chevron-down'
             ref={(element) => {
               listFocusElements.current['create-activity'] = element
             }}
@@ -590,7 +620,10 @@ export function ActivityManagement() {
                   resetPage()
                 }}
               >
-                <SelectTrigger aria-label={t('Activity type')}>
+                <SelectTrigger
+                  className='w-full min-w-0'
+                  aria-label={t('Activity type')}
+                >
                   <CanvasLocalizedSelectValue
                     value={type}
                     emptyLabelKey='All activity types'
@@ -616,7 +649,10 @@ export function ActivityManagement() {
                   resetPage()
                 }}
               >
-                <SelectTrigger aria-label={t('Activity status')}>
+                <SelectTrigger
+                  className='w-full min-w-0'
+                  aria-label={t('Activity status')}
+                >
                   <CanvasLocalizedSelectValue
                     value={status}
                     emptyLabelKey='All activity statuses'
@@ -634,7 +670,10 @@ export function ActivityManagement() {
                 </SelectContent>
               </Select>
             </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Created')}>
+            <DataTableColumnFilterField
+              label={t('Created')}
+              className='sm:col-span-2'
+            >
               <CanvasDateRangeFilter
                 from={createdFrom}
                 to={createdTo}
@@ -1116,7 +1155,10 @@ function ActivityForm(props: {
                       )
                     }
                   >
-                    <SelectTrigger aria-label={t('Grant timing')}>
+                    <SelectTrigger
+                      className='w-full min-w-0'
+                      aria-label={t('Grant timing')}
+                    >
                       <CanvasLocalizedSelectValue
                         value={manualValues.schedule}
                       />
@@ -1187,7 +1229,11 @@ function ActivityConflictNotice(props: { conflict: ActivityConflict }) {
       className='border-destructive text-destructive rounded-md border p-3 text-sm lg:col-span-2'
       role='alert'
     >
-      <p>{props.conflict.reason ?? t('Activity update conflict')}</p>
+      <p>
+        {props.conflict.reason
+          ? t(props.conflict.reason)
+          : t('Activity update conflict')}
+      </p>
       {displayedCustomers.length ? (
         <>
           <p className='mt-2 font-medium'>{t('Affected customers')}</p>
@@ -1197,7 +1243,7 @@ function ActivityConflictNotice(props: { conflict: ActivityConflict }) {
                 key={`${customer.customerId ?? customer.customer ?? 'customer'}-${customer.reason ?? ''}`}
               >
                 {customer.customer ?? customer.customerId ?? t('Customer')}
-                {customer.reason ? ` · ${customer.reason}` : ''}
+                {customer.reason ? ` · ${t(customer.reason)}` : ''}
               </li>
             ))}
           </ul>
@@ -1430,7 +1476,10 @@ function LimitedPriceActivityForm(props: {
         return [
           {
             id: current.id,
-            label: `${price.priceGroupName} · ${scope.combinationKey}`,
+            label: `${price.priceGroupName} · ${pricingScopeLabel(
+              { key: scope.combinationKey, parameters: scope.parameters },
+              t
+            )}`,
             billingUnit: current.billingUnit,
             points: current.points,
             tokenRates: current.tokenRates,
@@ -1440,7 +1489,7 @@ function LimitedPriceActivityForm(props: {
         ]
       })
     )
-  }, [model.data])
+  }, [model.data, t])
   const source = sources.find((item) => item.id === sourcePriceVersionId)
   const tokenPriced = source?.billingUnit === 'MILLION_TOKENS'
   const requiredTokenCategories = tokenRateKeys.filter(
@@ -1568,12 +1617,20 @@ function LimitedPriceActivityForm(props: {
                 setSourcePriceVersionId('')
               }}
             >
-              <SelectTrigger aria-label={t('Source model')}>
+              <SelectTrigger
+                className='h-auto min-h-8 w-full min-w-0 py-1.5 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:break-words *:data-[slot=select-value]:whitespace-normal'
+                aria-label={t('Source model')}
+              >
                 <CanvasLocalizedSelectValue
-                  value={
-                    workspace.data?.models.find((item) => item.id === modelId)
-                      ?.name
-                  }
+                  value={modelId}
+                  displayValue={(() => {
+                    const selected = workspace.data?.models.find(
+                      (item) => item.id === modelId
+                    )
+                    return selected
+                      ? `${selected.name} · ${selected.modelKey}`
+                      : undefined
+                  })()}
                 />
               </SelectTrigger>
               <SelectContent>
@@ -1596,7 +1653,10 @@ function LimitedPriceActivityForm(props: {
               }}
               disabled={!modelId || model.isPending}
             >
-              <SelectTrigger aria-label={t('Source price version')}>
+              <SelectTrigger
+                className='h-auto min-h-8 w-full min-w-0 py-1.5 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:break-words *:data-[slot=select-value]:whitespace-normal'
+                aria-label={t('Source price version')}
+              >
                 <CanvasLocalizedSelectValue
                   value={source?.label ?? (model.isPending ? t('Loading') : '')}
                 />
@@ -1948,6 +2008,7 @@ function FormInput(props: {
   max?: number
   inputMode?: 'numeric' | 'decimal'
 }) {
+  const { t } = useTranslation()
   const id = `activity-${props.name}`
   const error = props.form.getFieldState(props.name as never).error?.message
   return (
@@ -1970,7 +2031,7 @@ function FormInput(props: {
           role='alert'
           className='text-destructive mt-1 text-sm'
         >
-          {String(error)}
+          {t(String(error))}
         </p>
       ) : null}
     </div>
@@ -2209,6 +2270,7 @@ function RecipientSelector(props: {
     {
       id: 'customer',
       accessorKey: 'customer',
+      meta: { label: t('Customer') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Customer')} />
       ),
@@ -2218,6 +2280,7 @@ function RecipientSelector(props: {
           {
             id: 'qualifyingAmountMinor',
             accessorKey: 'qualifyingAmountMinor',
+            meta: { label: t('Qualifying recharge amount') },
             header: ({
               column,
             }: HeaderContext<CanvasActivityEligibleCustomer, unknown>) => (
@@ -2261,8 +2324,18 @@ function RecipientSelector(props: {
               resetPage()
             }}
           >
-            <SelectTrigger aria-label={t('Customer scope')}>
-              <CanvasLocalizedSelectValue value={props.values.scope} />
+            <SelectTrigger
+              className='w-full min-w-0'
+              aria-label={t('Customer scope')}
+            >
+              <CanvasLocalizedSelectValue
+                value={props.values.scope}
+                valueLabelKey={
+                  props.values.scope === 'RECHARGE_THRESHOLD'
+                    ? 'Recharge threshold'
+                    : 'Selected customers'
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='SELECTED'>
@@ -2707,6 +2780,7 @@ function ManualActivityDetail(props: {
     const customerColumn: ColumnDef<CanvasManualGrantMember, unknown> = {
       id: 'customer',
       accessorKey: 'customer',
+      meta: { label: t('Customer') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Customer')} />
       ),
@@ -2719,6 +2793,7 @@ function ManualActivityDetail(props: {
           ? [
               {
                 id: 'qualifyingAmountMinor',
+                meta: { label: t('Qualifying recharge amount') },
                 header: t('Qualifying recharge amount'),
                 cell: ({
                   row,
@@ -2744,6 +2819,7 @@ function ManualActivityDetail(props: {
       {
         id: 'status',
         accessorKey: 'status',
+        meta: { label: t('Result') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Result')} />
         ),
@@ -2752,6 +2828,7 @@ function ManualActivityDetail(props: {
       {
         id: 'creditedAt',
         accessorKey: 'creditedAt',
+        meta: { label: t('Credited at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Credited at')} />
         ),
@@ -2762,6 +2839,7 @@ function ManualActivityDetail(props: {
       },
       {
         id: 'resultDetail',
+        meta: { label: t('Record or reason') },
         header: t('Record or reason'),
         cell: ({ row }) => {
           if (row.original.failureReason) return row.original.failureReason
@@ -2875,7 +2953,10 @@ function ManualActivityDetail(props: {
                       }))
                     }}
                   >
-                    <SelectTrigger aria-label={t('Result')}>
+                    <SelectTrigger
+                      className='w-full min-w-0'
+                      aria-label={t('Result')}
+                    >
                       <CanvasLocalizedSelectValue
                         value={result}
                         emptyLabelKey='All results'
@@ -2893,7 +2974,10 @@ function ManualActivityDetail(props: {
                     </SelectContent>
                   </Select>
                 </DataTableColumnFilterField>
-                <DataTableColumnFilterField label={t('Credited at')}>
+                <DataTableColumnFilterField
+                  label={t('Credited at')}
+                  className='sm:col-span-2'
+                >
                   <CanvasDateRangeFilter
                     from={creditedFrom}
                     to={creditedTo}
@@ -3245,6 +3329,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'rechargeOrderNumber',
         accessorKey: 'rechargeOrderNumber',
+        meta: { label: t('Recharge order') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Recharge order')} />
         ),
@@ -3268,6 +3353,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'amountMinor',
         accessorKey: 'amountMinor',
+        meta: { label: t('Recharge amount') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Recharge amount')} />
         ),
@@ -3276,6 +3362,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'redemptionStatus',
         accessorKey: 'redemptionStatus',
+        meta: { label: t('Status') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
@@ -3287,6 +3374,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'bonusPoints',
         accessorKey: 'bonusPoints',
+        meta: { label: t('Bonus points') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Bonus points')} />
         ),
@@ -3295,6 +3383,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'customer',
         accessorKey: 'customer',
+        meta: { label: t('Customer') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Customer')} />
         ),
@@ -3303,6 +3392,7 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
       {
         id: 'redeemedAt',
         accessorKey: 'redeemedAt',
+        meta: { label: t('Redeemed at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Redeemed at')} />
         ),
@@ -3357,20 +3447,35 @@ function RechargeBonusBindingRecords(props: { activityId: string }) {
                 resetPage()
               }}
             >
-              <SelectTrigger aria-label={t('Redemption status')}>
+              <SelectTrigger
+                className='w-full min-w-0'
+                aria-label={t('Redemption status')}
+              >
                 <CanvasLocalizedSelectValue
                   value={redemptionStatus}
+                  valueLabelKey={
+                    redemptionStatus
+                      ? redemptionStatusKey(redemptionStatus)
+                      : undefined
+                  }
                   emptyLabelKey='All statuses'
                 />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                <SelectItem value='UNREDEEMED'>{t('UNREDEEMED')}</SelectItem>
-                <SelectItem value='REDEEMED'>{t('REDEEMED')}</SelectItem>
+                <SelectItem value='UNREDEEMED'>
+                  {t(redemptionStatusKey('UNREDEEMED'))}
+                </SelectItem>
+                <SelectItem value='REDEEMED'>
+                  {t(redemptionStatusKey('REDEEMED'))}
+                </SelectItem>
               </SelectContent>
             </Select>
           </DataTableColumnFilterField>
-          <DataTableColumnFilterField label={t('Redeemed at')}>
+          <DataTableColumnFilterField
+            label={t('Redeemed at')}
+            className='sm:col-span-2'
+          >
             <CanvasDateRangeFilter
               from={redeemedFrom}
               to={redeemedTo}
@@ -3503,6 +3608,7 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
       {
         id: 'customer',
         accessorKey: 'customer',
+        meta: { label: t('Customer') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Customer')} />
         ),
@@ -3524,6 +3630,7 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
       {
         id: 'inviteCodePrefix',
         accessorKey: 'inviteCodePrefix',
+        meta: { label: t('Invite code') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Invite code')} />
         ),
@@ -3531,6 +3638,7 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
       {
         id: 'bonusPoints',
         accessorKey: 'bonusPoints',
+        meta: { label: t('Bonus points') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Bonus points')} />
         ),
@@ -3539,6 +3647,7 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
       {
         id: 'issuedAt',
         accessorKey: 'issuedAt',
+        meta: { label: t('Credited at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Credited at')} />
         ),
@@ -3600,7 +3709,10 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
                 }}
               />
             </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Credited at')}>
+            <DataTableColumnFilterField
+              label={t('Credited at')}
+              className='sm:col-span-2'
+            >
               <CanvasDateRangeFilter
                 from={issuedFrom}
                 to={issuedTo}
@@ -4023,6 +4135,7 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
       {
         id: 'customer',
         accessorKey: 'customer',
+        meta: { label: t('Customer') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Customer')} />
         ),
@@ -4031,6 +4144,7 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
       {
         id: 'taskId',
         accessorKey: 'taskId',
+        meta: { label: t('Task') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Task')} />
         ),
@@ -4051,6 +4165,7 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
       {
         id: 'executionStatus',
         accessorKey: 'executionStatus',
+        meta: { label: t('Execution status') },
         header: ({ column }) => (
           <DataTableColumnHeader
             column={column}
@@ -4058,11 +4173,14 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
           />
         ),
         cell: ({ row }) =>
-          row.original.executionStatus ? t(row.original.executionStatus) : '—',
+          row.original.executionStatus
+            ? t(executionStatusKey(row.original.executionStatus))
+            : '—',
       },
       {
         id: 'settledPoints',
         accessorKey: 'settledPoints',
+        meta: { label: t('Settled points') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Settled points')} />
         ),
@@ -4116,9 +4234,17 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
                     resetPage()
                   }}
                 >
-                  <SelectTrigger aria-label={t('Execution status')}>
+                  <SelectTrigger
+                    className='w-full min-w-0'
+                    aria-label={t('Execution status')}
+                  >
                     <CanvasLocalizedSelectValue
                       value={executionStatus}
+                      valueLabelKey={
+                        executionStatus
+                          ? executionStatusKey(executionStatus)
+                          : undefined
+                      }
                       emptyLabelKey='All statuses'
                     />
                   </SelectTrigger>
@@ -4132,7 +4258,7 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
                       'UNKNOWN',
                     ].map((value) => (
                       <SelectItem key={value} value={value}>
-                        {t(value)}
+                        {t(executionStatusKey(value))}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -4146,9 +4272,17 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
                     resetPage()
                   }}
                 >
-                  <SelectTrigger aria-label={t('Settlement progress')}>
+                  <SelectTrigger
+                    className='w-full min-w-0'
+                    aria-label={t('Settlement progress')}
+                  >
                     <CanvasLocalizedSelectValue
                       value={settlementProgress}
+                      valueLabelKey={
+                        settlementProgress
+                          ? settlementProgressKey(settlementProgress)
+                          : undefined
+                      }
                       emptyLabelKey='All statuses'
                     />
                   </SelectTrigger>
@@ -4161,13 +4295,16 @@ function LimitedPriceTaskRecords(props: { activityId: string }) {
                       'RELEASED_TIMEOUT',
                     ].map((value) => (
                       <SelectItem key={value} value={value}>
-                        {t(value)}
+                        {t(settlementProgressKey(value))}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Accepted at')}>
+              <DataTableColumnFilterField
+                label={t('Accepted at')}
+                className='sm:col-span-2'
+              >
                 <CanvasDateRangeFilter
                   from={acceptedFrom}
                   to={acceptedTo}

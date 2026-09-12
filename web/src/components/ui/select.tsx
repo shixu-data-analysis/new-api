@@ -56,10 +56,12 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 function SelectTrigger({
   className,
   size = 'default',
+  icon = 'unfold',
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: 'sm' | 'default'
+  icon?: 'unfold' | 'chevron-down'
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -73,9 +75,10 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon
+        data-icon-kind={icon}
         render={
           <HugeiconsIcon
-            icon={UnfoldMoreIcon}
+            icon={icon === 'chevron-down' ? ArrowDown01Icon : UnfoldMoreIcon}
             strokeWidth={2}
             className='text-muted-foreground pointer-events-none size-4'
           />
