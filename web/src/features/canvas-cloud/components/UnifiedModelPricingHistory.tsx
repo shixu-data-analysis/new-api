@@ -312,7 +312,9 @@ export function UnifiedModelPricingHistory(props: {
                   resetPage()
                 }}
               >
-                <NativeSelectOption value='ALL'>{t('All')}</NativeSelectOption>
+                <NativeSelectOption value='ALL'>
+                  {t('All combinations')}
+                </NativeSelectOption>
                 {props.detail?.model.combinations.map((item) => (
                   <NativeSelectOption key={item.id} value={item.id}>
                     {combinationName(item.id)}
@@ -331,7 +333,9 @@ export function UnifiedModelPricingHistory(props: {
                   resetPage()
                 }}
               >
-                <NativeSelectOption value='ALL'>{t('All')}</NativeSelectOption>
+                <NativeSelectOption value='ALL'>
+                  {t('All price plans')}
+                </NativeSelectOption>
                 {props.detail?.priceGroups.map((item) => (
                   <NativeSelectOption key={item.id} value={item.id}>
                     {item.internalName}
@@ -348,7 +352,9 @@ export function UnifiedModelPricingHistory(props: {
                   resetPage()
                 }}
               >
-                <NativeSelectOption value='ALL'>{t('All')}</NativeSelectOption>
+                <NativeSelectOption value='ALL'>
+                  {t('All changes')}
+                </NativeSelectOption>
                 {['INITIAL', 'COST', 'PRICE', 'COST_AND_PRICE', 'UNIT'].map(
                   (value) => (
                     <NativeSelectOption key={value} value={value}>
@@ -367,7 +373,9 @@ export function UnifiedModelPricingHistory(props: {
                   resetPage()
                 }}
               >
-                <NativeSelectOption value='ALL'>{t('All')}</NativeSelectOption>
+                <NativeSelectOption value='ALL'>
+                  {t('All statuses')}
+                </NativeSelectOption>
                 {['SCHEDULED', 'CURRENT', 'CANCELLED'].map((value) => (
                   <NativeSelectOption key={value} value={value}>
                     {t(value)}

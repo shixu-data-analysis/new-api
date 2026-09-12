@@ -26,16 +26,20 @@ import { Button } from '@/components/ui/button'
 export function CopyableText({
   value,
   hideValue = false,
+  noTruncate = false,
 }: {
   value: string
   hideValue?: boolean
+  noTruncate?: boolean
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   return (
     <span className='inline-flex min-w-0 items-center gap-1'>
-      {!hideValue && <span className='truncate'>{value}</span>}
+      {!hideValue && (
+        <span className={noTruncate ? 'break-all' : 'truncate'}>{value}</span>
+      )}
       <Button
         type='button'
         variant='ghost'

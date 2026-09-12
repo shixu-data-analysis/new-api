@@ -27,14 +27,17 @@ const apiMocks = vi.hoisted(() => ({
   activateCanvasInvite: vi.fn(),
   changeCanvasAdminInviteCodeStatus: vi.fn(),
   createCanvasAdminInviteCode: vi.fn(),
+  exportCanvasAdminInviteCodes: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
   getCanvasInviteCodeOptions: vi.fn(),
   revealCanvasCode: vi.fn(),
 }))
-const campaignMocks = vi.hoisted(() => ({ getCanvasCampaigns: vi.fn() }))
+const campaignMocks = vi.hoisted(() => ({
+  getCanvasBindableBonusActivities: vi.fn(),
+}))
 
 vi.mock('../../api', () => apiMocks)
-vi.mock('../../campaign-api', () => campaignMocks)
+vi.mock('../../activity-api', () => campaignMocks)
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 function renderWithClient(element: React.ReactNode) {
@@ -44,6 +47,16 @@ function renderWithClient(element: React.ReactNode) {
   return render(
     <QueryClientProvider client={client}>{element}</QueryClientProvider>
   )
+}
+
+async function renderInviteManagement() {
+  const result = renderWithClient(<InviteCodeManagement />)
+  fireEvent.click(
+    await screen.findByRole('button', {
+      name: i18next.t('Create invite code'),
+    })
+  )
+  return result
 }
 
 describe('Canvas invite code management', () => {
@@ -72,24 +85,29 @@ describe('Canvas invite code management', () => {
       status: 'CONSUMED',
       customerId: 'customer-v1',
     })
-    campaignMocks.getCanvasCampaigns.mockResolvedValue({ items: [], total: 0 })
+    apiMocks.exportCanvasAdminInviteCodes.mockResolvedValue(
+      new Blob(['maskedCode,effectiveStatus\n'], { type: 'text/csv' })
+    )
+    campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([])
   })
 
   it('renders compact accessible invite configuration fields', async () => {
-    renderWithClient(<InviteCodeManagement />)
+    await renderInviteManagement()
 
     expect(await screen.findByLabelText('Maximum registrations')).toHaveValue(
       '1'
     )
-    expect(screen.getByLabelText('Initial price group')).toHaveValue('group-v1')
-    expect(screen.getByLabelText('Valid from')).toHaveAttribute(
-      'type',
-      'datetime-local'
-    )
-    expect(screen.getByLabelText('Initial Bonus points')).toBeEnabled()
+    expect(screen.getByLabelText('Initial price group')).toHaveValue('')
+    const validFrom = screen.getByRole('group', { name: 'Valid from' })
+    const expiresAt = screen.getByRole('group', { name: 'Expires at' })
+    expect(validFrom.querySelector('input[type="time"]')).toBeInTheDocument()
+    expect(expiresAt.querySelector('input[type="time"]')).toBeInTheDocument()
+    expect(
+      validFrom.querySelector('input[type="datetime-local"]')
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Invite validity')).toBeVisible()
-    expect(screen.getByText(/Uses your current time zone/)).toBeVisible()
-    expect(screen.queryByLabelText('Bonus promotion')).not.toBeInTheDocument()
+    expect(screen.getByText(/Time zone:/)).toBeVisible()
+    expect(screen.getByLabelText('Invite bonus campaign')).toBeInTheDocument()
     expect(screen.queryByLabelText('Referral source')).not.toBeInTheDocument()
     const bonusBoundaryNote = screen.getByText(/promotional points, not cash/)
     expect(bonusBoundaryNote).toBeVisible()
@@ -97,32 +115,36 @@ describe('Canvas invite code management', () => {
   })
 
   it('uses an active invite campaign bonus and promotion version', async () => {
-    campaignMocks.getCanvasCampaigns.mockResolvedValue({
-      items: [
-        {
-          id: 'invite-v2',
-          name: 'September invitation',
-          version: 2,
-          draft: { bonusPoints: '250', bonusTtlDays: 45 },
-        },
-      ],
-      total: 1,
-    })
+    campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([
+      {
+        id: 'invite-v2',
+        name: 'September invitation',
+        version: 2,
+        points: '250',
+        ttlDays: 45,
+      },
+    ])
     apiMocks.createCanvasAdminInviteCode.mockResolvedValue({
       code: 'CANVAS-INVITE',
     })
-    renderWithClient(<InviteCodeManagement />)
+    await renderInviteManagement()
 
     const campaign = await screen.findByLabelText('Invite bonus campaign')
     await screen.findByRole('option', { name: /September invitation/u })
     fireEvent.change(campaign, { target: { value: 'invite-v2' } })
-    expect(screen.getByLabelText('Initial Bonus points')).toHaveValue('250')
-    expect(screen.getByLabelText('Bonus validity days')).toHaveValue('45')
-    expect(screen.getByLabelText('Initial Bonus points')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Initial price group'), {
+      target: { value: 'group-v1' },
+    })
+    expect(screen.getByText('Bonus per new customer: 250 points')).toBeVisible()
+    expect(
+      screen.getByText(/Valid for 45 days after registration credit/u)
+    ).toBeVisible()
     fireEvent.click(
       screen.getByRole('button', { name: 'Review and create invite' })
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm creation' })
+    )
     await waitFor(() =>
       expect(apiMocks.createCanvasAdminInviteCode.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
@@ -134,58 +156,97 @@ describe('Canvas invite code management', () => {
     )
   })
 
-  it('shows invite campaign query errors without blocking direct bonus entry', async () => {
-    campaignMocks.getCanvasCampaigns.mockRejectedValue(new Error('offline'))
-    renderWithClient(<InviteCodeManagement />)
+  it.each(['PROMOTION_UNAVAILABLE', 'PROMOTION_CHANGED'])(
+    'keeps the selected invite promotion and shows its %s field error',
+    async (code) => {
+      campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([
+        {
+          id: 'invite-v2',
+          name: 'September invitation',
+          version: 2,
+          points: '250',
+          ttlDays: 45,
+        },
+      ])
+      apiMocks.createCanvasAdminInviteCode.mockRejectedValue({
+        response: { data: { code, details: { field: 'promotionVersionId' } } },
+      })
+      await renderInviteManagement()
+      fireEvent.change(screen.getByLabelText('Invite bonus campaign'), {
+        target: { value: 'invite-v2' },
+      })
+      fireEvent.change(screen.getByLabelText('Initial price group'), {
+        target: { value: 'group-v1' },
+      })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Review and create invite' })
+      )
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Confirm creation' })
+      )
+      expect(
+        await screen.findAllByText(
+          'The selected bonus campaign is no longer available.'
+        )
+      ).toHaveLength(2)
+      expect(screen.getByLabelText('Invite bonus campaign')).toHaveValue(
+        'invite-v2'
+      )
+      expect(apiMocks.createCanvasAdminInviteCode).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: expect.any(String) })
+      )
+    }
+  )
+
+  it('shows invite campaign query errors while preserving the rest of the drawer', async () => {
+    campaignMocks.getCanvasBindableBonusActivities.mockRejectedValue(
+      new Error('offline')
+    )
+    await renderInviteManagement()
     expect(
       await screen.findByText('Unable to load invite bonus campaigns')
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Initial Bonus points')).toBeEnabled()
   })
 
   it('shows field-level errors and blocks an invalid invite configuration', async () => {
-    renderWithClient(<InviteCodeManagement />)
+    await renderInviteManagement()
 
     const capacity = await screen.findByLabelText('Maximum registrations')
-    const bonusPoints = screen.getByLabelText('Initial Bonus points')
-    const expiresAt = screen.getByLabelText('Expires at')
+    const expiresAt = screen.getByRole('group', { name: 'Expires at' })
     const submit = screen.getByRole('button', {
       name: 'Review and create invite',
     })
 
     fireEvent.change(capacity, { target: { value: '0' } })
+    fireEvent.blur(capacity)
     expect(
-      screen.getByText(
+      await screen.findByText(
         'Enter a positive whole number within the supported range'
       )
     ).toHaveAttribute('role', 'alert')
     expect(capacity).toHaveAttribute('aria-invalid', 'true')
 
-    fireEvent.change(bonusPoints, { target: { value: '10' } })
+    fireEvent.click(within(expiresAt).getByRole('button', { name: 'Clear' }))
     expect(
-      screen.getAllByText('Enter both promotional points and validity days')
-    ).toHaveLength(2)
-
-    fireEvent.change(expiresAt, { target: { value: '2020-01-01T00:00' } })
-    expect(
-      screen.getByText('Expiry must be after the start time')
+      await screen.findByText('Enter a valid expiry time')
     ).toHaveAttribute('role', 'alert')
-    expect(submit).toBeDisabled()
+    expect(submit).toBeEnabled()
     fireEvent.click(submit)
     expect(apiMocks.createCanvasAdminInviteCode).not.toHaveBeenCalled()
   })
 
   it('localizes the audited plaintext confirmation in Chinese', async () => {
     await i18next.changeLanguage('zh')
-    renderWithClient(<InviteCodeManagement />)
+    await renderInviteManagement()
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: '核对并创建邀请码' })
-    )
+    fireEvent.change(screen.getByLabelText('初始价格方案'), {
+      target: { value: 'group-v1' },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: '复核并创建' }))
 
     expect(
-      screen.getByText(
-        '这会立即激活一个新邀请码。之后默认保持掩码，任何明文访问都会记录审计。'
+      await screen.findByText(
+        '创建后状态为“有效”，并从开始时间起允许注册。请核对以下内容：'
       )
     ).toBeVisible()
   })
@@ -225,12 +286,11 @@ describe('Canvas invite code management', () => {
     renderWithClient(<InviteCodeManagement />)
 
     expect(await screen.findByText('Valid')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }))
-    const pause = screen.getByRole('menuitem', { name: 'Pause invite code' })
+    const pause = screen.getByRole('button', { name: 'Pause invite code' })
     expect(pause).toHaveTextContent('Pause invite code')
-    expect(
-      screen.getByRole('menuitem', { name: 'Revoke invite code' })
-    ).toHaveTextContent('Revoke invite code')
+    expect(screen.getByRole('button', { name: 'Revoke' })).toHaveTextContent(
+      'Revoke'
+    )
 
     fireEvent.click(pause)
     expect(
@@ -251,6 +311,34 @@ describe('Canvas invite code management', () => {
       within(dialog).getByText('New status:').parentElement
     ).toHaveTextContent('Paused')
     expect(apiMocks.changeCanvasAdminInviteCodeStatus).not.toHaveBeenCalled()
+  })
+
+  it('exports the complete current server result without paging through the browser', async () => {
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const createObjectURL = vi.fn(() => 'blob:invite-codes')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectURL },
+      revokeObjectURL: { configurable: true, value: revokeObjectURL },
+    })
+    renderWithClient(<InviteCodeManagement />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Export current results' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.exportCanvasAdminInviteCodes).toHaveBeenCalledWith(
+        expect.objectContaining({ sortBy: 'createdAt', sortOrder: 'desc' })
+      )
+    )
+    const query = apiMocks.exportCanvasAdminInviteCodes.mock.calls[0]?.[0]
+    expect(query).not.toHaveProperty('page')
+    expect(query).not.toHaveProperty('pageSize')
+    expect(createObjectURL).toHaveBeenCalledOnce()
+    expect(click).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:invite-codes')
   })
 
   it('toggles a revealed invite code back to its mask and changes the icon', async () => {

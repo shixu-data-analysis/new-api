@@ -29,7 +29,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from '@/components/ui/command'
 import {
   Popover,
@@ -39,10 +38,15 @@ import {
 import { cn } from '@/lib/utils'
 
 import { DataTableColumnFilterField } from './column-filter-panel'
+import {
+  getDataTableSelectedFilterValues,
+  hasDataTableLegacyAllFilterValue,
+} from './filter-value'
 
 type DataTableFacetedFilterProps<TData, TValue> = {
   column?: Column<TData, TValue>
   title?: string
+  allLabel: string
   options: {
     label: string
     value: string
@@ -57,14 +61,31 @@ type DataTableFacetedFilterProps<TData, TValue> = {
 function DataTableFacetedFilterInner<TData, TValue>({
   column,
   title,
+  allLabel,
   options,
   singleSelect = false,
 }: DataTableFacetedFilterProps<TData, TValue>) {
   const { t } = useTranslation()
   const fieldId = React.useId()
   const facets = column?.getFacetedUniqueValues()
-  const filterValue = column?.getFilterValue() as string[] | undefined
-  const selectedValues = new Set(filterValue)
+  const filterValue = column?.getFilterValue()
+  const selectedValues = React.useMemo(
+    () => new Set(getDataTableSelectedFilterValues(filterValue)),
+    [filterValue]
+  )
+  const selectableOptions = React.useMemo(
+    () => options.filter((option) => option.value !== 'all'),
+    [options]
+  )
+
+  React.useEffect(() => {
+    if (!column || !hasDataTableLegacyAllFilterValue(filterValue)) return
+
+    const normalizedValues = [...selectedValues]
+    column.setFilterValue(
+      normalizedValues.length ? normalizedValues : undefined
+    )
+  }, [column, filterValue, selectedValues])
 
   const handleOptionSelect = (optionValue: string) => {
     const nextSelectedValues = getNextSelectedValues(
@@ -93,11 +114,11 @@ function DataTableFacetedFilterInner<TData, TValue>({
         >
           <span className='min-w-0 truncate'>
             {selectedValues.size
-              ? options
+              ? selectableOptions
                   .filter((option) => selectedValues.has(option.value))
                   .map((option) => t(option.label))
                   .join(', ')
-              : t('All')}
+              : allLabel}
           </span>
           <ChevronsUpDown className='size-4 shrink-0' />
         </PopoverTrigger>
@@ -110,7 +131,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
             <CommandList>
               <CommandEmpty>{t('No results found.')}</CommandEmpty>
               <CommandGroup>
-                {options.map((option) => {
+                {selectableOptions.map((option) => {
                   const isSelected = selectedValues.has(option.value)
                   const count = option.count ?? facets?.get(option.value)
                   return (
@@ -151,19 +172,6 @@ function DataTableFacetedFilterInner<TData, TValue>({
                   )
                 })}
               </CommandGroup>
-              {selectedValues.size > 0 && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup>
-                    <CommandItem
-                      onSelect={() => column?.setFilterValue(undefined)}
-                      className='justify-center text-center'
-                    >
-                      {t('Clear filters')}
-                    </CommandItem>
-                  </CommandGroup>
-                </>
-              )}
             </CommandList>
           </Command>
         </PopoverContent>

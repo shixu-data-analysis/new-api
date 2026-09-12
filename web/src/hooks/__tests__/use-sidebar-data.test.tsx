@@ -62,14 +62,11 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/audit',
       '/canvas-cloud/customers',
       '/canvas-cloud/point-campaigns',
-      '/canvas-cloud/agents',
+      '/canvas-cloud/invitations',
       '/canvas-cloud/recharge-codes',
-      '/canvas-cloud/invite-codes',
-      '/canvas-cloud/pricing-point-rules',
       '/canvas-cloud/model-management',
-      '/canvas-cloud/channels',
+      '/canvas-cloud/pricing-point-rules',
       '/canvas-cloud/runtime',
-      '/canvas-cloud/execution',
       '/profile',
     ])
     expect(

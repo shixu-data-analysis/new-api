@@ -34,6 +34,7 @@ import {
   publishCanvasPriceGroup,
   getCanvasAdminRechargeCodes,
   getCanvasAdminInviteCodes,
+  exportCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
   getCanvasAdminWorkspace,
   getCanvasAuditEvents,
@@ -446,7 +447,10 @@ describe('Canvas Cloud API boundary', () => {
     const modelId = '85000000-0000-7000-8000-000000000001'
 
     await getCanvasModelMonitoringTargets(modelId)
-    await getCanvasModelMonitoring(modelId, targetId, { window: 'day', origin: 'REAL' })
+    await getCanvasModelMonitoring(modelId, targetId, {
+      window: 'day',
+      origin: 'REAL',
+    })
     await getCanvasModelMonitoringControls(modelId, targetId, {
       page: 1,
       pageSize: 20,
@@ -832,11 +836,30 @@ describe('Canvas Cloud API boundary', () => {
       status: 'ACTIVE' as const,
       sortBy: 'createdAt' as const,
       sortOrder: 'desc' as const,
+      inviterPrincipalId: '11111111-1111-4111-8111-111111111111',
     }
     await getCanvasAdminInviteCodes(inviteQuery)
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/invite-codes',
       { params: inviteQuery, signal: undefined }
+    )
+    await exportCanvasAdminInviteCodes({
+      code: 'CANVAS-A',
+      inviterPrincipalId: '11111111-1111-4111-8111-111111111111',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/export',
+      {
+        params: {
+          code: 'CANVAS-A',
+          inviterPrincipalId: '11111111-1111-4111-8111-111111111111',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        },
+        responseType: 'blob',
+      }
     )
     mocks.get.mockResolvedValue({
       data: { agents: [], priceGroups: [], promotions: [] },
@@ -878,6 +901,19 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
+  it('never degrades an incomplete recharge-code lookup into an inventory request', async () => {
+    await expect(
+      getCanvasAdminRechargeCodes({
+        page: 1,
+        pageSize: 20,
+        code: 'CANVAS-TOO-SHORT',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      })
+    ).rejects.toThrow('Invalid recharge-code inventory search')
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
   it('uses explicit role-scoped Agent and provider-rate endpoints', async () => {
     mocks.get.mockResolvedValue({ data: [] })
     const agentQuery = {
@@ -887,6 +923,7 @@ describe('Canvas Cloud API boundary', () => {
       status: 'ACTIVE' as const,
       sortBy: 'username' as const,
       sortOrder: 'asc' as const,
+      principalId: '22222222-2222-4222-8222-222222222222',
     }
     await getCanvasAgents(agentQuery)
     expect(mocks.get).toHaveBeenLastCalledWith(

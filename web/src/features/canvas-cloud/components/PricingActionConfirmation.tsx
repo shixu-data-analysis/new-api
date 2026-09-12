@@ -52,6 +52,7 @@ export function PricingActionConfirmation(props: {
   description: string
   details: ConfirmationDetail[]
   comparisonRows?: PricingComparisonRow[]
+  cancelLabel?: string
   confirmLabel: string
   destructive?: boolean
   confirmDisabled?: boolean
@@ -69,7 +70,10 @@ export function PricingActionConfirmation(props: {
   >()
   for (const row of props.comparisonRows ?? []) {
     const scopeId = row.scopeId ?? row.scope
-    const scope = scopes.get(scopeId) ?? { label: row.scope, groups: new Map() }
+    const scope = scopes.get(scopeId) ?? {
+      label: row.scope,
+      groups: new Map(),
+    }
     const groupId = row.priceGroupId ?? row.priceGroup ?? ''
     const group = scope.groups.get(groupId) ?? {
       label: row.priceGroup,
@@ -197,7 +201,7 @@ export function PricingActionConfirmation(props: {
         </div>
         <AlertDialogFooter className='shrink-0'>
           <AlertDialogCancel disabled={props.pending}>
-            {t('Cancel')}
+            {props.cancelLabel ?? t('Cancel')}
           </AlertDialogCancel>
           <AlertDialogAction
             variant={props.destructive ? 'destructive' : 'default'}

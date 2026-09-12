@@ -350,11 +350,11 @@ export function AdminTaskLogs() {
               displayValue={
                 options.data?.models.find((option) => option.id === model)?.name
               }
-              emptyLabelKey='All'
+              emptyLabelKey='All models'
             />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            <SelectItem value='ALL'>{t('All models')}</SelectItem>
             {(options.data?.models ?? []).map((option) => (
               <SelectItem key={option.id} value={option.id}>
                 {option.name}
@@ -373,11 +373,11 @@ export function AdminTaskLogs() {
           <SelectTrigger className='w-full' aria-label={t('Execution status')}>
             <CanvasLocalizedSelectValue
               value={derivedExecutionStatus}
-              emptyLabelKey='All'
+              emptyLabelKey='All execution statuses'
             />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            <SelectItem value='ALL'>{t('All execution statuses')}</SelectItem>
             {executionStatuses.map((value) => (
               <SelectItem key={value} value={value}>
                 {t(executionLabels[value])}
@@ -399,11 +399,13 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={settlementProgress}
-              emptyLabelKey='All'
+              emptyLabelKey='All settlement progresses'
             />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>{t('All')}</SelectItem>
+            <SelectItem value='ALL'>
+              {t('All settlement progresses')}
+            </SelectItem>
             {settlementProgresses.map((value) => (
               <SelectItem key={value} value={value}>
                 {t(settlementLabels[value])}
@@ -447,11 +449,13 @@ export function AdminTaskLogs() {
                 >
                   <CanvasLocalizedSelectValue
                     value={billingStatus}
-                    emptyLabelKey='All'
+                    emptyLabelKey='All billing statuses'
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='ALL'>{t('All')}</SelectItem>
+                  <SelectItem value='ALL'>
+                    {t('All billing statuses')}
+                  </SelectItem>
                   {billingStatuses.map((value) => (
                     <SelectItem key={value} value={value}>
                       {t(billingLabels[value])}

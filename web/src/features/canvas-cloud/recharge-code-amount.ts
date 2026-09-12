@@ -25,3 +25,14 @@ export function cnyToMinor(value: string): string | null {
   if (minor <= 0n || (minor * 50n) % 100n !== 0n) return null
   return minor.toString()
 }
+
+/**
+ * Admin inventory lookup accepts only the complete generated code.  Partial
+ * values must never silently degrade into an unfiltered inventory request.
+ */
+export function normalizeRechargeCodeInventorySearch(
+  value: string
+): string | null {
+  const normalized = value.trim().toUpperCase()
+  return /^CANVAS-[A-Z0-9]{24}$/u.test(normalized) ? normalized : null
+}

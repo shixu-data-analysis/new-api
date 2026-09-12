@@ -332,8 +332,18 @@ export interface CanvasAdminAgentQuery {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   search?: string
   status?: CanvasAgentProfile['status']
+  principalId?: string
   sortBy: 'username' | 'status' | 'createdAt'
   sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasInvitationExactFilter {
+  username: string
+  status: CanvasAgentProfile['status']
+}
+
+export interface CanvasAdminAgentPage extends CanvasPage<CanvasAgentProfile> {
+  exactFilter: CanvasInvitationExactFilter | null
 }
 
 export interface CanvasAdminInviteCodeQuery {
@@ -342,6 +352,7 @@ export interface CanvasAdminInviteCodeQuery {
   code?: string
   priceGroup?: string
   inviter?: string
+  inviterPrincipalId?: string
   status?: CanvasInviteCodeStatus
   sortBy:
     | 'code'
@@ -353,6 +364,10 @@ export interface CanvasAdminInviteCodeQuery {
     | 'expiresAt'
     | 'createdAt'
   sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminInviteCodePage extends CanvasPage<CanvasAdminInviteCode> {
+  exactFilter: CanvasInvitationExactFilter | null
 }
 
 export interface CanvasAgentWorkspace {
@@ -1607,94 +1622,6 @@ export interface CanvasContributionReport {
   adjustedContributionMinor: string
   reconciliationTimeoutLossMinor: string
   disclaimer: string
-}
-
-export interface ChannelHealthStats {
-  succeeded: number
-  failed: number
-  unknown: number
-  processing: number
-  sampleCount: number
-  successRate: number | null
-  lastSuccessAt: string | null
-  lastFailureAt: string | null
-}
-export type ChannelHealthWindow =
-  | 'hour'
-  | 'day'
-  | 'week'
-  | 'month'
-  | 'custom'
-  | 'round'
-export interface ChannelHealthQuery {
-  window: ChannelHealthWindow
-  origin: 'REAL' | 'MOCK'
-  from?: string
-  to?: string
-  channelId?: string
-  provider?: string
-  channel?: string
-  enabled?: 'true' | 'false'
-  sortBy?:
-    | 'providerName'
-    | 'code'
-    | 'enabled'
-    | 'successRate'
-    | 'failed'
-    | 'unknown'
-    | 'lastFailureAt'
-  sortOrder?: 'asc' | 'desc'
-  page?: number
-  pageSize?: number
-}
-export interface ChannelHealthItem extends ChannelHealthStats {
-  id: string
-  code: string
-  version: number
-  providerName: string
-  enabled: boolean
-  providerEnabled: boolean
-  controlVersion: number
-  roundStartedAt: string
-  affectedModels: Array<{ id: string; name: string }>
-}
-export interface ChannelHealthReport {
-  window: ChannelHealthWindow
-  origin: 'REAL' | 'MOCK'
-  from: string | null
-  to: string
-  page: number
-  pageSize: number
-  total: number
-  summary: ChannelHealthStats
-  items: ChannelHealthItem[]
-  detail: {
-    from: string
-    to: string
-    bucketSeconds: number
-    buckets: Array<ChannelHealthStats & { at: string }>
-    failures: Array<{ category: string; count: number }>
-    operations: Array<{
-      id: string
-      version: number
-      enabled: boolean
-      previousEnabled: boolean | null
-      reasonCode: string | null
-      note: string | null
-      legacyReason: string | null
-      at: string
-      actorName: string
-      actorPrincipalId: string
-      actorUserId: string | null
-    }>
-    tasks: Array<{
-      id: string
-      status: string
-      acceptedAt: string
-      completedAt: string | null
-      failureCategory: string | null
-    }>
-  } | null
 }
 
 export interface CanvasCustomerPriceAssignment {

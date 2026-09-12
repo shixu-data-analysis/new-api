@@ -27,12 +27,25 @@ import {
 } from '@/features/canvas-cloud/api'
 
 export const invalidCanvasCloudUuidSearchValue = '__invalid_canvas_cloud_uuid__'
+export const invalidCanvasCloudRuntimeView =
+  '__invalid_canvas_cloud_runtime_view__'
 
 const optionalUuidSearch = z
   .string()
   .uuid()
   .optional()
   .catch(invalidCanvasCloudUuidSearchValue)
+
+const runtimeViewSearch = z
+  .string()
+  .optional()
+  .transform((value) => {
+    if (value === undefined) return undefined
+    if (value === 'execution' || value === 'provider' || value === 'storage') {
+      return value
+    }
+    return invalidCanvasCloudRuntimeView
+  })
 
 export const canvasCloudSearchSchema = z.object({
   customerId: optionalUuidSearch,
@@ -45,6 +58,7 @@ export const canvasCloudSearchSchema = z.object({
   credentialGroupVersionId: optionalUuidSearch,
   modelId: optionalUuidSearch,
   publicationId: optionalUuidSearch,
+  view: runtimeViewSearch,
 })
 
 function isInvalidUuidSearchValue(value: string | undefined) {
@@ -71,6 +85,9 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       throw redirect({ to: '/403' })
     }
 
+    if (params.section === 'channels') {
+      throw redirect({ to: '/404', replace: true })
+    }
     if (
       !isCanvasSectionAllowed(
         session.principalType,
@@ -79,6 +96,21 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       )
     ) {
       throw redirect({ to: '/403' })
+    }
+    if (params.section === 'agents' || params.section === 'invite-codes') {
+      throw redirect({
+        to: '/canvas-cloud/invitations',
+        search: { tab: params.section === 'agents' ? 'inviters' : 'codes' },
+        replace: true,
+      })
+    }
+    if (params.section === 'execution') {
+      throw redirect({
+        to: '/canvas-cloud/$section',
+        params: { section: 'runtime' },
+        search: { view: 'execution' },
+        replace: true,
+      })
     }
     const legacyPricingSection =
       params.section === 'pricing' || params.section === 'catalog'

@@ -449,18 +449,21 @@ export function ChannelsTable() {
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: [...CHANNEL_STATUS_OPTIONS],
             singleSelect: true,
           },
           {
             columnId: 'type',
             title: t('Type'),
+            allLabel: t('All Types'),
             options: typeFilterOptions,
             singleSelect: true,
           },
           {
             columnId: 'group',
             title: t('Group'),
+            allLabel: t('All Groups'),
             options: groupFilterOptions,
             singleSelect: true,
           },

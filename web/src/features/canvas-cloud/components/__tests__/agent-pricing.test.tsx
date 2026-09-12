@@ -52,6 +52,14 @@ function renderWithClient(element: React.ReactNode) {
   )
 }
 
+async function renderAgentManagement() {
+  const result = renderWithClient(<AgentManagement />)
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Enable invitation ability' })
+  )
+  return result
+}
+
 describe('Canvas Agent and provider pricing governance', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
@@ -138,11 +146,11 @@ describe('Canvas Agent and provider pricing governance', () => {
   })
 
   it('confirms that invitation ability preserves the existing customer boundary', async () => {
-    renderWithClient(<AgentManagement />)
-    fireEvent.change(await screen.findByLabelText('Username'), {
+    await renderAgentManagement()
+    fireEvent.change(await screen.findByLabelText('Customer username'), {
       target: { value: 'tokyo-agent' },
     })
-    fireEvent.change(screen.getByLabelText('Approval reason'), {
+    fireEvent.change(screen.getByLabelText('Enable reason'), {
       target: { value: 'Approved partner onboarding' },
     })
     fireEvent.click(
@@ -153,7 +161,7 @@ describe('Canvas Agent and provider pricing governance', () => {
   })
 
   it('shows field-level validation instead of silently disabling creation', async () => {
-    renderWithClient(<AgentManagement />)
+    await renderAgentManagement()
 
     const createButton = await screen.findByRole('button', {
       name: 'Enable invitation ability',
@@ -163,7 +171,7 @@ describe('Canvas Agent and provider pricing governance', () => {
 
     expect(await screen.findByText('Enter a username')).toBeVisible()
     expect(screen.getByText('Enter an approval reason')).toBeVisible()
-    expect(screen.getByLabelText('Username')).toHaveAttribute(
+    expect(screen.getByLabelText('Customer username')).toHaveAttribute(
       'aria-invalid',
       'true'
     )
@@ -174,11 +182,11 @@ describe('Canvas Agent and provider pricing governance', () => {
     apiMocks.provisionCanvasAgent.mockRejectedValueOnce({
       response: { data: { code: 'INVITER_CAPABILITY_ALREADY_GRANTED' } },
     })
-    renderWithClient(<AgentManagement />)
-    fireEvent.change(await screen.findByLabelText('Username'), {
+    await renderAgentManagement()
+    fireEvent.change(await screen.findByLabelText('Customer username'), {
       target: { value: 'tokyo-agent' },
     })
-    fireEvent.change(screen.getByLabelText('Approval reason'), {
+    fireEvent.change(screen.getByLabelText('Enable reason'), {
       target: { value: 'Approved partner onboarding' },
     })
     fireEvent.click(
@@ -199,12 +207,12 @@ describe('Canvas Agent and provider pricing governance', () => {
   })
 
   it('adds invitation ability to a customer without a provider association', async () => {
-    renderWithClient(<AgentManagement />)
+    await renderAgentManagement()
 
-    fireEvent.change(await screen.findByLabelText('Username'), {
+    fireEvent.change(await screen.findByLabelText('Customer username'), {
       target: { value: 'tokyo-inviter' },
     })
-    fireEvent.change(screen.getByLabelText('Approval reason'), {
+    fireEvent.change(screen.getByLabelText('Enable reason'), {
       target: { value: 'Approved customer referral program' },
     })
     const createButton = screen.getByRole('button', {
@@ -217,11 +225,31 @@ describe('Canvas Agent and provider pricing governance', () => {
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Confirm creation' }))
     await waitFor(() =>
-      expect(apiMocks.provisionCanvasAgent).toHaveBeenCalledWith({
-        username: 'tokyo-inviter',
-        status: 'ACTIVE',
-        reason: 'Approved customer referral program',
-      })
+      expect(apiMocks.provisionCanvasAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'tokyo-inviter',
+          status: 'ACTIVE',
+          reason: 'Approved customer referral program',
+          idempotencyKey: expect.stringMatching(/^web-agent-create-/u),
+        })
+      )
+    )
+  })
+
+  it('guards a dirty inviter drawer before discarding its draft', async () => {
+    await renderAgentManagement()
+
+    fireEvent.change(await screen.findByLabelText('Customer username'), {
+      target: { value: 'tokyo-inviter' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByText('Discard this draft?')).toBeVisible()
+    expect(
+      screen.getByText('Leaving will discard the unpublished inviter draft.')
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
     )
   })
 

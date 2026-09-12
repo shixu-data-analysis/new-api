@@ -41,6 +41,7 @@ export function CanvasServerTable<TData>({
   total,
   state,
   searchLabel,
+  searchPlaceholder,
   loading,
   error = false,
   errorTitle,
@@ -63,6 +64,7 @@ export function CanvasServerTable<TData>({
   total: number
   state: CanvasServerTableState
   searchLabel?: string
+  searchPlaceholder?: string
   loading?: boolean
   error?: boolean
   errorTitle?: string
@@ -89,7 +91,7 @@ export function CanvasServerTable<TData>({
   const pageCount = Math.max(1, Math.ceil(total / pagination.pageSize))
   const sizedColumns = withCanvasTableColumnSizes(columns)
   const visibleActiveFilterCount =
-    activeFilterCount ?? (search.trim() ? 1 : 0) + (hasActiveFilters ? 1 : 0)
+    (search.trim() ? 1 : 0) + (activeFilterCount ?? (hasActiveFilters ? 1 : 0))
   const { table } = useDataTable({
     data,
     columns: sizedColumns,
@@ -110,63 +112,60 @@ export function CanvasServerTable<TData>({
     initialColumnVisibility,
   })
 
-  if (error) {
-    return (
-      <ErrorState
-        className='min-h-[240px]'
-        title={errorTitle}
-        onRetry={onRetry}
-      />
-    )
-  }
-
   return (
-    <DataTablePage
-      table={table}
-      columns={sizedColumns}
-      isLoading={loading}
-      isFetching={loading}
-      emptyTitle={
-        filteredEmptyTitle && (search.trim() || hasActiveFilters)
-          ? filteredEmptyTitle
-          : emptyTitle
-      }
-      fixedHeight={false}
-      paginationInFooter={false}
-      getRowClassName={getRowClassName}
-      getColumnClassName={getColumnClassName}
-      renderRow={renderRow ? (row) => renderRow(row) : undefined}
-      mobileProps={{ renderExpandedContent }}
-      applyHeaderSize
-      toolbar={
-        <DataTableToolbar
-          table={table}
-          filterPanel={
-            <DataTableColumnFilterPanel activeCount={visibleActiveFilterCount}>
-              {searchLabel ? (
-                <DataTableColumnFilterField
-                  label={searchLabel}
-                  htmlFor={searchId}
-                >
-                  <Input
-                    id={searchId}
-                    className='min-w-0'
-                    value={search}
-                    placeholder={searchLabel}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
-                </DataTableColumnFilterField>
-              ) : null}
-              {additionalFilters}
-            </DataTableColumnFilterPanel>
-          }
-          onReset={() => {
-            setSearch('')
-            onResetFilters?.()
-          }}
-          hasAdditionalFilters={hasActiveFilters}
-        />
-      }
-    />
+    <div className='space-y-3'>
+      {error ? (
+        <ErrorState className='min-h-0' title={errorTitle} onRetry={onRetry} />
+      ) : null}
+      <DataTablePage
+        table={table}
+        columns={sizedColumns}
+        isLoading={loading}
+        isFetching={loading}
+        emptyTitle={
+          filteredEmptyTitle && (search.trim() || hasActiveFilters)
+            ? filteredEmptyTitle
+            : emptyTitle
+        }
+        fixedHeight={false}
+        paginationInFooter={false}
+        getRowClassName={getRowClassName}
+        getColumnClassName={getColumnClassName}
+        renderRow={renderRow ? (row) => renderRow(row) : undefined}
+        mobileProps={{ renderExpandedContent }}
+        applyHeaderSize
+        toolbar={
+          <DataTableToolbar
+            table={table}
+            filterPanel={
+              <DataTableColumnFilterPanel
+                activeCount={visibleActiveFilterCount}
+              >
+                {searchLabel ? (
+                  <DataTableColumnFilterField
+                    label={searchLabel}
+                    htmlFor={searchId}
+                  >
+                    <Input
+                      id={searchId}
+                      className='min-w-0'
+                      value={search}
+                      placeholder={searchPlaceholder ?? searchLabel}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </DataTableColumnFilterField>
+                ) : null}
+                {additionalFilters}
+              </DataTableColumnFilterPanel>
+            }
+            onReset={() => {
+              setSearch('')
+              onResetFilters?.()
+            }}
+            hasAdditionalFilters={hasActiveFilters}
+          />
+        }
+      />
+    </div>
   )
 }

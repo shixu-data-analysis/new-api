@@ -687,6 +687,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
               {
                 columnId: 'billingMode',
                 title: t('Mode'),
+                allLabel: t('All billing modes'),
                 options: [
                   {
                     label: 'Per-token',

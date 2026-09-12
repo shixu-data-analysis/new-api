@@ -58,18 +58,18 @@ import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
-import { AgentManagement } from './components/AgentManagement'
 import { BusinessTerm } from './components/BusinessTerm'
-import { ChannelHealth } from './components/ChannelHealth'
 import { CustomerPointHistory } from './components/CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
 import { InviteActivation } from './components/InviteActivation'
-import { InviteCodeManagement } from './components/InviteCodeManagement'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingPointRules } from './components/PricingPointRules'
 import { PricingRecordsTable } from './components/PricingRecordsTable'
 import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
-import { RuntimeManagement } from './components/RuntimeManagement'
+import {
+  RuntimeManagement,
+  type RuntimeManagementView,
+} from './components/RuntimeManagement'
 import { formatMoneyMinor } from './formatters'
 import {
   getModelManagementReturnContext,
@@ -87,9 +87,10 @@ const sectionTitles: Record<CanvasSection, string> = {
   'task-logs': 'Task Records',
   customers: 'Customer management',
   'point-campaigns': 'Activity management',
-  agents: 'Inviter management',
-  'recharge-codes': 'Canvas Recharge Codes',
-  'invite-codes': 'Canvas Invite Codes',
+  agents: 'Invitation management',
+  'recharge-codes': 'Recharge codes',
+  'invite-codes': 'Invitation management',
+  invitations: 'Invitation management',
   catalog: 'Model management',
   overview: 'Canvas Usage Overview',
   recharge: 'Redeem Points',
@@ -99,13 +100,14 @@ const sectionTitles: Record<CanvasSection, string> = {
   pricing: 'Model management',
   'pricing-point-rules': 'Pricing and point rules',
   'pricing-calculator': 'Canvas Pricing Calculator',
-  channels: 'Canvas Channels',
-  runtime: 'Canvas Runtime Configuration',
-  execution: 'Execution settings',
+  runtime: 'Runtime management',
+  execution: 'Runtime management',
   'provider-configuration': 'Provider configuration',
   audit: 'Canvas Audit Log',
   'agent-center': 'Inviter center',
 }
+
+const invalidCanvasCloudRuntimeView = '__invalid_canvas_cloud_runtime_view__'
 
 function sumPoints(values: string[]): string {
   return values.reduce((total, value) => total + BigInt(value), 0n).toString()
@@ -458,6 +460,8 @@ export function AdminContent(props: {
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   onReturnToModelList?: () => void
+  runtimeView?: RuntimeManagementView
+  onRuntimeViewChange?: (view: RuntimeManagementView) => void
 }) {
   const { t } = useTranslation()
   const workspace = useQuery({
@@ -501,7 +505,12 @@ export function AdminContent(props: {
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {
-    return <RuntimeManagement initialView='storage' />
+    return (
+      <RuntimeManagement
+        initialView={props.runtimeView ?? 'execution'}
+        onViewChange={props.onRuntimeViewChange}
+      />
+    )
   }
   if (props.section === 'execution') {
     return <RuntimeManagement initialView='execution' />
@@ -646,47 +655,11 @@ export function AdminContent(props: {
       </div>
     )
   }
-  if (props.section === 'agents') return <AgentManagement />
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />
   }
-  if (props.section === 'invite-codes') return <InviteCodeManagement />
   if (props.section === 'pricing-calculator') {
     return <PricingCalculator />
-  }
-  if (props.section === 'channels') {
-    return (
-      <div className='space-y-4'>
-        <ChannelHealth />
-        <DataTable
-          empty={t('No data')}
-          headers={[
-            t('ID'),
-            t('Mode'),
-            t('Status'),
-            t('Credentials'),
-            t('Updated'),
-          ]}
-          filterableColumnIndexes={[0, 1]}
-          rows={data.executorWorkers.map((item) => ({
-            key: `${item.queueName}:${item.workerId}`,
-            cells: [
-              `${item.queueName} · ${item.workerId}`,
-              item.mode,
-              <BusinessTerm
-                key='status'
-                kind='executorStatus'
-                value={item.status}
-              />,
-              item.credentialsConfigured
-                ? t('Configured')
-                : t('Not configured'),
-              formatDate(item.heartbeatAt),
-            ],
-          }))}
-        />
-      </div>
-    )
   }
   return null
 }
@@ -752,6 +725,26 @@ export function CanvasCloud() {
       </SectionPageLayout>
     )
   }
+  if (
+    params.section === 'runtime' &&
+    search.view === invalidCanvasCloudRuntimeView
+  ) {
+    return (
+      <SectionPageLayout fluid={false}>
+        <SectionPageLayout.Title>
+          {t('Runtime management')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Content>
+          <ErrorState
+            title={t('Invalid runtime view')}
+            description={t(
+              'Choose execution, provider configuration, or storage and backups.'
+            )}
+          />
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
+    )
+  }
   const section = params.section as CanvasSection
   let content: ReactNode
   if (section === 'agent-center') {
@@ -794,6 +787,18 @@ export function CanvasCloud() {
                   }),
                 })
             : undefined
+        }
+        runtimeView={
+          search.view === invalidCanvasCloudRuntimeView
+            ? undefined
+            : (search.view as RuntimeManagementView | undefined)
+        }
+        onRuntimeViewChange={(view) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'runtime' },
+            search: { view },
+          })
         }
       />
     )

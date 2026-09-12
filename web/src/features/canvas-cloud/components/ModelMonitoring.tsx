@@ -47,13 +47,13 @@ import {
   getCanvasModelMonitoringTargets,
 } from '../api'
 import { canvasBusinessTermConfig } from '../business-terms'
-import {
-  channelDisableReasons,
-  channelEnableReasons,
-  channelReasonLabels,
-} from '../channel-health'
 import { formatCanvasDateTime } from '../formatters'
 import { getLocalizedErrorMessage } from '../localized-error-message'
+import {
+  modelDisableReasons,
+  modelEnableReasons,
+  modelMonitoringReasonLabels,
+} from '../model-monitoring-control'
 import type {
   CanvasAdminTaskLog,
   CanvasAdminTaskLogQuery,
@@ -650,7 +650,10 @@ export function ModelMonitoring(props: {
           <div className='space-y-1 break-words whitespace-normal'>
             <span>
               {row.original.reasonCode
-                ? t(channelReasonLabels[row.original.reasonCode] ?? 'Other')
+                ? t(
+                    modelMonitoringReasonLabels[row.original.reasonCode] ??
+                      'Other'
+                  )
                 : (row.original.legacyReason ?? t('Not recorded'))}
             </span>
             {row.original.note ? (
@@ -667,9 +670,9 @@ export function ModelMonitoring(props: {
   const data = monitoring.data
   let controlReasons: readonly string[] = []
   if (controlAction === 'ENABLE') {
-    controlReasons = channelEnableReasons
+    controlReasons = modelEnableReasons
   } else if (controlAction === 'DISABLE') {
-    controlReasons = channelDisableReasons
+    controlReasons = modelDisableReasons
   }
   if (monitoring.isError) {
     return (
@@ -1017,7 +1020,7 @@ export function ModelMonitoring(props: {
                   >
                     <span>
                       {t(
-                        channelReasonLabels[failure.category] ??
+                        modelMonitoringReasonLabels[failure.category] ??
                           'Unclassified failure'
                       )}
                     </span>
@@ -1060,7 +1063,9 @@ export function ModelMonitoring(props: {
                   value={taskStatus}
                   onChange={(event) => setTaskStatus(event.target.value)}
                 >
-                  <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+                  <NativeSelectOption value=''>
+                    {t('All execution statuses')}
+                  </NativeSelectOption>
                   {[
                     'ACCEPTED',
                     'PROCESSING',
@@ -1110,7 +1115,9 @@ export function ModelMonitoring(props: {
                     setControlReason('')
                   }}
                 >
-                  <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+                  <NativeSelectOption value=''>
+                    {t('All actions')}
+                  </NativeSelectOption>
                   <NativeSelectOption value='DISABLE'>
                     {t('Disable model')}
                   </NativeSelectOption>
@@ -1132,10 +1139,12 @@ export function ModelMonitoring(props: {
                   value={controlReason}
                   onChange={(event) => setControlReason(event.target.value)}
                 >
-                  <NativeSelectOption value=''>{t('All')}</NativeSelectOption>
+                  <NativeSelectOption value=''>
+                    {t('All reasons')}
+                  </NativeSelectOption>
                   {controlReasons.map((reason) => (
                     <NativeSelectOption key={reason} value={reason}>
-                      {t(channelReasonLabels[reason])}
+                      {t(modelMonitoringReasonLabels[reason])}
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>

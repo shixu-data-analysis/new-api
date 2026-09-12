@@ -54,6 +54,7 @@ import {
   getCanvasTaskPointLedgerDetail,
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
+import { getLocalizedErrorMessage } from '../localized-error-message'
 import type {
   CanvasAdminTaskRecordDetail,
   CanvasTaskPointLedgerDetail,
@@ -64,7 +65,6 @@ import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
-import { getLocalizedErrorMessage } from '../localized-error-message'
 import { TaskCallHistory } from './TaskCallHistory'
 
 const executionLabels: Record<string, string> = {
@@ -640,11 +640,11 @@ function TaskPointRecords({
                   <SelectTrigger className='w-full' aria-label={t('Change')}>
                     <CanvasLocalizedSelectValue
                       value={changeType}
-                      emptyLabelKey='All'
+                      emptyLabelKey='All changes'
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='ALL'>{t('All')}</SelectItem>
+                    <SelectItem value='ALL'>{t('All changes')}</SelectItem>
                     {Object.entries(ledgerEventLabels).map(([value, label]) => (
                       <SelectItem key={value} value={value}>
                         {t(label)}
@@ -663,11 +663,11 @@ function TaskPointRecords({
                   <SelectTrigger className='w-full' aria-label={t('Lot type')}>
                     <CanvasLocalizedSelectValue
                       value={lotType}
-                      emptyLabelKey='All'
+                      emptyLabelKey='All lot types'
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='ALL'>{t('All')}</SelectItem>
+                    <SelectItem value='ALL'>{t('All lot types')}</SelectItem>
                     <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
                     <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
                     <SelectItem value='GRACE_BONUS'>

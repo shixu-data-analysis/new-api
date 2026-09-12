@@ -26,11 +26,11 @@ import { Textarea } from '@/components/ui/textarea'
 
 import { controlCanvasModelMonitoring } from '../api'
 import {
-  channelControlFormSchema,
-  channelDisableReasons,
-  channelEnableReasons,
-  channelReasonLabels,
-} from '../channel-health'
+  modelControlFormSchema,
+  modelDisableReasons,
+  modelEnableReasons,
+  modelMonitoringReasonLabels,
+} from '../model-monitoring-control'
 import type { CanvasModelMonitoring } from '../types'
 import { executionTargetLabel } from './execution-target-label'
 
@@ -50,7 +50,7 @@ export function ModelControlDialog(props: {
   const { t } = useTranslation()
   const enabled = !props.monitoring.manualEnabled
   const form = useForm<ReasonForm>({
-    resolver: zodResolver(channelControlFormSchema(enabled)),
+    resolver: zodResolver(modelControlFormSchema(enabled)),
     mode: 'onTouched',
     defaultValues: { reasonCode: '', note: '' },
   })
@@ -129,10 +129,10 @@ export function ModelControlDialog(props: {
                     : 'Select a disable reason'
                 )}
               </NativeSelectOption>
-              {(enabled ? channelEnableReasons : channelDisableReasons).map(
+              {(enabled ? modelEnableReasons : modelDisableReasons).map(
                 (reason) => (
                   <NativeSelectOption key={reason} value={reason}>
-                    {t(channelReasonLabels[reason])}
+                    {t(modelMonitoringReasonLabels[reason])}
                   </NativeSelectOption>
                 )
               )}

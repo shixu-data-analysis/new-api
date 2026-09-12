@@ -16,25 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { ErrorState } from '@/components/error-state'
+import {
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+} from '@/components/drawer-layout'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -51,15 +51,24 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { getCanvasAgents, provisionCanvasAgent } from '../api'
-import { formatCanvasDateTime } from '../formatters'
-import type { CanvasAgentProfile } from '../types'
+import type { CanvasAgentProfile, CanvasInvitationExactFilter } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
+import type { InvitationNavigationGuard } from './InvitationManagement'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 interface AgentFormValues {
@@ -75,40 +84,97 @@ function agentCreationFailureCode(error: unknown): string | null {
   return typeof code === 'string' ? code : null
 }
 
-export function AgentManagement() {
-  const { t } = useTranslation()
+function agentCreationFailureField(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null
+  const details = (error as { response?: { data?: { details?: unknown } } })
+    .response?.data?.details
+  if (!details || typeof details !== 'object') return null
+  const field = (details as { field?: unknown }).field
+  return typeof field === 'string' ? field : null
+}
+
+export function AgentManagement(props: {
+  principalId?: string
+  onViewInviteCodes?: (agent: CanvasAgentProfile) => void
+  onExactFilterChange?: (filter: CanvasInvitationExactFilter | null) => void
+  onNavigationGuardChange?: (guard: InvitationNavigationGuard) => void
+  onClearPreciseLocation?: () => void
+}) {
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const onViewInviteCodes = props.onViewInviteCodes
+  const onExactFilterChange = props.onExactFilterChange
+  const [createOpen, setCreateOpen] = useState(false)
+  const [idempotencyKey, setIdempotencyKey] = useState('')
   const tableState = useServerTableState('createdAt')
   const [status, setStatus] = useState('')
   const form = useForm<AgentFormValues>({
     mode: 'onTouched',
+    resolver: zodResolver(
+      z.object({
+        username: z
+          .string()
+          .trim()
+          .min(1, t('Enter a username'))
+          .max(191, t('Username must not exceed 191 characters')),
+        reason: z
+          .string()
+          .trim()
+          .min(1, t('Enter an approval reason'))
+          .max(500, t('Reason must not exceed 500 characters')),
+      })
+    ),
     defaultValues: {
       username: '',
       reason: '',
     },
   })
   const values = form.watch()
+  const hasDraft = Boolean(values.username.trim() || values.reason.trim())
   const [confirming, setConfirming] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const agents = useQuery({
-    queryKey: ['canvas-cloud', 'agents', tableState.query, status],
+    queryKey: [
+      'canvas-cloud',
+      'agents',
+      tableState.query,
+      status,
+      props.principalId,
+    ],
     queryFn: ({ signal }) =>
       getCanvasAgents(
         {
           ...tableState.query,
           ...(status ? { status: status as CanvasAgentProfile['status'] } : {}),
+          ...(props.principalId ? { principalId: props.principalId } : {}),
         },
         signal
       ),
+    placeholderData: (previous) => previous,
   })
+  useEffect(() => {
+    onExactFilterChange?.(agents.data?.exactFilter ?? null)
+  }, [agents.data?.exactFilter, onExactFilterChange])
+  useEffect(() => {
+    tableState.setPagination((current) =>
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
+    )
+  }, [props.principalId, status, tableState])
   const create = useMutation({
     mutationFn: () =>
       provisionCanvasAgent({
         username: form.getValues('username').trim(),
         status: 'ACTIVE',
         reason: form.getValues('reason').trim(),
+        idempotencyKey,
       }),
     onSuccess: async () => {
+      setCreateError(null)
       setConfirming(false)
+      setDiscarding(false)
+      setCreateOpen(false)
+      setIdempotencyKey('')
       form.reset()
       toast.success(t('Invitation ability enabled'))
       await Promise.all([
@@ -119,8 +185,26 @@ export function AgentManagement() {
       ])
     },
     onError: (error) => {
+      const code = agentCreationFailureCode(error)
+      const field = agentCreationFailureField(error)
+      let fieldMessage: string | null = null
+      if (code === 'INVITER_CAPABILITY_ALREADY_GRANTED') {
+        fieldMessage = t('This customer already has invitation ability.')
+      } else if (
+        code === 'INVITER_TARGET_UNAVAILABLE' ||
+        (code === 'VALIDATION_FAILED' && field === 'username')
+      ) {
+        fieldMessage = t(
+          'Only an active Canvas customer can receive invitation ability.'
+        )
+      } else if (code === 'VALIDATION_FAILED' && field === 'reason') {
+        fieldMessage = t('Enter an approval reason')
+      }
+      if (fieldMessage && (field === 'username' || field === 'reason')) {
+        form.setError(field, { type: 'server', message: fieldMessage })
+      }
       const reason = (() => {
-        switch (agentCreationFailureCode(error)) {
+        switch (code) {
           case 'INVITER_CAPABILITY_ALREADY_GRANTED':
             return t('This customer already has invitation ability.')
           case 'CUSTOMER_REQUIRED':
@@ -153,11 +237,35 @@ export function AgentManagement() {
             )
         }
       })()
+      setCreateError(reason)
       toast.error(t('Invitation ability could not be enabled'), {
         description: reason,
       })
     },
   })
+  const closeCreateDrawer = useCallback(() => {
+    if (create.isPending) return
+    setConfirming(false)
+    setDiscarding(false)
+    setCreateOpen(false)
+    setIdempotencyKey('')
+    form.reset()
+  }, [create.isPending, form])
+  const requestCloseCreateDrawer = () => {
+    if (create.isPending) return
+    if (form.formState.isDirty || hasDraft) {
+      setDiscarding(true)
+      return
+    }
+    closeCreateDrawer()
+  }
+  const guardWhen = createOpen && (form.formState.isDirty || hasDraft)
+  useEffect(() => {
+    props.onNavigationGuardChange?.({
+      when: guardWhen,
+      discard: closeCreateDrawer,
+    })
+  }, [closeCreateDrawer, guardWhen, props])
   const columns = useMemo<ColumnDef<CanvasAgentProfile, unknown>[]>(
     () => [
       {
@@ -166,7 +274,9 @@ export function AgentManagement() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Username')} />
         ),
-        cell: ({ row }) => <CopyableText value={row.original.username} />,
+        cell: ({ row }) => (
+          <CopyableText value={row.original.username} noTruncate />
+        ),
       },
       {
         id: 'status',
@@ -187,56 +297,98 @@ export function AgentManagement() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Created At')} />
         ),
-        cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
+        cell: ({ row }) =>
+          new Intl.DateTimeFormat(
+            toIntlLocale(i18n.resolvedLanguage ?? i18n.language),
+            { dateStyle: 'medium', timeStyle: 'short' }
+          ).format(new Date(row.original.createdAt)),
       },
+      ...(onViewInviteCodes
+        ? [
+            {
+              id: 'actions',
+              enableSorting: false,
+              header: t('Actions'),
+              cell: ({ row }: { row: { original: CanvasAgentProfile } }) => (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => onViewInviteCodes(row.original)}
+                >
+                  {t('View invite codes')}
+                </Button>
+              ),
+            } as ColumnDef<CanvasAgentProfile, unknown>,
+          ]
+        : []),
     ],
-    [t]
+    [i18n.language, i18n.resolvedLanguage, onViewInviteCodes, t]
   )
-  if (agents.isPending) return <LoadingState />
-  if (agents.isError) {
-    return (
-      <ErrorState
-        onRetry={() => {
-          void agents.refetch()
-        }}
-      />
-    )
-  }
+  if (agents.isPending && !agents.data) return <LoadingState />
+  const exactError = agents.isError
+  const exactErrorTitle = (() => {
+    const code = agentCreationFailureCode(agents.error)
+    let title: string | undefined
+    if (props.principalId && code === 'NOT_FOUND') {
+      title = t('The selected inviter no longer exists')
+    } else if (props.principalId && code === 'NOT_AN_INVITER') {
+      title = t('The selected user is not an inviter')
+    }
+    return title
+  })()
   return (
     <div className='space-y-4'>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Enable invitation ability')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Add invitation ability to an existing Canvas customer without removing customer access.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className='flex justify-end'>
+        <Button
+          type='button'
+          onClick={() => {
+            setCreateError(null)
+            form.reset()
+            setIdempotencyKey(`web-agent-create-${crypto.randomUUID()}`)
+            setCreateOpen(true)
+          }}
+        >
+          {t('Enable invitation ability')}
+        </Button>
+      </div>
+      <Sheet
+        open={createOpen}
+        onOpenChange={(open) =>
+          open ? setCreateOpen(true) : requestCloseCreateDrawer()
+        }
+      >
+        <SheetContent className={sideDrawerContentClassName('sm:max-w-xl')}>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>{t('Enable invitation ability')}</SheetTitle>
+            <SheetDescription>
+              {t(
+                'Add invitation ability to an existing Canvas customer without removing customer access.'
+              )}
+            </SheetDescription>
+          </SheetHeader>
           <Form {...form}>
             <form
+              id='agent-invitation-ability-form'
               noValidate
-              className='grid items-start gap-3 md:grid-cols-2'
+              className={sideDrawerFormClassName(
+                'grid items-start md:grid-cols-2'
+              )}
               onSubmit={form.handleSubmit(
                 () => setConfirming(true),
                 () => toast.error(t('Please fix the highlighted fields'))
               )}
             >
+              {createError ? (
+                <p role='alert' className='text-destructive md:col-span-2'>
+                  {createError}
+                </p>
+              ) : null}
               <FormField
                 control={form.control}
                 name='username'
-                rules={{
-                  validate: (value) =>
-                    value.trim().length > 0 || t('Enter a username'),
-                  maxLength: {
-                    value: 191,
-                    message: t('Username must not exceed 191 characters'),
-                  },
-                }}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Username')}</FormLabel>
+                    <FormLabel>{t('Customer username')}</FormLabel>
                     <FormControl>
                       <Input {...field} autoComplete='off' maxLength={191} />
                     </FormControl>
@@ -252,17 +404,9 @@ export function AgentManagement() {
               <FormField
                 control={form.control}
                 name='reason'
-                rules={{
-                  validate: (value) =>
-                    value.trim().length > 0 || t('Enter an approval reason'),
-                  maxLength: {
-                    value: 500,
-                    message: t('Reason must not exceed 500 characters'),
-                  },
-                }}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Approval reason')}</FormLabel>
+                    <FormLabel>{t('Enable reason')}</FormLabel>
                     <FormControl>
                       <Input {...field} maxLength={500} />
                     </FormControl>
@@ -270,27 +414,44 @@ export function AgentManagement() {
                   </FormItem>
                 )}
               />
-              <div className='flex justify-end md:col-span-2'>
-                <Button
-                  className='w-full md:w-auto'
-                  type='submit'
-                  disabled={create.isPending}
-                >
-                  {t('Enable invitation ability')}
-                </Button>
-              </div>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+          <SheetFooter className={sideDrawerFooterClassName()}>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={create.isPending}
+              onClick={requestCloseCreateDrawer}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='submit'
+              form='agent-invitation-ability-form'
+              disabled={create.isPending}
+            >
+              {t('Enable invitation ability')}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
       <CanvasServerTable
-        data={agents.data.items}
+        data={agents.data?.items ?? []}
         columns={columns}
-        total={agents.data.total}
+        total={agents.data?.total ?? 0}
         state={tableState}
-        searchLabel={t('Inviter username')}
+        searchLabel={t('Username')}
+        searchPlaceholder={t('Enter inviter username')}
         loading={agents.isFetching}
-        emptyTitle={t('No inviters')}
+        error={exactError}
+        errorTitle={exactErrorTitle}
+        onRetry={() => void agents.refetch()}
+        emptyTitle={
+          props.principalId
+            ? t('No inviter matches this precise location')
+            : t('No inviters')
+        }
+        filteredEmptyTitle={t('No inviters match current filters')}
         additionalFilters={
           <DataTableColumnFilterField label={t('Status')}>
             <Select
@@ -324,23 +485,50 @@ export function AgentManagement() {
           </DataTableColumnFilterField>
         }
         hasActiveFilters={Boolean(status)}
-        onResetFilters={() => setStatus('')}
+        activeFilterCount={status ? 1 : 0}
+        onResetFilters={() => {
+          setStatus('')
+        }}
         getRowId={(row) => row.principalId}
       />
       <PricingActionConfirmation
-        open={confirming}
-        title={t('Enable invitation ability for this customer?')}
-        description={t(
-          'The customer keeps all customer pages, wallet, points, recharge, models, and tasks. The inviter center appears only after this confirmed grant.'
-        )}
-        confirmLabel={t('Confirm creation')}
+        open={confirming || discarding}
+        title={
+          discarding
+            ? t('Discard this draft?')
+            : t('Enable invitation ability for this customer?')
+        }
+        description={
+          discarding
+            ? t('Leaving will discard the unpublished inviter draft.')
+            : t(
+                'The customer keeps all customer pages, wallet, points, recharge, models, and tasks. The inviter center appears only after this confirmed grant.'
+              )
+        }
+        confirmLabel={discarding ? t('Discard draft') : t('Confirm creation')}
+        destructive={discarding}
         pending={create.isPending}
-        details={[
-          { label: t('Username'), value: values.username.trim() },
-          { label: t('Approval reason'), value: values.reason.trim() },
-        ]}
-        onOpenChange={setConfirming}
-        onConfirm={() => create.mutate()}
+        details={
+          discarding
+            ? []
+            : [
+                {
+                  label: t('Customer username'),
+                  value: values.username.trim(),
+                },
+                { label: t('Enable reason'), value: values.reason.trim() },
+              ]
+        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirming(false)
+            setDiscarding(false)
+          }
+        }}
+        onConfirm={() => {
+          if (discarding) closeCreateDrawer()
+          else create.mutate()
+        }}
       />
     </div>
   )

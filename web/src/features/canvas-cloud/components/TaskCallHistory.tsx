@@ -295,11 +295,11 @@ export function TaskCallHistory({ taskId }: { taskId: string }) {
                   >
                     <CanvasLocalizedSelectValue
                       value={callState}
-                      emptyLabelKey='All'
+                      emptyLabelKey='All call states'
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='ALL'>{t('All')}</SelectItem>
+                    <SelectItem value='ALL'>{t('All call states')}</SelectItem>
                     {callStates.map((value) => (
                       <SelectItem key={value} value={value}>
                         {t(stateLabels[value])}

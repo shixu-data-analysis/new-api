@@ -21,6 +21,7 @@ import {
   BarChart3,
   BookOpenCheck,
   Box,
+  Boxes,
   CircleDollarSign,
   Cloud,
   CreditCard,
@@ -98,19 +99,14 @@ export function useSidebarData(): SidebarData {
                 icon: Wallet,
               },
               {
-                title: t('Inviter management'),
-                url: '/canvas-cloud/agents',
+                title: t('Invitation management'),
+                url: '/canvas-cloud/invitations',
                 icon: UserPlus,
               },
               {
-                title: t('Canvas Recharge Codes'),
+                title: t('Recharge codes'),
                 url: '/canvas-cloud/recharge-codes',
                 icon: Key,
-              },
-              {
-                title: t('Canvas Invite Codes'),
-                url: '/canvas-cloud/invite-codes',
-                icon: UserPlus,
               },
             ],
           },
@@ -119,30 +115,24 @@ export function useSidebarData(): SidebarData {
             title: t('Models & Cost'),
             items: [
               {
+                title: t('Model management'),
+                url: '/canvas-cloud/model-management',
+                activeUrls: ['/canvas-cloud/model-management/'],
+                icon: Boxes,
+              },
+              {
                 title: t('Pricing and point rules'),
                 url: '/canvas-cloud/pricing-point-rules',
                 icon: CircleDollarSign,
               },
               {
-                title: t('Model management'),
-                url: '/canvas-cloud/model-management',
-                activeUrls: ['/canvas-cloud/model-management/'],
-                icon: CircleDollarSign,
-              },
-              {
-                title: t('Canvas Channels'),
-                url: '/canvas-cloud/channels',
-                icon: ServerCog,
-              },
-              {
-                title: t('Canvas Runtime Configuration'),
+                title: t('Runtime management'),
                 url: '/canvas-cloud/runtime',
-                icon: Settings,
-              },
-              {
-                title: t('Execution settings'),
-                url: '/canvas-cloud/execution',
-                icon: Settings,
+                activeUrls: [
+                  '/canvas-cloud/runtime',
+                  '/canvas-cloud/provider-configuration',
+                ],
+                icon: ServerCog,
               },
             ],
           },

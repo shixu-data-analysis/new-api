@@ -16,12 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import { useController, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
@@ -43,7 +46,9 @@ import {
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { useDebounce } from '@/hooks'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { getCanvasBindableBonusActivities } from './activity-api'
 import {
@@ -52,9 +57,14 @@ import {
   revealCanvasCode,
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
+import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
-import { cnyToMinor } from './recharge-code-amount'
+import { isCanvasDateRangeValid } from './date-range'
+import {
+  cnyToMinor,
+  normalizeRechargeCodeInventorySearch,
+} from './recharge-code-amount'
 import type {
   CanvasAdminRechargeCode,
   CanvasAdminRechargeCodeQuery,
@@ -62,34 +72,78 @@ import type {
 } from './types'
 import { useServerTableState } from './use-server-table-state'
 
-function formatCny(value: string): string {
-  const minor = BigInt(value)
-  return `¥${minor / 100n}.${(minor % 100n).toString().padStart(2, '0')}`
+function formatCny(value: string, language: string): string {
+  return new Intl.NumberFormat(toIntlLocale(language), {
+    style: 'currency',
+    currency: 'CNY',
+  }).format(Number(BigInt(value)) / 100)
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, language: string): string {
   return value
-    ? new Intl.DateTimeFormat(undefined, {
+    ? new Intl.DateTimeFormat(toIntlLocale(language), {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(value))
     : '—'
 }
 
-function dateBoundary(value: string, nextDay = false): string | undefined {
-  if (!value) return undefined
-  const date = new Date(`${value}T00:00:00`)
-  if (nextDay) date.setDate(date.getDate() + 1)
-  return date.toISOString()
+function rechargeFailure(error: unknown): {
+  code: string | null
+  field: string | null
+} {
+  if (!error || typeof error !== 'object') return { code: null, field: null }
+  const data = (error as { response?: { data?: unknown } }).response?.data
+  if (!data || typeof data !== 'object') return { code: null, field: null }
+  const code = (data as { code?: unknown }).code
+  const details = (data as { details?: unknown }).details
+  const field =
+    details && typeof details === 'object'
+      ? (details as { field?: unknown }).field
+      : null
+  return {
+    code: typeof code === 'string' ? code : null,
+    field: typeof field === 'string' ? field : null,
+  }
 }
 
 export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('10')
-  const [count, setCount] = useState('1')
-  const [promotionVersionId, setPromotionVersionId] = useState('')
+  const issueForm = useForm<{
+    name: string
+    amount: string
+    count: string
+    promotionVersionId: string
+  }>({
+    mode: 'onTouched',
+    resolver: zodResolver(
+      z.object({
+        name: z.string().trim().min(1, t('Enter recharge code name')).max(20),
+        amount: z.string().refine((value) => cnyToMinor(value) !== null, {
+          message: t('Enter a valid recharge amount'),
+        }),
+        count: z
+          .string()
+          .regex(/^([1-9]|[1-9]\d|100)$/, t('Enter a quantity from 1 to 100')),
+        promotionVersionId: z.string(),
+      })
+    ),
+    defaultValues: {
+      name: '',
+      amount: '10',
+      count: '1',
+      promotionVersionId: '',
+    },
+  })
+  const { name, amount, count } = issueForm.watch()
+  const [selectedPromotionVersionId, setSelectedPromotionVersionId] =
+    useState('')
+  const promotionVersionId = selectedPromotionVersionId
+  const promotionField = useController({
+    control: issueForm.control,
+    name: 'promotionVersionId',
+  }).field
   const campaigns = useQuery({
     queryKey: ['canvas-cloud', 'recharge-campaign-options'],
     queryFn: ({ signal }) =>
@@ -99,46 +153,105 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     (item) => item.id === promotionVersionId
   )
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
+  const [issueError, setIssueError] = useState<string | null>(null)
+  const [issueIdempotencyKey, setIssueIdempotencyKey] = useState('')
   const [codesVisible, setCodesVisible] = useState(false)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
+  useEffect(() => {
+    setIssueError(null)
+  }, [name, amount, count, promotionVersionId])
   const tableState =
     useServerTableState<CanvasAdminRechargeCodeQuery['sortBy']>('createdAt')
   const [status, setStatus] = useState<'' | CanvasAdminRechargeCode['status']>(
     ''
   )
-  const [createdFrom, setCreatedFrom] = useState('')
-  const [createdTo, setCreatedTo] = useState('')
+  const [createdFrom, setCreatedFrom] = useState<Date>()
+  const [createdTo, setCreatedTo] = useState<Date>()
   const [code, setCode] = useState('')
   const debouncedCode = useDebounce(code.trim(), 300)
+  const normalizedCode = normalizeRechargeCodeInventorySearch(debouncedCode)
+  const createdRangeValid = isCanvasDateRangeValid(createdFrom, createdTo)
+  const codeSearchError =
+    debouncedCode && !normalizedCode
+      ? t('Enter a complete recharge code')
+      : null
   const inventoryQuery: CanvasAdminRechargeCodeQuery = {
     page: tableState.query.page,
     pageSize: tableState.query.pageSize,
     sortBy: tableState.query.sortBy,
     sortOrder: tableState.query.sortOrder,
     ...(tableState.query.search ? { name: tableState.query.search } : {}),
-    ...(debouncedCode ? { code: debouncedCode } : {}),
+    ...(normalizedCode ? { code: normalizedCode } : {}),
     ...(status ? { status } : {}),
-    ...(dateBoundary(createdFrom)
-      ? { createdFrom: dateBoundary(createdFrom) }
-      : {}),
-    ...(dateBoundary(createdTo, true)
-      ? { createdTo: dateBoundary(createdTo, true) }
-      : {}),
+    ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
+    ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
   }
   const inventory = useQuery({
     queryKey: ['canvas-cloud', 'admin-recharge-codes', inventoryQuery],
     queryFn: ({ signal }) =>
       getCanvasAdminRechargeCodes(inventoryQuery, signal),
+    enabled: (!debouncedCode || Boolean(normalizedCode)) && createdRangeValid,
     placeholderData: (previous) => previous,
   })
   const issue = useMutation({
     mutationFn: issueCanvasAdminRechargeCodes,
     onSuccess: async (result) => {
-      setCodesVisible(false)
-      setIssued(result)
-      toast.success(t('Canvas recharge codes created'))
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'admin-recharge-codes'],
+      try {
+        setIssueError(null)
+        setCodesVisible(false)
+        if (result.created) {
+          setIssued(result)
+          toast.success(t('Canvas recharge codes created'))
+        } else {
+          setIssued(null)
+          toast.success(t('Recharge code request was already completed'))
+        }
+        setIssueIdempotencyKey('')
+        await queryClient.invalidateQueries({
+          queryKey: ['canvas-cloud', 'admin-recharge-codes'],
+        })
+      } catch {
+        toast.error(t('Recharge codes were created, but could not be revealed'))
+      }
+    },
+    onError: (error) => {
+      const failure = rechargeFailure(error)
+      let field: 'name' | 'amount' | 'count' | 'promotionVersionId' | null =
+        null
+      if (failure.field === 'amountMinor') {
+        field = 'amount'
+      } else if (failure.field === 'name' || failure.field === 'count') {
+        field = failure.field
+      } else if (failure.field === 'promotionVersionId') {
+        field = failure.field
+      } else if (
+        failure.code === 'PROMOTION_GATE_CLOSED' &&
+        promotionVersionId
+      ) {
+        field = 'promotionVersionId'
+      }
+      let message = t('Recharge codes could not be created')
+      if (failure.code === 'INVALID_RECHARGE_NAME') {
+        message = t('Enter recharge code name')
+      } else if (failure.code === 'INVALID_RECHARGE_COUNT') {
+        message = t('Enter a quantity from 1 to 100')
+      } else if (failure.code === 'AMOUNT_NOT_REDEEMABLE') {
+        message = t('Enter a valid recharge amount')
+      } else if (
+        failure.code === 'PROMOTION_UNAVAILABLE' ||
+        failure.code === 'PROMOTION_CHANGED' ||
+        failure.code === 'PROMOTION_GATE_CLOSED'
+      ) {
+        message = t('The selected bonus campaign is no longer available.')
+      } else if (failure.code === 'UNAUTHORIZED') {
+        message = t(
+          'Your administrator session is no longer authorized. Refresh the page and sign in again.'
+        )
+      }
+      if (field) issueForm.setError(field, { type: 'server', message })
+      setIssueError(message)
+      toast.error(t('Recharge codes could not be created'), {
+        description: message,
       })
     },
   })
@@ -161,13 +274,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const parsedCount = Number(count)
   const validCount =
     Number.isInteger(parsedCount) && parsedCount >= 1 && parsedCount <= 100
-  const canSubmit =
-    name.trim().length >= 1 &&
-    name.trim().length <= 20 &&
-    amountMinor !== null &&
-    validCount &&
-    !issue.isPending
-
   const copyCodes = async () => {
     if (!issued?.codes.length) return
     await navigator.clipboard.writeText(
@@ -195,18 +301,19 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     toast.success(t('Recharge codes downloaded'))
   }
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (amountMinor === null || !validCount) {
-      return
-    }
+  const submit = issueForm.handleSubmit(() => {
+    if (amountMinor === null || !validCount) return
+    const idempotencyKey =
+      issueIdempotencyKey || `web-issue-code-${crypto.randomUUID()}`
+    setIssueIdempotencyKey(idempotencyKey)
     issue.mutate({
       name: name.trim(),
       amountMinor,
       count: parsedCount,
+      idempotencyKey,
       ...(promotionVersionId ? { promotionVersionId } : {}),
     })
-  }
+  })
 
   const columns: ColumnDef<CanvasAdminRechargeCode, unknown>[] = [
     {
@@ -220,12 +327,63 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       id: 'code',
       accessorKey: 'maskedCode',
       enableSorting: false,
-      header: t('Code'),
-      cell: ({ row }) => (
-        <span className='font-mono'>
-          {revealedCodes[row.original.id] ?? row.original.maskedCode}
-        </span>
-      ),
+      header: t('Recharge code'),
+      cell: ({ row }) => {
+        const item = row.original
+        const visible = revealedCodes[item.id]
+        return (
+          <div className='flex min-w-0 items-start gap-1'>
+            <span className='min-w-0 font-mono break-all'>
+              {visible ?? item.maskedCode}
+            </span>
+            {item.status === 'ACTIVE' ? (
+              <>
+                <Button
+                  aria-label={t(
+                    visible ? 'Hide recharge code' : 'Show recharge code'
+                  )}
+                  aria-pressed={Boolean(visible)}
+                  disabled={reveal.isPending}
+                  size='icon-sm'
+                  title={t(
+                    visible ? 'Hide recharge code' : 'Show recharge code'
+                  )}
+                  type='button'
+                  variant='ghost'
+                  onClick={() => {
+                    if (visible) {
+                      setRevealedCodes((current) => {
+                        const next = { ...current }
+                        delete next[item.id]
+                        return next
+                      })
+                      return
+                    }
+                    reveal.mutate({ id: item.id, action: 'DISPLAY' })
+                  }}
+                >
+                  {visible ? (
+                    <EyeOff aria-hidden='true' />
+                  ) : (
+                    <Eye aria-hidden='true' />
+                  )}
+                </Button>
+                <Button
+                  aria-label={t('Copy recharge code')}
+                  disabled={reveal.isPending}
+                  size='icon-sm'
+                  title={t('Copy recharge code')}
+                  type='button'
+                  variant='ghost'
+                  onClick={() => reveal.mutate({ id: item.id, action: 'COPY' })}
+                >
+                  <Copy aria-hidden='true' />
+                </Button>
+              </>
+            ) : null}
+          </div>
+        )
+      },
     },
     {
       id: 'status',
@@ -243,7 +401,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Amount')} />
       ),
-      cell: ({ row }) => formatCny(row.original.amountMinor),
+      cell: ({ row }) =>
+        formatCny(
+          row.original.amountMinor,
+          i18n.resolvedLanguage ?? i18n.language
+        ),
     },
     {
       id: 'points',
@@ -262,71 +424,36 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       id: 'createdAt',
       accessorKey: 'createdAt',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created')} />
+        <DataTableColumnHeader column={column} title={t('Created time')} />
       ),
-      cell: ({ row }) => formatDate(row.original.createdAt),
+      cell: ({ row }) =>
+        formatDate(
+          row.original.createdAt,
+          i18n.resolvedLanguage ?? i18n.language
+        ),
     },
     {
       id: 'expiresAt',
       accessorKey: 'expiresAt',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Expires')} />
+        <DataTableColumnHeader column={column} title={t('Expiry time')} />
       ),
-      cell: ({ row }) => formatDate(row.original.expiresAt),
+      cell: ({ row }) =>
+        formatDate(
+          row.original.expiresAt,
+          i18n.resolvedLanguage ?? i18n.language
+        ),
     },
     {
       id: 'redeemedAt',
       accessorKey: 'redeemedAt',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Redeemed')} />
+        <DataTableColumnHeader column={column} title={t('Redeemed at')} />
       ),
-      cell: ({ row }) => formatDate(row.original.redeemedAt),
-    },
-    {
-      id: 'actions',
-      enableSorting: false,
-      header: t('Actions'),
       cell: ({ row }) =>
-        row.original.status === 'ACTIVE' ? (
-          <div className='flex gap-1'>
-            <Button
-              size='sm'
-              variant='outline'
-              aria-label={t(
-                revealedCodes[row.original.id]
-                  ? 'Hide recharge code'
-                  : 'Show recharge code'
-              )}
-              aria-pressed={Boolean(revealedCodes[row.original.id])}
-              disabled={reveal.isPending}
-              onClick={() => {
-                if (revealedCodes[row.original.id]) {
-                  setRevealedCodes((current) => {
-                    const next = { ...current }
-                    delete next[row.original.id]
-                    return next
-                  })
-                  return
-                }
-                reveal.mutate({ id: row.original.id, action: 'DISPLAY' })
-              }}
-            >
-              {revealedCodes[row.original.id] ? <EyeOff /> : <Eye />}
-            </Button>
-            <Button
-              size='sm'
-              variant='outline'
-              aria-label={t('Copy recharge code')}
-              disabled={reveal.isPending}
-              onClick={() =>
-                reveal.mutate({ id: row.original.id, action: 'COPY' })
-              }
-            >
-              <Copy />
-            </Button>
-          </div>
-        ) : (
-          '—'
+        formatDate(
+          row.original.redeemedAt,
+          i18n.resolvedLanguage ?? i18n.language
         ),
     },
   ]
@@ -348,6 +475,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         total={inventory.data?.total ?? 0}
         state={tableState}
         searchLabel={t('Name')}
+        searchPlaceholder={t('Enter recharge code name')}
         loading={inventory.isPending || inventory.isFetching}
         emptyTitle={
           hasFilters
@@ -356,15 +484,30 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         }
         additionalFilters={
           <>
-            <DataTableColumnFilterField label={t('Code')}>
+            <DataTableColumnFilterField label={t('Recharge code')}>
               <Input
+                id='canvas-code-filter'
+                aria-label={t('Recharge code')}
                 value={code}
-                placeholder={t('Code')}
+                placeholder={t('Enter a complete recharge code')}
+                aria-describedby={
+                  codeSearchError ? 'canvas-code-search-error' : undefined
+                }
+                aria-invalid={Boolean(codeSearchError)}
                 onChange={(event) => {
                   setCode(event.target.value)
                   resetPage()
                 }}
               />
+              {codeSearchError ? (
+                <p
+                  id='canvas-code-search-error'
+                  role='alert'
+                  className='text-destructive text-sm'
+                >
+                  {codeSearchError}
+                </p>
+              ) : null}
             </DataTableColumnFilterField>
             <DataTableColumnFilterField label={t('Status')}>
               <Select
@@ -399,28 +542,16 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 </SelectContent>
               </Select>
             </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Created from')}>
-              <Input
-                id='canvas-code-created-from'
-                className='w-full'
-                type='date'
-                aria-label={t('Created from')}
-                value={createdFrom}
-                onChange={(event) => {
-                  setCreatedFrom(event.target.value)
+            <DataTableColumnFilterField label={t('Creation time')}>
+              <CanvasDateRangeFilter
+                from={createdFrom}
+                to={createdTo}
+                onFromChange={(value) => {
+                  setCreatedFrom(value)
                   resetPage()
                 }}
-              />
-            </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Created to')}>
-              <Input
-                id='canvas-code-created-to'
-                className='w-full'
-                type='date'
-                aria-label={t('Created to')}
-                value={createdTo}
-                onChange={(event) => {
-                  setCreatedTo(event.target.value)
+                onToChange={(value) => {
+                  setCreatedTo(value)
                   resetPage()
                 }}
               />
@@ -431,8 +562,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         onResetFilters={() => {
           setStatus('')
           setCode('')
-          setCreatedFrom('')
-          setCreatedTo('')
+          setCreatedFrom(undefined)
+          setCreatedTo(undefined)
         }}
         getRowId={(row) => row.id}
       />
@@ -441,9 +572,10 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
 
   const content = (
     <div className='space-y-4'>
+      <FormNavigationGuard when={Boolean(issued?.codes.length)} />
       <Card size='sm'>
         <CardHeader>
-          <CardTitle>{t('Create Canvas recharge codes')}</CardTitle>
+          <CardTitle>{t('Create recharge codes')}</CardTitle>
           <CardDescription>
             {t(
               'Create one-time CNY codes for the configured store. Customers redeem these exact codes on the Canvas recharge page.'
@@ -452,35 +584,46 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         </CardHeader>
         <CardContent>
           <form
-            aria-label={t('Create Canvas recharge codes')}
+            aria-label={t('Create recharge codes')}
             className='max-w-6xl'
             onSubmit={submit}
           >
+            {issueError ? (
+              <p role='alert' className='text-destructive mb-3 text-sm'>
+                {issueError}
+              </p>
+            ) : null}
             <fieldset className='grid items-start gap-4 md:grid-cols-2 lg:grid-cols-[minmax(16rem,2fr)_minmax(15rem,1.6fr)_8rem_auto]'>
-              <legend className='sr-only'>
-                {t('Create Canvas recharge codes')}
-              </legend>
+              <legend className='sr-only'>{t('Create recharge codes')}</legend>
               <div className='space-y-1.5 md:col-span-2 lg:col-span-4'>
                 <Label htmlFor='canvas-code-campaign'>
                   {t('Recharge bonus campaign')}
+                  <span aria-hidden='true'> ({t('Optional')})</span>
                 </Label>
                 <select
                   id='canvas-code-campaign'
-                  className='border-input bg-background h-9 w-full rounded-lg border px-3 text-sm'
+                  aria-label={t('Recharge bonus campaign')}
+                  className='border-input bg-background min-h-10 w-full rounded-lg border px-3 py-2 text-sm whitespace-normal'
+                  {...promotionField}
                   value={promotionVersionId}
                   onChange={(event) => {
-                    const id = event.target.value
-                    setPromotionVersionId(id)
+                    setSelectedPromotionVersionId(event.target.value)
+                    promotionField.onChange(event)
                   }}
                 >
                   <option value=''>{t('No campaign')}</option>
                   {campaigns.data?.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name} · v{item.version} · {item.points}{' '}
-                      {t('Bonus points')}
+                      {t('Bonus points')} · {item.ttlDays} {t('days')}
                     </option>
                   ))}
                 </select>
+                {issueForm.formState.errors.promotionVersionId ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {issueForm.formState.errors.promotionVersionId.message}
+                  </p>
+                ) : null}
                 {selectedCampaign ? (
                   <p className='text-muted-foreground text-sm'>
                     {t(
@@ -499,23 +642,45 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 ) : null}
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-name'>{t('Name')}</Label>
+                <Label htmlFor='canvas-code-name'>
+                  {t('Name')}
+                  <span aria-hidden='true'> *</span>
+                </Label>
                 <Input
                   id='canvas-code-name'
+                  aria-label={t('Name')}
                   maxLength={20}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  aria-invalid={Boolean(issueForm.formState.errors.name)}
+                  aria-describedby={
+                    issueForm.formState.errors.name
+                      ? 'canvas-code-name-error'
+                      : undefined
+                  }
+                  {...issueForm.register('name')}
                   placeholder={t('Enter recharge code name')}
                 />
+                {issueForm.formState.errors.name ? (
+                  <p
+                    id='canvas-code-name-error'
+                    role='alert'
+                    className='text-destructive text-sm'
+                  >
+                    {issueForm.formState.errors.name.message}
+                  </p>
+                ) : null}
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-amount'>{t('Amount (CNY)')}</Label>
+                <Label htmlFor='canvas-code-amount'>
+                  {t('Amount (CNY)')}
+                  <span aria-hidden='true'> *</span>
+                </Label>
                 <Input
                   id='canvas-code-amount'
+                  aria-label={t('Amount (CNY)')}
                   aria-describedby='canvas-code-amount-help'
                   inputMode='decimal'
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
+                  aria-invalid={Boolean(issueForm.formState.errors.amount)}
+                  {...issueForm.register('amount')}
                 />
                 <p
                   id='canvas-code-amount-help'
@@ -525,20 +690,34 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                     'The currently published point issuance rate is used; the amount must produce whole points.'
                   )}
                 </p>
+                {issueForm.formState.errors.amount ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {issueForm.formState.errors.amount.message}
+                  </p>
+                ) : null}
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-count'>{t('Quantity')}</Label>
+                <Label htmlFor='canvas-code-count'>
+                  {t('Quantity')}
+                  <span aria-hidden='true'> *</span>
+                </Label>
                 <Input
                   id='canvas-code-count'
+                  aria-label={t('Quantity')}
                   inputMode='numeric'
-                  value={count}
-                  onChange={(event) => setCount(event.target.value)}
+                  aria-invalid={Boolean(issueForm.formState.errors.count)}
+                  {...issueForm.register('count')}
                 />
+                {issueForm.formState.errors.count ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {issueForm.formState.errors.count.message}
+                  </p>
+                ) : null}
               </div>
               <div className='flex md:col-span-2 md:justify-end lg:col-span-1 lg:pt-6'>
                 <Button
                   className='w-full sm:w-auto'
-                  disabled={!canSubmit}
+                  disabled={issue.isPending || Boolean(issued?.codes.length)}
                   type='submit'
                 >
                   <Plus />
@@ -550,7 +729,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         </CardContent>
       </Card>
 
-      {issued?.created && issued.codes.length > 0 && (
+      {issued?.codes.length ? (
         <Card className='border-amber-500/50'>
           <CardHeader>
             <CardTitle>{t('Copy these codes now')}</CardTitle>
@@ -561,6 +740,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-3'>
+            <p className='text-sm font-medium'>{t('Full recharge codes')}</p>
             <pre
               aria-label={t(
                 codesVisible
@@ -577,29 +757,49 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
             </pre>
             <div className='flex flex-wrap gap-2'>
               <Button
+                aria-label={t(
+                  codesVisible
+                    ? 'Hide all recharge codes'
+                    : 'Show all recharge codes'
+                )}
                 aria-pressed={codesVisible}
+                size='icon-sm'
+                title={t(
+                  codesVisible
+                    ? 'Hide all recharge codes'
+                    : 'Show all recharge codes'
+                )}
+                type='button'
                 variant='outline'
                 onClick={() => setCodesVisible((visible) => !visible)}
               >
                 {codesVisible ? <EyeOff /> : <Eye />}
-                {t(codesVisible ? 'Hide codes' : 'Show codes')}
               </Button>
-              <Button variant='outline' onClick={() => void copyCodes()}>
+              <Button
+                aria-label={t('Copy all recharge codes')}
+                size='icon-sm'
+                title={t('Copy all recharge codes')}
+                type='button'
+                variant='outline'
+                onClick={() => void copyCodes()}
+              >
                 <Copy />
-                {t('Copy all codes')}
               </Button>
               <Button variant='outline' onClick={downloadCodes}>
                 <Download />
                 {t('Download TXT')}
               </Button>
+              <Button variant='ghost' onClick={() => setIssued(null)}>
+                {t('I have saved these codes')}
+              </Button>
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       <Card size='sm'>
         <CardHeader>
-          <CardTitle>{t('Canvas recharge code inventory')}</CardTitle>
+          <CardTitle>{t('Recharge code inventory')}</CardTitle>
           <CardDescription>
             {t(
               'External shop payments are not recorded until a future shop integration is implemented.'
@@ -615,9 +815,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
 
   return (
     <SectionPageLayout fluid={false}>
-      <SectionPageLayout.Title>
-        {t('Canvas Recharge Codes')}
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Recharge codes')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Button
           variant='outline'

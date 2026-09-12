@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
+import { normalizeRechargeCodeInventorySearch } from './recharge-code-amount'
 import type {
   CanvasAdminWorkspace,
   CanvasAuditEventPage,
@@ -31,12 +32,14 @@ import type {
   CanvasSession,
   CanvasIssuedRechargeCodes,
   CanvasAdminInviteCode,
+  CanvasAdminInviteCodePage,
   CanvasAdminInviteCodeQuery,
   CanvasCreatedInviteCode,
   CanvasInviteCodeOptions,
   CanvasModelCatalogBundle,
   CanvasModelCatalogPlan,
   CanvasAgentProfile,
+  CanvasAdminAgentPage,
   CanvasAdminAgentQuery,
   CanvasAgentWorkspace,
   CanvasAgentInviteCode,
@@ -422,12 +425,18 @@ export async function getCanvasAdminRechargeCodes(
   query: CanvasAdminRechargeCodeQuery,
   signal?: AbortSignal
 ): Promise<CanvasAdminRechargeCodePage> {
-  const normalizedCode = query.code?.trim().toUpperCase()
+  const requestedCode = query.code?.trim()
+  const normalizedCode = requestedCode
+    ? normalizeRechargeCodeInventorySearch(requestedCode)
+    : null
+  if (requestedCode && !normalizedCode) {
+    throw new Error('Invalid recharge-code inventory search')
+  }
   let codeSearch: {
     codePrefix?: string
     codeSuffix?: string
   } = {}
-  if (normalizedCode?.startsWith('CANVAS-') && normalizedCode.length >= 8) {
+  if (normalizedCode) {
     codeSearch = { codePrefix: normalizedCode.slice(0, 8) }
     if (normalizedCode.length >= 12) {
       codeSearch.codeSuffix = normalizedCode.slice(-4)
@@ -449,13 +458,17 @@ export async function issueCanvasAdminRechargeCodes(input: {
   name: string
   amountMinor: string
   count: number
+  idempotencyKey?: string
 }): Promise<CanvasIssuedRechargeCodes> {
+  const { idempotencyKey: requestKey, ...body } = input
   return (
     await api.post<CanvasIssuedRechargeCodes>(
       `${webBase}/admin/recharge-codes`,
-      input,
+      body,
       {
-        headers: { 'Idempotency-Key': idempotencyKey('web-issue-code') },
+        headers: {
+          'Idempotency-Key': requestKey ?? idempotencyKey('web-issue-code'),
+        },
         skipErrorHandler: true,
       }
     )
@@ -482,12 +495,23 @@ export async function activateCanvasInvite(code: string): Promise<{
 export async function getCanvasAdminInviteCodes(
   query: CanvasAdminInviteCodeQuery,
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAdminInviteCode>> {
+): Promise<CanvasAdminInviteCodePage> {
   return (
-    await api.get<CanvasPage<CanvasAdminInviteCode>>(
-      `${webBase}/admin/invite-codes`,
-      { params: query, signal }
-    )
+    await api.get<CanvasAdminInviteCodePage>(`${webBase}/admin/invite-codes`, {
+      params: query,
+      signal,
+    })
+  ).data
+}
+
+export async function exportCanvasAdminInviteCodes(
+  query: Omit<CanvasAdminInviteCodeQuery, 'page' | 'pageSize'>
+): Promise<Blob> {
+  return (
+    await api.get<Blob>(`${webBase}/admin/invite-codes/export`, {
+      params: query,
+      responseType: 'blob',
+    })
   ).data
 }
 
@@ -505,13 +529,17 @@ export async function createCanvasAdminInviteCode(input: {
   promotionVersionId: string | null
   referralSource: string | null
   referralPrincipalId: string | null
+  idempotencyKey?: string
 }): Promise<CanvasCreatedInviteCode> {
+  const { idempotencyKey: requestKey, ...body } = input
   return (
     await api.post(
       `${webBase}/admin/invite-codes`,
-      { ...input, confirmed: true },
+      { ...body, confirmed: true },
       {
-        headers: { 'Idempotency-Key': idempotencyKey('web-invite-create') },
+        headers: {
+          'Idempotency-Key': requestKey ?? idempotencyKey('web-invite-create'),
+        },
         skipErrorHandler: true,
       }
     )
@@ -541,9 +569,9 @@ export async function revealCanvasCode(
 export async function getCanvasAgents(
   query: CanvasAdminAgentQuery,
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAgentProfile>> {
+): Promise<CanvasAdminAgentPage> {
   return (
-    await api.get<CanvasPage<CanvasAgentProfile>>(`${webBase}/admin/agents`, {
+    await api.get<CanvasAdminAgentPage>(`${webBase}/admin/agents`, {
       params: query,
       signal,
     })
@@ -554,13 +582,17 @@ export async function provisionCanvasAgent(input: {
   username: string
   status: 'ACTIVE'
   reason: string
+  idempotencyKey?: string
 }): Promise<CanvasAgentProfile> {
+  const { idempotencyKey: requestKey, ...body } = input
   return (
     await api.post(
       `${webBase}/admin/agents`,
-      { ...input, confirmed: true },
+      { ...body, confirmed: true },
       {
-        headers: { 'Idempotency-Key': idempotencyKey('web-agent-create') },
+        headers: {
+          'Idempotency-Key': requestKey ?? idempotencyKey('web-agent-create'),
+        },
         skipErrorHandler: true,
       }
     )
@@ -1658,35 +1690,6 @@ export async function deductCanvasPointLot(input: {
         headers: { 'Idempotency-Key': idempotencyKey('web-point-deduction') },
         skipErrorHandler: true,
       }
-    )
-  ).data
-}
-
-export async function getCanvasChannelHealth(
-  query: import('./types').ChannelHealthQuery
-): Promise<import('./types').ChannelHealthReport> {
-  return (
-    await api.get<import('./types').ChannelHealthReport>(
-      `${webBase}/admin/channel-health`,
-      { params: query, skipErrorHandler: true }
-    )
-  ).data
-}
-export async function controlCanvasChannel(
-  channelId: string,
-  input: {
-    enabled: boolean
-    expectedVersion: number
-    reasonCode: string
-    note: string
-  },
-  key: string
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/channels/${channelId}/control`,
-      { ...input, confirmed: true },
-      { headers: { 'Idempotency-Key': key }, skipErrorHandler: true }
     )
   ).data
 }

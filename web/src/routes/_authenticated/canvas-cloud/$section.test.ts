@@ -8,6 +8,13 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  canvasCloudSearchSchema,
+  invalidCanvasCloudRuntimeView,
+  invalidCanvasCloudUuidSearchValue,
+  Route,
+} from './$section'
+
 const mocks = vi.hoisted(() => ({
   getCanvasSession: vi.fn(),
 }))
@@ -19,12 +26,6 @@ vi.mock('@/features/canvas-cloud/api', () => ({
 vi.mock('@/features/canvas-cloud/access', () => ({
   isCanvasSectionAllowed: vi.fn(() => true),
 }))
-
-import {
-  canvasCloudSearchSchema,
-  invalidCanvasCloudUuidSearchValue,
-  Route,
-} from './$section'
 
 async function beforeLoad(section: string, search: Record<string, unknown>) {
   mocks.getCanvasSession.mockResolvedValue({
@@ -40,6 +41,11 @@ async function beforeLoad(section: string, search: Record<string, unknown>) {
 }
 
 describe('Canvas Cloud legacy section search', () => {
+  it('keeps an invalid runtime view for the route-localized recovery state', () => {
+    const search = canvasCloudSearchSchema.parse({ view: 'unknown' })
+    expect(search.view).toBe(invalidCanvasCloudRuntimeView)
+  })
+
   it('keeps an invalid pricing model ID until beforeLoad returns its explicit error', async () => {
     const search = canvasCloudSearchSchema.parse({ modelId: 'not-a-uuid' })
     expect(search.modelId).toBe(invalidCanvasCloudUuidSearchValue)
@@ -56,7 +62,9 @@ describe('Canvas Cloud legacy section search', () => {
     const search = canvasCloudSearchSchema.parse({ providerId: 'not-a-uuid' })
     expect(search.providerId).toBe(invalidCanvasCloudUuidSearchValue)
 
-    await expect(beforeLoad('provider-configuration', search)).resolves.toMatchObject({
+    await expect(
+      beforeLoad('provider-configuration', search)
+    ).resolves.toMatchObject({
       options: {
         to: '/canvas-cloud/$section',
         params: { section: 'provider-configuration' },

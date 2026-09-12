@@ -32,11 +32,17 @@ import {
   DataTableColumnFilterPanel,
 } from './column-filter-panel'
 import { DataTableFacetedFilter } from './faceted-filter'
+import {
+  getDataTableSelectedFilterValues,
+  hasDataTableLegacyAllFilterValue,
+  isDataTableFilterValueActive,
+} from './filter-value'
 import { DataTableViewOptions } from './view-options'
 
 type FilterDef = {
   columnId: string
   title: string
+  allLabel: string
   options: {
     label: string
     value: string
@@ -81,12 +87,12 @@ export type DataTableToolbarProps<TData> = {
    */
   additionalSearch?: ReactNode
   /**
-   * Whether non-table filter inputs are currently active. Controls Reset button visibility
+   * Whether non-table filter inputs are currently active. Controls Clear filters visibility
    * when no column filters are set.
    */
   hasAdditionalFilters?: boolean
   /**
-   * Callback invoked when the user clicks Reset.
+   * Callback invoked after the user clears the table's ordinary filters.
    */
   onReset?: () => void
   /**
@@ -131,8 +137,27 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const filters = props.filters ?? []
   const hasSearch = props.onSearch != null
 
+  const columnFilters = props.table.getState().columnFilters
+  const hasLegacyAllFilter = columnFilters.some((filter) =>
+    hasDataTableLegacyAllFilterValue(filter.value)
+  )
+  const activeColumnFilterCount = columnFilters.filter((filter) =>
+    isDataTableFilterValueActive(filter.value)
+  ).length
+
+  React.useEffect(() => {
+    if (!hasLegacyAllFilter) return
+
+    props.table.setColumnFilters(
+      columnFilters.flatMap((filter) => {
+        const values = getDataTableSelectedFilterValues(filter.value)
+        return values.length ? [{ ...filter, value: values }] : []
+      })
+    )
+  }, [columnFilters, hasLegacyAllFilter, props.table])
+
   const isFiltered =
-    (props.table.getState().columnFilters?.length ?? 0) > 0 ||
+    activeColumnFilterCount > 0 ||
     !!props.table.getState().globalFilter ||
     !!props.hasAdditionalFilters
 
@@ -236,6 +261,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
             key={filter.columnId}
             column={column}
             title={filter.title}
+            allLabel={filter.allLabel}
             options={filter.options}
             singleSelect={filter.singleSelect}
           />
@@ -245,7 +271,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     [props.filters, props.table]
   )
 
-  const handleReset = () => {
+  const handleClearFilters = () => {
     setIsSearchComposing(false)
     setSearchDraft(null)
     props.table.resetColumnFilters()
@@ -254,28 +280,16 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     props.onReset?.()
   }
 
-  // Reset: outline text-only for form mode (always visible, disabled when
-  // nothing to reset); ghost text + X for filter-as-you-type mode (only
-  // visible when active filters exist).
-  let resetButton: ReactNode = null
-  if (hasSearch) {
-    resetButton = (
-      <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
-        {t('Reset')}
-      </Button>
-    )
-  } else if (isFiltered) {
-    resetButton = (
-      <Button
-        variant='ghost'
-        onClick={handleReset}
-        className='text-muted-foreground hover:text-foreground gap-1 px-2'
-      >
-        {t('Reset')}
-        <Cross2Icon />
-      </Button>
-    )
-  }
+  const clearFiltersButton: ReactNode = isFiltered ? (
+    <Button
+      variant='ghost'
+      onClick={handleClearFilters}
+      className='text-muted-foreground hover:text-foreground gap-1 px-2'
+    >
+      {t('Clear filters')}
+      <Cross2Icon />
+    </Button>
+  ) : null
 
   const searchButton = hasSearch ? (
     <Button onClick={props.onSearch} disabled={props.searchLoading}>
@@ -291,7 +305,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   const viewToggleNode = props.viewToggle ?? null
 
   const activeCount =
-    (props.table.getState().columnFilters?.length ?? 0) +
+    activeColumnFilterCount +
     (props.table.getState().globalFilter ? 1 : 0) +
     (props.hasAdditionalFilters ? 1 : 0)
   const filterPanel = props.filterPanel ?? (
@@ -315,7 +329,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
           data-slot='data-table-filters'
         >
           {filterPanel}
-          {resetButton}
+          {clearFiltersButton}
           {searchButton}
         </div>
         <div

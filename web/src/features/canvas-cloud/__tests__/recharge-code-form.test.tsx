@@ -37,7 +37,9 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminRechargeCodes: vi.fn(),
   issueCanvasAdminRechargeCodes: vi.fn(),
 }))
-const campaignMocks = vi.hoisted(() => ({ getCanvasCampaigns: vi.fn() }))
+const campaignMocks = vi.hoisted(() => ({
+  getCanvasBindableBonusActivities: vi.fn(),
+}))
 
 vi.mock('@/components/layout', () => {
   const SectionPageLayout = (props: { children: ReactNode }) => (
@@ -56,7 +58,32 @@ vi.mock('@/components/layout', () => {
 })
 
 vi.mock('../api', () => apiMocks)
-vi.mock('../campaign-api', () => campaignMocks)
+vi.mock('../activity-api', () => campaignMocks)
+vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
+  FormNavigationGuard: () => null,
+}))
+vi.mock('@/components/datetime-picker', () => ({
+  DateTimePicker: (props: {
+    placeholder?: string
+    onChange?: (value?: Date) => void
+  }) => (
+    <button
+      type='button'
+      aria-label={props.placeholder}
+      onClick={() =>
+        props.onChange?.(
+          new Date(
+            props.placeholder === 'Start time'
+              ? '2026-08-01T13:45:00.000Z'
+              : '2026-08-01T14:30:00.000Z'
+          )
+        )
+      }
+    >
+      {props.placeholder}
+    </button>
+  ),
+}))
 
 function renderRechargeCodes() {
   const queryClient = new QueryClient({
@@ -64,7 +91,7 @@ function renderRechargeCodes() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <CanvasRechargeCodes />
+      <CanvasRechargeCodes embedded />
     </QueryClientProvider>
   )
 }
@@ -72,13 +99,13 @@ function renderRechargeCodes() {
 describe('Canvas recharge-code creation form', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', {
-      'Create Canvas recharge codes': 'Create Canvas recharge codes',
+      'Create recharge codes': 'Create recharge codes',
       Name: 'Name',
       'Amount (CNY)': 'Amount (CNY)',
       Quantity: 'Quantity',
       'Create codes': 'Create codes',
-      'Show codes': 'Show codes',
-      'Hide codes': 'Hide codes',
+      'Show all recharge codes': 'Show all recharge codes',
+      'Hide all recharge codes': 'Hide all recharge codes',
       'Visible recharge codes': 'Visible recharge codes',
       'Hidden recharge codes': 'Hidden recharge codes',
       'Download TXT': 'Download TXT',
@@ -86,8 +113,9 @@ describe('Canvas recharge-code creation form', () => {
       'Search by name or full code': 'Search by name or full code',
       'All statuses': 'All statuses',
       'Page size': 'Page size',
-      'Created from': 'Created from',
-      'Created to': 'Created to',
+      'Creation time': 'Creation time',
+      'Start time': 'Start time',
+      'End time': 'End time',
       'Sort by': 'Sort by',
       'Sort order': 'Sort order',
       Descending: 'Descending',
@@ -121,17 +149,17 @@ describe('Canvas recharge-code creation form', () => {
       created: true,
       codes: [],
     })
-    campaignMocks.getCanvasCampaigns.mockResolvedValue({ items: [], total: 0 })
+    campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([])
   })
 
   it('keeps all controls labeled and submits through one responsive form', async () => {
     renderRechargeCodes()
 
     const form = screen.getByRole('form', {
-      name: 'Create Canvas recharge codes',
+      name: 'Create recharge codes',
     })
     const fieldGroup = screen.getByRole('group', {
-      name: 'Create Canvas recharge codes',
+      name: 'Create recharge codes',
     })
     const name = screen.getByLabelText('Name')
     const amount = screen.getByLabelText('Amount (CNY)')
@@ -148,7 +176,7 @@ describe('Canvas recharge-code creation form', () => {
     expect(amount).toHaveAccessibleDescription(
       'The currently published point issuance rate is used; the amount must produce whole points.'
     )
-    expect(submit).toBeDisabled()
+    expect(submit).toBeEnabled()
 
     fireEvent.change(name, { target: { value: 'UAT-CNY-10' } })
     expect(submit).toBeEnabled()
@@ -156,11 +184,12 @@ describe('Canvas recharge-code creation form', () => {
 
     await waitFor(() => {
       expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
-        {
+        expect.objectContaining({
           name: 'UAT-CNY-10',
           amountMinor: '1000',
           count: 1,
-        }
+          idempotencyKey: expect.stringMatching(/^web-issue-code-/u),
+        })
       )
     })
   })
@@ -190,16 +219,17 @@ describe('Canvas recharge-code creation form', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create codes' }))
 
-    const show = await screen.findByRole('button', { name: 'Show codes' })
+    const show = await screen.findByRole('button', {
+      name: 'Show all recharge codes',
+    })
     expect(screen.queryByText('CANVAS-ONE')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Hidden recharge codes')).toBeInTheDocument()
 
     fireEvent.click(show)
     expect(screen.getByText(/CANVAS-ONE/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide codes' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.getByRole('button', { name: 'Hide all recharge codes' })
+    ).toHaveAttribute('aria-pressed', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Download TXT' }))
 
@@ -209,18 +239,16 @@ describe('Canvas recharge-code creation form', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:recharge-codes')
   })
 
-  it('uses the selected campaign amount and version, and blocks mismatches', async () => {
-    campaignMocks.getCanvasCampaigns.mockResolvedValue({
-      items: [
-        {
-          id: 'recharge-v2',
-          version: 2,
-          name: 'September recharge',
-          draft: { rechargeAmountMinor: '1234', bonusPoints: '50' },
-        },
-      ],
-      total: 1,
-    })
+  it('uses the selected active bonus activity version without constraining the recharge amount', async () => {
+    campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([
+      {
+        id: 'recharge-v2',
+        version: 2,
+        name: 'September recharge',
+        points: '50',
+        ttlDays: 30,
+      },
+    ])
     renderRechargeCodes()
 
     const campaignSelect = await screen.findByLabelText(
@@ -230,8 +258,11 @@ describe('Canvas recharge-code creation form', () => {
     fireEvent.change(campaignSelect, {
       target: { value: 'recharge-v2' },
     })
-    const amount = screen.getByLabelText('Amount (CNY)')
-    expect(amount).toHaveValue('12.34')
+    expect(
+      screen.getByText(
+        'Bonus per code: 50 points · Valid for 30 days after redemption'
+      )
+    ).toBeVisible()
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: 'September batch' },
     })
@@ -240,22 +271,70 @@ describe('Canvas recharge-code creation form', () => {
       expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
           name: 'September batch',
-          amountMinor: '1234',
+          amountMinor: '1000',
           count: 1,
           promotionVersionId: 'recharge-v2',
         })
       )
     )
-
-    fireEvent.change(amount, { target: { value: '12.35' } })
-    expect(
-      screen.getByText('Recharge amount must match the selected campaign')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create codes' })).toBeDisabled()
   })
 
+  it.each([
+    'PROMOTION_UNAVAILABLE',
+    'PROMOTION_CHANGED',
+    'PROMOTION_GATE_CLOSED',
+  ])(
+    'keeps the selected recharge promotion and shows its %s field error',
+    async (code) => {
+      campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([
+        {
+          id: 'recharge-v2',
+          name: 'September recharge',
+          version: 2,
+          points: '250',
+          ttlDays: 45,
+        },
+      ])
+      apiMocks.issueCanvasAdminRechargeCodes.mockRejectedValue({
+        response: {
+          data:
+            code === 'PROMOTION_GATE_CLOSED'
+              ? { code }
+              : { code, details: { field: 'promotionVersionId' } },
+        },
+      })
+      renderRechargeCodes()
+      await screen.findByRole('option', { name: /September recharge/u })
+      fireEvent.change(
+        await screen.findByLabelText('Recharge bonus campaign'),
+        {
+          target: { value: 'recharge-v2' },
+        }
+      )
+      fireEvent.change(screen.getByLabelText('Name'), {
+        target: { value: 'September batch' },
+      })
+      fireEvent.submit(
+        screen.getByRole('form', { name: 'Create recharge codes' })
+      )
+      expect(
+        await screen.findAllByText(
+          'The selected bonus campaign is no longer available.'
+        )
+      ).toHaveLength(2)
+      expect(screen.getByLabelText('Recharge bonus campaign')).toHaveValue(
+        'recharge-v2'
+      )
+      expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({ idempotencyKey: expect.any(String) })
+      )
+    }
+  )
+
   it('shows campaign option query errors', async () => {
-    campaignMocks.getCanvasCampaigns.mockRejectedValue(new Error('offline'))
+    campaignMocks.getCanvasBindableBonusActivities.mockRejectedValue(
+      new Error('offline')
+    )
     renderRechargeCodes()
     expect(
       await screen.findByText('Unable to load recharge bonus campaigns')
@@ -293,25 +372,30 @@ describe('Canvas recharge-code creation form', () => {
       screen.getByText('500 Paid points + 100 Bonus points')
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Column filters' }))
-    fireEvent.change(screen.getByPlaceholderText('Name'), {
+    const [, inventoryNameFilter] = screen.getAllByPlaceholderText(
+      'Enter recharge code name'
+    )
+    fireEvent.change(inventoryNameFilter, {
+      target: { value: 'Support batch' },
+    })
+    fireEvent.change(screen.getByLabelText('Recharge code'), {
       target: { value: 'CANVAS-Y1234567890123456789FA2E' },
     })
     await user.click(screen.getByLabelText('Status'))
     await user.click(await screen.findByRole('option', { name: 'Expired' }))
-    fireEvent.change(screen.getByLabelText('Created from'), {
-      target: { value: '2026-08-01' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Expires' }))
-    fireEvent.click(await screen.findByText('Asc'))
+    await user.click(screen.getByRole('button', { name: 'Start time' }))
+    await user.click(screen.getByRole('button', { name: 'Expiry time' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
 
     await waitFor(() => {
       expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
         expect.objectContaining({
           page: 1,
           pageSize: 20,
-          name: 'CANVAS-Y1234567890123456789FA2E',
+          name: 'Support batch',
+          code: 'CANVAS-Y1234567890123456789FA2E',
           status: 'EXPIRED',
-          createdFrom: expect.stringMatching(/T.*Z$/),
+          createdFrom: '2026-08-01T13:45:00.000Z',
           sortBy: 'expiresAt',
           sortOrder: 'asc',
         }),
@@ -326,5 +410,24 @@ describe('Canvas recharge-code creation form', () => {
         expect.any(AbortSignal)
       )
     })
+  })
+
+  it('keeps an incomplete code search local and never refetches the inventory without that code', async () => {
+    renderRechargeCodes()
+    await screen.findByRole('button', { name: 'Column filters' })
+    const requestsBefore =
+      apiMocks.getCanvasAdminRechargeCodes.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(screen.getByLabelText('Recharge code'), {
+      target: { value: 'CANVAS-TOO-SHORT' },
+    })
+
+    expect(
+      await screen.findByText('Enter a complete recharge code')
+    ).toHaveAttribute('role', 'alert')
+    expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenCalledTimes(
+      requestsBefore
+    )
   })
 })

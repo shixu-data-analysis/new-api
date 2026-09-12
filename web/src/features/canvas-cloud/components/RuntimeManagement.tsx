@@ -8,6 +8,7 @@ the Free Software Foundation, either version 3 of the License, or
 */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -16,7 +17,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
 
 import { ExecutionSettings } from './ExecutionSettings'
 import {
@@ -30,10 +30,18 @@ export function RuntimeManagement(props: {
   initialView?: RuntimeManagementView
   providerTarget?: CanvasProviderNavigationTarget
   onReturnToModelList?: () => void
+  onViewChange?: (view: RuntimeManagementView) => void
 }) {
   const { t } = useTranslation()
+  const view = props.initialView ?? 'execution'
   return (
-    <Tabs defaultValue={props.initialView ?? 'execution'} className='space-y-4'>
+    <Tabs
+      className='space-y-4'
+      value={view}
+      onValueChange={(value) =>
+        props.onViewChange?.(value as RuntimeManagementView)
+      }
+    >
       <Card>
         <CardHeader>
           <CardTitle>{t('Runtime management')}</CardTitle>
@@ -44,7 +52,7 @@ export function RuntimeManagement(props: {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {props.onReturnToModelList && props.initialView === 'provider' ? (
+          {props.onReturnToModelList && view === 'provider' ? (
             <Button
               className='mb-4'
               type='button'

@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   DataTableColumnHeader,
   DataTablePagination,
@@ -34,7 +35,6 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Card,
@@ -65,8 +65,8 @@ import {
   previewCanvasModelPricing,
   publishCanvasModelPricing,
 } from '../api'
-import { formatExactRmbReference } from '../point-conversion-types'
 import { pricingLoadErrorTitle } from '../model-pricing-error'
+import { formatExactRmbReference } from '../point-conversion-types'
 import { pricingScopeLabel as scopeLabel } from '../pricing-scope-label'
 import {
   type ProviderRiskFormValues,
@@ -2713,6 +2713,7 @@ function CurrentModelPricingTable(props: {
               {
                 columnId: 'combination',
                 title: combinationTitle,
+                allLabel: t('All combinations'),
                 options: [...new Set(rows.map((row) => row.combination))].map(
                   (value) => ({ value, label: value })
                 ),
@@ -2720,6 +2721,7 @@ function CurrentModelPricingTable(props: {
               {
                 columnId: 'plan',
                 title: t('Price plan'),
+                allLabel: t('All price plans'),
                 options: props.detail.priceGroups.map((plan) => ({
                   value: plan.internalName,
                   label: plan.internalName,
@@ -2752,12 +2754,12 @@ function CurrentModelPricingTable(props: {
                         displayValue={
                           filter.options.find(
                             (option) => option.value === value
-                          )?.label ?? t('All')
+                          )?.label ?? filter.allLabel
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='ALL'>{t('All')}</SelectItem>
+                      <SelectItem value='ALL'>{filter.allLabel}</SelectItem>
                       {filter.options.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}

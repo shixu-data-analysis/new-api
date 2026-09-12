@@ -324,6 +324,7 @@ export function ApiKeysTable() {
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: API_KEY_STATUS_OPTIONS,
             singleSelect: true,
           },

@@ -398,7 +398,7 @@ export function PublishedModelCatalog(props: {
     })
     return matches
   }, [capability, modelId, models.data, provider, search, t, visibility])
-  let visibilityFilterLabel = t('All')
+  let visibilityFilterLabel = t('All customer display states')
   if (visibility === 'CUSTOMER') {
     visibilityFilterLabel = t('Visible to customers')
   } else if (visibility === 'INTERNAL') {
@@ -809,7 +809,9 @@ export function PublishedModelCatalog(props: {
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value='ALL'>{t('All')}</SelectItem>
+                        <SelectItem value='ALL'>
+                          {t('All customer display states')}
+                        </SelectItem>
                         <SelectItem value='CUSTOMER'>
                           {t('Visible to customers')}
                         </SelectItem>

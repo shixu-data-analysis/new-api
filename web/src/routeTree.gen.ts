@@ -35,6 +35,7 @@ import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
 import { Route as AuthenticatedCanvasCloudSectionRouteImport } from './routes/_authenticated/canvas-cloud/$section'
+import { Route as AuthenticatedCanvasCloudInvitationsRouteImport } from './routes/_authenticated/canvas-cloud/invitations'
 import { Route as AuthenticatedCanvasCloudModelManagementRouteRouteImport } from './routes/_authenticated/canvas-cloud/model-management/route'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
@@ -202,6 +203,12 @@ const AuthenticatedCanvasCloudSectionRoute =
   AuthenticatedCanvasCloudSectionRouteImport.update({
     id: '/canvas-cloud/$section',
     path: '/canvas-cloud/$section',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCanvasCloudInvitationsRoute =
+  AuthenticatedCanvasCloudInvitationsRouteImport.update({
+    id: '/canvas-cloud/invitations',
+    path: '/canvas-cloud/invitations',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCanvasCloudModelManagementRouteRoute =
@@ -459,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/canvas-cloud/model-management': typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
   '/user/reset': typeof authUserResetRoute
   '/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -521,6 +529,7 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
   '/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -588,6 +597,7 @@ export interface FileRoutesById {
   '/_authenticated/canvas-cloud/model-management': typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/_authenticated/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -654,6 +664,7 @@ export interface FileRouteTypes {
     | '/canvas-cloud/model-management'
     | '/user/reset'
     | '/canvas-cloud/$section'
+    | '/canvas-cloud/invitations'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -716,6 +727,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/user/reset'
     | '/canvas-cloud/$section'
+    | '/canvas-cloud/invitations'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -782,6 +794,7 @@ export interface FileRouteTypes {
     | '/_authenticated/canvas-cloud/model-management'
     | '/(auth)/user/reset'
     | '/_authenticated/canvas-cloud/$section'
+    | '/_authenticated/canvas-cloud/invitations'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
@@ -1022,6 +1035,13 @@ declare module '@tanstack/react-router' {
       path: '/canvas-cloud/$section'
       fullPath: '/canvas-cloud/$section'
       preLoaderRoute: typeof AuthenticatedCanvasCloudSectionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/canvas-cloud/invitations': {
+      id: '/_authenticated/canvas-cloud/invitations'
+      path: '/canvas-cloud/invitations'
+      fullPath: '/canvas-cloud/invitations'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudInvitationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/canvas-cloud/model-management': {
@@ -1405,6 +1425,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
   AuthenticatedCanvasCloudModelManagementRouteRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
   AuthenticatedCanvasCloudSectionRoute: typeof AuthenticatedCanvasCloudSectionRoute
+  AuthenticatedCanvasCloudInvitationsRoute: typeof AuthenticatedCanvasCloudInvitationsRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1431,6 +1452,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCanvasCloudModelManagementRouteRoute:
     AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren,
   AuthenticatedCanvasCloudSectionRoute: AuthenticatedCanvasCloudSectionRoute,
+  AuthenticatedCanvasCloudInvitationsRoute:
+    AuthenticatedCanvasCloudInvitationsRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

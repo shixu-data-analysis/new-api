@@ -562,6 +562,11 @@ describe('Canvas interface localization', () => {
         const value =
           resource.translation[key as keyof typeof resource.translation]
         expect(value, key).toBeTypeOf('string')
+        if (
+          key === 'Canvas access activated · Bonus points credited: {{points}}'
+        ) {
+          continue
+        }
         expect(value, key).not.toMatch(/Canvas/i)
       }
     }

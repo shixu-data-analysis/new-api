@@ -488,11 +488,13 @@ export function AdminModelCatalog(
                             >
                               <CanvasLocalizedSelectValue
                                 value={action === 'ALL' ? '' : action}
-                                emptyLabelKey='All'
+                                emptyLabelKey='All actions'
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value='ALL'>{t('All')}</SelectItem>
+                              <SelectItem value='ALL'>
+                                {t('All actions')}
+                              </SelectItem>
                               {[
                                 'CREATE',
                                 'REUSE',
