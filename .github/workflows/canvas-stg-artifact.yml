@@ -1,0 +1,202 @@
+name: Canvas STG artifact
+
+on:
+  pull_request:
+  push:
+    branches:
+      - stg
+  workflow_dispatch:
+
+concurrency:
+  group: canvas-new-api-stg-artifact-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out Pinned New API
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Verify the Canvas STG artifact contract
+        run: node scripts/verify-canvas-stg-artifact.mjs
+      - name: Build the candidate without publishing
+        if: github.event_name != 'push' || github.ref != 'refs/heads/stg'
+        run: docker build --file Dockerfile --tag new-api:canvas-stg-check .
+
+  publish:
+    if: >-
+      github.repository == 'shixu-data-analysis/new-api' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/stg'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: stg
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - name: Check out Pinned New API
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Log in to GHCR
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve the immutable image name
+        id: image
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          image="ghcr.io/${repository}"
+          tag="stg-${GITHUB_SHA}"
+          tagged_image="${image}:${tag}"
+
+          if inspect_output=$(docker buildx imagetools inspect "$tagged_image" 2>&1); then
+            echo "::error title=Immutable tag already exists::Refusing to overwrite ${tagged_image}"
+            exit 1
+          fi
+          if ! grep -Eiq 'not found|manifest unknown|404' <<<"$inspect_output"; then
+            printf '%s\n' "$inspect_output" >&2
+            echo "::error title=Registry preflight failed::Could not prove that ${tagged_image} is unused"
+            exit 1
+          fi
+
+          printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'tagged-image=%s\n' "$tagged_image" >> "$GITHUB_OUTPUT"
+      - name: Build and publish the immutable candidate
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tagged-image }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.image.outputs.tag }}
+          provenance: mode=max
+          sbom: true
+      - name: Verify the registry digest
+        id: digest
+        shell: bash
+        env:
+          EXPECTED_DIGEST: ${{ steps.build.outputs.digest }}
+          TAGGED_IMAGE: ${{ steps.image.outputs.tagged-image }}
+        run: |
+          if [[ ! "$EXPECTED_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "::error title=Invalid image digest::Build output was not a SHA-256 registry digest"
+            exit 1
+          fi
+          resolved_digest=$(docker buildx imagetools inspect "$TAGGED_IMAGE" --format '{{.Manifest.Digest}}')
+          if [ "$resolved_digest" != "$EXPECTED_DIGEST" ]; then
+            echo "::error title=Digest mismatch::Published tag does not resolve to the build output digest"
+            exit 1
+          fi
+          printf 'digest=%s\n' "$EXPECTED_DIGEST" >> "$GITHUB_OUTPUT"
+      - name: Verify BuildKit SBOM and provenance
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          subject="${IMAGE}@${DIGEST}"
+          docker buildx imagetools inspect "$subject" --format '{{json .SBOM.SPDX}}' \
+            | jq -e '.SPDXID == "SPDXRef-DOCUMENT"' >/dev/null
+          docker buildx imagetools inspect "$subject" --format '{{json .Provenance.SLSA}}' \
+            | jq -e '.buildType == "https://mobyproject.org/buildkit@v1"' >/dev/null
+      - name: Create the GitHub build provenance attestation
+        id: attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-name: ${{ steps.image.outputs.image }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+      - name: Verify the signed provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          gh attestation verify "oci://${IMAGE}@${DIGEST}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/canvas-stg-artifact.yml" \
+            --source-ref "$GITHUB_REF" \
+            --source-digest "$GITHUB_SHA"
+      - name: Record the candidate manifest
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          TAG: ${{ steps.image.outputs.tag }}
+          TAGGED_IMAGE: ${{ steps.image.outputs.tagged-image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+        run: |
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg sourceSha "$GITHUB_SHA" \
+            --arg sourceRef "$GITHUB_REF" \
+            --arg image "$IMAGE" \
+            --arg tag "$TAG" \
+            --arg taggedImage "$TAGGED_IMAGE" \
+            --arg digest "$DIGEST" \
+            --arg reference "${IMAGE}@${DIGEST}" \
+            --arg attestationUrl "$ATTESTATION_URL" \
+            --arg workflowRunUrl "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}" \
+            '{
+              schemaVersion: 1,
+              repository: $repository,
+              sourceSha: $sourceSha,
+              sourceRef: $sourceRef,
+              image: $image,
+              tag: $tag,
+              taggedImage: $taggedImage,
+              digest: $digest,
+              reference: $reference,
+              sbom: "buildkit-spdx",
+              provenance: "buildkit-mode-max",
+              githubAttestation: $attestationUrl,
+              workflowRun: $workflowRunUrl
+            }' > stg-candidate.json
+      - name: Upload the candidate manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: new-api-stg-${{ github.sha }}
+          path: stg-candidate.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Summarize the candidate
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          TAG: ${{ steps.image.outputs.tag }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          ATTESTATION_URL: ${{ steps.attestation.outputs.attestation-url }}
+        run: |
+          {
+            echo '### Pinned New API Canvas STG candidate'
+            echo
+            echo "- Image: \`${IMAGE}:${TAG}\`"
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Deploy reference: \`${IMAGE}@${DIGEST}\`"
+            echo "- Source: \`${GITHUB_SHA}\`"
+            echo "- Attestation: ${ATTESTATION_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
