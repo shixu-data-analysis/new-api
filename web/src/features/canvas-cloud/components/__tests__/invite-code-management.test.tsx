@@ -313,6 +313,45 @@ describe('Canvas invite code management', () => {
     expect(apiMocks.changeCanvasAdminInviteCodeStatus).not.toHaveBeenCalled()
   })
 
+  it('labels an active invite with no remaining registrations as exhausted', async () => {
+    await i18next.changeLanguage('zh')
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'invite-exhausted',
+          maskedCode: 'CANVAS-E••••••••STED',
+          status: 'ACTIVE',
+          effectiveStatus: 'ACTIVE',
+          maxRegistrations: '1',
+          reservedCount: '0',
+          consumedCount: '1',
+          remainingCount: '0',
+          validFrom: '2026-01-01T00:00:00.000Z',
+          expiresAt: '2035-01-01T00:00:00.000Z',
+          priceGroupId: 'group-v1',
+          priceGroupCode: 'STANDARD',
+          priceGroupName: 'Standard',
+          initialBonusPoints: null,
+          initialBonusTtlDays: null,
+          promotionVersionId: null,
+          referralSource: null,
+          agent: null,
+          pausedAt: null,
+          revokedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    renderWithClient(<InviteCodeManagement />)
+
+    expect(await screen.findByText('已用尽')).toBeVisible()
+    expect(screen.getByText('1 / 1')).toBeVisible()
+  })
+
   it('exports the complete current server result without paging through the browser', async () => {
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')

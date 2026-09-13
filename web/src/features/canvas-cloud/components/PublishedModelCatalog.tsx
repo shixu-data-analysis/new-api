@@ -722,7 +722,7 @@ export function PublishedModelCatalog(props: {
           }}
           renderRow={(row, helpers) => (
             <Fragment key={row.id}>
-              <TableRow>
+              <TableRow className='bg-card'>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
@@ -732,10 +732,10 @@ export function PublishedModelCatalog(props: {
                   </TableCell>
                 ))}
               </TableRow>
-              <TableRow>
+              <TableRow className='border-background border-b-8'>
                 <TableCell
                   colSpan={row.getVisibleCells().length}
-                  className='bg-muted/20 px-3 py-3'
+                  className='bg-muted/40 px-3 py-3 [&_table]:bg-transparent [&_tbody_tr]:bg-transparent'
                 >
                   <div className='space-y-2'>
                     <p className='text-sm font-medium'>

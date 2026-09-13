@@ -38,6 +38,8 @@ export interface CanvasRuntimeTaskMediaConfiguration {
   status: string
   endpoint: string
   bucket: string
+  accessKeyId: string | null
+  credentialsConfigured: boolean
   inputRetentionHours: number
   outputRetentionHours: number
   downloadUrlTtlSeconds: number
@@ -55,6 +57,10 @@ export interface CanvasRuntimeDatabaseBackupConfiguration {
   status: string
   endpoint: string
   bucket: string
+  accessKeyId: string | null
+  credentialsConfigured: boolean
+  backupRetentionHours: number
+  downloadUrlTtlSeconds: number
   reason: string
   effectiveAt: string | null
   createdByPrincipalId: string
@@ -64,6 +70,7 @@ export interface CanvasRuntimeDatabaseBackupConfiguration {
 }
 
 export interface CanvasProviderConfigurationQuery {
+  credentialGroupStatus?: 'ACTIVE' | 'ARCHIVED'
   providerId?: string
   credentialGroupId?: string
   credentialGroupVersionId?: string
@@ -102,6 +109,8 @@ export interface CanvasProviderConfiguration {
     name: string
     version: number
     status: string
+    lifecycleStatus: 'ACTIVE' | 'ARCHIVED'
+    archivedAt: string | null
     schemeNames: string[]
     reason: string
     effectiveAt: string | null
@@ -118,6 +127,7 @@ export interface CanvasProviderModel {
   id: string
   modelKey: string
   publicName: string
+  capability: 'chat.generate' | 'image.generate' | 'video.generate'
   status: string
   providerId: string
   providerCode: string
@@ -158,6 +168,24 @@ export interface CanvasProviderCredentialHistoryQuery {
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasProviderCredentialGroupChange {
+  id: string
+  occurredAt: string
+  operator: string | null
+  type: 'GROUP_CREATED' | 'GROUP_RENAMED' | 'KEY_REPLACED' | 'MODEL_BINDING_CHANGED' | 'MODEL_REBOUND' | 'GROUP_ARCHIVED' | 'GROUP_RESTORED' | 'GROUP_UPDATED'
+  outcome: 'SUCCESS'
+  reason: string | null
+  changes: Array<{
+    type?: string
+    before?: string | null
+    after?: string | null
+    groupName?: string
+    modelName?: string
+    fromGroup?: string | null
+    toGroup?: string | null
+  }>
 }
 
 export interface CanvasCredentialVersionAffectedModels extends CanvasPage<{
@@ -226,16 +254,19 @@ export interface CanvasModelAccessPermissionCheck {
 
 export interface CanvasAdminRechargeCode {
   id: string
-  name: string
-  status: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
-  maskedCode: string
+  remark: string | null
   currency: 'CNY'
   amountMinor: string
   points: string
   bonusPoints: string
+  bonusTtlDays: number | null
   createdAt: string
   expiresAt: string
-  redeemedAt: string | null
+  totalCount: number
+  availableCount: number
+  redeemedCount: number
+  expiredCount: number
+  voidCount: number
 }
 
 export interface CanvasAdminRechargeCodePage {
@@ -250,24 +281,23 @@ export interface CanvasAdminRechargeCodeQuery {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   name?: string
   code?: string
-  status?: CanvasAdminRechargeCode['status']
+  status?: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
   createdFrom?: string
   createdTo?: string
   sortBy:
-    | 'name'
+    | 'remark'
     | 'status'
     | 'amount'
     | 'points'
     | 'createdAt'
     | 'expiresAt'
-    | 'redeemedAt'
   sortOrder: 'asc' | 'desc'
 }
 
 export interface CanvasIssuedRechargeCodes {
   created: boolean
   codes: Array<{ id: string; code: string }>
-  items: CanvasAdminRechargeCode[]
+  batch: CanvasAdminRechargeCode
 }
 
 export type CanvasInviteCodeStatus =

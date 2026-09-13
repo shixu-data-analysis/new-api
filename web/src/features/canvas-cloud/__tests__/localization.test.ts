@@ -256,6 +256,7 @@ const inviteBonusKeys = [
 const inviteStatusKeys = [
   'Invite status DRAFT',
   'Invite status ACTIVE',
+  'Invite status EXHAUSTED',
   'Invite status PAUSED',
   'Invite status REVOKED',
   'Invite status EXPIRED',
@@ -687,9 +688,11 @@ describe('Canvas interface localization', () => {
 
   it('distinguishes valid code states from activation actions in Chinese', () => {
     expect(zh.translation['Invite status ACTIVE']).toBe('有效')
+    expect(zh.translation['Invite status EXHAUSTED']).toBe('已用尽')
     expect(zh.translation.Valid).toBe('有效')
     expect(zh.translation['Activation time']).toBe('生效时间')
     expect(zhTW.translation['Invite status ACTIVE']).toBe('有效')
+    expect(zhTW.translation['Invite status EXHAUSTED']).toBe('已用盡')
     expect(zhTW.translation.Valid).toBe('有效')
     expect(zhTW.translation['Activation time']).toBe('生效時間')
   })
@@ -697,6 +700,14 @@ describe('Canvas interface localization', () => {
   it('uses display wording for the Chinese column visibility control', () => {
     expect(zh.translation.View).toBe('显示')
     expect(zhTW.translation.View).toBe('顯示')
+  })
+
+  it('localizes the recharge-code creation-time filter in every supported locale', () => {
+    expect(en.translation['Creation time']).toBe('Creation time')
+    expect(zh.translation['Creation time']).toBe('创建时间')
+    for (const resource of Object.values(localizedResources)) {
+      expect(resource.translation['Creation time']).not.toBe('Creation time')
+    }
   })
 
   it('uses the confirmed Chinese model-selection wording', () => {

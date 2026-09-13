@@ -72,32 +72,33 @@ import { useDebounce } from '@/hooks'
 
 import {
   bindCanvasProviderCredentials,
-  checkCanvasCustomerModelAccessPermission,
+  archiveCanvasCredentialGroup,
   checkCanvasDatabaseBackupStorage,
   checkCanvasTaskMediaStorage,
   getCanvasCredentialRotationPreview,
-  getCanvasCredentialVersionAffectedModels,
   getCanvasModelCredentialBindingHistory,
   getCanvasProviderConfiguration,
-  getCanvasProviderCredentialHistory,
+  getCanvasProviderCredentialGroupChanges,
   getCanvasRuntimeConfiguration,
   previewCanvasProviderCredentialBindings,
   publishCanvasDatabaseBackupStorage,
   publishCanvasProviderCredentialGroup,
+  publishCanvasCredentialGroupManagement,
+  restoreCanvasCredentialGroup,
   publishCanvasTaskMediaStorage,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
 import type {
   CanvasCredentialRotationPreview,
   CanvasModelBindingPreview,
-  CanvasModelAccessPermissionCheck,
   CanvasProviderConfiguration,
   CanvasProviderConfigurationQuery,
-  CanvasProviderCredentialVersion,
+  CanvasProviderCredentialGroupChange,
   CanvasProviderModel,
   CanvasRuntimeConnectionCheck,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { useDirectAsync } from '../use-direct-async'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
@@ -120,24 +121,37 @@ function isHttpsOrigin(value: string) {
   }
 }
 
-const taskMediaSchema = z.object({
-  endpoint: z.string().url().refine(isHttpsOrigin),
-  bucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
-  accessKeyId: z.string().min(1),
-  secretAccessKey: z.string().min(1),
-  inputRetentionHours: z.number().int().min(1).max(8760),
-  outputRetentionHours: z.number().int().min(1).max(8760),
-  downloadUrlTtlSeconds: z.number().int().min(60).max(3600),
-  reason: z.string().trim().min(1).max(255),
-})
+
+const taskMediaSchema = z
+  .object({
+  endpoint: z.string().trim().refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
+  bucket: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
+  accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
+  secretAccessKey: z.string().max(65_536, 'Use no more than 65536 characters'),
+  inputRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
+  outputRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
+  downloadUrlTtlSeconds: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(60, 'Enter a value from 60 to 3600').max(3600, 'Enter a value from 60 to 3600'),
+  reason: z.string().trim().max(255, 'Use no more than 255 characters'),
+  })
+  .refine((value) => !value.secretAccessKey || Boolean(value.accessKeyId), {
+    message: 'Enter both credential fields or leave both blank',
+    path: ['secretAccessKey'],
+  })
 type TaskMediaForm = z.infer<typeof taskMediaSchema>
-const databaseBackupSchema = z.object({
-  endpoint: z.string().url().refine(isHttpsOrigin),
-  bucket: z.string().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/),
-  accessKeyId: z.string().min(1),
-  secretAccessKey: z.string().min(1),
-  reason: z.string().trim().min(1).max(255),
-})
+const databaseBackupSchema = z
+  .object({
+  endpoint: z.string().trim().refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
+  bucket: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
+  accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
+  secretAccessKey: z.string().max(65_536, 'Use no more than 65536 characters'),
+  backupRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
+  downloadUrlTtlSeconds: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(60, 'Enter a value from 60 to 3600').max(3600, 'Enter a value from 60 to 3600'),
+  reason: z.string().trim().max(255, 'Use no more than 255 characters'),
+  })
+  .refine((value) => !value.secretAccessKey || Boolean(value.accessKeyId), {
+    message: 'Enter both credential fields or leave both blank',
+    path: ['secretAccessKey'],
+  })
 type DatabaseBackupForm = z.infer<typeof databaseBackupSchema>
 
 const credentialSchema = z.object({
@@ -166,6 +180,35 @@ const bindingSchema = z.object({
   reason: z.string().trim().max(255),
 })
 type BindingForm = z.infer<typeof bindingSchema>
+const managementSchema = z.object({
+  name: z.string().trim().min(1).max(191),
+  apiKey: z.string().max(65_536),
+  reason: z.string().trim().max(255, 'Use no more than 255 characters'),
+})
+type ManagementForm = z.infer<typeof managementSchema>
+const providerContextStorageKey = 'canvas.provider-api-key-group.context'
+
+function readProviderContext(): {
+  providerId: string
+  credentialGroupId: string
+} | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = JSON.parse(
+      window.sessionStorage.getItem(providerContextStorageKey) ?? 'null'
+    ) as unknown
+    if (!value || typeof value !== 'object') return null
+    const providerId = (value as { providerId?: unknown }).providerId
+    const credentialGroupId = (value as { credentialGroupId?: unknown })
+      .credentialGroupId
+    if (typeof providerId !== 'string' || typeof credentialGroupId !== 'string') {
+      return null
+    }
+    return { providerId, credentialGroupId }
+  } catch {
+    return null
+  }
+}
 
 export interface CanvasProviderNavigationTarget {
   providerId?: string
@@ -188,6 +231,7 @@ export function RuntimeConfiguration(
   const targetCredentialGroupVersionId =
     props.providerTarget?.credentialGroupVersionId
   const targetModelId = props.providerTarget?.modelId
+  const restoredProviderContext = useMemo(readProviderContext, [])
   const [activeSection, setActiveSection] = useState<
     'taskMedia' | 'databaseBackup'
   >('taskMedia')
@@ -195,13 +239,27 @@ export function RuntimeConfiguration(
     'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
   >(null)
   const [addCredentialOpen, setAddCredentialOpen] = useState(false)
+  const [providerDrawer, setProviderDrawer] = useState<
+    'management' | 'history' | null
+  >(null)
+  const [managementCloseRequested, setManagementCloseRequested] =
+    useState(false)
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] =
+    useState(false)
+  const [restoreConfirmationOpen, setRestoreConfirmationOpen] =
+    useState(false)
+  const [showArchivedGroups, setShowArchivedGroups] = useState(false)
+  const managementTriggerRef = useRef<HTMLButtonElement>(null)
+  const historyTriggerRef = useRef<HTMLButtonElement>(null)
   const [credentialCloseRequested, setCredentialCloseRequested] =
     useState(false)
   const [selectedProviderId, setSelectedProviderId] = useState(
-    targetProviderId ?? ''
+    targetProviderId ?? restoredProviderContext?.providerId ?? ''
   )
   const [selectedCredentialGroupId, setSelectedCredentialGroupId] = useState(
-    targetCredentialGroupId ?? ''
+    targetCredentialGroupId ??
+      restoredProviderContext?.credentialGroupId ??
+      ''
   )
   const [activeProviderTarget, setActiveProviderTarget] = useState(
     props.providerTarget
@@ -218,7 +276,12 @@ export function RuntimeConfiguration(
   const [unboundTargetPending, setUnboundTargetPending] = useState(false)
   const [unboundTargetModelId, setUnboundTargetModelId] = useState('')
   const [confirmation, setConfirmation] = useState<
-    'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
+    | 'taskMedia'
+    | 'databaseBackup'
+    | 'credential'
+    | 'binding'
+    | 'management'
+    | null
   >(null)
   const modelTableState = useServerTableState<
     'publicName' | 'modelKey' | 'status' | 'credentialGroup'
@@ -236,6 +299,12 @@ export function RuntimeConfiguration(
     'taskMedia' | 'databaseBackup' | null
   >(null)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [managementInitialModels, setManagementInitialModels] = useState<
+    string[]
+  >([])
+  const [managementInitializedGroupId, setManagementInitializedGroupId] =
+    useState('')
+  const [managementModelSearch, setManagementModelSearch] = useState('')
   const selectedModelsRef = useRef(selectedModels)
   selectedModelsRef.current = selectedModels
   const selectedGroupVersionRef = useRef('')
@@ -243,8 +312,6 @@ export function RuntimeConfiguration(
     useState<CanvasCredentialRotationPreview | null>(null)
   const [bindingPreview, setBindingPreview] =
     useState<CanvasModelBindingPreview | null>(null)
-  const [expandedBindingHistoryModelId, setExpandedBindingHistoryModelId] =
-    useState('')
   const rotationPreviewRequestRef = useRef(0)
   const bindingPreviewRequestRef = useRef(0)
   useEffect(() => {
@@ -261,8 +328,14 @@ export function RuntimeConfiguration(
           }
         : undefined
     )
-    setSelectedProviderId(targetProviderId ?? '')
-    setSelectedCredentialGroupId(targetCredentialGroupId ?? '')
+    setSelectedProviderId(
+      targetProviderId ?? restoredProviderContext?.providerId ?? ''
+    )
+    setSelectedCredentialGroupId(
+      targetCredentialGroupId ??
+        restoredProviderContext?.credentialGroupId ??
+        ''
+    )
     setNavigationTargetApplied(false)
     setUnboundTargetPending(false)
     setUnboundTargetModelId('')
@@ -273,8 +346,12 @@ export function RuntimeConfiguration(
     targetCredentialGroupVersionId,
     targetModelId,
     targetProviderId,
+    restoredProviderContext,
   ])
   const providerQuery: CanvasProviderConfigurationQuery = {
+    ...(showArchivedGroups
+      ? { credentialGroupStatus: 'ARCHIVED' as const }
+      : {}),
     ...(selectedProviderId ? { providerId: selectedProviderId } : {}),
     ...(selectedCredentialGroupId
       ? { credentialGroupId: selectedCredentialGroupId }
@@ -317,6 +394,57 @@ export function RuntimeConfiguration(
     enabled: view === 'provider',
     placeholderData: (previous) => previous,
   })
+  const managementCandidates = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'provider-configuration-management-candidates',
+      selectedProviderId || providerRuntime.data?.selectedProviderId,
+      selectedCredentialGroupId || providerRuntime.data?.selectedCredentialGroupId,
+    ],
+    enabled:
+      view === 'provider' &&
+      providerDrawer === 'management' &&
+      Boolean(
+        (selectedProviderId || providerRuntime.data?.selectedProviderId) &&
+          (selectedCredentialGroupId ||
+            providerRuntime.data?.selectedCredentialGroupId)
+      ),
+    queryFn: async ({ signal }) => {
+      const providerId =
+        selectedProviderId || providerRuntime.data?.selectedProviderId
+      const credentialGroupId =
+        selectedCredentialGroupId ||
+        providerRuntime.data?.selectedCredentialGroupId
+      if (!providerId || !credentialGroupId) {
+        throw new Error('API Key group management target is required')
+      }
+      const items: CanvasProviderModel[] = []
+      let page = 1
+      let total = 0
+      do {
+        const previousCount = items.length
+        const result = await getCanvasProviderConfiguration(
+          {
+            providerId,
+            credentialGroupId,
+            modelScope: 'ELIGIBLE',
+            sortBy: 'publicName',
+            sortOrder: 'asc',
+            page,
+            pageSize: 100,
+          },
+          signal
+        )
+        items.push(...result.models.items)
+        total = result.models.total
+        if (items.length === previousCount && items.length < total) {
+          throw new Error('Incomplete model candidate pagination')
+        }
+        page += 1
+      } while (items.length < total)
+      return items
+    },
+  })
   const runtime = view === 'provider' ? providerRuntime : storageRuntime
   const providerData = providerRuntime.data
   const storageData = storageRuntime.data
@@ -353,6 +481,8 @@ export function RuntimeConfiguration(
       bucket: '',
       accessKeyId: '',
       secretAccessKey: '',
+      backupRetentionHours: 72,
+      downloadUrlTtlSeconds: 900,
       reason: '',
     },
   })
@@ -370,9 +500,17 @@ export function RuntimeConfiguration(
     resolver: zodResolver(bindingSchema),
     defaultValues: { reason: '' },
   })
+  const management = useForm<ManagementForm>({
+    resolver: zodResolver(managementSchema),
+    defaultValues: { name: '', apiKey: '', reason: '' },
+  })
 
   const hasUnsavedProviderEdit =
-    openEditor === 'credential' || addCredentialOpen
+    providerDrawer === 'management'
+      ? management.formState.isDirty ||
+        selectedModels.length !== managementInitialModels.length ||
+        selectedModels.some((id) => !managementInitialModels.includes(id))
+      : openEditor === 'credential' || addCredentialOpen
       ? credential.formState.isDirty
       : openEditor === 'binding' &&
         (binding.formState.isDirty || selectedModels.length > 0)
@@ -386,6 +524,32 @@ export function RuntimeConfiguration(
     else databaseBackup.reset()
     setStorageCloseRequested(null)
     setOpenEditor(null)
+  }
+  const openStorageEditor = (kind: 'taskMedia' | 'databaseBackup') => {
+    if (kind === 'taskMedia' && storageData?.taskMedia) {
+      taskMedia.reset({
+        endpoint: storageData.taskMedia.endpoint,
+        bucket: storageData.taskMedia.bucket,
+        accessKeyId: storageData.taskMedia.accessKeyId ?? '',
+        secretAccessKey: '',
+        inputRetentionHours: storageData.taskMedia.inputRetentionHours,
+        outputRetentionHours: storageData.taskMedia.outputRetentionHours,
+        downloadUrlTtlSeconds: storageData.taskMedia.downloadUrlTtlSeconds,
+        reason: '',
+      })
+    }
+    if (kind === 'databaseBackup' && storageData?.databaseBackup) {
+      databaseBackup.reset({
+        endpoint: storageData.databaseBackup.endpoint,
+        bucket: storageData.databaseBackup.bucket,
+        accessKeyId: storageData.databaseBackup.accessKeyId ?? '',
+        secretAccessKey: '',
+        backupRetentionHours: storageData.databaseBackup.backupRetentionHours,
+        downloadUrlTtlSeconds: storageData.databaseBackup.downloadUrlTtlSeconds,
+        reason: '',
+      })
+    }
+    setOpenEditor(kind)
   }
   const requestStorageClose = (kind: 'taskMedia' | 'databaseBackup') => {
     const dirty =
@@ -464,20 +628,28 @@ export function RuntimeConfiguration(
           : 'runtime-configuration',
       ],
     })
-  const taskMediaMutation = useMutation({
-    mutationFn: (value: TaskMediaForm) =>
-      publishCanvasTaskMediaStorage({
-        endpoint: value.endpoint,
-        mediaBucket: value.bucket,
-        mediaCredentials: {
-          accessKeyId: value.accessKeyId,
-          secretAccessKey: value.secretAccessKey,
-        },
-        inputRetentionHours: value.inputRetentionHours,
-        outputRetentionHours: value.outputRetentionHours,
-        downloadUrlTtlSeconds: value.downloadUrlTtlSeconds,
-        reason: value.reason,
-      }),
+  const taskMediaMutation = useDirectAsync({
+    execute: (value: TaskMediaForm) => {
+      const current = storageData?.taskMedia
+      const endpoint = new URL(value.endpoint.trim()).origin
+      const bucket = value.bucket.trim()
+      return publishCanvasTaskMediaStorage({
+        ...(current?.endpoint !== endpoint ? { endpoint } : {}),
+        ...(current?.bucket !== bucket ? { mediaBucket: bucket } : {}),
+        ...(value.accessKeyId && value.secretAccessKey
+          ? {
+              mediaCredentials: {
+                accessKeyId: value.accessKeyId,
+                secretAccessKey: value.secretAccessKey,
+              },
+            }
+          : {}),
+        ...(current?.inputRetentionHours !== value.inputRetentionHours ? { inputRetentionHours: value.inputRetentionHours } : {}),
+        ...(current?.outputRetentionHours !== value.outputRetentionHours ? { outputRetentionHours: value.outputRetentionHours } : {}),
+        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds } : {}),
+        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
+      })
+    },
     onSuccess: async () => {
       setConfirmation(null)
       setOpenEditor(null)
@@ -488,17 +660,27 @@ export function RuntimeConfiguration(
     },
     onError: () => toast.error(t('Task media configuration failed')),
   })
-  const databaseBackupMutation = useMutation({
-    mutationFn: (value: DatabaseBackupForm) =>
-      publishCanvasDatabaseBackupStorage({
-        endpoint: value.endpoint,
-        backupBucket: value.bucket,
-        backupCredentials: {
-          accessKeyId: value.accessKeyId,
-          secretAccessKey: value.secretAccessKey,
-        },
-        reason: value.reason,
-      }),
+  const databaseBackupMutation = useDirectAsync({
+    execute: (value: DatabaseBackupForm) => {
+      const current = storageData?.databaseBackup
+      const endpoint = new URL(value.endpoint.trim()).origin
+      const bucket = value.bucket.trim()
+      return publishCanvasDatabaseBackupStorage({
+        ...(current?.endpoint !== endpoint ? { endpoint } : {}),
+        ...(current?.bucket !== bucket ? { backupBucket: bucket } : {}),
+        ...(value.accessKeyId && value.secretAccessKey
+          ? {
+              backupCredentials: {
+                accessKeyId: value.accessKeyId,
+                secretAccessKey: value.secretAccessKey,
+              },
+            }
+          : {}),
+        ...(current?.backupRetentionHours !== value.backupRetentionHours ? { backupRetentionHours: value.backupRetentionHours } : {}),
+        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds } : {}),
+        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
+      })
+    },
     onSuccess: async () => {
       setConfirmation(null)
       setOpenEditor(null)
@@ -509,8 +691,8 @@ export function RuntimeConfiguration(
     },
     onError: () => toast.error(t('Database backup configuration failed')),
   })
-  const credentialMutation = useMutation({
-    mutationFn: (value: CredentialForm) => {
+  const credentialMutation = useDirectAsync({
+    execute: (value: CredentialForm) => {
       if (value.credentialGroupId && !rotationPreview) {
         throw new Error('Credential rotation preview is required')
       }
@@ -576,6 +758,7 @@ export function RuntimeConfiguration(
       })
     },
     onSuccess: async () => {
+      bindingMutation.reset()
       setConfirmation(null)
       setOpenEditor(null)
       setSelectedModels([])
@@ -587,6 +770,74 @@ export function RuntimeConfiguration(
       setConfirmation(null)
       toast.error(runtimeChangeError(error, t, 'binding'))
       await refresh()
+    },
+  })
+  const managementMutation = useDirectAsync({
+    execute: (value: ManagementForm) => {
+      if (!selectedGroup || !managementCandidates.data) {
+        throw new Error('API Key group management target is required')
+      }
+      return publishCanvasCredentialGroupManagement({
+        credentialGroupId: selectedGroup.credentialGroupId,
+        expectedCredentialGroupVersionId: selectedGroup.id,
+        name: value.name.trim(),
+        ...(value.apiKey ? { apiKey: value.apiKey } : {}),
+        customerModelIds: selectedModels,
+        expectedBindings: managementCandidates.data.map((model) => ({
+          customerModelId: model.id,
+          bindingId: model.credentialBindingId,
+          bindingVersion: model.credentialBindingVersion,
+        })),
+        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
+      })
+    },
+    onSuccess: async () => {
+      setConfirmation(null)
+      closeProviderDrawer()
+      setSelectedModels([])
+      management.reset()
+      toast.success(t('API Key group updated'))
+      await refresh()
+    },
+    onError: (error) => {
+      toast.error(runtimeChangeError(error, t, 'credential'))
+    },
+  })
+  const archiveMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedGroup) throw new Error('API Key group target is required')
+      return archiveCanvasCredentialGroup({
+        credentialGroupId: selectedGroup.credentialGroupId,
+        expectedCredentialGroupVersionId: selectedGroup.id,
+      })
+    },
+    onSuccess: async () => {
+      setArchiveConfirmationOpen(false)
+      closeProviderDrawer()
+      setSelectedCredentialGroupId('')
+      toast.success(t('API Key group archived'))
+      await refresh()
+    },
+    onError: (error) => {
+      toast.error(runtimeChangeError(error, t, 'credential'))
+    },
+  })
+  const restoreMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedGroup) throw new Error('API Key group target is required')
+      return restoreCanvasCredentialGroup({
+        credentialGroupId: selectedGroup.credentialGroupId,
+        expectedCredentialGroupVersionId: selectedGroup.id,
+      })
+    },
+    onSuccess: async () => {
+      setRestoreConfirmationOpen(false)
+      setShowArchivedGroups(false)
+      toast.success(t('API Key group restored'))
+      await refresh()
+    },
+    onError: (error) => {
+      toast.error(runtimeChangeError(error, t, 'credential'))
     },
   })
   const rotationPreviewMutation = useMutation({
@@ -639,20 +890,23 @@ export function RuntimeConfiguration(
     onSuccess: reportCheck,
     onError: () => toast.error(t('Connection check failed')),
   })
-  const modelAccessCheck = useMutation({
-    mutationFn: checkCanvasCustomerModelAccessPermission,
-    onSuccess: async (result) => {
-      if (result.outcome === 'PASSED') {
-        toast.success(t('Access permission verified'))
-      } else if (result.outcome === 'UNVERIFIABLE') {
-        toast.error(t('Unable to verify'))
-      } else {
-        toast.error(t('Access permission denied'))
-      }
-      await refresh()
-    },
-    onError: () => toast.error(t('Unable to verify')),
-  })
+
+  const discardAllDrafts = () => {
+    resetProviderEdit()
+    taskMedia.reset()
+    databaseBackup.reset()
+    management.reset({ name: '', apiKey: '', reason: '' })
+    setManagementInitialModels([])
+    setManagementInitializedGroupId('')
+    setProviderDrawer(null)
+    setConfirmation(null)
+    setExecutionPolicyDirty(false)
+    taskMediaMutation.reset()
+    databaseBackupMutation.reset()
+    credentialMutation.reset()
+    bindingMutation.reset()
+    managementMutation.reset()
+  }
 
   const effectiveProviderId =
     selectedProviderId || providerData?.selectedProviderId || ''
@@ -703,6 +957,69 @@ export function RuntimeConfiguration(
     t,
   ])
   const pageModels = providerData?.models.items ?? []
+  useEffect(() => {
+    if (
+      providerDrawer !== 'management' ||
+      !managementCandidates.isSuccess ||
+      !selectedGroup ||
+      managementInitializedGroupId === selectedGroup.credentialGroupId
+    ) {
+      return
+    }
+    const boundIds = managementCandidates.data
+      .filter(
+        (model) => model.credentialGroupId === selectedGroup.credentialGroupId
+      )
+      .map((model) => model.id)
+    setSelectedModels(boundIds)
+    setManagementInitialModels(boundIds)
+    setManagementInitializedGroupId(selectedGroup.credentialGroupId)
+  }, [
+    managementInitializedGroupId,
+    managementCandidates.data,
+    managementCandidates.isSuccess,
+    providerDrawer,
+    selectedGroup,
+  ])
+  const openManagementDrawer = () => {
+    if (!selectedGroup) return
+    setManagementInitializedGroupId('')
+    setManagementModelSearch('')
+    management.reset({ name: selectedGroup.name, apiKey: '', reason: '' })
+    setProviderDrawer('management')
+  }
+  const closeProviderDrawer = () => {
+    const closedDrawer = providerDrawer
+    setProviderDrawer(null)
+    requestAnimationFrame(() => {
+      if (closedDrawer === 'history') historyTriggerRef.current?.focus()
+      else managementTriggerRef.current?.focus()
+    })
+  }
+  const requestManagementClose = () => {
+    if (hasUnsavedProviderEdit) {
+      setManagementCloseRequested(true)
+      return
+    }
+    closeProviderDrawer()
+  }
+  const modelBindingDescription = (model: CanvasProviderModel): string => {
+    if (model.credentialGroupId === selectedGroup?.credentialGroupId) {
+      return t('Currently bound to this group')
+    }
+    if (model.credentialGroupName) {
+      return t(
+        'Currently bound to {{group}}; selecting will move it to this group',
+        { group: model.credentialGroupName }
+      )
+    }
+    return t('Currently unbound')
+  }
+  const managementModels = (managementCandidates.data ?? []).filter((model) =>
+    model.publicName
+      .toLocaleLowerCase()
+      .includes(managementModelSearch.trim().toLocaleLowerCase())
+  )
   const allPageSelected =
     pageModels.length > 0 &&
     pageModels.every((model) => selectedModels.includes(model.id))
@@ -751,45 +1068,43 @@ export function RuntimeConfiguration(
               {row.original.publicName}
             </span>
           ) : (
-            <Button
-              type='button'
-              variant='link'
-              className='h-auto max-w-full justify-start p-0 text-left font-medium break-words whitespace-normal'
-              aria-expanded={expandedBindingHistoryModelId === row.original.id}
-              onClick={() =>
-                setExpandedBindingHistoryModelId((current) =>
-                  current === row.original.id ? '' : row.original.id
+            <a
+              className='text-primary max-w-full font-medium break-words whitespace-normal underline-offset-4 hover:underline'
+              href={`/canvas-cloud/model-management/${encodeURIComponent(row.original.id)}/pricing`}
+              onClick={() => {
+                if (!selectedGroup) return
+                window.sessionStorage.setItem(
+                  providerContextStorageKey,
+                  JSON.stringify({
+                    providerId: selectedGroup.providerId,
+                    credentialGroupId: selectedGroup.credentialGroupId,
+                  })
                 )
-              }
+              }}
             >
               {row.original.publicName}
-            </Button>
+            </a>
           ),
       },
-      {
-        id: 'modelKey',
-        accessorKey: 'modelKey',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Model key')} />
-        ),
-        meta: { label: t('Model key') },
-        cell: ({ row }) => (
-          <span className='block font-mono text-xs break-all whitespace-normal'>
-            {row.original.modelKey}
-          </span>
-        ),
-      },
-      {
-        id: 'status',
-        accessorKey: 'status',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Status')} />
-        ),
-        meta: { label: t('Status') },
-        cell: ({ row }) => (
-          <BusinessTerm kind='configStatus' value={row.original.status} />
-        ),
-      },
+      ...(openEditor === 'binding'
+        ? [
+            {
+              id: 'modelKey',
+              accessorKey: 'modelKey',
+              header: t('Model key'),
+              meta: { label: t('Model key') },
+            },
+            {
+              id: 'status',
+              accessorKey: 'status',
+              header: t('Status'),
+              meta: { label: t('Status') },
+              cell: ({ row }: { row: { original: CanvasProviderModel } }) => (
+                <BusinessTerm kind='configStatus' value={row.original.status} />
+              ),
+            },
+          ]
+        : []),
       ...(openEditor === 'binding'
         ? [
             {
@@ -817,6 +1132,14 @@ export function RuntimeConfiguration(
           ]
         : [
             {
+              id: 'capability',
+              accessorKey: 'capability',
+              header: t('Capability'),
+              meta: { label: t('Capability') },
+              enableSorting: false,
+              cell: ({ row }) => t(row.original.capability),
+            } satisfies ColumnDef<CanvasProviderModel, unknown>,
+            {
               id: 'bindingTime',
               accessorKey: 'credentialBindingEffectiveAt',
               header: t('Binding time'),
@@ -829,37 +1152,11 @@ export function RuntimeConfiguration(
                     )
                   : '—',
             } satisfies ColumnDef<CanvasProviderModel, unknown>,
-            {
-              id: 'accessPermission',
-              header: t('Access permission'),
-              meta: { label: t('Access permission') },
-              enableSorting: false,
-              cell: ({ row }) => (
-                <div className='flex min-w-48 flex-wrap items-center gap-2'>
-                  <AccessPermissionStatus
-                    value={row.original.latestAccessCheck}
-                  />
-                  <Button
-                    type='button'
-                    size='sm'
-                    variant='outline'
-                    disabled={
-                      modelAccessCheck.isPending &&
-                      modelAccessCheck.variables === row.original.id
-                    }
-                    onClick={() => modelAccessCheck.mutate(row.original.id)}
-                  >
-                    {t('Check access permission')}
-                  </Button>
-                </div>
-              ),
-            } satisfies ColumnDef<CanvasProviderModel, unknown>,
           ]),
     ],
     [
-      expandedBindingHistoryModelId,
-      modelAccessCheck,
       openEditor,
+      selectedGroup,
       selectedModels,
       t,
     ]
@@ -868,18 +1165,46 @@ export function RuntimeConfiguration(
     { label: t('Selected models'), value: String(selectedModels.length) },
   ]
   if (confirmation === 'taskMedia') {
+    const current = storageData?.taskMedia
+    const value = taskMedia.getValues()
     confirmationDetails = [
-      { label: t('Environment'), value: storageData?.environment ?? '—' },
-      { label: t('Task media bucket'), value: taskMedia.getValues('bucket') },
+      ...(current?.endpoint !== value.endpoint
+        ? [{ label: t('R2 endpoint'), value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}` }]
+        : []),
+      ...(current?.bucket !== value.bucket
+        ? [{ label: t('Task media bucket'), value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}` }]
+        : []),
+      ...(current?.inputRetentionHours !== value.inputRetentionHours
+        ? [{ label: t('Input retention hours'), value: `${current?.inputRetentionHours ?? t('Not configured')} → ${value.inputRetentionHours}` }]
+        : []),
+      ...(current?.outputRetentionHours !== value.outputRetentionHours
+        ? [{ label: t('Output retention hours'), value: `${current?.outputRetentionHours ?? t('Not configured')} → ${value.outputRetentionHours}` }]
+        : []),
+      ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
+        ? [{ label: t('Download URL seconds'), value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}` }]
+        : []),
+      { label: t('Credentials'), value: value.secretAccessKey ? t('Will be replaced') : t('Keep current') },
+      { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]
   }
   if (confirmation === 'databaseBackup') {
+    const current = storageData?.databaseBackup
+    const value = databaseBackup.getValues()
     confirmationDetails = [
-      { label: t('Environment'), value: storageData?.environment ?? '—' },
-      {
-        label: t('Database backup bucket'),
-        value: databaseBackup.getValues('bucket'),
-      },
+      ...(current?.endpoint !== value.endpoint
+        ? [{ label: t('R2 endpoint'), value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}` }]
+        : []),
+      ...(current?.bucket !== value.bucket
+        ? [{ label: t('Database backup bucket'), value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}` }]
+        : []),
+      ...(current?.backupRetentionHours !== value.backupRetentionHours
+        ? [{ label: t('Backup retention hours'), value: `${current?.backupRetentionHours ?? t('Not configured')} → ${value.backupRetentionHours}` }]
+        : []),
+      ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
+        ? [{ label: t('Download URL seconds'), value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}` }]
+        : []),
+      { label: t('Credentials'), value: value.secretAccessKey ? t('Will be replaced') : t('Keep current') },
+      { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]
   }
   if (confirmation === 'credential') {
@@ -926,6 +1251,54 @@ export function RuntimeConfiguration(
       },
     ]
   }
+  if (confirmation === 'management' && selectedGroup && managementCandidates.data) {
+    const value = management.getValues()
+    const added = managementCandidates.data.filter(
+      (model) =>
+        selectedModels.includes(model.id) &&
+        model.credentialGroupId !== selectedGroup.credentialGroupId
+    )
+    const removed = managementCandidates.data.filter(
+      (model) =>
+        !selectedModels.includes(model.id) &&
+        model.credentialGroupId === selectedGroup.credentialGroupId
+    )
+    confirmationDetails = [
+      ...(value.name.trim() !== selectedGroup.name
+        ? [
+            {
+              label: t('API Key group'),
+              value: `${selectedGroup.name} → ${value.name.trim()}`,
+            },
+          ]
+        : []),
+      ...(value.apiKey
+        ? [{ label: t('API Key'), value: t('Will be replaced') }]
+        : []),
+      ...added.map((model) => ({
+        label: model.credentialGroupName ? t('Move binding') : t('Add binding'),
+        value: model.credentialGroupName
+          ? `${model.publicName}: ${model.credentialGroupName} → ${selectedGroup.name}`
+          : model.publicName,
+      })),
+      ...removed.map((model) => ({
+        label: t('Remove binding'),
+        value: model.publicName,
+      })),
+      {
+        label: t('Reason'),
+        value: value.reason.trim() || t('Not provided'),
+      },
+    ]
+  }
+  let confirmationTitle = t('Confirm runtime configuration change')
+  if (confirmation === 'taskMedia') {
+    confirmationTitle = t('Confirm task media configuration update')
+  } else if (confirmation === 'databaseBackup') {
+    confirmationTitle = t('Confirm database backup configuration update')
+  } else if (confirmation === 'management') {
+    confirmationTitle = t('Confirm API Key group changes')
+  }
 
   if (runtime.isPending) {
     return <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
@@ -947,7 +1320,14 @@ export function RuntimeConfiguration(
 
   return (
     <>
-      <FormNavigationGuard when={hasUnsavedFormEdit} />
+      <FormNavigationGuard
+        when={hasUnsavedFormEdit}
+        title={t('Discard unsaved changes?')}
+        message={t('You have unsaved changes. Are you sure you want to leave?')}
+        confirmText={t('Discard changes and leave')}
+        cancelText={t('Keep editing')}
+        onDiscard={discardAllDrafts}
+      />
       <Tabs
         value={view === 'provider' ? 'providerCredentials' : activeSection}
         onValueChange={(value) => {
@@ -1019,7 +1399,7 @@ export function RuntimeConfiguration(
                     onEdit={() =>
                       openEditor === 'taskMedia'
                         ? requestStorageClose('taskMedia')
-                        : setOpenEditor('taskMedia')
+                        : openStorageEditor('taskMedia')
                     }
                   />
                 ) : (
@@ -1030,7 +1410,7 @@ export function RuntimeConfiguration(
                 {!storageData?.taskMedia && (
                   <Button
                     variant='outline'
-                    onClick={() => setOpenEditor('taskMedia')}
+                    onClick={() => openStorageEditor('taskMedia')}
                     aria-expanded={openEditor === 'taskMedia'}
                   >
                     {t('Update configuration')}
@@ -1040,9 +1420,17 @@ export function RuntimeConfiguration(
                   <form
                     aria-label={t('Publish task media configuration')}
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
-                    onSubmit={taskMedia.handleSubmit(() =>
+                    onSubmit={taskMedia.handleSubmit((value) => {
+                      const currentAccessKeyId = storageData.taskMedia?.accessKeyId ?? ''
+                      if ((!storageData.taskMedia || value.accessKeyId !== currentAccessKeyId) && !value.secretAccessKey) {
+                        taskMedia.setError('secretAccessKey', {
+                          message: 'Enter both credential fields or leave both blank',
+                        })
+                        return
+                      }
+                      if (!taskMedia.formState.isDirty) return
                       setConfirmation('taskMedia')
-                    )}
+                    })}
                   >
                     <Field
                       label={t('R2 endpoint')}
@@ -1080,6 +1468,11 @@ export function RuntimeConfiguration(
                         {...taskMedia.register('secretAccessKey')}
                       />
                     </Field>
+                    {storageData.taskMedia?.credentialsConfigured ? (
+                      <p className='text-muted-foreground text-xs sm:col-span-2'>
+                        {t('Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.')}
+                      </p>
+                    ) : null}
                     <Field
                       label={t('Input retention hours')}
                       error={
@@ -1127,7 +1520,7 @@ export function RuntimeConfiguration(
                       />
                     </Field>
                     <Field
-                      label={t('Reason')}
+                      label={t('Reason (optional)')}
                       error={taskMedia.formState.errors.reason?.message}
                     >
                       <Input {...taskMedia.register('reason')} />
@@ -1143,7 +1536,10 @@ export function RuntimeConfiguration(
                       </Button>
                       <Button
                         type='submit'
-                        disabled={taskMediaMutation.isPending}
+                        disabled={
+                          taskMediaMutation.isPending ||
+                          !taskMedia.formState.isDirty
+                        }
                       >
                         {t('Review task media publication')}
                       </Button>
@@ -1183,7 +1579,7 @@ export function RuntimeConfiguration(
                     onEdit={() =>
                       openEditor === 'databaseBackup'
                         ? requestStorageClose('databaseBackup')
-                        : setOpenEditor('databaseBackup')
+                        : openStorageEditor('databaseBackup')
                     }
                   />
                 ) : (
@@ -1194,7 +1590,7 @@ export function RuntimeConfiguration(
                 {!storageData?.databaseBackup && (
                   <Button
                     variant='outline'
-                    onClick={() => setOpenEditor('databaseBackup')}
+                    onClick={() => openStorageEditor('databaseBackup')}
                     aria-expanded={openEditor === 'databaseBackup'}
                   >
                     {t('Update configuration')}
@@ -1204,9 +1600,17 @@ export function RuntimeConfiguration(
                   <form
                     aria-label={t('Publish database backup configuration')}
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
-                    onSubmit={databaseBackup.handleSubmit(() =>
+                    onSubmit={databaseBackup.handleSubmit((value) => {
+                      const currentAccessKeyId = storageData.databaseBackup?.accessKeyId ?? ''
+                      if ((!storageData.databaseBackup || value.accessKeyId !== currentAccessKeyId) && !value.secretAccessKey) {
+                        databaseBackup.setError('secretAccessKey', {
+                          message: 'Enter both credential fields or leave both blank',
+                        })
+                        return
+                      }
+                      if (!databaseBackup.formState.isDirty) return
                       setConfirmation('databaseBackup')
-                    )}
+                    })}
                   >
                     <Field
                       label={t('R2 endpoint')}
@@ -1246,8 +1650,39 @@ export function RuntimeConfiguration(
                         {...databaseBackup.register('secretAccessKey')}
                       />
                     </Field>
+                    {storageData.databaseBackup?.credentialsConfigured ? (
+                      <p className='text-muted-foreground text-xs sm:col-span-2'>
+                        {t('Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.')}
+                      </p>
+                    ) : null}
                     <Field
-                      label={t('Reason')}
+                      label={t('Backup retention hours')}
+                      error={databaseBackup.formState.errors.backupRetentionHours?.message}
+                    >
+                      <Input
+                        type='number'
+                        min={1}
+                        max={8760}
+                        {...databaseBackup.register('backupRetentionHours', {
+                          valueAsNumber: true,
+                        })}
+                      />
+                    </Field>
+                    <Field
+                      label={t('Download URL seconds')}
+                      error={databaseBackup.formState.errors.downloadUrlTtlSeconds?.message}
+                    >
+                      <Input
+                        type='number'
+                        min={60}
+                        max={3600}
+                        {...databaseBackup.register('downloadUrlTtlSeconds', {
+                          valueAsNumber: true,
+                        })}
+                      />
+                    </Field>
+                    <Field
+                      label={t('Reason (optional)')}
                       error={databaseBackup.formState.errors.reason?.message}
                     >
                       <Input {...databaseBackup.register('reason')} />
@@ -1263,7 +1698,10 @@ export function RuntimeConfiguration(
                       </Button>
                       <Button
                         type='submit'
-                        disabled={databaseBackupMutation.isPending}
+                        disabled={
+                          databaseBackupMutation.isPending ||
+                          !databaseBackup.formState.isDirty
+                        }
                       >
                         {t('Review database backup publication')}
                       </Button>
@@ -1352,6 +1790,21 @@ export function RuntimeConfiguration(
                     </NativeSelect>
                   </Field>
                 </div>
+                <label className='flex items-center gap-2 text-sm'>
+                  <Checkbox
+                    checked={showArchivedGroups}
+                    onCheckedChange={(checked) => {
+                      setActiveProviderTarget(undefined)
+                      setNavigationTargetApplied(true)
+                      setSelectedCredentialGroupId('')
+                      setUnboundTargetPending(false)
+                      setUnboundTargetModelId('')
+                      setModelPagination((current) => ({ ...current, pageIndex: 0 }))
+                      setShowArchivedGroups(checked === true)
+                    }}
+                  />
+                  {t('Show archived API Key groups')}
+                </label>
               </CardContent>
             </Card>
 
@@ -1394,6 +1847,10 @@ export function RuntimeConfiguration(
                       </CardAction>
                     </CardHeader>
                     <CardContent className='space-y-5'>
+                      <div className='flex items-center gap-2 text-sm'>
+                        <span className='text-muted-foreground'>{t('Lifecycle status')}</span>
+                        <span>{t(`Credential group ${selectedGroup.lifecycleStatus}`)}</span>
+                      </div>
                       <dl className='grid gap-3 text-sm md:grid-cols-2'>
                         <div className='bg-muted/30 rounded-lg p-3'>
                           <dt className='text-muted-foreground text-xs'>
@@ -1413,16 +1870,6 @@ export function RuntimeConfiguration(
                           </dd>
                         </div>
                       </dl>
-
-                      {providerData && openEditor === 'credential' && (
-                        <CredentialEditor
-                          runtime={providerData}
-                          form={credential}
-                          pending={credentialMutation.isPending}
-                          onCancel={resetProviderEdit}
-                          onReview={() => setConfirmation('credential')}
-                        />
-                      )}
 
                       <section
                         className='space-y-3'
@@ -1446,24 +1893,6 @@ export function RuntimeConfiguration(
                               </p>
                             )}
                           </div>
-                          <Button
-                            size='sm'
-                            aria-expanded={openEditor === 'binding'}
-                            onClick={() => {
-                              rotationPreviewRequestRef.current += 1
-                              bindingPreviewRequestRef.current += 1
-                              setOpenEditor(
-                                openEditor === 'binding' ? null : 'binding'
-                              )
-                              setSelectedModels([])
-                              setBindingPreview(null)
-                              binding.reset({ reason: '' })
-                            }}
-                          >
-                            {openEditor === 'binding'
-                              ? t('Finish managing bindings')
-                              : t('Manage model bindings')}
-                          </Button>
                         </div>
 
                         <CanvasServerTable
@@ -1483,28 +1912,6 @@ export function RuntimeConfiguration(
                             modelKey: false,
                             status: false,
                           }}
-                          renderRow={
-                            openEditor === 'binding'
-                              ? undefined
-                              : (row) => (
-                                  <>
-                                    <DataTableRow row={row} />
-                                    {expandedBindingHistoryModelId ===
-                                      row.original.id && (
-                                      <TableRow>
-                                        <TableCell
-                                          colSpan={row.getVisibleCells().length}
-                                          className='bg-muted/20 p-4'
-                                        >
-                                          <BindingHistoryPanel
-                                            model={row.original}
-                                          />
-                                        </TableCell>
-                                      </TableRow>
-                                    )}
-                                  </>
-                                )
-                          }
                           additionalFilters={
                             <>
                               <DataTableColumnFilterField
@@ -1674,56 +2081,32 @@ export function RuntimeConfiguration(
                         )}
                       </section>
 
-                      <CredentialVersionHistory
-                        credentialGroupId={selectedGroup.credentialGroupId}
-                        currentVersionId={selectedGroup.id}
-                        targetVersionId={
-                          activeProviderTarget?.credentialGroupVersionId
-                        }
-                      />
                     </CardContent>
                     <CardFooter className='flex flex-wrap justify-end gap-2'>
                       <Button
+                        ref={historyTriggerRef}
                         size='sm'
                         variant='outline'
-                        disabled={rotationPreviewMutation.isPending}
-                        onClick={() => {
-                          bindingPreviewRequestRef.current += 1
-                          setBindingPreview(null)
-                          rotationPreviewMutation.mutate(
-                            {
-                              credentialGroupId:
-                                selectedGroup.credentialGroupId,
-                              requestId: ++rotationPreviewRequestRef.current,
-                            },
-                            {
-                              onSuccess: (preview, input) => {
-                                if (
-                                  input.requestId !==
-                                  rotationPreviewRequestRef.current
-                                ) {
-                                  return
-                                }
-                                setRotationPreview(preview)
-                                credential.reset({
-                                  providerId: selectedGroup.providerId,
-                                  credentialGroupId:
-                                    selectedGroup.credentialGroupId,
-                                  name: selectedGroup.name,
-                                  apiKey: '',
-                                  reason: '',
-                                })
-                                setOpenEditor('credential')
-                                requestAnimationFrame(() =>
-                                  credential.setFocus('apiKey')
-                                )
-                              },
-                            }
-                          )
-                        }}
+                        onClick={() => setProviderDrawer('history')}
                       >
-                        {t('Replace API Key')}
+                        {t('View change history')}
                       </Button>
+                      {selectedGroup.lifecycleStatus === 'ARCHIVED' ? (
+                        <Button
+                          size='sm'
+                          onClick={() => setRestoreConfirmationOpen(true)}
+                        >
+                          {t('Restore API Key group')}
+                        </Button>
+                      ) : (
+                        <Button
+                          ref={managementTriggerRef}
+                          size='sm'
+                          onClick={openManagementDrawer}
+                        >
+                          {t('Manage API Key group')}
+                        </Button>
+                      )}
                     </CardFooter>
                   </Card>
                 </TabsContent>
@@ -1740,6 +2123,152 @@ export function RuntimeConfiguration(
               </Tabs>
             )}
           </TabsContent>
+        )}
+
+        {providerData && selectedGroup && (
+          <Sheet
+            open={providerDrawer !== null}
+            onOpenChange={(open) => {
+              if (!open) requestManagementClose()
+            }}
+          >
+            <SheetContent className={sideDrawerContentClassName('sm:max-w-[40rem]')}>
+              <SheetHeader className={sideDrawerHeaderClassName()}>
+                <SheetTitle>
+                  {providerDrawer === 'history'
+                    ? t('Change history')
+                    : t('Manage API Key group')}
+                </SheetTitle>
+                <SheetDescription>
+                  {selectedGroup.name} · {selectedGroup.providerCode}
+                </SheetDescription>
+              </SheetHeader>
+              {providerDrawer === 'history' ? (
+                <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-4'>
+                  <CredentialGroupChangeHistory
+                    credentialGroupId={selectedGroup.credentialGroupId}
+                  />
+                </div>
+              ) : (
+                <form
+                  className={sideDrawerFormClassName()}
+                  aria-label={t('Manage API Key group')}
+                  onSubmit={management.handleSubmit(() => {
+                    if (!hasUnsavedProviderEdit) return
+                    setConfirmation('management')
+                  })}
+                >
+                  <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'>
+                    <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm'>
+                      <dt className='text-muted-foreground'>{t('Provider')}</dt>
+                      <dd>{selectedGroup.providerCode}</dd>
+                      <dt className='text-muted-foreground'>{t('Authentication method')}</dt>
+                      <dd>{selectedGroup.schemeNames.join(', ')}</dd>
+                      <dt className='text-muted-foreground'>{t('Status')}</dt>
+                      <dd>{t(`Credential group ${selectedGroup.lifecycleStatus}`)}</dd>
+                    </dl>
+                    <Field label={t('API Key group')} error={management.formState.errors.name?.message}>
+                      <Input {...management.register('name')} />
+                    </Field>
+                    <Field label={t('Replace API Key')} error={management.formState.errors.apiKey?.message}>
+                      <Input type='password' autoComplete='new-password' {...management.register('apiKey')} />
+                    </Field>
+                    <p className='text-muted-foreground text-xs'>
+                      {t('An API Key is already configured. Leave this field blank to keep it unchanged.')}
+                    </p>
+                    <section className='space-y-2' aria-label={t('Bound models')}>
+                      <Label htmlFor='api-key-group-model-search'>{t('Filter models')}</Label>
+                      <Input
+                        id='api-key-group-model-search'
+                        value={managementModelSearch}
+                        placeholder={t('Model name')}
+                        onChange={(event) => setManagementModelSearch(event.target.value)}
+                      />
+                      <div className='space-y-2'>
+                        {managementCandidates.isPending ? (
+                          <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+                        ) : managementCandidates.isError ? (
+                          <div className='space-y-2 rounded-lg border p-3'>
+                            <p className='text-destructive text-sm'>
+                              {t('Unable to load model candidates')}
+                            </p>
+                            <Button
+                              type='button'
+                              variant='outline'
+                              size='sm'
+                              onClick={() => void managementCandidates.refetch()}
+                            >
+                              {t('Retry')}
+                            </Button>
+                          </div>
+                        ) : managementModels.map((model) => (
+                          <label key={model.id} className='bg-muted/30 flex items-start gap-3 rounded-lg border p-3'>
+                            <Checkbox
+                              aria-label={`${t('Select model')} ${model.publicName}`}
+                              checked={selectedModels.includes(model.id)}
+                              onCheckedChange={(checked) =>
+                                updateSelectedModels((current) =>
+                                  checked
+                                    ? [...new Set([...current, model.id])]
+                                    : current.filter((id) => id !== model.id)
+                                )
+                              }
+                            />
+                            <span className='min-w-0 text-sm'>
+                              <span className='block font-medium break-words'>{model.publicName}</span>
+                              <span className='text-muted-foreground block'>
+                                {modelBindingDescription(model)}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                        {managementCandidates.isSuccess && managementModels.length === 0 ? (
+                          <p className='text-muted-foreground text-sm'>
+                            {t('No matching models')}
+                          </p>
+                        ) : null}
+                      </div>
+                    </section>
+                    <section className='border-destructive/40 space-y-2 border-t pt-4'>
+                      <h3 className='text-destructive text-sm font-semibold'>{t('Danger zone')}</h3>
+                      <p className='text-muted-foreground text-sm'>
+                        {selectedGroup.boundModelCount > 0
+                          ? t('Remove all model bindings before archiving this API Key group.')
+                          : t('Archiving prevents new model bindings and task acceptance. History is retained.')}
+                      </p>
+                      <Button
+                        type='button'
+                        variant='destructive'
+                        disabled={
+                          selectedGroup.boundModelCount > 0 ||
+                          archiveMutation.isPending
+                        }
+                        onClick={() => setArchiveConfirmationOpen(true)}
+                      >
+                        {t('Archive API Key group')}
+                      </Button>
+                    </section>
+                  </div>
+                  <SheetFooter className={sideDrawerFooterClassName()}>
+                    <Button type='button' variant='outline' onClick={requestManagementClose}>
+                      {t('Cancel')}
+                    </Button>
+                    <Button
+                      type='submit'
+                      disabled={
+                        !managementCandidates.isSuccess ||
+                        managementInitializedGroupId !== selectedGroup.credentialGroupId ||
+                        !hasUnsavedProviderEdit ||
+                        managementMutation.isPending
+                      }
+                    >
+                      {t('Preview changes')}
+                    </Button>
+                  </SheetFooter>
+                </form>
+              )}
+            </SheetContent>
+          </Sheet>
         )}
 
         {providerData && (
@@ -1774,10 +2303,8 @@ export function RuntimeConfiguration(
         <PricingActionConfirmation
           open={confirmation !== null}
           onOpenChange={(open) => !open && setConfirmation(null)}
-          title={t('Confirm runtime configuration change')}
-          description={t(
-            'This publishes immutable configuration versions. Secret values will not be shown again.'
-          )}
+          title={confirmationTitle}
+          description={t('This will publish a new configuration version.')}
           details={confirmationDetails}
           confirmLabel={t('Confirm publication')}
           onConfirm={() => {
@@ -1793,14 +2320,28 @@ export function RuntimeConfiguration(
             if (confirmation === 'binding') {
               bindingMutation.mutate(binding.getValues())
             }
+            if (confirmation === 'management') {
+              void management.handleSubmit((values) => {
+                managementMutation.mutate(values)
+              })()
+            }
           }}
           pending={
             taskMediaMutation.isPending ||
             databaseBackupMutation.isPending ||
             credentialMutation.isPending ||
-            bindingMutation.isPending
+            bindingMutation.isPending ||
+            managementMutation.isPending
           }
         >
+          {confirmation === 'management' ? (
+            <Field
+              label={t('Reason (optional)')}
+              error={management.formState.errors.reason?.message}
+            >
+              <Input maxLength={255} {...management.register('reason')} />
+            </Field>
+          ) : null}
           {confirmation === 'credential' && rotationPreview && (
             <StaticDataTable
               className='max-h-72'
@@ -1959,6 +2500,93 @@ export function RuntimeConfiguration(
             </div>
           </DialogContent>
         </Dialog>
+        <Dialog
+          open={managementCloseRequested}
+          onOpenChange={(open) => !open && setManagementCloseRequested(false)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('Discard unsaved API Key group changes?')}</DialogTitle>
+              <DialogDescription>
+                {t('These changes have not been saved. Closing will discard them. Do you still want to close?')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className='flex justify-end gap-2'>
+              <Button variant='outline' onClick={() => setManagementCloseRequested(false)}>
+                {t('Keep editing')}
+              </Button>
+              <Button
+                variant='destructive'
+                onClick={() => {
+                  setManagementCloseRequested(false)
+                  setProviderDrawer(null)
+                  setSelectedModels([])
+                  management.reset()
+                }}
+              >
+                {t('Discard changes')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={archiveConfirmationOpen}
+          onOpenChange={setArchiveConfirmationOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('Archive API Key group')}</DialogTitle>
+              <DialogDescription>
+                {t('Archiving prevents new model bindings and task acceptance. Historical tasks, costs, and change records are retained.')}
+              </DialogDescription>
+            </DialogHeader>
+            <dl className='grid grid-cols-[auto_1fr] gap-3 text-sm'>
+              <dt className='text-muted-foreground'>{t('API Key group')}</dt>
+              <dd>{selectedGroup?.name ?? '—'}</dd>
+              <dt className='text-muted-foreground'>{t('Currently bound models')}</dt>
+              <dd>{selectedGroup?.boundModelCount ?? 0}</dd>
+            </dl>
+            <div className='flex justify-end gap-2'>
+              <Button variant='outline' onClick={() => setArchiveConfirmationOpen(false)}>
+                {t('Cancel')}
+              </Button>
+              <Button
+                variant='destructive'
+                disabled={
+                  (selectedGroup?.boundModelCount ?? 0) > 0 ||
+                  archiveMutation.isPending
+                }
+                onClick={() => archiveMutation.mutate()}
+              >
+                {t('Confirm archive')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={restoreConfirmationOpen}
+          onOpenChange={setRestoreConfirmationOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('Restore API Key group')}</DialogTitle>
+              <DialogDescription>
+                {t('Restoring returns this API Key group to active selection. Model bindings are not changed.')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className='flex justify-end gap-2'>
+              <Button variant='outline' onClick={() => setRestoreConfirmationOpen(false)}>
+                {t('Cancel')}
+              </Button>
+              <Button
+                disabled={restoreMutation.isPending}
+                onClick={() => restoreMutation.mutate()}
+              >
+                {t('Confirm restore')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </Tabs>
     </>
   )
@@ -2085,466 +2713,57 @@ function CredentialEditor(props: {
   )
 }
 
-function CredentialVersionHistory(props: {
-  credentialGroupId: string
-  currentVersionId: string
-  targetVersionId?: string
-}) {
-  const { t } = useTranslation()
-  const tableState = useServerTableState<
-    'version' | 'effectiveAt' | 'updatedBy' | 'reason'
-  >('version')
-  const [versionFilter, setVersionFilter] = useState('')
-  const [operatorFilter, setOperatorFilter] = useState('')
-  const [expandedVersionId, setExpandedVersionId] = useState('')
-  const [pendingTargetVersionId, setPendingTargetVersionId] = useState(
-    props.targetVersionId ?? ''
-  )
-  const debouncedOperator = useDebounce(operatorFilter.trim(), 300)
-  const parsedVersion = /^\d+$/.test(versionFilter)
-    ? Number(versionFilter)
-    : undefined
-  const historyQuery = {
-    ...(pendingTargetVersionId
-      ? { targetVersionId: pendingTargetVersionId }
-      : {}),
-    ...(parsedVersion ? { version: parsedVersion } : {}),
-    ...(debouncedOperator ? { operator: debouncedOperator } : {}),
-    ...(tableState.query.search ? { reason: tableState.query.search } : {}),
-    page: tableState.query.page,
-    pageSize: tableState.query.pageSize,
-    sortBy: tableState.query.sortBy,
-    sortOrder: tableState.query.sortOrder,
-  }
-  const history = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'provider-credential-history',
-      props.credentialGroupId,
-      historyQuery,
-    ],
-    queryFn: ({ signal }) =>
-      getCanvasProviderCredentialHistory(
-        props.credentialGroupId,
-        historyQuery,
-        signal
-      ),
-  })
-  const setHistoryPagination = tableState.setPagination
-  useEffect(() => {
-    setExpandedVersionId('')
-    setPendingTargetVersionId(props.targetVersionId ?? '')
-    setHistoryPagination((current) => ({ ...current, pageIndex: 0 }))
-  }, [props.credentialGroupId, props.targetVersionId, setHistoryPagination])
-  useEffect(() => {
-    if (!pendingTargetVersionId || !history.data) return
-    if (
-      !history.data.items.some((item) => item.id === pendingTargetVersionId)
-    ) {
-      return
-    }
-    const targetId = pendingTargetVersionId
-    setHistoryPagination((current) => ({
-      ...current,
-      pageIndex: history.data.page - 1,
-    }))
-    setExpandedVersionId(targetId)
-    setPendingTargetVersionId('')
-    requestAnimationFrame(() => {
-      document
-        .querySelector(`#credential-version-${targetId}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    })
-  }, [history.data, pendingTargetVersionId, setHistoryPagination])
-  const columns = useMemo<
-    ColumnDef<CanvasProviderCredentialVersion, unknown>[]
-  >(
-    () => [
-      {
-        id: 'version',
-        accessorKey: 'version',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Version')} />
-        ),
-        meta: { label: t('Version') },
-        cell: ({ row }) => (
-          <span className='font-medium'>
-            v{row.original.version}
-            {row.original.id === props.currentVersionId
-              ? ` · ${t('Current')}`
-              : ''}
-          </span>
-        ),
-      },
-      {
-        id: 'effectiveAt',
-        accessorKey: 'effectiveAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Effective at')} />
-        ),
-        meta: { label: t('Effective at') },
-        cell: ({ row }) =>
-          row.original.effectiveAt
-            ? formatCanvasDateTime(row.original.effectiveAt)
-            : '—',
-      },
-      {
-        id: 'updatedBy',
-        accessorKey: 'updatedBy',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Updated by')} />
-        ),
-        meta: { label: t('Updated by') },
-      },
-      {
-        id: 'affectedModels',
-        accessorKey: 'affectedModelCount',
-        header: t('Affected models'),
-        meta: { label: t('Affected models') },
-        enableSorting: false,
-        cell: ({ row }) => row.original.affectedModelCount ?? t('Not recorded'),
-      },
-      {
-        id: 'reason',
-        accessorKey: 'reason',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Reason')} />
-        ),
-        meta: { label: t('Reason') },
-        cell: ({ row }) => (
-          <span className='break-words whitespace-normal'>
-            {row.original.reason}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: t('Actions'),
-        meta: { label: t('Actions') },
-        enableSorting: false,
-        enableHiding: false,
-        cell: ({ row }) => (
-          <Button
-            size='sm'
-            variant='outline'
-            aria-expanded={expandedVersionId === row.original.id}
-            onClick={(event) => {
-              event.stopPropagation()
-              setExpandedVersionId((current) =>
-                current === row.original.id ? '' : row.original.id
-              )
-            }}
-          >
-            {expandedVersionId === row.original.id
-              ? t('Collapse affected models')
-              : t('Expand affected models')}
-          </Button>
-        ),
-      },
-    ],
-    [expandedVersionId, props.currentVersionId, t]
-  )
-  return (
-    <section
-      id='credential-version-history'
-      className='space-y-3 border-t pt-5'
-      aria-labelledby='credential-version-history-title'
-    >
-      <div>
-        <h3 id='credential-version-history-title' className='font-semibold'>
-          {t('Credential version history')}
-        </h3>
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'Version rows are read-only. Expand a row to load its recorded affected models.'
-          )}
-        </p>
-      </div>
-      <CanvasServerTable
-        data={history.data?.items ?? []}
-        columns={columns}
-        total={history.data?.total ?? 0}
-        state={tableState}
-        searchLabel={t('Reason')}
-        loading={history.isFetching}
-        emptyTitle={t('No history')}
-        getRowId={(version) => version.id}
-        additionalFilters={
-          <>
-            <DataTableColumnFilterField label={t('Version')}>
-              <Input
-                inputMode='numeric'
-                value={versionFilter}
-                placeholder={t('Version')}
-                onChange={(event) =>
-                  setVersionFilter(event.target.value.replaceAll(/\D/g, ''))
-                }
-              />
-            </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Updated by')}>
-              <Input
-                value={operatorFilter}
-                placeholder={t('Updated by')}
-                onChange={(event) => setOperatorFilter(event.target.value)}
-              />
-            </DataTableColumnFilterField>
-          </>
-        }
-        hasActiveFilters={Boolean(versionFilter || operatorFilter)}
-        activeFilterCount={
-          [tableState.search, versionFilter, operatorFilter].filter(Boolean)
-            .length
-        }
-        onResetFilters={() => {
-          setVersionFilter('')
-          setOperatorFilter('')
-        }}
-        getRowClassName={(row) =>
-          row.original.id === props.targetVersionId
-            ? 'bg-primary/10 ring-1 ring-inset ring-primary/30'
-            : undefined
-        }
-        renderRow={(row) => (
-          <Fragment key={row.id}>
-            <DataTableRow
-              id={`credential-version-${row.original.id}`}
-              row={row}
-              tabIndex={0}
-              aria-expanded={expandedVersionId === row.original.id}
-              className={
-                row.original.id === props.targetVersionId
-                  ? 'bg-primary/10 ring-primary/30 ring-1 ring-inset'
-                  : 'cursor-pointer'
-              }
-              onClick={() =>
-                setExpandedVersionId((current) =>
-                  current === row.original.id ? '' : row.original.id
-                )
-              }
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                setExpandedVersionId((current) =>
-                  current === row.original.id ? '' : row.original.id
-                )
-              }}
-            />
-            {expandedVersionId === row.original.id && (
-              <TableRow key={`${row.id}-detail`}>
-                <TableCell
-                  colSpan={row.getVisibleCells().length}
-                  className='bg-muted/20 p-4'
-                >
-                  <CredentialVersionAffectedModels
-                    credentialGroupVersionId={row.original.id}
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-          </Fragment>
-        )}
-      />
-    </section>
-  )
-}
-
-function CredentialVersionAffectedModels(props: {
-  credentialGroupVersionId: string
-}) {
+function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
-  const affected = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'credential-version-affected-models',
-      props.credentialGroupVersionId,
-      page,
-    ],
+  const changes = useQuery({
+    queryKey: ['canvas-cloud', 'provider-credential-group-changes', props.credentialGroupId, page],
     queryFn: ({ signal }) =>
-      getCanvasCredentialVersionAffectedModels(
-        props.credentialGroupVersionId,
+      getCanvasProviderCredentialGroupChanges(
+        props.credentialGroupId,
         { page, pageSize: 20 },
         signal
       ),
   })
-  const pageCount = Math.max(1, Math.ceil((affected.data?.total ?? 0) / 20))
-  if (affected.isError) {
-    return (
-      <Button variant='outline' onClick={() => void affected.refetch()}>
-        {t('Retry')}
-      </Button>
-    )
-  }
-  if (affected.isPending) {
-    return <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
-  }
-  if (!affected.data.factAvailable) {
-    return (
-      <p className='text-muted-foreground text-sm'>
-        {t(
-          'No recorded affected-model snapshot is available for this version.'
-        )}
-      </p>
-    )
+  useEffect(() => setPage(1), [props.credentialGroupId])
+  if (changes.isPending) return <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+  if (changes.isError) {
+    return <div className='space-y-2'><p className='text-destructive text-sm'>{t('Unable to load change history')}</p><Button type='button' variant='outline' size='sm' onClick={() => void changes.refetch()}>{t('Retry')}</Button></div>
   }
   return (
     <div className='space-y-3'>
-      <StaticDataTable
-        tableClassName='min-w-[480px] table-fixed'
-        data={affected.data.items}
-        empty={affected.data.items.length === 0}
-        emptyContent={t('No affected models')}
-        getRowKey={(model) => model.id}
-        columns={[
-          {
-            id: 'name',
-            header: t('Model name'),
-            className: 'w-64',
-            cell: (model) => model.publicName,
-          },
-          {
-            id: 'id',
-            header: t('Model ID'),
-            className: 'w-64',
-            cell: (model) => (
-              <span className='font-mono text-xs break-all'>{model.id}</span>
-            ),
-          },
-        ]}
-      />
-      {pageCount > 1 && (
-        <div className='flex items-center justify-between gap-3 text-sm'>
-          <span>
-            {t('Page')} {page} / {pageCount}
-          </span>
-          <div className='flex gap-2'>
-            <Button
-              size='sm'
-              variant='outline'
-              disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-            >
-              {t('Previous')}
-            </Button>
-            <Button
-              size='sm'
-              variant='outline'
-              disabled={page >= pageCount}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              {t('Next')}
-            </Button>
+      {changes.data.items.length === 0 ? <p className='text-muted-foreground text-sm'>{t('No change history')}</p> : null}
+      {changes.data.items.map((event) => (
+        <article key={event.id} className='space-y-2 rounded-lg border p-3'>
+          <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
+            <strong>{t(event.type)}</strong>
+            <span>{t(event.outcome)}</span>
           </div>
-        </div>
-      )}
+          <p className='text-muted-foreground text-xs'>{formatCanvasDateTime(event.occurredAt)} · {event.operator ?? t('Unknown operator')}</p>
+          <ul className='space-y-1 text-sm'>
+            {event.changes.map((change, index) => (
+              <li key={`${event.id}-${index}`}>{formatCredentialGroupChange(change, t)}</li>
+            ))}
+          </ul>
+          <p className='text-sm'><span className='text-muted-foreground'>{t('Reason')}:</span> {event.reason ?? t('Not provided')}</p>
+        </article>
+      ))}
+      <div className='flex justify-end gap-2'>
+        <Button type='button' variant='outline' size='sm' disabled={page === 1} onClick={() => setPage((value) => value - 1)}>{t('Previous')}</Button>
+        <Button type='button' variant='outline' size='sm' disabled={page * changes.data.pageSize >= changes.data.total} onClick={() => setPage((value) => value + 1)}>{t('Next')}</Button>
+      </div>
     </div>
   )
 }
 
-function BindingHistoryPanel(props: { model: CanvasProviderModel }) {
-  const { t } = useTranslation()
-  const [page, setPage] = useState(1)
-  const modelId = props.model.id
-  useEffect(() => setPage(1), [modelId])
-  const history = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'model-credential-binding-history',
-      modelId,
-      page,
-    ],
-    queryFn: ({ signal }) => {
-      return getCanvasModelCredentialBindingHistory(
-        modelId,
-        { page, pageSize: 20 },
-        signal
-      )
-    },
-  })
-  const pageCount = Math.max(1, Math.ceil((history.data?.total ?? 0) / 20))
-  return (
-    <div className='space-y-3' aria-label={t('Binding history')}>
-      <div>
-        <h4 className='font-medium'>{t('Binding history')}</h4>
-        <p className='text-muted-foreground text-sm'>
-          {props.model.publicName}
-        </p>
-      </div>
-      {history.isError ? (
-        <Button variant='outline' onClick={() => void history.refetch()}>
-          {t('Retry')}
-        </Button>
-      ) : (
-        <StaticDataTable
-          tableClassName='min-w-[800px] table-fixed'
-          data={history.data?.items ?? []}
-          empty={history.isPending || history.data?.items.length === 0}
-          emptyContent={history.isPending ? t('Loading') : t('No history')}
-          getRowKey={(binding) => binding.id}
-          columns={[
-            {
-              id: 'version',
-              header: t('Binding version'),
-              className: 'w-32',
-              cell: (binding) => `v${binding.version}`,
-            },
-            {
-              id: 'credential',
-              header: t('Credential group and version'),
-              className: 'w-52',
-              cell: (binding) =>
-                `${binding.credentialGroupName} v${binding.credentialGroupVersion}`,
-            },
-            {
-              id: 'createdAt',
-              header: t('Published at'),
-              className: 'w-52',
-              cell: (binding) => formatCanvasDateTime(binding.createdAt),
-            },
-            {
-              id: 'updatedBy',
-              header: t('Updated by'),
-              className: 'w-40',
-              cell: (binding) => binding.updatedBy,
-            },
-            {
-              id: 'reason',
-              header: t('Reason'),
-              className: 'w-64',
-              cell: (binding) => (
-                <span className='break-words whitespace-normal'>
-                  {binding.reason ?? '—'}
-                </span>
-              ),
-            },
-          ]}
-        />
-      )}
-      <div className='flex items-center justify-between gap-3 text-sm'>
-        <span>
-          {t('Page')} {page} / {pageCount}
-        </span>
-        <div className='flex gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={page <= 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            {t('Previous')}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={page >= pageCount}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            {t('Next')}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
+function formatCredentialGroupChange(
+  change: CanvasProviderCredentialGroupChange['changes'][number],
+  t: (key: string) => string
+) {
+  if (change.type === 'KEY_REPLACED') return t('API Key replaced')
+  if (change.type === 'GROUP_RENAMED') return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
+  if (change.modelName) return `${change.modelName}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
+  return t(change.type ?? 'GROUP_UPDATED')
 }
 
 function StorageSummary(props: {
@@ -2698,36 +2917,6 @@ function ConnectionCheck(props: {
         )}
       </dd>
     </div>
-  )
-}
-
-function AccessPermissionStatus(props: {
-  value: CanvasModelAccessPermissionCheck | null
-}) {
-  const { t } = useTranslation()
-  if (!props.value) {
-    return (
-      <span className='text-muted-foreground text-sm'>{t('Not checked')}</span>
-    )
-  }
-  if (props.value.outcome === 'PASSED') {
-    return (
-      <span className='text-sm text-emerald-600 dark:text-emerald-400'>
-        {t('Passed')}
-      </span>
-    )
-  }
-  if (props.value.outcome === 'FAILED') {
-    return (
-      <span className='text-destructive text-sm'>
-        {t('Access permission denied')}
-      </span>
-    )
-  }
-  return (
-    <span className='text-muted-foreground text-sm'>
-      {t('Unable to verify')}
-    </span>
   )
 }
 

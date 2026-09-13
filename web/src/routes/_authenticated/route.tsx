@@ -25,6 +25,7 @@ import {
   isCanvasDefaultLandingPath,
 } from '@/features/canvas-cloud/access'
 import {
+  getCanvasSessionFailureRoute,
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
@@ -42,19 +43,20 @@ export const Route = createFileRoute('/_authenticated')({
       })
     }
 
-    if (location.pathname === '/403') return
+    if (location.pathname === '/403' || location.pathname === '/503') return
 
     let canvasSession
     try {
       canvasSession = await getCanvasSession()
     } catch (error) {
-      if (
-        isCanvasInviteRegistrationRequired(error) &&
-        !canCanvasPrincipalAccessPath(location.pathname)
-      ) {
-        throw redirect({ to: '/403' })
+      if (isCanvasInviteRegistrationRequired(error)) {
+        if (!canCanvasPrincipalAccessPath(location.pathname)) {
+          throw redirect({ to: '/403' })
+        }
+        canvasSession = null
+      } else {
+        throw redirect({ to: getCanvasSessionFailureRoute(error) })
       }
-      canvasSession = null
     }
     if (canvasSession) {
       if (isCanvasDefaultLandingPath(location.pathname)) {

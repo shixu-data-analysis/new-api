@@ -9,7 +9,10 @@ License, or (at your option) any later version.
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
-import { getCanvasSession } from '@/features/canvas-cloud/api'
+import {
+  getCanvasSession,
+  getCanvasSessionFailureRoute,
+} from '@/features/canvas-cloud/api'
 import { ModelManagementLayout } from '@/features/canvas-cloud/components/ModelManagementLayout'
 
 export const Route = createFileRoute(
@@ -19,8 +22,8 @@ export const Route = createFileRoute(
     try {
       const session = await getCanvasSession()
       if (isCanvasAdministrator(session.principalType)) return
-    } catch {
-      // The route has the same deny-on-unavailable behavior as Canvas sections.
+    } catch (error) {
+      throw redirect({ to: getCanvasSessionFailureRoute(error) })
     }
     throw redirect({ to: '/403' })
   },

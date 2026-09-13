@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
@@ -36,6 +36,7 @@ import { CanvasRechargeCodes } from '../RechargeCodes'
 const apiMocks = vi.hoisted(() => ({
   getCanvasAdminRechargeCodes: vi.fn(),
   issueCanvasAdminRechargeCodes: vi.fn(),
+  downloadCanvasUnusedRechargeCodes: vi.fn(),
 }))
 const campaignMocks = vi.hoisted(() => ({
   getCanvasBindableBonusActivities: vi.fn(),
@@ -89,18 +90,22 @@ function renderRechargeCodes() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  return render(
+  return {
+    ...render(
     <QueryClientProvider client={queryClient}>
       <CanvasRechargeCodes embedded />
     </QueryClientProvider>
-  )
+    ),
+    queryClient,
+  }
 }
 
 describe('Canvas recharge-code creation form', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', {
       'Create recharge codes': 'Create recharge codes',
-      Name: 'Name',
+      Note: 'Note',
+      'Batch / note': 'Batch / note',
       'Amount (CNY)': 'Amount (CNY)',
       Quantity: 'Quantity',
       'Create codes': 'Create codes',
@@ -109,6 +114,13 @@ describe('Canvas recharge-code creation form', () => {
       'Visible recharge codes': 'Visible recharge codes',
       'Hidden recharge codes': 'Hidden recharge codes',
       'Download TXT': 'Download TXT',
+      Done: 'Done',
+      'Finish without copying or downloading?':
+        'Finish without copying or downloading?',
+      'You have not copied or downloaded these codes. After closing, you cannot view all plaintext codes from this batch again. Do you still want to finish?':
+        'You have not copied or downloaded these codes. After closing, you cannot view all plaintext codes from this batch again. Do you still want to finish?',
+      'Finish anyway': 'Finish anyway',
+      'Keep viewing': 'Keep viewing',
       'Search recharge codes': 'Search recharge codes',
       'Search by name or full code': 'Search by name or full code',
       'All statuses': 'All statuses',
@@ -161,15 +173,15 @@ describe('Canvas recharge-code creation form', () => {
     const fieldGroup = screen.getByRole('group', {
       name: 'Create recharge codes',
     })
-    const name = screen.getByLabelText('Name')
+    const note = screen.getByLabelText('Note')
     const amount = screen.getByLabelText('Amount (CNY)')
     const quantity = screen.getByLabelText('Quantity')
     const submit = screen.getByRole('button', { name: 'Create codes' })
 
-    expect(form).toContainElement(name)
+    expect(form).toContainElement(note)
     expect(form).toContainElement(amount)
     expect(form).toContainElement(quantity)
-    expect(fieldGroup).toContainElement(name)
+    expect(fieldGroup).toContainElement(note)
     expect(fieldGroup).toContainElement(amount)
     expect(fieldGroup).toContainElement(quantity)
     expect(fieldGroup).toContainElement(submit)
@@ -178,14 +190,14 @@ describe('Canvas recharge-code creation form', () => {
     )
     expect(submit).toBeEnabled()
 
-    fireEvent.change(name, { target: { value: 'UAT-CNY-10' } })
+    fireEvent.change(note, { target: { value: 'UAT-CNY-10' } })
     expect(submit).toBeEnabled()
     fireEvent.submit(form)
 
     await waitFor(() => {
       expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
-          name: 'UAT-CNY-10',
+          remark: 'UAT-CNY-10',
           amountMinor: '1000',
           count: 1,
           idempotencyKey: expect.stringMatching(/^web-issue-code-/u),
@@ -214,7 +226,7 @@ describe('Canvas recharge-code creation form', () => {
     })
     renderRechargeCodes()
 
-    fireEvent.change(screen.getByLabelText('Name'), {
+    fireEvent.change(screen.getByLabelText('Note'), {
       target: { value: 'Support batch' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create codes' }))
@@ -237,6 +249,72 @@ describe('Canvas recharge-code creation form', () => {
     expect(await blob.text()).toBe('CANVAS-ONE\nCANVAS-TWO\n')
     expect(click).toHaveBeenCalledOnce()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:recharge-codes')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByText(/CANVAS-ONE/u)).not.toBeInTheDocument()
+  })
+
+  it('asks for confirmation before finishing when no code was copied or downloaded', async () => {
+    apiMocks.issueCanvasAdminRechargeCodes.mockResolvedValue({
+      created: true,
+      codes: [{ id: 'code-1', code: 'CANVAS-ONE' }],
+      items: [],
+    })
+    renderRechargeCodes()
+
+    fireEvent.change(screen.getByLabelText('Note'), {
+      target: { value: 'Support batch' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create codes' }))
+    await screen.findByRole('button', { name: 'Done' })
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+
+    expect(
+      screen.getByRole('alertdialog', {
+        name: 'Finish without copying or downloading?',
+      })
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep viewing' }))
+    expect(screen.getByRole('button', { name: 'Done' })).toBeVisible()
+  })
+
+  it('does not retain issued plaintext codes in the mutation cache', async () => {
+    apiMocks.issueCanvasAdminRechargeCodes.mockResolvedValue({
+      created: true,
+      codes: [{ id: 'code-1', code: 'CANVAS-SECRET' }],
+      items: [],
+    })
+    const { queryClient } = renderRechargeCodes()
+    fireEvent.click(screen.getByRole('button', { name: 'Create codes' }))
+    await screen.findByRole('button', { name: 'Done' })
+    await waitFor(() =>
+      expect(queryClient.getMutationCache().getAll()).toHaveLength(0)
+    )
+  })
+
+  it('isolates interleaved secret responses between two component instances', async () => {
+    const resolvers: Array<(value: { created: true; codes: Array<{ id: string; code: string }> }) => void> = []
+    apiMocks.issueCanvasAdminRechargeCodes.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(resolve))
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <div data-testid='first-instance'><CanvasRechargeCodes embedded /></div>
+        <div data-testid='second-instance'><CanvasRechargeCodes embedded /></div>
+      </QueryClientProvider>
+    )
+    const first = within(screen.getByTestId('first-instance'))
+    const second = within(screen.getByTestId('second-instance'))
+    fireEvent.click(first.getByRole('button', { name: 'Create codes' }))
+    fireEvent.click(second.getByRole('button', { name: 'Create codes' }))
+    await waitFor(() => expect(resolvers).toHaveLength(2))
+    resolvers[1]({ created: true, codes: [{ id: 'second', code: 'CANVAS-SECOND' }] })
+    await second.findByRole('button', { name: 'Done' })
+    expect(first.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+    resolvers[0]({ created: true, codes: [{ id: 'first', code: 'CANVAS-FIRST' }] })
+    await first.findByRole('button', { name: 'Done' })
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(0)
   })
 
   it('uses the selected active bonus activity version without constraining the recharge amount', async () => {
@@ -263,14 +341,14 @@ describe('Canvas recharge-code creation form', () => {
         'Bonus per code: 50 points · Valid for 30 days after redemption'
       )
     ).toBeVisible()
-    fireEvent.change(screen.getByLabelText('Name'), {
+    fireEvent.change(screen.getByLabelText('Note'), {
       target: { value: 'September batch' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create codes' }))
     await waitFor(() =>
       expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
         expect.objectContaining({
-          name: 'September batch',
+          remark: 'September batch',
           amountMinor: '1000',
           count: 1,
           promotionVersionId: 'recharge-v2',
@@ -311,7 +389,7 @@ describe('Canvas recharge-code creation form', () => {
           target: { value: 'recharge-v2' },
         }
       )
-      fireEvent.change(screen.getByLabelText('Name'), {
+      fireEvent.change(screen.getByLabelText('Note'), {
         target: { value: 'September batch' },
       })
       fireEvent.submit(
@@ -348,16 +426,19 @@ describe('Canvas recharge-code creation form', () => {
         items: [
           {
             id: 'inventory-1',
-            name: 'Support batch',
-            status: 'ACTIVE',
-            maskedCode: 'CANVAS-Y••••••••FA2E',
+            remark: 'Support batch',
             currency: 'CNY',
             amountMinor: '1000',
             points: '500',
             bonusPoints: '100',
+            bonusTtlDays: 30,
             createdAt: '2026-08-25T00:00:00.000Z',
             expiresAt: '2026-11-23T00:00:00.000Z',
-            redeemedAt: null,
+            totalCount: 10,
+            availableCount: 8,
+            redeemedCount: 2,
+            expiredCount: 0,
+            voidCount: 0,
           },
         ],
         total: 45,
@@ -372,10 +453,7 @@ describe('Canvas recharge-code creation form', () => {
       screen.getByText('500 Paid points + 100 Bonus points')
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Column filters' }))
-    const [, inventoryNameFilter] = screen.getAllByPlaceholderText(
-      'Enter recharge code name'
-    )
-    fireEvent.change(inventoryNameFilter, {
+    fireEvent.change(screen.getByPlaceholderText('Batch / note'), {
       target: { value: 'Support batch' },
     })
     fireEvent.change(screen.getByLabelText('Recharge code'), {
@@ -383,7 +461,6 @@ describe('Canvas recharge-code creation form', () => {
     })
     await user.click(screen.getByLabelText('Status'))
     await user.click(await screen.findByRole('option', { name: 'Expired' }))
-    await user.click(screen.getByRole('button', { name: 'Start time' }))
     await user.click(screen.getByRole('button', { name: 'Expiry time' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
 
@@ -395,7 +472,6 @@ describe('Canvas recharge-code creation form', () => {
           name: 'Support batch',
           code: 'CANVAS-Y1234567890123456789FA2E',
           status: 'EXPIRED',
-          createdFrom: '2026-08-01T13:45:00.000Z',
           sortBy: 'expiresAt',
           sortOrder: 'asc',
         }),

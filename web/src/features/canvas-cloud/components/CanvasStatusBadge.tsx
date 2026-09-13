@@ -51,6 +51,7 @@ function variantForStatus(
   if (
     [
       'DISABLED',
+      'EXHAUSTED',
       'EXPIRED',
       'REDEEMED',
       'REFUNDED',

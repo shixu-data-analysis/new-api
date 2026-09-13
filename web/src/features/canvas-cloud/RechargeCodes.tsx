@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
@@ -53,8 +54,8 @@ import { toIntlLocale } from '@/i18n/languages'
 import { getCanvasBindableBonusActivities } from './activity-api'
 import {
   getCanvasAdminRechargeCodes,
+  downloadCanvasUnusedRechargeCodes,
   issueCanvasAdminRechargeCodes,
-  revealCanvasCode,
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
@@ -71,6 +72,7 @@ import type {
   CanvasIssuedRechargeCodes,
 } from './types'
 import { useServerTableState } from './use-server-table-state'
+import { useDirectAsync } from './use-direct-async'
 
 function formatCny(value: string, language: string): string {
   return new Intl.NumberFormat(toIntlLocale(language), {
@@ -83,10 +85,11 @@ function formatDate(value: string | null, language: string): string {
   return value
     ? new Intl.DateTimeFormat(toIntlLocale(language), {
         dateStyle: 'medium',
-        timeStyle: 'short',
+        timeStyle: 'medium',
       }).format(new Date(value))
     : '—'
 }
+
 
 function rechargeFailure(error: unknown): {
   code: string | null
@@ -111,7 +114,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const issueForm = useForm<{
-    name: string
+    remark: string
     amount: string
     count: string
     promotionVersionId: string
@@ -119,7 +122,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     mode: 'onTouched',
     resolver: zodResolver(
       z.object({
-        name: z.string().trim().min(1, t('Enter recharge code name')).max(20),
+        remark: z.string().trim().max(255),
         amount: z.string().refine((value) => cnyToMinor(value) !== null, {
           message: t('Enter a valid recharge amount'),
         }),
@@ -130,13 +133,13 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       })
     ),
     defaultValues: {
-      name: '',
+      remark: '',
       amount: '10',
       count: '1',
       promotionVersionId: '',
     },
   })
-  const { name, amount, count } = issueForm.watch()
+  const { remark, amount, count } = issueForm.watch()
   const [selectedPromotionVersionId, setSelectedPromotionVersionId] =
     useState('')
   const promotionVersionId = selectedPromotionVersionId
@@ -153,18 +156,20 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     (item) => item.id === promotionVersionId
   )
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
+  const [pendingDownloadId, setPendingDownloadId] = useState<string | null>(null)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [issueIdempotencyKey, setIssueIdempotencyKey] = useState('')
   const [codesVisible, setCodesVisible] = useState(false)
-  const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
+  const [codesTransferred, setCodesTransferred] = useState(false)
+  const [finishConfirmationOpen, setFinishConfirmationOpen] = useState(false)
   useEffect(() => {
     setIssueError(null)
-  }, [name, amount, count, promotionVersionId])
+  }, [remark, amount, count, promotionVersionId])
   const tableState =
     useServerTableState<CanvasAdminRechargeCodeQuery['sortBy']>('createdAt')
-  const [status, setStatus] = useState<'' | CanvasAdminRechargeCode['status']>(
-    ''
-  )
+  const [status, setStatus] = useState<
+    '' | 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
+  >('')
   const [createdFrom, setCreatedFrom] = useState<Date>()
   const [createdTo, setCreatedTo] = useState<Date>()
   const [code, setCode] = useState('')
@@ -193,12 +198,13 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     enabled: (!debouncedCode || Boolean(normalizedCode)) && createdRangeValid,
     placeholderData: (previous) => previous,
   })
-  const issue = useMutation({
-    mutationFn: issueCanvasAdminRechargeCodes,
+  const issue = useDirectAsync({
+    execute: issueCanvasAdminRechargeCodes,
     onSuccess: async (result) => {
       try {
         setIssueError(null)
         setCodesVisible(false)
+        setCodesTransferred(false)
         if (result.created) {
           setIssued(result)
           toast.success(t('Canvas recharge codes created'))
@@ -216,11 +222,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     },
     onError: (error) => {
       const failure = rechargeFailure(error)
-      let field: 'name' | 'amount' | 'count' | 'promotionVersionId' | null =
+      let field: 'remark' | 'amount' | 'count' | 'promotionVersionId' | null =
         null
       if (failure.field === 'amountMinor') {
         field = 'amount'
-      } else if (failure.field === 'name' || failure.field === 'count') {
+      } else if (failure.field === 'remark' || failure.field === 'count') {
         field = failure.field
       } else if (failure.field === 'promotionVersionId') {
         field = failure.field
@@ -231,9 +237,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         field = 'promotionVersionId'
       }
       let message = t('Recharge codes could not be created')
-      if (failure.code === 'INVALID_RECHARGE_NAME') {
-        message = t('Enter recharge code name')
-      } else if (failure.code === 'INVALID_RECHARGE_COUNT') {
+      if (failure.code === 'INVALID_RECHARGE_COUNT') {
         message = t('Enter a quantity from 1 to 100')
       } else if (failure.code === 'AMOUNT_NOT_REDEEMABLE') {
         message = t('Enter a valid recharge amount')
@@ -255,20 +259,32 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       })
     },
   })
-  const reveal = useMutation({
-    mutationFn: (input: { id: string; action: 'DISPLAY' | 'COPY' }) =>
-      revealCanvasCode('admin-recharge', input.id, input.action).then(
-        (result) => ({ ...result, ...input })
-      ),
-    onSuccess: async (result) => {
-      if (result.action === 'COPY') {
-        await navigator.clipboard.writeText(result.code)
-        toast.success(t('Recharge code copied'))
-        return
-      }
-      setRevealedCodes((current) => ({ ...current, [result.id]: result.code }))
+  const downloadBatch = useDirectAsync({
+    execute: downloadCanvasUnusedRechargeCodes,
+    onSuccess: (result) => {
+      setPendingDownloadId(null)
+      const blob = new Blob([result.content], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'canvas-recharge-codes.txt'
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast.success(t('Downloaded {{count}} recharge codes', { count: result.downloadCount }))
     },
-    onError: () => toast.error(t('Recharge code could not be revealed')),
+    onError: (error) => {
+      setPendingDownloadId(null)
+      const failure = rechargeFailure(error)
+      toast.error(
+        t(
+          failure.code === 'NO_UNUSED_RECHARGE_CODES'
+            ? 'No downloadable recharge codes'
+            : 'Recharge codes could not be downloaded'
+        )
+      )
+    },
   })
   const amountMinor = cnyToMinor(amount)
   const parsedCount = Number(count)
@@ -279,6 +295,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     await navigator.clipboard.writeText(
       issued.codes.map((item) => item.code).join('\n')
     )
+    setCodesTransferred(true)
     toast.success(t('Recharge codes copied'))
   }
 
@@ -298,6 +315,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
+    setCodesTransferred(true)
     toast.success(t('Recharge codes downloaded'))
   }
 
@@ -307,7 +325,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       issueIdempotencyKey || `web-issue-code-${crypto.randomUUID()}`
     setIssueIdempotencyKey(idempotencyKey)
     issue.mutate({
-      name: name.trim(),
+      ...(remark.trim() ? { remark: remark.trim() } : {}),
       amountMinor,
       count: parsedCount,
       idempotencyKey,
@@ -315,84 +333,43 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     })
   })
 
+  const batchDownloadLabel = (row: CanvasAdminRechargeCode): string => {
+    if (row.availableCount === 0) return t('No downloadable recharge codes')
+    if (downloadBatch.isPending && pendingDownloadId === row.id) {
+      return t('Preparing…')
+    }
+    return t('Download unused codes')
+  }
+
   const columns: ColumnDef<CanvasAdminRechargeCode, unknown>[] = [
     {
-      id: 'name',
-      accessorKey: 'name',
+      id: 'remark',
+      accessorKey: 'remark',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+        <DataTableColumnHeader column={column} title={t('Batch / note')} />
+      ),
+      cell: ({ row }) => (
+        <div className='min-w-0 space-y-1'>
+          <span>{formatDate(row.original.createdAt, i18n.resolvedLanguage ?? i18n.language)}</span>
+          {row.original.remark ? (
+            <p className='text-muted-foreground break-words'>{row.original.remark}</p>
+          ) : null}
+        </div>
       ),
     },
     {
-      id: 'code',
-      accessorKey: 'maskedCode',
-      enableSorting: false,
-      header: t('Recharge code'),
-      cell: ({ row }) => {
-        const item = row.original
-        const visible = revealedCodes[item.id]
-        return (
-          <div className='flex min-w-0 items-start gap-1'>
-            <span className='min-w-0 font-mono break-all'>
-              {visible ?? item.maskedCode}
-            </span>
-            {item.status === 'ACTIVE' ? (
-              <>
-                <Button
-                  aria-label={t(
-                    visible ? 'Hide recharge code' : 'Show recharge code'
-                  )}
-                  aria-pressed={Boolean(visible)}
-                  disabled={reveal.isPending}
-                  size='icon-sm'
-                  title={t(
-                    visible ? 'Hide recharge code' : 'Show recharge code'
-                  )}
-                  type='button'
-                  variant='ghost'
-                  onClick={() => {
-                    if (visible) {
-                      setRevealedCodes((current) => {
-                        const next = { ...current }
-                        delete next[item.id]
-                        return next
-                      })
-                      return
-                    }
-                    reveal.mutate({ id: item.id, action: 'DISPLAY' })
-                  }}
-                >
-                  {visible ? (
-                    <EyeOff aria-hidden='true' />
-                  ) : (
-                    <Eye aria-hidden='true' />
-                  )}
-                </Button>
-                <Button
-                  aria-label={t('Copy recharge code')}
-                  disabled={reveal.isPending}
-                  size='icon-sm'
-                  title={t('Copy recharge code')}
-                  type='button'
-                  variant='ghost'
-                  onClick={() => reveal.mutate({ id: item.id, action: 'COPY' })}
-                >
-                  <Copy aria-hidden='true' />
-                </Button>
-              </>
-            ) : null}
-          </div>
-        )
-      },
-    },
-    {
       id: 'status',
-      accessorKey: 'status',
+      enableSorting: false,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => (
-        <BusinessTerm kind='rechargeCodeStatus' value={row.original.status} />
+        <span className='text-sm tabular-nums'>
+          {t('Available {{count}}', { count: row.original.availableCount })} ·{' '}
+          {t('Redeemed {{count}}', { count: row.original.redeemedCount })} ·{' '}
+          {t('Expired {{count}}', { count: row.original.expiredCount })} ·{' '}
+          {t('Voided {{count}}', { count: row.original.voidCount })}
+        </span>
       ),
     },
     {
@@ -421,18 +398,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       ),
     },
     {
-      id: 'createdAt',
-      accessorKey: 'createdAt',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Created time')} />
-      ),
-      cell: ({ row }) =>
-        formatDate(
-          row.original.createdAt,
-          i18n.resolvedLanguage ?? i18n.language
-        ),
-    },
-    {
       id: 'expiresAt',
       accessorKey: 'expiresAt',
       header: ({ column }) => (
@@ -445,16 +410,23 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         ),
     },
     {
-      id: 'redeemedAt',
-      accessorKey: 'redeemedAt',
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Redeemed at')} />
+      id: 'actions',
+      enableSorting: false,
+      header: t('Actions'),
+      cell: ({ row }) => (
+        <Button
+          type='button'
+          variant='outline'
+          disabled={row.original.availableCount === 0 || downloadBatch.isPending}
+          onClick={() => {
+            setPendingDownloadId(row.original.id)
+            downloadBatch.mutate(row.original.id)
+          }}
+        >
+          <Download aria-hidden='true' />
+          {batchDownloadLabel(row.original)}
+        </Button>
       ),
-      cell: ({ row }) =>
-        formatDate(
-          row.original.redeemedAt,
-          i18n.resolvedLanguage ?? i18n.language
-        ),
     },
   ]
 
@@ -474,8 +446,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         columns={columns}
         total={inventory.data?.total ?? 0}
         state={tableState}
-        searchLabel={t('Name')}
-        searchPlaceholder={t('Enter recharge code name')}
+        searchLabel={t('Batch / note')}
+        searchPlaceholder={t('Batch / note')}
         loading={inventory.isPending || inventory.isFetching}
         emptyTitle={
           hasFilters
@@ -516,7 +488,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   setStatus(
                     value === 'ALL'
                       ? ''
-                      : ((value ?? '') as CanvasAdminRechargeCode['status'])
+                      : ((value ?? '') as 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED')
                   )
                   resetPage()
                 }}
@@ -542,7 +514,10 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 </SelectContent>
               </Select>
             </DataTableColumnFilterField>
-            <DataTableColumnFilterField label={t('Creation time')}>
+            <DataTableColumnFilterField
+              label={t('Creation time')}
+              className='sm:col-span-2 lg:col-span-3'
+            >
               <CanvasDateRangeFilter
                 from={createdFrom}
                 to={createdTo}
@@ -642,30 +617,29 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 ) : null}
               </div>
               <div className='space-y-1.5'>
-                <Label htmlFor='canvas-code-name'>
-                  {t('Name')}
-                  <span aria-hidden='true'> *</span>
+                <Label htmlFor='canvas-code-remark'>
+                  {t('Note')}
+                  <span aria-hidden='true'> ({t('Optional')})</span>
                 </Label>
                 <Input
-                  id='canvas-code-name'
-                  aria-label={t('Name')}
-                  maxLength={20}
-                  aria-invalid={Boolean(issueForm.formState.errors.name)}
+                  id='canvas-code-remark'
+                  aria-label={t('Note')}
+                  maxLength={255}
+                  aria-invalid={Boolean(issueForm.formState.errors.remark)}
                   aria-describedby={
-                    issueForm.formState.errors.name
-                      ? 'canvas-code-name-error'
+                    issueForm.formState.errors.remark
+                      ? 'canvas-code-remark-error'
                       : undefined
                   }
-                  {...issueForm.register('name')}
-                  placeholder={t('Enter recharge code name')}
+                  {...issueForm.register('remark')}
                 />
-                {issueForm.formState.errors.name ? (
+                {issueForm.formState.errors.remark ? (
                   <p
-                    id='canvas-code-name-error'
+                    id='canvas-code-remark-error'
                     role='alert'
                     className='text-destructive text-sm'
                   >
-                    {issueForm.formState.errors.name.message}
+                    {issueForm.formState.errors.remark.message}
                   </p>
                 ) : null}
               </div>
@@ -789,13 +763,40 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 <Download />
                 {t('Download TXT')}
               </Button>
-              <Button variant='ghost' onClick={() => setIssued(null)}>
-                {t('I have saved these codes')}
+              <Button
+                variant='ghost'
+                onClick={() => {
+                  if (!codesTransferred) {
+                    setFinishConfirmationOpen(true)
+                    return
+                  }
+                  setIssued(null)
+                  setCodesVisible(false)
+                }}
+              >
+                {t('Done')}
               </Button>
             </div>
           </CardContent>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={finishConfirmationOpen}
+        onOpenChange={setFinishConfirmationOpen}
+        title={t('Finish without copying or downloading?')}
+        desc={t(
+          'You have not copied or downloaded these codes. After closing, you cannot view all plaintext codes from this batch again. Do you still want to finish?'
+        )}
+        confirmText={t('Finish anyway')}
+        cancelBtnText={t('Keep viewing')}
+        destructive
+        handleConfirm={() => {
+          setFinishConfirmationOpen(false)
+          setIssued(null)
+          setCodesVisible(false)
+        }}
+      />
 
       <Card size='sm'>
         <CardHeader>

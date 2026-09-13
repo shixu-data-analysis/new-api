@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import { getServerErrorMessageKey } from './server-error-message'
+import { getModelPricingServerErrorMessageKey, getServerErrorMessageKey } from './server-error-message'
 
 describe('server error message mapping', () => {
   test('maps the active-session limit to recovery instructions', () => {
@@ -75,5 +75,16 @@ describe('server error message mapping', () => {
         response: { data: { code: 'RECHARGE_CODE_UNAVAILABLE' } },
       })
     ).toBe('This recharge code is invalid, expired, or unavailable.')
+  })
+
+  test('maps frozen model-pricing errors and hides unknown server details', () => {
+    for (const code of ['TOKEN_CATEGORY_ASSUMPTIONS_REQUIRED', 'STALE_PREVIEW', 'IDEMPOTENCY_CONFLICT', 'INVALID_STATE_TRANSITION', 'NOT_FOUND', 'VALIDATION_FAILED', 'UNAUTHORIZED']) {
+      expect(getModelPricingServerErrorMessageKey({
+        response: { data: { code, message: 'raw internal detail' } },
+      })).toEqual(expect.any(String))
+    }
+    expect(getModelPricingServerErrorMessageKey({
+      response: { data: { code: 'FUTURE_ERROR', message: 'raw internal detail' } },
+    })).toBeNull()
   })
 })

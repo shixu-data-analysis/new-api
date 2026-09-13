@@ -47,6 +47,12 @@ export function runtimeChangeError(
       'The configuration no longer exists. Refresh and try again.'
     )
   }
+  if (code === 'CREDENTIAL_GROUP_HAS_BINDINGS') {
+    return translate('Remove all model bindings before archiving this API Key group.')
+  }
+  if (code === 'CREDENTIAL_GROUP_ACTIVE') {
+    return translate('This API Key group is already active.')
+  }
   if (operation === 'credential') {
     return translate(
       'Credential publication failed. Check the required schemes and preview again.'

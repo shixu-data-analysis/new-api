@@ -124,6 +124,12 @@ function formatTokyoDate(value: string, language: string): string {
   }).format(new Date(value))
 }
 
+function inviteCodeDisplayStatus(item: CanvasAdminInviteCode): string {
+  return item.effectiveStatus === 'ACTIVE' && item.remainingCount === '0'
+    ? 'EXHAUSTED'
+    : item.effectiveStatus
+}
+
 function FieldError(props: { id: string; message: string | null }) {
   if (!props.message) return null
   return (
@@ -557,12 +563,15 @@ export function InviteCodeManagement(props: {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
-      cell: ({ row }) => (
-        <CanvasStatusBadge
-          status={row.original.effectiveStatus}
-          label={t(`Invite status ${row.original.effectiveStatus}`)}
-        />
-      ),
+      cell: ({ row }) => {
+        const status = inviteCodeDisplayStatus(row.original)
+        return (
+          <CanvasStatusBadge
+            status={status}
+            label={t(`Invite status ${status}`)}
+          />
+        )
+      },
     },
     {
       id: 'priceGroup',
@@ -848,7 +857,9 @@ export function InviteCodeManagement(props: {
       },
       {
         label: t('Current status'),
-        value: t(`Invite status ${pendingAction.item.effectiveStatus}`),
+        value: t(
+          `Invite status ${inviteCodeDisplayStatus(pendingAction.item)}`
+        ),
       },
       {
         label: t('New status'),

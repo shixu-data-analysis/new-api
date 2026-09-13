@@ -65,6 +65,7 @@ import type {
   CanvasOrderPointReturnRecord,
   CanvasRuntimeConfiguration,
   CanvasProviderConfiguration,
+  CanvasProviderCredentialGroupChange,
   CanvasProviderConfigurationQuery,
   CanvasProviderCredentialVersion,
   CanvasProviderCredentialHistoryQuery,
@@ -143,6 +144,14 @@ export function isCanvasInviteRegistrationRequired(error: unknown): boolean {
     response?.status === 403 &&
     response.data?.code === 'INVITE_REGISTRATION_REQUIRED'
   )
+}
+
+export function getCanvasSessionFailureRoute(error: unknown): '/403' | '/503' {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return '/503'
+  }
+  const status = (error as { response?: { status?: unknown } }).response?.status
+  return status === 401 || status === 403 ? '/403' : '/503'
 }
 
 export async function getCanvasCustomerWorkspace(): Promise<CanvasCustomerWorkspace> {
@@ -455,7 +464,7 @@ export async function getCanvasAdminRechargeCodes(
 
 export async function issueCanvasAdminRechargeCodes(input: {
   promotionVersionId?: string
-  name: string
+  remark?: string
   amountMinor: string
   count: number
   idempotencyKey?: string
@@ -473,6 +482,22 @@ export async function issueCanvasAdminRechargeCodes(input: {
       }
     )
   ).data
+}
+
+export async function downloadCanvasUnusedRechargeCodes(batchId: string) {
+  const response = await api.post<string>(
+    `${webBase}/admin/recharge-code-batches/${encodeURIComponent(batchId)}/unused-downloads`,
+    undefined,
+    {
+      headers: { 'Idempotency-Key': idempotencyKey('web-recharge-download') },
+      responseType: 'text',
+      skipErrorHandler: true,
+    }
+  )
+  return {
+    content: response.data,
+    downloadCount: Number(response.headers['x-canvas-download-count'] ?? 0),
+  }
 }
 
 export async function activateCanvasInvite(code: string): Promise<{
@@ -999,6 +1024,19 @@ export async function getCanvasProviderCredentialHistory(
   ).data
 }
 
+export async function getCanvasProviderCredentialGroupChanges(
+  credentialGroupId: string,
+  query: { page: number; pageSize: 10 | 20 | 30 | 40 | 50 | 100 },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasProviderCredentialGroupChange>> {
+  return (
+    await api.get<CanvasPage<CanvasProviderCredentialGroupChange>>(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/changes`,
+      { params: query, signal }
+    )
+  ).data
+}
+
 export async function getCanvasCredentialVersionAffectedModels(
   credentialGroupVersionId: string,
   query: { page: number; pageSize: number },
@@ -1051,13 +1089,13 @@ export async function previewCanvasProviderCredentialBindings(input: {
 }
 
 export async function publishCanvasTaskMediaStorage(input: {
-  endpoint: string
-  mediaBucket: string
-  mediaCredentials: Record<string, string>
-  inputRetentionHours: number
-  outputRetentionHours: number
-  downloadUrlTtlSeconds: number
-  reason: string
+  endpoint?: string
+  mediaBucket?: string
+  mediaCredentials?: { accessKeyId: string; secretAccessKey: string }
+  inputRetentionHours?: number
+  outputRetentionHours?: number
+  downloadUrlTtlSeconds?: number
+  reason?: string
 }) {
   return (
     await api.post(
@@ -1074,10 +1112,12 @@ export async function publishCanvasTaskMediaStorage(input: {
 }
 
 export async function publishCanvasDatabaseBackupStorage(input: {
-  endpoint: string
-  backupBucket: string
-  backupCredentials: Record<string, string>
-  reason: string
+  endpoint?: string
+  backupBucket?: string
+  backupCredentials?: { accessKeyId: string; secretAccessKey: string }
+  backupRetentionHours?: number
+  downloadUrlTtlSeconds?: number
+  reason?: string
 }) {
   return (
     await api.post(
@@ -1136,6 +1176,74 @@ export async function bindCanvasProviderCredentials(input: {
       { ...input, confirmed: true },
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-provider-bindings') },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function publishCanvasCredentialGroupManagement(input: {
+  credentialGroupId: string
+  expectedCredentialGroupVersionId: string
+  name: string
+  apiKey?: string
+  customerModelIds: string[]
+  expectedBindings: Array<{
+    customerModelId: string
+    bindingId: string | null
+    bindingVersion: number | null
+  }>
+  reason?: string
+}) {
+  const { credentialGroupId, ...body } = input
+  return (
+    await api.post(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/management-publications`,
+      { ...body, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-provider-group-management'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function archiveCanvasCredentialGroup(input: {
+  credentialGroupId: string
+  expectedCredentialGroupVersionId: string
+  reason?: string
+}) {
+  const { credentialGroupId, ...body } = input
+  return (
+    await api.post(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/archive`,
+      { ...body, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-provider-group-archive'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function restoreCanvasCredentialGroup(input: {
+  credentialGroupId: string
+  expectedCredentialGroupVersionId: string
+  reason?: string
+}) {
+  const { credentialGroupId, ...body } = input
+  return (
+    await api.post(
+      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/restore`,
+      { ...body, confirmed: true },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-provider-group-restore'),
+        },
         skipErrorHandler: true,
       }
     )

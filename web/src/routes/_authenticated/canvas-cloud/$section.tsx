@@ -22,6 +22,7 @@ import z from 'zod'
 import { CanvasCloud } from '@/features/canvas-cloud'
 import { isCanvasSectionAllowed } from '@/features/canvas-cloud/access'
 import {
+  getCanvasSessionFailureRoute,
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
@@ -82,7 +83,7 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       session = await getCanvasSession()
     } catch (error) {
       if (isCanvasInviteRegistrationRequired(error)) return
-      throw redirect({ to: '/403' })
+      throw redirect({ to: getCanvasSessionFailureRoute(error) })
     }
 
     if (params.section === 'channels') {

@@ -13,7 +13,10 @@ import z from 'zod'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
-import { getCanvasSession } from '@/features/canvas-cloud/api'
+import {
+  getCanvasSession,
+  getCanvasSessionFailureRoute,
+} from '@/features/canvas-cloud/api'
 import { InvitationManagement } from '@/features/canvas-cloud/components/InvitationManagement'
 
 export const invalidInvitationPrincipalId =
@@ -35,8 +38,8 @@ export const Route = createFileRoute(
     try {
       const session = await getCanvasSession()
       if (isCanvasAdministrator(session.principalType)) return
-    } catch {
-      // This page uses the same deny-on-unavailable boundary as all admin routes.
+    } catch (error) {
+      throw redirect({ to: getCanvasSessionFailureRoute(error) })
     }
     throw redirect({ to: '/403' })
   },

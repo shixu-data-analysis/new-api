@@ -16,10 +16,12 @@ import {
 } from './$section'
 
 const mocks = vi.hoisted(() => ({
+  getCanvasSessionFailureRoute: vi.fn(() => '/503'),
   getCanvasSession: vi.fn(),
 }))
 
 vi.mock('@/features/canvas-cloud/api', () => ({
+  getCanvasSessionFailureRoute: mocks.getCanvasSessionFailureRoute,
   getCanvasSession: mocks.getCanvasSession,
   isCanvasInviteRegistrationRequired: vi.fn(() => false),
 }))
@@ -41,6 +43,18 @@ async function beforeLoad(section: string, search: Record<string, unknown>) {
 }
 
 describe('Canvas Cloud legacy section search', () => {
+  it('redirects an unavailable Cloud session boundary to service unavailable', async () => {
+    const failure = new Error('upstream unavailable')
+    mocks.getCanvasSession.mockRejectedValueOnce(failure)
+
+    const result = await Route.options
+      .beforeLoad?.({ params: { section: 'runtime' }, search: {} } as never)
+      .catch((error: unknown) => error)
+
+    expect(mocks.getCanvasSessionFailureRoute).toHaveBeenCalledWith(failure)
+    expect(result).toMatchObject({ options: { to: '/503' } })
+  })
+
   it('keeps an invalid runtime view for the route-localized recovery state', () => {
     const search = canvasCloudSearchSchema.parse({ view: 'unknown' })
     expect(search.view).toBe(invalidCanvasCloudRuntimeView)

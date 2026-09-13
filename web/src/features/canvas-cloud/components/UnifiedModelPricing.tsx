@@ -55,7 +55,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { toIntlLocale } from '@/i18n/languages'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import { getModelPricingServerErrorMessageKey, getServerErrorMessageKey } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -304,7 +304,6 @@ export function UnifiedModelPricing(props: {
     null
   )
   const [publishedPlanKeys, setPublishedPlanKeys] = useState<string[]>([])
-  const [pendingScopeIds, setPendingScopeIds] = useState<string[]>([])
   const form = useForm<PricingMetaValues>({
     resolver: zodResolver(pricingMetaSchema),
     mode: 'onTouched',
@@ -329,7 +328,7 @@ export function UnifiedModelPricing(props: {
   const effectiveMode = form.watch('effectiveMode')
   const [hasEdits, setHasEdits] = useState(false)
   const [pendingTab, setPendingTab] = useState<
-    'current' | 'set' | 'history' | null
+    'current' | 'set' | 'history' | 'back' | null
   >(null)
   const [initializedModelId, setInitializedModelId] = useState<string | null>(
     null
@@ -343,24 +342,56 @@ export function UnifiedModelPricing(props: {
   }, [props.tab])
   const changeTab = (next: 'current' | 'set' | 'history') => {
     if (next === tab) return
-    if (props.onTabChange) {
-      props.onTabChange(next)
-      return
-    }
     if (isDirty) {
       setPendingTab(next)
+      return
+    }
+    if (props.onTabChange) {
+      props.onTabChange(next)
       return
     }
     setTab(next)
   }
   const confirmTabChange = () => {
     if (!pendingTab) return
+    discardPricingDraft()
+    if (pendingTab === 'back') {
+      setPendingTab(null)
+      props.onBack()
+      return
+    }
+    if (props.onTabChange) {
+      props.onTabChange(pendingTab)
+      setPendingTab(null)
+      return
+    }
     setTab(pendingTab)
     setPendingTab(null)
   }
 
   const cancelTabChange = () => {
     setPendingTab(null)
+  }
+
+  function discardPricingDraft() {
+    previewRevision.current += 1
+    setDrafts([])
+    setQuestionnaires({})
+    setQuestionnaireTouched({})
+    setValidationErrors([])
+    setFieldErrors({})
+    setSubmitAttempted(false)
+    setPreviewId(null)
+    setPublishIdempotencyKey(null)
+    setConfirming(false)
+    setHasEdits(false)
+    setPublishedScopeIds(null)
+    setPublishedPlanKeys([])
+    form.reset({ decisionSummary: '', effectiveAt: '', effectiveMode: 'IMMEDIATE' })
+    riskForm.reset({ decisionType: 'TEMPORARY_LOSS', lossEndsAt: '', maxExpectedLossPoints: '', reason: '' })
+    preview.reset()
+    publication.reset()
+    setInitializedModelId(null)
   }
 
   const questionnaireKey = `${activeScopeId}:${activePriceGroupId}`
@@ -525,7 +556,7 @@ export function UnifiedModelPricing(props: {
       effectiveAt: '',
       effectiveMode: 'IMMEDIATE',
     })
-    setHasEdits(pendingScopeIds.length > 0)
+    setHasEdits(false)
     setActiveScopeId(detail.data.pricingScopes[0]?.parameterCombinationId ?? '')
     setActivePriceGroupId(detail.data.priceGroups[0]?.id ?? '')
   }, [
@@ -535,7 +566,6 @@ export function UnifiedModelPricing(props: {
     selected,
     publishedPlanKeys,
     publishedScopeIds,
-    pendingScopeIds.length,
   ])
 
   const previewRevision = useRef(0)
@@ -586,43 +616,39 @@ export function UnifiedModelPricing(props: {
     mutationFn: () =>
       publishCanvasModelPricing(previewId ?? '', publishIdempotencyKey ?? ''),
     onSuccess: async () => {
+      const publishedPreview = preview.data
       setConfirming(false)
       setPreviewId(null)
       setPublishIdempotencyKey(null)
+      setHasEdits(false)
+      setTab('current')
+      props.onTabChange?.('current')
       toast.success(t('Model pricing published'))
       const changedScopeIds =
-        preview.data?.scopes.map((scope) => scope.parameterCombinationId) ?? []
+        publishedPreview?.scopes.map((scope) => scope.parameterCombinationId) ?? []
       setPublishedScopeIds(changedScopeIds)
       const submittedPlanKeys =
-        preview.data?.scopes.flatMap((scope) =>
+        publishedPreview?.scopes.flatMap((scope) =>
           scope.prices.map(
             (price) => `${scope.parameterCombinationId}:${price.priceGroupId}`
           )
         ) ?? []
       setPublishedPlanKeys(submittedPlanKeys)
-      setPendingScopeIds(
-        drafts
-          .filter(
-            (draft) =>
-              !changedScopeIds.includes(draft.combinationId) ||
-              draft.prices.some(
-                (price) =>
-                  !submittedPlanKeys.includes(
-                    `${draft.combinationId}:${price.priceGroupId}`
-                  ) &&
-                  price.action === 'SET' &&
-                  Boolean(price.points || price.input || price.output)
-              )
-          )
-          .map((draft) => draft.combinationId)
-      )
+      preview.reset()
+      publication.reset()
       await detail.refetch()
       setInitializedModelId(null)
       await queryClient.invalidateQueries({
         queryKey: ['canvas-cloud', 'model-pricing'],
       })
     },
-    onError: () => toast.error(t('Model pricing could not be published')),
+    onError: (error) =>
+      toast.error(
+        t(
+          getModelPricingServerErrorMessageKey(error) ??
+            'Model pricing could not be published'
+        )
+      ),
   })
 
   function invalidatePreview(options?: { keepConfirmation?: boolean }) {
@@ -1386,30 +1412,50 @@ export function UnifiedModelPricing(props: {
 
   return (
     <div className='space-y-4'>
-      <FormNavigationGuard when={isDirty} />
+      <FormNavigationGuard
+        when={isDirty}
+        title={t('Leave unpublished pricing changes?')}
+        message={t(
+          'The current pricing changes have not been published. They will be lost if you leave. Are you sure you want to leave?'
+        )}
+        confirmText={t('Discard changes and leave')}
+        cancelText={t('Keep editing')}
+        onDiscard={discardPricingDraft}
+      />
       <ConfirmDialog
         open={Boolean(pendingTab)}
         onOpenChange={(open) => {
           if (!open) cancelTabChange()
         }}
-        title={t('Unsaved changes')}
-        desc={t('You have unsaved changes. Are you sure you want to leave?')}
-        confirmText={t('Leave')}
-        cancelBtnText={t('Stay')}
+        title={t('Leave unpublished pricing changes?')}
+        desc={t(
+          'The current pricing changes have not been published. They will be lost if you leave. Are you sure you want to leave?'
+        )}
+        confirmText={t('Discard changes and leave')}
+        cancelBtnText={t('Keep editing')}
         destructive
         handleConfirm={confirmTabChange}
       />
-      {pendingScopeIds.length > 0 && (
+      {isDirty ? (
         <div
           role='status'
           className='rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm'
         >
-          {t('Unsubmitted scope drafts remain pending.')}
+          {t('Current changes have not been published.')}
         </div>
-      )}
+      ) : null}
       <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
         <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2'>
-          <Button variant='outline' onClick={props.onBack}>
+          <Button
+            variant='outline'
+            onClick={() => {
+              if (isDirty) {
+                setPendingTab('back')
+                return
+              }
+              props.onBack()
+            }}
+          >
             {t('Back to model list')}
           </Button>
           <h2 className='max-w-full min-w-0 text-sm font-medium break-words'>

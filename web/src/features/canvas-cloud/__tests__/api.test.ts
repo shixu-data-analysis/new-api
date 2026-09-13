@@ -27,6 +27,7 @@ import {
   createCanvasPointIssuanceRateDraft,
   createCanvasLimitedPricePromotion,
   createCanvasAdminInviteCode,
+  downloadCanvasUnusedRechargeCodes,
   createCanvasPriceDraft,
   approveCanvasPriceGroup,
   createCanvasPriceGroupDraft,
@@ -40,6 +41,7 @@ import {
   getCanvasAuditEvents,
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
+  getCanvasSessionFailureRoute,
   getCanvasSession,
   getCanvasPointIssuanceRates,
   getCanvasTaskPolicySettings,
@@ -69,6 +71,7 @@ import {
   getCanvasAgentInviteCodes,
   getCanvasAgentCustomers,
   getCanvasProviderPricingMatrix,
+  getCanvasProviderCredentialGroupChanges,
   provisionCanvasAgent,
   publishCanvasProviderRate,
   resolveCanvasProviderRateRisk,
@@ -100,6 +103,20 @@ describe('Canvas Cloud API boundary', () => {
     mocks.post.mockReset()
   })
 
+  it('loads paged secret-free provider credential group changes', async () => {
+    mocks.get.mockResolvedValue({
+      data: { page: 2, pageSize: 20, total: 21, items: [] },
+    })
+    await getCanvasProviderCredentialGroupChanges('group-1', {
+      page: 2,
+      pageSize: 20,
+    })
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/provider-credential-groups/group-1/changes',
+      { params: { page: 2, pageSize: 20 }, signal: undefined }
+    )
+  })
+
   it('keeps invite registration pending inside the Canvas activation flow', async () => {
     mocks.get.mockResolvedValue({ data: { principalType: 'CUSTOMER' } })
     await getCanvasSession()
@@ -128,6 +145,21 @@ describe('Canvas Cloud API boundary', () => {
         },
       })
     ).toBe(false)
+  })
+
+  it('distinguishes session authorization failures from Cloud unavailability', () => {
+    expect(getCanvasSessionFailureRoute({ response: { status: 401 } })).toBe(
+      '/403'
+    )
+    expect(getCanvasSessionFailureRoute({ response: { status: 403 } })).toBe(
+      '/403'
+    )
+    expect(getCanvasSessionFailureRoute({ response: { status: 502 } })).toBe(
+      '/503'
+    )
+    expect(getCanvasSessionFailureRoute(new Error('network unavailable'))).toBe(
+      '/503'
+    )
   })
 
   it('keeps Canvas customer and administrator reads under the isolated proxy prefix', async () => {
@@ -795,22 +827,35 @@ describe('Canvas Cloud API boundary', () => {
     )
 
     mocks.post.mockResolvedValue({
-      data: { created: true, codes: [], items: [] },
+      data: { created: true, codes: [] },
     })
     await issueCanvasAdminRechargeCodes({
-      name: 'CNY 10',
+      remark: 'CNY 10',
       amountMinor: '1000',
       count: 1,
     })
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/recharge-codes',
-      { name: 'CNY 10', amountMinor: '1000', count: 1 },
+      { remark: 'CNY 10', amountMinor: '1000', count: 1 },
       {
         headers: {
           'Idempotency-Key': expect.stringMatching(/^web-issue-code-/),
         },
         skipErrorHandler: true,
       }
+    )
+
+    mocks.post.mockResolvedValue({
+      data: 'CANVAS-ONE\n',
+      headers: { 'x-canvas-download-count': '1' },
+    })
+    await expect(downloadCanvasUnusedRechargeCodes('batch-1')).resolves.toEqual(
+      { content: 'CANVAS-ONE\n', downloadCount: 1 }
+    )
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/recharge-code-batches/batch-1/unused-downloads',
+      undefined,
+      expect.objectContaining({ responseType: 'text', skipErrorHandler: true })
     )
 
     mocks.post.mockResolvedValue({ data: { redeemed: true } })

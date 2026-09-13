@@ -955,7 +955,7 @@ describe('UnifiedModelPricing', () => {
     })
   })
 
-  it('retains unsubmitted scope drafts after a partial publication refetch', async () => {
+  it('clears unpublished scope changes after a publication succeeds', async () => {
     const detail = await mocks.detail()
     const scope2 = {
       ...detail.pricingScopes[0],
@@ -1028,14 +1028,11 @@ describe('UnifiedModelPricing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and publish' }))
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
     expect(
-      await screen.findByText('Unsubmitted scope drafts remain pending.')
-    ).toBeVisible()
-    await user.click(screen.getByRole('combobox', { name: 'Pricing scope' }))
-    await user.click(screen.getByRole('option', { name: 'Quality: 4K' }))
-    expect(screen.getByLabelText('Service provider cost')).toHaveValue('0.15')
+      await screen.findByRole('tab', { name: 'Current pricing' })
+    ).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('retains a different plan draft in the published scope and keeps the leave guard', async () => {
+  it('clears unpublished plan changes after a publication succeeds', async () => {
     const detail = await mocks.detail()
     const groups = [
       ...detail.priceGroups,
@@ -1100,11 +1097,8 @@ describe('UnifiedModelPricing', () => {
     expect(mocks.preview.mock.calls[0][0].scopes[0].prices).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and publish' }))
     expect(
-      await screen.findByText('Unsubmitted scope drafts remain pending.')
-    ).toBeVisible()
-    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
-    await user.click(screen.getByRole('option', { name: 'Premium' }))
-    expect(screen.getByLabelText('Proposed price points')).toHaveValue('22')
+      await screen.findByRole('tab', { name: 'Current pricing' })
+    ).toHaveAttribute('aria-selected', 'true')
   })
 
   it('submits only the selected unpriced scope without inventing another scope', async () => {
@@ -1336,9 +1330,9 @@ describe('UnifiedModelPricing', () => {
       await user.click(
         screen.getByRole('button', { name: labels['History versions'] })
       )
-      await user.click(screen.getByRole('button', { name: labels.Leave }))
-      await user.click(screen.getByRole('tab', { name: labels['Set prices'] }))
-      await user.click(screen.getByRole('button', { name: labels.Leave }))
+      await user.click(
+        screen.getByRole('button', { name: labels['Keep editing'] })
+      )
       expect(
         screen.getByLabelText(labels['Change reason (optional)'])
       ).toHaveValue('localized conflict review')
@@ -1385,9 +1379,13 @@ describe('UnifiedModelPricing', () => {
     await userEvent.setup().click(
       screen.getByRole('tab', { name: 'History versions' })
     )
-    expect(await screen.findByText('Unsaved changes')).toBeVisible()
+    expect(
+      await screen.findByText('Leave unpublished pricing changes?')
+    ).toBeVisible()
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Leave' }))
+    await userEvent.setup().click(
+      screen.getByRole('button', { name: 'Discard changes and leave' })
+    )
     await waitFor(() =>
       expect(screen.getByRole('tab', { name: 'History versions' })).toHaveAttribute(
         'aria-selected',
@@ -1396,7 +1394,7 @@ describe('UnifiedModelPricing', () => {
     )
   })
 
-  it('leaves a dirty controlled tab to the route guard until its tab prop changes', async () => {
+  it('confirms before requesting a controlled tab change', async () => {
     const onTabChange = vi.fn()
     const { client, rerender } = renderPricing('model-1', {
       tab: 'set',
@@ -1411,12 +1409,19 @@ describe('UnifiedModelPricing', () => {
       screen.getByRole('tab', { name: 'History versions' })
     )
 
-    expect(onTabChange).toHaveBeenCalledWith('history')
-    expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Set prices' })).toHaveAttribute(
+    expect(onTabChange).not.toHaveBeenCalledWith('history')
+    expect(
+      screen.getByText('Leave unpublished pricing changes?')
+    ).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'Set prices', hidden: true })).toHaveAttribute(
       'aria-selected',
       'true'
     )
+
+    await userEvent.setup().click(
+      screen.getByRole('button', { name: 'Discard changes and leave' })
+    )
+    expect(onTabChange).toHaveBeenCalledWith('history')
 
     rerender(
       <QueryClientProvider client={client}>
@@ -1433,5 +1438,17 @@ describe('UnifiedModelPricing', () => {
         screen.getByRole('tab', { name: 'History versions' })
       ).toHaveAttribute('aria-selected', 'true')
     )
+    rerender(
+      <QueryClientProvider client={client}>
+        <UnifiedModelPricing
+          initialModelId='model-1'
+          onBack={vi.fn()}
+          onTabChange={onTabChange}
+          tab='set'
+        />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByLabelText('Change reason (optional)')).toHaveValue('')
+    expect(screen.queryByText('Current changes have not been published.')).not.toBeInTheDocument()
   })
 })
