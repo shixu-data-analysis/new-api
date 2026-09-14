@@ -25,7 +25,8 @@ import { lingCatStudioIcon } from '../lingcat-icon'
 
 describe('Canvas role-scoped information architecture', () => {
   it('keeps customer usage pages separate from administration pages', () => {
-    expect(isCanvasSectionAllowed('CUSTOMER', 'overview')).toBe(true)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'points')).toBe(true)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'overview')).toBe(false)
     expect(isCanvasSectionAllowed('CUSTOMER', 'tasks')).toBe(true)
     expect(isCanvasSectionAllowed('CUSTOMER', 'dashboard')).toBe(false)
     expect(isCanvasSectionAllowed('CUSTOMER', 'usage-logs')).toBe(false)
@@ -70,7 +71,7 @@ describe('Canvas role-scoped information architecture', () => {
   it('uses role homes only for the generic authenticated landing path', () => {
     expect(isCanvasSectionAllowed('PLATFORM_ADMIN', 'overview')).toBe(false)
     expect(getCanvasHomeSection('PLATFORM_ADMIN')).toBe('dashboard')
-    expect(getCanvasHomeSection('CUSTOMER')).toBe('overview')
+    expect(getCanvasHomeSection('CUSTOMER')).toBe('points')
     expect(isCanvasDefaultLandingPath('/dashboard')).toBe(true)
     expect(isCanvasDefaultLandingPath('/dashboard/overview')).toBe(false)
     expect(isCanvasDefaultLandingPath('/')).toBe(false)

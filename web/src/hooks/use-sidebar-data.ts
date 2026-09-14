@@ -151,14 +151,9 @@ export function useSidebarData(): SidebarData {
           title: t('Canvas Cloud'),
           items: [
             {
-              title: t('Canvas Usage Overview'),
-              url: '/canvas-cloud/overview',
-              icon: BarChart3,
-            },
-            {
-              title: t('Redeem Points'),
-              url: '/canvas-cloud/recharge',
-              icon: Ticket,
+              title: t('Point center'),
+              url: '/canvas-cloud/points',
+              icon: Wallet,
             },
             {
               title: t('Available Models'),
@@ -169,11 +164,6 @@ export function useSidebarData(): SidebarData {
               title: t('My Tasks'),
               url: '/canvas-cloud/tasks',
               icon: ListTodo,
-            },
-            {
-              title: t('Point History'),
-              url: '/canvas-cloud/consumption',
-              icon: FileText,
             },
             ...(canvasSession.data.inviterEnabled
               ? [
@@ -204,7 +194,7 @@ export function useSidebarData(): SidebarData {
           items: [
             {
               title: t('Canvas Cloud'),
-              url: '/canvas-cloud/overview',
+              url: '/canvas-cloud/points',
               icon: Cloud,
             },
           ],
@@ -280,7 +270,7 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Canvas Cloud'),
-            url: '/canvas-cloud/overview',
+            url: '/canvas-cloud/points',
             activeUrls: ['/canvas-cloud'],
             icon: Cloud,
           },

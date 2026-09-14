@@ -37,12 +37,19 @@ const optionalUuidSearch = z
   .optional()
   .catch(invalidCanvasCloudUuidSearchValue)
 
-const runtimeViewSearch = z
+const canvasViewSearch = z
   .string()
   .optional()
   .transform((value) => {
     if (value === undefined) return undefined
-    if (value === 'execution' || value === 'provider' || value === 'storage') {
+    if (
+      value === 'execution' ||
+      value === 'provider' ||
+      value === 'storage' ||
+      value === 'redeem' ||
+      value === 'lots' ||
+      value === 'ledger'
+    ) {
       return value
     }
     return invalidCanvasCloudRuntimeView
@@ -59,7 +66,7 @@ export const canvasCloudSearchSchema = z.object({
   credentialGroupVersionId: optionalUuidSearch,
   modelId: optionalUuidSearch,
   publicationId: optionalUuidSearch,
-  view: runtimeViewSearch,
+  view: canvasViewSearch,
 })
 
 function isInvalidUuidSearchValue(value: string | undefined) {
@@ -88,6 +95,24 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
 
     if (params.section === 'channels') {
       throw redirect({ to: '/404', replace: true })
+    }
+    if (session.principalType === 'CUSTOMER') {
+      const legacyView = params.section === 'consumption' ? 'lots' : 'redeem'
+      if (
+        params.section === 'overview' ||
+        params.section === 'recharge' ||
+        params.section === 'consumption'
+      ) {
+        throw redirect({
+          to: '/canvas-cloud/$section',
+          params: { section: 'points' },
+          search: {
+            ...withoutInvalidUuidSearchValues(search),
+            view: legacyView,
+          },
+          replace: true,
+        })
+      }
     }
     if (
       !isCanvasSectionAllowed(

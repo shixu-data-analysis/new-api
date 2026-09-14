@@ -113,7 +113,7 @@ describe('Canvas administrator primary sidebar', () => {
       result.current.navGroups.flatMap((group) =>
         group.items.flatMap((item) => ('url' in item ? [item.url] : []))
       )
-    ).toEqual(['/canvas-cloud/overview', '/profile'])
+    ).toEqual(['/canvas-cloud/points', '/profile'])
   })
 
   it('shows the inviter center only after a customer receives invitation ability', () => {

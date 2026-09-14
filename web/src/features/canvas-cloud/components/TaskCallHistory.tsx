@@ -1,112 +1,118 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-*/
+/* Copyright (C) 2023-2026 QuantumNous; licensed under GNU AGPL v3 or later. */
 import { useQuery } from '@tanstack/react-query'
-import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useMemo, useState } from 'react'
+import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
-import { useDebounce } from '@/hooks'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { isCanvasDateRangeValid } from '../date-range'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
-import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 
-const callStates = ['PREPARED', 'SENT', 'RESPONDED', 'UNKNOWN'] as const
-const callLabels: Record<string, string> = {
-  SUBMIT: 'Provider submission',
+const callTypes: Record<string, string> = {
+  SUBMIT: 'Submit task',
+  PREPARE_ASSET: 'Prepare media',
 }
-const stateLabels: Record<string, string> = {
-  PREPARED: 'Prepared',
-  SENT: 'Sent',
+const chainStates: Record<string, string> = {
+  NOT_SENT: 'Not sent',
+  AWAITING_RESPONSE: 'Awaiting response',
   RESPONDED: 'Responded',
-  UNKNOWN: 'Unknown call state',
+  OUTCOME_UNKNOWN: 'Outcome pending confirmation',
 }
-const categoryLabels: Record<string, string> = {
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
+const present = (input: string | number | null | undefined) =>
+  input === null || input === undefined || input === '' ? '—' : input
+
+function callResponse(call: CanvasTaskCall) {
+  if (call.initialHttpStatus === null) return '—'
+  return call.finalHttpStatus !== null &&
+    call.finalHttpStatus !== call.initialHttpStatus
+    ? `${call.initialHttpStatus} → ${call.finalHttpStatus}`
+    : String(call.initialHttpStatus)
 }
 
-function callDuration(call: CanvasTaskCall, t: (key: string) => string) {
-  if (!call.completedAt) return t('In progress')
-  if (!call.startedAt) return '—'
-  const seconds = Math.max(
-    0,
-    Math.round(
-      (new Date(call.completedAt).getTime() -
-        new Date(call.startedAt).getTime()) /
-        1000
-    )
-  )
-  return `${seconds} ${t('seconds')}`
-}
-
-function CallIdentifiers({ call }: { call: CanvasTaskCall }) {
-  const { t } = useTranslation()
+function CallDetails({ call }: { call: CanvasTaskCall }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const time = (input: string | null) =>
+    input
+      ? new Intl.DateTimeFormat(locale, {
+          dateStyle: 'medium',
+          timeStyle: 'medium',
+        }).format(new Date(input))
+      : '—'
+  const request =
+    call.sanitizedRequest === null
+      ? null
+      : JSON.stringify(call.sanitizedRequest, null, 2)
+  const fields: Array<[string, ReactNode]> = [
+    ['Upstream model', present(call.upstreamModelId)],
+    [
+      'API key group',
+      call.credentialGroupName
+        ? `${call.credentialGroupName}${call.credentialGroupVersion === null ? '' : ` · ${t('Version')} ${call.credentialGroupVersion}`}`
+        : '—',
+    ],
+    [
+      'Call ID',
+      <CopyableText key='call' value={call.localCallId} noTruncate />,
+    ],
+    ['Executor', present(call.workerId)],
+    [
+      'Upstream request ID',
+      call.upstreamRequestId ? (
+        <CopyableText key='request' value={call.upstreamRequestId} noTruncate />
+      ) : (
+        '—'
+      ),
+    ],
+    [
+      'Upstream task ID',
+      call.upstreamTaskId ? (
+        <CopyableText key='task' value={call.upstreamTaskId} noTruncate />
+      ) : (
+        '—'
+      ),
+    ],
+    ['Request sent at', time(call.sentAt)],
+    ['Final provider response at', time(call.finalRespondedAt)],
+    ['Provider error code', present(call.errorCode)],
+    [
+      'Error mapping rule',
+      call.errorRuleId
+        ? `${call.errorRuleId}${call.errorRuleVersion === null ? '' : ` · ${t('Version')} ${call.errorRuleVersion}`}`
+        : '—',
+    ],
+    ['Safe error details', present(call.sanitizedError)],
+  ]
   return (
-    <div className='space-y-1 text-xs [overflow-wrap:anywhere]'>
-      <div className='flex flex-wrap items-center gap-1'>
-        <span className='text-muted-foreground'>{t('Call ID')}:</span>
-        <CopyableText value={call.localCallId} />
-      </div>
-      {call.upstreamRequestId ? (
-        <div className='flex flex-wrap items-center gap-1'>
-          <span className='text-muted-foreground'>
-            {t('Upstream request ID')}:
-          </span>
-          <CopyableText value={call.upstreamRequestId} />
-        </div>
-      ) : null}
-      {call.upstreamTaskId ? (
-        <div className='flex flex-wrap items-center gap-1'>
-          <span className='text-muted-foreground'>
-            {t('Upstream task ID')}:
-          </span>
-          <CopyableText value={call.upstreamTaskId} />
-        </div>
-      ) : null}
-      {call.workerId ? (
-        <div>
-          <span className='text-muted-foreground'>{t('Executor')}:</span>{' '}
-          {call.workerId}
-        </div>
-      ) : null}
-      {call.errorCategory || call.sanitizedError ? (
-        <div className='text-destructive [overflow-wrap:anywhere]'>
-          {call.errorCategory
-            ? t(categoryLabels[call.errorCategory] ?? 'Unknown error category')
-            : null}
-          {call.errorCategory && call.sanitizedError ? ' · ' : null}
-          {call.sanitizedError}
-        </div>
+    <div className='space-y-4 py-2'>
+      <dl className='grid gap-4 sm:grid-cols-2'>
+        {fields.map(([label, content]) => (
+          <div className='min-w-0' key={label}>
+            <dt className='text-muted-foreground text-sm'>{t(label)}</dt>
+            <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+              {content}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {request ? (
+        <details>
+          <summary className='cursor-pointer text-sm font-medium'>
+            {t(
+              call.sentAt
+                ? 'Sent upstream request (sanitized)'
+                : 'Prepared upstream request (sanitized)'
+            )}
+          </summary>
+          <pre className='bg-muted mt-2 max-h-80 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
+            {request}
+          </pre>
+        </details>
       ) : null}
     </div>
   )
@@ -116,41 +122,7 @@ export function TaskCallHistory({ taskId }: { taskId: string }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const state = useServerTableState('startedAt')
-  const setPagination = state.setPagination
-  const [callState, setCallState] = useState('')
-  const [outputIndexText, setOutputIndexText] = useState('')
-  const [httpStatusText, setHttpStatusText] = useState('')
-  const [from, setFrom] = useState<Date>()
-  const [to, setTo] = useState<Date>()
-  const debouncedOutputIndexText = useDebounce(outputIndexText.trim(), 300)
-  const debouncedHttpStatusText = useDebounce(httpStatusText.trim(), 300)
-  const dateRangeValid = isCanvasDateRangeValid(from, to)
-  const outputIndex = /^\d+$/.test(debouncedOutputIndexText)
-    ? Number(debouncedOutputIndexText)
-    : undefined
-  const parsedHttpStatus = /^\d{3}$/.test(debouncedHttpStatusText)
-    ? Number(debouncedHttpStatusText)
-    : undefined
-  const httpStatus =
-    parsedHttpStatus !== undefined &&
-    parsedHttpStatus >= 100 &&
-    parsedHttpStatus <= 599
-      ? parsedHttpStatus
-      : undefined
-
-  useEffect(() => {
-    setPagination((value) =>
-      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
-    )
-  }, [
-    callState,
-    debouncedHttpStatusText,
-    debouncedOutputIndexText,
-    from,
-    setPagination,
-    to,
-  ])
-
+  const [expanded, setExpanded] = useState<string>()
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -158,188 +130,149 @@ export function TaskCallHistory({ taskId }: { taskId: string }) {
       taskId,
       state.query.page,
       state.query.pageSize,
-      'SUBMIT',
-      callState,
-      outputIndex,
-      httpStatus,
-      from?.toISOString(),
-      to?.toISOString(),
     ],
     queryFn: ({ signal }) =>
       getCanvasTaskCalls(
         taskId,
-        {
-          page: state.query.page,
-          pageSize: state.query.pageSize,
-          callType: 'SUBMIT',
-          ...(callState ? { state: callState } : {}),
-          ...(outputIndex !== undefined ? { outputIndex } : {}),
-          ...(httpStatus !== undefined ? { httpStatus } : {}),
-          ...(from ? { from: from.toISOString() } : {}),
-          ...(to ? { to: to.toISOString() } : {}),
-        },
+        { page: state.query.page, pageSize: state.query.pageSize },
         signal
       ),
     retry: false,
-    enabled: dateRangeValid,
   })
-  const columns = useMemo<ColumnDef<CanvasTaskCall, unknown>[]>(() => {
-    const formatter = new Intl.DateTimeFormat(locale, {
-      dateStyle: 'medium',
-      timeStyle: 'medium',
-    })
-    const formatTime = (value: string | null) =>
-      value ? formatter.format(new Date(value)) : '—'
-    return [
+  const columns = useMemo<ColumnDef<CanvasTaskCall, unknown>[]>(
+    () => [
       {
         id: 'startedAt',
-        accessorKey: 'startedAt',
-        enableSorting: false,
-        header: t('Call time'),
-        cell: ({ row }) => formatTime(row.original.startedAt),
+        header: t('Call started at'),
+        cell: ({ row }) =>
+          row.original.startedAt
+            ? new Intl.DateTimeFormat(locale, {
+                dateStyle: 'short',
+                timeStyle: 'medium',
+              }).format(new Date(row.original.startedAt))
+            : '—',
       },
       {
         id: 'callType',
-        accessorKey: 'callType',
-        enableSorting: false,
-        header: t('Call'),
+        header: t('Type'),
         cell: ({ row }) => (
-          <div className='space-y-2'>
-            <div>
-              {t(callLabels[row.original.callType] ?? 'Unknown call type')}
-            </div>
-            <CallIdentifiers call={row.original} />
-          </div>
+          <>
+            {t(callTypes[row.original.callType] ?? 'Unknown call type')}
+            {row.original.attemptCount > 1
+              ? ` · ${t('Attempt count', { count: row.original.attemptCount })}`
+              : ''}
+          </>
         ),
       },
       {
-        id: 'outputIndex',
-        accessorKey: 'outputIndices',
-        enableSorting: false,
-        header: t('Related results'),
+        id: 'related',
+        header: t('Related object'),
         cell: ({ row }) =>
-          row.original.outputIndices.length === 0
-            ? t('Whole task')
-            : row.original.outputIndices
-                .map((index) => `${t('Result')} ${index + 1}`)
-                .join(' · '),
+          row.original.outputIndices.length
+            ? row.original.outputIndices
+                .map(
+                  (index) =>
+                    `${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`
+                )
+                .join(' · ')
+            : '—',
+      },
+      {
+        id: 'provider',
+        header: t('Provider / channel'),
+        cell: ({ row }) =>
+          [
+            row.original.providerName,
+            row.original.channelCode,
+            row.original.channelVersion === null
+              ? null
+              : `${t('Version')} ${row.original.channelVersion}`,
+          ]
+            .filter(Boolean)
+            .join(' / ') || '—',
+      },
+      {
+        id: 'state',
+        header: t('Call status'),
+        cell: ({ row }) =>
+          t(chainStates[row.original.chainState] ?? 'Unknown call state'),
       },
       {
         id: 'response',
-        accessorKey: 'httpStatus',
-        enableSorting: false,
         header: t('Response'),
-        cell: ({ row }) => (
-          <div className='space-y-1'>
-            <div>
-              {t(stateLabels[row.original.state] ?? 'Unknown call state')}
-            </div>
-            <div className='tabular-nums'>{row.original.httpStatus ?? '—'}</div>
-          </div>
-        ),
+        cell: ({ row }) => callResponse(row.original),
       },
       {
         id: 'duration',
-        accessorKey: 'completedAt',
-        enableSorting: false,
         header: t('Duration'),
-        cell: ({ row }) => callDuration(row.original, t),
+        cell: ({ row }) =>
+          row.original.durationMs === null
+            ? '—'
+            : t('Duration seconds', { count: row.original.durationMs / 1000 }),
       },
-    ]
-  }, [locale, t])
-
-  return (
-    <div className='space-y-3'>
-      {query.isError ? (
-        <div className='border-destructive/30 text-destructive flex items-center justify-between rounded-md border p-3 text-sm'>
-          <span>{t('Unable to load task call history.')}</span>
+      {
+        id: 'actions',
+        header: t('Actions'),
+        enableHiding: false,
+        cell: ({ row }) => (
           <Button
-            variant='outline'
-            size='sm'
-            onClick={() => void query.refetch()}
+            type='button'
+            variant='link'
+            className='h-auto p-0'
+            aria-expanded={expanded === row.original.localCallId}
+            onClick={() =>
+              setExpanded((current) =>
+                current === row.original.localCallId
+                  ? undefined
+                  : row.original.localCallId
+              )
+            }
           >
-            {t('Retry')}
+            {t(
+              expanded === row.original.localCallId ? 'Hide details' : 'Details'
+            )}
           </Button>
-        </div>
-      ) : (
-        <CanvasServerTable
-          data={query.data?.items ?? []}
-          columns={columns}
-          total={query.data?.total ?? 0}
-          state={state}
-          loading={query.isPending || query.isFetching}
-          emptyTitle={t('No task call history')}
-          filteredEmptyTitle={t('No matching results')}
-          hasActiveFilters={Boolean(
-            callState || outputIndexText || httpStatusText || from || to
-          )}
-          onResetFilters={() => {
-            setCallState('')
-            setOutputIndexText('')
-            setHttpStatusText('')
-            setFrom(undefined)
-            setTo(undefined)
-          }}
-          additionalFilters={
-            <>
-              <DataTableColumnFilterField label={t('Call state')}>
-                <Select
-                  value={callState || 'ALL'}
-                  onValueChange={(value) =>
-                    setCallState(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger
-                    className='w-full'
-                    aria-label={t('Call state')}
-                  >
-                    <CanvasLocalizedSelectValue
-                      value={callState}
-                      emptyLabelKey='All call states'
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All call states')}</SelectItem>
-                    {callStates.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {t(stateLabels[value])}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Output index')}>
-                <Input
-                  aria-label={t('Output index')}
-                  type='number'
-                  min='0'
-                  value={outputIndexText}
-                  placeholder={t('Output index')}
-                  onChange={(event) => setOutputIndexText(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('HTTP status')}>
-                <Input
-                  aria-label={t('HTTP status')}
-                  inputMode='numeric'
-                  value={httpStatusText}
-                  placeholder={t('HTTP status')}
-                  onChange={(event) => setHttpStatusText(event.target.value)}
-                />
-              </DataTableColumnFilterField>
-              <div className='sm:col-span-2'>
-                <CanvasDateRangeFilter
-                  from={from}
-                  to={to}
-                  onFromChange={setFrom}
-                  onToChange={setTo}
-                />
-              </div>
-            </>
-          }
-          getRowId={(row) => row.localCallId}
-        />
-      )}
-    </div>
+        ),
+      },
+    ],
+    [expanded, locale, t]
+  )
+  const rowRenderer = (row: Row<CanvasTaskCall>) => (
+    <Fragment key={row.id}>
+      <TableRow>
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+      {expanded === row.original.localCallId ? (
+        <TableRow>
+          <TableCell colSpan={row.getVisibleCells().length}>
+            <CallDetails call={row.original} />
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </Fragment>
+  )
+  return (
+    <CanvasServerTable
+      data={query.data?.items ?? []}
+      columns={columns}
+      total={query.data?.total ?? 0}
+      state={state}
+      loading={query.isPending || query.isFetching}
+      error={query.isError}
+      errorTitle={t('Unable to load provider calls')}
+      onRetry={() => void query.refetch()}
+      emptyTitle={t('No provider calls')}
+      getRowId={(row) => row.localCallId}
+      renderRow={rowRenderer}
+      renderExpandedContent={(row) =>
+        expanded === row.original.localCallId ? (
+          <CallDetails call={row.original} />
+        ) : null
+      }
+    />
   )
 }

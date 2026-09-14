@@ -36,6 +36,7 @@ interface RechargeCodeCardProps {
   onRedeem: () => void
   purchaseUrl: string | null
   redeeming: boolean
+  error?: string | null
 }
 
 export function RechargeCodeCard(props: RechargeCodeCardProps) {
@@ -87,14 +88,30 @@ export function RechargeCodeCard(props: RechargeCodeCardProps) {
               autoComplete='off'
               spellCheck={false}
               onChange={(event) => props.onCodeChange(event.target.value)}
+              aria-invalid={Boolean(props.error)}
+              aria-describedby={
+                props.error ? 'canvas-recharge-code-error' : undefined
+              }
             />
             <Button
-              disabled={props.code.trim().length < 8 || props.redeeming}
+              disabled={
+                props.code.trim().length < 8 ||
+                props.code.trim().length > 191 ||
+                props.redeeming
+              }
               onClick={props.onRedeem}
             >
               {t('Redeem')}
             </Button>
           </div>
+          {props.error ? (
+            <p
+              id='canvas-recharge-code-error'
+              className='text-destructive text-sm'
+            >
+              {props.error}
+            </p>
+          ) : null}
         </div>
       </CardContent>
     </Card>

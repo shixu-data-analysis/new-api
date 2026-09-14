@@ -33,13 +33,13 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('../../api', () => apiMocks)
 
-function renderHistory() {
+function renderHistory(view: 'both' | 'lots' | 'ledger' = 'both') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <CustomerPointHistory />
+      <CustomerPointHistory view={view} />
     </QueryClientProvider>
   )
 }
@@ -179,7 +179,7 @@ describe('Customer point history', () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText('无关联记录')).toBeVisible()
+    expect((await screen.findAllByText('—')).length).toBeGreaterThan(0)
     expect(
       screen.queryByRole('button', { name: zh.translation.Task })
     ).not.toBeInTheDocument()
@@ -236,6 +236,66 @@ describe('Customer point history', () => {
     expect(screen.queryByText('lot-gift')).not.toBeInTheDocument()
   })
 
+  it('defaults customer lots to issued time descending and renders an expired recharge source as plain text', async () => {
+    apiMocks.getCanvasCustomerPointLots.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'lot-expired',
+          type: 'PAID',
+          sourceType: 'RECHARGE_CODE',
+          rechargeOrderId: 'internal-order-id',
+          rechargeOrderNumber: 'RC-PLAIN-001',
+          initialPoints: '100',
+          remainingPoints: '0',
+          reservedPoints: '0',
+          availablePoints: '0',
+          expiresAt: '2020-01-01T00:00:00.000Z',
+          issuedAt: '2019-01-01T00:00:00.000Z',
+        },
+      ],
+    })
+    renderHistory('lots')
+    expect(await screen.findByText('RC-PLAIN-001')).toBeVisible()
+    expect(screen.getByText(/已过期 ·/)).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'RC-PLAIN-001' })
+    ).not.toBeInTheDocument()
+    expect(apiMocks.getCanvasCustomerPointLots).toHaveBeenCalledWith(
+      expect.objectContaining({ sortBy: 'issuedAt', sortOrder: 'desc' }),
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('filters customer ledger by an ordinary task or order reference and returns to page one', async () => {
+    apiMocks.getCanvasCustomerPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 21,
+      items: [],
+    })
+    renderHistory('ledger')
+    fireEvent.click(await screen.findByRole('button', { name: '列筛选' }))
+    const input = await screen.findByPlaceholderText('关联记录')
+    fireEvent.change(input, { target: { value: 'RC-20260914-001' } })
+    await waitFor(() =>
+      expect(apiMocks.getCanvasCustomerPointLedger).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          relatedRecord: 'RC-20260914-001',
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    const lastQuery =
+      apiMocks.getCanvasCustomerPointLedger.mock.calls.at(-1)?.[0]
+    expect(lastQuery).not.toHaveProperty('pointLotId')
+    expect(lastQuery).not.toHaveProperty('ledgerId')
+    expect(lastQuery).not.toHaveProperty('refundId')
+  })
+
   it('shows customer-readable point fields without internal identifiers', async () => {
     renderHistory()
 
@@ -250,6 +310,11 @@ describe('Customer point history', () => {
     expect(
       screen.queryByText('85000000-0000-7000-8000-000000000006')
     ).not.toBeInTheDocument()
+    const copyTaskIdButton = screen.getByRole('button', {
+      name: zh.translation['Copy task ID'],
+    })
+    expect(copyTaskIdButton).toBeVisible()
+    expect(copyTaskIdButton).toHaveTextContent('')
 
     const filterButtons = screen.getAllByRole('button', { name: '列筛选' })
     fireEvent.click(filterButtons[0])

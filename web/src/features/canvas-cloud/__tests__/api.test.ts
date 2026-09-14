@@ -43,6 +43,9 @@ import {
   getCanvasAuditEvents,
   getCanvasAdminTestingModels,
   getCanvasCustomerWorkspace,
+  getCanvasCustomerPointSummary,
+  getCanvasCustomerRechargeRedemptions,
+  getCanvasCustomerTasks,
   getCanvasSessionFailureRoute,
   getCanvasSession,
   getCanvasPointIssuanceRates,
@@ -182,6 +185,54 @@ describe('Canvas Cloud API boundary', () => {
     })
     await getCanvasAdminWorkspace()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/admin/workspace')
+  })
+
+  it('sends only the frozen customer point and task paging queries', async () => {
+    mocks.get.mockResolvedValue({ data: { items: [], total: 0 } })
+    await getCanvasCustomerPointSummary()
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/customer/point-summary',
+      { signal: undefined, skipErrorHandler: true }
+    )
+    await getCanvasCustomerRechargeRedemptions({
+      rechargeOrderNumber: 'RC-001',
+      page: 2,
+      pageSize: 20,
+      sortOrder: 'asc',
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/customer/recharge-redemptions',
+      {
+        params: {
+          page: 2,
+          pageSize: 20,
+          rechargeOrderNumber: 'RC-001',
+          sortOrder: 'asc',
+        },
+        signal: undefined,
+        skipErrorHandler: true,
+      }
+    )
+    await getCanvasCustomerTasks({
+      taskId: 'task-1',
+      derivedExecutionStatus: 'PARTIAL_SUCCESS',
+      page: 3,
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/customer/tasks',
+      {
+        params: {
+          sortBy: 'acceptedAt',
+          sortOrder: 'desc',
+          page: 3,
+          pageSize: 20,
+          taskId: 'task-1',
+          derivedExecutionStatus: 'PARTIAL_SUCCESS',
+        },
+        signal: undefined,
+        skipErrorHandler: true,
+      }
+    )
   })
 
   it('keeps point-return calculation server-owned and routes governed Lot adjustments', async () => {
@@ -883,7 +934,11 @@ describe('Canvas Cloud API boundary', () => {
     mocks.get.mockResolvedValue({
       data: {
         items: [
-          { maskedCode: 'CANVAS-A••••WXYZ', status: 'ACTIVE', redeemedAt: null },
+          {
+            maskedCode: 'CANVAS-A••••WXYZ',
+            status: 'ACTIVE',
+            redeemedAt: null,
+          },
         ],
         matchedCount: 1,
         totalCount: 2,
@@ -907,8 +962,19 @@ describe('Canvas Cloud API boundary', () => {
       }
     )
 
-    mocks.post.mockResolvedValue({ data: { redeemed: true } })
-    await redeemCanvasRechargeCode('CANVAS-TEST-CODE')
+    mocks.post.mockResolvedValue({
+      data: {
+        rechargeCodeId: 'code-1',
+        orderNumber: 'CAN-001',
+        redeemedAt: '2026-09-14T09:20:00.000Z',
+        purchasedPoints: '500',
+        bonusPoints: '50',
+        issuedLots: [],
+      },
+    })
+    await expect(
+      redeemCanvasRechargeCode('CANVAS-TEST-CODE')
+    ).resolves.toMatchObject({ orderNumber: 'CAN-001' })
     expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/recharge-code-redemptions',
       { code: 'CANVAS-TEST-CODE' },

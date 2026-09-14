@@ -16,15 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useLocation } from '@tanstack/react-router'
-import type { Column } from '@tanstack/react-table'
 import { RefreshCw } from 'lucide-react'
-import { isValidElement, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { LoadingState } from '@/components/loading-state'
@@ -36,7 +34,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { normalizeInterfaceLanguage } from '@/i18n/languages'
 
 import {
   isCanvasAdministrator,
@@ -48,9 +45,7 @@ import {
   getCanvasAdminWorkspace,
   getCanvasCatalog,
   getCanvasContributionReport,
-  getCanvasCustomerWorkspace,
   getCanvasSession,
-  redeemCanvasRechargeCode,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
@@ -58,19 +53,20 @@ import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
-import { BusinessTerm } from './components/BusinessTerm'
-import { CustomerPointHistory } from './components/CustomerPointHistory'
-import { CustomerRechargeCodeCard } from './components/CustomerRechargeCodeCard'
+import {
+  CustomerPointsCenter,
+  type CustomerPointsView,
+} from './components/CustomerPointsCenter'
+import { CustomerTasks } from './components/CustomerTasks'
 import { InviteActivation } from './components/InviteActivation'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingPointRules } from './components/PricingPointRules'
-import { PricingRecordsTable } from './components/PricingRecordsTable'
 import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
 import {
   RuntimeManagement,
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
-import { formatMoneyMinor } from './formatters'
+import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
   modelManagementReturnStateKey,
@@ -92,11 +88,9 @@ const sectionTitles: Record<CanvasSection, string> = {
   'invite-codes': 'Invitation management',
   invitations: 'Invitation management',
   catalog: 'Model management',
-  overview: 'Canvas Usage Overview',
-  recharge: 'Redeem Points',
+  points: 'Point center',
   models: 'Available Models',
   tasks: 'My Tasks',
-  consumption: 'Point History',
   pricing: 'Model management',
   'pricing-point-rules': 'Pricing and point rules',
   'pricing-calculator': 'Canvas Pricing Calculator',
@@ -113,15 +107,6 @@ function sumPoints(values: string[]): string {
   return values.reduce((total, value) => total + BigInt(value), 0n).toString()
 }
 
-function formatDate(value: string | null): string {
-  return value
-    ? new Intl.DateTimeFormat(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date(value))
-    : '—'
-}
-
 function formatCnyMinor(value: string): string {
   const minor = BigInt(value)
   const absolute = minor < 0n ? -minor : minor
@@ -129,67 +114,6 @@ function formatCnyMinor(value: string): string {
     .toString()
     .replaceAll(/\B(?=(\d{3})+(?!\d))/g, ',')
   return `${minor < 0n ? '-' : ''}¥${grouped}.${(absolute % 100n).toString().padStart(2, '0')}`
-}
-
-function DataTable(props: {
-  headers: string[]
-  rows: Array<{ key: string; cells: ReactNode[] }>
-  empty: string
-  filterableColumnIndexes: number[]
-}) {
-  type LocalTableRow = (typeof props.rows)[number]
-  const dataColumnIndexes = new Set(
-    props.headers.flatMap((_, index) =>
-      props.rows.some((row) => {
-        const cell = row.cells[index]
-        return (
-          typeof cell === 'string' ||
-          typeof cell === 'number' ||
-          (isValidElement<{ value?: string }>(cell) &&
-            Boolean(cell.props.value))
-        )
-      })
-        ? [index]
-        : []
-    )
-  )
-  const filterableColumnIndexes = new Set(props.filterableColumnIndexes)
-  const columns = props.headers.map((header, index) => ({
-    id: `${index}:${header}`,
-    accessorFn: (row: LocalTableRow) => {
-      const cell = row.cells[index]
-      if (typeof cell === 'string' || typeof cell === 'number') {
-        return String(cell)
-      }
-      if (isValidElement<{ value?: string }>(cell)) {
-        return cell.props.value ?? ''
-      }
-      return ''
-    },
-    enableSorting: dataColumnIndexes.has(index),
-    enableColumnFilter: filterableColumnIndexes.has(index),
-    header: ({ column }: { column: Column<LocalTableRow, unknown> }) =>
-      dataColumnIndexes.has(index) ? (
-        <DataTableColumnHeader column={column} title={header} />
-      ) : (
-        header
-      ),
-    cell: ({ row }: { row: { original: LocalTableRow } }) =>
-      row.original.cells[index],
-  }))
-  const filters = props.headers.flatMap((header, index) => {
-    if (!filterableColumnIndexes.has(index)) return []
-    return [{ columnId: `${index}:${header}`, label: header }]
-  })
-  return (
-    <PricingRecordsTable
-      columns={columns}
-      data={props.rows}
-      filters={filters}
-      getRowId={(row) => row.key}
-      emptyTitle={props.empty}
-    />
-  )
 }
 
 function MetricCard(props: {
@@ -212,145 +136,29 @@ function MetricCard(props: {
   )
 }
 
-function CustomerContent(props: { section: CustomerSection }) {
-  const { t, i18n } = useTranslation()
-  const queryClient = useQueryClient()
-  const [code, setCode] = useState('')
-  const workspace = useQuery({
-    queryKey: ['canvas-cloud', 'customer'],
-    queryFn: getCanvasCustomerWorkspace,
-  })
+function CustomerContent(props: {
+  section: CustomerSection
+  pointsView: CustomerPointsView
+  onPointsViewChange: (view: CustomerPointsView) => void
+  initialOrderNumber?: string
+  onPointsOrderNumberChange: (orderNumber?: string) => void
+  onRedeemOrderNavigate: (orderNumber: string) => void
+}) {
+  const { t } = useTranslation()
   const catalog = useQuery({
     queryKey: ['canvas-cloud', 'catalog'],
     queryFn: getCanvasCatalog,
     enabled: props.section === 'models',
   })
-  const redeem = useMutation({
-    mutationFn: redeemCanvasRechargeCode,
-    onSuccess: async (result) => {
-      setCode('')
-      toast.success(
-        t(
-          'Recharge code redeemed · Purchased {{purchased}} points · Bonus {{bonus}} points',
-          {
-            purchased: result.purchasedPoints,
-            bonus: result.bonusPoints,
-          }
-        )
-      )
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'customer'],
-      })
-    },
-  })
-  if (workspace.isPending) return <LoadingState />
-  if (workspace.isError) {
-    return <ErrorState onRetry={() => void workspace.refetch()} />
-  }
-  const data = workspace.data
-  if (props.section === 'overview') {
-    const completedTasks = data.tasks.filter(
-      (task) => task.executionStatus === 'SUCCEEDED'
-    ).length
-    const consumedPoints = sumPoints(
-      data.tasks
-        .filter((task) => task.customerBillingStatus === 'SETTLED')
-        .map((task) => task.settledPoints ?? task.quotedPoints)
-    )
-    const usageByModel = Object.entries(
-      data.tasks.reduce<Record<string, { count: number; points: bigint }>>(
-        (result, task) => {
-          const key = task.modelName || t('Unknown model')
-          const current = result[key] ?? { count: 0, points: 0n }
-          current.count += 1
-          if (task.customerBillingStatus === 'SETTLED') {
-            current.points += BigInt(task.settledPoints ?? task.quotedPoints)
-          }
-          result[key] = current
-          return result
-        },
-        {}
-      )
-    ).sort(([, left], [, right]) => right.count - left.count)
+  if (props.section === 'points') {
     return (
-      <div className='space-y-4'>
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-          <MetricCard
-            title={t('Available points')}
-            value={
-              data.wallet.netAvailablePoints ?? data.wallet.availablePoints
-            }
-            description={
-              data.wallet.debtPoints && data.wallet.debtPoints !== '0'
-                ? `${t('Outstanding points')}: ${data.wallet.debtPoints}`
-                : undefined
-            }
-          />
-          <MetricCard
-            title={t('Points used')}
-            value={consumedPoints}
-            description={t('Latest 100 Canvas tasks')}
-          />
-          <MetricCard
-            title={t('Tasks')}
-            value={String(data.tasks.length)}
-            description={t('Latest 100 Canvas tasks')}
-          />
-          <MetricCard
-            title={t('Successful tasks')}
-            value={String(completedTasks)}
-          />
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Model usage')}</CardTitle>
-            <CardDescription>
-              {t('Your own latest Canvas usage by model')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              empty={t('No Canvas tasks')}
-              headers={[t('Model'), t('Tasks'), t('Points used')]}
-              filterableColumnIndexes={[0]}
-              rows={usageByModel.map(([model, usage]) => ({
-                key: model,
-                cells: [model, String(usage.count), usage.points.toString()],
-              }))}
-            />
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-  if (props.section === 'recharge') {
-    return (
-      <div className='space-y-4'>
-        <CustomerRechargeCodeCard
-          code={code}
-          redeeming={redeem.isPending}
-          onCodeChange={setCode}
-          onRedeem={() => redeem.mutate(code.trim())}
-        />
-        <DataTable
-          empty={t('No recharge orders')}
-          headers={[t('Order'), t('Status'), t('Amount'), t('Created')]}
-          filterableColumnIndexes={[0]}
-          rows={data.rechargeOrders.map((item) => ({
-            key: item.id,
-            cells: [
-              item.orderNumber,
-              <BusinessTerm
-                key='s'
-                kind='rechargeOrderStatus'
-                value={item.status}
-              />,
-              formatMoneyMinor(item.listedAmountMinor, item.currency),
-              formatDate(item.createdAt),
-            ],
-          }))}
-        />
-      </div>
+      <CustomerPointsCenter
+        view={props.pointsView}
+        onViewChange={props.onPointsViewChange}
+        initialOrderNumber={props.initialOrderNumber}
+        onOrderNumberChange={props.onPointsOrderNumberChange}
+        onRedeemOrderNavigate={props.onRedeemOrderNavigate}
+      />
     )
   }
   if (props.section === 'models') {
@@ -391,62 +199,7 @@ function CustomerContent(props: { section: CustomerSection }) {
       </div>
     )
   }
-  if (props.section === 'tasks') {
-    return (
-      <DataTable
-        empty={t('No Canvas tasks')}
-        headers={[
-          t('Model'),
-          t('Execution'),
-          t('Billing'),
-          t('Points'),
-          t('Accepted'),
-        ]}
-        filterableColumnIndexes={[0]}
-        rows={data.tasks.map((item) => ({
-          key: item.id,
-          cells: [
-            item.modelName,
-            <div key='e' className='space-y-1'>
-              <BusinessTerm
-                kind='taskExecutionStatus'
-                value={item.executionStatus}
-              />
-              {item.outputSummaries
-                ?.filter((output) => output.error?.code)
-                .map((output) => (
-                  <p
-                    key={output.outputIndex}
-                    className='text-muted-foreground max-w-md text-xs break-words whitespace-normal'
-                  >
-                    #{output.outputIndex + 1} ·{' '}
-                    {output.error?.messages?.[
-                      normalizeInterfaceLanguage(
-                        i18n.resolvedLanguage || i18n.language
-                      )
-                    ] ||
-                      output.error?.messages?.en ||
-                      t('Failed')}
-                    {' · '}
-                    {output.error?.code}
-                    {' · '}
-                    {item.id}
-                  </p>
-                ))}
-            </div>,
-            <BusinessTerm
-              key='b'
-              kind='billingStatus'
-              value={item.customerBillingStatus}
-            />,
-            item.settledPoints ?? item.quotedPoints,
-            formatDate(item.acceptedAt),
-          ],
-        }))}
-      />
-    )
-  }
-  if (props.section === 'consumption') return <CustomerPointHistory />
+  if (props.section === 'tasks') return <CustomerTasks />
   return null
 }
 
@@ -750,7 +503,43 @@ export function CanvasCloud() {
   if (section === 'agent-center') {
     content = <AgentCenter />
   } else if (session.data.principalType === 'CUSTOMER') {
-    content = <CustomerContent section={section as CustomerSection} />
+    const pointsView =
+      search.view === 'lots' || search.view === 'ledger'
+        ? search.view
+        : 'redeem'
+    content = (
+      <CustomerContent
+        section={section as CustomerSection}
+        pointsView={pointsView}
+        onPointsViewChange={(view) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'points' },
+            search: { view },
+          })
+        }
+        initialOrderNumber={search.orderNumber}
+        onPointsOrderNumberChange={(orderNumber) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'points' },
+            search: (previous) => ({
+              ...previous,
+              view: 'redeem',
+              orderNumber,
+            }),
+          })
+        }
+        onRedeemOrderNavigate={(orderNumber) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'points' },
+            search: (previous) =>
+              customerRedeemOrderSearch(previous, orderNumber),
+          })
+        }
+      />
+    )
   } else if (isCanvasAdministrator(session.data.principalType)) {
     content = (
       <AdminContent
@@ -789,9 +578,11 @@ export function CanvasCloud() {
             : undefined
         }
         runtimeView={
-          search.view === invalidCanvasCloudRuntimeView
-            ? undefined
-            : (search.view as RuntimeManagementView | undefined)
+          search.view === 'execution' ||
+          search.view === 'provider' ||
+          search.view === 'storage'
+            ? search.view
+            : undefined
         }
         onRuntimeViewChange={(view) =>
           void navigate({
@@ -803,6 +594,28 @@ export function CanvasCloud() {
       />
     )
   } else content = <AgentCenter />
+  const refreshCurrentSection = async () => {
+    if (session.data.principalType === 'CUSTOMER') {
+      let queryKey: readonly unknown[] = ['canvas-cloud', 'catalog']
+      if (section === 'tasks') {
+        queryKey = ['canvas-cloud', 'customer', 'tasks']
+      } else if (section === 'points') {
+        await queryClient.invalidateQueries({
+          queryKey: ['canvas-cloud', 'customer', 'point-summary'],
+        })
+        const view =
+          search.view === 'lots' || search.view === 'ledger'
+            ? `point-${search.view}`
+            : 'recharge-redemptions'
+        queryKey = ['canvas-cloud', 'customer', view]
+      }
+      await queryClient.invalidateQueries({ queryKey })
+      toast.success(t('Canvas data refreshed'))
+      return
+    }
+    await queryClient.invalidateQueries({ queryKey: ['canvas-cloud'] })
+    toast.success(t('Canvas data refreshed'))
+  }
   return (
     <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
@@ -812,22 +625,22 @@ export function CanvasCloud() {
             : sectionTitles[section]
         )}
       </SectionPageLayout.Title>
-      {section !== 'pricing-calculator' && (
-        <SectionPageLayout.Actions>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() =>
-              void queryClient
-                .invalidateQueries({ queryKey: ['canvas-cloud'] })
-                .then(() => toast.success(t('Canvas data refreshed')))
-            }
-          >
-            <RefreshCw />
-            {t('Refresh')}
-          </Button>
-        </SectionPageLayout.Actions>
-      )}
+      {section !== 'pricing-calculator' &&
+        !(
+          session.data.principalType === 'CUSTOMER' &&
+          (section === 'points' || section === 'tasks')
+        ) && (
+          <SectionPageLayout.Actions>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => void refreshCurrentSection()}
+            >
+              <RefreshCw />
+              {t('Refresh')}
+            </Button>
+          </SectionPageLayout.Actions>
+        )}
       <SectionPageLayout.Content>
         <div className='min-w-0'>{content}</div>
       </SectionPageLayout.Content>

@@ -738,4 +738,13 @@ export const STATIC_I18N_KEYS = [
   'Task released points',
   'Lot remaining points',
   'Lot frozen points',
+  'Customer task execution ACCEPTED',
+  'Customer task execution PROCESSING',
+  'Customer task execution SUCCEEDED',
+  'Customer task execution PARTIAL_SUCCESS',
+  'Customer task execution CONFIRMED_FAILED',
+  'Customer task execution UNKNOWN',
+  'Settlement progress PENDING',
+  'Settlement progress PROCESSING',
+  'Settlement progress COMPLETED',
 ] as const

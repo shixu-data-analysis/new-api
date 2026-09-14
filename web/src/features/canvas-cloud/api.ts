@@ -58,8 +58,11 @@ import type {
   CanvasAdminTaskLogQuery,
   CanvasAdminTaskRecordDetail,
   CanvasTaskLogOptions,
+  CanvasAdminTaskPointRecord,
+  CanvasCustomerPointSummary,
+  CanvasCustomerRechargeRedemption,
+  CanvasCustomerTask,
   CanvasTaskPointLedgerDetail,
-  CanvasTaskPointLedgerItem,
   CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
@@ -160,6 +163,68 @@ export function getCanvasSessionFailureRoute(error: unknown): '/403' | '/503' {
 export async function getCanvasCustomerWorkspace(): Promise<CanvasCustomerWorkspace> {
   return (
     await api.get<CanvasCustomerWorkspace>(`${webBase}/customer/workspace`)
+  ).data
+}
+
+export async function getCanvasCustomerPointSummary(
+  signal?: AbortSignal
+): Promise<CanvasCustomerPointSummary> {
+  return (
+    await api.get<CanvasCustomerPointSummary>(
+      `${webBase}/customer/point-summary`,
+      {
+        signal,
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasCustomerRechargeRedemptions(
+  query: {
+    rechargeOrderNumber?: string
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+    sortOrder?: 'asc' | 'desc'
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasCustomerRechargeRedemption>> {
+  return (
+    await api.get(`${webBase}/customer/recharge-redemptions`, {
+      params: { page: 1, pageSize: 20, sortOrder: 'desc', ...query },
+      signal,
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function getCanvasCustomerTasks(
+  query: {
+    taskId?: string
+    model?: string
+    derivedExecutionStatus?: string
+    settlementProgress?: 'PENDING' | 'PROCESSING' | 'COMPLETED'
+    from?: string
+    to?: string
+    sortBy?: 'taskId' | 'model' | 'derivedExecutionStatus' | 'acceptedAt'
+    sortOrder?: 'asc' | 'desc'
+    page?: number
+    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
+  } = {},
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasCustomerTask>> {
+  return (
+    await api.get(`${webBase}/customer/tasks`, {
+      params: {
+        sortBy: 'acceptedAt',
+        sortOrder: 'desc',
+        page: 1,
+        pageSize: 20,
+        ...query,
+      },
+      signal,
+      skipErrorHandler: true,
+    })
   ).data
 }
 
@@ -291,23 +356,20 @@ export async function getCanvasAdminTaskRecord(
 export async function getCanvasTaskPointLedger(
   taskId: string,
   query: {
-    changeType?: string
-    lotType?: string
-    from?: string
-    to?: string
     page: number
     pageSize: 10 | 20 | 30 | 40 | 50 | 100
   },
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasTaskPointLedgerItem>> {
+): Promise<CanvasPage<CanvasAdminTaskPointRecord>> {
   return (
-    await api.get<CanvasPage<CanvasTaskPointLedgerItem>>(
+    await api.get<CanvasPage<CanvasAdminTaskPointRecord>>(
       `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/point-ledger`,
       { params: query, signal, skipErrorHandler: true }
     )
   ).data
 }
 
+/** @deprecated Kept for callers outside the UAT-018 task-details slice. */
 export async function getCanvasTaskPointLedgerDetail(
   taskId: string,
   ledgerId: string,
@@ -507,7 +569,11 @@ export async function getCanvasAdminRechargeCodeBatchItems(
   return (
     await api.get<CanvasAdminRechargeCodeBatchItems>(
       `${webBase}/admin/recharge-code-batches/${encodeURIComponent(batchId)}/codes`,
-      { params: status ? { status } : undefined, signal, skipErrorHandler: true }
+      {
+        params: status ? { status } : undefined,
+        signal,
+        skipErrorHandler: true,
+      }
     )
   ).data
 }
@@ -829,6 +895,7 @@ export async function publishCanvasExecutionTargetPresentation(input: {
 
 export async function redeemCanvasRechargeCode(code: string): Promise<{
   rechargeCodeId: string
+  orderNumber: string
   redeemedAt: string
   purchasedPoints: string
   bonusPoints: string

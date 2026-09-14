@@ -18,12 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
+import { Copy } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -82,7 +85,7 @@ const pointLotSourceLabels: Record<PointLotSourceType, string> = {
   PROMOTION: 'Promotion',
   CUSTOMER_SERVICE: 'Customer service',
   MANUAL_GRANT: 'Manual gift',
-  GRACE_TRANSFER: 'Grace transfer',
+  GRACE_TRANSFER: 'Task failure return',
 }
 
 function ExplainedHeader({
@@ -113,13 +116,13 @@ export function CustomerPointHistory({
 }: {
   customerId?: string
   onInspect?: (target: CustomerFactTarget) => void
-  onOpenOrder?: (rechargeOrderId: string) => void
+  onOpenOrder?: (rechargeOrderId: string, rechargeOrderNumber: string) => void
   view?: 'both' | 'lots' | 'ledger'
   selectedLotId?: string
   onDeductLot?: (lot: CanvasAdminPointLot) => void
 }) {
   const { t, i18n } = useTranslation()
-  const lotsState = useServerTableState('expiresAt')
+  const lotsState = useServerTableState('issuedAt')
   const ledgerState = useServerTableState('occurredAt')
   const setLotsPagination = lotsState.setPagination
   const setLedgerPagination = ledgerState.setPagination
@@ -128,6 +131,7 @@ export function CustomerPointHistory({
   const [eventType, setEventType] = useState('')
   const [rechargeOrderNumber, setRechargeOrderNumber] = useState('')
   const [relatedRecord, setRelatedRecord] = useState('')
+  const [availableOnly, setAvailableOnly] = useState(false)
   const debouncedRechargeOrderNumber = useDebounce(
     rechargeOrderNumber.trim(),
     300
@@ -171,6 +175,7 @@ export function CustomerPointHistory({
     lotType,
     setLotsPagination,
     sourceType,
+    availableOnly,
   ])
   useEffect(() => {
     setLedgerPagination((value) =>
@@ -185,14 +190,14 @@ export function CustomerPointHistory({
   ])
   const lots = useQuery({
     queryKey: [
-      'canvas-cloud',
-      customerId ? 'admin-customer' : 'customer',
-      customerId,
-      'point-lots',
+      ...(customerId
+        ? ['canvas-cloud', 'admin-customer', customerId, 'point-lots']
+        : ['canvas-cloud', 'customer', 'point-lots']),
       lotsState.query,
       debouncedRechargeOrderNumber,
       lotType,
       sourceType,
+      availableOnly,
       lotFrom?.toISOString(),
       lotTo?.toISOString(),
       expiresFrom?.toISOString(),
@@ -220,6 +225,7 @@ export function CustomerPointHistory({
           ? { type: lotType as 'PAID' | 'BONUS' | 'GRACE_BONUS' }
           : {}),
         ...(sourceType ? { sourceType } : {}),
+        ...(availableOnly ? { availableOnly: true } : {}),
         ...(lotFrom ? { from: lotFrom.toISOString() } : {}),
         ...(lotTo ? { to: lotTo.toISOString() } : {}),
         ...(expiresFrom ? { expiresFrom: expiresFrom.toISOString() } : {}),
@@ -233,10 +239,9 @@ export function CustomerPointHistory({
   })
   const ledger = useQuery({
     queryKey: [
-      'canvas-cloud',
-      customerId ? 'admin-customer' : 'customer',
-      customerId,
-      'point-ledger',
+      ...(customerId
+        ? ['canvas-cloud', 'admin-customer', customerId, 'point-ledger']
+        : ['canvas-cloud', 'customer', 'point-ledger']),
       ledgerState.query,
       debouncedRelatedRecord,
       eventType,
@@ -294,7 +299,14 @@ export function CustomerPointHistory({
         ),
         meta: { label: t('Type') },
         cell: ({ row }) => (
-          <BusinessTerm kind='pointLotType' value={row.original.type} />
+          <BusinessTerm
+            kind='pointLotType'
+            value={
+              !customerId && row.original.type === 'GRACE_BONUS'
+                ? 'BONUS'
+                : row.original.type
+            }
+          />
         ),
       },
       {
@@ -307,22 +319,43 @@ export function CustomerPointHistory({
         cell: ({ row }) => {
           const rechargeOrderId = row.original.rechargeOrderId
           const rechargeOrderNumber = row.original.rechargeOrderNumber
-          return rechargeOrderId && rechargeOrderNumber && onOpenOrder ? (
-            <button
-              type='button'
-              className='text-primary text-start underline underline-offset-4 focus-visible:ring-2'
-              onClick={() => onOpenOrder(rechargeOrderId)}
-            >
-              {rechargeOrderNumber}
-            </button>
-          ) : (
-            t(
-              pointLotSourceLabels[
-                row.original.sourceType as PointLotSourceType
-              ] ?? 'Unknown'
+          if (
+            customerId &&
+            rechargeOrderId &&
+            rechargeOrderNumber &&
+            onOpenOrder
+          ) {
+            return (
+              <button
+                type='button'
+                className='text-primary text-start underline underline-offset-4 focus-visible:ring-2'
+                onClick={() =>
+                  onOpenOrder(rechargeOrderId, rechargeOrderNumber)
+                }
+              >
+                {rechargeOrderNumber}
+              </button>
             )
+          }
+          if (rechargeOrderNumber) return rechargeOrderNumber
+          return t(
+            pointLotSourceLabels[
+              row.original.sourceType as PointLotSourceType
+            ] ?? 'Unknown'
           )
         },
+      },
+      {
+        id: 'initialPoints',
+        accessorKey: 'initialPoints',
+        enableSorting: false,
+        header: t('Issued points'),
+        meta: { label: t('Issued points') },
+        cell: ({ row }) => (
+          <div className='text-right tabular-nums'>
+            {formatPoints(row.original.initialPoints)}
+          </div>
+        ),
       },
       {
         id: 'availablePoints',
@@ -360,8 +393,13 @@ export function CustomerPointHistory({
           <DataTableColumnHeader column={column} title={t('Expires')} />
         ),
         meta: { label: t('Expires') },
-        cell: ({ row }) =>
-          formatCanvasDateTime(row.original.expiresAt, t('No expiry')),
+        cell: ({ row }) => {
+          if (!row.original.expiresAt) return t('No expiry')
+          const formatted = formatCanvasDateTime(row.original.expiresAt)
+          return new Date(row.original.expiresAt).getTime() <= Date.now()
+            ? `${t('Expired')} · ${formatted}`
+            : formatted
+        },
       },
     ]
     if (onDeductLot) {
@@ -393,7 +431,15 @@ export function CustomerPointHistory({
       })
     }
     return columns
-  }, [formatPoints, onDeductLot, onInspect, onOpenOrder, selectedLotId, t])
+  }, [
+    customerId,
+    formatPoints,
+    onDeductLot,
+    onInspect,
+    onOpenOrder,
+    selectedLotId,
+    t,
+  ])
   const ledgerColumns = useMemo<
     ColumnDef<CanvasPointLedgerItem, unknown>[]
   >(() => {
@@ -459,7 +505,7 @@ export function CustomerPointHistory({
         },
       },
     ]
-    if (customerId) {
+    {
       columns.splice(
         3,
         0,
@@ -534,12 +580,41 @@ export function CustomerPointHistory({
                 </button>
               )
             }
+            if (taskId) {
+              const shortId = `${taskId.slice(0, 8)}…`
+              return (
+                <span className='inline-flex items-center gap-2'>
+                  <span title={taskId}>
+                    {t('Task')} {shortId}
+                    {row.original.outputIndex !== null
+                      ? ` · ${t('Result')} ${row.original.outputIndex + 1}`
+                      : ''}
+                  </span>
+                  <Button
+                    type='button'
+                    size='icon-sm'
+                    variant='ghost'
+                    aria-label={t('Copy task ID')}
+                    title={t('Copy task ID')}
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(taskId)
+                        .then(() => toast.success(t('Task ID copied')))
+                    }
+                  >
+                    <Copy aria-hidden='true' className='size-4' />
+                  </Button>
+                </span>
+              )
+            }
             if (rechargeOrderId && rechargeOrderNumber && onOpenOrder) {
               return (
                 <button
                   type='button'
                   className='text-primary underline underline-offset-4 focus-visible:ring-2'
-                  onClick={() => onOpenOrder(rechargeOrderId)}
+                  onClick={() =>
+                    onOpenOrder(rechargeOrderId, rechargeOrderNumber)
+                  }
                 >
                   {rechargeOrderNumber}
                 </button>
@@ -556,26 +631,11 @@ export function CustomerPointHistory({
                 </button>
               )
             }
-            return t('No related record')
+            if (rechargeOrderNumber) return rechargeOrderNumber
+            return '—'
           },
         }
       )
-    } else {
-      columns.splice(3, 0, {
-        id: 'availablePointsDelta',
-        enableSorting: false,
-        header: t('Available points change'),
-        cell: ({ row }) => {
-          const delta =
-            BigInt(row.original.remainingDelta) -
-            BigInt(row.original.reservedDelta)
-          return (
-            <div className='text-right tabular-nums'>
-              {formatSignedPoints(delta.toString())}
-            </div>
-          )
-        },
-      })
     }
     return columns
   }, [customerId, formatPoints, formatSignedPoints, onInspect, onOpenOrder, t])
@@ -595,7 +655,7 @@ export function CustomerPointHistory({
           filteredEmptyTitle={t('No matching results')}
           additionalFilters={
             <>
-              {customerId ? (
+              {!customerId ? (
                 <DataTableColumnFilterField label={t('Canvas recharge order')}>
                   <Input
                     value={rechargeOrderNumber}
@@ -625,9 +685,11 @@ export function CustomerPointHistory({
                     <SelectItem value='ALL'>{t('All types')}</SelectItem>
                     <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
                     <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
-                    <SelectItem value='GRACE_BONUS'>
-                      {t('Grace bonus points')}
-                    </SelectItem>
+                    {customerId ? (
+                      <SelectItem value='GRACE_BONUS'>
+                        {t('Grace bonus points')}
+                      </SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </DataTableColumnFilterField>
@@ -656,6 +718,17 @@ export function CustomerPointHistory({
                   </SelectContent>
                 </Select>
               </DataTableColumnFilterField>
+              {!customerId ? (
+                <label className='flex items-center gap-2 text-sm'>
+                  <Checkbox
+                    checked={availableOnly}
+                    onCheckedChange={(checked) =>
+                      setAvailableOnly(checked === true)
+                    }
+                  />
+                  {t('Only lots with available points')}
+                </label>
+              ) : null}
               <div className='sm:col-span-2'>
                 <p className='mb-2 text-sm font-medium'>{t('Issued time')}</p>
                 <CanvasDateRangeFilter
@@ -680,6 +753,7 @@ export function CustomerPointHistory({
             rechargeOrderNumber ||
             lotType ||
             sourceType ||
+            availableOnly ||
             lotFrom ||
             lotTo ||
             expiresFrom ||
@@ -689,6 +763,7 @@ export function CustomerPointHistory({
             setLotType('')
             setRechargeOrderNumber('')
             setSourceType('')
+            setAvailableOnly(false)
             setLotFrom(undefined)
             setLotTo(undefined)
             setExpiresFrom(undefined)
@@ -714,7 +789,7 @@ export function CustomerPointHistory({
           filteredEmptyTitle={t('No matching results')}
           additionalFilters={
             <>
-              {customerId ? (
+              {!customerId ? (
                 <DataTableColumnFilterField label={t('Related record')}>
                   <Input
                     value={relatedRecord}

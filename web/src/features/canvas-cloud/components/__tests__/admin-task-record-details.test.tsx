@@ -1,11 +1,3 @@
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-*/
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18next from 'i18next'
@@ -13,29 +5,33 @@ import { useRef } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import fr from '@/i18n/locales/fr.json'
+import ja from '@/i18n/locales/ja.json'
+import ru from '@/i18n/locales/ru.json'
+import viLocale from '@/i18n/locales/vi.json'
+import zhTW from '@/i18n/locales/zh-TW.json'
+import zh from '@/i18n/locales/zh.json'
 
 import { AdminTaskRecordDetails } from '../AdminTaskRecordDetails'
 
-const apiMocks = vi.hoisted(() => ({
+const api = vi.hoisted(() => ({
   getCanvasAdminTaskRecord: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
-  getCanvasTaskPointLedgerDetail: vi.fn(),
 }))
-const callMocks = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
-
-vi.mock('../../api', () => apiMocks)
-vi.mock('../../task-call-api', () => callMocks)
+const calls = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
+vi.mock('../../api', () => api)
+vi.mock('../../task-call-api', () => calls)
 
 const task = {
-  id: 'task-1',
+  id: '01a09f34-3392-7448-b39e-d6106e62ccca',
   customerId: 'customer-1',
   customerName: 'UAT customer',
   customerModelId: 'model-1',
-  modelName: 'Canvas Image',
-  quotedPoints: '20',
-  settledPoints: '12',
-  deductedPoints: '12',
-  releasedPoints: '8',
+  modelName: 'GPT Image 2 Pro',
+  quotedPoints: '14',
+  settledPoints: '7',
+  deductedPoints: '7',
+  releasedPoints: '7',
   outstandingDebtPoints: '0',
   derivedExecutionStatus: 'PARTIAL_SUCCESS',
   executionSummary: {
@@ -51,51 +47,89 @@ const task = {
   settlementProgress: 'COMPLETED',
   executionStatus: 'SUCCEEDED',
   customerBillingStatus: 'SETTLED',
-  billingUnit: 'MILLION_TOKENS',
-  billingFinalizedAt: '2026-09-03T00:01:00.000Z',
-  parameters: { quality: 'high' },
-  outputs: [
-    {
-      id: 'output-1',
-      outputIndex: 0,
-      quotedPoints: '12',
-      settledPoints: '12',
-      executionStatus: 'SUCCEEDED',
-      billingStatus: 'SETTLED',
-      error: null,
-      usageSnapshot: null,
-      completedAt: '2026-09-03T00:01:00.000Z',
-      billingFinalizedAt: '2026-09-03T00:01:00.000Z',
-    },
-    {
-      id: 'output-2',
-      outputIndex: 1,
-      quotedPoints: '8',
-      settledPoints: '0',
-      executionStatus: 'CONFIRMED_FAILED',
-      billingStatus: 'RELEASED_FAILED',
-      error: { messages: { en: 'Output failed safely' } },
-      usageSnapshot: null,
-      completedAt: '2026-09-03T00:01:00.000Z',
-      billingFinalizedAt: null,
-    },
-  ],
-  upstreamTaskId: 'upstream-task-1',
-  taskError: { code: 'UPSTREAM_ERROR', messages: { en: 'Task failed safely' } },
-  acceptedAt: '2026-09-03T00:00:00.000Z',
-  completedAt: '2026-09-03T00:01:00.000Z',
+  billingUnit: null,
+  billingFinalizedAt: null,
+  parameters: {
+    quality: '2K',
+    aspectRatio: '9:16',
+    batchSize: 2,
+    hiddenSecret: 'never',
+  },
+  multiResultMode: 'FANOUT',
+  failureLocation: 'PROVIDER_RESPONSE',
+  outputs: [],
+  upstreamTaskId: null,
+  taskError: {
+    code: 'PROVIDER_AUTH_FAILED',
+    messages: { en: 'Customer-safe text must not be the diagnosis' },
+  },
+  acceptedAt: '2026-09-14T09:16:33.000Z',
+  completedAt: '2026-09-14T09:16:35.000Z',
+}
+const providerCall = {
+  localCallId: 'call-long-id',
+  outputIndices: [0],
+  callType: 'SUBMIT',
+  attemptCount: 1,
+  chainState: 'RESPONDED',
+  providerName: 'HFSY',
+  channelCode: 'Image',
+  channelVersion: 3,
+  upstreamModelId: 'gpt-image-2-pro',
+  credentialGroupName: 'Production images',
+  credentialGroupVersion: 4,
+  workerId: 'executor-01',
+  upstreamRequestId: 'req-1',
+  upstreamTaskId: 'upstream-1',
+  sentAt: '2026-09-14T09:16:34.000Z',
+  startedAt: '2026-09-14T09:16:34.000Z',
+  finalRespondedAt: '2026-09-14T09:16:42.000Z',
+  initialHttpStatus: 202,
+  finalHttpStatus: 200,
+  durationMs: 8000,
+  errorCode: null,
+  errorRuleId: null,
+  errorRuleVersion: null,
+  sanitizedError: null,
+  sanitizedRequest: { model: 'gpt-image-2-pro' },
+}
+const pointRecord = {
+  id: 'point-row-1',
+  occurredAt: '2026-09-14T09:16:33.000Z',
+  eventType: 'FREEZE',
+  outputIndex: 0,
+  points: '7',
+  lotType: 'PAID',
+  sourceLotType: null,
+  targetLotType: null,
+  ledgerId: 'ledger-1',
+  sourceLedgerId: null,
+  targetLedgerId: null,
+  pointLotId: 'lot-1',
+  sourceLotId: null,
+  targetLotId: null,
+  allocationId: 'allocation-1',
+  debtId: null,
+  remainingBefore: '100',
+  remainingAfter: '100',
+  reservedBefore: '0',
+  reservedAfter: '7',
+  sourceRemainingBefore: null,
+  sourceRemainingAfter: null,
+  sourceReservedBefore: null,
+  sourceReservedAfter: null,
+  targetRemainingBefore: null,
+  targetRemainingAfter: null,
+  targetReservedBefore: null,
+  targetReservedAfter: null,
 }
 
-function mount(onLedgerDetailsChange?: (ledgerId?: string) => void) {
-  function Details() {
-    const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+function mount() {
+  function View() {
+    const ref = useRef<HTMLDivElement | null>(null)
     return (
-      <div ref={scrollContainerRef}>
-        <AdminTaskRecordDetails
-          taskId='task-1'
-          scrollContainerRef={scrollContainerRef}
-          onLedgerDetailsChange={onLedgerDetailsChange}
-        />
+      <div ref={ref}>
+        <AdminTaskRecordDetails taskId={task.id} scrollContainerRef={ref} />
       </div>
     )
   }
@@ -105,316 +139,253 @@ function mount(onLedgerDetailsChange?: (ledgerId?: string) => void) {
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <Details />
+      <View />
     </QueryClientProvider>
   )
 }
 
-describe('AdminTaskRecordDetails', () => {
+describe('AdminTaskRecordDetails UAT-018', () => {
   beforeAll(async () => {
-    await i18next.init({ lng: 'en', resources: { en } })
+    await i18next.init({
+      lng: 'en',
+      resources: { en, zhCN: zh, zhTW, fr, ru, ja, vi: viLocale },
+    })
+  })
+  beforeEach(async () => {
+    await i18next.changeLanguage('en')
+    vi.clearAllMocks()
+    api.getCanvasAdminTaskRecord.mockResolvedValue(task)
+    calls.getCanvasTaskCalls.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [providerCall],
+    })
+    api.getCanvasTaskPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [pointRecord],
+    })
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValue(task)
-    apiMocks.getCanvasTaskPointLedger.mockResolvedValue({
+  it('shows only authoritative main facts and opens failed execution details by default', async () => {
+    mount()
+    expect(await screen.findByText(task.id)).toHaveClass('break-all')
+    expect(screen.getByText('Customer').closest('dl')).toHaveClass(
+      'sm:grid-cols-2'
+    )
+    expect(
+      screen.getByText('Provider response · Provider authentication failed')
+    ).toBeVisible()
+    expect(
+      screen.queryByText('Customer-safe text must not be the diagnosis')
+    ).not.toBeInTheDocument()
+    expect(screen.getByText('Succeeded 1 · Failed 1')).toBeVisible()
+    expect(
+      screen.getByText('Partially deducted and partially released')
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Execution details' })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Fanout generation (fanout)')).toBeVisible()
+    expect(screen.getByText('9:16')).toBeVisible()
+    expect(screen.queryByText('hiddenSecret')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(calls.getCanvasTaskCalls).toHaveBeenCalledWith(
+        task.id,
+        { page: 1, pageSize: 20 },
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
+  it('renders one expandable provider-call table with merged response facts', async () => {
+    mount()
+    const details = await screen.findByRole('button', { name: 'Details' })
+    expect(screen.getByText('202 → 200')).toBeVisible()
+    fireEvent.click(details)
+    expect(await screen.findByText('call-long-id')).toHaveClass('break-all')
+    expect(screen.getByText('executor-01')).toBeVisible()
+    fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
+    expect(screen.getAllByText(/gpt-image-2-pro/).length).toBeGreaterThan(0)
+  })
+
+  it('loads a filter-free point lifecycle table and expands its identifiers in place', async () => {
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Point records' })
+    )
+    expect(await screen.findByText('Freeze')).toBeVisible()
+    expect(api.getCanvasTaskPointLedger).toHaveBeenCalledWith(
+      task.id,
+      { page: 1, pageSize: 20 },
+      expect.any(AbortSignal)
+    )
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    const detailButtons = screen.getAllByRole('button', { name: 'Details' })
+    fireEvent.click(detailButtons.at(-1))
+    expect(await screen.findByText('ledger-1')).toHaveClass('break-all')
+    expect(screen.getByText('allocation-1')).toHaveClass('break-all')
+    expect(
+      screen.getByText('Point lot available points').parentElement
+    ).toHaveTextContent('100 → 100')
+  })
+
+  it('uses source and target balances for a grace transfer detail', async () => {
+    api.getCanvasTaskPointLedger.mockResolvedValueOnce({
       page: 1,
       pageSize: 20,
       total: 1,
       items: [
         {
-          id: 'ledger-1',
-          occurredAt: '2026-09-03T00:01:00.000Z',
-          eventType: 'SETTLE',
-          eventPoints: '-12',
-          pointLotId: 'lot-1',
-          lotType: 'PAID',
-          taskOutputId: 'output-1',
-          outputIndex: 0,
-          debtId: null,
-          reason: null,
+          ...pointRecord,
+          id: 'grace-transfer-1',
+          eventType: 'GRACE_TRANSFER',
+          lotType: null,
+          sourceLotType: 'BONUS',
+          targetLotType: 'GRACE_BONUS',
+          ledgerId: null,
+          pointLotId: null,
+          sourceLedgerId: 'source-ledger',
+          targetLedgerId: 'target-ledger',
+          sourceLotId: 'source-lot',
+          targetLotId: 'target-lot',
+          remainingBefore: null,
+          remainingAfter: null,
+          reservedBefore: null,
+          reservedAfter: null,
+          sourceRemainingBefore: '8',
+          sourceRemainingAfter: '1',
+          sourceReservedBefore: '7',
+          sourceReservedAfter: '0',
+          targetRemainingBefore: '2',
+          targetRemainingAfter: '9',
+          targetReservedBefore: '0',
+          targetReservedAfter: '7',
         },
       ],
     })
-    apiMocks.getCanvasTaskPointLedgerDetail.mockResolvedValue({
-      id: 'ledger-1',
-      occurredAt: '2026-09-03T00:01:00.000Z',
-      eventType: 'SETTLE',
-      eventPoints: '-12',
-      pointLotId: 'lot-1',
-      lotType: 'PAID',
-      taskOutputId: 'output-1',
-      outputIndex: 0,
-      debtId: null,
-      reason: null,
-      remainingBefore: '20',
-      remainingAfter: '8',
-      reservedBefore: '12',
-      reservedAfter: '0',
-    })
-    callMocks.getCanvasTaskCalls.mockResolvedValue({
-      page: 1,
-      pageSize: 20,
-      total: 0,
-      items: [],
-    })
-  })
-
-  it('loads execution calls and point-ledger drill-in only after their disclosure is opened', async () => {
     mount()
-
-    expect(await screen.findByText('Partial success')).toBeVisible()
-    expect(screen.getByText('Task failed safely')).toBeVisible()
-    expect(callMocks.getCanvasTaskCalls).not.toHaveBeenCalled()
-    expect(apiMocks.getCanvasTaskPointLedger).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Execution details' }))
-    expect(await screen.findByText('Task failed safely')).toBeVisible()
-    expect(screen.getByText('Output failed safely')).toBeVisible()
-    expect(screen.getByText('Released after failure')).toBeVisible()
-    expect(
-      screen.getByText('Released after failure').closest('tr')
-    ).toHaveTextContent('0')
-    expect(screen.queryByText('Error details')).not.toBeInTheDocument()
-    expect(
-      screen.getByText('Output failed safely').closest('td')
-    ).toHaveTextContent('Confirmed failed')
-    expect(
-      screen.getByText('Task execution status').parentElement
-    ).toHaveTextContent('Succeeded')
-    expect(
-      screen
-        .getAllByText('Settled points')
-        .find((element) => element.closest('th'))
-        ?.closest('th')
-    ).toHaveClass('text-right')
-    await waitFor(() =>
-      expect(callMocks.getCanvasTaskCalls).toHaveBeenCalledWith(
-        'task-1',
-        { page: 1, pageSize: 20, callType: 'SUBMIT' },
-        expect.any(AbortSignal)
-      )
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-    expect(
-      await screen.findByRole('button', { name: 'View ledger' })
-    ).toBeVisible()
-    expect(
-      screen
-        .getAllByText('Released points')
-        .find((element) => element.tagName === 'DT')
-    ).toBeVisible()
-    expect(screen.getByText('Per million tokens')).toBeVisible()
-    expect(
-      screen.getByText('Point quantity').closest('th')?.querySelector('button')
-    ).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'View ledger' }))
-    expect(await screen.findByText('Lot remaining points')).toBeVisible()
-    await waitFor(() =>
-      expect(apiMocks.getCanvasTaskPointLedgerDetail).toHaveBeenCalledWith(
-        'task-1',
-        'ledger-1',
-        expect.any(AbortSignal)
-      )
-    )
-  })
-
-  it('shows allowed task specifications with localized labels and drops unknown keys', async () => {
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
-      ...task,
-      parameters: {
-        quality: 'high',
-        size: '1024x1024',
-        resolution: { apiKey: 'known-key secret must not leak' },
-        aspectRatio: '16:9',
-        batchSize: 2,
-        durationSeconds: 8,
-        maxTokens: 128,
-        seed: 0,
-        generateAudio: false,
-        unexpectedInternalKey: 'must not expose its key',
-      },
-    })
-    mount()
-
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Execution details' })
+      await screen.findByRole('button', { name: 'Point records' })
     )
+    fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
 
-    for (const label of [
-      'Quality',
-      'Size',
-      'Output aspect ratio',
-      'Quantity',
-      'Duration',
-      'Max Tokens',
-      'Seed',
-      'Generate audio',
-    ]) {
-      expect(
-        screen.getAllByText(label).some((element) => element.tagName === 'DT')
-      ).toBe(true)
-    }
-    expect(screen.queryByText('quality')).not.toBeInTheDocument()
-    expect(screen.queryByText('unexpectedInternalKey')).not.toBeInTheDocument()
     expect(
-      screen.queryByText('must not expose its key')
-    ).not.toBeInTheDocument()
+      screen.getByText('Source point lot available points').parentElement
+    ).toHaveTextContent('8 → 1')
     expect(
-      screen.queryByText(/known-key secret must not leak/)
-    ).not.toBeInTheDocument()
-    expect(screen.getByText('No')).toBeVisible()
-  })
-
-  it('shows localized task errors but does not expose a code-only internal error', async () => {
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
-      ...task,
-      taskError: { code: 'MOCK_CONFIRMED_FAILURE', messages: null },
-    })
-    const codeOnly = mount()
-
-    expect(await screen.findByText('Partial success')).toBeVisible()
-    expect(screen.queryByText('MOCK_CONFIRMED_FAILURE')).not.toBeInTheDocument()
-    codeOnly.unmount()
-
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
-      ...task,
-      taskError: {
-        code: 'INTERNAL_PROVIDER_FAILURE',
-        messages: { en: 'Task failed safely' },
-      },
-    })
-    mount()
-
-    expect(await screen.findByText('Task failed safely')).toBeVisible()
+      screen.getByText('Source point lot frozen points').parentElement
+    ).toHaveTextContent('7 → 0')
     expect(
-      screen.queryByText('INTERNAL_PROVIDER_FAILURE')
+      screen.getByText('Target point lot available points').parentElement
+    ).toHaveTextContent('2 → 9')
+    expect(
+      screen.getByText('Target point lot frozen points').parentElement
+    ).toHaveTextContent('0 → 7')
+    expect(
+      screen.queryByText('Point lot available points')
     ).not.toBeInTheDocument()
   })
 
-  it('replaces the full task view with ledger details and restores the point-records view on return', async () => {
-    const onLedgerDetailsChange = vi.fn()
-    const view = mount(onLedgerDetailsChange)
-    const scrollContainer = view.container.firstElementChild as HTMLDivElement
-
-    await screen.findByText('Partial success')
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-    const viewLedger = await screen.findByRole('button', {
-      name: 'View ledger',
-    })
-    scrollContainer.scrollTop = 48
-    viewLedger.focus()
-    fireEvent.click(viewLedger)
-
-    expect(await screen.findByText('Lot remaining points')).toBeVisible()
-    expect(screen.queryByText('UAT customer')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Point records' })
-    ).not.toBeInTheDocument()
-    expect(onLedgerDetailsChange).toHaveBeenLastCalledWith('ledger-1')
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Back to task details' })
-    )
-    const restoredViewLedger = await screen.findByRole('button', {
-      name: 'View ledger',
-    })
-    expect(restoredViewLedger).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Point records' })
-    ).toHaveAttribute('aria-expanded', 'true')
-    await waitFor(() => expect(restoredViewLedger).toHaveFocus())
-    expect(scrollContainer.scrollTop).toBe(48)
-    expect(onLedgerDetailsChange).toHaveBeenLastCalledWith()
-  })
-
-  it('keeps a return action when the point-ledger detail request fails', async () => {
-    const onLedgerDetailsChange = vi.fn()
-    apiMocks.getCanvasTaskPointLedgerDetail.mockRejectedValueOnce(
-      new Error('detail unavailable')
-    )
-    mount(onLedgerDetailsChange)
-
-    await screen.findByText('Partial success')
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'View ledger' }))
-
-    expect(
-      await screen.findByText('Unable to load point ledger details')
-    ).toBeVisible()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Back to task details' })
-    )
-
-    expect(await screen.findByText('UAT customer')).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Point records' })
-    ).toHaveAttribute('aria-expanded', 'true')
-    expect(onLedgerDetailsChange).toHaveBeenLastCalledWith()
-  })
-
-  it('does not render an empty point-records table when its query fails', async () => {
-    apiMocks.getCanvasTaskPointLedger.mockRejectedValueOnce(
-      new Error('ledger unavailable')
-    )
-    mount()
-
-    await screen.findByText('Partial success')
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-
-    expect(
-      await screen.findByText('Unable to load point records')
-    ).toBeVisible()
-    expect(screen.queryByText('No point records')).not.toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
-  })
-
-  it('localizes the billing unit and preserves the null placeholder', async () => {
-    const localized = mount()
-    await screen.findByText('Partial success')
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-    expect(await screen.findByText('Per million tokens')).toBeVisible()
-    localized.unmount()
-
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+  it('keeps unknown failure location hidden and non-failed details collapsed', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,
-      billingUnit: null,
-    })
-    mount()
-    await screen.findByText('Partial success')
-    fireEvent.click(screen.getByRole('button', { name: 'Point records' }))
-    expect(screen.getByText('Billing unit').parentElement).toHaveTextContent(
-      'Billing unit—'
-    )
-  })
-
-  it('uses completion semantics for unfinished and missing completion timestamps', async () => {
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
-      ...task,
-      executionStatus: 'PROCESSING',
+      derivedExecutionStatus: 'PROCESSING',
+      failureLocation: null,
+      taskError: { code: 'PROVIDER_AUTH_FAILED' },
       completedAt: null,
-      outputs: [],
+      deductedPoints: '0',
+      releasedPoints: '0',
+      settlementProgress: 'PROCESSING',
     })
-    const unfinished = mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Execution details' })
-    )
+    mount()
     expect(await screen.findByText('Not completed')).toBeVisible()
-    unfinished.unmount()
+    expect(
+      screen.queryByText(/Provider authentication failed/)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Execution details' })
+    ).toHaveAttribute('aria-expanded', 'false')
+    expect(calls.getCanvasTaskCalls).not.toHaveBeenCalled()
+  })
 
-    apiMocks.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+  it('localizes the confirmed-not-sent target DTO without exposing its code or English message', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,
-      executionStatus: 'SUCCEEDED',
-      completedAt: null,
-      outputs: [],
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      executionSummary: {
+        ...task.executionSummary,
+        succeededResults: 0,
+        failedResults: 1,
+      },
+      deductedPoints: '0',
+      releasedPoints: '14',
+      customerBillingStatus: 'RELEASED_FAILED',
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      taskError: {
+        code: 'EXECUTOR_RESOURCE_CONFIRMED_NOT_SENT',
+        messages: { en: 'Generation failed before the request was sent.' },
+      },
     })
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Execution details' })
+
+    expect(await screen.findByText('确认失败')).toBeVisible()
+    expect(
+      screen.getByText('Executor 预检 · Executor 请求确认未发送')
+    ).toBeVisible()
+    expect(screen.getByText('积分状态').parentElement).toHaveTextContent(
+      '已释放'
     )
-    expect(await screen.findByText('Not recorded')).toBeVisible()
+    expect(
+      screen.queryByText('EXECUTOR_RESOURCE_CONFIRMED_NOT_SENT')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Generation failed before the request was sent.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses a localized safe fallback for an unknown error code', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      taskError: { code: 'FUTURE_INTERNAL_CODE', messages: null },
+    })
+    mount()
+
+    expect(
+      await screen.findByText('Executor 预检 · 未知错误分类')
+    ).toBeVisible()
+    expect(screen.queryByText('FUTURE_INTERNAL_CODE')).not.toBeInTheDocument()
+  })
+
+  it('has non-empty UAT-018 terminology in all seven locales', () => {
+    const keys = [
+      'Actual task parameters',
+      'Native batch mode',
+      'Fanout mode',
+      'Provider response',
+      'Failure summary',
+      'Provider calls',
+      'Point action',
+      'Convert to grace bonus points',
+      'Sent upstream request (sanitized)',
+      'Source point lot available points',
+      'Source point lot frozen points',
+      'Target point lot available points',
+      'Target point lot frozen points',
+      'Executor request confirmed not sent',
+      'Points released',
+    ]
+    for (const locale of [en, zh, zhTW, fr, ru, ja, viLocale]) {
+      for (const key of keys) {
+        expect(
+          locale.translation[key as keyof typeof locale.translation]
+        ).toBeTruthy()
+      }
+    }
   })
 })

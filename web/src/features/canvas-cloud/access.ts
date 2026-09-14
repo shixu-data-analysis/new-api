@@ -8,13 +8,7 @@ License, or (at your option) any later version.
 */
 import type { CanvasPrincipalType } from './types'
 
-export const canvasCustomerSections = [
-  'overview',
-  'recharge',
-  'models',
-  'tasks',
-  'consumption',
-] as const
+export const canvasCustomerSections = ['points', 'models', 'tasks'] as const
 
 export const canvasAdminSections = [
   'dashboard',
@@ -43,9 +37,9 @@ export function isCanvasAdministrator(
 
 export function getCanvasHomeSection(
   principalType: CanvasPrincipalType
-): 'dashboard' | 'overview' {
+): 'dashboard' | 'points' {
   if (isCanvasAdministrator(principalType)) return 'dashboard'
-  return 'overview'
+  return 'points'
 }
 
 export function canCanvasPrincipalManageClientAccessToken(

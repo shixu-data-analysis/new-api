@@ -174,7 +174,15 @@ export interface CanvasProviderCredentialGroupChange {
   id: string
   occurredAt: string
   operator: string | null
-  type: 'GROUP_CREATED' | 'GROUP_RENAMED' | 'KEY_REPLACED' | 'MODEL_BINDING_CHANGED' | 'MODEL_REBOUND' | 'GROUP_ARCHIVED' | 'GROUP_RESTORED' | 'GROUP_UPDATED'
+  type:
+    | 'GROUP_CREATED'
+    | 'GROUP_RENAMED'
+    | 'KEY_REPLACED'
+    | 'MODEL_BINDING_CHANGED'
+    | 'MODEL_REBOUND'
+    | 'GROUP_ARCHIVED'
+    | 'GROUP_RESTORED'
+    | 'GROUP_UPDATED'
   outcome: 'SUCCESS'
   reason: string | null
   changes: Array<{
@@ -289,8 +297,7 @@ export interface CanvasAdminRechargeCodeBatchItems {
   totalCount: number
 }
 
-export type CanvasAdminRechargeCodeExactSearchPage =
-  CanvasAdminRechargeCodePage
+export type CanvasAdminRechargeCodeExactSearchPage = CanvasAdminRechargeCodePage
 
 export interface CanvasAdminRechargeCodeQuery {
   page: number
@@ -299,18 +306,14 @@ export interface CanvasAdminRechargeCodeQuery {
   status?: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
   createdFrom?: string
   createdTo?: string
-  sortBy:
-    | 'remark'
-    | 'status'
-    | 'amount'
-    | 'points'
-    | 'createdAt'
-    | 'expiresAt'
+  sortBy: 'remark' | 'status' | 'amount' | 'points' | 'createdAt' | 'expiresAt'
   sortOrder: 'asc' | 'desc'
 }
 
-export interface CanvasAdminRechargeCodeExactSearch
-  extends Omit<CanvasAdminRechargeCodeQuery, 'name'> {
+export interface CanvasAdminRechargeCodeExactSearch extends Omit<
+  CanvasAdminRechargeCodeQuery,
+  'name'
+> {
   batchOrRemark?: string
   code: string
 }
@@ -629,6 +632,53 @@ export interface CanvasCustomerWorkspace {
     reason: string | null
     occurredAt: string
   }>
+}
+
+export interface CanvasCustomerPointSummary {
+  availablePoints: string
+  paidAvailablePoints: string
+  bonusAvailablePoints: string
+  debtPoints: string
+}
+
+export interface CanvasCustomerRechargeRedemption {
+  redeemedAt: string
+  orderNumber: string
+  currency: string
+  listedAmountMinor: string
+  issuedPaidPoints: string
+  issuedBonusPoints: string
+  status: 'REDEEMED'
+}
+
+export interface CanvasCustomerTaskOutputSummary {
+  outputIndex: number
+  executionStatus: string
+  error: { code: string | null; messages: Record<string, string> | null } | null
+}
+
+export interface CanvasCustomerTask {
+  id: string
+  modelName: string
+  derivedExecutionStatus: string
+  executionSummary: {
+    expectedResults: number
+    recordedResults: number
+    acceptedResults: number
+    processingResults: number
+    succeededResults: number
+    failedResults: number
+    unknownResults: number
+    resultsIncomplete: boolean
+  }
+  outputSummaries: CanvasCustomerTaskOutputSummary[]
+  settlementProgress: 'PENDING' | 'PROCESSING' | 'COMPLETED'
+  customerBillingStatus: string
+  allocatedPoints: string
+  deductedPoints: string
+  releasedPoints: string
+  outstandingDebtPoints: string
+  acceptedAt: string
 }
 
 export interface CanvasCatalogModel {
@@ -1296,7 +1346,18 @@ export interface CanvasAdminRefund {
 export interface CanvasPointLedgerItem {
   id: string
   pointLotId: string
-  eventType: string
+  eventType:
+    | 'ISSUE'
+    | 'FREEZE'
+    | 'SETTLE'
+    | 'RELEASE'
+    | 'EXPIRE'
+    | 'CLAWBACK'
+    | 'ADJUSTMENT_DEBIT'
+    | 'POINT_RETURN'
+    | 'TRANSFER_OUT'
+    | 'TRANSFER_IN'
+    | 'DEBT_REPAYMENT'
   eventPoints: string
   remainingDelta: string
   reservedDelta: string
@@ -1623,6 +1684,14 @@ export interface CanvasAdminTaskRecordDetail {
   billingUnit: string | null
   billingFinalizedAt: string | null
   parameters: Record<string, string | number | boolean | null> | null
+  multiResultMode: 'NATIVE' | 'FANOUT'
+  failureLocation:
+    | 'EXECUTOR_PREFLIGHT'
+    | 'PROVIDER_NETWORK'
+    | 'PROVIDER_RESPONSE'
+    | 'RESPONSE_PROCESSING'
+    | 'STORAGE'
+    | null
   outputs: CanvasAdminTaskRecordOutput[]
   upstreamTaskId: string | null
   taskError: {
@@ -1633,7 +1702,38 @@ export interface CanvasAdminTaskRecordDetail {
   completedAt: string | null
 }
 
-export interface CanvasTaskPointLedgerItem {
+export interface CanvasAdminTaskPointRecord {
+  id: string
+  occurredAt: string
+  eventType: string
+  outputIndex: number | null
+  points: string
+  lotType: string | null
+  sourceLotType: string | null
+  targetLotType: string | null
+  ledgerId: string | null
+  sourceLedgerId: string | null
+  targetLedgerId: string | null
+  pointLotId: string | null
+  sourceLotId: string | null
+  targetLotId: string | null
+  allocationId: string | null
+  debtId: string | null
+  remainingBefore: string | null
+  remainingAfter: string | null
+  reservedBefore: string | null
+  reservedAfter: string | null
+  sourceRemainingBefore: string | null
+  sourceRemainingAfter: string | null
+  sourceReservedBefore: string | null
+  sourceReservedAfter: string | null
+  targetRemainingBefore: string | null
+  targetRemainingAfter: string | null
+  targetReservedBefore: string | null
+  targetReservedAfter: string | null
+}
+
+export interface CanvasTaskPointLedgerDetail {
   id: string
   occurredAt: string
   eventType: string
@@ -1644,9 +1744,6 @@ export interface CanvasTaskPointLedgerItem {
   outputIndex: number | null
   debtId: string | null
   reason: string | null
-}
-
-export interface CanvasTaskPointLedgerDetail extends CanvasTaskPointLedgerItem {
   remainingBefore: string | null
   remainingAfter: string | null
   reservedBefore: string | null

@@ -26,6 +26,7 @@ interface CustomerRechargeCodeCardProps {
   onCodeChange: (value: string) => void
   onRedeem: () => void
   redeeming: boolean
+  error?: string | null
 }
 
 export function CustomerRechargeCodeCard(props: CustomerRechargeCodeCardProps) {
@@ -41,6 +42,7 @@ export function CustomerRechargeCodeCard(props: CustomerRechargeCodeCardProps) {
       onRedeem={props.onRedeem}
       purchaseUrl={purchaseLink.data ?? null}
       redeeming={props.redeeming}
+      error={props.error}
     />
   )
 }

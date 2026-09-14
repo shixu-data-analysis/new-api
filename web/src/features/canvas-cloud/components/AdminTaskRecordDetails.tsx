@@ -17,11 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import type { ColumnDef } from '@tanstack/react-table'
+import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
 import {
-  useEffect,
+  Fragment,
   useMemo,
-  useRef,
   useState,
   type MutableRefObject,
   type ReactNode,
@@ -29,40 +28,21 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import {
-  StaticDataTable,
-  type StaticDataTableColumn,
-} from '@/components/data-table'
-import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 
-import {
-  getCanvasAdminTaskRecord,
-  getCanvasTaskPointLedger,
-  getCanvasTaskPointLedgerDetail,
-} from '../api'
-import { isCanvasDateRangeValid } from '../date-range'
-import { getLocalizedErrorMessage } from '../localized-error-message'
+import { getCanvasAdminTaskRecord, getCanvasTaskPointLedger } from '../api'
 import type {
+  CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
-  CanvasTaskPointLedgerDetail,
-  CanvasTaskPointLedgerItem,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
-import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { TaskCallHistory } from './TaskCallHistory'
@@ -75,27 +55,28 @@ const executionLabels: Record<string, string> = {
   PARTIAL_SUCCESS: 'Partial success',
   UNKNOWN: 'Unknown',
 }
-const settlementLabels: Record<string, string> = {
-  PENDING: 'Pending',
-  PROCESSING: 'Settlement in progress',
-  COMPLETED: 'Settlement complete',
+const failureLocations: Record<string, string> = {
+  EXECUTOR_PREFLIGHT: 'Executor preflight',
+  PROVIDER_NETWORK: 'Provider network',
+  PROVIDER_RESPONSE: 'Provider response',
+  RESPONSE_PROCESSING: 'Response processing',
+  STORAGE: 'Storage',
 }
-const billingLabels: Record<string, string> = {
-  FROZEN: 'Frozen',
-  SETTLED: 'Settled',
-  RELEASED_FAILED: 'Released after failure',
-  RELEASED_TIMEOUT: 'Released after timeout',
+const errorCategories: Record<string, string> = {
+  EXECUTOR_RESOURCE_CONFIRMED_NOT_SENT: 'Executor request confirmed not sent',
+  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
+  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
+  PROVIDER_ACCESS_DENIED: 'Provider access denied',
+  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
+  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
+  PROVIDER_RATE_LIMITED: 'Provider rate limited',
+  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
+  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
+  PROVIDER_UNAVAILABLE: 'Provider unavailable',
+  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
+  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
 }
-const ledgerEventLabels: Record<string, string> = {
-  SETTLE: 'Task deduction',
-  DEBT_REPAYMENT: 'Debt repayment',
-}
-const lotTypeLabels: Record<string, string> = {
-  PAID: 'Paid points',
-  BONUS: 'Bonus points',
-  GRACE_BONUS: 'Grace bonus points',
-}
-const taskParameterLabels: Record<string, string> = {
+const parameterLabels: Record<string, string> = {
   quality: 'Quality',
   size: 'Size',
   resolution: 'Resolution',
@@ -106,118 +87,18 @@ const taskParameterLabels: Record<string, string> = {
   seed: 'Seed',
   generateAudio: 'Generate audio',
 }
-const billingUnitLabels: Record<string, string> = {
-  REQUEST: 'REQUEST',
-  SECOND: 'SECOND',
-  MILLION_TOKENS: 'MILLION_TOKENS',
+const pointActions: Record<string, string> = {
+  FREEZE: 'Freeze',
+  SETTLE: 'Deduct',
+  RELEASE: 'Release',
+  GRACE_TRANSFER: 'Convert to grace bonus points',
+  DEBT_CREATED: 'Debt created',
+  DEBT_REPAYMENT: 'Debt repayment',
 }
-
-function Points({ value }: { value: string | null }) {
-  const { i18n } = useTranslation()
-  if (value === null) return <>—</>
-  return (
-    <span className='tabular-nums'>
-      {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))}
-    </span>
-  )
-}
-
-function formatDateTime(locale: string | undefined, value: string | null) {
-  if (!value) return '—'
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date(value))
-}
-
-function taskCompletionTime(
-  task: CanvasAdminTaskRecordDetail,
-  locale: string | undefined,
-  t: (key: string) => string
-) {
-  if (task.completedAt) return formatDateTime(locale, task.completedAt)
-  if (
-    task.executionStatus === 'ACCEPTED' ||
-    task.executionStatus === 'PROCESSING'
-  ) {
-    return t('Not completed')
-  }
-  return t('Not recorded')
-}
-
-function executionSummary(
-  summary: CanvasAdminTaskRecordDetail['executionSummary'],
-  t: (key: string, values?: Record<string, number>) => string
-) {
-  const parts = [
-    summary.acceptedResults
-      ? t('Accepted count', { count: summary.acceptedResults })
-      : null,
-    summary.processingResults
-      ? t('Processing count', { count: summary.processingResults })
-      : null,
-    summary.succeededResults
-      ? t('Succeeded count', { count: summary.succeededResults })
-      : null,
-    summary.failedResults
-      ? t('Failed count', { count: summary.failedResults })
-      : null,
-    summary.unknownResults
-      ? t('Unknown count', { count: summary.unknownResults })
-      : null,
-  ].filter((part): part is string => Boolean(part))
-  return parts.join(' · ')
-}
-
-function formatReadOnlyValue(
-  value: unknown,
-  t: (key: string) => string
-): string {
-  if (typeof value === 'boolean') return t(value ? 'Yes' : 'No')
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-  return '—'
-}
-
-function isSafeTaskParameterValue(
-  value: unknown
-): value is string | number | boolean {
-  return (
-    typeof value === 'string' ||
-    typeof value === 'boolean' ||
-    (typeof value === 'number' && Number.isFinite(value))
-  )
-}
-
-function taskParameterLabel(name: string, t: (key: string) => string) {
-  return t(taskParameterLabels[name])
-}
-
-const ledgerChangeLabels: Record<string, string> = {
-  SETTLE_PAID: 'Task deduction from paid points',
-  SETTLE_BONUS: 'Task deduction from bonus points',
-  SETTLE_GRACE_BONUS: 'Task deduction from grace bonus points',
-  DEBT_REPAYMENT_PAID: 'Paid points debt repayment',
-  DEBT_REPAYMENT_BONUS: 'Bonus points debt repayment',
-  DEBT_REPAYMENT_GRACE_BONUS: 'Grace bonus points debt repayment',
-}
-
-function ledgerChangeLabel(
-  eventType: string,
-  lotType: string | null,
-  t: (key: string) => string
-) {
-  const combined = lotType
-    ? ledgerChangeLabels[`${eventType}_${lotType}`]
-    : undefined
-  if (combined) return t(combined)
-  const event = t(ledgerEventLabels[eventType] ?? 'Other')
-  return lotType ? `${event} · ${t(lotTypeLabels[lotType] ?? 'Other')}` : event
-}
-
-function ledgerViewButtonId(ledgerId: string) {
-  return `canvas-task-ledger-${ledgerId}`
+const lotTypes: Record<string, string> = {
+  PAID: 'Paid points',
+  BONUS: 'Bonus points',
+  GRACE_BONUS: 'Grace bonus points',
 }
 
 function DetailValue({
@@ -237,466 +118,383 @@ function DetailValue({
     </div>
   )
 }
-
-function statusLabel(
-  t: (key: string) => string,
-  value: string,
-  labels: Record<string, string>
-) {
-  return t(labels[value] ?? 'Unknown')
-}
-
-function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const outputs = task.outputs
-  const parameters = Object.entries(task.parameters ?? {}).filter(
-    ([name, value]) =>
-      taskParameterLabels[name] && isSafeTaskParameterValue(value)
+function Points({ value }: { value: string | null | undefined }) {
+  const { i18n } = useTranslation()
+  return value === null || value === undefined ? (
+    <>—</>
+  ) : (
+    <span className='tabular-nums'>
+      {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))}
+    </span>
   )
-  const outputColumns = useMemo<
-    StaticDataTableColumn<CanvasAdminTaskRecordDetail['outputs'][number]>[]
-  >(
-    () => [
-      {
-        id: 'result',
-        header: t('Result'),
-        cell: (output) => `${t('Result')} ${output.outputIndex + 1}`,
-      },
-      {
-        id: 'executionStatus',
-        header: t('Execution status'),
-        cell: (output) => (
-          <div className='space-y-1'>
-            <div>{statusLabel(t, output.executionStatus, executionLabels)}</div>
-            {getLocalizedErrorMessage(
-              output.error,
-              i18n.resolvedLanguage || i18n.language
-            ) ? (
-              <div className='text-destructive text-xs [overflow-wrap:anywhere]'>
-                {getLocalizedErrorMessage(
-                  output.error,
-                  i18n.resolvedLanguage || i18n.language
-                )}
-              </div>
-            ) : null}
-          </div>
-        ),
-      },
-      {
-        id: 'billingStatus',
-        header: t('Settlement status'),
-        cell: (output) => statusLabel(t, output.billingStatus, billingLabels),
-      },
-      {
-        id: 'settledPoints',
-        header: t('Settled points'),
-        className: 'text-right',
-        cellClassName: 'text-right',
-        cell: (output) => <Points value={output.settledPoints} />,
-      },
-    ],
-    [i18n.language, i18n.resolvedLanguage, t]
+}
+function formatTime(locale: string, value: string | null) {
+  return value
+    ? new Intl.DateTimeFormat(locale, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+      }).format(new Date(value))
+    : '—'
+}
+function outputSummary(
+  task: CanvasAdminTaskRecordDetail,
+  t: (key: string, values?: Record<string, number>) => string
+) {
+  const summary = task.executionSummary
+  return (
+    [
+      summary.succeededResults
+        ? t('Succeeded count', { count: summary.succeededResults })
+        : null,
+      summary.failedResults
+        ? t('Failed count', { count: summary.failedResults })
+        : null,
+      summary.unknownResults
+        ? t('Unknown count', { count: summary.unknownResults })
+        : null,
+      summary.processingResults
+        ? t('Processing count', { count: summary.processingResults })
+        : null,
+      summary.acceptedResults
+        ? t('Accepted count', { count: summary.acceptedResults })
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || '—'
+  )
+}
+function settlementSummary(
+  task: CanvasAdminTaskRecordDetail,
+  t: (key: string) => string
+) {
+  if (task.settlementProgress === 'PENDING') return t('Pending')
+  if (task.settlementProgress === 'PROCESSING') {
+    return t('Settlement in progress')
+  }
+  if (
+    task.outstandingDebtPoints !== null &&
+    BigInt(task.outstandingDebtPoints) > 0n
+  ) {
+    return `${t('Outstanding debt')} · ${task.outstandingDebtPoints}`
+  }
+  const deducted =
+    task.deductedPoints !== null && BigInt(task.deductedPoints) > 0n
+  const released =
+    task.releasedPoints !== null && BigInt(task.releasedPoints) > 0n
+  if (deducted && released) {
+    return t('Partially deducted and partially released')
+  }
+  if (deducted) return t('Deducted')
+  if (released) return t('Points released')
+  return t('Settlement complete')
+}
+function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
+  const { t } = useTranslation()
+  const parameters = Object.entries(task.parameters ?? {}).filter(
+    ([key, value]) =>
+      parameterLabels[key] &&
+      (typeof value === 'string' ||
+        typeof value === 'boolean' ||
+        (typeof value === 'number' && Number.isFinite(value)))
   )
   return (
     <div className='space-y-5'>
-      <dl className='grid gap-4 sm:grid-cols-2'>
-        <DetailValue label='Completed at'>
-          {taskCompletionTime(task, locale, t)}
-        </DetailValue>
-        <DetailValue label='Task execution status'>
-          {statusLabel(t, task.executionStatus, executionLabels)}
-        </DetailValue>
-        {task.upstreamTaskId ? (
-          <DetailValue label='Upstream task ID'>
-            <CopyableText value={task.upstreamTaskId} />
-          </DetailValue>
-        ) : null}
-      </dl>
-      {parameters.length > 0 ? (
-        <section className='space-y-3'>
-          <h3 className='text-sm font-medium'>{t('Task parameters')}</h3>
-          <dl className='grid gap-4 sm:grid-cols-2'>
-            {parameters.map(([name, value]) => (
-              <div key={name} className='min-w-0'>
-                <dt className='text-muted-foreground text-sm'>
-                  {taskParameterLabel(name, t)}
-                </dt>
-                <dd className='mt-1 min-h-5 text-sm [overflow-wrap:anywhere] break-words'>
-                  {formatReadOnlyValue(value, t)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
-      {outputs.length > 1 ? (
-        <StaticDataTable
-          data={outputs}
-          columns={outputColumns}
-          getRowKey={(output) => output.id ?? output.outputIndex}
-          tableClassName='min-w-[640px]'
-        />
-      ) : null}
       <section className='space-y-3'>
-        <h3 className='text-sm font-medium'>{t('Call records')}</h3>
+        <h3 className='text-sm font-medium'>{t('Actual task parameters')}</h3>
+        <dl className='grid gap-4 sm:grid-cols-2'>
+          <DetailValue label='Call mode'>
+            {t(
+              task.multiResultMode === 'FANOUT'
+                ? 'Fanout mode'
+                : 'Native batch mode'
+            )}
+          </DetailValue>
+          {parameters.map(([key, value]) => (
+            <DetailValue key={key} label={parameterLabels[key]}>
+              {typeof value === 'boolean'
+                ? t(value ? 'Yes' : 'No')
+                : String(value)}
+            </DetailValue>
+          ))}
+        </dl>
+      </section>
+      <section className='space-y-3'>
+        <h3 className='text-sm font-medium'>{t('Provider calls')}</h3>
         <TaskCallHistory taskId={task.id} />
       </section>
     </div>
   )
 }
-
-function TaskLedgerDetail({
-  taskId,
-  ledgerId,
-  onBack,
-}: {
-  taskId: string
-  ledgerId: string
-  onBack: () => void
-}) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const query = useQuery({
-    queryKey: ['canvas-cloud', 'task-record', taskId, 'point-ledger', ledgerId],
-    queryFn: ({ signal }) =>
-      getCanvasTaskPointLedgerDetail(taskId, ledgerId, signal),
-    retry: false,
-  })
-  if (query.isPending) {
-    return (
-      <div className='space-y-3'>
-        <Button type='button' variant='outline' size='sm' onClick={onBack}>
-          {t('Back to task details')}
-        </Button>
-        <p role='status'>{t('Loading')}</p>
-      </div>
-    )
+function lotLabel(
+  record: CanvasAdminTaskPointRecord,
+  t: (key: string) => string
+) {
+  if (record.eventType === 'DEBT_CREATED') {
+    return t('Not applicable')
   }
-  if (query.isError || !query.data) {
-    return (
-      <div className='space-y-3' role='alert'>
-        <Button type='button' variant='outline' size='sm' onClick={onBack}>
-          {t('Back to task details')}
-        </Button>
-        <p>{t('Unable to load point ledger details')}</p>
-        <Button
-          type='button'
-          variant='outline'
-          onClick={() => void query.refetch()}
-        >
-          {t('Retry')}
-        </Button>
-      </div>
-    )
+  if (record.eventType === 'GRACE_TRANSFER') {
+    return `${t(lotTypes[record.sourceLotType ?? ''] ?? 'Unknown')} → ${t(lotTypes[record.targetLotType ?? ''] ?? 'Unknown')}`
   }
-  const detail: CanvasTaskPointLedgerDetail = query.data
+  return record.lotType ? t(lotTypes[record.lotType] ?? 'Unknown') : '—'
+}
+function PointDetails({ record }: { record: CanvasAdminTaskPointRecord }) {
+  const pair = (before: string | null, after: string | null) =>
+    before === null || after === null ? (
+      '—'
+    ) : (
+      <>
+        <Points value={before} /> → <Points value={after} />
+      </>
+    )
+  const fields: Array<[string, ReactNode]> =
+    record.eventType === 'GRACE_TRANSFER'
+      ? [
+          [
+            'Source ledger ID',
+            record.sourceLedgerId ? (
+              <CopyableText
+                key='source-ledger'
+                value={record.sourceLedgerId}
+                noTruncate
+              />
+            ) : (
+              '—'
+            ),
+          ],
+          [
+            'Target ledger ID',
+            record.targetLedgerId ? (
+              <CopyableText
+                key='target-ledger'
+                value={record.targetLedgerId}
+                noTruncate
+              />
+            ) : (
+              '—'
+            ),
+          ],
+          [
+            'Source point lot ID',
+            record.sourceLotId ? (
+              <CopyableText
+                key='source-lot'
+                value={record.sourceLotId}
+                noTruncate
+              />
+            ) : (
+              '—'
+            ),
+          ],
+          [
+            'Target point lot ID',
+            record.targetLotId ? (
+              <CopyableText
+                key='target-lot'
+                value={record.targetLotId}
+                noTruncate
+              />
+            ) : (
+              '—'
+            ),
+          ],
+          [
+            'Source point lot available points',
+            pair(record.sourceRemainingBefore, record.sourceRemainingAfter),
+          ],
+          [
+            'Source point lot frozen points',
+            pair(record.sourceReservedBefore, record.sourceReservedAfter),
+          ],
+          [
+            'Target point lot available points',
+            pair(record.targetRemainingBefore, record.targetRemainingAfter),
+          ],
+          [
+            'Target point lot frozen points',
+            pair(record.targetReservedBefore, record.targetReservedAfter),
+          ],
+        ]
+      : [
+          [
+            'Ledger ID',
+            record.ledgerId ? (
+              <CopyableText key='ledger' value={record.ledgerId} noTruncate />
+            ) : (
+              '—'
+            ),
+          ],
+          [
+            'Point lot ID',
+            record.pointLotId ? (
+              <CopyableText
+                key='point-lot'
+                value={record.pointLotId}
+                noTruncate
+              />
+            ) : (
+              '—'
+            ),
+          ],
+        ]
+  fields.push(
+    [
+      'Task point allocation ID',
+      record.allocationId ? (
+        <CopyableText key='allocation' value={record.allocationId} noTruncate />
+      ) : (
+        '—'
+      ),
+    ],
+    [
+      'Debt ID',
+      record.debtId ? (
+        <CopyableText key='debt' value={record.debtId} noTruncate />
+      ) : (
+        '—'
+      ),
+    ],
+    ...(record.eventType === 'GRACE_TRANSFER'
+      ? []
+      : [
+          [
+            'Point lot available points',
+            pair(record.remainingBefore, record.remainingAfter),
+          ] as [string, ReactNode],
+          [
+            'Point lot frozen points',
+            pair(record.reservedBefore, record.reservedAfter),
+          ] as [string, ReactNode],
+        ])
+  )
   return (
-    <div className='space-y-5'>
-      <Button type='button' variant='outline' size='sm' onClick={onBack}>
-        {t('Back to task details')}
-      </Button>
-      <dl className='grid gap-4 sm:grid-cols-2'>
-        <DetailValue label='Ledger ID'>
-          <CopyableText value={detail.id} />
+    <dl className='grid gap-4 py-2 sm:grid-cols-2'>
+      {fields.map(([label, content]) => (
+        <DetailValue key={label} label={label}>
+          {content}
         </DetailValue>
-        <DetailValue label='Occurred at'>
-          {formatDateTime(locale, detail.occurredAt)}
-        </DetailValue>
-        <DetailValue label='Change'>
-          {ledgerChangeLabel(detail.eventType, detail.lotType, t)}
-        </DetailValue>
-        <DetailValue label='Points'>
-          <Points value={detail.eventPoints} />
-        </DetailValue>
-        <DetailValue label='Source lot'>{detail.pointLotId ?? '—'}</DetailValue>
-        <DetailValue label='Lot type'>
-          {detail.lotType ? t(lotTypeLabels[detail.lotType] ?? 'Other') : '—'}
-        </DetailValue>
-        <DetailValue label='Related results'>
-          {detail.outputIndex === null
-            ? '—'
-            : `${t('Result')} ${detail.outputIndex + 1}`}
-        </DetailValue>
-        <DetailValue label='Debt'>{detail.debtId ?? '—'}</DetailValue>
-        {detail.reason ? (
-          <DetailValue label='Reason'>{detail.reason}</DetailValue>
-        ) : null}
-        <DetailValue label='Lot remaining points'>
-          {detail.remainingBefore === null || detail.remainingAfter === null ? (
-            '—'
-          ) : (
-            <>
-              <Points value={detail.remainingBefore} /> →{' '}
-              <Points value={detail.remainingAfter} />
-            </>
-          )}
-        </DetailValue>
-        <DetailValue label='Lot frozen points'>
-          {detail.reservedBefore === null || detail.reservedAfter === null ? (
-            '—'
-          ) : (
-            <>
-              <Points value={detail.reservedBefore} /> →{' '}
-              <Points value={detail.reservedAfter} />
-            </>
-          )}
-        </DetailValue>
-      </dl>
-    </div>
+      ))}
+    </dl>
   )
 }
-
-function TaskPointRecords({
-  task,
-  scrollContainerRef,
-  onViewLedger,
-}: {
-  task: CanvasAdminTaskRecordDetail
-  scrollContainerRef: MutableRefObject<HTMLDivElement | null>
-  onViewLedger: (
-    ledgerId: string,
-    trigger: HTMLButtonElement,
-    scrollTop: number
-  ) => void
-}) {
+function TaskPointRecords({ taskId }: { taskId: string }) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const state = useServerTableState('occurredAt')
-  const setPagination = state.setPagination
-  const [changeType, setChangeType] = useState('')
-  const [lotType, setLotType] = useState('')
-  const [from, setFrom] = useState<Date>()
-  const [to, setTo] = useState<Date>()
-  const valid = isCanvasDateRangeValid(from, to)
-  useEffect(() => {
-    setPagination((value) =>
-      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
-    )
-  }, [changeType, from, lotType, setPagination, to])
+  const [expanded, setExpanded] = useState<string>()
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
       'task-record',
-      task.id,
+      taskId,
       'point-ledger',
       state.query.page,
       state.query.pageSize,
-      changeType,
-      lotType,
-      from?.toISOString(),
-      to?.toISOString(),
     ],
     queryFn: ({ signal }) =>
       getCanvasTaskPointLedger(
-        task.id,
-        {
-          page: state.query.page,
-          pageSize: state.query.pageSize,
-          ...(changeType ? { changeType } : {}),
-          ...(lotType ? { lotType } : {}),
-          ...(from ? { from: from.toISOString() } : {}),
-          ...(to ? { to: to.toISOString() } : {}),
-        },
+        taskId,
+        { page: state.query.page, pageSize: state.query.pageSize },
         signal
       ),
-    enabled: valid,
     retry: false,
   })
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const columns = useMemo<ColumnDef<CanvasTaskPointLedgerItem, unknown>[]>(
+  const columns = useMemo<ColumnDef<CanvasAdminTaskPointRecord, unknown>[]>(
     () => [
       {
         id: 'occurredAt',
-        accessorKey: 'occurredAt',
         header: t('Occurred at'),
-        cell: ({ row }) => formatDateTime(locale, row.original.occurredAt),
+        cell: ({ row }) => formatTime(locale, row.original.occurredAt),
       },
       {
-        id: 'change',
-        accessorKey: 'eventType',
-        header: t('Change'),
-        cell: ({ row }) => (
-          <div className='space-y-1'>
-            <div>
-              {ledgerChangeLabel(
-                row.original.eventType,
-                row.original.lotType,
-                t
-              )}
-            </div>
-            {row.original.outputIndex !== null ? (
-              <div className='text-muted-foreground text-xs'>
-                {t('Result')} {row.original.outputIndex + 1}
-              </div>
-            ) : null}
-            {row.original.debtId ? (
-              <div className='text-muted-foreground text-xs'>
-                {t('Debt')}: {row.original.debtId}
-              </div>
-            ) : null}
-          </div>
-        ),
+        id: 'eventType',
+        header: t('Point action'),
+        cell: ({ row }) => t(pointActions[row.original.eventType] ?? 'Unknown'),
       },
       {
-        id: 'eventPoints',
-        accessorKey: 'eventPoints',
-        enableSorting: false,
-        header: () => <div className='text-right'>{t('Point quantity')}</div>,
-        cell: ({ row }) => (
-          <div className='text-right'>
-            <Points value={row.original.eventPoints} />
-          </div>
-        ),
+        id: 'result',
+        header: t('Related results'),
+        cell: ({ row }) =>
+          row.original.outputIndex === null
+            ? '—'
+            : `${t('Result')} ${row.original.outputIndex + 1}`,
       },
       {
-        id: 'pointLotId',
-        accessorKey: 'pointLotId',
-        header: t('Source lot'),
-        cell: ({ row }) => row.original.pointLotId ?? '—',
+        id: 'lotType',
+        header: t('Point type'),
+        cell: ({ row }) => lotLabel(row.original, t),
+      },
+      {
+        id: 'points',
+        header: t('Point quantity'),
+        cell: ({ row }) => <Points value={row.original.points} />,
       },
       {
         id: 'actions',
-        enableSorting: false,
-        enableHiding: false,
         header: t('Actions'),
+        enableHiding: false,
         cell: ({ row }) => (
           <Button
-            id={ledgerViewButtonId(row.original.id)}
             type='button'
             variant='link'
             className='h-auto p-0'
-            onClick={(event) =>
-              onViewLedger(
-                row.original.id,
-                event.currentTarget,
-                scrollContainerRef.current?.scrollTop ?? 0
+            aria-expanded={expanded === row.original.id}
+            onClick={() =>
+              setExpanded((current) =>
+                current === row.original.id ? undefined : row.original.id
               )
             }
           >
-            {t('View ledger')}
+            {t(expanded === row.original.id ? 'Hide details' : 'Details')}
           </Button>
         ),
       },
     ],
-    [locale, onViewLedger, scrollContainerRef, t]
+    [expanded, locale, t]
+  )
+  const rowRenderer = (row: Row<CanvasAdminTaskPointRecord>) => (
+    <Fragment key={row.id}>
+      <TableRow>
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+      {expanded === row.original.id ? (
+        <TableRow>
+          <TableCell colSpan={row.getVisibleCells().length}>
+            <PointDetails record={row.original} />
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </Fragment>
   )
   return (
-    <div className='space-y-5'>
-      <dl className='grid gap-4 sm:grid-cols-2'>
-        <DetailValue label='Pre-authorized points'>
-          <Points value={task.quotedPoints} />
-        </DetailValue>
-        <DetailValue label='Task released points'>
-          <Points value={task.releasedPoints} />
-        </DetailValue>
-        <DetailValue label='Billing unit'>
-          {task.billingUnit
-            ? t(billingUnitLabels[task.billingUnit] ?? 'Unknown')
-            : '—'}
-        </DetailValue>
-        <DetailValue label='Billing completion time'>
-          {formatDateTime(locale, task.billingFinalizedAt)}
-        </DetailValue>
-        <DetailValue label='Raw billing status'>
-          {statusLabel(t, task.customerBillingStatus, billingLabels)}
-        </DetailValue>
-      </dl>
-      {query.isError ? (
-        <div className='space-y-2' role='alert'>
-          <p>{t('Unable to load point records')}</p>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => void query.refetch()}
-          >
-            {t('Retry')}
-          </Button>
-        </div>
-      ) : (
-        <CanvasServerTable
-          data={query.data?.items ?? []}
-          columns={columns}
-          total={query.data?.total ?? 0}
-          state={state}
-          loading={query.isPending || query.isFetching}
-          emptyTitle={t('No point records')}
-          filteredEmptyTitle={t('No matching results')}
-          hasActiveFilters={Boolean(changeType || lotType || from || to)}
-          onResetFilters={() => {
-            setChangeType('')
-            setLotType('')
-            setFrom(undefined)
-            setTo(undefined)
-          }}
-          additionalFilters={
-            <>
-              <DataTableColumnFilterField label={t('Change')}>
-                <Select
-                  value={changeType || 'ALL'}
-                  onValueChange={(value) =>
-                    setChangeType(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger className='w-full' aria-label={t('Change')}>
-                    <CanvasLocalizedSelectValue
-                      value={changeType}
-                      emptyLabelKey='All changes'
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All changes')}</SelectItem>
-                    {Object.entries(ledgerEventLabels).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {t(label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Lot type')}>
-                <Select
-                  value={lotType || 'ALL'}
-                  onValueChange={(value) =>
-                    setLotType(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger className='w-full' aria-label={t('Lot type')}>
-                    <CanvasLocalizedSelectValue
-                      value={lotType}
-                      emptyLabelKey='All lot types'
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All lot types')}</SelectItem>
-                    <SelectItem value='PAID'>{t('Paid points')}</SelectItem>
-                    <SelectItem value='BONUS'>{t('Bonus points')}</SelectItem>
-                    <SelectItem value='GRACE_BONUS'>
-                      {t('Grace bonus points')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-              <div className='sm:col-span-2'>
-                <CanvasDateRangeFilter
-                  from={from}
-                  to={to}
-                  onFromChange={setFrom}
-                  onToChange={setTo}
-                />
-              </div>
-            </>
-          }
-          getRowId={(row) => row.id}
-        />
-      )}
-    </div>
+    <CanvasServerTable
+      data={query.data?.items ?? []}
+      columns={columns}
+      total={query.data?.total ?? 0}
+      state={state}
+      loading={query.isPending || query.isFetching}
+      error={query.isError}
+      errorTitle={t('Unable to load point records')}
+      onRetry={() => void query.refetch()}
+      emptyTitle={t('No point records')}
+      getRowId={(row) => row.id}
+      renderRow={rowRenderer}
+      renderExpandedContent={(row) =>
+        expanded === row.original.id ? (
+          <PointDetails record={row.original} />
+        ) : null
+      }
+    />
   )
 }
 
 export function AdminTaskRecordDetails({
   taskId,
-  scrollContainerRef,
-  onLedgerDetailsChange,
+  scrollContainerRef: _scrollContainerRef,
+  onLedgerDetailsChange: _onLedgerDetailsChange,
 }: {
   taskId: string
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>
@@ -704,9 +502,6 @@ export function AdminTaskRecordDetails({
 }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const [selectedLedgerId, setSelectedLedgerId] = useState<string>()
-  const [restorePointRecords, setRestorePointRecords] = useState(false)
-  const ledgerScrollTop = useRef(0)
   const query = useQuery({
     queryKey: ['canvas-cloud', 'task-record', taskId],
     queryFn: ({ signal }) => getCanvasAdminTaskRecord(taskId, signal),
@@ -735,58 +530,23 @@ export function AdminTaskRecordDetails({
     )
   }
   const task = query.data
-  const taskErrorMessage = getLocalizedErrorMessage(
-    task.taskError,
-    i18n.resolvedLanguage || i18n.language
-  )
-  const singleOutputErrorMessage =
-    task.outputs.length === 1
-      ? getLocalizedErrorMessage(
-          task.outputs[0].error,
-          i18n.resolvedLanguage || i18n.language
-        )
+  const failure =
+    task.failureLocation && task.taskError?.code
+      ? `${t(failureLocations[task.failureLocation] ?? 'Unknown')} · ${t(errorCategories[task.taskError.code] ?? 'Unknown error category')}`
       : null
-  const openLedger = (
-    ledgerId: string,
-    _trigger: HTMLButtonElement,
-    scrollTop: number
-  ) => {
-    ledgerScrollTop.current = scrollTop
-    setRestorePointRecords(true)
-    setSelectedLedgerId(ledgerId)
-    onLedgerDetailsChange?.(ledgerId)
-  }
-  const returnToPointRecords = () => {
-    const ledgerId = selectedLedgerId
-    setSelectedLedgerId(undefined)
-    onLedgerDetailsChange?.()
-    const restoreFocus = (remainingFrames: number) => {
-      const trigger = ledgerId
-        ? document.getElementById(ledgerViewButtonId(ledgerId))
-        : null
-      if (trigger instanceof HTMLButtonElement) {
-        trigger.focus({ preventScroll: true })
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = ledgerScrollTop.current
-        }
-      } else if (remainingFrames > 0) {
-        requestAnimationFrame(() => restoreFocus(remainingFrames - 1))
-      }
-    }
-    requestAnimationFrame(() => restoreFocus(2))
-  }
-  if (selectedLedgerId) {
-    return (
-      <TaskLedgerDetail
-        taskId={task.id}
-        ledgerId={selectedLedgerId}
-        onBack={returnToPointRecords}
-      />
-    )
-  }
+  const failed =
+    task.derivedExecutionStatus === 'CONFIRMED_FAILED' ||
+    task.derivedExecutionStatus === 'PARTIAL_SUCCESS'
   return (
     <div className='space-y-6'>
       <dl className='grid gap-4 sm:grid-cols-2'>
+        <div className='sm:col-span-2'>
+          <DetailValue label='Task ID'>
+            <span className='font-mono select-text'>
+              <CopyableText value={task.id} noTruncate />
+            </span>
+          </DetailValue>
+        </div>
         <DetailValue label='Customer'>
           {task.customerName ? (
             <a
@@ -803,49 +563,29 @@ export function AdminTaskRecordDetails({
           {task.modelName ?? t('Unknown model')}
         </DetailValue>
         <DetailValue label='Task accepted at'>
-          {formatDateTime(locale, task.acceptedAt)}
+          {formatTime(locale, task.acceptedAt)}
         </DetailValue>
+        <DetailValue label='Completed at'>
+          {task.completedAt
+            ? formatTime(locale, task.completedAt)
+            : t('Not completed')}
+        </DetailValue>
+        <DetailValue label='Execution result'>
+          {t(executionLabels[task.derivedExecutionStatus] ?? 'Unknown')}
+        </DetailValue>
+        <DetailValue label='Output results'>
+          {outputSummary(task, t)}
+        </DetailValue>
+        <DetailValue label='Point status'>
+          {settlementSummary(task, t)}
+        </DetailValue>
+        {failure ? (
+          <div className='sm:col-span-2'>
+            <DetailValue label='Failure summary'>{failure}</DetailValue>
+          </div>
+        ) : null}
       </dl>
-      <div className='space-y-2'>
-        <p className='text-sm font-medium'>
-          {statusLabel(t, task.derivedExecutionStatus, executionLabels)}
-        </p>
-        <p className='text-muted-foreground text-sm'>
-          {statusLabel(t, task.settlementProgress, settlementLabels)}
-        </p>
-        {executionSummary(task.executionSummary, t) ? (
-          <p className='text-muted-foreground text-sm'>
-            {executionSummary(task.executionSummary, t)}
-          </p>
-        ) : null}
-        {task.executionSummary.resultsIncomplete ? (
-          <p className='text-muted-foreground text-sm'>
-            {t('Results are incomplete')}
-          </p>
-        ) : null}
-        {taskErrorMessage ? (
-          <p className='text-destructive text-sm [overflow-wrap:anywhere]'>
-            {taskErrorMessage}
-          </p>
-        ) : null}
-        {singleOutputErrorMessage ? (
-          <p className='text-destructive text-sm [overflow-wrap:anywhere]'>
-            {singleOutputErrorMessage}
-          </p>
-        ) : null}
-      </div>
-      <dl className='grid gap-4 sm:grid-cols-2'>
-        <DetailValue label='Settled points'>
-          <Points value={task.settledPoints} />
-        </DetailValue>
-        <DetailValue label='Deducted points'>
-          <Points value={task.deductedPoints} />
-        </DetailValue>
-        <DetailValue label='Outstanding debt'>
-          <Points value={task.outstandingDebtPoints} />
-        </DetailValue>
-      </dl>
-      <Accordion defaultValue={restorePointRecords ? ['point-records'] : []}>
+      <Accordion defaultValue={failed ? ['execution-details'] : []}>
         <AccordionItem value='execution-details'>
           <AccordionTrigger>{t('Execution details')}</AccordionTrigger>
           <AccordionContent>
@@ -855,11 +595,7 @@ export function AdminTaskRecordDetails({
         <AccordionItem value='point-records'>
           <AccordionTrigger>{t('Point records')}</AccordionTrigger>
           <AccordionContent>
-            <TaskPointRecords
-              task={task}
-              scrollContainerRef={scrollContainerRef}
-              onViewLedger={openLedger}
-            />
+            <TaskPointRecords taskId={task.id} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

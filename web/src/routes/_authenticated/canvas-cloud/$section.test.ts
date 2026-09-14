@@ -29,9 +29,13 @@ vi.mock('@/features/canvas-cloud/access', () => ({
   isCanvasSectionAllowed: vi.fn(() => true),
 }))
 
-async function beforeLoad(section: string, search: Record<string, unknown>) {
+async function beforeLoad(
+  section: string,
+  search: Record<string, unknown>,
+  principalType = 'ADMINISTRATOR'
+) {
   mocks.getCanvasSession.mockResolvedValue({
-    principalType: 'ADMINISTRATOR',
+    principalType,
     inviterEnabled: true,
   })
   try {
@@ -58,6 +62,40 @@ describe('Canvas Cloud legacy section search', () => {
   it('keeps an invalid runtime view for the route-localized recovery state', () => {
     const search = canvasCloudSearchSchema.parse({ view: 'unknown' })
     expect(search.view).toBe(invalidCanvasCloudRuntimeView)
+  })
+
+  it.each([
+    ['overview', 'redeem'],
+    ['recharge', 'redeem'],
+    ['consumption', 'lots'],
+  ])(
+    'redirects legacy customer %s to the matching point-center view',
+    async (section, view) => {
+      await expect(beforeLoad(section, {}, 'CUSTOMER')).resolves.toMatchObject({
+        options: {
+          to: '/canvas-cloud/$section',
+          params: { section: 'points' },
+          search: { view },
+          replace: true,
+        },
+      })
+    }
+  )
+
+  it('preserves a legacy recharge business order filter in the point-center redirect', async () => {
+    await expect(
+      beforeLoad('recharge', { orderNumber: 'RC-20260914-001' }, 'CUSTOMER')
+    ).resolves.toMatchObject({
+      options: {
+        search: { view: 'redeem', orderNumber: 'RC-20260914-001' },
+      },
+    })
+  })
+
+  it('accepts point-center deep links as stable search state', () => {
+    expect(canvasCloudSearchSchema.parse({ view: 'ledger' }).view).toBe(
+      'ledger'
+    )
   })
 
   it('keeps an invalid pricing model ID until beforeLoad returns its explicit error', async () => {

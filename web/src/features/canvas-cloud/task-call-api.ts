@@ -11,37 +11,30 @@ import { api } from '@/lib/api'
 
 export interface CanvasTaskCall {
   localCallId: string
-  taskId: string
   outputIndices: number[]
   callType: string
-  submissionId: string | null
   attemptCount: number
-  state: string
-  executionOrigin: string
-  workerId: string
-  providerId: string
-  channelId: string
-  modelId: string
+  chainState: string
+  providerName: string | null
+  channelCode: string | null
+  channelVersion: number | null
+  upstreamModelId: string | null
+  credentialGroupName: string | null
+  credentialGroupVersion: number | null
+  workerId: string | null
   upstreamRequestId: string | null
   upstreamTaskId: string | null
-  upstreamIdentifierSources: Record<string, string> | null
-  httpStatus: number | null
+  initialHttpStatus: number | null
+  finalHttpStatus: number | null
+  durationMs: number | null
   errorCode: string | null
   sanitizedError: string | null
   errorRuleId: string | null
   errorRuleVersion: number | null
-  errorCategory: string | null
-  policyVersions: {
-    global: number | null
-    channel: number | null
-    limits: number | null
-  }
+  sanitizedRequest: unknown
   startedAt: string | null
   sentAt: string | null
-  completedAt: string | null
-  deadlineAt: string | null
-  asyncInFlight: boolean
-  usage: unknown
+  finalRespondedAt: string | null
 }
 
 export interface CanvasTaskCallPage {
@@ -52,12 +45,6 @@ export interface CanvasTaskCallPage {
 }
 
 export interface CanvasTaskCallQuery {
-  callType?: string
-  state?: string
-  outputIndex?: number
-  httpStatus?: number
-  from?: string
-  to?: string
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
