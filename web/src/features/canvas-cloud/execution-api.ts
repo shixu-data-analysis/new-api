@@ -13,7 +13,10 @@ import type {
   CredentialGroupExecutionOverview,
   ErrorPreviewResult,
   ExecutionLocale,
+  ExecutionCapacityOverview,
   ExecutionOverview,
+  ExecutionWaitItem,
+  ExecutionWaitPage,
   PublishableExecutionPolicyKind,
   PublishedExecutionPolicy,
 } from './execution-types'
@@ -29,6 +32,45 @@ export async function getCanvasExecutionOverview(
 ): Promise<ExecutionOverview> {
   return (
     await api.get<ExecutionOverview>(`${webBase}/admin/execution`, { signal })
+  ).data
+}
+
+export async function getCanvasExecutionCapacity(
+  signal?: AbortSignal
+): Promise<ExecutionCapacityOverview> {
+  return (
+    await api.get<ExecutionCapacityOverview>(
+      `${webBase}/admin/execution/capacity`,
+      { signal }
+    )
+  ).data
+}
+
+export async function getCanvasExecutionWaits(
+  query: {
+    credentialGroupId?: string
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  },
+  signal?: AbortSignal
+): Promise<ExecutionWaitPage> {
+  return (
+    await api.get<ExecutionWaitPage>(`${webBase}/admin/execution/waits`, {
+      params: query,
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasExecutionWaitDetail(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<ExecutionWaitItem> {
+  return (
+    await api.get<ExecutionWaitItem>(
+      `${webBase}/admin/execution/waits/${encodeURIComponent(taskId)}`,
+      { signal }
+    )
   ).data
 }
 

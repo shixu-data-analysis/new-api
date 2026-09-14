@@ -18,13 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { normalizeRechargeCodeInventorySearch } from './recharge-code-amount'
 import type {
   CanvasAdminWorkspace,
   CanvasAuditEventPage,
   CanvasAuditEventQuery,
   CanvasAdminTestingModel,
   CanvasAdminRechargeCodePage,
+  CanvasAdminRechargeCodeBatchItems,
+  CanvasAdminRechargeCodeBatchItem,
+  CanvasAdminRechargeCodeExactSearch,
+  CanvasAdminRechargeCodeExactSearchPage,
   CanvasAdminRechargeCodeQuery,
   CanvasCatalogModel,
   CanvasContributionReport,
@@ -434,30 +437,26 @@ export async function getCanvasAdminRechargeCodes(
   query: CanvasAdminRechargeCodeQuery,
   signal?: AbortSignal
 ): Promise<CanvasAdminRechargeCodePage> {
-  const requestedCode = query.code?.trim()
-  const normalizedCode = requestedCode
-    ? normalizeRechargeCodeInventorySearch(requestedCode)
-    : null
-  if (requestedCode && !normalizedCode) {
-    throw new Error('Invalid recharge-code inventory search')
-  }
-  let codeSearch: {
-    codePrefix?: string
-    codeSuffix?: string
-  } = {}
-  if (normalizedCode) {
-    codeSearch = { codePrefix: normalizedCode.slice(0, 8) }
-    if (normalizedCode.length >= 12) {
-      codeSearch.codeSuffix = normalizedCode.slice(-4)
-    }
-  }
   return (
     await api.get<CanvasAdminRechargeCodePage>(
       `${webBase}/admin/recharge-codes`,
       {
-        params: { ...query, code: undefined, ...codeSearch },
+        params: query,
         signal,
       }
+    )
+  ).data
+}
+
+export async function searchCanvasAdminRechargeCodeBatch(
+  input: CanvasAdminRechargeCodeExactSearch,
+  signal?: AbortSignal
+): Promise<CanvasAdminRechargeCodeExactSearchPage> {
+  return (
+    await api.post<CanvasAdminRechargeCodeExactSearchPage>(
+      `${webBase}/admin/recharge-code-batch-searches`,
+      input,
+      { signal, skipErrorHandler: true }
     )
   ).data
 }
@@ -498,6 +497,19 @@ export async function downloadCanvasUnusedRechargeCodes(batchId: string) {
     content: response.data,
     downloadCount: Number(response.headers['x-canvas-download-count'] ?? 0),
   }
+}
+
+export async function getCanvasAdminRechargeCodeBatchItems(
+  batchId: string,
+  status?: CanvasAdminRechargeCodeBatchItem['status'],
+  signal?: AbortSignal
+): Promise<CanvasAdminRechargeCodeBatchItems> {
+  return (
+    await api.get<CanvasAdminRechargeCodeBatchItems>(
+      `${webBase}/admin/recharge-code-batches/${encodeURIComponent(batchId)}/codes`,
+      { params: status ? { status } : undefined, signal, skipErrorHandler: true }
+    )
+  ).data
 }
 
 export async function activateCanvasInvite(code: string): Promise<{
@@ -1144,7 +1156,7 @@ export async function publishCanvasProviderCredentialGroup(input: {
     bindingId: string
     bindingVersion: number
   }>
-  reason: string
+  reason?: string | null
 }) {
   return (
     await api.post(
@@ -1168,7 +1180,7 @@ export async function bindCanvasProviderCredentials(input: {
     bindingId: string | null
     bindingVersion: number | null
   }>
-  reason?: string
+  reason?: string | null
 }) {
   return (
     await api.post(
@@ -1193,7 +1205,7 @@ export async function publishCanvasCredentialGroupManagement(input: {
     bindingId: string | null
     bindingVersion: number | null
   }>
-  reason?: string
+  reason?: string | null
 }) {
   const { credentialGroupId, ...body } = input
   return (
@@ -1213,7 +1225,7 @@ export async function publishCanvasCredentialGroupManagement(input: {
 export async function archiveCanvasCredentialGroup(input: {
   credentialGroupId: string
   expectedCredentialGroupVersionId: string
-  reason?: string
+  reason?: string | null
 }) {
   const { credentialGroupId, ...body } = input
   return (
@@ -1233,7 +1245,7 @@ export async function archiveCanvasCredentialGroup(input: {
 export async function restoreCanvasCredentialGroup(input: {
   credentialGroupId: string
   expectedCredentialGroupVersionId: string
-  reason?: string
+  reason?: string | null
 }) {
   const { credentialGroupId, ...body } = input
   return (

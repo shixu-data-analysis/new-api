@@ -12,10 +12,14 @@ import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import type { CanvasInvitationExactFilter } from '../types'
 import { AgentManagement } from './AgentManagement'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { InviteCodeManagement } from './InviteCodeManagement'
 
@@ -115,10 +119,14 @@ export function InvitationManagement() {
       onValueChange={(value) => selectTab(value as 'codes' | 'inviters')}
     >
       <InvitationNavigationProtection guards={Object.values(guards)} />
-      <TabsList aria-label={t('Invitation management')}>
-        <TabsTrigger value='codes'>{t('Invite codes')}</TabsTrigger>
-        <TabsTrigger value='inviters'>{t('Inviters')}</TabsTrigger>
-      </TabsList>
+      <CanvasManagementTabsList aria-label={t('Invitation management')}>
+        <CanvasManagementTabsTrigger value='codes'>
+          {t('Invite codes')}
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='inviters'>
+          {t('Inviters')}
+        </CanvasManagementTabsTrigger>
+      </CanvasManagementTabsList>
       <TabsContent keepMounted value='codes' className='min-w-0'>
         {search.inviterPrincipalId ? (
           <div className='flex flex-wrap items-center gap-2'>

@@ -36,6 +36,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -66,7 +67,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { useDebounce } from '@/hooks'
 
@@ -97,9 +98,13 @@ import type {
   CanvasProviderModel,
   CanvasRuntimeConnectionCheck,
 } from '../types'
-import { useServerTableState } from '../use-server-table-state'
 import { useDirectAsync } from '../use-direct-async'
+import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -121,17 +126,36 @@ function isHttpsOrigin(value: string) {
   }
 }
 
-
 const taskMediaSchema = z
   .object({
-  endpoint: z.string().trim().refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
-  bucket: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
-  accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
-  secretAccessKey: z.string().max(65_536, 'Use no more than 65536 characters'),
-  inputRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
-  outputRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
-  downloadUrlTtlSeconds: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(60, 'Enter a value from 60 to 3600').max(3600, 'Enter a value from 60 to 3600'),
-  reason: z.string().trim().max(255, 'Use no more than 255 characters'),
+    endpoint: z
+      .string()
+      .trim()
+      .refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
+    bucket: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
+    accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
+    secretAccessKey: z
+      .string()
+      .max(65_536, 'Use no more than 65536 characters'),
+    inputRetentionHours: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(1, 'Enter a value from 1 to 8760')
+      .max(8760, 'Enter a value from 1 to 8760'),
+    outputRetentionHours: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(1, 'Enter a value from 1 to 8760')
+      .max(8760, 'Enter a value from 1 to 8760'),
+    downloadUrlTtlSeconds: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(60, 'Enter a value from 60 to 3600')
+      .max(3600, 'Enter a value from 60 to 3600'),
+    reason: z.string().trim().max(255, 'Use no more than 255 characters'),
   })
   .refine((value) => !value.secretAccessKey || Boolean(value.accessKeyId), {
     message: 'Enter both credential fields or leave both blank',
@@ -140,13 +164,29 @@ const taskMediaSchema = z
 type TaskMediaForm = z.infer<typeof taskMediaSchema>
 const databaseBackupSchema = z
   .object({
-  endpoint: z.string().trim().refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
-  bucket: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
-  accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
-  secretAccessKey: z.string().max(65_536, 'Use no more than 65536 characters'),
-  backupRetentionHours: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(1, 'Enter a value from 1 to 8760').max(8760, 'Enter a value from 1 to 8760'),
-  downloadUrlTtlSeconds: z.number({ error: 'Enter a number' }).int('Enter a whole number').min(60, 'Enter a value from 60 to 3600').max(3600, 'Enter a value from 60 to 3600'),
-  reason: z.string().trim().max(255, 'Use no more than 255 characters'),
+    endpoint: z
+      .string()
+      .trim()
+      .refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
+    bucket: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
+    accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
+    secretAccessKey: z
+      .string()
+      .max(65_536, 'Use no more than 65536 characters'),
+    backupRetentionHours: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(1, 'Enter a value from 1 to 8760')
+      .max(8760, 'Enter a value from 1 to 8760'),
+    downloadUrlTtlSeconds: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(60, 'Enter a value from 60 to 3600')
+      .max(3600, 'Enter a value from 60 to 3600'),
+    reason: z.string().trim().max(255, 'Use no more than 255 characters'),
   })
   .refine((value) => !value.secretAccessKey || Boolean(value.accessKeyId), {
     message: 'Enter both credential fields or leave both blank',
@@ -172,7 +212,6 @@ const credentialSchema = z.object({
   reason: z
     .string()
     .trim()
-    .min(1, { error: 'Enter a reason' })
     .max(255, { error: 'Use no more than 255 characters' }),
 })
 type CredentialForm = z.infer<typeof credentialSchema>
@@ -201,7 +240,10 @@ function readProviderContext(): {
     const providerId = (value as { providerId?: unknown }).providerId
     const credentialGroupId = (value as { credentialGroupId?: unknown })
       .credentialGroupId
-    if (typeof providerId !== 'string' || typeof credentialGroupId !== 'string') {
+    if (
+      typeof providerId !== 'string' ||
+      typeof credentialGroupId !== 'string'
+    ) {
       return null
     }
     return { providerId, credentialGroupId }
@@ -244,10 +286,8 @@ export function RuntimeConfiguration(
   >(null)
   const [managementCloseRequested, setManagementCloseRequested] =
     useState(false)
-  const [archiveConfirmationOpen, setArchiveConfirmationOpen] =
-    useState(false)
-  const [restoreConfirmationOpen, setRestoreConfirmationOpen] =
-    useState(false)
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false)
+  const [restoreConfirmationOpen, setRestoreConfirmationOpen] = useState(false)
   const [showArchivedGroups, setShowArchivedGroups] = useState(false)
   const managementTriggerRef = useRef<HTMLButtonElement>(null)
   const historyTriggerRef = useRef<HTMLButtonElement>(null)
@@ -257,9 +297,7 @@ export function RuntimeConfiguration(
     targetProviderId ?? restoredProviderContext?.providerId ?? ''
   )
   const [selectedCredentialGroupId, setSelectedCredentialGroupId] = useState(
-    targetCredentialGroupId ??
-      restoredProviderContext?.credentialGroupId ??
-      ''
+    targetCredentialGroupId ?? restoredProviderContext?.credentialGroupId ?? ''
   )
   const [activeProviderTarget, setActiveProviderTarget] = useState(
     props.providerTarget
@@ -399,15 +437,16 @@ export function RuntimeConfiguration(
       'canvas-cloud',
       'provider-configuration-management-candidates',
       selectedProviderId || providerRuntime.data?.selectedProviderId,
-      selectedCredentialGroupId || providerRuntime.data?.selectedCredentialGroupId,
+      selectedCredentialGroupId ||
+        providerRuntime.data?.selectedCredentialGroupId,
     ],
     enabled:
       view === 'provider' &&
       providerDrawer === 'management' &&
       Boolean(
         (selectedProviderId || providerRuntime.data?.selectedProviderId) &&
-          (selectedCredentialGroupId ||
-            providerRuntime.data?.selectedCredentialGroupId)
+        (selectedCredentialGroupId ||
+          providerRuntime.data?.selectedCredentialGroupId)
       ),
     queryFn: async ({ signal }) => {
       const providerId =
@@ -511,9 +550,9 @@ export function RuntimeConfiguration(
         selectedModels.length !== managementInitialModels.length ||
         selectedModels.some((id) => !managementInitialModels.includes(id))
       : openEditor === 'credential' || addCredentialOpen
-      ? credential.formState.isDirty
-      : openEditor === 'binding' &&
-        (binding.formState.isDirty || selectedModels.length > 0)
+        ? credential.formState.isDirty
+        : openEditor === 'binding' &&
+          (binding.formState.isDirty || selectedModels.length > 0)
   const hasUnsavedStorageEdit =
     (openEditor === 'taskMedia' && taskMedia.formState.isDirty) ||
     (openEditor === 'databaseBackup' && databaseBackup.formState.isDirty)
@@ -644,9 +683,15 @@ export function RuntimeConfiguration(
               },
             }
           : {}),
-        ...(current?.inputRetentionHours !== value.inputRetentionHours ? { inputRetentionHours: value.inputRetentionHours } : {}),
-        ...(current?.outputRetentionHours !== value.outputRetentionHours ? { outputRetentionHours: value.outputRetentionHours } : {}),
-        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds } : {}),
+        ...(current?.inputRetentionHours !== value.inputRetentionHours
+          ? { inputRetentionHours: value.inputRetentionHours }
+          : {}),
+        ...(current?.outputRetentionHours !== value.outputRetentionHours
+          ? { outputRetentionHours: value.outputRetentionHours }
+          : {}),
+        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
+          ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds }
+          : {}),
         ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
       })
     },
@@ -676,8 +721,12 @@ export function RuntimeConfiguration(
               },
             }
           : {}),
-        ...(current?.backupRetentionHours !== value.backupRetentionHours ? { backupRetentionHours: value.backupRetentionHours } : {}),
-        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds } : {}),
+        ...(current?.backupRetentionHours !== value.backupRetentionHours
+          ? { backupRetentionHours: value.backupRetentionHours }
+          : {}),
+        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
+          ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds }
+          : {}),
         ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
       })
     },
@@ -714,7 +763,7 @@ export function RuntimeConfiguration(
               })),
             }
           : {}),
-        reason: value.reason,
+        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
       })
     },
     onSuccess: async (published) => {
@@ -735,10 +784,8 @@ export function RuntimeConfiguration(
       toast.success(t('Provider credential group published'))
       await refresh()
     },
-    onError: async (error) => {
-      setConfirmation(null)
+    onError: (error) => {
       toast.error(runtimeChangeError(error, t, 'credential'))
-      await refresh()
     },
   })
   const bindingMutation = useMutation({
@@ -800,7 +847,7 @@ export function RuntimeConfiguration(
       await refresh()
     },
     onError: (error) => {
-      toast.error(runtimeChangeError(error, t, 'credential'))
+      toast.error(runtimeChangeError(error, t, 'management'))
     },
   })
   const archiveMutation = useMutation({
@@ -916,6 +963,9 @@ export function RuntimeConfiguration(
     ''
   const providerGroups = (providerData?.credentialGroups ?? []).filter(
     (item) => item.providerId === effectiveProviderId
+  )
+  const selectedProvider = providerData?.providers.find(
+    (provider) => provider.id === effectiveProviderId
   )
   const selectedGroup =
     providerGroups.find(
@@ -1154,12 +1204,7 @@ export function RuntimeConfiguration(
             } satisfies ColumnDef<CanvasProviderModel, unknown>,
           ]),
     ],
-    [
-      openEditor,
-      selectedGroup,
-      selectedModels,
-      t,
-    ]
+    [openEditor, selectedGroup, selectedModels, t]
   )
   let confirmationDetails = [
     { label: t('Selected models'), value: String(selectedModels.length) },
@@ -1169,21 +1214,51 @@ export function RuntimeConfiguration(
     const value = taskMedia.getValues()
     confirmationDetails = [
       ...(current?.endpoint !== value.endpoint
-        ? [{ label: t('R2 endpoint'), value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}` }]
+        ? [
+            {
+              label: t('R2 endpoint'),
+              value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}`,
+            },
+          ]
         : []),
       ...(current?.bucket !== value.bucket
-        ? [{ label: t('Task media bucket'), value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}` }]
+        ? [
+            {
+              label: t('Task media bucket'),
+              value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}`,
+            },
+          ]
         : []),
       ...(current?.inputRetentionHours !== value.inputRetentionHours
-        ? [{ label: t('Input retention hours'), value: `${current?.inputRetentionHours ?? t('Not configured')} → ${value.inputRetentionHours}` }]
+        ? [
+            {
+              label: t('Input retention hours'),
+              value: `${current?.inputRetentionHours ?? t('Not configured')} → ${value.inputRetentionHours}`,
+            },
+          ]
         : []),
       ...(current?.outputRetentionHours !== value.outputRetentionHours
-        ? [{ label: t('Output retention hours'), value: `${current?.outputRetentionHours ?? t('Not configured')} → ${value.outputRetentionHours}` }]
+        ? [
+            {
+              label: t('Output retention hours'),
+              value: `${current?.outputRetentionHours ?? t('Not configured')} → ${value.outputRetentionHours}`,
+            },
+          ]
         : []),
       ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
-        ? [{ label: t('Download URL seconds'), value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}` }]
+        ? [
+            {
+              label: t('Download URL seconds'),
+              value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}`,
+            },
+          ]
         : []),
-      { label: t('Credentials'), value: value.secretAccessKey ? t('Will be replaced') : t('Keep current') },
+      {
+        label: t('Credentials'),
+        value: value.secretAccessKey
+          ? t('Will be replaced')
+          : t('Keep current'),
+      },
       { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]
   }
@@ -1192,18 +1267,43 @@ export function RuntimeConfiguration(
     const value = databaseBackup.getValues()
     confirmationDetails = [
       ...(current?.endpoint !== value.endpoint
-        ? [{ label: t('R2 endpoint'), value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}` }]
+        ? [
+            {
+              label: t('R2 endpoint'),
+              value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}`,
+            },
+          ]
         : []),
       ...(current?.bucket !== value.bucket
-        ? [{ label: t('Database backup bucket'), value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}` }]
+        ? [
+            {
+              label: t('Database backup bucket'),
+              value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}`,
+            },
+          ]
         : []),
       ...(current?.backupRetentionHours !== value.backupRetentionHours
-        ? [{ label: t('Backup retention hours'), value: `${current?.backupRetentionHours ?? t('Not configured')} → ${value.backupRetentionHours}` }]
+        ? [
+            {
+              label: t('Backup retention hours'),
+              value: `${current?.backupRetentionHours ?? t('Not configured')} → ${value.backupRetentionHours}`,
+            },
+          ]
         : []),
       ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
-        ? [{ label: t('Download URL seconds'), value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}` }]
+        ? [
+            {
+              label: t('Download URL seconds'),
+              value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}`,
+            },
+          ]
         : []),
-      { label: t('Credentials'), value: value.secretAccessKey ? t('Will be replaced') : t('Keep current') },
+      {
+        label: t('Credentials'),
+        value: value.secretAccessKey
+          ? t('Will be replaced')
+          : t('Keep current'),
+      },
       { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]
   }
@@ -1214,7 +1314,7 @@ export function RuntimeConfiguration(
     confirmationDetails = [
       {
         label: t('Provider'),
-        value: provider ? `${provider.code} · ${provider.name}` : '—',
+        value: provider?.name ?? '—',
       },
       {
         label: t('Provider credential group'),
@@ -1251,7 +1351,11 @@ export function RuntimeConfiguration(
       },
     ]
   }
-  if (confirmation === 'management' && selectedGroup && managementCandidates.data) {
+  if (
+    confirmation === 'management' &&
+    selectedGroup &&
+    managementCandidates.data
+  ) {
     const value = management.getValues()
     const added = managementCandidates.data.filter(
       (model) =>
@@ -1264,6 +1368,10 @@ export function RuntimeConfiguration(
         model.credentialGroupId === selectedGroup.credentialGroupId
     )
     confirmationDetails = [
+      {
+        label: t('Provider'),
+        value: selectedProvider?.name ?? '—',
+      },
       ...(value.name.trim() !== selectedGroup.name
         ? [
             {
@@ -1337,37 +1445,14 @@ export function RuntimeConfiguration(
         className='space-y-4'
       >
         {view === 'storage' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Runtime storage')}</CardTitle>
-              <CardDescription>
-                {t(
-                  'Task media and database backups use independent buckets, credentials, publications, and connection checks.'
-                )}
-              </CardDescription>
-              <CardAction>
-                <div className='bg-muted rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap'>
-                  {t('Current environment')}: {storageData?.environment}
-                </div>
-              </CardAction>
-            </CardHeader>
-            <CardContent>
-              <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-                <TabsTrigger
-                  value='taskMedia'
-                  className='h-8 min-h-8 flex-none px-3'
-                >
-                  {t('Task media')}
-                </TabsTrigger>
-                <TabsTrigger
-                  value='databaseBackup'
-                  className='h-8 min-h-8 flex-none px-3'
-                >
-                  {t('Database backups')}
-                </TabsTrigger>
-              </TabsList>
-            </CardContent>
-          </Card>
+          <CanvasManagementTabsList>
+            <CanvasManagementTabsTrigger value='taskMedia'>
+              {t('Task media')}
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='databaseBackup'>
+              {t('Database backups')}
+            </CanvasManagementTabsTrigger>
+          </CanvasManagementTabsList>
         )}
 
         {view === 'storage' && (
@@ -1380,6 +1465,19 @@ export function RuntimeConfiguration(
                     'Stores task inputs and generated outputs with separate retention controls.'
                   )}
                 </CardDescription>
+                {storageData?.taskMedia && (
+                  <CardAction>
+                    <div className='flex flex-wrap items-center justify-end gap-2'>
+                      <BusinessTerm
+                        kind='configStatus'
+                        value={storageData.taskMedia.status}
+                      />
+                      <Badge variant='secondary'>
+                        {t('Version')} {storageData.taskMedia.version}
+                      </Badge>
+                    </div>
+                  </CardAction>
+                )}
               </CardHeader>
               <CardContent className='space-y-5'>
                 {storageData?.taskMedia ? (
@@ -1421,10 +1519,16 @@ export function RuntimeConfiguration(
                     aria-label={t('Publish task media configuration')}
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
                     onSubmit={taskMedia.handleSubmit((value) => {
-                      const currentAccessKeyId = storageData.taskMedia?.accessKeyId ?? ''
-                      if ((!storageData.taskMedia || value.accessKeyId !== currentAccessKeyId) && !value.secretAccessKey) {
+                      const currentAccessKeyId =
+                        storageData.taskMedia?.accessKeyId ?? ''
+                      if (
+                        (!storageData.taskMedia ||
+                          value.accessKeyId !== currentAccessKeyId) &&
+                        !value.secretAccessKey
+                      ) {
                         taskMedia.setError('secretAccessKey', {
-                          message: 'Enter both credential fields or leave both blank',
+                          message:
+                            'Enter both credential fields or leave both blank',
                         })
                         return
                       }
@@ -1470,7 +1574,9 @@ export function RuntimeConfiguration(
                     </Field>
                     {storageData.taskMedia?.credentialsConfigured ? (
                       <p className='text-muted-foreground text-xs sm:col-span-2'>
-                        {t('Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.')}
+                        {t(
+                          'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
+                        )}
                       </p>
                     ) : null}
                     <Field
@@ -1561,6 +1667,19 @@ export function RuntimeConfiguration(
                     'Stores database backups with dedicated credentials and lifecycle managed outside task media.'
                   )}
                 </CardDescription>
+                {storageData?.databaseBackup && (
+                  <CardAction>
+                    <div className='flex flex-wrap items-center justify-end gap-2'>
+                      <BusinessTerm
+                        kind='configStatus'
+                        value={storageData.databaseBackup.status}
+                      />
+                      <Badge variant='secondary'>
+                        {t('Version')} {storageData.databaseBackup.version}
+                      </Badge>
+                    </div>
+                  </CardAction>
+                )}
               </CardHeader>
               <CardContent className='space-y-5'>
                 {storageData?.databaseBackup ? (
@@ -1601,10 +1720,16 @@ export function RuntimeConfiguration(
                     aria-label={t('Publish database backup configuration')}
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
                     onSubmit={databaseBackup.handleSubmit((value) => {
-                      const currentAccessKeyId = storageData.databaseBackup?.accessKeyId ?? ''
-                      if ((!storageData.databaseBackup || value.accessKeyId !== currentAccessKeyId) && !value.secretAccessKey) {
+                      const currentAccessKeyId =
+                        storageData.databaseBackup?.accessKeyId ?? ''
+                      if (
+                        (!storageData.databaseBackup ||
+                          value.accessKeyId !== currentAccessKeyId) &&
+                        !value.secretAccessKey
+                      ) {
                         databaseBackup.setError('secretAccessKey', {
-                          message: 'Enter both credential fields or leave both blank',
+                          message:
+                            'Enter both credential fields or leave both blank',
                         })
                         return
                       }
@@ -1652,12 +1777,17 @@ export function RuntimeConfiguration(
                     </Field>
                     {storageData.databaseBackup?.credentialsConfigured ? (
                       <p className='text-muted-foreground text-xs sm:col-span-2'>
-                        {t('Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.')}
+                        {t(
+                          'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
+                        )}
                       </p>
                     ) : null}
                     <Field
                       label={t('Backup retention hours')}
-                      error={databaseBackup.formState.errors.backupRetentionHours?.message}
+                      error={
+                        databaseBackup.formState.errors.backupRetentionHours
+                          ?.message
+                      }
                     >
                       <Input
                         type='number'
@@ -1670,7 +1800,10 @@ export function RuntimeConfiguration(
                     </Field>
                     <Field
                       label={t('Download URL seconds')}
-                      error={databaseBackup.formState.errors.downloadUrlTtlSeconds?.message}
+                      error={
+                        databaseBackup.formState.errors.downloadUrlTtlSeconds
+                          ?.message
+                      }
                     >
                       <Input
                         type='number'
@@ -1760,7 +1893,7 @@ export function RuntimeConfiguration(
                           key={provider.id}
                           value={provider.id}
                         >
-                          {provider.code} · {provider.name}
+                          {provider.name}
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
@@ -1799,7 +1932,10 @@ export function RuntimeConfiguration(
                       setSelectedCredentialGroupId('')
                       setUnboundTargetPending(false)
                       setUnboundTargetModelId('')
-                      setModelPagination((current) => ({ ...current, pageIndex: 0 }))
+                      setModelPagination((current) => ({
+                        ...current,
+                        pageIndex: 0,
+                      }))
                       setShowArchivedGroups(checked === true)
                     }}
                   />
@@ -1816,40 +1952,40 @@ export function RuntimeConfiguration(
                 }
                 className='space-y-4'
               >
-                <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-                  <TabsTrigger
-                    value='overview'
-                    className='h-8 min-h-8 flex-none px-3'
-                  >
+                <CanvasManagementTabsList>
+                  <CanvasManagementTabsTrigger value='overview'>
                     {t('Overview')}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value='execution'
-                    className='h-8 min-h-8 flex-none px-3'
-                  >
+                  </CanvasManagementTabsTrigger>
+                  <CanvasManagementTabsTrigger value='execution'>
                     {t('Execution policy')}
-                  </TabsTrigger>
-                </TabsList>
+                  </CanvasManagementTabsTrigger>
+                </CanvasManagementTabsList>
 
                 <TabsContent value='overview' className='space-y-4'>
                   <Card>
                     <CardHeader>
                       <CardTitle>{selectedGroup.name}</CardTitle>
                       <CardDescription>
-                        {selectedGroup.providerCode}
+                        {selectedProvider?.name ?? '—'}
                       </CardDescription>
                       <CardAction>
                         <div className='flex flex-wrap justify-end gap-2'>
-                          <span className='bg-muted rounded-md px-2 py-1 text-xs font-medium tabular-nums'>
-                            v{selectedGroup.version}
-                          </span>
+                          <Badge variant='secondary'>
+                            {t('Version')} {selectedGroup.version}
+                          </Badge>
                         </div>
                       </CardAction>
                     </CardHeader>
                     <CardContent className='space-y-5'>
                       <div className='flex items-center gap-2 text-sm'>
-                        <span className='text-muted-foreground'>{t('Lifecycle status')}</span>
-                        <span>{t(`Credential group ${selectedGroup.lifecycleStatus}`)}</span>
+                        <span className='text-muted-foreground'>
+                          {t('Lifecycle status')}
+                        </span>
+                        <span>
+                          {t(
+                            `Credential group ${selectedGroup.lifecycleStatus}`
+                          )}
+                        </span>
                       </div>
                       <dl className='grid gap-3 text-sm md:grid-cols-2'>
                         <div className='bg-muted/30 rounded-lg p-3'>
@@ -2080,7 +2216,6 @@ export function RuntimeConfiguration(
                           </form>
                         )}
                       </section>
-
                     </CardContent>
                     <CardFooter className='flex flex-wrap justify-end gap-2'>
                       <Button
@@ -2116,7 +2251,7 @@ export function RuntimeConfiguration(
                     view='credentialGroup'
                     credentialGroupId={selectedGroup.credentialGroupId}
                     credentialGroupName={selectedGroup.name}
-                    providerName={selectedGroup.providerCode}
+                    providerName={selectedProvider?.name ?? '—'}
                     onDirtyChange={setExecutionPolicyDirty}
                   />
                 </TabsContent>
@@ -2132,7 +2267,9 @@ export function RuntimeConfiguration(
               if (!open) requestManagementClose()
             }}
           >
-            <SheetContent className={sideDrawerContentClassName('sm:max-w-[40rem]')}>
+            <SheetContent
+              className={sideDrawerContentClassName('sm:max-w-[40rem]')}
+            >
               <SheetHeader className={sideDrawerHeaderClassName()}>
                 <SheetTitle>
                   {providerDrawer === 'history'
@@ -2140,7 +2277,7 @@ export function RuntimeConfiguration(
                     : t('Manage API Key group')}
                 </SheetTitle>
                 <SheetDescription>
-                  {selectedGroup.name} · {selectedGroup.providerCode}
+                  {selectedGroup.name} · {selectedProvider?.name ?? '—'}
                 </SheetDescription>
               </SheetHeader>
               {providerDrawer === 'history' ? (
@@ -2161,32 +2298,57 @@ export function RuntimeConfiguration(
                   <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'>
                     <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm'>
                       <dt className='text-muted-foreground'>{t('Provider')}</dt>
-                      <dd>{selectedGroup.providerCode}</dd>
-                      <dt className='text-muted-foreground'>{t('Authentication method')}</dt>
+                      <dd>{selectedProvider?.name ?? '—'}</dd>
+                      <dt className='text-muted-foreground'>
+                        {t('Authentication method')}
+                      </dt>
                       <dd>{selectedGroup.schemeNames.join(', ')}</dd>
                       <dt className='text-muted-foreground'>{t('Status')}</dt>
-                      <dd>{t(`Credential group ${selectedGroup.lifecycleStatus}`)}</dd>
+                      <dd>
+                        {t(`Credential group ${selectedGroup.lifecycleStatus}`)}
+                      </dd>
                     </dl>
-                    <Field label={t('API Key group')} error={management.formState.errors.name?.message}>
+                    <Field
+                      label={t('API Key group')}
+                      error={management.formState.errors.name?.message}
+                    >
                       <Input {...management.register('name')} />
                     </Field>
-                    <Field label={t('Replace API Key')} error={management.formState.errors.apiKey?.message}>
-                      <Input type='password' autoComplete='new-password' {...management.register('apiKey')} />
+                    <Field
+                      label={t('Replace API Key')}
+                      error={management.formState.errors.apiKey?.message}
+                    >
+                      <Input
+                        type='password'
+                        autoComplete='new-password'
+                        {...management.register('apiKey')}
+                      />
                     </Field>
                     <p className='text-muted-foreground text-xs'>
-                      {t('An API Key is already configured. Leave this field blank to keep it unchanged.')}
+                      {t(
+                        'An API Key is already configured. Leave this field blank to keep it unchanged.'
+                      )}
                     </p>
-                    <section className='space-y-2' aria-label={t('Bound models')}>
-                      <Label htmlFor='api-key-group-model-search'>{t('Filter models')}</Label>
+                    <section
+                      className='space-y-2'
+                      aria-label={t('Bound models')}
+                    >
+                      <Label htmlFor='api-key-group-model-search'>
+                        {t('Filter models')}
+                      </Label>
                       <Input
                         id='api-key-group-model-search'
                         value={managementModelSearch}
                         placeholder={t('Model name')}
-                        onChange={(event) => setManagementModelSearch(event.target.value)}
+                        onChange={(event) =>
+                          setManagementModelSearch(event.target.value)
+                        }
                       />
                       <div className='space-y-2'>
                         {managementCandidates.isPending ? (
-                          <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+                          <p className='text-muted-foreground text-sm'>
+                            {t('Loading')}
+                          </p>
                         ) : managementCandidates.isError ? (
                           <div className='space-y-2 rounded-lg border p-3'>
                             <p className='text-destructive text-sm'>
@@ -2196,33 +2358,43 @@ export function RuntimeConfiguration(
                               type='button'
                               variant='outline'
                               size='sm'
-                              onClick={() => void managementCandidates.refetch()}
+                              onClick={() =>
+                                void managementCandidates.refetch()
+                              }
                             >
                               {t('Retry')}
                             </Button>
                           </div>
-                        ) : managementModels.map((model) => (
-                          <label key={model.id} className='bg-muted/30 flex items-start gap-3 rounded-lg border p-3'>
-                            <Checkbox
-                              aria-label={`${t('Select model')} ${model.publicName}`}
-                              checked={selectedModels.includes(model.id)}
-                              onCheckedChange={(checked) =>
-                                updateSelectedModels((current) =>
-                                  checked
-                                    ? [...new Set([...current, model.id])]
-                                    : current.filter((id) => id !== model.id)
-                                )
-                              }
-                            />
-                            <span className='min-w-0 text-sm'>
-                              <span className='block font-medium break-words'>{model.publicName}</span>
-                              <span className='text-muted-foreground block'>
-                                {modelBindingDescription(model)}
+                        ) : (
+                          managementModels.map((model) => (
+                            <label
+                              key={model.id}
+                              className='bg-muted/30 flex items-start gap-3 rounded-lg border p-3'
+                            >
+                              <Checkbox
+                                aria-label={`${t('Select model')} ${model.publicName}`}
+                                checked={selectedModels.includes(model.id)}
+                                onCheckedChange={(checked) =>
+                                  updateSelectedModels((current) =>
+                                    checked
+                                      ? [...new Set([...current, model.id])]
+                                      : current.filter((id) => id !== model.id)
+                                  )
+                                }
+                              />
+                              <span className='min-w-0 text-sm'>
+                                <span className='block font-medium break-words'>
+                                  {model.publicName}
+                                </span>
+                                <span className='text-muted-foreground block'>
+                                  {modelBindingDescription(model)}
+                                </span>
                               </span>
-                            </span>
-                          </label>
-                        ))}
-                        {managementCandidates.isSuccess && managementModels.length === 0 ? (
+                            </label>
+                          ))
+                        )}
+                        {managementCandidates.isSuccess &&
+                        managementModels.length === 0 ? (
                           <p className='text-muted-foreground text-sm'>
                             {t('No matching models')}
                           </p>
@@ -2230,11 +2402,17 @@ export function RuntimeConfiguration(
                       </div>
                     </section>
                     <section className='border-destructive/40 space-y-2 border-t pt-4'>
-                      <h3 className='text-destructive text-sm font-semibold'>{t('Danger zone')}</h3>
+                      <h3 className='text-destructive text-sm font-semibold'>
+                        {t('Danger zone')}
+                      </h3>
                       <p className='text-muted-foreground text-sm'>
                         {selectedGroup.boundModelCount > 0
-                          ? t('Remove all model bindings before archiving this API Key group.')
-                          : t('Archiving prevents new model bindings and task acceptance. History is retained.')}
+                          ? t(
+                              'Remove all model bindings before archiving this API Key group.'
+                            )
+                          : t(
+                              'Archiving prevents new model bindings and task acceptance. History is retained.'
+                            )}
                       </p>
                       <Button
                         type='button'
@@ -2250,14 +2428,19 @@ export function RuntimeConfiguration(
                     </section>
                   </div>
                   <SheetFooter className={sideDrawerFooterClassName()}>
-                    <Button type='button' variant='outline' onClick={requestManagementClose}>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={requestManagementClose}
+                    >
                       {t('Cancel')}
                     </Button>
                     <Button
                       type='submit'
                       disabled={
                         !managementCandidates.isSuccess ||
-                        managementInitializedGroupId !== selectedGroup.credentialGroupId ||
+                        managementInitializedGroupId !==
+                          selectedGroup.credentialGroupId ||
                         !hasUnsavedProviderEdit ||
                         managementMutation.isPending
                       }
@@ -2506,13 +2689,20 @@ export function RuntimeConfiguration(
         >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('Discard unsaved API Key group changes?')}</DialogTitle>
+              <DialogTitle>
+                {t('Discard unsaved API Key group changes?')}
+              </DialogTitle>
               <DialogDescription>
-                {t('These changes have not been saved. Closing will discard them. Do you still want to close?')}
+                {t(
+                  'These changes have not been saved. Closing will discard them. Do you still want to close?'
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className='flex justify-end gap-2'>
-              <Button variant='outline' onClick={() => setManagementCloseRequested(false)}>
+              <Button
+                variant='outline'
+                onClick={() => setManagementCloseRequested(false)}
+              >
                 {t('Keep editing')}
               </Button>
               <Button
@@ -2537,17 +2727,24 @@ export function RuntimeConfiguration(
             <DialogHeader>
               <DialogTitle>{t('Archive API Key group')}</DialogTitle>
               <DialogDescription>
-                {t('Archiving prevents new model bindings and task acceptance. Historical tasks, costs, and change records are retained.')}
+                {t(
+                  'Archiving prevents new model bindings and task acceptance. Historical tasks, costs, and change records are retained.'
+                )}
               </DialogDescription>
             </DialogHeader>
             <dl className='grid grid-cols-[auto_1fr] gap-3 text-sm'>
               <dt className='text-muted-foreground'>{t('API Key group')}</dt>
               <dd>{selectedGroup?.name ?? '—'}</dd>
-              <dt className='text-muted-foreground'>{t('Currently bound models')}</dt>
+              <dt className='text-muted-foreground'>
+                {t('Currently bound models')}
+              </dt>
               <dd>{selectedGroup?.boundModelCount ?? 0}</dd>
             </dl>
             <div className='flex justify-end gap-2'>
-              <Button variant='outline' onClick={() => setArchiveConfirmationOpen(false)}>
+              <Button
+                variant='outline'
+                onClick={() => setArchiveConfirmationOpen(false)}
+              >
                 {t('Cancel')}
               </Button>
               <Button
@@ -2571,11 +2768,16 @@ export function RuntimeConfiguration(
             <DialogHeader>
               <DialogTitle>{t('Restore API Key group')}</DialogTitle>
               <DialogDescription>
-                {t('Restoring returns this API Key group to active selection. Model bindings are not changed.')}
+                {t(
+                  'Restoring returns this API Key group to active selection. Model bindings are not changed.'
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className='flex justify-end gap-2'>
-              <Button variant='outline' onClick={() => setRestoreConfirmationOpen(false)}>
+              <Button
+                variant='outline'
+                onClick={() => setRestoreConfirmationOpen(false)}
+              >
                 {t('Cancel')}
               </Button>
               <Button
@@ -2634,7 +2836,7 @@ function CredentialEditor(props: {
             </NativeSelectOption>
             {props.runtime.providers.map((item) => (
               <NativeSelectOption key={item.id} value={item.id}>
-                {item.code}
+                {item.name}
               </NativeSelectOption>
             ))}
           </NativeSelect>
@@ -2674,7 +2876,7 @@ function CredentialEditor(props: {
           />
         </Field>
         <Field
-          label={t('Reason')}
+          label={t('Reason (optional)')}
           error={props.form.formState.errors.reason?.message}
         >
           <Input {...props.form.register('reason')} />
@@ -2717,7 +2919,12 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
   const changes = useQuery({
-    queryKey: ['canvas-cloud', 'provider-credential-group-changes', props.credentialGroupId, page],
+    queryKey: [
+      'canvas-cloud',
+      'provider-credential-group-changes',
+      props.credentialGroupId,
+      page,
+    ],
     queryFn: ({ signal }) =>
       getCanvasProviderCredentialGroupChanges(
         props.credentialGroupId,
@@ -2726,31 +2933,74 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
       ),
   })
   useEffect(() => setPage(1), [props.credentialGroupId])
-  if (changes.isPending) return <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+  if (changes.isPending)
+    return <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
   if (changes.isError) {
-    return <div className='space-y-2'><p className='text-destructive text-sm'>{t('Unable to load change history')}</p><Button type='button' variant='outline' size='sm' onClick={() => void changes.refetch()}>{t('Retry')}</Button></div>
+    return (
+      <div className='space-y-2'>
+        <p className='text-destructive text-sm'>
+          {t('Unable to load change history')}
+        </p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => void changes.refetch()}
+        >
+          {t('Retry')}
+        </Button>
+      </div>
+    )
   }
   return (
     <div className='space-y-3'>
-      {changes.data.items.length === 0 ? <p className='text-muted-foreground text-sm'>{t('No change history')}</p> : null}
+      {changes.data.items.length === 0 ? (
+        <p className='text-muted-foreground text-sm'>
+          {t('No change history')}
+        </p>
+      ) : null}
       {changes.data.items.map((event) => (
         <article key={event.id} className='space-y-2 rounded-lg border p-3'>
           <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
             <strong>{t(event.type)}</strong>
             <span>{t(event.outcome)}</span>
           </div>
-          <p className='text-muted-foreground text-xs'>{formatCanvasDateTime(event.occurredAt)} · {event.operator ?? t('Unknown operator')}</p>
+          <p className='text-muted-foreground text-xs'>
+            {formatCanvasDateTime(event.occurredAt)} ·{' '}
+            {event.operator ?? t('Unknown operator')}
+          </p>
           <ul className='space-y-1 text-sm'>
             {event.changes.map((change, index) => (
-              <li key={`${event.id}-${index}`}>{formatCredentialGroupChange(change, t)}</li>
+              <li key={`${event.id}-${index}`}>
+                {formatCredentialGroupChange(change, t)}
+              </li>
             ))}
           </ul>
-          <p className='text-sm'><span className='text-muted-foreground'>{t('Reason')}:</span> {event.reason ?? t('Not provided')}</p>
+          <p className='text-sm'>
+            <span className='text-muted-foreground'>{t('Reason')}:</span>{' '}
+            {event.reason ?? t('Not provided')}
+          </p>
         </article>
       ))}
       <div className='flex justify-end gap-2'>
-        <Button type='button' variant='outline' size='sm' disabled={page === 1} onClick={() => setPage((value) => value - 1)}>{t('Previous')}</Button>
-        <Button type='button' variant='outline' size='sm' disabled={page * changes.data.pageSize >= changes.data.total} onClick={() => setPage((value) => value + 1)}>{t('Next')}</Button>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          disabled={page === 1}
+          onClick={() => setPage((value) => value - 1)}
+        >
+          {t('Previous')}
+        </Button>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          disabled={page * changes.data.pageSize >= changes.data.total}
+          onClick={() => setPage((value) => value + 1)}
+        >
+          {t('Next')}
+        </Button>
       </div>
     </div>
   )
@@ -2761,8 +3011,10 @@ function formatCredentialGroupChange(
   t: (key: string) => string
 ) {
   if (change.type === 'KEY_REPLACED') return t('API Key replaced')
-  if (change.type === 'GROUP_RENAMED') return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
-  if (change.modelName) return `${change.modelName}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
+  if (change.type === 'GROUP_RENAMED')
+    return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
+  if (change.modelName)
+    return `${change.modelName}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
   return t(change.type ?? 'GROUP_UPDATED')
 }
 
@@ -2789,12 +3041,6 @@ function StorageSummary(props: {
   const { t } = useTranslation()
   return (
     <div className='space-y-5 text-sm'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <BusinessTerm kind='configStatus' value={props.item.status} />
-        <span className='bg-muted rounded-md px-2 py-1 text-xs font-medium tabular-nums'>
-          v{props.item.version}
-        </span>
-      </div>
       <dl className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
         <div className='bg-muted/30 min-w-0 rounded-lg p-3 xl:col-span-2'>
           <dt className='text-muted-foreground text-xs'>{t('R2 endpoint')}</dt>

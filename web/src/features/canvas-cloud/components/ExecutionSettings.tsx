@@ -14,6 +14,10 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import {
+  StaticDataTable,
+  type StaticDataTableColumn,
+} from '@/components/data-table'
 import { MultiSelect } from '@/components/multi-select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -49,6 +53,7 @@ import type {
 } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
 import { BusinessTerm } from './BusinessTerm'
+import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 const executorModeLabelKeys: Record<string, string> = {
@@ -444,40 +449,46 @@ export function ExecutionSettings(
     return (
       <>
         <FormNavigationGuard when={anyDirty} />
-        {overview.isPending && (
-          <Card size='sm'>
-            <CardContent className='text-muted-foreground text-sm'>
-              {t('Loading')}
-            </CardContent>
-          </Card>
-        )}
-        {overview.isError && (
-          <Card size='sm'>
-            <CardContent>
-              <Button variant='outline' onClick={() => void overview.refetch()}>
-                {t('Retry')}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        {overview.data && (
-          <GlobalSection
-            data={overview.data.global.effective}
-            version={overview.data.global.version}
-            recovery={overview.data.systemRecovery}
-            instances={overview.data.instances}
-            onReview={setConfirmation}
-            onPublish={(config) =>
-              publish.mutate({
-                kind: 'GLOBAL_LIMITS',
-                scopeKey: 'GLOBAL',
-                config,
-              })
-            }
-            pending={publish.isPending}
-            onDirtyChange={setGlobalDirty}
-          />
-        )}
+        <div className='space-y-6'>
+          <ExecutionCapacityOverview />
+          {overview.isPending && (
+            <Card size='sm'>
+              <CardContent className='text-muted-foreground text-sm'>
+                {t('Loading')}
+              </CardContent>
+            </Card>
+          )}
+          {overview.isError && (
+            <Card size='sm'>
+              <CardContent>
+                <Button
+                  variant='outline'
+                  onClick={() => void overview.refetch()}
+                >
+                  {t('Retry')}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          {overview.data && (
+            <GlobalSection
+              data={overview.data.global.effective}
+              version={overview.data.global.version}
+              recovery={overview.data.systemRecovery}
+              instances={overview.data.instances}
+              onReview={setConfirmation}
+              onPublish={(config) =>
+                publish.mutate({
+                  kind: 'GLOBAL_LIMITS',
+                  scopeKey: 'GLOBAL',
+                  config,
+                })
+              }
+              pending={publish.isPending}
+              onDirtyChange={setGlobalDirty}
+            />
+          )}
+        </div>
         <PricingActionConfirmation
           open={Boolean(confirmation)}
           onOpenChange={(open) => {
@@ -522,6 +533,11 @@ export function ExecutionSettings(
                 'Timeouts, concurrency, and shared limits apply to every bound model. Error mappings remain shared by the provider.'
               )}
             </CardDescription>
+            <CardAction>
+              <Badge variant='secondary'>
+                {t('Version')} {group.data.group.version ?? t('Default')}
+              </Badge>
+            </CardAction>
           </CardHeader>
           <CardContent className='space-y-4'>
             <CredentialGroupSection
@@ -665,8 +681,118 @@ function GlobalSection(props: {
       run: () => props.onPublish(values),
     })
   )
+  const workerColumns: StaticDataTableColumn<
+    (typeof visibleInstances)[number]
+  >[] = [
+    {
+      id: 'queue',
+      header: t('Queue'),
+      cell: (instance) => instance.queueName,
+    },
+    {
+      id: 'mode',
+      header: t('Mode'),
+      cell: (instance) => t(executorModeLabelKeys[instance.mode] ?? 'Unknown'),
+    },
+    {
+      id: 'status',
+      header: t('Status'),
+      cell: (instance) => (
+        <BusinessTerm kind='executorStatus' value={instance.status} />
+      ),
+    },
+    {
+      id: 'credentials',
+      header: t('Credentials'),
+      cell: (instance) =>
+        instance.credentialsConfigured ? t('Configured') : t('Not configured'),
+    },
+    {
+      id: 'heartbeat',
+      header: t('Latest heartbeat'),
+      cell: (instance) => formatCanvasDateTime(instance.heartbeatAt),
+    },
+  ]
   return (
-    <div className='space-y-4'>
+    <div className='space-y-6'>
+      <section className='space-y-3' aria-labelledby='running-workers-title'>
+        <Card>
+          <CardHeader>
+            <CardTitle id='running-workers-title'>
+              {t('Running workers')}
+            </CardTitle>
+            <CardAction>
+              <span className='text-muted-foreground text-sm'>
+                {t(
+                  visibleInstances.length === 1
+                    ? '1 worker'
+                    : '{{count}} workers',
+                  { count: visibleInstances.length }
+                )}
+              </span>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <StaticDataTable
+              columns={workerColumns}
+              data={visibleInstances}
+              getRowKey={(instance) =>
+                `${instance.queueName}-${instance.workerId}`
+              }
+              emptyContent={t('No running executor instances')}
+              tableClassName='min-w-[800px]'
+              containerProps={{
+                tabIndex: 0,
+                role: 'region',
+                'aria-label': t('Running workers'),
+              }}
+            />
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className='space-y-3' aria-labelledby='system-recovery-title'>
+        <Card>
+          <CardHeader>
+            <CardTitle id='system-recovery-title'>
+              {t('System recovery')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className='grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2'>
+              {[
+                [
+                  t('Heartbeat interval (milliseconds)'),
+                  String(props.recovery.heartbeatMs),
+                ],
+                [
+                  t('Lease duration (milliseconds)'),
+                  String(props.recovery.leaseMs),
+                ],
+                [
+                  t('Scan interval (milliseconds)'),
+                  String(props.recovery.scanMs),
+                ],
+                [
+                  t('Default instances'),
+                  String(props.recovery.defaultInstances),
+                ],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className='grid grid-cols-[minmax(0,1fr)_auto] gap-3'
+                >
+                  <dt className='text-muted-foreground'>{label}</dt>
+                  <dd className='text-right font-medium tabular-nums'>
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      </section>
+
       <Card>
         <CardHeader>
           <CardTitle>{t('Global execution limits')}</CardTitle>
@@ -685,7 +811,7 @@ function GlobalSection(props: {
             className='space-y-4'
             onSubmit={review}
           >
-            <div className='grid gap-4 md:grid-cols-3'>
+            <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(10rem,14rem))]'>
               <NumberField
                 id='instance-concurrency'
                 label={t('Instance concurrency')}
@@ -737,60 +863,6 @@ function GlobalSection(props: {
           </form>
         </CardContent>
       </Card>
-      <div className='grid gap-4 xl:grid-cols-2'>
-        <Card size='sm'>
-          <CardHeader>
-            <CardTitle>{t('System recovery')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ReadOnlyFacts
-              facts={Object.entries(props.recovery).map(([label, value]) => [
-                t(label),
-                String(value),
-              ])}
-            />
-          </CardContent>
-        </Card>
-        <Card size='sm'>
-          <CardHeader>
-            <CardTitle>{t('Running workers')}</CardTitle>
-          </CardHeader>
-          <CardContent className='space-y-2'>
-            {visibleInstances.length === 0 ? (
-              <p className='text-muted-foreground text-sm'>
-                {t('No running executor instances')}
-              </p>
-            ) : (
-              visibleInstances.map((instance) => (
-                <div
-                  key={`${instance.queueName}-${instance.workerId}`}
-                  className='bg-muted/30 rounded-lg border p-3 text-sm'
-                >
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <span className='font-medium'>{instance.queueName}</span>
-                    <Badge variant='outline'>
-                      {t(executorModeLabelKeys[instance.mode] ?? 'Unknown')}
-                    </Badge>
-                    <BusinessTerm
-                      kind='executorStatus'
-                      value={instance.status}
-                    />
-                  </div>
-                  <p className='text-muted-foreground mt-1 break-all'>
-                    {instance.workerId}
-                  </p>
-                  <p className='text-muted-foreground mt-1'>
-                    {t('Credentials configured')}:{' '}
-                    {instance.credentialsConfigured ? t('Yes') : t('No')} ·{' '}
-                    {t('Heartbeat')}:{' '}
-                    {formatCanvasDateTime(instance.heartbeatAt)}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }
@@ -850,12 +922,7 @@ function CredentialGroupSection(props: {
       className='space-y-4'
       onSubmit={review}
     >
-      <div className='flex flex-wrap items-center gap-2'>
-        <h3 className='font-semibold'>{t('Timeouts and concurrency')}</h3>
-        <Badge variant='secondary'>
-          {t('Version')} {props.version ?? t('Default')}
-        </Badge>
-      </div>
+      <h3 className='font-semibold'>{t('Timeouts and concurrency')}</h3>
       <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
         {(
           [

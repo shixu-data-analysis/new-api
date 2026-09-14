@@ -52,10 +52,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { toIntlLocale } from '@/i18n/languages'
-import { getModelPricingServerErrorMessageKey, getServerErrorMessageKey } from '@/lib/server-error-message'
+import {
+  getModelPricingServerErrorMessageKey,
+  getServerErrorMessageKey,
+} from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -83,6 +86,10 @@ import type {
   CanvasTokenCategoryAssumptions,
 } from '../types'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { TokenPricingQuestionnaire } from './TokenPricingQuestionnaire'
@@ -387,8 +394,17 @@ export function UnifiedModelPricing(props: {
     setHasEdits(false)
     setPublishedScopeIds(null)
     setPublishedPlanKeys([])
-    form.reset({ decisionSummary: '', effectiveAt: '', effectiveMode: 'IMMEDIATE' })
-    riskForm.reset({ decisionType: 'TEMPORARY_LOSS', lossEndsAt: '', maxExpectedLossPoints: '', reason: '' })
+    form.reset({
+      decisionSummary: '',
+      effectiveAt: '',
+      effectiveMode: 'IMMEDIATE',
+    })
+    riskForm.reset({
+      decisionType: 'TEMPORARY_LOSS',
+      lossEndsAt: '',
+      maxExpectedLossPoints: '',
+      reason: '',
+    })
     preview.reset()
     publication.reset()
     setInitializedModelId(null)
@@ -625,7 +641,8 @@ export function UnifiedModelPricing(props: {
       props.onTabChange?.('current')
       toast.success(t('Model pricing published'))
       const changedScopeIds =
-        publishedPreview?.scopes.map((scope) => scope.parameterCombinationId) ?? []
+        publishedPreview?.scopes.map((scope) => scope.parameterCombinationId) ??
+        []
       setPublishedScopeIds(changedScopeIds)
       const submittedPlanKeys =
         publishedPreview?.scopes.flatMap((scope) =>
@@ -1484,17 +1501,17 @@ export function UnifiedModelPricing(props: {
           }
         }}
       >
-        <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-          <TabsTrigger value='current' className='h-8 min-h-8 flex-none px-3'>
+        <CanvasManagementTabsList>
+          <CanvasManagementTabsTrigger value='current'>
             {t('Current pricing')}
-          </TabsTrigger>
-          <TabsTrigger value='set' className='h-8 min-h-8 flex-none px-3'>
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='set'>
             {t('Set prices')}
-          </TabsTrigger>
-          <TabsTrigger value='history' className='h-8 min-h-8 flex-none px-3'>
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='history'>
             {t('History versions')}
-          </TabsTrigger>
-        </TabsList>
+          </CanvasManagementTabsTrigger>
+        </CanvasManagementTabsList>
         <TabsContent value='current' className='mt-4 space-y-4'>
           <CurrentModelPricingTable
             detail={detail.data}

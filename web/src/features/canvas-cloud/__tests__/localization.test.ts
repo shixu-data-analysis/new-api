@@ -315,6 +315,54 @@ const runtimeConfigurationKeys = [
   'Runtime management',
   'Monitor executor capacity, manage provider credential groups, and maintain storage through separate operational boundaries.',
   'Execution overview',
+  'Execution capacity',
+  'Available capacity',
+  'Request concurrency full',
+  'Asynchronous in-flight full',
+  'Query capacity reserved',
+  'Request rate limited',
+  'Token rate limited',
+  'Capacity data needs attention',
+  'Multiple capacity limits reached',
+  'Executor unavailable',
+  'Request concurrency',
+  'Asynchronous in-flight',
+  'Waiting tasks',
+  'View waiting tasks',
+  'No execution capacity records',
+  'No waiting tasks',
+  'Unable to load execution capacity',
+  'Unable to load waiting tasks',
+  'Unable to load waiting task details',
+  'Waiting for cloud execution resources',
+  'Submitted and generating',
+  'Retrieving generation result',
+  'Not sent',
+  'Submission status uncertain',
+  'Accepted by provider',
+  'Waiting task details',
+  'Blocking reason',
+  'Request status',
+  'Waiting since',
+  'Next attempt',
+  'Last updated',
+  'You do not have permission to view execution capacity.',
+  'Your session has expired. Sign in again.',
+  'Reserving capacity for result queries',
+  'Token quota limited',
+  'Capacity data anomaly',
+  'May have been sent',
+  'Unknown capacity status',
+  'Unknown request status',
+  'Submit',
+  'Query stage',
+  'Unknown waiting stage',
+  '{{value}} min',
+  '{{hours}} hr {{minutes}} min',
+  'Waiting stage',
+  'Wait and next attempt',
+  'Time waiting',
+  'Last scheduled',
   'Storage and backups',
   'Choose one provider and credential group. The overview keeps current status, bound models, and version history together.',
   'Add credential group',
@@ -364,8 +412,11 @@ const runtimeConfigurationKeys = [
   'Some selected models no longer belong to this provider. Review the filters and selection.',
   'The credential scheme no longer matches every selected model. Update the credential group or selection.',
   'The configuration no longer exists. Refresh and try again.',
-  'Credential publication failed. Check the required schemes and preview again.',
-  'Model binding failed. Refresh the model list and preview the selection again.',
+  'API Key group publication failed. Retry.',
+  'Model binding publication failed. Retry.',
+  'This API Key group is archived. Restore it before publishing changes.',
+  'There are no API Key group changes to publish.',
+  'Another publication used this request identity. Retry from the current configuration.',
   'Preview failed. Refresh the configuration and try again.',
   'Enter a credential group name',
   'Use no more than 191 characters',
@@ -719,6 +770,21 @@ describe('Canvas interface localization', () => {
       '已选 {{count}} 个模型'
     )
     expect(zh.translation['Reason (optional)']).toBe('原因（选填）')
+  })
+
+  it('localizes running-worker counts and recovery facts in every supported locale', () => {
+    const resources = { en, fr, ja, ru, vi, 'zh-TW': zhTW, zh }
+    for (const [locale, resource] of Object.entries(resources)) {
+      const translations = resource.translation as Record<string, string>
+      expect(translations['1 worker'], locale).toBeTruthy()
+      expect(translations['{{count}} workers'], locale).toBeTruthy()
+      expect(translations['Default instances'], locale).toBeTruthy()
+    }
+    expect(en.translation['1 worker']).toBe('1 worker')
+    expect(en.translation['{{count}} workers']).toBe('{{count}} workers')
+    expect(fr.translation['{{count}} workers']).not.toContain('worker')
+    expect(vi.translation['{{count}} workers']).not.toContain('worker')
+    expect(vi.translation['Default instances']).toBe('Số thực thể mặc định')
   })
 
   it.each([

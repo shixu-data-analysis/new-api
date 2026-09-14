@@ -156,6 +156,63 @@ export interface ExecutionOverview {
   }
 }
 
+export type ExecutionCapacityStatus =
+  | 'AVAILABLE'
+  | 'REQUEST_CONCURRENCY_FULL'
+  | 'ASYNC_IN_FLIGHT_FULL'
+  | 'QUERY_CAPACITY_RESERVED'
+  | 'REQUEST_RATE_LIMITED'
+  | 'TOKEN_RATE_LIMITED'
+  | 'DATA_INVARIANT'
+  | 'MULTIPLE_LIMITS'
+  | 'EXECUTOR_UNAVAILABLE'
+
+export interface ExecutionCapacityCounter {
+  used: number
+  limit: number
+}
+
+export interface ExecutionCapacityItem {
+  credentialGroupId: string
+  providerName: string
+  credentialGroupName: string
+  requestConcurrency: ExecutionCapacityCounter
+  asyncInFlight: ExecutionCapacityCounter
+  waitingTasks: number
+  status: ExecutionCapacityStatus
+}
+
+export interface ExecutionCapacityOverview {
+  items: ExecutionCapacityItem[]
+}
+
+export type ExecutionWaitStage = 'SUBMIT' | 'QUERY'
+export type ExecutionWaitRequestState =
+  | 'NOT_SENT'
+  | 'MAY_HAVE_BEEN_SENT'
+  | 'ACCEPTED_BY_PROVIDER'
+
+export interface ExecutionWaitItem {
+  taskId: string
+  modelName: string
+  credentialGroupId: string
+  stage: ExecutionWaitStage
+  blockingStatus: ExecutionCapacityStatus
+  observedValue: string
+  limitValue: string
+  requestState: ExecutionWaitRequestState
+  startedAt: string
+  nextAttemptAt: string
+  updatedAt: string
+}
+
+export interface ExecutionWaitPage {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  total: number
+  items: ExecutionWaitItem[]
+}
+
 export interface CredentialGroupExecutionOverview {
   global: GlobalPolicy
   credentialGroupId: string

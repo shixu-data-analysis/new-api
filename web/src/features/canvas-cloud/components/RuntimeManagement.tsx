@@ -9,15 +9,12 @@ the Free Software Foundation, either version 3 of the License, or
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { ExecutionSettings } from './ExecutionSettings'
 import {
   RuntimeConfiguration,
@@ -42,45 +39,27 @@ export function RuntimeManagement(props: {
         props.onViewChange?.(value as RuntimeManagementView)
       }
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Runtime management')}</CardTitle>
-          <CardDescription>
-            {t(
-              'Monitor executor capacity, manage provider credential groups, and maintain storage through separate operational boundaries.'
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {props.onReturnToModelList && view === 'provider' ? (
-            <Button
-              className='mb-4'
-              type='button'
-              variant='outline'
-              onClick={props.onReturnToModelList}
-            >
-              {t('Back to model list')}
-            </Button>
-          ) : null}
-          <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-            <TabsTrigger
-              value='execution'
-              className='h-8 min-h-8 flex-none px-3'
-            >
-              {t('Execution overview')}
-            </TabsTrigger>
-            <TabsTrigger
-              value='provider'
-              className='h-8 min-h-8 flex-none px-3'
-            >
-              {t('Provider configuration')}
-            </TabsTrigger>
-            <TabsTrigger value='storage' className='h-8 min-h-8 flex-none px-3'>
-              {t('Storage and backups')}
-            </TabsTrigger>
-          </TabsList>
-        </CardContent>
-      </Card>
+      <CanvasManagementTabsList>
+        <CanvasManagementTabsTrigger value='execution'>
+          {t('Execution overview')}
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='provider'>
+          {t('Provider configuration')}
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='storage'>
+          {t('Storage and backups')}
+        </CanvasManagementTabsTrigger>
+      </CanvasManagementTabsList>
+
+      {props.onReturnToModelList && view === 'provider' ? (
+        <Button
+          type='button'
+          variant='outline'
+          onClick={props.onReturnToModelList}
+        >
+          {t('Back to model list')}
+        </Button>
+      ) : null}
 
       <TabsContent value='execution'>
         <ExecutionSettings />

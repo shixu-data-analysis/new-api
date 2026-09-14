@@ -34,6 +34,8 @@ import {
   getCanvasPriceGroups,
   publishCanvasPriceGroup,
   getCanvasAdminRechargeCodes,
+  getCanvasAdminRechargeCodeBatchItems,
+  searchCanvasAdminRechargeCodeBatch,
   getCanvasAdminInviteCodes,
   exportCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
@@ -74,6 +76,11 @@ import {
   getCanvasProviderCredentialGroupChanges,
   provisionCanvasAgent,
   publishCanvasProviderRate,
+  publishCanvasProviderCredentialGroup,
+  bindCanvasProviderCredentials,
+  publishCanvasCredentialGroupManagement,
+  archiveCanvasCredentialGroup,
+  restoreCanvasCredentialGroup,
   resolveCanvasProviderRateRisk,
   revealCanvasCode,
   deductCanvasPointLot,
@@ -799,12 +806,11 @@ describe('Canvas Cloud API boundary', () => {
 
   it('uses one Canvas endpoint for administrator code inventory and issuance', async () => {
     mocks.get.mockResolvedValue({
-      data: { items: [], total: 0, page: 1, pageSize: 20 },
+      data: { items: [], matchedCode: null, total: 0, page: 1, pageSize: 20 },
     })
     await getCanvasAdminRechargeCodes({
       page: 1,
       pageSize: 20,
-      code: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
       status: 'ACTIVE',
       sortBy: 'createdAt',
       sortOrder: 'desc',
@@ -815,15 +821,31 @@ describe('Canvas Cloud API boundary', () => {
         params: {
           page: 1,
           pageSize: 20,
-          code: undefined,
           status: 'ACTIVE',
           sortBy: 'createdAt',
           sortOrder: 'desc',
-          codePrefix: 'CANVAS-A',
-          codeSuffix: 'UVWX',
         },
         signal: undefined,
       }
+    )
+
+    const exactSearch = {
+      batchOrRemark: 'Support',
+      code: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
+      status: 'ACTIVE' as const,
+      page: 1,
+      pageSize: 20 as const,
+      sortBy: 'createdAt' as const,
+      sortOrder: 'desc' as const,
+    }
+    mocks.post.mockResolvedValue({
+      data: { items: [], matchedCode: null, total: 0, page: 1, pageSize: 20 },
+    })
+    await searchCanvasAdminRechargeCodeBatch(exactSearch)
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/recharge-code-batch-searches',
+      exactSearch,
+      { signal: undefined, skipErrorHandler: true }
     )
 
     mocks.post.mockResolvedValue({
@@ -858,6 +880,33 @@ describe('Canvas Cloud API boundary', () => {
       expect.objectContaining({ responseType: 'text', skipErrorHandler: true })
     )
 
+    mocks.get.mockResolvedValue({
+      data: {
+        items: [
+          { maskedCode: 'CANVAS-A••••WXYZ', status: 'ACTIVE', redeemedAt: null },
+        ],
+        matchedCount: 1,
+        totalCount: 2,
+      },
+    })
+    await expect(
+      getCanvasAdminRechargeCodeBatchItems('batch/1', 'ACTIVE')
+    ).resolves.toEqual({
+      items: [
+        { maskedCode: 'CANVAS-A••••WXYZ', status: 'ACTIVE', redeemedAt: null },
+      ],
+      matchedCount: 1,
+      totalCount: 2,
+    })
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/recharge-code-batches/batch%2F1/codes',
+      {
+        params: { status: 'ACTIVE' },
+        signal: undefined,
+        skipErrorHandler: true,
+      }
+    )
+
     mocks.post.mockResolvedValue({ data: { redeemed: true } })
     await redeemCanvasRechargeCode('CANVAS-TEST-CODE')
     expect(mocks.post).toHaveBeenCalledWith(
@@ -869,6 +918,83 @@ describe('Canvas Cloud API boundary', () => {
         },
         skipErrorHandler: true,
       }
+    )
+  })
+
+  it.each([10, 20, 30, 40, 50, 100] as const)(
+    'posts exact recharge-code searches with page size %i',
+    async (pageSize) => {
+      mocks.post.mockResolvedValue({
+        data: { items: [], matchedCode: null, total: 0, page: 1, pageSize },
+      })
+      await searchCanvasAdminRechargeCodeBatch({
+        code: 'CANVAS-ABCDEFGHIJKLMNOPQRSTUVWX',
+        page: 1,
+        pageSize,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      })
+      expect(mocks.post).toHaveBeenLastCalledWith(
+        '/canvas-api/v1/web/admin/recharge-code-batch-searches',
+        expect.objectContaining({ pageSize }),
+        { signal: undefined, skipErrorHandler: true }
+      )
+    }
+  )
+
+  it('preserves omitted or null provider credential publication reasons', async () => {
+    mocks.post.mockResolvedValue({ data: {} })
+    const base = {
+      providerId: 'provider-v1',
+      name: 'Primary',
+      apiKey: 'secret-not-rendered',
+    }
+    await publishCanvasProviderCredentialGroup(base)
+    expect(mocks.post.mock.calls.at(-1)?.[1]).not.toHaveProperty('reason')
+
+    await publishCanvasProviderCredentialGroup({ ...base, reason: null })
+    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ reason: null, confirmed: true })
+    )
+
+    await bindCanvasProviderCredentials({
+      credentialGroupVersionId: 'credential-version-v1',
+      customerModelIds: [],
+      expectedBindings: [],
+      reason: null,
+    })
+    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ reason: null, confirmed: true })
+    )
+
+    await publishCanvasCredentialGroupManagement({
+      credentialGroupId: 'credential-group-v1',
+      expectedCredentialGroupVersionId: 'credential-version-v1',
+      name: 'Primary',
+      customerModelIds: [],
+      expectedBindings: [],
+      reason: null,
+    })
+    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ reason: null, confirmed: true })
+    )
+
+    await archiveCanvasCredentialGroup({
+      credentialGroupId: 'credential-group-v1',
+      expectedCredentialGroupVersionId: 'credential-version-v1',
+      reason: null,
+    })
+    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ reason: null, confirmed: true })
+    )
+
+    await restoreCanvasCredentialGroup({
+      credentialGroupId: 'credential-group-v1',
+      expectedCredentialGroupVersionId: 'credential-version-v1',
+      reason: null,
+    })
+    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ reason: null, confirmed: true })
     )
   })
 
@@ -946,17 +1072,20 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('never degrades an incomplete recharge-code lookup into an inventory request', async () => {
-    await expect(
-      getCanvasAdminRechargeCodes({
-        page: 1,
-        pageSize: 20,
-        code: 'CANVAS-TOO-SHORT',
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-      })
-    ).rejects.toThrow('Invalid recharge-code inventory search')
-    expect(mocks.get).not.toHaveBeenCalled()
+  it('keeps ordinary inventory GET requests free of recharge-code fields', async () => {
+    mocks.get.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await getCanvasAdminRechargeCodes({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
+    const config = mocks.get.mock.calls[0]?.[1]
+    expect(config.params).not.toHaveProperty('code')
+    expect(config.params).not.toHaveProperty('codePrefix')
+    expect(config.params).not.toHaveProperty('codeSuffix')
   })
 
   it('uses explicit role-scoped Agent and provider-rate endpoints', async () => {

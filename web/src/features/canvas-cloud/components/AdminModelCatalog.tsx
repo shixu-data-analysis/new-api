@@ -50,7 +50,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import {
   planCanvasModelCatalogBundle,
@@ -61,6 +61,10 @@ import type { ModelManagementReturnContext } from '../model-management-navigatio
 import type { CanvasModelCatalogBundle, CanvasModelCatalogPlan } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { CatalogModelPreview } from './CatalogModelPreview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
@@ -270,17 +274,14 @@ export function AdminModelCatalog(
             props.onTabChange?.(value)
           }}
         >
-          <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-            <TabsTrigger
-              className='h-8 min-h-8 flex-none px-3'
-              value='published'
-            >
+          <CanvasManagementTabsList>
+            <CanvasManagementTabsTrigger value='published'>
               {t('Model list')}
-            </TabsTrigger>
-            <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='import'>
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='import'>
               {t('Import and publish')}
-            </TabsTrigger>
-          </TabsList>
+            </CanvasManagementTabsTrigger>
+          </CanvasManagementTabsList>
           <TabsContent value='published' className='mt-4'>
             <PublishedModelCatalog
               onManagePricing={(modelId, returnContext) => {
@@ -421,20 +422,14 @@ export function AdminModelCatalog(
                     </div>
                   )}
                   <Tabs defaultValue='models'>
-                    <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-                      <TabsTrigger
-                        className='h-8 min-h-8 flex-none px-3'
-                        value='models'
-                      >
+                    <CanvasManagementTabsList>
+                      <CanvasManagementTabsTrigger value='models'>
                         {t('Client model preview')} ({plan.models.length})
-                      </TabsTrigger>
-                      <TabsTrigger
-                        className='h-8 min-h-8 flex-none px-3'
-                        value='changes'
-                      >
+                      </CanvasManagementTabsTrigger>
+                      <CanvasManagementTabsTrigger value='changes'>
                         {t('Database plan')} ({plan.changes.length})
-                      </TabsTrigger>
-                    </TabsList>
+                      </CanvasManagementTabsTrigger>
+                    </CanvasManagementTabsList>
                     <TabsContent value='models' className='mt-4'>
                       <CatalogModelPreview models={plan.models} />
                     </TabsContent>

@@ -25,10 +25,6 @@ import vietnamese from '@/i18n/locales/vi.json'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
-import type {
-  CanvasCredentialRotationPreview,
-  CanvasModelBindingPreview,
-} from '../../types'
 import { runtimeChangeError } from '../runtime-change-error'
 import {
   RuntimeConfiguration,
@@ -117,7 +113,7 @@ const model = {
   capability: 'image.generate',
   status: 'PUBLISHED',
   providerId: '85000000-0000-7000-8000-000000000001',
-  providerCode: 'provider-a',
+  providerCode: 'hfsyapi',
   providerChannelId: '85000000-0000-7000-8000-000000000006',
   credentialBindingId: '85000000-0000-7000-8000-000000000008',
   credentialBindingVersion: 1,
@@ -154,7 +150,7 @@ const providerRuntime = {
   providers: [
     {
       id: '85000000-0000-7000-8000-000000000001',
-      code: 'provider-a',
+      code: 'hfsyapi',
       name: 'Provider A',
       credentialSchemes: ['bearerAuth', 'googleApiKey'],
     },
@@ -164,7 +160,7 @@ const providerRuntime = {
       id: '85000000-0000-7000-8000-000000000003',
       credentialGroupId: '85000000-0000-7000-8000-000000000004',
       providerId: '85000000-0000-7000-8000-000000000001',
-      providerCode: 'provider-a',
+      providerCode: 'hfsyapi',
       name: 'Primary',
       version: 1,
       status: 'PUBLISHED',
@@ -322,8 +318,32 @@ describe('Canvas runtime configuration', () => {
     ).toBe(
       'The credential scheme no longer matches every selected model. Update the credential group or selection.'
     )
+    const routedCodes = [
+      [
+        'CREDENTIAL_GROUP_ARCHIVED',
+        'This API Key group is archived. Restore it before publishing changes.',
+      ],
+      ['NO_CHANGES', 'There are no API Key group changes to publish.'],
+      [
+        'IDEMPOTENCY_CONFLICT',
+        'Another publication used this request identity. Retry from the current configuration.',
+      ],
+      [
+        'CREDENTIAL_GROUP_HAS_BINDINGS',
+        'Remove all model bindings before archiving this API Key group.',
+      ],
+      ['CREDENTIAL_GROUP_ACTIVE', 'This API Key group is already active.'],
+    ] as const
+    for (const [code, message] of routedCodes) {
+      expect(runtimeChangeError(error(code), translate, 'management')).toBe(
+        message
+      )
+    }
     expect(runtimeChangeError(error('UNKNOWN'), translate, 'credential')).toBe(
-      'Credential publication failed. Check the required schemes and preview again.'
+      'API Key group publication failed. Retry.'
+    )
+    expect(runtimeChangeError(error('UNKNOWN'), translate, 'binding')).toBe(
+      'Model binding publication failed. Retry.'
     )
     expect(
       runtimeChangeError(error('UNKNOWN'), translate, 'preview')
@@ -333,6 +353,12 @@ describe('Canvas runtime configuration', () => {
   it('consolidates runtime operations into three responsive sections', async () => {
     renderRuntimeManagement()
 
+    expect(screen.queryByText('Runtime management')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Monitor executor capacity, manage provider credential groups, and maintain storage through separate operational boundaries.'
+      )
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('tab', { name: 'Execution overview' })
     ).toBeVisible()
@@ -343,6 +369,25 @@ describe('Canvas runtime configuration', () => {
       screen.getByRole('tab', { name: 'Storage and backups' })
     ).toBeVisible()
     expect(await screen.findByText('Provider API Key groups')).toBeVisible()
+  })
+
+  it('keeps the runtime tabs controlled through onViewChange', () => {
+    const onViewChange = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <RuntimeManagement
+          initialView='execution'
+          onViewChange={onViewChange}
+        />
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Storage and backups' }))
+
+    expect(onViewChange).toHaveBeenCalledWith('storage')
   })
 
   it('uses the provider-only overview without exposing storage controls', async () => {
@@ -356,6 +401,20 @@ describe('Canvas runtime configuration', () => {
     ).not.toBeInTheDocument()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledTimes(1)
     expect(apiMocks.getCanvasRuntimeConfiguration).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Provider A')).not.toHaveLength(0)
+    expect(screen.queryByText('hfsyapi')).not.toBeInTheDocument()
+    const groupCardTitle = screen.getByText('Primary', {
+      selector: '[data-slot="card-title"]',
+    })
+    const groupCard = groupCardTitle.closest('[data-slot="card"]')
+    expect(
+      within(groupCard as HTMLElement)
+        .getByText('Version 1')
+        .closest('[data-slot="card-action"]')
+    ).not.toBeNull()
+    expect(
+      within(groupCard as HTMLElement).queryByText(/^v1$/)
+    ).not.toBeInTheDocument()
   })
 
   it('manages one API Key group in a single drawer and previews actual changes', async () => {
@@ -370,16 +429,26 @@ describe('Canvas runtime configuration', () => {
       await screen.findByRole('button', { name: 'Manage API Key group' })
     )
     const drawer = screen.getByRole('dialog', { name: 'Manage API Key group' })
-    expect(within(drawer).getByLabelText('API Key group')).toHaveValue('Primary')
+    expect(within(drawer).getByLabelText('API Key group')).toHaveValue(
+      'Primary'
+    )
     expect(within(drawer).getByLabelText('Replace API Key')).toHaveValue('')
     expect(await within(drawer).findByText('Image A')).toBeVisible()
+    expect(within(drawer).getAllByText('Provider A')).not.toHaveLength(0)
+    expect(within(drawer).queryByText('hfsyapi')).not.toBeInTheDocument()
 
     fireEvent.change(within(drawer).getByLabelText('API Key group'), {
       target: { value: 'Primary updated' },
     })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Preview changes' }))
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
     const confirmation = await screen.findByRole('alertdialog')
-    expect(within(confirmation).getByText('Primary → Primary updated')).toBeVisible()
+    expect(confirmation).toHaveTextContent('Provider A')
+    expect(confirmation).not.toHaveTextContent('hfsyapi')
+    expect(
+      within(confirmation).getByText('Primary → Primary updated')
+    ).toBeVisible()
   })
 
   it('loads every candidate page before initializing API Key group bindings', async () => {
@@ -401,7 +470,8 @@ describe('Canvas runtime configuration', () => {
         : {}),
     }))
     apiMocks.getCanvasProviderConfiguration.mockImplementation((query) => {
-      if (query.modelScope !== 'ELIGIBLE') return Promise.resolve(providerRuntime)
+      if (query.modelScope !== 'ELIGIBLE')
+        return Promise.resolve(providerRuntime)
       const start = (query.page - 1) * query.pageSize
       return Promise.resolve({
         ...providerRuntime,
@@ -425,15 +495,25 @@ describe('Canvas runtime configuration', () => {
       await within(drawer).findByLabelText('Select model Candidate 101')
     ).toBeChecked()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledWith(
-      expect.objectContaining({ modelScope: 'ELIGIBLE', page: 2, pageSize: 100 }),
+      expect.objectContaining({
+        modelScope: 'ELIGIBLE',
+        page: 2,
+        pageSize: 100,
+      }),
       expect.anything()
     )
   })
 
   it('keeps selections hidden by filtering and discards a late binding preview after selection changes', async () => {
-    let resolvePreview!: (value: Awaited<ReturnType<typeof apiMocks.previewCanvasProviderCredentialBindings>>) => void
+    let resolvePreview!: (
+      value: Awaited<
+        ReturnType<typeof apiMocks.previewCanvasProviderCredentialBindings>
+      >
+    ) => void
     apiMocks.previewCanvasProviderCredentialBindings.mockReturnValue(
-      new Promise((resolve) => { resolvePreview = resolve })
+      new Promise((resolve) => {
+        resolvePreview = resolve
+      })
     )
     apiMocks.getCanvasProviderConfiguration.mockImplementation((query) =>
       Promise.resolve({
@@ -446,8 +526,9 @@ describe('Canvas runtime configuration', () => {
           page: 1,
           pageSize: 20,
           total: 2,
-          items: [model, secondModel].filter((item) =>
-            !query.modelName || item.publicName.includes(query.modelName)
+          items: [model, secondModel].filter(
+            (item) =>
+              !query.modelName || item.publicName.includes(query.modelName)
           ),
         },
       })
@@ -464,10 +545,14 @@ describe('Canvas runtime configuration', () => {
     fireEvent.change(screen.getByPlaceholderText('Model name'), {
       target: { value: 'Image B' },
     })
-    await waitFor(() => expect(screen.getByText('Selected models: 1')).toBeVisible())
+    await waitFor(() =>
+      expect(screen.getByText('Selected models: 1')).toBeVisible()
+    )
     fireEvent.click(await screen.findByLabelText('Select model Image B'))
     expect(screen.getByText('Selected models: 2')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: /Review model bindings/ }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
     fireEvent.click(screen.getByLabelText('Select model Image B'))
     resolvePreview({
       credentialGroupVersionId: providerRuntime.credentialGroups[0].id,
@@ -475,7 +560,11 @@ describe('Canvas runtime configuration', () => {
       targetCredentialGroupVersion: 1,
       models: [],
     })
-    await waitFor(() => expect(apiMocks.previewCanvasProviderCredentialBindings).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(
+        apiMocks.previewCanvasProviderCredentialBindings
+      ).toHaveBeenCalled()
+    )
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByText('Selected models: 1')).toBeVisible()
   })
@@ -485,24 +574,38 @@ describe('Canvas runtime configuration', () => {
       page: 1,
       pageSize: 20,
       total: 1,
-      items: [{
-        id: 'change-1',
-        occurredAt: '2026-09-04T01:00:00.000Z',
-        operator: 'Platform Admin',
-        type: 'MODEL_REBOUND',
-        outcome: 'SUCCESS',
-        reason: 'move workload',
-        changes: [{ type: 'MODEL_REBOUND', modelName: 'Image A', fromGroup: 'Legacy', toGroup: 'Primary' }, { type: 'KEY_REPLACED' }],
-      }],
+      items: [
+        {
+          id: 'change-1',
+          occurredAt: '2026-09-04T01:00:00.000Z',
+          operator: 'Platform Admin',
+          type: 'MODEL_REBOUND',
+          outcome: 'SUCCESS',
+          reason: 'move workload',
+          changes: [
+            {
+              type: 'MODEL_REBOUND',
+              modelName: 'Image A',
+              fromGroup: 'Legacy',
+              toGroup: 'Primary',
+            },
+            { type: 'KEY_REPLACED' },
+          ],
+        },
+      ],
     })
     renderProviderConfiguration()
     await screen.findByText('Provider API Key groups')
     fireEvent.click(screen.getByRole('button', { name: 'View change history' }))
     const drawer = screen.getByRole('dialog', { name: 'Change history' })
-    expect(await within(drawer).findByText('Image A: Legacy → Primary')).toBeVisible()
+    expect(
+      await within(drawer).findByText('Image A: Legacy → Primary')
+    ).toBeVisible()
     expect(within(drawer).getByText('API Key replaced')).toBeVisible()
     expect(within(drawer).getByText(/move workload/)).toBeVisible()
-    expect(apiMocks.getCanvasProviderCredentialGroupChanges).toHaveBeenCalledWith(
+    expect(
+      apiMocks.getCanvasProviderCredentialGroupChanges
+    ).toHaveBeenCalledWith(
       providerRuntime.credentialGroups[0].credentialGroupId,
       { page: 1, pageSize: 20 },
       expect.anything()
@@ -515,19 +618,37 @@ describe('Canvas runtime configuration', () => {
     })
     renderProviderConfiguration()
     await screen.findByText('Provider API Key groups')
-    fireEvent.click(screen.getByRole('button', { name: 'Manage API Key group' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage API Key group' })
+    )
     const drawer = screen.getByRole('dialog', { name: 'Manage API Key group' })
-    expect(within(drawer).queryByLabelText('Reason (optional)')).not.toBeInTheDocument()
+    expect(
+      within(drawer).queryByLabelText('Reason (optional)')
+    ).not.toBeInTheDocument()
     await within(drawer).findByText('Image A')
-    fireEvent.change(within(drawer).getByLabelText('API Key group'), { target: { value: 'Primary updated' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Preview changes' }))
+    fireEvent.change(within(drawer).getByLabelText('API Key group'), {
+      target: { value: 'Primary updated' },
+    })
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
     const confirmation = await screen.findByRole('alertdialog')
-    fireEvent.change(within(confirmation).getByLabelText('Reason (optional)'), { target: { value: '  reviewed failure  ' } })
-    fireEvent.click(within(confirmation).getByRole('button', { name: 'Confirm publication' }))
-    await waitFor(() => expect(apiMocks.publishCanvasCredentialGroupManagement).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'reviewed failure' })
-    ))
-    expect(within(confirmation).getByLabelText('Reason (optional)')).toHaveValue('  reviewed failure  ')
+    fireEvent.change(within(confirmation).getByLabelText('Reason (optional)'), {
+      target: { value: '  reviewed failure  ' },
+    })
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.publishCanvasCredentialGroupManagement
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'reviewed failure' })
+      )
+    )
+    expect(
+      within(confirmation).getByLabelText('Reason (optional)')
+    ).toHaveValue('  reviewed failure  ')
   })
 
   it('accepts a 255-character management reason and rejects 256 characters', async () => {
@@ -536,37 +657,59 @@ describe('Canvas runtime configuration', () => {
     })
     renderProviderConfiguration()
     await screen.findByText('Provider API Key groups')
-    fireEvent.click(screen.getByRole('button', { name: 'Manage API Key group' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage API Key group' })
+    )
     const drawer = screen.getByRole('dialog', { name: 'Manage API Key group' })
     await within(drawer).findByText('Image A')
     fireEvent.change(within(drawer).getByLabelText('API Key group'), {
       target: { value: 'Primary updated' },
     })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Preview changes' }))
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
     const confirmation = await screen.findByRole('alertdialog')
     const reason = within(confirmation).getByLabelText('Reason (optional)')
     fireEvent.change(reason, { target: { value: 'x'.repeat(255) } })
-    fireEvent.click(within(confirmation).getByRole('button', { name: 'Confirm publication' }))
-    await waitFor(() => expect(apiMocks.publishCanvasCredentialGroupManagement).toHaveBeenCalledTimes(1))
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.publishCanvasCredentialGroupManagement
+      ).toHaveBeenCalledTimes(1)
+    )
     fireEvent.change(reason, { target: { value: 'x'.repeat(256) } })
-    fireEvent.click(within(confirmation).getByRole('button', { name: 'Confirm publication' }))
-    expect(await within(confirmation).findByText('Use no more than 255 characters')).toBeVisible()
-    expect(apiMocks.publishCanvasCredentialGroupManagement).toHaveBeenCalledTimes(1)
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    expect(
+      await within(confirmation).findByText('Use no more than 255 characters')
+    ).toBeVisible()
+    expect(
+      apiMocks.publishCanvasCredentialGroupManagement
+    ).toHaveBeenCalledTimes(1)
   })
 
   it('switches to archived groups without retaining an active group and restores the selected group', async () => {
     const archivedRuntime = {
       ...providerRuntime,
-      credentialGroups: [{
-        ...providerRuntime.credentialGroups[0],
-        lifecycleStatus: 'ARCHIVED',
-        archivedAt: '2026-09-04T02:00:00.000Z',
-        boundModelCount: 0,
-      }],
+      credentialGroups: [
+        {
+          ...providerRuntime.credentialGroups[0],
+          lifecycleStatus: 'ARCHIVED',
+          archivedAt: '2026-09-04T02:00:00.000Z',
+          boundModelCount: 0,
+        },
+      ],
       models: { page: 1, pageSize: 20, total: 0, items: [] },
     }
     apiMocks.getCanvasProviderConfiguration.mockImplementation((query) =>
-      Promise.resolve(query.credentialGroupStatus === 'ARCHIVED' ? archivedRuntime : providerRuntime)
+      Promise.resolve(
+        query.credentialGroupStatus === 'ARCHIVED'
+          ? archivedRuntime
+          : providerRuntime
+      )
     )
     apiMocks.restoreCanvasCredentialGroup.mockResolvedValue({})
     renderProviderConfiguration({
@@ -577,7 +720,9 @@ describe('Canvas runtime configuration', () => {
     })
     await screen.findByText('Provider API Key groups')
     fireEvent.click(screen.getByText('Show archived API Key groups'))
-    expect(await screen.findByRole('button', { name: 'Restore API Key group' })).toBeVisible()
+    expect(
+      await screen.findByRole('button', { name: 'Restore API Key group' })
+    ).toBeVisible()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({ credentialGroupStatus: 'ARCHIVED' }),
       expect.anything()
@@ -588,18 +733,43 @@ describe('Canvas runtime configuration', () => {
     expect(archivedQuery).not.toHaveProperty('credentialGroupId')
     expect(archivedQuery).not.toHaveProperty('credentialGroupVersionId')
     expect(archivedQuery).not.toHaveProperty('modelId')
-    fireEvent.click(screen.getByRole('button', { name: 'Restore API Key group' }))
-    const confirmation = await screen.findByRole('dialog', { name: 'Restore API Key group' })
-    fireEvent.click(within(confirmation).getByRole('button', { name: 'Confirm restore' }))
-    await waitFor(() => expect(apiMocks.restoreCanvasCredentialGroup).toHaveBeenCalled())
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restore API Key group' })
+    )
+    const confirmation = await screen.findByRole('dialog', {
+      name: 'Restore API Key group',
+    })
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm restore' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.restoreCanvasCredentialGroup).toHaveBeenCalled()
+    )
   })
 
-  it('shows only the backend environment and separates storage responsibilities', async () => {
+  it('shows storage navigation without a duplicate overview card', async () => {
     renderRuntime()
 
-    const environment = await screen.findByText('Current environment: UAT')
-    expect(environment).toBeVisible()
-    expect(environment).toHaveClass('whitespace-nowrap')
+    const taskMediaBucket = await screen.findByText('canvas-uat-task-media')
+    expect(taskMediaBucket.closest('[data-slot="card"]')).toHaveAttribute(
+      'data-size',
+      'default'
+    )
+    const taskMediaCard = taskMediaBucket.closest('[data-slot="card"]')
+    expect(
+      within(taskMediaCard as HTMLElement)
+        .getByText('Version 1')
+        .closest('[data-slot="card-action"]')
+    ).not.toBeNull()
+    expect(screen.queryByText('Runtime storage')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Task media and database backups use independent buckets, credentials, publications, and connection checks.'
+      )
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Current environment: UAT')
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('tablist')).toHaveClass(
       'flex-nowrap',
       'overflow-x-auto'
@@ -614,7 +784,6 @@ describe('Canvas runtime configuration', () => {
       'aria-selected',
       'true'
     )
-    expect(screen.getByText('canvas-uat-task-media')).toBeVisible()
     expect(
       screen.queryByRole('form', {
         name: 'Publish task media configuration',
@@ -630,7 +799,18 @@ describe('Canvas runtime configuration', () => {
     ).toBeVisible()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Database backups' }))
-    expect(screen.getByText('canvas-uat-db-backups')).toBeVisible()
+    const backupBucket = screen.getByText('canvas-uat-db-backups')
+    expect(backupBucket.closest('[data-slot="card"]')).toHaveAttribute(
+      'data-size',
+      'default'
+    )
+    const backupCard = backupBucket.closest('[data-slot="card"]')
+    expect(
+      within(backupCard as HTMLElement)
+        .getByText('Version 2')
+        .closest('[data-slot="card-action"]')
+    ).not.toBeNull()
+    expect(screen.queryByText(/^v[12]$/)).not.toBeInTheDocument()
     expect(screen.queryByText('canvas-uat-task-media')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('form', {
@@ -727,6 +907,49 @@ describe('Canvas runtime configuration', () => {
     )
   })
 
+  it('omits an empty optional reason and retains publication confirmation after failure', async () => {
+    apiMocks.publishCanvasProviderCredentialGroup.mockRejectedValue({
+      response: { data: { code: 'IDEMPOTENCY_CONFLICT' } },
+    })
+    renderProviderConfiguration()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add API Key group' })
+    )
+    const editor = await screen.findByRole('form', {
+      name: 'Publish provider API Key group',
+    })
+    expect(
+      within(editor).getByRole('option', { name: 'Provider A' })
+    ).toBeVisible()
+    expect(within(editor).queryByText('hfsyapi')).not.toBeInTheDocument()
+    fireEvent.change(within(editor).getByLabelText('Provider'), {
+      target: { value: providerRuntime.providers[0].id },
+    })
+    fireEvent.change(within(editor).getByLabelText('API Key group'), {
+      target: { value: 'No reason group' },
+    })
+    fireEvent.change(within(editor).getByLabelText('API Key'), {
+      target: { value: 'not-rendered-secret' },
+    })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Next' }))
+    const confirmation = await screen.findByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('Provider A')
+    expect(confirmation).not.toHaveTextContent('hfsyapi')
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.publishCanvasProviderCredentialGroup).toHaveBeenCalled()
+    )
+    expect(
+      apiMocks.publishCanvasProviderCredentialGroup.mock.calls[0]?.[0]
+    ).not.toHaveProperty('reason')
+    expect(screen.getByRole('alertdialog')).toBeVisible()
+    expect(within(editor).getByLabelText('API Key group')).toHaveValue(
+      'No reason group'
+    )
+  })
+
   it('reviews the exact drawer owner and selects the newly created group', async () => {
     const secondProviderId = '85000000-0000-7000-8000-000000000020'
     const newGroupId = '85000000-0000-7000-8000-000000000021'
@@ -775,13 +998,14 @@ describe('Canvas runtime configuration', () => {
     fireEvent.change(within(editor).getByLabelText('API Key'), {
       target: { value: 'never-show-this-secret' },
     })
-    fireEvent.change(within(editor).getByLabelText('Reason'), {
+    fireEvent.change(within(editor).getByLabelText('Reason (optional)'), {
       target: { value: 'create dedicated group' },
     })
     fireEvent.click(within(editor).getByRole('button', { name: 'Next' }))
 
     const review = await screen.findByRole('alertdialog')
-    expect(review).toHaveTextContent('provider-b · Provider B')
+    expect(review).toHaveTextContent('Provider B')
+    expect(review).not.toHaveTextContent('provider-b')
     expect(review).toHaveTextContent('New group')
     expect(review).not.toHaveTextContent('never-show-this-secret')
     fireEvent.click(
@@ -962,7 +1186,9 @@ describe('Canvas runtime configuration', () => {
         screen.getByRole('button', { name: 'Update configuration' })
       )
       expect(
-        within(screen.getByRole('form', { name })).getByLabelText('Reason (optional)')
+        within(screen.getByRole('form', { name })).getByLabelText(
+          'Reason (optional)'
+        )
       ).toHaveValue('')
       expect(apiMocks.publishCanvasTaskMediaStorage).not.toHaveBeenCalled()
       expect(apiMocks.publishCanvasDatabaseBackupStorage).not.toHaveBeenCalled()
@@ -1056,11 +1282,9 @@ describe('Canvas runtime configuration', () => {
       within(review).getByRole('button', { name: 'Confirm publication' })
     )
     await waitFor(() =>
-      expect(apiMocks.publishCanvasTaskMediaStorage).toHaveBeenCalledWith(
-        {
-          outputRetentionHours: 96,
-        }
-      )
+      expect(apiMocks.publishCanvasTaskMediaStorage).toHaveBeenCalledWith({
+        outputRetentionHours: 96,
+      })
     )
     expect(
       apiMocks.publishCanvasTaskMediaStorage.mock.calls[0]?.[0]
@@ -1112,8 +1336,8 @@ describe('Canvas runtime configuration', () => {
         resource.translation['Enter a credential group name']
       )
       expect(
-        within(editor).getByLabelText(resource.translation.Reason)
-      ).toHaveAccessibleDescription(resource.translation['Enter a reason'])
+        within(editor).getByLabelText(resource.translation['Reason (optional)'])
+      ).not.toHaveAttribute('aria-invalid', 'true')
       expect(
         within(editor).queryByText('Select a provider')
       ).not.toBeInTheDocument()
@@ -1121,20 +1345,55 @@ describe('Canvas runtime configuration', () => {
   )
 
   it.each([
-    ['en', en], ['zhCN', zh], ['zhTW', zhTW], ['ja', ja],
-    ['fr', fr], ['ru', ru], ['vi', vietnamese],
-  ] as const)('localizes empty storage numbers and optional reasons in %s', async (locale, resource) => {
-    i18next.addResourceBundle(locale, 'translation', resource.translation, true, true)
-    await i18next.changeLanguage(locale)
-    renderRuntime()
-    await screen.findByText('canvas-uat-task-media')
-    fireEvent.click(screen.getByRole('button', { name: resource.translation['Update configuration'] }))
-    const form = screen.getByRole('form', { name: resource.translation['Publish task media configuration'] })
-    expect(within(form).getByLabelText(resource.translation['Reason (optional)'])).toBeVisible()
-    fireEvent.change(within(form).getByLabelText(resource.translation['Input retention hours']), { target: { value: '' } })
-    fireEvent.click(within(form).getByRole('button', { name: resource.translation['Review task media publication'] }))
-    await waitFor(() => expect(
-      within(form).getByLabelText(resource.translation['Input retention hours'])
-    ).toHaveAccessibleDescription(resource.translation['Enter a number']))
-  })
+    ['en', en],
+    ['zhCN', zh],
+    ['zhTW', zhTW],
+    ['ja', ja],
+    ['fr', fr],
+    ['ru', ru],
+    ['vi', vietnamese],
+  ] as const)(
+    'localizes empty storage numbers and optional reasons in %s',
+    async (locale, resource) => {
+      i18next.addResourceBundle(
+        locale,
+        'translation',
+        resource.translation,
+        true,
+        true
+      )
+      await i18next.changeLanguage(locale)
+      renderRuntime()
+      await screen.findByText('canvas-uat-task-media')
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: resource.translation['Update configuration'],
+        })
+      )
+      const form = screen.getByRole('form', {
+        name: resource.translation['Publish task media configuration'],
+      })
+      expect(
+        within(form).getByLabelText(resource.translation['Reason (optional)'])
+      ).toBeVisible()
+      fireEvent.change(
+        within(form).getByLabelText(
+          resource.translation['Input retention hours']
+        ),
+        { target: { value: '' } }
+      )
+      fireEvent.click(
+        within(form).getByRole('button', {
+          name: resource.translation['Review task media publication'],
+        })
+      )
+      await waitFor(() =>
+        expect(
+          within(form).getByLabelText(
+            resource.translation['Input retention hours']
+          )
+        ).toHaveAccessibleDescription(resource.translation['Enter a number'])
+      )
+    }
+  )
 })

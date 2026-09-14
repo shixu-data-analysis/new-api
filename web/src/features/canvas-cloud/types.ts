@@ -112,7 +112,7 @@ export interface CanvasProviderConfiguration {
     lifecycleStatus: 'ACTIVE' | 'ARCHIVED'
     archivedAt: string | null
     schemeNames: string[]
-    reason: string
+    reason: string | null
     effectiveAt: string | null
     createdByPrincipalId: string
     updatedBy: string
@@ -151,7 +151,7 @@ export interface CanvasProviderCredentialVersion {
   version: number
   status: string
   schemeNames: string[]
-  reason: string
+  reason: string | null
   effectiveAt: string | null
   createdByPrincipalId: string
   updatedBy: string
@@ -271,16 +271,31 @@ export interface CanvasAdminRechargeCode {
 
 export interface CanvasAdminRechargeCodePage {
   items: CanvasAdminRechargeCode[]
+  matchedCode: CanvasAdminRechargeCodeBatchItem | null
   total: number
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
 
+export interface CanvasAdminRechargeCodeBatchItem {
+  maskedCode: string
+  status: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
+  redeemedAt: string | null
+}
+
+export interface CanvasAdminRechargeCodeBatchItems {
+  items: CanvasAdminRechargeCodeBatchItem[]
+  matchedCount: number
+  totalCount: number
+}
+
+export type CanvasAdminRechargeCodeExactSearchPage =
+  CanvasAdminRechargeCodePage
+
 export interface CanvasAdminRechargeCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   name?: string
-  code?: string
   status?: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
   createdFrom?: string
   createdTo?: string
@@ -292,6 +307,12 @@ export interface CanvasAdminRechargeCodeQuery {
     | 'createdAt'
     | 'expiresAt'
   sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminRechargeCodeExactSearch
+  extends Omit<CanvasAdminRechargeCodeQuery, 'name'> {
+  batchOrRemark?: string
+  code: string
 }
 
 export interface CanvasIssuedRechargeCodes {

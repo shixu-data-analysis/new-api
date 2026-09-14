@@ -19,15 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, ChevronRight, Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
+import { Fragment, useEffect, useState } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DataTableColumnHeader } from '@/components/data-table'
+import { DataTableColumnHeader, DataTableRow } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { TableCell, TableRow } from '@/components/ui/table'
 import {
   Select,
   SelectContent,
@@ -54,8 +55,10 @@ import { toIntlLocale } from '@/i18n/languages'
 import { getCanvasBindableBonusActivities } from './activity-api'
 import {
   getCanvasAdminRechargeCodes,
+  getCanvasAdminRechargeCodeBatchItems,
   downloadCanvasUnusedRechargeCodes,
   issueCanvasAdminRechargeCodes,
+  searchCanvasAdminRechargeCodeBatch,
 } from './api'
 import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
@@ -68,6 +71,8 @@ import {
 } from './recharge-code-amount'
 import type {
   CanvasAdminRechargeCode,
+  CanvasAdminRechargeCodeBatchItem,
+  CanvasAdminRechargeCodeExactSearchPage,
   CanvasAdminRechargeCodeQuery,
   CanvasIssuedRechargeCodes,
 } from './types'
@@ -108,6 +113,132 @@ function rechargeFailure(error: unknown): {
     code: typeof code === 'string' ? code : null,
     field: typeof field === 'string' ? field : null,
   }
+}
+
+function batchItemsFailureKind(
+  error: unknown
+): 'forbidden' | 'missing' | 'failed' {
+  if (!error || typeof error !== 'object') return 'failed'
+  const response = (
+    error as { response?: { status?: unknown; data?: unknown } }
+  ).response
+  const data = response?.data
+  const code =
+    data && typeof data === 'object'
+      ? (data as { code?: unknown }).code
+      : null
+  if (
+    response?.status === 401 ||
+    response?.status === 403 ||
+    code === 'UNAUTHORIZED' ||
+    code === 'FORBIDDEN'
+  ) {
+    return 'forbidden'
+  }
+  if (response?.status === 404 || code === 'NOT_FOUND') return 'missing'
+  return 'failed'
+}
+
+function RechargeCodeBatchDetails(props: {
+  batchId: string
+  status?: CanvasAdminRechargeCodeBatchItem['status']
+  exactMatch?: CanvasAdminRechargeCodeBatchItem | null
+  exactTotalCount?: number
+}) {
+  const { t, i18n } = useTranslation()
+  const details = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin-recharge-code-batch-items',
+      props.batchId,
+      props.status ?? 'ALL',
+    ],
+    queryFn: ({ signal }) =>
+      getCanvasAdminRechargeCodeBatchItems(props.batchId, props.status, signal),
+    enabled: props.exactMatch === undefined,
+    retry: false,
+  })
+
+  if (props.exactMatch === undefined && details.isPending) {
+    return (
+      <p role='status' className='text-muted-foreground text-sm'>
+        {t('Loading recharge codes…')}
+      </p>
+    )
+  }
+  if (props.exactMatch === undefined && details.isError) {
+    const kind = batchItemsFailureKind(details.error)
+    let message = t('Recharge codes could not be loaded')
+    if (kind === 'forbidden') {
+      message = t('You do not have permission to view these recharge codes')
+    } else if (kind === 'missing') {
+      message = t('This recharge-code batch no longer exists')
+    }
+    return (
+      <div role='alert' className='space-y-2'>
+        <p className='text-destructive text-sm'>{message}</p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => void details.refetch()}
+        >
+          <RefreshCw aria-hidden='true' />
+          {t('Retry')}
+        </Button>
+      </div>
+    )
+  }
+  let items = details.data?.items ?? []
+  if (props.exactMatch !== undefined) {
+    items = props.exactMatch ? [props.exactMatch] : []
+  }
+  const language = i18n.resolvedLanguage ?? i18n.language
+  let matchedCount = details.data?.matchedCount ?? 0
+  let totalCount = details.data?.totalCount ?? 0
+  if (props.exactMatch !== undefined) {
+    matchedCount = items.length
+    totalCount = props.exactTotalCount ?? items.length
+  }
+  return (
+    <div className='space-y-2'>
+      <p className='text-sm font-medium'>
+        {t('Recharge codes in this batch (matched {{matched}} / total {{total}})', {
+          matched: matchedCount,
+          total: totalCount,
+        })}
+      </p>
+      {!items.length ? (
+        <p className='text-muted-foreground text-sm'>
+          {props.status
+            ? t('No recharge codes match the current status')
+            : t('No recharge codes in this batch')}
+        </p>
+      ) : (
+        <>
+          <div className='text-muted-foreground hidden grid-cols-[minmax(12rem,1fr)_10rem_13rem] gap-3 text-xs font-medium md:grid'>
+            <span>{t('Recharge code')}</span>
+            <span>{t('Status')}</span>
+            <span>{t('Used time')}</span>
+          </div>
+          <ul className='divide-y'>
+            {items.map((item: CanvasAdminRechargeCodeBatchItem) => (
+              <li
+                key={item.maskedCode}
+                className='grid gap-1 py-2 text-sm md:grid-cols-[minmax(12rem,1fr)_10rem_13rem] md:gap-3'
+              >
+                <span className='break-all font-mono'>{item.maskedCode}</span>
+                <BusinessTerm kind='rechargeCodeStatus' value={item.status} />
+                <span className='text-muted-foreground'>
+                  {formatDate(item.redeemedAt, language)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
 }
 
 export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
@@ -157,6 +288,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   )
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
   const [pendingDownloadId, setPendingDownloadId] = useState<string | null>(null)
+  const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [issueIdempotencyKey, setIssueIdempotencyKey] = useState('')
   const [codesVisible, setCodesVisible] = useState(false)
@@ -186,7 +318,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     sortBy: tableState.query.sortBy,
     sortOrder: tableState.query.sortOrder,
     ...(tableState.query.search ? { name: tableState.query.search } : {}),
-    ...(normalizedCode ? { code: normalizedCode } : {}),
     ...(status ? { status } : {}),
     ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
     ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
@@ -195,9 +326,79 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     queryKey: ['canvas-cloud', 'admin-recharge-codes', inventoryQuery],
     queryFn: ({ signal }) =>
       getCanvasAdminRechargeCodes(inventoryQuery, signal),
-    enabled: (!debouncedCode || Boolean(normalizedCode)) && createdRangeValid,
+    enabled: !debouncedCode && createdRangeValid,
     placeholderData: (previous) => previous,
   })
+  const [exactSearchResult, setExactSearchResult] =
+    useState<CanvasAdminRechargeCodeExactSearchPage | null>(null)
+  const [exactSearchError, setExactSearchError] = useState(false)
+  const {
+    mutate: runExactSearch,
+    reset: resetExactSearch,
+    isPending: exactSearchPending,
+  } = useDirectAsync({
+    execute: searchCanvasAdminRechargeCodeBatch,
+    onSuccess: (result) => {
+      setExactSearchError(false)
+      setExactSearchResult(result)
+      setExpandedBatchId(
+        result.matchedCode ? (result.items[0]?.id ?? null) : null
+      )
+    },
+    onError: () => {
+      setExactSearchResult(null)
+      setExactSearchError(true)
+    },
+  })
+  useEffect(() => {
+    resetExactSearch()
+    setExactSearchResult(null)
+    setExactSearchError(false)
+    if (!normalizedCode || !createdRangeValid) return
+    runExactSearch({
+      ...(tableState.query.search
+        ? { batchOrRemark: tableState.query.search }
+        : {}),
+      code: normalizedCode,
+      ...(status ? { status } : {}),
+      ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
+      ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
+      page: tableState.query.page,
+      pageSize: tableState.query.pageSize,
+      sortBy: tableState.query.sortBy,
+      sortOrder: tableState.query.sortOrder,
+    })
+  }, [
+    normalizedCode,
+    createdRangeValid,
+    tableState.query.search,
+    tableState.query.page,
+    tableState.query.pageSize,
+    tableState.query.sortBy,
+    tableState.query.sortOrder,
+    status,
+    createdFrom,
+    createdTo,
+    runExactSearch,
+    resetExactSearch,
+  ])
+  useEffect(() => {
+    const matchedBatchId = exactSearchResult?.matchedCode
+      ? exactSearchResult.items[0]?.id
+      : undefined
+    if (!matchedBatchId) return
+    const triggers = [
+      ...document.querySelectorAll<HTMLElement>(
+        '[data-recharge-batch-trigger]'
+      ),
+    ].filter(
+      (element) => element.dataset.rechargeBatchTrigger === matchedBatchId
+    )
+    const trigger =
+      triggers.find((element) => element.getClientRects().length > 0) ??
+      triggers[0]
+    trigger?.focus()
+  }, [exactSearchResult])
   const issue = useDirectAsync({
     execute: issueCanvasAdminRechargeCodes,
     onSuccess: async (result) => {
@@ -349,12 +550,52 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         <DataTableColumnHeader column={column} title={t('Batch / note')} />
       ),
       cell: ({ row }) => (
-        <div className='min-w-0 space-y-1'>
-          <span>{formatDate(row.original.createdAt, i18n.resolvedLanguage ?? i18n.language)}</span>
-          {row.original.remark ? (
-            <p className='text-muted-foreground break-words'>{row.original.remark}</p>
-          ) : null}
-        </div>
+        <Button
+          type='button'
+          variant='ghost'
+          className='h-auto min-w-0 justify-start px-0 py-1 text-start whitespace-normal'
+          data-recharge-batch-trigger={row.original.id}
+          aria-label={t(
+            expandedBatchId === row.original.id
+              ? 'Collapse recharge-code batch {{batch}}'
+              : 'Expand recharge-code batch {{batch}}',
+            {
+              batch: [
+                formatDate(
+                  row.original.createdAt,
+                  i18n.resolvedLanguage ?? i18n.language
+                ),
+                row.original.remark,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+            }
+          )}
+          aria-expanded={expandedBatchId === row.original.id}
+          onClick={() =>
+            setExpandedBatchId((current) =>
+              current === row.original.id ? null : row.original.id
+            )
+          }
+        >
+          {expandedBatchId === row.original.id ? (
+            <ChevronDown aria-hidden='true' />
+          ) : (
+            <ChevronRight aria-hidden='true' className='rtl:rotate-180' />
+          )}
+          <span className='min-w-0 space-y-1'>
+            <span className='block'>
+              {formatDate(
+                row.original.createdAt,
+                i18n.resolvedLanguage ?? i18n.language
+              )}
+            </span>
+            <span className='text-muted-foreground block break-words'>
+              {row.original.remark ? `${row.original.remark} · ` : ''}
+              {t('{{count}} codes', { count: row.original.totalCount })}
+            </span>
+          </span>
+        </Button>
       ),
     },
     {
@@ -434,21 +675,55 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     tableState.setPagination((value) => ({ ...value, pageIndex: 0 }))
 
   const renderInventory = () => {
-    if (inventory.isError) {
+    const exactActive = Boolean(normalizedCode)
+    if (!exactActive && inventory.isError) {
       return <ErrorState onRetry={() => void inventory.refetch()} />
     }
     const hasFilters = Boolean(
       tableState.search.trim() || code || status || createdFrom || createdTo
     )
+    const displayedItems = exactActive
+      ? (exactSearchResult?.items ?? [])
+      : (inventory.data?.items ?? [])
+    const displayedTotal = exactActive
+      ? (exactSearchResult?.total ?? 0)
+      : (inventory.data?.total ?? 0)
+    const exactMatchForBatch = (batchId: string) => {
+      if (!exactActive) return undefined
+      if (exactSearchResult?.items[0]?.id !== batchId) return null
+      return exactSearchResult.matchedCode
+    }
     return (
       <CanvasServerTable
-        data={inventory.data?.items ?? []}
+        data={displayedItems}
         columns={columns}
-        total={inventory.data?.total ?? 0}
+        total={displayedTotal}
         state={tableState}
+        error={exactActive && exactSearchError}
+        errorTitle={t('Recharge codes could not be searched')}
+        onRetry={() => {
+          if (!normalizedCode) return
+          runExactSearch({
+            ...(tableState.query.search
+              ? { batchOrRemark: tableState.query.search }
+              : {}),
+            code: normalizedCode,
+            ...(status ? { status } : {}),
+            ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
+            ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
+            page: tableState.query.page,
+            pageSize: tableState.query.pageSize,
+            sortBy: tableState.query.sortBy,
+            sortOrder: tableState.query.sortOrder,
+          })
+        }}
         searchLabel={t('Batch / note')}
         searchPlaceholder={t('Batch / note')}
-        loading={inventory.isPending || inventory.isFetching}
+        loading={
+          exactActive
+            ? exactSearchPending
+            : inventory.isPending || inventory.isFetching
+        }
         emptyTitle={
           hasFilters
             ? t('No matching recharge codes')
@@ -467,10 +742,29 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                 }
                 aria-invalid={Boolean(codeSearchError)}
                 onChange={(event) => {
+                  resetExactSearch()
+                  setExactSearchResult(null)
+                  setExactSearchError(false)
                   setCode(event.target.value)
                   resetPage()
                 }}
               />
+              {code ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    resetExactSearch()
+                    setExactSearchResult(null)
+                    setExactSearchError(false)
+                    setCode('')
+                    resetPage()
+                  }}
+                >
+                  {t('Clear exact recharge code')}
+                </Button>
+              ) : null}
               {codeSearchError ? (
                 <p
                   id='canvas-code-search-error'
@@ -536,11 +830,50 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         hasActiveFilters={Boolean(code || status || createdFrom || createdTo)}
         onResetFilters={() => {
           setStatus('')
+          resetExactSearch()
+          setExactSearchResult(null)
+          setExactSearchError(false)
           setCode('')
           setCreatedFrom(undefined)
           setCreatedTo(undefined)
         }}
         getRowId={(row) => row.id}
+        renderRow={(row) => (
+          <Fragment key={row.id}>
+            <DataTableRow
+              row={row}
+              cellRenderColumns={columns}
+              aria-expanded={expandedBatchId === row.original.id}
+            />
+            {expandedBatchId === row.original.id ? (
+              <TableRow>
+                <TableCell
+                  colSpan={row.getVisibleCells().length}
+                  className='bg-muted/20 p-4'
+                >
+                  <RechargeCodeBatchDetails
+                    batchId={row.original.id}
+                    status={status || undefined}
+                    exactMatch={exactMatchForBatch(row.original.id)}
+                    exactTotalCount={row.original.totalCount}
+                  />
+                </TableCell>
+              </TableRow>
+            ) : null}
+          </Fragment>
+        )}
+        renderExpandedContent={(row) =>
+          expandedBatchId === row.original.id ? (
+            <div>
+              <RechargeCodeBatchDetails
+                batchId={row.original.id}
+                status={status || undefined}
+                exactMatch={exactMatchForBatch(row.original.id)}
+                exactTotalCount={row.original.totalCount}
+              />
+            </div>
+          ) : null
+        }
       />
     )
   }

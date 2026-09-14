@@ -12,21 +12,36 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
+import { executionWaitDurationParts } from '../ExecutionCapacityOverview'
 import { ExecutionSettings } from '../ExecutionSettings'
 
 const mocks = vi.hoisted(() => ({
   getCanvasExecutionOverview: vi.fn(),
+  getCanvasExecutionCapacity: vi.fn(),
+  getCanvasExecutionWaits: vi.fn(),
+  getCanvasExecutionWaitDetail: vi.fn(),
   getCanvasCredentialGroupExecution: vi.fn(),
   publishCanvasExecutionPolicy: vi.fn(),
   previewCanvasExecutionError: vi.fn(),
 }))
 vi.mock('../../execution-api', () => ({
   getCanvasExecutionOverview: mocks.getCanvasExecutionOverview,
+  getCanvasExecutionCapacity: mocks.getCanvasExecutionCapacity,
+  getCanvasExecutionWaits: mocks.getCanvasExecutionWaits,
+  getCanvasExecutionWaitDetail: mocks.getCanvasExecutionWaitDetail,
   getCanvasCredentialGroupExecution: mocks.getCanvasCredentialGroupExecution,
   publishCanvasExecutionPolicy: mocks.publishCanvasExecutionPolicy,
   previewCanvasExecutionError: mocks.previewCanvasExecutionError,
@@ -121,6 +136,30 @@ beforeEach(async () => {
         updatedAt: null,
       },
       {
+        queueName: 'canvas-tasks',
+        mode: 'REAL',
+        workerId: 'worker-2',
+        status: 'RUNNING',
+        credentialsConfigured: false,
+        startedAt: null,
+        heartbeatAt: '2026-09-06T00:00:00Z',
+        leaseExpiresAt: '2999-09-06T00:01:00Z',
+        stoppedAt: null,
+        updatedAt: null,
+      },
+      {
+        queueName: 'canvas-tasks-priority',
+        mode: 'REAL',
+        workerId: 'worker-unknown-status',
+        status: 'LEASE_ACTIVE_INTERNAL',
+        credentialsConfigured: true,
+        startedAt: null,
+        heartbeatAt: '2026-09-06T00:00:00Z',
+        leaseExpiresAt: '2999-09-06T00:01:00Z',
+        stoppedAt: null,
+        updatedAt: null,
+      },
+      {
         queueName: 'tasks',
         mode: 'MOCK',
         workerId: 'worker-expired',
@@ -152,6 +191,14 @@ beforeEach(async () => {
       defaultInstances: 4,
     },
   })
+  mocks.getCanvasExecutionCapacity.mockResolvedValue({ items: [] })
+  mocks.getCanvasExecutionWaits.mockResolvedValue({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    items: [],
+  })
+  mocks.getCanvasExecutionWaitDetail.mockResolvedValue({})
   mocks.getCanvasCredentialGroupExecution.mockResolvedValue({
     global: {
       kind: 'GLOBAL_LIMITS',
@@ -233,21 +280,288 @@ beforeEach(async () => {
     },
   })
 })
+afterEach(() => vi.useRealTimers())
 
 describe('execution settings', () => {
+  it('distinguishes denied capacity access and retries', async () => {
+    const user = userEvent.setup()
+    mocks.getCanvasExecutionCapacity
+      .mockRejectedValueOnce({ response: { status: 403 } })
+      .mockResolvedValue({ items: [] })
+    mount()
+    expect(
+      await screen.findByText(
+        'You do not have permission to view execution capacity.'
+      )
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(
+      await screen.findByText('No execution capacity records')
+    ).toBeVisible()
+  })
+
+  it('reports an expired session while loading waiting tasks', async () => {
+    const user = userEvent.setup()
+    mocks.getCanvasExecutionCapacity.mockResolvedValue({
+      items: [
+        {
+          credentialGroupId,
+          providerName: 'Provider A',
+          credentialGroupName: 'Primary',
+          requestConcurrency: { used: 1, limit: 16 },
+          asyncInFlight: { used: 1, limit: 30 },
+          waitingTasks: 1,
+          status: 'AVAILABLE',
+        },
+      ],
+    })
+    mocks.getCanvasExecutionWaits.mockRejectedValue({
+      response: { status: 401 },
+    })
+    mount()
+    await user.click(
+      (await screen.findAllByRole('button', { name: 'View waiting tasks' }))[0]
+    )
+    expect(
+      await screen.findByText('Your session has expired. Sign in again.')
+    ).toBeVisible()
+  })
+
+  it('shows safe capacity and wait facts, then restores detail focus', async () => {
+    const user = userEvent.setup()
+    expect(
+      executionWaitDurationParts(
+        '2026-09-13T08:00:00Z',
+        new Date('2026-09-13T08:12:00Z')
+      )
+    ).toEqual({ hours: 0, minutes: 12 })
+    document.documentElement.dir = 'rtl'
+    const wait = {
+      taskId: '85000000-0000-7000-8000-000000000010',
+      modelName: 'Canvas Image',
+      credentialGroupId,
+      stage: 'SUBMIT',
+      blockingStatus: 'ASYNC_IN_FLIGHT_FULL',
+      observedValue: '30',
+      limitValue: '30',
+      requestState: 'NOT_SENT',
+      startedAt: '2026-09-13T08:00:00Z',
+      nextAttemptAt: '2026-09-14T08:05:00Z',
+      updatedAt: '2026-09-13T08:01:00Z',
+    }
+    const queryWait = {
+      ...wait,
+      taskId: '85000000-0000-7000-8000-000000000011',
+      modelName: 'Canvas Video',
+      stage: 'QUERY',
+      requestState: 'ACCEPTED_BY_PROVIDER',
+    }
+    const uncertainWait = {
+      ...wait,
+      taskId: '85000000-0000-7000-8000-000000000012',
+      modelName: 'Canvas Audio',
+      requestState: 'MAY_HAVE_BEEN_SENT',
+    }
+    mocks.getCanvasExecutionCapacity.mockResolvedValue({
+      items: [
+        {
+          credentialGroupId,
+          providerName: 'HFSY API',
+          credentialGroupName: 'Primary',
+          requestConcurrency: { used: 0, limit: 16 },
+          asyncInFlight: { used: 30, limit: 30 },
+          waitingTasks: 3,
+          status: 'ASYNC_IN_FLIGHT_FULL',
+        },
+      ],
+    })
+    mocks.getCanvasExecutionWaits.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 3,
+      items: [wait, queryWait, uncertainWait],
+    })
+    mocks.getCanvasExecutionWaitDetail.mockImplementation(async (taskId) => {
+      if (taskId === queryWait.taskId) return queryWait
+      if (taskId === uncertainWait.taskId) return uncertainWait
+      return wait
+    })
+    mount()
+    expect(await screen.findAllByText('HFSY API')).not.toHaveLength(0)
+    expect(screen.queryByText('hfsyapi')).not.toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('region', { name: 'Execution capacity' })
+        .some((element) => element.getAttribute('tabindex') === '0')
+    ).toBe(true)
+    await user.click(
+      screen.getAllByRole('button', { name: 'View waiting tasks' })[0]
+    )
+    expect((await screen.findAllByText('Submit'))[0]).toBeVisible()
+    expect(screen.getAllByText('Query')[0]).toBeVisible()
+    expect(screen.queryByText('Not sent')).not.toBeInTheDocument()
+    const details = screen.getAllByRole('button', { name: 'Details' })[0]
+    details.focus()
+    await user.keyboard('{Enter}')
+    const drawer = await screen.findByRole('dialog')
+    expect(within(drawer).getByText('Waiting task details')).toBeVisible()
+    expect(drawer).toHaveTextContent('30 / 30')
+    expect(drawer).toHaveTextContent('Not sent')
+    expect(drawer).toHaveTextContent('2026')
+    expect(drawer).not.toHaveTextContent(
+      /attempt count|policy version|worker id|credential id|reason code/i
+    )
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    expect(screen.getAllByText('Canvas Image')[0]).toBeVisible()
+    const queryDetails = screen.getAllByRole('button', { name: 'Details' })[1]
+    await user.click(queryDetails)
+    expect(await screen.findByText('Accepted by provider')).toBeVisible()
+    await user.keyboard('{Escape}')
+    const uncertainDetails = screen.getAllByRole('button', {
+      name: 'Details',
+    })[2]
+    await user.click(uncertainDetails)
+    expect(await screen.findByText('May have been sent')).toBeVisible()
+    document.documentElement.removeAttribute('dir')
+    vi.useRealTimers()
+  })
+
   it('shows effective global policy, recovery facts, and executor ownership', async () => {
     mount()
-    expect(await screen.findByText('worker-1')).toBeVisible()
-    expect(screen.getByText('Global execution limits')).toBeVisible()
-    expect(screen.getByText('System recovery')).toBeVisible()
-    expect(screen.getByText('Running workers')).toBeVisible()
+    const capacity = await screen.findByText('Execution capacity')
+    const workers = await screen.findByText('Running workers')
+    const recovery = screen.getByText('System recovery')
+    const limits = screen.getByText('Global execution limits')
+    for (const title of [capacity, workers, recovery]) {
+      expect(title.closest('[data-slot="card"]')).toHaveAttribute(
+        'data-size',
+        'default'
+      )
+    }
+    expect(
+      capacity.compareDocumentPosition(workers) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      workers.compareDocumentPosition(recovery) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      recovery.compareDocumentPosition(limits) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    const overviewLayout = capacity.closest('.space-y-6')
+    expect(overviewLayout).not.toBeNull()
+    expect(overviewLayout).toContainElement(limits)
+    const workerSection = workers.closest('section')
+    expect(workerSection).not.toBeNull()
+    const workerTable = within(workerSection as HTMLElement)
+    expect(workerTable.getAllByRole('columnheader')).toHaveLength(5)
+    expect(
+      workerTable.getByRole('columnheader', { name: 'Queue' })
+    ).toBeVisible()
+    expect(
+      workerTable.getByRole('columnheader', { name: 'Latest heartbeat' })
+    ).toBeVisible()
+    expect(screen.getByText('3 workers')).toBeVisible()
+    expect(i18next.t('1 worker')).toBe('1 worker')
     expect(screen.getByText('Mock mode')).toBeVisible()
-    expect(screen.getByText('Running')).toBeVisible()
+    expect(screen.getAllByText('Real mode')).toHaveLength(2)
+    expect(screen.getAllByText('Running')).toHaveLength(2)
+    expect(screen.getByText('Unknown status')).toBeVisible()
     expect(screen.queryByText('MOCK')).not.toBeInTheDocument()
     expect(screen.queryByText('RUNNING')).not.toBeInTheDocument()
+    expect(screen.queryByText('LEASE_ACTIVE_INTERNAL')).not.toBeInTheDocument()
     expect(screen.queryByText('worker-expired')).not.toBeInTheDocument()
     expect(screen.queryByText('worker-stopped')).not.toBeInTheDocument()
+    expect(screen.queryByText('worker-1')).not.toBeInTheDocument()
+    expect(screen.queryByText('worker-2')).not.toBeInTheDocument()
+    expect(screen.queryByText('worker-unknown-status')).not.toBeInTheDocument()
+    const recoverySection = recovery.closest('section')
+    expect(recoverySection).not.toBeNull()
+    const recoveryFacts = within(recoverySection as HTMLElement)
+    expect(
+      recoveryFacts.getByText('Heartbeat interval (milliseconds)')
+    ).toBeVisible()
+    expect(
+      recoveryFacts.getByText('Lease duration (milliseconds)')
+    ).toBeVisible()
+    expect(
+      recoveryFacts.getByText('Scan interval (milliseconds)')
+    ).toBeVisible()
+    expect(recoveryFacts.getByText('Default instances')).toBeVisible()
+    expect(recoveryFacts.getAllByText('10000')).toHaveLength(2)
+    expect(recoveryFacts.getByText('60000')).toBeVisible()
+    expect(recoveryFacts.getByText('4')).toBeVisible()
+    const globalForm = screen.getByRole('form', {
+      name: 'Global execution limits',
+    })
+    const globalCard = globalForm.closest('[data-slot="card"]')
+    expect(globalCard).not.toBeNull()
+    expect(
+      within(globalCard as HTMLElement)
+        .getByText('Version 2')
+        .closest('[data-slot="card-action"]')
+    ).not.toBeNull()
+    const globalFields = globalForm.querySelector('.sm\\:grid-cols-2')
+    expect(globalFields).toHaveClass(
+      'sm:grid-cols-2',
+      'lg:grid-cols-[repeat(3,minmax(10rem,14rem))]'
+    )
+    for (const label of ['Execution capacity', 'Running workers']) {
+      const regions = screen.getAllByRole('region', { name: label })
+      const scrollRegion = regions.find((region) => region.tabIndex === 0)
+      expect(scrollRegion).toBeDefined()
+      expect(
+        scrollRegion?.querySelector('[data-slot="table-container"]')
+      ).toHaveClass('overflow-x-auto')
+    }
     expect(screen.getByLabelText('Instance concurrency')).toHaveValue(16)
+    expect(screen.queryByText(/^v2$/)).not.toBeInTheDocument()
+  })
+
+  it('uses the running-worker table empty state without exposing worker IDs', async () => {
+    const overview = await mocks.getCanvasExecutionOverview()
+    mocks.getCanvasExecutionOverview.mockResolvedValueOnce({
+      ...overview,
+      instances: [],
+    })
+
+    mount()
+
+    const workerTitle = await screen.findByText('Running workers')
+    const workerSection = workerTitle.closest('section')
+    expect(workerSection).not.toBeNull()
+    expect(
+      within(workerSection as HTMLElement).getByText(
+        'No running executor instances'
+      )
+    ).toBeVisible()
+    expect(screen.getByText('0 workers')).toBeVisible()
+  })
+
+  it('renders the running-worker count from the active Chinese resources', async () => {
+    const overview = await mocks.getCanvasExecutionOverview()
+    mocks.getCanvasExecutionOverview.mockResolvedValueOnce({
+      ...overview,
+      instances: [
+        ...overview.instances,
+        {
+          ...overview.instances[0],
+          workerId: 'worker-4',
+          queueName: 'canvas-tasks-low-priority',
+        },
+      ],
+    })
+    await i18next.changeLanguage('zhCN')
+
+    mount()
+
+    expect(await screen.findByText('4 个')).toBeVisible()
+    expect(screen.queryByText('Running worker count')).not.toBeInTheDocument()
   })
 
   it('requires confirmation before publishing global limits', async () => {

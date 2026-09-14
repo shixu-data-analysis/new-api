@@ -32,11 +32,14 @@ import {
 } from 'vitest'
 
 import { CanvasRechargeCodes } from '../RechargeCodes'
+import { isCanvasDateRangeValid } from '../date-range'
 
 const apiMocks = vi.hoisted(() => ({
   getCanvasAdminRechargeCodes: vi.fn(),
   issueCanvasAdminRechargeCodes: vi.fn(),
   downloadCanvasUnusedRechargeCodes: vi.fn(),
+  getCanvasAdminRechargeCodeBatchItems: vi.fn(),
+  searchCanvasAdminRechargeCodeBatch: vi.fn(),
 }))
 const campaignMocks = vi.hoisted(() => ({
   getCanvasBindableBonusActivities: vi.fn(),
@@ -101,6 +104,16 @@ function renderRechargeCodes() {
 }
 
 describe('Canvas recharge-code creation form', () => {
+  it('accepts equal creation timestamps and rejects a reversed range', () => {
+    const timestamp = new Date('2026-08-01T13:45:00.000Z')
+    expect(isCanvasDateRangeValid(timestamp, timestamp)).toBe(true)
+    expect(
+      isCanvasDateRangeValid(
+        new Date('2026-08-01T13:45:00.001Z'),
+        timestamp
+      )
+    ).toBe(false)
+  })
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', {
       'Create recharge codes': 'Create recharge codes',
@@ -148,11 +161,13 @@ describe('Canvas recharge-code creation form', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    document.documentElement.removeAttribute('dir')
   })
 
   beforeEach(() => {
     apiMocks.getCanvasAdminRechargeCodes.mockResolvedValue({
       items: [],
+      matchedCode: null,
       total: 0,
       page: 1,
       pageSize: 20,
@@ -160,6 +175,18 @@ describe('Canvas recharge-code creation form', () => {
     apiMocks.issueCanvasAdminRechargeCodes.mockResolvedValue({
       created: true,
       codes: [],
+    })
+    apiMocks.getCanvasAdminRechargeCodeBatchItems.mockResolvedValue({
+      items: [],
+      matchedCount: 0,
+      totalCount: 0,
+    })
+    apiMocks.searchCanvasAdminRechargeCodeBatch.mockResolvedValue({
+      items: [],
+      matchedCode: null,
+      total: 0,
+      page: 1,
+      pageSize: 20,
     })
     campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([])
   })
@@ -446,44 +473,125 @@ describe('Canvas recharge-code creation form', () => {
         pageSize: query.pageSize,
       })
     )
-    renderRechargeCodes()
+    apiMocks.searchCanvasAdminRechargeCodeBatch.mockImplementation(
+      async (query: { page: number; pageSize: number }) => ({
+        items: [
+          {
+            id: 'inventory-1',
+            remark: 'Support batch',
+            currency: 'CNY',
+            amountMinor: '1000',
+            points: '500',
+            bonusPoints: '100',
+            bonusTtlDays: 30,
+            createdAt: '2026-08-25T00:00:00.000Z',
+            expiresAt: '2026-11-23T00:00:00.000Z',
+            totalCount: 10,
+            availableCount: 8,
+            redeemedCount: 2,
+            expiredCount: 0,
+            voidCount: 0,
+          },
+        ],
+        matchedCode: {
+          maskedCode: 'CANVAS-Y••••FA2E',
+          status: 'EXPIRED',
+          redeemedAt: null,
+        },
+        total: 45,
+        page: query.page,
+        pageSize: query.pageSize,
+      })
+    )
+    const { queryClient } = renderRechargeCodes()
 
-    await screen.findByText('Support batch')
+    await screen.findAllByRole('button', {
+      name: /Expand recharge-code batch.*Support batch/u,
+    })
     expect(
       screen.getByText('500 Paid points + 100 Bonus points')
     ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Expiry time' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
     await user.click(screen.getByRole('button', { name: 'Column filters' }))
     fireEvent.change(screen.getByPlaceholderText('Batch / note'), {
       target: { value: 'Support batch' },
     })
+    await user.click(screen.getByRole('button', { name: 'Start time' }))
+    await user.click(screen.getByRole('button', { name: 'End time' }))
+    await user.click(screen.getByLabelText('Status'))
+    await user.click(await screen.findByRole('option', { name: 'Expired' }))
     fireEvent.change(screen.getByLabelText('Recharge code'), {
       target: { value: 'CANVAS-Y1234567890123456789FA2E' },
     })
-    await user.click(screen.getByLabelText('Status'))
-    await user.click(await screen.findByRole('option', { name: 'Expired' }))
-    await user.click(screen.getByRole('button', { name: 'Expiry time' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
 
     await waitFor(() => {
-      expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
+      expect(apiMocks.searchCanvasAdminRechargeCodeBatch).toHaveBeenLastCalledWith(
         expect.objectContaining({
           page: 1,
           pageSize: 20,
-          name: 'Support batch',
+          batchOrRemark: 'Support batch',
           code: 'CANVAS-Y1234567890123456789FA2E',
           status: 'EXPIRED',
+          createdFrom: '2026-08-01T13:45:00.000Z',
+          createdTo: '2026-08-01T14:30:00.000Z',
           sortBy: 'expiresAt',
           sortOrder: 'asc',
         }),
         expect.any(AbortSignal)
       )
     })
+    expect(
+      JSON.stringify(queryClient.getQueryCache().getAll().map((item) => item.queryKey))
+    ).not.toContain('CANVAS-Y1234567890123456789FA2E')
+    expect(window.location.href).not.toContain(
+      'CANVAS-Y1234567890123456789FA2E'
+    )
+    expect(
+      screen.getAllByRole('button', {
+        name: /Collapse recharge-code batch.*Support batch/u,
+      })[0]
+    ).toHaveFocus()
+    expect(screen.getAllByText('CANVAS-Y••••FA2E')).not.toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() => {
-      expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
+      expect(apiMocks.searchCanvasAdminRechargeCodeBatch).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),
         expect.any(AbortSignal)
+      )
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: /^Column filters/u })
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Clear exact recharge code' })
+    )
+    await waitFor(() => {
+      expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          name: 'Support batch',
+          status: 'EXPIRED',
+          createdFrom: '2026-08-01T13:45:00.000Z',
+          createdTo: '2026-08-01T14:30:00.000Z',
+        }),
+        expect.any(AbortSignal)
+      )
+    })
+    expect(screen.getByLabelText('Recharge code')).toHaveValue('')
+
+    await user.click(screen.getByLabelText('Status'))
+    await user.click(await screen.findByRole('option', { name: 'All statuses' }))
+    await waitFor(() => {
+      const query = apiMocks.getCanvasAdminRechargeCodes.mock.calls.at(-1)?.[0]
+      expect(query).not.toHaveProperty('status')
+      expect(query).toEqual(
+        expect.objectContaining({
+          name: 'Support batch',
+          createdFrom: '2026-08-01T13:45:00.000Z',
+          createdTo: '2026-08-01T14:30:00.000Z',
+        })
       )
     })
   })
@@ -505,5 +613,159 @@ describe('Canvas recharge-code creation form', () => {
     expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenCalledTimes(
       requestsBefore
     )
+  })
+
+  it('lazily expands one RTL batch from the keyboard without coupling the download action', async () => {
+    const user = userEvent.setup()
+    document.documentElement.dir = 'rtl'
+    apiMocks.getCanvasAdminRechargeCodes.mockResolvedValue({
+      items: [
+        {
+          id: 'batch-1',
+          remark: 'Support batch',
+          currency: 'CNY',
+          amountMinor: '1000',
+          points: '500',
+          bonusPoints: '0',
+          bonusTtlDays: null,
+          createdAt: '2026-08-25T00:00:00.000Z',
+          expiresAt: '2026-11-23T00:00:00.000Z',
+          totalCount: 2,
+          availableCount: 1,
+          redeemedCount: 1,
+          expiredCount: 0,
+          voidCount: 0,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    apiMocks.getCanvasAdminRechargeCodeBatchItems.mockResolvedValue({
+      items: [
+        {
+          maskedCode: 'CANVAS-A••••WXYZ',
+          status: 'REDEEMED',
+          redeemedAt: '2026-08-26T00:00:00.000Z',
+        },
+      ],
+      matchedCount: 1,
+      totalCount: 2,
+    })
+    apiMocks.downloadCanvasUnusedRechargeCodes.mockResolvedValue({
+      content: 'CANVAS-SECRET\n',
+      downloadCount: 1,
+    })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(
+      () => undefined
+    )
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: vi.fn(() => 'blob:codes') },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
+    })
+    renderRechargeCodes()
+
+    await user.click(await screen.findByRole('button', { name: 'Column filters' }))
+    await user.click(screen.getByLabelText('Status'))
+    await user.click(await screen.findByRole('option', { name: 'Redeemed' }))
+    expect(
+      screen.getByText(/Available 1.*Redeemed 1.*Expired 0.*Voided 0/u)
+    ).toBeVisible()
+
+    const download = await screen.findByRole('button', {
+      name: 'Download unused codes',
+    })
+    await user.click(download)
+    expect(apiMocks.getCanvasAdminRechargeCodeBatchItems).not.toHaveBeenCalled()
+
+    const batchTrigger = screen.getAllByRole('button', {
+      name: /Expand recharge-code batch.*Support batch/u,
+    })[0]
+    batchTrigger.focus()
+    await user.keyboard('{Enter}')
+
+    expect(
+      screen.getAllByRole('button', {
+        name: /Collapse recharge-code batch.*Support batch/u,
+      })[0]
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen
+        .getAllByRole('button', {
+          name: /Collapse recharge-code batch.*Support batch/u,
+        })[0]
+        .closest('tr')
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(await screen.findAllByText('CANVAS-A••••WXYZ')).not.toHaveLength(0)
+    expect(
+      screen.getAllByText(
+        'Recharge codes in this batch (matched 1 / total 2)'
+      )
+    ).not.toHaveLength(0)
+    expect(screen.getAllByText('Used time')).not.toHaveLength(0)
+    expect(apiMocks.getCanvasAdminRechargeCodeBatchItems).toHaveBeenCalledWith(
+      'batch-1',
+      'REDEEMED',
+      expect.any(AbortSignal)
+    )
+
+    const expandedTrigger = screen.getAllByRole('button', {
+      name: /Collapse recharge-code batch.*Support batch/u,
+    })[0]
+    expandedTrigger.focus()
+    await user.keyboard('{Enter}')
+    expect(
+      screen.getAllByRole('button', {
+        name: /Expand recharge-code batch.*Support batch/u,
+      })[0]
+    ).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('distinguishes forbidden batch details and recovers through retry', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminRechargeCodes.mockResolvedValue({
+      items: [
+        {
+          id: 'batch-1',
+          remark: null,
+          currency: 'CNY',
+          amountMinor: '1000',
+          points: '500',
+          bonusPoints: '0',
+          bonusTtlDays: null,
+          createdAt: '2026-08-25T00:00:00.000Z',
+          expiresAt: '2026-11-23T00:00:00.000Z',
+          totalCount: 1,
+          availableCount: 1,
+          redeemedCount: 0,
+          expiredCount: 0,
+          voidCount: 0,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    apiMocks.getCanvasAdminRechargeCodeBatchItems
+      .mockRejectedValueOnce({ response: { status: 403 } })
+      .mockResolvedValue({ items: [], matchedCount: 0, totalCount: 1 })
+    renderRechargeCodes()
+
+    await user.click(
+      (
+        await screen.findAllByRole('button', {
+          name: /Expand recharge-code batch/u,
+        })
+      )[0]
+    )
+    expect(
+      await screen.findAllByText(
+        'You do not have permission to view these recharge codes'
+      )
+    ).not.toHaveLength(0)
+    await user.click(screen.getAllByRole('button', { name: 'Retry' })[0])
+    expect(
+      await screen.findAllByText('No recharge codes in this batch')
+    ).not.toHaveLength(0)
   })
 })

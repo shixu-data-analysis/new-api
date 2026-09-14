@@ -7,6 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getCanvasCredentialGroupExecution,
   getCanvasExecutionOverview,
+  getCanvasExecutionCapacity,
+  getCanvasExecutionWaits,
+  getCanvasExecutionWaitDetail,
   previewCanvasExecutionError,
   publishCanvasExecutionPolicy,
 } from '../../execution-api'
@@ -28,6 +31,45 @@ describe('execution policy API boundary', () => {
       '/canvas-api/v1/web/admin/credential-groups/group%2Fone/execution',
     ])
   })
+
+  it('reads the frozen safe capacity and waiting-task endpoints', async () => {
+    await getCanvasExecutionCapacity()
+    await getCanvasExecutionWaits({
+      credentialGroupId: 'group/one',
+      page: 2,
+      pageSize: 20,
+    })
+    await getCanvasExecutionWaitDetail('task/one')
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      1,
+      '/canvas-api/v1/web/admin/execution/capacity',
+      { signal: undefined }
+    )
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      2,
+      '/canvas-api/v1/web/admin/execution/waits',
+      {
+        params: { credentialGroupId: 'group/one', page: 2, pageSize: 20 },
+        signal: undefined,
+      }
+    )
+    expect(mocks.get).toHaveBeenNthCalledWith(
+      3,
+      '/canvas-api/v1/web/admin/execution/waits/task%2Fone',
+      { signal: undefined }
+    )
+  })
+
+  it.each([10, 20, 30, 40, 50, 100] as const)(
+    'reads waiting tasks with page size %i',
+    async (pageSize) => {
+      await getCanvasExecutionWaits({ page: 1, pageSize })
+      expect(mocks.get).toHaveBeenLastCalledWith(
+        '/canvas-api/v1/web/admin/execution/waits',
+        { params: { page: 1, pageSize }, signal: undefined }
+      )
+    }
+  )
 
   it('publishes only confirmed policy payloads with a unique idempotency key', async () => {
     await publishCanvasExecutionPolicy({

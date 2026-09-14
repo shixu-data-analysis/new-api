@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -67,6 +67,10 @@ import {
 } from '../pricing-simulation'
 import type { CanvasAdminWorkspace, CanvasProviderPricingRow } from '../types'
 import { BusinessTerm } from './BusinessTerm'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { PricingRecordsTable } from './PricingRecordsTable'
@@ -1233,20 +1237,14 @@ export function AdminPricing(props: {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-                <TabsTrigger
-                  className='h-8 min-h-8 flex-none px-3'
-                  value='prices'
-                >
+              <CanvasManagementTabsList>
+                <CanvasManagementTabsTrigger value='prices'>
                   {t('Model prices')}
-                </TabsTrigger>
-                <TabsTrigger
-                  className='h-8 min-h-8 flex-none px-3'
-                  value='costs'
-                >
+                </CanvasManagementTabsTrigger>
+                <CanvasManagementTabsTrigger value='costs'>
                   {t('Upstream cost')}
-                </TabsTrigger>
-              </TabsList>
+                </CanvasManagementTabsTrigger>
+              </CanvasManagementTabsList>
             </Tabs>
           </CardContent>
         </Card>

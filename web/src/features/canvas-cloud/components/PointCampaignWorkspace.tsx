@@ -17,10 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import type { ComponentProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import { AdminPricing } from './AdminPricing'
 import { CampaignManagement } from './CampaignManagement'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { PointConversionDashboard } from './PointConversionDashboard'
 
 type PointCampaignWorkspaceProps = Omit<
@@ -32,17 +36,17 @@ export function PointCampaignWorkspace(props: PointCampaignWorkspaceProps) {
   const { t } = useTranslation()
   return (
     <Tabs defaultValue='conversion' className='space-y-4'>
-      <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='conversion'>
+      <CanvasManagementTabsList>
+        <CanvasManagementTabsTrigger value='conversion'>
           {t('Point conversion')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='campaigns'>
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='campaigns'>
           {t('Point campaigns')}
-        </TabsTrigger>
-        <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='specials'>
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='specials'>
           {t('Limited-time special')}
-        </TabsTrigger>
-      </TabsList>
+        </CanvasManagementTabsTrigger>
+      </CanvasManagementTabsList>
       <TabsContent value='conversion' className='mt-0'>
         <PointConversionDashboard />
       </TabsContent>

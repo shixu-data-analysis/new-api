@@ -9,7 +9,7 @@ License, or (at your option) any later version.
 export function runtimeChangeError(
   error: unknown,
   translate: (key: string) => string,
-  operation: 'credential' | 'binding' | 'preview'
+  operation: 'credential' | 'management' | 'binding' | 'preview'
 ) {
   const code =
     typeof error === 'object' &&
@@ -53,15 +53,24 @@ export function runtimeChangeError(
   if (code === 'CREDENTIAL_GROUP_ACTIVE') {
     return translate('This API Key group is already active.')
   }
-  if (operation === 'credential') {
+  if (code === 'CREDENTIAL_GROUP_ARCHIVED') {
     return translate(
-      'Credential publication failed. Check the required schemes and preview again.'
+      'This API Key group is archived. Restore it before publishing changes.'
     )
   }
-  if (operation === 'binding') {
+  if (code === 'NO_CHANGES') {
+    return translate('There are no API Key group changes to publish.')
+  }
+  if (code === 'IDEMPOTENCY_CONFLICT') {
     return translate(
-      'Model binding failed. Refresh the model list and preview the selection again.'
+      'Another publication used this request identity. Retry from the current configuration.'
     )
+  }
+  if (operation === 'credential' || operation === 'management') {
+    return translate('API Key group publication failed. Retry.')
+  }
+  if (operation === 'binding') {
+    return translate('Model binding publication failed. Retry.')
   }
   return translate('Preview failed. Refresh the configuration and try again.')
 }

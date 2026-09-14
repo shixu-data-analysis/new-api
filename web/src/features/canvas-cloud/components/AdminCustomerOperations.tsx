@@ -52,7 +52,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -72,6 +72,10 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import {
@@ -1075,17 +1079,17 @@ export function AdminCustomerOperations({
           setTab(value)
         }}
       >
-        <TabsList className='h-10 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden p-1'>
-          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='orders'>
+        <CanvasManagementTabsList>
+          <CanvasManagementTabsTrigger value='orders'>
             {t('Recharge records')}
-          </TabsTrigger>
-          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='points'>
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='points'>
             {t('Point details')}
-          </TabsTrigger>
-          <TabsTrigger className='h-8 min-h-8 flex-none px-3' value='tasks'>
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='tasks'>
             {t('Consumption tasks')}
-          </TabsTrigger>
-        </TabsList>
+          </CanvasManagementTabsTrigger>
+        </CanvasManagementTabsList>
         <TabsContent value='orders' keepMounted>
           <CustomerOrders
             customerId={customerId}
@@ -1101,10 +1105,14 @@ export function AdminCustomerOperations({
         </TabsContent>
         <TabsContent value='points' keepMounted>
           <Tabs value={pointTab} onValueChange={setPointTab}>
-            <TabsList>
-              <TabsTrigger value='lots'>{t('Point lots')}</TabsTrigger>
-              <TabsTrigger value='ledger'>{t('Change ledger')}</TabsTrigger>
-            </TabsList>
+            <CanvasManagementTabsList>
+              <CanvasManagementTabsTrigger value='lots'>
+                {t('Point lots')}
+              </CanvasManagementTabsTrigger>
+              <CanvasManagementTabsTrigger value='ledger'>
+                {t('Change ledger')}
+              </CanvasManagementTabsTrigger>
+            </CanvasManagementTabsList>
             <TabsContent value='lots' keepMounted>
               <CustomerPointHistory
                 customerId={customerId}

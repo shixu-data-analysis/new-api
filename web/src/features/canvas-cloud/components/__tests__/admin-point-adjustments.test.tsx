@@ -425,8 +425,15 @@ describe('ADMIN-REWORK-004 customer management', () => {
   it('keeps point lots and change ledger as nested point-detail tabs', async () => {
     renderWithQuery(<AdminPointAdjustments customerId={customer.customerId} />)
     fireEvent.click(await screen.findByRole('tab', { name: 'Point details' }))
-    expect(screen.getByRole('tab', { name: 'Point lots' })).toBeVisible()
+    const pointLotsTab = screen.getByRole('tab', { name: 'Point lots' })
+    expect(pointLotsTab).toBeVisible()
     expect(screen.getByRole('tab', { name: 'Change ledger' })).toBeVisible()
+    expect(pointLotsTab.closest('[role="tablist"]')).toHaveClass(
+      'w-full',
+      'max-w-full',
+      'justify-start',
+      'overflow-x-auto'
+    )
     expect(
       await screen.findByRole('button', { name: order.orderNumber })
     ).toBeVisible()
