@@ -17,7 +17,6 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
-import { CopyableText } from './CopyableText'
 
 export function TaskRecordDetailsSheet(props: {
   taskId?: string
@@ -41,11 +40,8 @@ export function TaskRecordDetailsSheet(props: {
           <SheetTitle>
             {selectedLedgerId
               ? t('Point ledger details')
-              : `${t('Task details')} ${props.taskId ? `· ${props.taskId}` : ''}`}
+              : t('Task details')}
           </SheetTitle>
-          {props.taskId && !selectedLedgerId ? (
-            <CopyableText value={props.taskId} hideValue />
-          ) : null}
         </SheetHeader>
         <div ref={drawerScroll} className={sideDrawerFormClassName()}>
           {props.taskId ? (

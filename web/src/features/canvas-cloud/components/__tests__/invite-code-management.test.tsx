@@ -20,17 +20,21 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
+import type { CanvasAdminInviteCode } from '../../types'
 import { InviteActivation } from '../InviteActivation'
 import { InviteCodeManagement } from '../InviteCodeManagement'
 
 const apiMocks = vi.hoisted(() => ({
   activateCanvasInvite: vi.fn(),
   changeCanvasAdminInviteCodeStatus: vi.fn(),
+  checkCanvasInviteCodeAvailability: vi.fn(),
   createCanvasAdminInviteCode: vi.fn(),
+  extendCanvasAdminInviteCode: vi.fn(),
   exportCanvasAdminInviteCodes: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
   getCanvasInviteCodeOptions: vi.fn(),
   revealCanvasCode: vi.fn(),
+  previewCanvasInviteCodeExtension: vi.fn(),
 }))
 const campaignMocks = vi.hoisted(() => ({
   getCanvasBindableBonusActivities: vi.fn(),
@@ -57,6 +61,62 @@ async function renderInviteManagement() {
     })
   )
   return result
+}
+
+function inviteFixture(
+  overrides: Partial<CanvasAdminInviteCode> = {}
+): CanvasAdminInviteCode {
+  const expiry = new Date()
+  expiry.setDate(expiry.getDate() + 1)
+  expiry.setHours(10, 0, 0, 0)
+  return {
+    id: 'invite-extend',
+    maskedCode: 'EXTEND••',
+    status: 'ACTIVE',
+    codeMode: 'CUSTOM',
+    redeemable: true,
+    unavailableReasons: [],
+    allowedActions: ['EXTEND_EXPIRATION'],
+    maxRegistrations: '10',
+    reservedCount: '0',
+    activeReservedCount: '0',
+    consumedCount: '2',
+    remainingCount: '8',
+    validFrom: '2026-01-01T00:00:00.000Z',
+    expiresAt: expiry.toISOString(),
+    priceGroupId: 'group-v1',
+    priceGroupCode: 'STANDARD',
+    priceGroupName: 'Standard',
+    initialBonusPoints: null,
+    initialBonusTtlDays: null,
+    promotionVersionId: null,
+    referralSource: null,
+    agent: null,
+    pausedAt: null,
+    revokedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+async function openChangedExtensionDrawer(item = inviteFixture()) {
+  apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    items: [item],
+  })
+  renderWithClient(<InviteCodeManagement />)
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Extend expiration' })
+  )
+  const expiryGroup = screen.getByRole('group', {
+    name: /New expiration time/u,
+  })
+  fireEvent.change(within(expiryGroup).getByDisplayValue('10:00'), {
+    target: { value: '11:00' },
+  })
+  return { item, expiryGroup }
 }
 
 describe('Canvas invite code management', () => {
@@ -86,8 +146,12 @@ describe('Canvas invite code management', () => {
       customerId: 'customer-v1',
     })
     apiMocks.exportCanvasAdminInviteCodes.mockResolvedValue(
-      new Blob(['maskedCode,effectiveStatus\n'], { type: 'text/csv' })
+      new Blob(['maskedCode,codeMode\n'], { type: 'text/csv' })
     )
+    apiMocks.checkCanvasInviteCodeAvailability.mockResolvedValue({
+      available: true,
+      unavailableReasons: [],
+    })
     campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([])
   })
 
@@ -261,7 +325,10 @@ describe('Canvas invite code management', () => {
           id: 'invite-v1',
           maskedCode: 'CANVAS-U••••••••CRET',
           status: 'ACTIVE',
-          effectiveStatus: 'ACTIVE',
+          codeMode: 'GENERATED',
+          redeemable: true,
+          unavailableReasons: [],
+          allowedActions: ['PAUSE', 'REVOKE'],
           maxRegistrations: '10',
           reservedCount: '0',
           consumedCount: '1',
@@ -285,7 +352,7 @@ describe('Canvas invite code management', () => {
 
     renderWithClient(<InviteCodeManagement />)
 
-    expect(await screen.findByText('Valid')).toBeVisible()
+    expect(await screen.findByText('Redeemable')).toBeVisible()
     const pause = screen.getByRole('button', { name: 'Pause invite code' })
     expect(pause).toHaveTextContent('Pause invite code')
     expect(screen.getByRole('button', { name: 'Revoke' })).toHaveTextContent(
@@ -306,7 +373,7 @@ describe('Canvas invite code management', () => {
     })
     expect(
       within(dialog).getByText('Current status:').parentElement
-    ).toHaveTextContent('Valid')
+    ).toHaveTextContent('Redeemable')
     expect(
       within(dialog).getByText('New status:').parentElement
     ).toHaveTextContent('Paused')
@@ -324,7 +391,10 @@ describe('Canvas invite code management', () => {
           id: 'invite-exhausted',
           maskedCode: 'CANVAS-E••••••••STED',
           status: 'ACTIVE',
-          effectiveStatus: 'ACTIVE',
+          codeMode: 'GENERATED',
+          redeemable: false,
+          unavailableReasons: ['EXHAUSTED'],
+          allowedActions: ['REVOKE'],
           maxRegistrations: '1',
           reservedCount: '0',
           consumedCount: '1',
@@ -350,6 +420,271 @@ describe('Canvas invite code management', () => {
 
     expect(await screen.findByText('已用尽')).toBeVisible()
     expect(screen.getByText('1 / 1')).toBeVisible()
+  })
+
+  it('translates each unavailable reason before joining paused and expired', async () => {
+    await i18next.changeLanguage('zh')
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'invite-paused-expired',
+          maskedCode: 'PART••00',
+          status: 'PAUSED',
+          codeMode: 'CUSTOM',
+          redeemable: false,
+          unavailableReasons: ['PAUSED', 'EXPIRED'],
+          allowedActions: ['RESUME', 'EXTEND_EXPIRATION', 'REVOKE'],
+          maxRegistrations: '10',
+          reservedCount: '0',
+          activeReservedCount: '0',
+          consumedCount: '2',
+          remainingCount: '8',
+          validFrom: '2026-01-01T00:00:00.000Z',
+          expiresAt: '2026-09-10T00:00:00.000Z',
+          priceGroupId: 'group-v1',
+          priceGroupCode: 'STANDARD',
+          priceGroupName: 'Standard',
+          initialBonusPoints: null,
+          initialBonusTtlDays: null,
+          promotionVersionId: null,
+          referralSource: null,
+          agent: null,
+          pausedAt: '2026-09-01T00:00:00.000Z',
+          revokedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    })
+
+    renderWithClient(<InviteCodeManagement />)
+
+    expect(await screen.findByText('已暂停 · 已过期')).toBeVisible()
+    expect(screen.getByRole('button', { name: '延长有效期' })).toBeVisible()
+  })
+
+  it('checks a normalized custom invite code without exposing it in the URL', async () => {
+    await renderInviteManagement()
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const code = screen.getByLabelText('Invite code')
+    fireEvent.change(code, { target: { value: ' vip2026 ' } })
+    fireEvent.blur(code)
+
+    await waitFor(() =>
+      expect(apiMocks.checkCanvasInviteCodeAvailability).toHaveBeenCalledWith(
+        'VIP2026'
+      )
+    )
+  })
+
+  it('ignores an older availability result after the custom code changes', async () => {
+    const resolvers = new Map<
+      string,
+      (value: { available: boolean; unavailableReasons: string[] }) => void
+    >()
+    apiMocks.checkCanvasInviteCodeAvailability.mockImplementation(
+      (code: string) =>
+        new Promise((resolve) => {
+          resolvers.set(code, resolve)
+        })
+    )
+    await renderInviteManagement()
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const code = screen.getByLabelText('Invite code')
+    fireEvent.change(code, { target: { value: 'FIRST1' } })
+    fireEvent.blur(code)
+    fireEvent.change(code, { target: { value: 'SECOND2' } })
+    fireEvent.blur(code)
+    await waitFor(() => expect(resolvers.size).toBe(2))
+
+    resolvers.get('SECOND2')?.({ available: true, unavailableReasons: [] })
+    resolvers.get('FIRST1')?.({
+      available: false,
+      unavailableReasons: ['PERMANENTLY_OCCUPIED'],
+    })
+
+    await waitFor(() => expect(code).toHaveValue('SECOND2'))
+    expect(
+      screen.queryByText('Invite code is invalid or unavailable')
+    ).not.toBeInTheDocument()
+  })
+
+  it('ignores an older preview error after a newer proposal succeeds', async () => {
+    const { item, expiryGroup } = await openChangedExtensionDrawer()
+    const requests: Array<{
+      resolve: (value: unknown) => void
+      reject: (error: unknown) => void
+    }> = []
+    apiMocks.previewCanvasInviteCodeExtension.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          requests.push({ resolve, reject })
+        })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+    fireEvent.change(within(expiryGroup).getByDisplayValue('11:00'), {
+      target: { value: '12:00' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+    await waitFor(() => expect(requests).toHaveLength(2))
+    requests[1]?.resolve({
+      item,
+      expectedExpiresAt: item.expiresAt,
+      currentExpiresAt: item.expiresAt,
+      newExpiresAt: new Date(
+        new Date(item.expiresAt).getTime() + 2 * 3_600_000
+      ).toISOString(),
+      redeemable: false,
+      unavailableReasons: ['PAUSED'],
+    })
+    await screen.findByText('After extension: Paused')
+    requests[0]?.reject({
+      response: { status: 422, data: { details: { field: 'newExpiresAt' } } },
+    })
+
+    await waitFor(() =>
+      expect(screen.getByText('After extension: Paused')).toBeVisible()
+    )
+    expect(expiryGroup).toHaveAttribute('aria-invalid', 'false')
+    expect(
+      screen.queryByText('Invite expiration preview could not be loaded')
+    ).not.toBeInTheDocument()
+  })
+
+  it.each(['newExpiresAt', 'expectedExpiresAt'])(
+    'keeps the extension draft and maps a preview %s error to the expiry field',
+    async (field) => {
+      apiMocks.previewCanvasInviteCodeExtension.mockRejectedValue({
+        response: {
+          status: field === 'expectedExpiresAt' ? 409 : 422,
+          data: { details: { field } },
+        },
+      })
+      const { expiryGroup } = await openChangedExtensionDrawer()
+      fireEvent.change(screen.getByLabelText('Extension reason (Optional)'), {
+        target: { value: 'Keep this context' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+
+      expect(
+        await screen.findByText('Invite expiration preview could not be loaded')
+      ).toHaveAttribute('role', 'alert')
+      expect(expiryGroup).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByLabelText('Extension reason (Optional)')).toHaveValue(
+        'Keep this context'
+      )
+      expect(apiMocks.extendCanvasAdminInviteCode).not.toHaveBeenCalled()
+    }
+  )
+
+  it('reuses the commit key after a field failure, consumes the response, and closes on success', async () => {
+    const { item } = await openChangedExtensionDrawer()
+    const updated = inviteFixture({
+      id: item.id,
+      maskedCode: 'UPDATED••',
+      expiresAt: new Date(
+        new Date(item.expiresAt).getTime() + 3_600_000
+      ).toISOString(),
+    })
+    apiMocks.previewCanvasInviteCodeExtension.mockResolvedValue({
+      item,
+      expectedExpiresAt: item.expiresAt,
+      currentExpiresAt: item.expiresAt,
+      newExpiresAt: updated.expiresAt,
+      redeemable: true,
+      unavailableReasons: [],
+    })
+    apiMocks.extendCanvasAdminInviteCode
+      .mockRejectedValueOnce({
+        response: { status: 422, data: { details: { field: 'reason' } } },
+      })
+      .mockResolvedValueOnce(updated)
+    fireEvent.change(screen.getByLabelText('Extension reason (Optional)'), {
+      target: { value: 'Campaign extension' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm extension' })
+    )
+
+    expect(
+      await screen.findByText('Invite expiration could not be extended')
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByLabelText('Extension reason (Optional)')).toHaveValue(
+      'Campaign extension'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm extension' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Extend expiration' })
+      ).not.toBeInTheDocument()
+    )
+    expect(await screen.findByText('UPDATED••')).toBeVisible()
+    const calls = apiMocks.extendCanvasAdminInviteCode.mock.calls
+    expect(calls).toHaveLength(2)
+    expect(calls[0]?.[0].idempotencyKey).toBe(calls[1]?.[0].idempotencyKey)
+  })
+
+  it('blocks a duplicate extension commit while the first request is pending', async () => {
+    const { item } = await openChangedExtensionDrawer()
+    const updated = inviteFixture({
+      id: item.id,
+      expiresAt: new Date(
+        new Date(item.expiresAt).getTime() + 3_600_000
+      ).toISOString(),
+    })
+    apiMocks.previewCanvasInviteCodeExtension.mockResolvedValue({
+      item,
+      expectedExpiresAt: item.expiresAt,
+      currentExpiresAt: item.expiresAt,
+      newExpiresAt: updated.expiresAt,
+      redeemable: true,
+      unavailableReasons: [],
+    })
+    let resolveCommit: ((value: CanvasAdminInviteCode) => void) | undefined
+    apiMocks.extendCanvasAdminInviteCode.mockImplementation(
+      () =>
+        new Promise<CanvasAdminInviteCode>((resolve) => {
+          resolveCommit = resolve
+        })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+    const confirm = await screen.findByRole('button', {
+      name: 'Confirm extension',
+    })
+    fireEvent.click(confirm)
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Confirm extension' })
+      ).toBeDisabled()
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm extension' }))
+    expect(apiMocks.extendCanvasAdminInviteCode).toHaveBeenCalledOnce()
+    resolveCommit?.(updated)
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Extend expiration' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('protects a changed extension draft when the drawer is cancelled', async () => {
+    await openChangedExtensionDrawer()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(
+      await screen.findByRole('alertdialog', { name: 'Discard this draft?' })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', {
+        name: 'Extend expiration',
+        hidden: true,
+      })
+    ).toBeVisible()
   })
 
   it('exports the complete current server result without paging through the browser', async () => {
@@ -390,7 +725,10 @@ describe('Canvas invite code management', () => {
           id: 'invite-v1',
           maskedCode: 'CANVAS-U••••••••CRET',
           status: 'ACTIVE',
-          effectiveStatus: 'ACTIVE',
+          codeMode: 'GENERATED',
+          redeemable: true,
+          unavailableReasons: [],
+          allowedActions: ['DISPLAY', 'COPY', 'PAUSE', 'REVOKE'],
           maxRegistrations: '10',
           reservedCount: '0',
           consumedCount: '1',
@@ -435,6 +773,92 @@ describe('Canvas invite code management', () => {
     ).toHaveAttribute('aria-pressed', 'false')
     expect(apiMocks.revealCanvasCode).toHaveBeenCalledTimes(1)
     expect(container.querySelector('.lucide-eye')).toBeInTheDocument()
+  })
+
+  it('keeps concurrent row actions pending independently when they settle in reverse order', async () => {
+    const resolvers = new Map<string, (value: { code: string }) => void>()
+    apiMocks.revealCanvasCode.mockImplementation(
+      (_kind: string, id: string, action: string) =>
+        new Promise<{ code: string }>((resolve) => {
+          resolvers.set(`${id}:${action}`, resolve)
+        })
+    )
+    const first = {
+      id: 'invite-one',
+      maskedCode: 'FIRST••',
+      status: 'ACTIVE',
+      codeMode: 'CUSTOM',
+      redeemable: true,
+      unavailableReasons: [],
+      allowedActions: ['DISPLAY', 'COPY'],
+      maxRegistrations: '10',
+      reservedCount: '0',
+      activeReservedCount: '0',
+      consumedCount: '1',
+      remainingCount: '9',
+      validFrom: '2026-01-01T00:00:00.000Z',
+      expiresAt: '2035-01-01T00:00:00.000Z',
+      priceGroupId: 'group-v1',
+      priceGroupCode: 'STANDARD',
+      priceGroupName: 'Standard',
+      initialBonusPoints: null,
+      initialBonusTtlDays: null,
+      promotionVersionId: null,
+      referralSource: null,
+      agent: null,
+      pausedAt: null,
+      revokedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [first, { ...first, id: 'invite-two', maskedCode: 'SECOND••' }],
+    })
+
+    renderWithClient(<InviteCodeManagement />)
+    const show = await screen.findAllByRole('button', {
+      name: 'Show invite code',
+    })
+    const copy = screen.getAllByRole('button', { name: 'Copy invite code' })
+    const firstShow = show[0]
+    expect(firstShow).toBeDefined()
+    expect(show[1]).toBeDefined()
+    expect(copy[0]).toBeDefined()
+    expect(copy[1]).toBeDefined()
+    fireEvent.click(firstShow as HTMLElement)
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: 'Copy invite code',
+      })[1] as HTMLElement
+    )
+
+    await waitFor(() => expect(resolvers.size).toBe(2))
+    let currentShow = screen.getAllByRole('button', {
+      name: 'Show invite code',
+    })
+    let currentCopy = screen.getAllByRole('button', {
+      name: 'Copy invite code',
+    })
+    expect(currentShow[0]).toBeDisabled()
+    expect(currentShow[1]).toBeEnabled()
+    expect(currentCopy[0]).toBeEnabled()
+    expect(currentCopy[1]).toBeDisabled()
+
+    resolvers.get('invite-two:COPY')?.({ code: 'SECOND02' })
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('button', { name: 'Copy invite code' })[1]
+      ).toBeEnabled()
+    )
+    currentShow = screen.getAllByRole('button', { name: 'Show invite code' })
+    expect(currentShow[0]).toBeDisabled()
+
+    resolvers.get('invite-one:DISPLAY')?.({ code: 'FIRST01' })
+    await waitFor(() => expect(screen.getByText('FIRST01')).toBeVisible())
+    currentCopy = screen.getAllByRole('button', { name: 'Copy invite code' })
+    expect(currentCopy[1]).toBeEnabled()
   })
 
   it('activates the signed-in customer with the entered invite code', async () => {

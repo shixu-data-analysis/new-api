@@ -78,6 +78,7 @@ import {
 import type {
   CanvasBillingUnit,
   CanvasModelPricingScope,
+  CanvasModelPricingCnyScope,
   CanvasModelPricingDetail,
   CanvasModelPricingProviderRate,
   CanvasModelPricingPriceSnapshot,
@@ -90,6 +91,10 @@ import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
+import {
+  CnyPricingQuestionnaire,
+  type CnyPricingDraft,
+} from './CnyPricingQuestionnaire'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingQuestionnaire } from './PricingQuestionnaire'
 import { TokenPricingQuestionnaire } from './TokenPricingQuestionnaire'
@@ -127,6 +132,10 @@ type ScopeDraft = {
   cacheRead: string
   cacheWrite: string
   prices: PriceDraft[]
+}
+type CnyScopeDraft = {
+  provider: Record<string, string>
+  customers: Record<string, Record<string, string>>
 }
 
 const pricingMetaSchema = z
@@ -189,11 +198,10 @@ function questionnaireValidation(
     errors.successProbabilityPercent = 'Percent, above 0 and at most 100'
   }
   if (
-    !isFixedDecimal(answers.targetMarginPercent) ||
-    Number(answers.targetMarginPercent) >= 100
+    !/^[1-9]\d?$/.test(answers.targetMarginPercent) ||
+    Number(answers.targetMarginPercent) > 99
   ) {
-    errors.targetMarginPercent =
-      'Percent, at least 0 and below 100. Default: 40%'
+    errors.targetMarginPercent = 'Enter an integer percentage from 1 to 99'
   }
   if (includeAdditionalCosts && !isRmbAmount(answers.otherVariableCostRmb)) {
     errors.otherVariableCostRmb =
@@ -226,6 +234,21 @@ function tokenRates(
   return result
 }
 
+function cnyTokenRates(
+  draft: Record<string, string>,
+  categories: CanvasTokenCategory[]
+): CanvasModelPricingTokenRateVector {
+  const result: CanvasModelPricingTokenRateVector = {
+    input: draft.input ?? '',
+    output: draft.output ?? '',
+  }
+  if (categories.includes('cacheRead')) result.cacheRead = draft.cacheRead ?? ''
+  if (categories.includes('cacheWrite')) {
+    result.cacheWrite = draft.cacheWrite ?? ''
+  }
+  return result
+}
+
 function billingUnitLabel(
   unit: CanvasBillingUnit,
   t: (key: string) => string
@@ -249,6 +272,8 @@ function pricingConflictLabel(
     NO_CHANGES: 'NO_CHANGES',
     PRICE_VALIDATION: 'Resolve the price validation issue before publishing.',
     BELOW_BREAK_EVEN: 'Below break-even',
+    CUSTOMER_PRICE_NOT_ABOVE_COST:
+      'Customer CNY price must be above the provider successful price.',
   }
   if (keys[code]) return t(keys[code])
   return t('Unknown')
@@ -288,6 +313,16 @@ export function UnifiedModelPricing(props: {
     props.tab ?? 'current'
   )
   const [billingUnit, setBillingUnit] = useState<CanvasBillingUnit>('REQUEST')
+  const [inputMode, setInputMode] = useState<'POINTS' | 'CNY'>('POINTS')
+  const [pendingInputMode, setPendingInputMode] = useState<
+    'POINTS' | 'CNY' | null
+  >(null)
+  const [cnyDrafts, setCnyDrafts] = useState<Record<string, CnyScopeDraft>>({})
+  const [cnyTouched, setCnyTouched] = useState<Record<string, boolean>>({})
+  const [cnyFieldErrors, setCnyFieldErrors] = useState<Record<string, string>>(
+    {}
+  )
+  const [cnyHasEdits, setCnyHasEdits] = useState(false)
   const [activeScopeId, setActiveScopeId] = useState('')
   const [activePriceGroupId, setActivePriceGroupId] = useState('')
   const [drafts, setDrafts] = useState<ScopeDraft[]>([])
@@ -340,6 +375,20 @@ export function UnifiedModelPricing(props: {
   const [initializedModelId, setInitializedModelId] = useState<string | null>(
     null
   )
+  const pricingRequestStateRef = useRef({
+    inputMode,
+    billingUnit,
+    activeScopeId,
+    activePriceGroupId,
+    cnyDrafts,
+  })
+  pricingRequestStateRef.current = {
+    inputMode,
+    billingUnit,
+    activeScopeId,
+    activePriceGroupId,
+    cnyDrafts,
+  }
 
   useEffect(() => {
     if (props.initialModelId) setModelId(props.initialModelId)
@@ -394,6 +443,10 @@ export function UnifiedModelPricing(props: {
     setHasEdits(false)
     setPublishedScopeIds(null)
     setPublishedPlanKeys([])
+    setCnyDrafts({})
+    setCnyTouched({})
+    setCnyFieldErrors({})
+    setCnyHasEdits(false)
     form.reset({
       decisionSummary: '',
       effectiveAt: '',
@@ -412,6 +465,11 @@ export function UnifiedModelPricing(props: {
 
   const questionnaireKey = `${activeScopeId}:${activePriceGroupId}`
   const questionnaire = questionnaires[questionnaireKey] ?? emptyQuestionnaire
+  const activeCnyScope = cnyDrafts[activeScopeId]
+  const cnyDraft: CnyPricingDraft = {
+    provider: activeCnyScope?.provider ?? { scalar: '' },
+    customer: activeCnyScope?.customers[activePriceGroupId] ?? { scalar: '' },
+  }
   const setQuestionnaire = (
     update: (current: PricingAnswers) => PricingAnswers
   ) => {
@@ -524,7 +582,7 @@ export function UnifiedModelPricing(props: {
           const current = price.current
           return [
             `${scope.parameterCombinationId}:${price.priceGroupId}`,
-            current
+            current && current.inputMode !== 'CNY'
               ? {
                   targetMarginPercent: String(
                     Number(current.questionnaire.targetMarginRate) * 100
@@ -590,7 +648,7 @@ export function UnifiedModelPricing(props: {
       scopes,
       costRiskResolution,
     }: {
-      scopes: CanvasModelPricingScope[]
+      scopes: CanvasModelPricingScope[] | CanvasModelPricingCnyScope[]
       revision: number
       costRiskResolution?:
         | {
@@ -600,17 +658,30 @@ export function UnifiedModelPricing(props: {
             reason: string
           }
         | { type: 'MANUAL_PAUSE'; reason: string }
-    }) =>
-      previewCanvasModelPricing({
+    }) => {
+      const common = {
         customerModelId: modelId,
         billingUnit,
+        effectiveMode,
         ...(effectiveMode === 'SCHEDULED'
           ? { effectiveAt: new Date(effectiveAt).toISOString() }
           : {}),
         decisionSummary: decisionSummary.trim(),
-        scopes,
+      }
+      if (inputMode === 'CNY') {
+        return previewCanvasModelPricing({
+          ...common,
+          inputMode: 'CNY',
+          scopes: scopes as CanvasModelPricingCnyScope[],
+        })
+      }
+      return previewCanvasModelPricing({
+        ...common,
+        inputMode: 'POINTS',
+        scopes: scopes as CanvasModelPricingScope[],
         costRiskResolution,
-      }),
+      })
+    },
     onSuccess: (result, variables) => {
       if (variables.revision !== previewRevision.current) return
       setPreviewId(result.id)
@@ -619,6 +690,27 @@ export function UnifiedModelPricing(props: {
     },
     onError: (error, variables) => {
       if (variables.revision === previewRevision.current) {
+        const pricingField = cnyPricingFailureField(error)
+        if (inputMode === 'CNY' && pricingField) {
+          const key = `${pricingField.parameterCombinationId}:${pricingField.priceGroupId}:customer:${pricingField.tokenCategory ?? 'scalar'}`
+          setCnyFieldErrors((current) => ({
+            ...current,
+            [key]: t(
+              'This CNY price cannot be converted to an exact point value. Adjust the price.'
+            ),
+          }))
+          setCnyTouched((current) => ({ ...current, [key]: true }))
+          setActiveScopeId(pricingField.parameterCombinationId)
+          setActivePriceGroupId(pricingField.priceGroupId)
+          requestAnimationFrame(() => {
+            document
+              .querySelector<HTMLElement>(
+                `[id="cny-pricing-${pricingField.parameterCombinationId}-${pricingField.priceGroupId}-customer${pricingField.tokenCategory ? `-${pricingField.tokenCategory}` : ''}"]`
+              )
+              ?.focus()
+          })
+          return
+        }
         toast.error(
           t(
             getServerErrorMessageKey(error) ??
@@ -637,6 +729,17 @@ export function UnifiedModelPricing(props: {
       setPreviewId(null)
       setPublishIdempotencyKey(null)
       setHasEdits(false)
+      if (publishedPreview?.inputMode === 'CNY') {
+        setCnyDrafts({})
+        setCnyTouched({})
+        setCnyFieldErrors({})
+        setCnyHasEdits(false)
+      }
+      form.reset({
+        decisionSummary: '',
+        effectiveAt: '',
+        effectiveMode: 'IMMEDIATE',
+      })
       setTab('current')
       props.onTabChange?.('current')
       toast.success(t('Model pricing published'))
@@ -763,8 +866,51 @@ export function UnifiedModelPricing(props: {
       effectiveMode === 'SCHEDULED' ||
       billingUnit !==
         (selected?.billingUnit ?? selected?.allowedBillingUnits[0]) ||
-      hasEdits)
+      (inputMode === 'POINTS' ? hasEdits : cnyHasEdits))
   )
+
+  function switchInputMode(next: 'POINTS' | 'CNY') {
+    if (next === inputMode) return
+    if (isDirty) {
+      setPendingInputMode(next)
+      return
+    }
+    setInputMode(next)
+    form.reset({
+      decisionSummary: '',
+      effectiveAt: '',
+      effectiveMode: 'IMMEDIATE',
+    })
+    setSubmitAttempted(false)
+    setValidationErrors([])
+    invalidatePreview()
+  }
+
+  function confirmInputModeChange() {
+    if (!pendingInputMode) return
+    if (inputMode === 'POINTS') {
+      setHasEdits(false)
+      setDrafts([])
+      setQuestionnaires({})
+      setQuestionnaireTouched({})
+      setInitializedModelId(null)
+    } else {
+      setCnyDrafts({})
+      setCnyTouched({})
+      setCnyFieldErrors({})
+      setCnyHasEdits(false)
+    }
+    setInputMode(pendingInputMode)
+    setPendingInputMode(null)
+    form.reset({
+      decisionSummary: '',
+      effectiveAt: '',
+      effectiveMode: 'IMMEDIATE',
+    })
+    setSubmitAttempted(false)
+    setValidationErrors([])
+    invalidatePreview()
+  }
 
   function handleBillingUnitChange(next: CanvasBillingUnit) {
     if (next === billingUnit) return
@@ -772,6 +918,10 @@ export function UnifiedModelPricing(props: {
     invalidatePreview()
     setValidationErrors([])
     setHasEdits(true)
+    setCnyDrafts({})
+    setCnyTouched({})
+    setCnyFieldErrors({})
+    setCnyHasEdits(inputMode === 'CNY')
     setQuestionnaires((current) =>
       Object.fromEntries(
         Object.entries(current).map(([key, answers]) => [
@@ -1015,6 +1165,118 @@ export function UnifiedModelPricing(props: {
     setSubmitAttempted(true)
     const formValid = await form.trigger()
     const meta = form.getValues()
+    if (inputMode === 'CNY') {
+      const currentRequestState = pricingRequestStateRef.current
+      if (
+        draftRevision !== previewRevision.current ||
+        currentRequestState.inputMode !== 'CNY' ||
+        currentRequestState.billingUnit !== billingUnit ||
+        currentRequestState.activeScopeId !== activeScopeId ||
+        currentRequestState.activePriceGroupId !== activePriceGroupId ||
+        currentRequestState.cnyDrafts !== cnyDrafts
+      ) {
+        return
+      }
+      const fields =
+        billingUnit === 'MILLION_TOKENS'
+          ? selected.tokenCategories
+          : (['scalar'] as const)
+      const isUnitChange = selected.billingUnit !== billingUnit
+      const relevantScopes = isUnitChange
+        ? detail.data.pricingScopes.filter(
+            (scope) =>
+              scope.enabled || scope.prices.some((price) => price.current)
+          )
+        : detail.data.pricingScopes.filter(
+            (scope) => scope.parameterCombinationId === activeScopeId
+          )
+      const issues: PricingValidationIssue[] = []
+      const touched: Record<string, boolean> = {}
+      const scopes: CanvasModelPricingCnyScope[] = relevantScopes.map(
+        (scope) => {
+          const scopeDraft = cnyDrafts[scope.parameterCombinationId] ?? {
+            provider: {},
+            customers: {},
+          }
+          const relevantPrices = scope.prices.filter((price) => {
+            if (isUnitChange) return scope.enabled || Boolean(price.current)
+            return (
+              Boolean(price.current) ||
+              price.priceGroupId === activePriceGroupId
+            )
+          })
+          for (const field of fields) {
+            if (!isPositiveRmbAmount(scopeDraft.provider[field] ?? '')) {
+              const groupId =
+                relevantPrices[0]?.priceGroupId ?? activePriceGroupId
+              touched[
+                `${scope.parameterCombinationId}:${groupId}:provider:${field}`
+              ] = true
+              issues.push({
+                message: t('Enter an amount above 0 with up to 2 decimals'),
+                scopeId: scope.parameterCombinationId,
+                planId: groupId,
+                fieldId: `cny-pricing-${scope.parameterCombinationId}-${groupId}-provider${field === 'scalar' ? '' : `-${field}`}`,
+              })
+            }
+          }
+          return {
+            parameterCombinationId: scope.parameterCombinationId,
+            providerSuccessPriceCny:
+              billingUnit === 'MILLION_TOKENS'
+                ? cnyTokenRates(scopeDraft.provider, selected.tokenCategories)
+                : (scopeDraft.provider.scalar ?? ''),
+            prices: relevantPrices.map((price) => {
+              const customer = scopeDraft.customers[price.priceGroupId] ?? {}
+              for (const field of fields) {
+                if (!isPositiveRmbAmount(customer[field] ?? '')) {
+                  touched[
+                    `${scope.parameterCombinationId}:${price.priceGroupId}:customer:${field}`
+                  ] = true
+                  issues.push({
+                    message: t('Enter an amount above 0 with up to 2 decimals'),
+                    scopeId: scope.parameterCombinationId,
+                    planId: price.priceGroupId,
+                    fieldId: `cny-pricing-${scope.parameterCombinationId}-${price.priceGroupId}-customer${field === 'scalar' ? '' : `-${field}`}`,
+                  })
+                }
+              }
+              return {
+                priceGroupId: price.priceGroupId,
+                ...(price.current?.id
+                  ? { sourcePriceVersionId: price.current.id }
+                  : {}),
+                customerPriceCny:
+                  billingUnit === 'MILLION_TOKENS'
+                    ? cnyTokenRates(customer, selected.tokenCategories)
+                    : (customer.scalar ?? ''),
+              }
+            }),
+          }
+        }
+      )
+      setCnyTouched((current) => ({ ...current, ...touched }))
+      if (!formValid || issues.length > 0) {
+        setValidationErrors(issues)
+        focusPricingIssue(issues[0])
+        return
+      }
+      const readyRequestState = pricingRequestStateRef.current
+      if (
+        draftRevision !== previewRevision.current ||
+        readyRequestState.inputMode !== 'CNY' ||
+        readyRequestState.billingUnit !== billingUnit ||
+        readyRequestState.activeScopeId !== activeScopeId ||
+        readyRequestState.activePriceGroupId !== activePriceGroupId ||
+        readyRequestState.cnyDrafts !== cnyDrafts
+      ) {
+        return
+      }
+      setValidationErrors([])
+      const revision = ++previewRevision.current
+      preview.mutate({ revision, scopes })
+      return
+    }
     let riskValid = includeRiskResolution ? await riskForm.trigger() : true
     const riskMeta = riskForm.getValues()
     if (
@@ -1453,6 +1715,20 @@ export function UnifiedModelPricing(props: {
         destructive
         handleConfirm={confirmTabChange}
       />
+      <ConfirmDialog
+        open={Boolean(pendingInputMode)}
+        onOpenChange={(open) => {
+          if (!open) setPendingInputMode(null)
+        }}
+        title={t('Discard pricing input?')}
+        desc={t(
+          'Switching pricing mode discards the unpublished inputs, effective settings, and change reason in this form.'
+        )}
+        confirmText={t('Discard and switch')}
+        cancelBtnText={t('Keep editing')}
+        destructive
+        handleConfirm={confirmInputModeChange}
+      />
       {isDirty ? (
         <div
           role='status'
@@ -1617,6 +1893,25 @@ export function UnifiedModelPricing(props: {
               </Select>
             </div>
           </div>
+          <fieldset className='space-y-2'>
+            <legend className='text-sm font-medium'>
+              {t('Pricing input mode')} *
+            </legend>
+            <div className='flex flex-wrap gap-4'>
+              {(['POINTS', 'CNY'] as const).map((mode) => (
+                <label key={mode} className='flex items-center gap-2 text-sm'>
+                  <input
+                    type='radio'
+                    name='pricing-input-mode'
+                    value={mode}
+                    checked={inputMode === mode}
+                    onChange={() => switchInputMode(mode)}
+                  />
+                  {t(mode === 'POINTS' ? 'Points pricing' : 'CNY pricing')}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           {validationErrors.length > 0 && (
             <div
               role='alert'
@@ -1654,556 +1949,523 @@ export function UnifiedModelPricing(props: {
               </ul>
             </div>
           )}
-          <div className='space-y-5'>
-            <h3 className='font-medium'>{t('Cost and assumptions')}</h3>
-            {isBillingUnitChange && (
-              <p className='text-sm font-medium'>
-                {t('Cost and assumptions')} ·{' '}
-                {scopeLabel(
-                  selected.combinations.find(
-                    (item) => item.id === activeScopeId
-                  ),
-                  t
-                )}{' '}
-                ·{' '}
-                {
-                  detail.data.priceGroups.find(
-                    (item) => item.id === activePriceGroupId
-                  )?.internalName
-                }
-              </p>
-            )}
-            <PricingQuestionnaire
-              idPrefix='model-pricing'
-              answers={questionnaireAnswers}
-              errors={Object.fromEntries(
-                Object.entries(
-                  questionnaireValidation(
-                    questionnaireAnswers,
-                    false,
-                    billingUnit !== 'MILLION_TOKENS'
-                  )
-                )
-                  .filter(
-                    ([field]) =>
-                      submitAttempted ||
-                      questionnaireTouched[`${questionnaireKey}:${field}`]
-                  )
-                  .map(([field, message]) => [field, t(message)])
-              )}
-              onBlur={(field) =>
-                setQuestionnaireTouched((current) => ({
-                  ...current,
-                  [`${questionnaireKey}:${field}`]: true,
-                }))
-              }
-              providerCostEditor={
-                <div className='space-y-4'>
-                  {(isBillingUnitChange
-                    ? drafts
-                    : drafts.filter(
-                        (draft) => draft.combinationId === activeScopeId
-                      )
-                  ).map((draft) => {
-                    const scopeIndex = drafts.findIndex(
-                      (candidate) =>
-                        candidate.combinationId === draft.combinationId
-                    )
-                    const combination = selected.combinations.find(
-                      (item) => item.id === draft.combinationId
-                    )
-                    return (
-                      <div key={draft.combinationId} className='space-y-3'>
-                        {isBillingUnitChange && (
-                          <div className='font-medium'>
-                            {scopeLabel(combination, t)}
-                          </div>
-                        )}
-                        {billingUnit !== 'MILLION_TOKENS' ? (
-                          <Field
-                            id={`provider-cost-${draft.combinationId}`}
-                            label={t('Successful call cost')}
-                            unit={`${t('RMB')} / ${billingUnitLabel(billingUnit, t)}`}
-                            className='w-full max-w-xs'
-                            ariaLabel={
-                              isBillingUnitChange
-                                ? `${t('Service provider cost')} · ${scopeLabel(combination, t)}`
-                                : t('Service provider cost')
-                            }
-                            value={draft.nativeAmount}
-                            onChange={(value) =>
-                              updateScope(scopeIndex, 'nativeAmount', value)
-                            }
-                            error={fieldErrors[`${scopeIndex}:nativeAmount`]}
-                            onBlur={() => {
-                              const error = amountError(
-                                draft.nativeAmount,
-                                'successful',
-                                t
-                              )
-                              if (error) {
-                                setFieldErrors((current) => ({
-                                  ...current,
-                                  [`${scopeIndex}:nativeAmount`]: error,
-                                }))
-                              }
-                            }}
-                          />
-                        ) : (
-                          <TokenFields
-                            idPrefix={`provider-${draft.combinationId}`}
-                            rmb={
-                              draft.costEdited ||
-                              isBillingUnitChange ||
-                              !detail.data.pricingScopes.find(
-                                (scope) =>
-                                  scope.parameterCombinationId ===
-                                  draft.combinationId
-                              )?.currentProviderRate
-                            }
-                            showErrors={validationErrors.length > 0}
-                            categories={selected.tokenCategories}
-                            draft={draft}
-                            onChange={(key, value) =>
-                              updateScope(scopeIndex, key, value)
-                            }
-                          />
-                        )}
-                        <div className='w-full max-w-xs space-y-3'>
-                          <div className='w-full max-w-xs'>
-                            <Label
-                              htmlFor={`model-pricing-failure-${draft.combinationId}`}
-                            >
-                              {t('Failed-attempt cost')}
-                            </Label>
-                            <Select
-                              value={draft.failureChargeMode}
-                              onValueChange={(value) =>
-                                updateScope(
-                                  scopeIndex,
-                                  'failureChargeMode',
-                                  value ?? 'NONE'
-                                )
-                              }
-                            >
-                              <SelectTrigger
-                                id={`model-pricing-failure-${draft.combinationId}`}
-                                className='w-full'
-                              >
-                                <SelectValue>
-                                  {failureChargeLabel(
-                                    draft.failureChargeMode,
-                                    t
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value='NONE'>
-                                  {t('No failed-attempt cost')}
-                                </SelectItem>
-                                <SelectItem value='SAME_AS_SUCCESS'>
-                                  {t('Same as successful attempt')}
-                                </SelectItem>
-                                {billingUnit !== 'MILLION_TOKENS' && (
-                                  <SelectItem value='FIXED'>
-                                    {t('Fixed failed-attempt cost')}
-                                  </SelectItem>
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {draft.failureChargeMode === 'FIXED' && (
-                            <Field
-                              id={`failure-cost-${draft.combinationId}`}
-                              label={t('Failed call cost')}
-                              unit={`${t('RMB')} / ${billingUnitLabel(billingUnit, t)}`}
-                              className='w-full max-w-xs'
-                              ariaLabel={t('Failed call cost')}
-                              value={draft.failureNativeAmount}
-                              onChange={(value) =>
-                                updateScope(
-                                  scopeIndex,
-                                  'failureNativeAmount',
-                                  value
-                                )
-                              }
-                              error={
-                                fieldErrors[`${scopeIndex}:failureNativeAmount`]
-                              }
-                              onBlur={() => {
-                                const error = amountError(
-                                  draft.failureNativeAmount,
-                                  'failed',
-                                  t
-                                )
-                                if (error) {
-                                  setFieldErrors((current) => ({
-                                    ...current,
-                                    [`${scopeIndex}:failureNativeAmount`]:
-                                      error,
-                                  }))
-                                }
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {billingUnit === 'MILLION_TOKENS' && activeDraft && (
-                    <TokenPricingQuestionnaire
-                      idPrefix={`token-basis-${activeScopeId}-${activePriceGroupId}`}
-                      stage='basis'
-                      categories={selected.tokenCategories}
-                      providerRates={activeDraft}
-                      categoryAssumptions={
-                        questionnaire.tokenCategoryAssumptions
-                      }
-                      successProbabilityPercent={
-                        questionnaire.successProbabilityPercent
-                      }
-                      targetMarginPercent={questionnaire.targetMarginPercent}
-                      customerRates={
-                        activeDraft.prices.find(
-                          (price) => price.priceGroupId === activePriceGroupId
-                        ) ?? {}
-                      }
-                      failureMode={
-                        activeDraft.failureChargeMode === 'SAME_AS_SUCCESS'
-                          ? 'SAME_AS_SUCCESS'
-                          : 'NONE'
-                      }
-                      pointsPerRmb={String(
-                        issuanceRates.data?.find(
-                          (rate) => rate.status === 'PUBLISHED'
-                        )?.pointsPerRmb ?? ''
-                      )}
-                      showErrors={submitAttempted}
-                      onAssumptionChange={updateTokenAssumption}
-                      onRateChange={() => {}}
-                    />
-                  )}
-                </div>
-              }
-              providerCostRmb={selectedScopeCostRmb}
-              pointsPerRmb={String(
-                issuanceRates.data?.find((rate) => rate.status === 'PUBLISHED')
-                  ?.pointsPerRmb ?? ''
-              )}
-              billingUnitLabel={billingUnitLabel(billingUnit, t)}
-              showProposedPoints={false}
-              showCalculation={billingUnit !== 'MILLION_TOKENS'}
-              showAdditionalCosts={billingUnit !== 'MILLION_TOKENS'}
-              currentPoints={
-                detail.data?.pricingScopes
-                  .find(
-                    (scope) => scope.parameterCombinationId === activeScopeId
-                  )
-                  ?.prices.find(
-                    (price) => price.priceGroupId === activePriceGroupId
-                  )?.current?.points
-              }
-              onChange={(key, value) => {
-                setHasEdits(true)
-                invalidatePreview()
-                setQuestionnaire((current) => ({
-                  ...current,
-                  [key]: value,
-                }))
-                setDrafts((current) =>
-                  current.map((scope) =>
-                    scope.combinationId !== activeScopeId
-                      ? scope
-                      : {
-                          ...scope,
-                          prices: scope.prices.map((price) =>
-                            price.priceGroupId !== activePriceGroupId
-                              ? price
-                              : {
-                                  ...price,
-                                  action: 'SET',
-                                  ...(key === 'proposedPoints'
-                                    ? { points: value }
-                                    : {}),
-                                }
-                          ),
-                        }
-                  )
-                )
-              }}
-            />
-          </div>
-          {(isBillingUnitChange
-            ? drafts
-            : drafts.filter((draft) => draft.combinationId === activeScopeId)
-          ).map((draft) => {
-            let failureCostRmb = '0'
-            if (draft.failureChargeMode === 'SAME_AS_SUCCESS') {
-              failureCostRmb = draft.nativeAmount
-            }
-            if (draft.failureChargeMode === 'FIXED') {
-              failureCostRmb = draft.failureNativeAmount
-            }
-            const scopeIndex = drafts.findIndex(
-              (candidate) => candidate.combinationId === draft.combinationId
-            )
-            const combination = selected.combinations.find(
-              (item) => item.id === draft.combinationId
-            )
-            return (
-              <section
-                key={draft.combinationId}
-                className={
-                  isBillingUnitChange
-                    ? 'space-y-4 rounded-lg border p-4'
-                    : 'space-y-4'
-                }
-              >
+          {inputMode === 'POINTS' ? (
+            <>
+              <div className='space-y-5'>
+                <h3 className='font-medium'>{t('Cost and assumptions')}</h3>
                 {isBillingUnitChange && (
-                  <CardHeader>
-                    <CardTitle>{scopeLabel(combination, t)}</CardTitle>
-                    <CardDescription>
-                      {!detail.data.pricingScopes.find(
-                        (scope) =>
-                          scope.parameterCombinationId === draft.combinationId
-                      )?.enabled
-                        ? ` · ${t('Disabled')}`
-                        : ''}
-                    </CardDescription>
-                  </CardHeader>
+                  <p className='text-sm font-medium'>
+                    {t('Cost and assumptions')} ·{' '}
+                    {scopeLabel(
+                      selected.combinations.find(
+                        (item) => item.id === activeScopeId
+                      ),
+                      t
+                    )}{' '}
+                    ·{' '}
+                    {
+                      detail.data.priceGroups.find(
+                        (item) => item.id === activePriceGroupId
+                      )?.internalName
+                    }
+                  </p>
                 )}
-                <div className='space-y-4'>
-                  <div className='space-y-3'>
-                    {draft.prices.map((price, priceIndex) => {
-                      const scope = detail.data.pricingScopes.find(
-                        (scope) =>
-                          scope.parameterCombinationId === draft.combinationId
+                <PricingQuestionnaire
+                  idPrefix='model-pricing'
+                  answers={questionnaireAnswers}
+                  errors={Object.fromEntries(
+                    Object.entries(
+                      questionnaireValidation(
+                        questionnaireAnswers,
+                        false,
+                        billingUnit !== 'MILLION_TOKENS'
                       )
-                      if (
-                        isBillingUnitChange &&
-                        scope?.enabled === false &&
-                        !scope.prices.find(
+                    )
+                      .filter(
+                        ([field]) =>
+                          submitAttempted ||
+                          questionnaireTouched[`${questionnaireKey}:${field}`]
+                      )
+                      .map(([field, message]) => [field, t(message)])
+                  )}
+                  onBlur={(field) =>
+                    setQuestionnaireTouched((current) => ({
+                      ...current,
+                      [`${questionnaireKey}:${field}`]: true,
+                    }))
+                  }
+                  providerCostEditor={
+                    <div className='space-y-4'>
+                      {(isBillingUnitChange
+                        ? drafts
+                        : drafts.filter(
+                            (draft) => draft.combinationId === activeScopeId
+                          )
+                      ).map((draft) => {
+                        const scopeIndex = drafts.findIndex(
                           (candidate) =>
-                            candidate.priceGroupId === price.priceGroupId
-                        )?.current
-                      ) {
-                        return null
-                      }
-                      if (
-                        !isBillingUnitChange &&
-                        price.priceGroupId !== activePriceGroupId
-                      ) {
-                        return null
-                      }
-                      const group = workspace.data?.priceGroups.find(
-                        (item) => item.id === price.priceGroupId
-                      )
-                      return (
-                        <div
-                          className={
-                            isBillingUnitChange
-                              ? 'rounded-lg border p-3'
-                              : 'min-w-0'
-                          }
-                          key={price.priceGroupId}
-                        >
-                          {isBillingUnitChange && (
-                            <div className='mb-3 font-medium break-words'>
-                              {group?.internalName ?? t('Price plan')}
-                            </div>
-                          )}
-                          {billingUnit === 'MILLION_TOKENS' && (
-                            <TokenPricingQuestionnaire
-                              idPrefix={`token-price-${draft.combinationId}-${price.priceGroupId}`}
-                              stage='price'
-                              questionNumber={4}
-                              priceAction={price.action}
-                              categories={selected.tokenCategories}
-                              providerRates={draft}
-                              categoryAssumptions={
-                                (
-                                  questionnaires[
-                                    `${draft.combinationId}:${price.priceGroupId}`
-                                  ] ?? emptyQuestionnaire
-                                ).tokenCategoryAssumptions
-                              }
-                              successProbabilityPercent={
-                                (
-                                  questionnaires[
-                                    `${draft.combinationId}:${price.priceGroupId}`
-                                  ] ?? emptyQuestionnaire
-                                ).successProbabilityPercent
-                              }
-                              targetMarginPercent={
-                                (
-                                  questionnaires[
-                                    `${draft.combinationId}:${price.priceGroupId}`
-                                  ] ?? emptyQuestionnaire
-                                ).targetMarginPercent
-                              }
-                              customerRates={price}
-                              currentRates={
-                                !isBillingUnitChange
-                                  ? (scope?.prices.find(
-                                      (item) =>
-                                        item.priceGroupId === price.priceGroupId
-                                    )?.current?.tokenRates ?? undefined)
-                                  : undefined
-                              }
-                              failureMode={
-                                draft.failureChargeMode === 'SAME_AS_SUCCESS'
-                                  ? 'SAME_AS_SUCCESS'
-                                  : 'NONE'
-                              }
-                              pointsPerRmb={String(
-                                issuanceRates.data?.find(
-                                  (rate) => rate.status === 'PUBLISHED'
-                                )?.pointsPerRmb ?? ''
-                              )}
-                              showErrors={submitAttempted}
-                              onAssumptionChange={updateTokenAssumption}
-                              onRateChange={(category, value) =>
-                                updatePrice(
-                                  scopeIndex,
-                                  priceIndex,
-                                  category,
-                                  value
-                                )
-                              }
-                              onKeepCurrent={() => {
-                                const current = scope?.prices.find(
-                                  (item) =>
-                                    item.priceGroupId === price.priceGroupId
-                                )?.current
-                                if (
-                                  !current?.tokenRates ||
+                            candidate.combinationId === draft.combinationId
+                        )
+                        const combination = selected.combinations.find(
+                          (item) => item.id === draft.combinationId
+                        )
+                        return (
+                          <div key={draft.combinationId} className='space-y-3'>
+                            {isBillingUnitChange && (
+                              <div className='font-medium'>
+                                {scopeLabel(combination, t)}
+                              </div>
+                            )}
+                            {billingUnit !== 'MILLION_TOKENS' ? (
+                              <Field
+                                id={`provider-cost-${draft.combinationId}`}
+                                label={t('Successful call cost')}
+                                unit={`${t('RMB')} / ${billingUnitLabel(billingUnit, t)}`}
+                                className='w-full max-w-xs'
+                                ariaLabel={
                                   isBillingUnitChange
-                                ) {
-                                  return
+                                    ? `${t('Service provider cost')} · ${scopeLabel(combination, t)}`
+                                    : t('Service provider cost')
                                 }
-                                for (const category of selected.tokenCategories) {
-                                  updatePrice(
-                                    scopeIndex,
-                                    priceIndex,
-                                    category,
-                                    current.tokenRates[category] ?? ''
-                                  )
+                                value={draft.nativeAmount}
+                                onChange={(value) =>
+                                  updateScope(scopeIndex, 'nativeAmount', value)
                                 }
-                                updatePrice(
-                                  scopeIndex,
-                                  priceIndex,
-                                  'action',
-                                  'KEEP'
-                                )
-                              }}
-                            />
-                          )}
-                          {billingUnit !== 'MILLION_TOKENS' && (
-                            <PricingQuestionnaire
-                              idPrefix={`model-pricing-price-${draft.combinationId}-${price.priceGroupId}`}
-                              answers={{
-                                ...(questionnaires[
-                                  `${draft.combinationId}:${price.priceGroupId}`
-                                ] ?? emptyQuestionnaire),
-                                successfulTaskCostRmb: normalizedRmb(
-                                  draft.nativeAmount,
-                                  draft.exchangeRate
-                                ),
-                                failedUnrecoverableCostRmb: failureCostRmb,
-                              }}
-                              providerCostRmb={draft.nativeAmount}
-                              pointsPerRmb={String(
-                                issuanceRates.data?.find(
-                                  (rate) => rate.status === 'PUBLISHED'
-                                )?.pointsPerRmb ?? ''
-                              )}
-                              billingUnitLabel={billingUnitLabel(
-                                billingUnit,
-                                t
-                              )}
-                              showBasis={false}
-                              proposedQuestionNumber={6}
-                              priceAction={price.action}
-                              errors={Object.fromEntries(
-                                Object.entries(
-                                  questionnaireValidation(
-                                    questionnaires[
-                                      `${draft.combinationId}:${price.priceGroupId}`
-                                    ] ?? emptyQuestionnaire,
-                                    true
+                                error={
+                                  fieldErrors[`${scopeIndex}:nativeAmount`]
+                                }
+                                onBlur={() => {
+                                  const error = amountError(
+                                    draft.nativeAmount,
+                                    'successful',
+                                    t
                                   )
-                                )
-                                  .filter(
-                                    ([field]) =>
-                                      submitAttempted ||
-                                      questionnaireTouched[
-                                        `${draft.combinationId}:${price.priceGroupId}:${field}`
-                                      ]
-                                  )
-                                  .map(([field, message]) => [
-                                    field,
-                                    t(message),
-                                  ])
-                              )}
-                              onBlur={(field) =>
-                                setQuestionnaireTouched((current) => ({
-                                  ...current,
-                                  [`${draft.combinationId}:${price.priceGroupId}:${field}`]: true,
-                                }))
-                              }
-                              showProposedPoints
-                              onKeepCurrent={() => {
-                                const current = detail.data?.pricingScopes
-                                  .find(
+                                  if (error) {
+                                    setFieldErrors((current) => ({
+                                      ...current,
+                                      [`${scopeIndex}:nativeAmount`]: error,
+                                    }))
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <TokenFields
+                                idPrefix={`provider-${draft.combinationId}`}
+                                rmb={
+                                  draft.costEdited ||
+                                  isBillingUnitChange ||
+                                  !detail.data.pricingScopes.find(
                                     (scope) =>
                                       scope.parameterCombinationId ===
                                       draft.combinationId
-                                  )
-                                  ?.prices.find(
-                                    (candidate) =>
-                                      candidate.priceGroupId ===
-                                      price.priceGroupId
-                                  )?.current
-                                if (!current?.id || isBillingUnitChange) {
-                                  return
+                                  )?.currentProviderRate
                                 }
-                                const sourcePriceVersionId = current.id
-                                setHasEdits(true)
-                                invalidatePreview()
-                                setDrafts((drafts) =>
-                                  drafts.map((scope) =>
-                                    scope.combinationId !== draft.combinationId
-                                      ? scope
-                                      : {
-                                          ...scope,
-                                          prices: scope.prices.map(
-                                            (candidate) =>
-                                              candidate.priceGroupId !==
-                                              price.priceGroupId
-                                                ? candidate
-                                                : {
-                                                    ...candidate,
-                                                    action: 'KEEP',
-                                                    points: current.points,
-                                                    sourcePriceVersionId,
-                                                  }
-                                          ),
-                                        }
-                                  )
-                                )
-                                const key = `${draft.combinationId}:${price.priceGroupId}`
-                                setQuestionnaires((answers) => ({
-                                  ...answers,
-                                  [key]: {
-                                    ...(answers[key] ?? emptyQuestionnaire),
-                                    proposedPoints: current.points,
-                                  },
-                                }))
-                              }}
-                              currentPoints={
+                                showErrors={validationErrors.length > 0}
+                                categories={selected.tokenCategories}
+                                draft={draft}
+                                onChange={(key, value) =>
+                                  updateScope(scopeIndex, key, value)
+                                }
+                              />
+                            )}
+                            <div className='w-full max-w-xs space-y-3'>
+                              <div className='w-full max-w-xs'>
+                                <Label
+                                  htmlFor={`model-pricing-failure-${draft.combinationId}`}
+                                >
+                                  {t('Failed-attempt cost')}
+                                </Label>
+                                <Select
+                                  value={draft.failureChargeMode}
+                                  onValueChange={(value) =>
+                                    updateScope(
+                                      scopeIndex,
+                                      'failureChargeMode',
+                                      value ?? 'NONE'
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`model-pricing-failure-${draft.combinationId}`}
+                                    className='w-full'
+                                  >
+                                    <SelectValue>
+                                      {failureChargeLabel(
+                                        draft.failureChargeMode,
+                                        t
+                                      )}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value='NONE'>
+                                      {t('No failed-attempt cost')}
+                                    </SelectItem>
+                                    <SelectItem value='SAME_AS_SUCCESS'>
+                                      {t('Same as successful attempt')}
+                                    </SelectItem>
+                                    {billingUnit !== 'MILLION_TOKENS' && (
+                                      <SelectItem value='FIXED'>
+                                        {t('Fixed failed-attempt cost')}
+                                      </SelectItem>
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {draft.failureChargeMode === 'FIXED' && (
+                                <Field
+                                  id={`failure-cost-${draft.combinationId}`}
+                                  label={t('Failed call cost')}
+                                  unit={`${t('RMB')} / ${billingUnitLabel(billingUnit, t)}`}
+                                  className='w-full max-w-xs'
+                                  ariaLabel={t('Failed call cost')}
+                                  value={draft.failureNativeAmount}
+                                  onChange={(value) =>
+                                    updateScope(
+                                      scopeIndex,
+                                      'failureNativeAmount',
+                                      value
+                                    )
+                                  }
+                                  error={
+                                    fieldErrors[
+                                      `${scopeIndex}:failureNativeAmount`
+                                    ]
+                                  }
+                                  onBlur={() => {
+                                    const error = amountError(
+                                      draft.failureNativeAmount,
+                                      'failed',
+                                      t
+                                    )
+                                    if (error) {
+                                      setFieldErrors((current) => ({
+                                        ...current,
+                                        [`${scopeIndex}:failureNativeAmount`]:
+                                          error,
+                                      }))
+                                    }
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {billingUnit === 'MILLION_TOKENS' && activeDraft && (
+                        <TokenPricingQuestionnaire
+                          idPrefix={`token-basis-${activeScopeId}-${activePriceGroupId}`}
+                          stage='basis'
+                          categories={selected.tokenCategories}
+                          providerRates={activeDraft}
+                          categoryAssumptions={
+                            questionnaire.tokenCategoryAssumptions
+                          }
+                          successProbabilityPercent={
+                            questionnaire.successProbabilityPercent
+                          }
+                          targetMarginPercent={
+                            questionnaire.targetMarginPercent
+                          }
+                          customerRates={
+                            activeDraft.prices.find(
+                              (price) =>
+                                price.priceGroupId === activePriceGroupId
+                            ) ?? {}
+                          }
+                          failureMode={
+                            activeDraft.failureChargeMode === 'SAME_AS_SUCCESS'
+                              ? 'SAME_AS_SUCCESS'
+                              : 'NONE'
+                          }
+                          pointsPerRmb={String(
+                            issuanceRates.data?.find(
+                              (rate) => rate.status === 'PUBLISHED'
+                            )?.pointsPerRmb ?? ''
+                          )}
+                          showErrors={submitAttempted}
+                          onAssumptionChange={updateTokenAssumption}
+                          onRateChange={() => {}}
+                        />
+                      )}
+                    </div>
+                  }
+                  providerCostRmb={selectedScopeCostRmb}
+                  pointsPerRmb={String(
+                    issuanceRates.data?.find(
+                      (rate) => rate.status === 'PUBLISHED'
+                    )?.pointsPerRmb ?? ''
+                  )}
+                  billingUnitLabel={billingUnitLabel(billingUnit, t)}
+                  showProposedPoints={false}
+                  showCalculation={billingUnit !== 'MILLION_TOKENS'}
+                  showAdditionalCosts={billingUnit !== 'MILLION_TOKENS'}
+                  currentPoints={
+                    detail.data?.pricingScopes
+                      .find(
+                        (scope) =>
+                          scope.parameterCombinationId === activeScopeId
+                      )
+                      ?.prices.find(
+                        (price) => price.priceGroupId === activePriceGroupId
+                      )?.current?.points
+                  }
+                  onChange={(key, value) => {
+                    setHasEdits(true)
+                    invalidatePreview()
+                    setQuestionnaire((current) => ({
+                      ...current,
+                      [key]: value,
+                    }))
+                    setDrafts((current) =>
+                      current.map((scope) =>
+                        scope.combinationId !== activeScopeId
+                          ? scope
+                          : {
+                              ...scope,
+                              prices: scope.prices.map((price) =>
+                                price.priceGroupId !== activePriceGroupId
+                                  ? price
+                                  : {
+                                      ...price,
+                                      action: 'SET',
+                                      ...(key === 'proposedPoints'
+                                        ? { points: value }
+                                        : {}),
+                                    }
+                              ),
+                            }
+                      )
+                    )
+                  }}
+                />
+              </div>
+              {(isBillingUnitChange
+                ? drafts
+                : drafts.filter(
+                    (draft) => draft.combinationId === activeScopeId
+                  )
+              ).map((draft) => {
+                let failureCostRmb = '0'
+                if (draft.failureChargeMode === 'SAME_AS_SUCCESS') {
+                  failureCostRmb = draft.nativeAmount
+                }
+                if (draft.failureChargeMode === 'FIXED') {
+                  failureCostRmb = draft.failureNativeAmount
+                }
+                const scopeIndex = drafts.findIndex(
+                  (candidate) => candidate.combinationId === draft.combinationId
+                )
+                const combination = selected.combinations.find(
+                  (item) => item.id === draft.combinationId
+                )
+                return (
+                  <section
+                    key={draft.combinationId}
+                    className={
+                      isBillingUnitChange
+                        ? 'space-y-4 rounded-lg border p-4'
+                        : 'space-y-4'
+                    }
+                  >
+                    {isBillingUnitChange && (
+                      <CardHeader>
+                        <CardTitle>{scopeLabel(combination, t)}</CardTitle>
+                        <CardDescription>
+                          {!detail.data.pricingScopes.find(
+                            (scope) =>
+                              scope.parameterCombinationId ===
+                              draft.combinationId
+                          )?.enabled
+                            ? ` · ${t('Disabled')}`
+                            : ''}
+                        </CardDescription>
+                      </CardHeader>
+                    )}
+                    <div className='space-y-4'>
+                      <div className='space-y-3'>
+                        {draft.prices.map((price, priceIndex) => {
+                          const scope = detail.data.pricingScopes.find(
+                            (scope) =>
+                              scope.parameterCombinationId ===
+                              draft.combinationId
+                          )
+                          if (
+                            isBillingUnitChange &&
+                            scope?.enabled === false &&
+                            !scope.prices.find(
+                              (candidate) =>
+                                candidate.priceGroupId === price.priceGroupId
+                            )?.current
+                          ) {
+                            return null
+                          }
+                          if (
+                            !isBillingUnitChange &&
+                            price.priceGroupId !== activePriceGroupId
+                          ) {
+                            return null
+                          }
+                          const group = workspace.data?.priceGroups.find(
+                            (item) => item.id === price.priceGroupId
+                          )
+                          return (
+                            <div
+                              className={
                                 isBillingUnitChange
-                                  ? undefined
-                                  : detail.data.pricingScopes
+                                  ? 'rounded-lg border p-3'
+                                  : 'min-w-0'
+                              }
+                              key={price.priceGroupId}
+                            >
+                              {isBillingUnitChange && (
+                                <div className='mb-3 font-medium break-words'>
+                                  {group?.internalName ?? t('Price plan')}
+                                </div>
+                              )}
+                              {billingUnit === 'MILLION_TOKENS' && (
+                                <TokenPricingQuestionnaire
+                                  idPrefix={`token-price-${draft.combinationId}-${price.priceGroupId}`}
+                                  stage='price'
+                                  questionNumber={4}
+                                  priceAction={price.action}
+                                  categories={selected.tokenCategories}
+                                  providerRates={draft}
+                                  categoryAssumptions={
+                                    (
+                                      questionnaires[
+                                        `${draft.combinationId}:${price.priceGroupId}`
+                                      ] ?? emptyQuestionnaire
+                                    ).tokenCategoryAssumptions
+                                  }
+                                  successProbabilityPercent={
+                                    (
+                                      questionnaires[
+                                        `${draft.combinationId}:${price.priceGroupId}`
+                                      ] ?? emptyQuestionnaire
+                                    ).successProbabilityPercent
+                                  }
+                                  targetMarginPercent={
+                                    (
+                                      questionnaires[
+                                        `${draft.combinationId}:${price.priceGroupId}`
+                                      ] ?? emptyQuestionnaire
+                                    ).targetMarginPercent
+                                  }
+                                  customerRates={price}
+                                  currentRates={
+                                    !isBillingUnitChange
+                                      ? (scope?.prices.find(
+                                          (item) =>
+                                            item.priceGroupId ===
+                                            price.priceGroupId
+                                        )?.current?.tokenRates ?? undefined)
+                                      : undefined
+                                  }
+                                  failureMode={
+                                    draft.failureChargeMode ===
+                                    'SAME_AS_SUCCESS'
+                                      ? 'SAME_AS_SUCCESS'
+                                      : 'NONE'
+                                  }
+                                  pointsPerRmb={String(
+                                    issuanceRates.data?.find(
+                                      (rate) => rate.status === 'PUBLISHED'
+                                    )?.pointsPerRmb ?? ''
+                                  )}
+                                  showErrors={submitAttempted}
+                                  onAssumptionChange={updateTokenAssumption}
+                                  onRateChange={(category, value) =>
+                                    updatePrice(
+                                      scopeIndex,
+                                      priceIndex,
+                                      category,
+                                      value
+                                    )
+                                  }
+                                  onKeepCurrent={() => {
+                                    const current = scope?.prices.find(
+                                      (item) =>
+                                        item.priceGroupId === price.priceGroupId
+                                    )?.current
+                                    if (
+                                      !current?.tokenRates ||
+                                      isBillingUnitChange
+                                    ) {
+                                      return
+                                    }
+                                    for (const category of selected.tokenCategories) {
+                                      updatePrice(
+                                        scopeIndex,
+                                        priceIndex,
+                                        category,
+                                        current.tokenRates[category] ?? ''
+                                      )
+                                    }
+                                    updatePrice(
+                                      scopeIndex,
+                                      priceIndex,
+                                      'action',
+                                      'KEEP'
+                                    )
+                                  }}
+                                />
+                              )}
+                              {billingUnit !== 'MILLION_TOKENS' && (
+                                <PricingQuestionnaire
+                                  idPrefix={`model-pricing-price-${draft.combinationId}-${price.priceGroupId}`}
+                                  answers={{
+                                    ...(questionnaires[
+                                      `${draft.combinationId}:${price.priceGroupId}`
+                                    ] ?? emptyQuestionnaire),
+                                    successfulTaskCostRmb: normalizedRmb(
+                                      draft.nativeAmount,
+                                      draft.exchangeRate
+                                    ),
+                                    failedUnrecoverableCostRmb: failureCostRmb,
+                                  }}
+                                  providerCostRmb={draft.nativeAmount}
+                                  pointsPerRmb={String(
+                                    issuanceRates.data?.find(
+                                      (rate) => rate.status === 'PUBLISHED'
+                                    )?.pointsPerRmb ?? ''
+                                  )}
+                                  billingUnitLabel={billingUnitLabel(
+                                    billingUnit,
+                                    t
+                                  )}
+                                  showBasis={false}
+                                  proposedQuestionNumber={6}
+                                  priceAction={price.action}
+                                  errors={Object.fromEntries(
+                                    Object.entries(
+                                      questionnaireValidation(
+                                        questionnaires[
+                                          `${draft.combinationId}:${price.priceGroupId}`
+                                        ] ?? emptyQuestionnaire,
+                                        true
+                                      )
+                                    )
+                                      .filter(
+                                        ([field]) =>
+                                          submitAttempted ||
+                                          questionnaireTouched[
+                                            `${draft.combinationId}:${price.priceGroupId}:${field}`
+                                          ]
+                                      )
+                                      .map(([field, message]) => [
+                                        field,
+                                        t(message),
+                                      ])
+                                  )}
+                                  onBlur={(field) =>
+                                    setQuestionnaireTouched((current) => ({
+                                      ...current,
+                                      [`${draft.combinationId}:${price.priceGroupId}:${field}`]: true,
+                                    }))
+                                  }
+                                  showProposedPoints
+                                  onKeepCurrent={() => {
+                                    const current = detail.data?.pricingScopes
                                       .find(
                                         (scope) =>
                                           scope.parameterCombinationId ===
@@ -2213,45 +2475,199 @@ export function UnifiedModelPricing(props: {
                                         (candidate) =>
                                           candidate.priceGroupId ===
                                           price.priceGroupId
-                                      )?.current?.points
-                              }
-                              onChange={(key, value) => {
-                                setHasEdits(true)
-                                invalidatePreview()
-                                const keyId = `${draft.combinationId}:${price.priceGroupId}`
-                                setQuestionnaires((current) => ({
-                                  ...current,
-                                  [keyId]: {
-                                    ...(current[keyId] ?? emptyQuestionnaire),
-                                    [key]: value,
-                                  },
-                                }))
-                                if (key === 'proposedPoints') {
-                                  const priceIndex = draft.prices.findIndex(
-                                    (candidate) =>
-                                      candidate.priceGroupId ===
-                                      price.priceGroupId
-                                  )
-                                  if (priceIndex >= 0) {
-                                    updatePrice(
-                                      scopeIndex,
-                                      priceIndex,
-                                      'points',
-                                      value
+                                      )?.current
+                                    if (!current?.id || isBillingUnitChange) {
+                                      return
+                                    }
+                                    const sourcePriceVersionId = current.id
+                                    setHasEdits(true)
+                                    invalidatePreview()
+                                    setDrafts((drafts) =>
+                                      drafts.map((scope) =>
+                                        scope.combinationId !==
+                                        draft.combinationId
+                                          ? scope
+                                          : {
+                                              ...scope,
+                                              prices: scope.prices.map(
+                                                (candidate) =>
+                                                  candidate.priceGroupId !==
+                                                  price.priceGroupId
+                                                    ? candidate
+                                                    : {
+                                                        ...candidate,
+                                                        action: 'KEEP',
+                                                        points: current.points,
+                                                        sourcePriceVersionId,
+                                                      }
+                                              ),
+                                            }
+                                      )
                                     )
+                                    const key = `${draft.combinationId}:${price.priceGroupId}`
+                                    setQuestionnaires((answers) => ({
+                                      ...answers,
+                                      [key]: {
+                                        ...(answers[key] ?? emptyQuestionnaire),
+                                        proposedPoints: current.points,
+                                      },
+                                    }))
+                                  }}
+                                  currentPoints={
+                                    isBillingUnitChange
+                                      ? undefined
+                                      : detail.data.pricingScopes
+                                          .find(
+                                            (scope) =>
+                                              scope.parameterCombinationId ===
+                                              draft.combinationId
+                                          )
+                                          ?.prices.find(
+                                            (candidate) =>
+                                              candidate.priceGroupId ===
+                                              price.priceGroupId
+                                          )?.current?.points
                                   }
-                                }
-                              }}
-                            />
-                          )}
-                        </div>
+                                  onChange={(key, value) => {
+                                    setHasEdits(true)
+                                    invalidatePreview()
+                                    const keyId = `${draft.combinationId}:${price.priceGroupId}`
+                                    setQuestionnaires((current) => ({
+                                      ...current,
+                                      [keyId]: {
+                                        ...(current[keyId] ??
+                                          emptyQuestionnaire),
+                                        [key]: value,
+                                      },
+                                    }))
+                                    if (key === 'proposedPoints') {
+                                      const priceIndex = draft.prices.findIndex(
+                                        (candidate) =>
+                                          candidate.priceGroupId ===
+                                          price.priceGroupId
+                                      )
+                                      if (priceIndex >= 0) {
+                                        updatePrice(
+                                          scopeIndex,
+                                          priceIndex,
+                                          'points',
+                                          value
+                                        )
+                                      }
+                                    }
+                                  }}
+                                />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                )
+              })}
+            </>
+          ) : (
+            <CnyPricingQuestionnaire
+              idPrefix={`cny-pricing-${activeScopeId}-${activePriceGroupId}`}
+              billingUnit={billingUnit}
+              categories={selected.tokenCategories}
+              draft={cnyDraft}
+              errors={Object.fromEntries(
+                Object.entries(cnyTouched)
+                  .filter(
+                    ([key, touched]) =>
+                      touched && key.startsWith(`${questionnaireKey}:`)
+                  )
+                  .map(([key]) => {
+                    const field = key.slice(questionnaireKey.length + 1)
+                    const value = field.startsWith('provider:')
+                      ? cnyDraft.provider[field.slice('provider:'.length)]
+                      : cnyDraft.customer[field.slice('customer:'.length)]
+                    return [
+                      field,
+                      cnyFieldErrors[key] ??
+                        (isPositiveRmbAmount(value ?? '')
+                          ? undefined
+                          : t('Enter an amount above 0 with up to 2 decimals')),
+                    ]
+                  })
+              )}
+              calculation={
+                preview.data?.scopes
+                  .find(
+                    (scope) => scope.parameterCombinationId === activeScopeId
+                  )
+                  ?.prices.find(
+                    (price) => price.priceGroupId === activePriceGroupId
+                  )?.proposed?.cnyCalculation
+              }
+              points={
+                billingUnit === 'MILLION_TOKENS'
+                  ? (preview.data?.scopes
+                      .find(
+                        (scope) =>
+                          scope.parameterCombinationId === activeScopeId
                       )
-                    })}
-                  </div>
-                </div>
-              </section>
-            )
-          })}
+                      ?.prices.find(
+                        (price) => price.priceGroupId === activePriceGroupId
+                      )?.proposed?.tokenRates ?? undefined)
+                  : preview.data?.scopes
+                      .find(
+                        (scope) =>
+                          scope.parameterCombinationId === activeScopeId
+                      )
+                      ?.prices.find(
+                        (price) => price.priceGroupId === activePriceGroupId
+                      )?.proposed?.points
+              }
+              pointsPerRmb={preview.data?.pointIssuanceRate.pointsPerRmb}
+              onBlur={(side, field) =>
+                setCnyTouched((current) => ({
+                  ...current,
+                  [`${questionnaireKey}:${side}:${field}`]: true,
+                }))
+              }
+              onChange={(side, field, value) => {
+                setCnyHasEdits(true)
+                invalidatePreview()
+                const errorKey = `${questionnaireKey}:${side}:${field}`
+                setCnyFieldErrors((current) => {
+                  const next = { ...current }
+                  delete next[errorKey]
+                  return next
+                })
+                setCnyDrafts((current) => {
+                  const scopeDraft = current[activeScopeId] ?? {
+                    provider: {},
+                    customers: {},
+                  }
+                  if (side === 'provider') {
+                    return {
+                      ...current,
+                      [activeScopeId]: {
+                        ...scopeDraft,
+                        provider: { ...scopeDraft.provider, [field]: value },
+                      },
+                    }
+                  }
+                  return {
+                    ...current,
+                    [activeScopeId]: {
+                      ...scopeDraft,
+                      customers: {
+                        ...scopeDraft.customers,
+                        [activePriceGroupId]: {
+                          ...scopeDraft.customers[activePriceGroupId],
+                          [field]: value,
+                        },
+                      },
+                    },
+                  }
+                })
+              }}
+            />
+          )}
           <div className='max-w-3xl space-y-4'>
             <fieldset className='space-y-2'>
               <legend className='text-sm font-medium'>
@@ -2424,6 +2840,9 @@ export function UnifiedModelPricing(props: {
             className='text-destructive text-sm'
           >
             {pricingConflictLabel(conflict.code, t)}
+            {conflict.categories?.length
+              ? ` · ${conflict.categories.map((category) => t(category)).join(', ')}`
+              : ''}
           </p>
         ))}
         {preview.data?.conflicts.some((conflict) =>
@@ -2971,6 +3390,38 @@ function isFixedDecimal(value: string) {
 
 function isPositiveDecimal(value: string) {
   return isRmbAmount(value) && Number(value) > 0
+}
+
+function isPositiveRmbAmount(value: string) {
+  return isRmbAmount(value) && Number(value) > 0
+}
+
+function cnyPricingFailureField(error: unknown): {
+  parameterCombinationId: string
+  priceGroupId: string
+  tokenCategory?: CanvasTokenCategory
+} | null {
+  if (!error || typeof error !== 'object') return null
+  const details = (error as { response?: { data?: { details?: unknown } } })
+    .response?.data?.details
+  if (!details || typeof details !== 'object') return null
+  const value = details as Record<string, unknown>
+  if (
+    value.reason !== 'exactPointConversionRequired' ||
+    typeof value.parameterCombinationId !== 'string' ||
+    typeof value.priceGroupId !== 'string'
+  ) {
+    return null
+  }
+  const tokenCategory = value.tokenCategory
+  return {
+    parameterCombinationId: value.parameterCombinationId,
+    priceGroupId: value.priceGroupId,
+    ...(typeof tokenCategory === 'string' &&
+    ['input', 'output', 'cacheRead', 'cacheWrite'].includes(tokenCategory)
+      ? { tokenCategory: tokenCategory as CanvasTokenCategory }
+      : {}),
+  }
 }
 
 function isNonnegativeInteger(value: string) {

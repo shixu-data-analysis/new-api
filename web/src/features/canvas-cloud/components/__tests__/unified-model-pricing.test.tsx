@@ -64,7 +64,11 @@ function renderPricing(
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <UnifiedModelPricing initialModelId={initialModelId} onBack={vi.fn()} {...props} />
+      <UnifiedModelPricing
+        initialModelId={initialModelId}
+        onBack={vi.fn()}
+        {...props}
+      />
     </QueryClientProvider>
   )
   return { client, ...view }
@@ -202,6 +206,563 @@ beforeEach(() => {
 })
 
 describe('UnifiedModelPricing', () => {
+  it('keeps POINTS target margin to an integer from 1 through 99', async () => {
+    renderPricing('model-1')
+    await openPricing()
+    const margin = screen.getByLabelText(/Target margin/)
+    fireEvent.change(margin, { target: { value: '1.5' } })
+    fireEvent.blur(margin)
+    expect(
+      screen.getByText('Enter an integer percentage from 1 to 99')
+    ).toBeVisible()
+  })
+
+  it('submits only the CNY branch and resets its independent metadata after a confirmed mode switch', async () => {
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    await user.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    expect(
+      screen.queryByLabelText('Expected success rate')
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.20' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.40' },
+    })
+    fireEvent.change(screen.getByLabelText('Change reason (optional)'), {
+      target: { value: 'direct CNY price' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview).toHaveBeenCalledWith({
+      customerModelId: 'model-1',
+      billingUnit: 'SECOND',
+      inputMode: 'CNY',
+      effectiveMode: 'IMMEDIATE',
+      decisionSummary: 'direct CNY price',
+      scopes: [
+        {
+          parameterCombinationId: 'scope-1',
+          providerSuccessPriceCny: '1.20',
+          prices: [
+            {
+              priceGroupId: 'group-1',
+              sourcePriceVersionId: 'price-1',
+              customerPriceCny: '2.40',
+            },
+          ],
+        },
+      ],
+    })
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('radio', { name: 'Points pricing' }))
+    await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
+    expect(screen.getByLabelText('Change reason (optional)')).toHaveValue('')
+    expect(screen.getByLabelText('Expected success rate')).toBeVisible()
+  })
+
+  it('submits one provider price with independent CNY prices for every priced group', async () => {
+    const detail = await mocks.detail()
+    const premium = { id: 'group-2', code: 'PREMIUM', internalName: 'Premium' }
+    mocks.workspace.mockResolvedValue({
+      models: [model],
+      priceGroups: [...detail.priceGroups, premium],
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      priceGroups: [...detail.priceGroups, premium],
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          prices: [
+            ...detail.pricingScopes[0].prices,
+            {
+              ...detail.pricingScopes[0].prices[0],
+              priceGroupId: 'group-2',
+              priceGroupCode: 'PREMIUM',
+              priceGroupName: 'Premium',
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                id: 'price-2',
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.00' },
+    })
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Premium' }))
+    expect(screen.getByLabelText(/Provider successful price/)).toHaveValue(
+      '1.00'
+    )
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '3.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview.mock.calls[0][0].scopes).toEqual([
+      {
+        parameterCombinationId: 'scope-1',
+        providerSuccessPriceCny: '1.00',
+        prices: [
+          {
+            priceGroupId: 'group-1',
+            sourcePriceVersionId: 'price-1',
+            customerPriceCny: '2.00',
+          },
+          {
+            priceGroupId: 'group-2',
+            sourcePriceVersionId: 'price-2',
+            customerPriceCny: '3.00',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('submits every relevant scope when CNY pricing changes the billing unit', async () => {
+    const detail = await mocks.detail()
+    const scope2 = {
+      ...detail.pricingScopes[0],
+      parameterCombinationId: 'scope-2',
+      combinationKey: 'quality-4k',
+      parameters: { quality: '4K' },
+      currentProviderRate: {
+        ...detail.pricingScopes[0].currentProviderRate,
+        id: 'rate-2',
+      },
+      prices: [
+        {
+          ...detail.pricingScopes[0].prices[0],
+          current: {
+            ...detail.pricingScopes[0].prices[0].current,
+            id: 'price-scope-2',
+          },
+        },
+      ],
+    }
+    const twoScopeModel = {
+      ...model,
+      combinations: [
+        ...model.combinations,
+        {
+          id: 'scope-2',
+          key: 'quality-4k',
+          parameters: { quality: '4K' },
+          enabled: true,
+        },
+      ],
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [twoScopeModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: twoScopeModel,
+      pricingScopes: [...detail.pricingScopes, scope2],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    await user.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(screen.getByRole('option', { name: 'per request' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.00' },
+    })
+    await user.click(screen.getByRole('combobox', { name: 'Pricing scope' }))
+    await user.click(screen.getByRole('option', { name: 'Quality: 4K' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '3.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '4.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview.mock.calls[0][0].scopes).toHaveLength(2)
+    expect(mocks.preview.mock.calls[0][0].scopes[1]).toEqual(
+      expect.objectContaining({
+        parameterCombinationId: 'scope-2',
+        providerSuccessPriceCny: '3.00',
+      })
+    )
+  })
+
+  it('includes priced and unpriced published groups for an enabled scope during a CNY unit change', async () => {
+    const detail = await mocks.detail()
+    const premium = { id: 'group-2', code: 'PREMIUM', internalName: 'Premium' }
+    mocks.workspace.mockResolvedValue({
+      models: [model],
+      priceGroups: [...detail.priceGroups, premium],
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      priceGroups: [...detail.priceGroups, premium],
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          enabled: true,
+          prices: [
+            ...detail.pricingScopes[0].prices,
+            {
+              priceGroupId: 'group-2',
+              priceGroupCode: 'PREMIUM',
+              priceGroupName: 'Premium',
+              current: null,
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(screen.getByRole('option', { name: 'per request' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.00' },
+    })
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Premium' }))
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '3.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview.mock.calls[0][0].scopes[0].prices).toEqual([
+      expect.objectContaining({ priceGroupId: 'group-1' }),
+      expect.objectContaining({
+        priceGroupId: 'group-2',
+        customerPriceCny: '3.00',
+      }),
+    ])
+  })
+
+  it('keeps only current groups for a disabled scope during a CNY unit change', async () => {
+    const detail = await mocks.detail()
+    const premium = { id: 'group-2', code: 'PREMIUM', internalName: 'Premium' }
+    mocks.workspace.mockResolvedValue({
+      models: [model],
+      priceGroups: [...detail.priceGroups, premium],
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      priceGroups: [...detail.priceGroups, premium],
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          enabled: false,
+          prices: [
+            ...detail.pricingScopes[0].prices,
+            {
+              priceGroupId: 'group-2',
+              priceGroupCode: 'PREMIUM',
+              priceGroupName: 'Premium',
+              current: null,
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    await user.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(screen.getByRole('option', { name: 'per request' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview.mock.calls[0][0].scopes[0].prices).toHaveLength(1)
+    expect(mocks.preview.mock.calls[0][0].scopes[0].prices[0]).toEqual(
+      expect.objectContaining({ priceGroupId: 'group-1' })
+    )
+  })
+
+  it('maps exact-conversion failures back to the unchanged CNY field and focuses it', async () => {
+    mocks.preview.mockRejectedValueOnce({
+      response: {
+        data: {
+          code: 'VALIDATION_FAILED',
+          details: {
+            field: 'scopes.0.prices.0.customerPriceCny',
+            reason: 'exactPointConversionRequired',
+            parameterCombinationId: 'scope-1',
+            priceGroupId: 'group-1',
+          },
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    const customer = screen.getByLabelText(/Customer CNY price/)
+    fireEvent.change(customer, { target: { value: '1.23' } })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    expect(
+      await screen.findByText(
+        'This CNY price cannot be converted to an exact point value. Adjust the price.'
+      )
+    ).toBeVisible()
+    expect(customer).toHaveValue('1.23')
+    expect(customer).toHaveFocus()
+    expect(customer).toHaveAttribute('aria-invalid', 'true')
+    expect(customer).toHaveAccessibleDescription(
+      'RMB / per second This CNY price cannot be converted to an exact point value. Adjust the price.'
+    )
+  })
+
+  it('maps a Token exact-conversion failure to the affected category field', async () => {
+    const detail = await mocks.detail()
+    const tokenModel = {
+      ...model,
+      billingUnit: 'MILLION_TOKENS',
+      allowedBillingUnits: ['MILLION_TOKENS'],
+      tokenCategories: ['input', 'output'],
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [tokenModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: tokenModel,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          currentProviderRate: {
+            ...detail.pricingScopes[0].currentProviderRate,
+            billingUnit: 'MILLION_TOKENS',
+            normalizedTokenRates: { input: '1.00', output: '2.00' },
+          },
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                billingUnit: 'MILLION_TOKENS',
+                tokenRates: { input: '100', output: '200' },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    mocks.preview.mockRejectedValueOnce({
+      response: {
+        data: {
+          code: 'VALIDATION_FAILED',
+          details: {
+            reason: 'exactPointConversionRequired',
+            parameterCombinationId: 'scope-1',
+            priceGroupId: 'group-1',
+            tokenCategory: 'output',
+          },
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    const providers = screen.getAllByLabelText(/Provider successful price/)
+    const customers = screen.getAllByLabelText(/Customer CNY price/)
+    fireEvent.change(providers[0], { target: { value: '1.00' } })
+    fireEvent.change(providers[1], { target: { value: '2.00' } })
+    fireEvent.change(customers[0], { target: { value: '3.00' } })
+    fireEvent.change(customers[1], { target: { value: '4.01' } })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    expect(
+      await screen.findByText(
+        'This CNY price cannot be converted to an exact point value. Adjust the price.'
+      )
+    ).toBeVisible()
+    expect(customers[1]).toHaveFocus()
+    expect(customers[1]).toHaveAttribute('aria-invalid', 'true')
+    expect(customers[0]).toHaveAttribute('aria-invalid', 'false')
+  })
+
+  it('localizes a CNY price-at-cost conflict and disables confirmation', async () => {
+    const basePreview = await mocks.preview()
+    mocks.preview.mockReset()
+    mocks.preview.mockResolvedValueOnce({
+      ...basePreview,
+      inputMode: 'CNY',
+      effectiveMode: 'IMMEDIATE',
+      conflicts: [
+        {
+          code: 'CUSTOMER_PRICE_NOT_ABOVE_COST',
+          parameterCombinationId: 'scope-1',
+          priceGroupId: 'group-1',
+          categories: ['input'],
+          message: 'raw server message',
+        },
+      ],
+      canPublish: false,
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '1.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    expect(
+      await screen.findByText(/Customer CNY price must be above/)
+    ).toHaveTextContent('input')
+    expect(
+      screen.getByRole('button', { name: 'Confirm and publish' })
+    ).toBeDisabled()
+  })
+
+  it('opens POINTS with defaults when the current version was entered in CNY', async () => {
+    const detail = await mocks.detail()
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                inputMode: 'CNY',
+                points: '987',
+                questionnaire: {
+                  ...detail.pricingScopes[0].prices[0].current.questionnaire,
+                  targetMarginRate: null,
+                  successProbability: '1',
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1')
+    await openPricing()
+    expect(screen.getByLabelText(/Target margin/)).toHaveValue('40')
+    expect(screen.getByLabelText('Proposed price points')).toHaveValue('')
+  })
+
+  it('clears the published CNY draft and navigation warning after success', async () => {
+    const basePreview = await mocks.preview()
+    mocks.preview.mockReset()
+    mocks.preview.mockResolvedValue({
+      ...basePreview,
+      inputMode: 'CNY',
+      effectiveMode: 'IMMEDIATE',
+    })
+    mocks.publish.mockResolvedValue({
+      id: 'publication-1',
+      status: 'PUBLISHED',
+      inputMode: 'CNY',
+      effectiveMode: 'IMMEDIATE',
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1')
+    await openPricing()
+    await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.00' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.00' },
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Confirm and publish' })
+    )
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
+    expect(
+      screen.queryByText('Current changes have not been published.')
+    ).not.toBeInTheDocument()
+  })
+
+  it.each(['field', 'unit', 'metadata'] as const)(
+    'does not send a stale CNY preview when %s changes while validation is pending',
+    async (change) => {
+      const user = userEvent.setup()
+      renderPricing('model-1')
+      await openPricing()
+      await user.click(screen.getByRole('radio', { name: 'CNY pricing' }))
+      fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+        target: { value: '1.00' },
+      })
+      const customer = screen.getByLabelText(/Customer CNY price/)
+      fireEvent.change(customer, { target: { value: '2.00' } })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Preview and publish' })
+      )
+      if (change === 'field') {
+        fireEvent.change(customer, { target: { value: '2.50' } })
+      } else if (change === 'metadata') {
+        fireEvent.change(screen.getByLabelText('Change reason (optional)'), {
+          target: { value: 'new metadata' },
+        })
+      } else {
+        fireEvent.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+        fireEvent.click(screen.getByRole('option', { name: 'per request' }))
+      }
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(mocks.preview).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: 'Confirm and publish' })
+      ).not.toBeInTheDocument()
+    }
+  )
+
   it('uses questionnaire labels in Chinese formulas and rounds the target only after dividing by margin', async () => {
     i18next.addResourceBundle('zhCN', 'translation', zh.translation, true, true)
     await i18next.changeLanguage('zhCN')
@@ -1376,21 +1937,20 @@ describe('UnifiedModelPricing', () => {
       target: { value: '0.15' },
     })
 
-    await userEvent.setup().click(
-      screen.getByRole('tab', { name: 'History versions' })
-    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole('tab', { name: 'History versions' }))
     expect(
       await screen.findByText('Leave unpublished pricing changes?')
     ).toBeVisible()
 
-    await userEvent.setup().click(
-      screen.getByRole('button', { name: 'Discard changes and leave' })
-    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Discard changes and leave' }))
     await waitFor(() =>
-      expect(screen.getByRole('tab', { name: 'History versions' })).toHaveAttribute(
-        'aria-selected',
-        'true'
-      )
+      expect(
+        screen.getByRole('tab', { name: 'History versions' })
+      ).toHaveAttribute('aria-selected', 'true')
     )
   })
 
@@ -1405,22 +1965,19 @@ describe('UnifiedModelPricing', () => {
       target: { value: '0.15' },
     })
 
-    await userEvent.setup().click(
-      screen.getByRole('tab', { name: 'History versions' })
-    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole('tab', { name: 'History versions' }))
 
     expect(onTabChange).not.toHaveBeenCalledWith('history')
+    expect(screen.getByText('Leave unpublished pricing changes?')).toBeVisible()
     expect(
-      screen.getByText('Leave unpublished pricing changes?')
-    ).toBeVisible()
-    expect(screen.getByRole('tab', { name: 'Set prices', hidden: true })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+      screen.getByRole('tab', { name: 'Set prices', hidden: true })
+    ).toHaveAttribute('aria-selected', 'true')
 
-    await userEvent.setup().click(
-      screen.getByRole('button', { name: 'Discard changes and leave' })
-    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Discard changes and leave' }))
     expect(onTabChange).toHaveBeenCalledWith('history')
 
     rerender(
@@ -1448,7 +2005,11 @@ describe('UnifiedModelPricing', () => {
         />
       </QueryClientProvider>
     )
-    expect(await screen.findByLabelText('Change reason (optional)')).toHaveValue('')
-    expect(screen.queryByText('Current changes have not been published.')).not.toBeInTheDocument()
+    expect(
+      await screen.findByLabelText('Change reason (optional)')
+    ).toHaveValue('')
+    expect(
+      screen.queryByText('Current changes have not been published.')
+    ).not.toBeInTheDocument()
   })
 })

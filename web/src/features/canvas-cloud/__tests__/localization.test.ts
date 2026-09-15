@@ -864,3 +864,18 @@ it('localizes customer price assignment labels in every supported language', () 
     }
   }
 })
+
+it.each([
+  ['zh-TW', zhTW, '名額占用中'],
+  ['ja', ja, '一時的に満員'],
+  ['fr', fr, 'Temporairement complet'],
+  ['ru', ru, 'Временно заполнен'],
+  ['vi', vi, 'Tạm thời đủ chỗ'],
+] as const)(
+  'keeps the UAT-021 temporary-full label exact in %s',
+  (_locale, resource, expected) => {
+    expect(resource.translation['Invite status TEMPORARILY_FULL']).toBe(
+      expected
+    )
+  }
+)

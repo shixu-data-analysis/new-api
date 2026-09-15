@@ -205,6 +205,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     const details = await screen.findByRole('button', { name: 'Details' })
     expect(screen.getByText('202 → 200')).toBeVisible()
     fireEvent.click(details)
+    expect(
+      screen.getByRole('button', { name: 'Hide details' })
+    ).toBeVisible()
     expect(await screen.findByText('call-long-id')).toHaveClass('break-all')
     expect(screen.getByText('executor-01')).toBeVisible()
     fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
@@ -379,6 +382,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'Target point lot frozen points',
       'Executor request confirmed not sent',
       'Points released',
+      'Hide details',
     ]
     for (const locale of [en, zh, zhTW, fr, ru, ja, viLocale]) {
       for (const key of keys) {

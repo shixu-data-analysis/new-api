@@ -334,10 +334,24 @@ export type CanvasInviteCodeStatus =
 export interface CanvasAdminInviteCode {
   id: string
   maskedCode: string
+  codeMode: 'GENERATED' | 'CUSTOM'
   status: CanvasInviteCodeStatus
-  effectiveStatus: CanvasInviteCodeStatus
+  redeemable: boolean
+  unavailableReasons: Array<
+    | 'DRAFT'
+    | 'NOT_STARTED'
+    | 'PAUSED'
+    | 'EXPIRED'
+    | 'TEMPORARILY_FULL'
+    | 'EXHAUSTED'
+    | 'REVOKED'
+  >
+  allowedActions: Array<
+    'DISPLAY' | 'COPY' | 'PAUSE' | 'RESUME' | 'EXTEND_EXPIRATION' | 'REVOKE'
+  >
   maxRegistrations: string
   reservedCount: string
+  activeReservedCount: string
   consumedCount: string
   remainingCount: string
   validFrom: string
@@ -571,6 +585,20 @@ export interface CanvasProviderPricingRow {
 export interface CanvasCreatedInviteCode {
   item: CanvasAdminInviteCode
   code: string | null
+}
+
+export interface CanvasInviteCodeAvailability {
+  available: boolean
+  unavailableReasons: string[]
+}
+
+export interface CanvasInviteCodeExtensionPreview {
+  item: CanvasAdminInviteCode
+  expectedExpiresAt: string
+  currentExpiresAt: string
+  newExpiresAt: string
+  redeemable: boolean
+  unavailableReasons: CanvasAdminInviteCode['unavailableReasons']
 }
 
 export interface CanvasCustomerWorkspace {
@@ -974,7 +1002,7 @@ export type CanvasTokenCategoryAssumptions = Partial<
 >
 
 export interface CanvasModelPricingQuestionnaire {
-  targetMarginRate: string
+  targetMarginRate: string | null
   successProbability: string
   successfulTaskCostRmb: string | null
   failedUnrecoverableCostRmb: string | null
@@ -991,6 +1019,7 @@ export interface CanvasModelPricingCalculation {
   kPricingRmb: string
   breakEvenPointsCeil: string
   targetMarginPointsCeil: string
+  actualMarginRate?: string | null
 }
 
 export interface CanvasModelPricingProviderRate {
@@ -1010,11 +1039,19 @@ export interface CanvasModelPricingProviderRate {
 }
 
 export interface CanvasModelPricingPriceSnapshot {
+  inputMode: 'POINTS' | 'CNY'
   billingUnit: CanvasBillingUnit
   points: string
   tokenRates: CanvasModelPricingTokenRateVector | null
   questionnaire: CanvasModelPricingQuestionnaire
   calculation?: CanvasModelPricingCalculation
+  cnyCalculation?: {
+    providerSuccessPriceCny: CanvasModelPricingCnyValue
+    customerPriceCny: CanvasModelPricingCnyValue
+    actualMarginRate: CanvasModelPricingCnyValue
+    fullCostCny: CanvasModelPricingCnyValue
+    canPublish: boolean
+  }
   id?: string
   version?: number
   status?: string
@@ -1039,7 +1076,7 @@ export interface CanvasModelPricingPriceSnapshot {
   }
 }
 
-export interface CanvasModelPricingScope {
+export interface CanvasModelPricingPointsScope {
   parameterCombinationId: string
   providerRate:
     | {
@@ -1069,6 +1106,22 @@ export interface CanvasModelPricingScope {
     evidenceRefs?: string[]
   }>
 }
+
+export type CanvasModelPricingCnyValue =
+  | string
+  | CanvasModelPricingTokenRateVector
+
+export interface CanvasModelPricingCnyScope {
+  parameterCombinationId: string
+  providerSuccessPriceCny: CanvasModelPricingCnyValue
+  prices: Array<{
+    priceGroupId: string
+    sourcePriceVersionId?: string
+    customerPriceCny: CanvasModelPricingCnyValue
+  }>
+}
+
+export type CanvasModelPricingScope = CanvasModelPricingPointsScope
 
 export interface CanvasModelPricingModel {
   id: string
@@ -1126,6 +1179,8 @@ export interface CanvasModelPricingPreview {
   customerModelId: string
   billingUnit: CanvasBillingUnit
   effectiveAt: string
+  inputMode: 'POINTS' | 'CNY'
+  effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
   pointIssuanceRate: { id: string; version: number; pointsPerRmb: string }
   unitChange: {
     from: CanvasBillingUnit | null
@@ -1145,6 +1200,7 @@ export interface CanvasModelPricingPreview {
     code: string
     parameterCombinationId?: string
     priceGroupId?: string
+    categories?: CanvasTokenCategory[]
     message: string
   }>
   canPublish: boolean
@@ -1175,6 +1231,8 @@ export interface CanvasModelPricingPublicationResult {
   version: number
   status: 'APPROVED' | 'PUBLISHED' | 'CANCELLED'
   effectiveAt: string
+  inputMode: 'POINTS' | 'CNY'
+  effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
   billingUnit: CanvasBillingUnit
   providerRateVersionIds: string[]
   priceVersionIds: string[]

@@ -27,6 +27,9 @@ import {
   createCanvasPointIssuanceRateDraft,
   createCanvasLimitedPricePromotion,
   createCanvasAdminInviteCode,
+  checkCanvasInviteCodeAvailability,
+  previewCanvasInviteCodeExtension,
+  extendCanvasAdminInviteCode,
   downloadCanvasUnusedRechargeCodes,
   createCanvasPriceDraft,
   approveCanvasPriceGroup,
@@ -111,6 +114,60 @@ describe('Canvas Cloud API boundary', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     mocks.post.mockReset()
+  })
+
+  it('keeps UAT-021 invite availability and extension payloads on Cloud endpoints', async () => {
+    mocks.post.mockResolvedValue({
+      data: { available: true, unavailableReasons: [] },
+    })
+    await expect(
+      checkCanvasInviteCodeAvailability(' vip2026 ')
+    ).resolves.toEqual({
+      available: true,
+      unavailableReasons: [],
+    })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/availability',
+      { code: ' vip2026 ' },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    mocks.post.mockResolvedValue({
+      data: { redeemable: true, unavailableReasons: [] },
+    })
+    await previewCanvasInviteCodeExtension({
+      id: 'invite-1',
+      expectedExpiresAt: '2026-09-10T00:00:00.000Z',
+      newExpiresAt: '2026-10-10T00:00:00.000Z',
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/invite-1/extend/preview',
+      {
+        expectedExpiresAt: '2026-09-10T00:00:00.000Z',
+        newExpiresAt: '2026-10-10T00:00:00.000Z',
+      },
+      expect.objectContaining({ skipErrorHandler: true })
+    )
+    await extendCanvasAdminInviteCode({
+      id: 'invite-1',
+      expectedExpiresAt: '2026-09-10T00:00:00.000Z',
+      newExpiresAt: '2026-10-10T00:00:00.000Z',
+      reason: 'UAT',
+      confirmed: true,
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/invite-1/extend',
+      {
+        expectedExpiresAt: '2026-09-10T00:00:00.000Z',
+        newExpiresAt: '2026-10-10T00:00:00.000Z',
+        reason: 'UAT',
+        confirmed: true,
+      },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^web-invite-extend-/u),
+        }),
+      })
+    )
   })
 
   it('loads paged secret-free provider credential group changes', async () => {
@@ -467,6 +524,7 @@ describe('Canvas Cloud API boundary', () => {
     })
 
     const input = {
+      codeMode: 'GENERATED' as const,
       customerModelId: 'model-id',
       priceGroupId: 'group-id',
       parameterCombinationId: 'combination-id',

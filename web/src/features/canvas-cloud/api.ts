@@ -39,6 +39,8 @@ import type {
   CanvasAdminInviteCodeQuery,
   CanvasCreatedInviteCode,
   CanvasInviteCodeOptions,
+  CanvasInviteCodeAvailability,
+  CanvasInviteCodeExtensionPreview,
   CanvasModelCatalogBundle,
   CanvasModelCatalogPlan,
   CanvasAgentProfile,
@@ -85,6 +87,7 @@ import type {
   CanvasModelPricingPublication,
   CanvasModelPricingPublicationResult,
   CanvasModelPricingScope,
+  CanvasModelPricingCnyScope,
   CanvasModelPricingWorkspace,
   CanvasModelMonitoring,
   CanvasModelMonitoringTargets,
@@ -412,21 +415,35 @@ export async function getCanvasModelPricingPublication(
   ).data
 }
 
-export async function previewCanvasModelPricing(input: {
-  customerModelId: string
-  billingUnit: import('./types').CanvasBillingUnit
-  effectiveAt?: string
-  decisionSummary?: string
-  scopes: CanvasModelPricingScope[]
-  costRiskResolution?:
+export async function previewCanvasModelPricing(
+  input:
     | {
-        type: 'TEMPORARY_LOSS'
-        lossEndsAt: string
-        maxExpectedLossPoints: string
-        reason: string
+        customerModelId: string
+        billingUnit: import('./types').CanvasBillingUnit
+        inputMode: 'POINTS'
+        effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
+        effectiveAt?: string
+        decisionSummary?: string
+        scopes: CanvasModelPricingScope[]
+        costRiskResolution?:
+          | {
+              type: 'TEMPORARY_LOSS'
+              lossEndsAt: string
+              maxExpectedLossPoints: string
+              reason: string
+            }
+          | { type: 'MANUAL_PAUSE'; reason: string }
       }
-    | { type: 'MANUAL_PAUSE'; reason: string }
-}): Promise<CanvasModelPricingPreview> {
+    | {
+        customerModelId: string
+        billingUnit: import('./types').CanvasBillingUnit
+        inputMode: 'CNY'
+        effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
+        effectiveAt?: string
+        decisionSummary?: string
+        scopes: CanvasModelPricingCnyScope[]
+      }
+): Promise<CanvasModelPricingPreview> {
   return (
     await api.post(`${webBase}/admin/model-pricing/previews`, input, {
       skipErrorHandler: true,
@@ -623,6 +640,8 @@ export async function getCanvasInviteCodeOptions(): Promise<CanvasInviteCodeOpti
 }
 
 export async function createCanvasAdminInviteCode(input: {
+  codeMode: 'GENERATED' | 'CUSTOM'
+  code?: string
   maxRegistrations: string
   validFrom: string
   expiresAt: string
@@ -642,6 +661,64 @@ export async function createCanvasAdminInviteCode(input: {
       {
         headers: {
           'Idempotency-Key': requestKey ?? idempotencyKey('web-invite-create'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function checkCanvasInviteCodeAvailability(
+  code: string,
+  signal?: AbortSignal
+): Promise<CanvasInviteCodeAvailability> {
+  return (
+    await api.post<CanvasInviteCodeAvailability>(
+      `${webBase}/admin/invite-codes/availability`,
+      { code },
+      { signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function previewCanvasInviteCodeExtension(input: {
+  id: string
+  expectedExpiresAt: string
+  newExpiresAt: string
+}): Promise<CanvasInviteCodeExtensionPreview> {
+  return (
+    await api.post<CanvasInviteCodeExtensionPreview>(
+      `${webBase}/admin/invite-codes/${input.id}/extend/preview`,
+      {
+        expectedExpiresAt: input.expectedExpiresAt,
+        newExpiresAt: input.newExpiresAt,
+      },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function extendCanvasAdminInviteCode(input: {
+  id: string
+  expectedExpiresAt: string
+  newExpiresAt: string
+  reason?: string
+  confirmed: true
+  idempotencyKey?: string
+}): Promise<CanvasAdminInviteCode> {
+  return (
+    await api.post<CanvasAdminInviteCode>(
+      `${webBase}/admin/invite-codes/${input.id}/extend`,
+      {
+        expectedExpiresAt: input.expectedExpiresAt,
+        newExpiresAt: input.newExpiresAt,
+        reason: input.reason ?? null,
+        confirmed: true,
+      },
+      {
+        headers: {
+          'Idempotency-Key':
+            input.idempotencyKey ?? idempotencyKey('web-invite-extend'),
         },
         skipErrorHandler: true,
       }

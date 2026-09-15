@@ -9,8 +9,8 @@ License, or (at your option) any later version.
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, Download, Pause, Play, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Copy, Download } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useController, useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -58,6 +58,9 @@ import { toIntlLocale } from '@/i18n/languages'
 import { getCanvasBindableBonusActivities } from '../activity-api'
 import {
   changeCanvasAdminInviteCodeStatus,
+  checkCanvasInviteCodeAvailability,
+  extendCanvasAdminInviteCode,
+  previewCanvasInviteCodeExtension,
   createCanvasAdminInviteCode,
   exportCanvasAdminInviteCodes,
   getCanvasAdminInviteCodes,
@@ -83,14 +86,18 @@ import {
 type PendingAction =
   | { kind: 'create' }
   | { kind: 'discard' }
+  | { kind: 'discardExtend' }
   | {
       kind: 'status'
       item: CanvasAdminInviteCode
       action: 'pause' | 'resume' | 'revoke'
     }
+  | { kind: 'extend'; item: CanvasAdminInviteCode }
   | null
 
 type InviteDraft = {
+  codeMode: 'GENERATED' | 'CUSTOM'
+  customCode: string
   maxRegistrations: string
   validFrom: string
   expiresAt: string
@@ -124,10 +131,12 @@ function formatTokyoDate(value: string, language: string): string {
   }).format(new Date(value))
 }
 
-function inviteCodeDisplayStatus(item: CanvasAdminInviteCode): string {
-  return item.effectiveStatus === 'ACTIVE' && item.remainingCount === '0'
-    ? 'EXHAUSTED'
-    : item.effectiveStatus
+function inviteCodeAllowedActions(item: CanvasAdminInviteCode): string[] {
+  return item.allowedActions
+}
+
+function normalizeInviteCode(value: string): string {
+  return value.trim().toUpperCase()
 }
 
 function FieldError(props: { id: string; message: string | null }) {
@@ -176,6 +185,8 @@ export function InviteCodeManagement(props: {
     resolver: zodResolver(
       z
         .object({
+          codeMode: z.enum(['GENERATED', 'CUSTOM']),
+          customCode: z.string(),
           maxRegistrations: z
             .string()
             .regex(
@@ -193,6 +204,18 @@ export function InviteCodeManagement(props: {
           promotionVersionId: z.string(),
         })
         .superRefine((value, context) => {
+          if (
+            value.codeMode === 'CUSTOM' &&
+            !/^[A-Z0-9]{6,8}$/u.test(value.customCode)
+          ) {
+            context.addIssue({
+              code: 'custom',
+              path: ['customCode'],
+              message: t(
+                'Custom invite code must be 6–8 uppercase letters or digits'
+              ),
+            })
+          }
           const from = new Date(value.validFrom).getTime()
           const expires = new Date(value.expiresAt).getTime()
           if (!Number.isFinite(from)) {
@@ -224,6 +247,8 @@ export function InviteCodeManagement(props: {
         })
     ),
     defaultValues: {
+      codeMode: 'GENERATED',
+      customCode: '',
       maxRegistrations: '1',
       ...initialDates,
       priceGroupId: '',
@@ -246,6 +271,22 @@ export function InviteCodeManagement(props: {
   const [createError, setCreateError] = useState<string | null>(null)
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
+  const [pendingReveals, setPendingReveals] = useState<Record<string, true>>({})
+  const [extendOpen, setExtendOpen] = useState(false)
+  const [extendItem, setExtendItem] = useState<CanvasAdminInviteCode | null>(
+    null
+  )
+  const [extendExpiresAt, setExtendExpiresAt] = useState('')
+  const [extendReason, setExtendReason] = useState('')
+  const [extendIdempotencyKey, setExtendIdempotencyKey] = useState('')
+  const [extendPreview, setExtendPreview] = useState<Awaited<
+    ReturnType<typeof previewCanvasInviteCodeExtension>
+  > | null>(null)
+  const [extendFieldErrors, setExtendFieldErrors] = useState<
+    Record<string, string>
+  >({})
+  const availabilityRequestVersion = useRef(0)
+  const extendPreviewRequestVersion = useRef(0)
   const tableState = useServerTableState('createdAt')
   const setPagination = tableState.setPagination
   const [status, setStatus] = useState('')
@@ -312,8 +353,63 @@ export function InviteCodeManagement(props: {
   const selectedPriceGroup = options.data?.priceGroups.find(
     (item) => item.id === selectedPriceGroupId
   )
+  const openExtend = (item: CanvasAdminInviteCode) => {
+    extendPreviewRequestVersion.current += 1
+    setExtendItem(item)
+    setExtendExpiresAt(localDateTime(new Date(item.expiresAt)))
+    setExtendReason('')
+    setExtendIdempotencyKey(`web-invite-extend-${crypto.randomUUID()}`)
+    setExtendPreview(null)
+    setExtendFieldErrors({})
+    setExtendOpen(true)
+  }
+  const extendIsDirty = Boolean(
+    extendItem &&
+    (extendExpiresAt !== localDateTime(new Date(extendItem.expiresAt)) ||
+      extendReason !== '')
+  )
+  const closeExtend = () => {
+    extendPreviewRequestVersion.current += 1
+    setExtendOpen(false)
+    setExtendItem(null)
+    setExtendExpiresAt('')
+    setExtendReason('')
+    setExtendPreview(null)
+    setExtendFieldErrors({})
+    setExtendIdempotencyKey('')
+  }
+  const previewExtend = async () => {
+    if (!extendItem || !extendExpiresAt) return
+    const requestVersion = ++extendPreviewRequestVersion.current
+    const proposal = {
+      id: extendItem.id,
+      expectedExpiresAt: extendItem.expiresAt,
+      newExpiresAt: new Date(extendExpiresAt).toISOString(),
+      reason: extendReason,
+    }
+    try {
+      const result = await previewCanvasInviteCodeExtension({
+        id: proposal.id,
+        expectedExpiresAt: proposal.expectedExpiresAt,
+        newExpiresAt: proposal.newExpiresAt,
+      })
+      if (requestVersion !== extendPreviewRequestVersion.current) return
+      setExtendPreview(result)
+    } catch (error) {
+      if (requestVersion !== extendPreviewRequestVersion.current) return
+      const field = inviteCodeFailureField(error)
+      if (field === 'newExpiresAt' || field === 'expectedExpiresAt') {
+        setExtendFieldErrors({
+          newExpiresAt: t('Invite expiration preview could not be loaded'),
+        })
+      }
+      toast.error(t('Invite expiration preview could not be loaded'))
+    }
+  }
   const resetCreateDraft = useCallback(() => {
     inviteForm.reset({
+      codeMode: 'GENERATED',
+      customCode: '',
       maxRegistrations: '1',
       ...initialDates,
       priceGroupId: '',
@@ -345,6 +441,10 @@ export function InviteCodeManagement(props: {
   const create = useMutation({
     mutationFn: () =>
       createCanvasAdminInviteCode({
+        codeMode: form.codeMode,
+        ...(form.codeMode === 'CUSTOM'
+          ? { code: normalizeInviteCode(form.customCode) }
+          : {}),
         maxRegistrations: form.maxRegistrations,
         validFrom: new Date(form.validFrom).toISOString(),
         expiresAt: new Date(form.expiresAt).toISOString(),
@@ -377,14 +477,17 @@ export function InviteCodeManagement(props: {
     onError: (error) => {
       const code = inviteCodeFailureCode(error)
       const field = inviteCodeFailureField(error)
-      const target =
-        field === 'maxRegistrations' ||
-        field === 'expiresAt' ||
-        field === 'priceGroupId' ||
-        field === 'referralPrincipalId' ||
-        field === 'promotionVersionId'
-          ? field
-          : null
+      const validField = [
+        'maxRegistrations',
+        'customCode',
+        'code',
+        'expiresAt',
+        'priceGroupId',
+        'referralPrincipalId',
+        'promotionVersionId',
+      ].includes(field ?? '')
+      let target: string | null = validField ? field : null
+      if (target === 'code') target = 'customCode'
       let message = t('Invite code could not be created')
       if (code === 'INVALID_INVITE_CAPACITY') {
         message = t('Enter a positive whole number within the supported range')
@@ -403,6 +506,11 @@ export function InviteCodeManagement(props: {
         message = t(
           'Your administrator session is no longer authorized. Refresh the page and sign in again.'
         )
+      } else if (
+        code === 'INVITE_CODE_UNAVAILABLE' ||
+        code === 'INVITE_CODE_INVALID'
+      ) {
+        message = t('Invite code is invalid or unavailable')
       }
       if (target) inviteForm.setError(target, { type: 'server', message })
       setCreateError(message)
@@ -425,6 +533,64 @@ export function InviteCodeManagement(props: {
       })
     },
     onError: () => toast.error(t('Invite code status could not be updated')),
+  })
+  const extend = useMutation({
+    mutationFn: (input: {
+      id: string
+      expectedExpiresAt: string
+      newExpiresAt: string
+      reason: string
+    }) =>
+      extendCanvasAdminInviteCode({
+        ...input,
+        confirmed: true,
+        idempotencyKey: extendIdempotencyKey,
+      }),
+    onSuccess: (result) => {
+      queryClient.setQueriesData<{ items: CanvasAdminInviteCode[] }>(
+        { queryKey: ['canvas-cloud', 'admin-invite-codes'] },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === result.id ? result : item
+                ),
+              }
+            : current
+      )
+      setPendingAction(null)
+      toast.success(t('Invite expiration extended'))
+      closeExtend()
+    },
+    onError: (error) => {
+      const field = inviteCodeFailureField(error)
+      if (field) {
+        setExtendFieldErrors({
+          [field]: t('Invite expiration could not be extended'),
+        })
+      }
+      toast.error(t('Invite expiration could not be extended'))
+    },
+  })
+  const availability = useMutation({
+    mutationFn: (input: { code: string; requestVersion: number }) =>
+      checkCanvasInviteCodeAvailability(input.code),
+    onSuccess: (result, input) => {
+      if (
+        input.requestVersion !== availabilityRequestVersion.current ||
+        inviteForm.getValues('codeMode') !== 'CUSTOM' ||
+        normalizeInviteCode(inviteForm.getValues('customCode')) !== input.code
+      ) {
+        return
+      }
+      if (!result.available) {
+        inviteForm.setError('customCode', {
+          type: 'server',
+          message: t('Invite code is invalid or unavailable'),
+        })
+      }
+    },
   })
   const exportCodes = useMutation({
     mutationFn: () =>
@@ -466,6 +632,14 @@ export function InviteCodeManagement(props: {
       setRevealedCodes((current) => ({ ...current, [result.id]: result.code }))
     },
     onError: () => toast.error(t('Invite code could not be revealed')),
+    onSettled: (_data, _error, variables) => {
+      const key = `${variables.id}:${variables.action}`
+      setPendingReveals((current) => {
+        const next = { ...current }
+        delete next[key]
+        return next
+      })
+    },
   })
 
   const shouldShowError = (field: keyof InviteDraft) =>
@@ -521,57 +695,88 @@ export function InviteCodeManagement(props: {
         const revealLabel = t(
           revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
         )
+        const canDisplay = inviteCodeAllowedActions(item).includes('DISPLAY')
+        const canCopy = inviteCodeAllowedActions(item).includes('COPY')
         return (
           <div className='flex w-full items-start gap-1'>
             <span className='min-w-0 flex-1 font-mono break-all'>
               {revealedCodes[item.id] ?? item.maskedCode}
             </span>
-            <CanvasCodeRevealButton
-              label={revealLabel}
-              revealed={Boolean(revealedCodes[item.id])}
-              disabled={reveal.isPending}
-              onClick={() => {
-                if (revealedCodes[item.id]) {
-                  setRevealedCodes((current) => {
-                    const next = { ...current }
-                    delete next[item.id]
-                    return next
-                  })
-                  return
-                }
-                reveal.mutate({ id: item.id, action: 'DISPLAY' })
-              }}
-            />
-            <Button
-              aria-label={t('Copy invite code')}
-              disabled={reveal.isPending}
-              size='icon-sm'
-              title={t('Copy invite code')}
-              type='button'
-              variant='ghost'
-              onClick={() => reveal.mutate({ id: item.id, action: 'COPY' })}
-            >
-              <Copy aria-hidden='true' className='size-4' />
-            </Button>
+            {canDisplay ? (
+              <CanvasCodeRevealButton
+                label={revealLabel}
+                revealed={Boolean(revealedCodes[item.id])}
+                disabled={pendingReveals[`${item.id}:DISPLAY`] === true}
+                onClick={() => {
+                  if (revealedCodes[item.id]) {
+                    setRevealedCodes((current) => {
+                      const next = { ...current }
+                      delete next[item.id]
+                      return next
+                    })
+                    return
+                  }
+                  setPendingReveals((current) => ({
+                    ...current,
+                    [`${item.id}:DISPLAY`]: true,
+                  }))
+                  reveal.mutate({ id: item.id, action: 'DISPLAY' })
+                }}
+              />
+            ) : null}
+            {canCopy ? (
+              <Button
+                aria-label={t('Copy invite code')}
+                disabled={pendingReveals[`${item.id}:COPY`] === true}
+                size='icon-sm'
+                title={t('Copy invite code')}
+                type='button'
+                variant='ghost'
+                onClick={() => {
+                  setPendingReveals((current) => ({
+                    ...current,
+                    [`${item.id}:COPY`]: true,
+                  }))
+                  reveal.mutate({ id: item.id, action: 'COPY' })
+                }}
+              >
+                <Copy aria-hidden='true' className='size-4' />
+              </Button>
+            ) : null}
           </div>
         )
       },
     },
     {
       id: 'status',
-      accessorKey: 'effectiveStatus',
+      accessorKey: 'redeemable',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
       cell: ({ row }) => {
-        const status = inviteCodeDisplayStatus(row.original)
+        const labels = row.original.redeemable
+          ? [t('Invite status REDEEMABLE')]
+          : row.original.unavailableReasons.map((reason) =>
+              t(`Invite status ${reason}`)
+            )
         return (
           <CanvasStatusBadge
-            status={status}
-            label={t(`Invite status ${status}`)}
+            status={
+              row.original.redeemable
+                ? 'REDEEMABLE'
+                : (row.original.unavailableReasons[0] ?? 'UNKNOWN')
+            }
+            label={labels.join(' · ')}
           />
         )
       },
+    },
+    {
+      id: 'codeMode',
+      accessorKey: 'codeMode',
+      header: t('Generation method'),
+      cell: ({ row }) =>
+        t(row.original.codeMode === 'CUSTOM' ? 'Custom' : 'System generated'),
     },
     {
       id: 'priceGroup',
@@ -629,9 +834,9 @@ export function InviteCodeManagement(props: {
       cell: ({ row }) => (
         <span className='tabular-nums'>
           {row.original.consumedCount} / {row.original.maxRegistrations}
-          {Number(row.original.reservedCount) > 0 ? (
+          {Number(row.original.activeReservedCount) > 0 ? (
             <span className='text-muted-foreground block'>
-              {t('Reserved')}: {row.original.reservedCount}
+              {t('Reserved')}: {row.original.activeReservedCount}
             </span>
           ) : null}
         </span>
@@ -687,25 +892,29 @@ export function InviteCodeManagement(props: {
       cell: ({ row }) => {
         const item = row.original
         const actionCandidates = [
-          item.effectiveStatus === 'ACTIVE'
+          inviteCodeAllowedActions(item).includes('PAUSE')
             ? {
                 action: 'pause' as const,
                 label: t('Pause invite code'),
-                Icon: Pause,
               }
             : null,
-          item.effectiveStatus === 'PAUSED'
+          inviteCodeAllowedActions(item).includes('RESUME')
             ? {
                 action: 'resume' as const,
                 label: t('Resume invite code'),
-                Icon: Play,
               }
             : null,
-          ['ACTIVE', 'PAUSED'].includes(item.effectiveStatus)
+          inviteCodeAllowedActions(item).includes('REVOKE')
             ? {
                 action: 'revoke' as const,
                 label: t('Revoke'),
-                Icon: Trash2,
+              }
+            : null,
+          inviteCodeAllowedActions(item).includes('EXTEND_EXPIRATION')
+            ? {
+                action: 'extend' as const,
+                label: t('Extend expiration'),
+                Icon: null,
               }
             : null,
         ]
@@ -718,7 +927,7 @@ export function InviteCodeManagement(props: {
         }
         return (
           <div className='flex min-w-max items-center justify-end gap-1'>
-            {actions.map(({ action, label, Icon }) => (
+            {actions.map(({ action, label }) => (
               <Button
                 key={action}
                 className={
@@ -728,11 +937,17 @@ export function InviteCodeManagement(props: {
                 }
                 type='button'
                 variant='outline'
-                onClick={() =>
-                  setPendingAction({ kind: 'status', item, action })
+                disabled={
+                  action !== 'extend' &&
+                  changeStatus.isPending &&
+                  changeStatus.variables?.id === item.id &&
+                  changeStatus.variables.action === action
                 }
+                onClick={() => {
+                  if (action === 'extend') openExtend(item)
+                  else setPendingAction({ kind: 'status', item, action })
+                }}
               >
-                <Icon aria-hidden='true' />
                 {label}
               </Button>
             ))}
@@ -827,6 +1042,13 @@ export function InviteCodeManagement(props: {
         )
       : t('Leaving will discard the unpublished invite-code draft.')
     confirmationDestructive = true
+  } else if (pendingAction?.kind === 'discardExtend') {
+    confirmationTitle = t('Discard this draft?')
+    confirmationConfirmLabel = t('Discard draft')
+    confirmationDescription = t(
+      'Leaving will discard the unpublished invite-code draft.'
+    )
+    confirmationDestructive = true
   } else if (pendingAction?.kind === 'status') {
     let targetStatus = 'REVOKED'
     confirmationTitle = t('Revoke this invite code?')
@@ -857,9 +1079,11 @@ export function InviteCodeManagement(props: {
       },
       {
         label: t('Current status'),
-        value: t(
-          `Invite status ${inviteCodeDisplayStatus(pendingAction.item)}`
-        ),
+        value: pendingAction.item.redeemable
+          ? t('Invite status REDEEMABLE')
+          : pendingAction.item.unavailableReasons
+              .map((reason) => t(`Invite status ${reason}`))
+              .join(' · '),
       },
       {
         label: t('New status'),
@@ -930,6 +1154,88 @@ export function InviteCodeManagement(props: {
                 </p>
               ) : null}
               <SideDrawerSection className='grid gap-4'>
+                <fieldset className='space-y-2'>
+                  <legend className='text-sm font-medium'>
+                    {t('Generation method')} <span aria-hidden='true'> *</span>
+                  </legend>
+                  <div className='flex flex-wrap gap-4'>
+                    {(['GENERATED', 'CUSTOM'] as const).map((mode) => (
+                      <label
+                        key={mode}
+                        className='flex items-center gap-2 text-sm'
+                      >
+                        <input
+                          type='radio'
+                          value={mode}
+                          checked={form.codeMode === mode}
+                          onChange={() => {
+                            availabilityRequestVersion.current += 1
+                            inviteForm.clearErrors('customCode')
+                            inviteForm.setValue('codeMode', mode, {
+                              shouldDirty: true,
+                            })
+                          }}
+                        />
+                        {t(mode === 'CUSTOM' ? 'Custom' : 'System generated')}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                {form.codeMode === 'CUSTOM' ? (
+                  <div className='space-y-2'>
+                    <Label htmlFor='invite-custom-code'>
+                      {t('Invite code')} *
+                    </Label>
+                    <Input
+                      id='invite-custom-code'
+                      aria-label={t('Invite code')}
+                      value={form.customCode}
+                      maxLength={8}
+                      autoCapitalize='characters'
+                      aria-invalid={Boolean(
+                        inviteForm.formState.errors.customCode
+                      )}
+                      onChange={(event) => {
+                        availabilityRequestVersion.current += 1
+                        inviteForm.clearErrors('customCode')
+                        inviteForm.setValue(
+                          'customCode',
+                          normalizeInviteCode(event.target.value),
+                          { shouldDirty: true, shouldTouch: true }
+                        )
+                      }}
+                      onBlur={() => {
+                        void inviteForm.trigger('customCode')
+                        const normalized = normalizeInviteCode(form.customCode)
+                        if (/^[A-Z0-9]{6,8}$/u.test(normalized)) {
+                          const requestVersion =
+                            ++availabilityRequestVersion.current
+                          availability.mutate({
+                            code: normalized,
+                            requestVersion,
+                          })
+                        }
+                      }}
+                    />
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Custom invite code must be 6–8 uppercase letters or digits'
+                      )}
+                    </p>
+                    <FieldError
+                      id='invite-custom-code-error'
+                      message={
+                        inviteForm.formState.errors.customCode?.message ?? null
+                      }
+                    />
+                  </div>
+                ) : (
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'System will generate CANVAS- followed by 8 uppercase letters or digits'
+                    )}
+                  </p>
+                )}
                 <div className='space-y-2'>
                   <Label htmlFor='invite-capacity'>
                     {t('Registration capacity')}
@@ -1302,6 +1608,179 @@ export function InviteCodeManagement(props: {
         </SheetContent>
       </Sheet>
 
+      <Sheet
+        open={extendOpen}
+        onOpenChange={(open) => {
+          if (open) setExtendOpen(true)
+          else if (extendIsDirty) setPendingAction({ kind: 'discardExtend' })
+          else closeExtend()
+        }}
+      >
+        <SheetContent className={sideDrawerContentClassName('sm:max-w-xl')}>
+          <SheetHeader className={sideDrawerHeaderClassName()}>
+            <SheetTitle>{t('Extend expiration')}</SheetTitle>
+            <SheetDescription>
+              {t('Only the expiration time will change.')}
+            </SheetDescription>
+          </SheetHeader>
+          {extendItem ? (
+            <form
+              className={sideDrawerFormClassName()}
+              onSubmit={(event) => {
+                event.preventDefault()
+                const nextExpiry = new Date(extendExpiresAt)
+                if (
+                  !Number.isFinite(nextExpiry.getTime()) ||
+                  nextExpiry <= new Date(extendItem.expiresAt) ||
+                  nextExpiry <= new Date()
+                ) {
+                  setExtendFieldErrors({
+                    newExpiresAt: t('Expiry must be in the future'),
+                  })
+                  toast.error(t('Expiry must be in the future'))
+                  return
+                }
+                if (!extendPreview) {
+                  void previewExtend()
+                  return
+                }
+                extend.mutate({
+                  id: extendItem.id,
+                  expectedExpiresAt: extendItem.expiresAt,
+                  newExpiresAt: new Date(extendExpiresAt).toISOString(),
+                  reason: extendReason.trim(),
+                })
+              }}
+            >
+              <p className='text-sm'>
+                {t('Invite code')}: {extendItem.maskedCode}
+              </p>
+              <p className='text-sm'>
+                {t('Current status')}:{' '}
+                {extendItem.redeemable
+                  ? t('Invite status REDEEMABLE')
+                  : extendItem.unavailableReasons
+                      .map((reason) => t(`Invite status ${reason}`))
+                      .join(' · ')}{' '}
+                · {t('Used / capacity')}: {extendItem.consumedCount} /{' '}
+                {extendItem.maxRegistrations}
+              </p>
+              <p className='text-sm'>
+                {t('Expires at')}:{' '}
+                {formatDate(
+                  extendItem.expiresAt,
+                  i18n.resolvedLanguage ?? i18n.language
+                )}
+              </p>
+              <div className='space-y-2'>
+                <Label id='invite-extend-at-label'>
+                  {t('New expiration time')} *
+                </Label>
+                <div
+                  role='group'
+                  aria-labelledby='invite-extend-at-label'
+                  aria-invalid={Boolean(
+                    extendFieldErrors.expectedExpiresAt ||
+                    extendFieldErrors.newExpiresAt
+                  )}
+                  aria-describedby={
+                    extendFieldErrors.expectedExpiresAt ||
+                    extendFieldErrors.newExpiresAt
+                      ? 'invite-extend-at-error'
+                      : undefined
+                  }
+                >
+                  <DateTimePicker
+                    value={parsedLocalDateTime(extendExpiresAt)}
+                    onChange={(value) => {
+                      extendPreviewRequestVersion.current += 1
+                      setExtendExpiresAt(value ? localDateTime(value) : '')
+                      setExtendPreview(null)
+                      setExtendFieldErrors({})
+                    }}
+                    placeholder={t('New expiration time')}
+                    className='grid w-full min-w-0 grid-cols-[minmax(0,1fr)_5rem_auto] gap-1.5 [&_input[type=time]]:w-full'
+                    futureOnly
+                  />
+                </div>
+                <FieldError
+                  id='invite-extend-at-error'
+                  message={
+                    extendFieldErrors.expectedExpiresAt ??
+                    extendFieldErrors.newExpiresAt ??
+                    null
+                  }
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='invite-extend-reason'>
+                  {t('Extension reason')} ({t('Optional')})
+                </Label>
+                <Input
+                  id='invite-extend-reason'
+                  maxLength={2000}
+                  aria-invalid={Boolean(extendFieldErrors.reason)}
+                  aria-describedby={
+                    extendFieldErrors.reason
+                      ? 'invite-extend-reason-error'
+                      : undefined
+                  }
+                  value={extendReason}
+                  onChange={(event) => {
+                    extendPreviewRequestVersion.current += 1
+                    setExtendReason(event.target.value)
+                    setExtendPreview(null)
+                    setExtendFieldErrors({})
+                  }}
+                />
+                <FieldError
+                  id='invite-extend-reason-error'
+                  message={extendFieldErrors.reason ?? null}
+                />
+              </div>
+              {extendPreview ? (
+                <p role='status' className='text-sm'>
+                  {t('After extension')}:{' '}
+                  {extendPreview.redeemable
+                    ? t('Invite status REDEEMABLE')
+                    : extendPreview.unavailableReasons
+                        .map((reason) => t(`Invite status ${reason}`))
+                        .join(' · ')}
+                </p>
+              ) : null}
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'This will not change the management status, capacity, price group, inviter, or invite bonus.'
+                )}
+              </p>
+              <SheetFooter className={sideDrawerFooterClassName()}>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => {
+                    if (extendIsDirty) {
+                      setPendingAction({ kind: 'discardExtend' })
+                    } else {
+                      closeExtend()
+                    }
+                  }}
+                >
+                  {t('Cancel')}
+                </Button>
+                <Button
+                  type='submit'
+                  disabled={extend.isPending || !extendExpiresAt}
+                >
+                  {extendPreview
+                    ? t('Confirm extension')
+                    : t('Preview extension')}
+                </Button>
+              </SheetFooter>
+            </form>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
       <Card>
         <CardContent>
           <CanvasServerTable
@@ -1407,7 +1886,7 @@ export function InviteCodeManagement(props: {
         }
         confirmLabel={confirmationConfirmLabel}
         destructive={confirmationDestructive}
-        pending={create.isPending || changeStatus.isPending}
+        pending={create.isPending || changeStatus.isPending || extend.isPending}
         onConfirm={() => {
           if (pendingAction?.kind === 'create') create.mutate()
           if (pendingAction?.kind === 'discard') {
@@ -1415,6 +1894,11 @@ export function InviteCodeManagement(props: {
             setIssuedCode(null)
             resetCreateDraft()
             setCreateOpen(false)
+            return
+          }
+          if (pendingAction?.kind === 'discardExtend') {
+            setPendingAction(null)
+            closeExtend()
             return
           }
           if (pendingAction?.kind === 'status') {

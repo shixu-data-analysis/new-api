@@ -208,10 +208,13 @@ describe('Canvas administrator task records', () => {
     fireEvent.click(await screen.findByRole('button', { name: task.id }))
 
     expect(
-      await screen.findByText('Task details', { exact: false })
+      await screen.findByText('Task details', { exact: true })
     ).toBeVisible()
-    expect(await screen.findByText('Outstanding debt')).toBeVisible()
-    expect(screen.getByText('0')).toBeVisible()
+    expect(
+      screen.queryByText(`Task details · ${task.id}`)
+    ).not.toBeInTheDocument()
+    expect(await screen.findByText('Execution result')).toBeVisible()
+    expect(screen.getByText('Task ID')).toBeVisible()
     await waitFor(() =>
       expect(apiMocks.getCanvasAdminTaskRecord).toHaveBeenCalledWith(
         task.id,
@@ -220,23 +223,15 @@ describe('Canvas administrator task records', () => {
     )
   })
 
-  it('removes the task-number copy control while showing a point-ledger detail', async () => {
+  it('keeps the task-number copy control only in the task ID body field', async () => {
     mount()
     fireEvent.click(await screen.findByRole('button', { name: task.id }))
     const sheet = await screen.findByRole('dialog')
     expect(
-      within(sheet).getByRole('button', { name: `Copy ${task.id}` })
-    ).toBeVisible()
-
-    fireEvent.click(
-      await within(sheet).findByRole('button', { name: 'Point records' })
-    )
-    fireEvent.click(
-      await within(sheet).findByRole('button', { name: 'View ledger' })
-    )
-    expect(await within(sheet).findByText('Point ledger details')).toBeVisible()
-    expect(
       within(sheet).queryByRole('button', { name: `Copy ${task.id}` })
     ).not.toBeInTheDocument()
+    expect(
+      await within(sheet).findByRole('button', { name: 'Copy' })
+    ).toBeVisible()
   })
 })
