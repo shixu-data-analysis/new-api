@@ -7975,7 +7975,7 @@
     "Generation method": "Phương thức tạo",
     "Custom": "Tùy chỉnh",
     "System generated": "Do hệ thống tạo",
-    "Custom invite code must be 6–8 uppercase letters or digits": "Mã phải có 6–8 ký tự in hoa",
+    "Custom invite code must be 4–8 uppercase letters or digits": "Mã phải có 4–8 chữ cái in hoa hoặc chữ số",
     "System will generate CANVAS- followed by 8 uppercase letters or digits": "Hệ thống tạo CANVAS- và 8 ký tự",
     "Extend expiration": "Gia hạn",
     "Only the expiration time will change.": "Chỉ thay đổi thời hạn",

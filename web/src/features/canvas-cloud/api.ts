@@ -88,6 +88,8 @@ import type {
   CanvasModelPricingPublicationResult,
   CanvasModelPricingScope,
   CanvasModelPricingCnyScope,
+  CanvasModelPricingCnyCalculation,
+  CanvasModelPricingCnyCalculationIdentity,
   CanvasModelPricingWorkspace,
   CanvasModelMonitoring,
   CanvasModelMonitoringTargets,
@@ -438,6 +440,7 @@ export async function previewCanvasModelPricing(
         customerModelId: string
         billingUnit: import('./types').CanvasBillingUnit
         inputMode: 'CNY'
+        calculationIdentity: CanvasModelPricingCnyCalculationIdentity
         effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
         effectiveAt?: string
         decisionSummary?: string
@@ -446,6 +449,18 @@ export async function previewCanvasModelPricing(
 ): Promise<CanvasModelPricingPreview> {
   return (
     await api.post(`${webBase}/admin/model-pricing/previews`, input, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function calculateCanvasModelPricingCny(input: {
+  customerModelId: string
+  billingUnit: import('./types').CanvasBillingUnit
+  scopes: CanvasModelPricingCnyScope[]
+}): Promise<CanvasModelPricingCnyCalculation> {
+  return (
+    await api.post(`${webBase}/admin/model-pricing/cny-calculations`, input, {
       skipErrorHandler: true,
     })
   ).data

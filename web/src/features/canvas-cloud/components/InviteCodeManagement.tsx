@@ -206,13 +206,13 @@ export function InviteCodeManagement(props: {
         .superRefine((value, context) => {
           if (
             value.codeMode === 'CUSTOM' &&
-            !/^[A-Z0-9]{6,8}$/u.test(value.customCode)
+            !/^[A-Z0-9]{4,8}$/u.test(value.customCode)
           ) {
             context.addIssue({
               code: 'custom',
               path: ['customCode'],
               message: t(
-                'Custom invite code must be 6–8 uppercase letters or digits'
+                'Custom invite code must be 4–8 uppercase letters or digits'
               ),
             })
           }
@@ -269,6 +269,9 @@ export function InviteCodeManagement(props: {
   const [createOpen, setCreateOpen] = useState(false)
   const [createIdempotencyKey, setCreateIdempotencyKey] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
+  const [createErrorFocusTarget, setCreateErrorFocusTarget] = useState<
+    keyof InviteDraft | null
+  >(null)
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const [pendingReveals, setPendingReveals] = useState<Record<string, true>>({})
@@ -294,6 +297,11 @@ export function InviteCodeManagement(props: {
   const [inviter, setInviter] = useState('')
   const debouncedPriceGroup = useDebounce(priceGroup.trim(), 300)
   const debouncedInviter = useDebounce(inviter.trim(), 300)
+  useEffect(() => {
+    if (pendingAction !== null || !createErrorFocusTarget) return
+    inviteForm.setFocus(createErrorFocusTarget)
+    setCreateErrorFocusTarget(null)
+  }, [createErrorFocusTarget, inviteForm, pendingAction])
   useEffect(() => {
     setPagination((value) =>
       value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
@@ -477,17 +485,18 @@ export function InviteCodeManagement(props: {
     onError: (error) => {
       const code = inviteCodeFailureCode(error)
       const field = inviteCodeFailureField(error)
-      const validField = [
-        'maxRegistrations',
-        'customCode',
-        'code',
-        'expiresAt',
-        'priceGroupId',
-        'referralPrincipalId',
-        'promotionVersionId',
-      ].includes(field ?? '')
-      let target: string | null = validField ? field : null
-      if (target === 'code') target = 'customCode'
+      let target: keyof InviteDraft | null = null
+      if (field === 'code' || field === 'customCode') {
+        target = 'customCode'
+      } else if (
+        field === 'maxRegistrations' ||
+        field === 'expiresAt' ||
+        field === 'priceGroupId' ||
+        field === 'referralPrincipalId' ||
+        field === 'promotionVersionId'
+      ) {
+        target = field
+      }
       let message = t('Invite code could not be created')
       if (code === 'INVALID_INVITE_CAPACITY') {
         message = t('Enter a positive whole number within the supported range')
@@ -515,6 +524,7 @@ export function InviteCodeManagement(props: {
       if (target) inviteForm.setError(target, { type: 'server', message })
       setCreateError(message)
       setPendingAction(null)
+      setCreateErrorFocusTarget(target)
       toast.error(t('Invite code could not be created'), {
         description: message,
       })
@@ -1145,7 +1155,12 @@ export function InviteCodeManagement(props: {
               noValidate
               onSubmit={inviteForm.handleSubmit(
                 () => setPendingAction({ kind: 'create' }),
-                () => toast.error(t('Please fix the highlighted fields'))
+                (fieldErrors) => {
+                  if (fieldErrors.customCode) {
+                    inviteForm.setFocus('customCode')
+                  }
+                  toast.error(t('Please fix the highlighted fields'))
+                }
               )}
             >
               {createError ? (
@@ -1171,6 +1186,9 @@ export function InviteCodeManagement(props: {
                           onChange={() => {
                             availabilityRequestVersion.current += 1
                             inviteForm.clearErrors('customCode')
+                            inviteForm.setValue('customCode', '', {
+                              shouldDirty: true,
+                            })
                             inviteForm.setValue('codeMode', mode, {
                               shouldDirty: true,
                             })
@@ -1188,13 +1206,19 @@ export function InviteCodeManagement(props: {
                     </Label>
                     <Input
                       id='invite-custom-code'
+                      name='customCode'
+                      ref={inviteForm.register('customCode').ref}
                       aria-label={t('Invite code')}
                       value={form.customCode}
-                      maxLength={8}
                       autoCapitalize='characters'
                       aria-invalid={Boolean(
                         inviteForm.formState.errors.customCode
                       )}
+                      aria-describedby={
+                        inviteForm.formState.errors.customCode
+                          ? 'invite-custom-code-error'
+                          : undefined
+                      }
                       onChange={(event) => {
                         availabilityRequestVersion.current += 1
                         inviteForm.clearErrors('customCode')
@@ -1207,7 +1231,7 @@ export function InviteCodeManagement(props: {
                       onBlur={() => {
                         void inviteForm.trigger('customCode')
                         const normalized = normalizeInviteCode(form.customCode)
-                        if (/^[A-Z0-9]{6,8}$/u.test(normalized)) {
+                        if (/^[A-Z0-9]{4,8}$/u.test(normalized)) {
                           const requestVersion =
                             ++availabilityRequestVersion.current
                           availability.mutate({
@@ -1219,7 +1243,7 @@ export function InviteCodeManagement(props: {
                     />
                     <p className='text-muted-foreground text-xs'>
                       {t(
-                        'Custom invite code must be 6–8 uppercase letters or digits'
+                        'Custom invite code must be 4–8 uppercase letters or digits'
                       )}
                     </p>
                     <FieldError
@@ -1451,6 +1475,12 @@ export function InviteCodeManagement(props: {
                       aria-label={t('Invite bonus campaign')}
                       id='invite-bonus-campaign'
                       className='border-input bg-background min-h-10 w-full rounded-md border px-3 py-2 text-sm whitespace-normal'
+                      aria-invalid={Boolean(errors.promotion)}
+                      aria-describedby={
+                        errors.promotion
+                          ? 'invite-bonus-campaign-error'
+                          : undefined
+                      }
                       {...promotionField}
                       value={promotionVersionId}
                       onChange={(event) => {

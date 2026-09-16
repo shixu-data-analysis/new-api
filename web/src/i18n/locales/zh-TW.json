@@ -7975,7 +7975,7 @@
     "Generation method": "生成方式",
     "Custom": "自訂",
     "System generated": "系統生成",
-    "Custom invite code must be 6–8 uppercase letters or digits": "自訂邀請碼須為 6～8 位大寫字母或數字",
+    "Custom invite code must be 4–8 uppercase letters or digits": "自訂邀請碼須為 4～8 位大寫字母或數字",
     "System will generate CANVAS- followed by 8 uppercase letters or digits": "系統將生成 CANVAS- 加 8 位大寫字母或數字",
     "Extend expiration": "延長有效期",
     "Only the expiration time will change.": "僅會修改到期時間。",

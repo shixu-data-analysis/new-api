@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   workspace: vi.fn(),
   detail: vi.fn(),
   issuance: vi.fn(),
+  calculateCny: vi.fn(),
   preview: vi.fn(),
   publish: vi.fn(),
   history: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('../../api', () => ({
   getCanvasModelPricingWorkspace: mocks.workspace,
   getCanvasModelPricingModel: mocks.detail,
   getCanvasPointIssuanceRates: mocks.issuance,
+  calculateCanvasModelPricingCny: mocks.calculateCny,
   previewCanvasModelPricing: mocks.preview,
   publishCanvasModelPricing: mocks.publish,
   getCanvasModelPricingHistory: mocks.history,
@@ -101,6 +103,29 @@ const model = {
   hasScheduledPricing: false,
 }
 
+const calculationIdentity = {
+  requestHash: 'request-hash-1',
+  calculationVersion: '1',
+  customerModelId: 'model-1',
+  customerModelVersion: 1,
+  pointIssuanceRateConfigVersionId: 'issuance-1',
+  pointIssuanceRateVersion: 1,
+  scopes: [
+    {
+      parameterCombinationId: 'scope-1',
+      providerRateVersionId: 'rate-1',
+      providerRateVersion: 1,
+      prices: [
+        {
+          priceGroupId: 'group-1',
+          sourcePriceVersionId: 'price-1',
+          sourcePriceVersion: 1,
+        },
+      ],
+    },
+  ],
+}
+
 beforeEach(() => {
   Object.values(mocks).forEach((mock) => mock.mockReset())
   mocks.blocker.mockReturnValue({
@@ -148,6 +173,7 @@ beforeEach(() => {
             priceGroupCode: 'STANDARD',
             priceGroupName: 'Standard',
             current: {
+              inputMode: 'POINTS',
               id: 'price-1',
               version: 1,
               status: 'PUBLISHED',
@@ -165,6 +191,8 @@ beforeEach(() => {
                 decisionSummary: 'previous',
                 evidenceRefs: [],
               },
+              originalInput: null,
+              restorationError: null,
             },
           },
         ],
@@ -197,6 +225,40 @@ beforeEach(() => {
     conflicts: [],
     canPublish: true,
   })
+  mocks.calculateCny.mockResolvedValue({
+    customerModelId: 'model-1',
+    billingUnit: 'SECOND',
+    inputMode: 'CNY',
+    calculatedAt: '2026-09-08T00:00:00.000Z',
+    inputIdentity: calculationIdentity,
+    effectiveMode: 'IMMEDIATE',
+    effectiveAt: '2026-09-08T00:00:00.000Z',
+    pointIssuanceRate: { id: 'issuance-1', version: 1, pointsPerRmb: '100' },
+    unitChange: { from: 'SECOND', to: 'SECOND', changed: false },
+    scopes: [
+      {
+        parameterCombinationId: 'scope-1',
+        providerRateVersionId: 'rate-1',
+        providerRateVersion: 1,
+        prices: [
+          {
+            priceGroupId: 'group-1',
+            sourcePriceVersionId: 'price-1',
+            sourcePriceVersion: 1,
+            normalizedPoints: '240',
+            normalizedTokenRates: null,
+            fullCostCny: '1.20',
+            actualMarginRate: '0.5',
+            canPublish: true,
+            fieldErrors: [],
+          },
+        ],
+      },
+    ],
+    conflicts: [],
+    fieldErrors: [],
+    canPublish: true,
+  })
   mocks.history.mockResolvedValue({
     items: [],
     total: 0,
@@ -206,6 +268,800 @@ beforeEach(() => {
 })
 
 describe('UnifiedModelPricing', () => {
+  it('restores every non-empty POINTS original input, including provider and token facts', async () => {
+    const detail = await mocks.detail()
+    const current = detail.pricingScopes[0].prices[0].current
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          currentProviderRate: {
+            ...detail.pricingScopes[0].currentProviderRate,
+            billingUnit: 'SECOND',
+            nativeAmount: '99',
+            tokenRates: {
+              input: '1',
+              output: '2',
+              cacheRead: '3',
+              cacheWrite: '4',
+            },
+            exchangeRateSnapshot: {
+              rate: '6.8',
+              source: 'ecb',
+              asOf: '2026-09-01T00:00:00.000Z',
+            },
+            failureChargePolicy: { mode: 'FIXED', nativeAmount: '7.5' },
+          },
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...current,
+                originalInput: {
+                  inputMode: 'POINTS',
+                  billingUnit: 'SECOND',
+                  priceVersionId: 'price-1',
+                  priceVersion: 4,
+                  providerRateVersionId: 'rate-1',
+                  providerRateVersion: 8,
+                  providerRate: {
+                    nativeAmount: '12.34',
+                    currency: 'USD',
+                    exchangeRateSnapshot: {
+                      rate: '6.9',
+                      source: 'snapshot',
+                      asOf: '2026-08-01T00:00:00.000Z',
+                    },
+                    failureChargePolicy: {
+                      mode: 'FIXED',
+                      nativeAmount: '0.75',
+                    },
+                    tokenRates: {
+                      input: '0.11',
+                      output: '0.22',
+                      cacheRead: '0.33',
+                      cacheWrite: '0.44',
+                    },
+                  },
+                  points: '123',
+                  tokenRates: {
+                    input: '10',
+                    output: '20',
+                    cacheRead: '30',
+                    cacheWrite: '40',
+                  },
+                  targetMarginRate: '0.37',
+                  successProbability: '0.83',
+                  otherVariableCostRmb: '0.12',
+                  riskBufferRmb: '0.08',
+                  tokenCategoryAssumptions: null,
+                },
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    expect(
+      await screen.findByRole('radio', { name: 'Points pricing' })
+    ).toBeChecked()
+    expect(screen.getByLabelText('Service provider cost')).toHaveValue('12.34')
+    expect(screen.getByLabelText('Failed call cost')).toHaveValue('0.75')
+    expect(screen.getByLabelText('Target margin rate')).toHaveValue('37')
+    expect(screen.getByLabelText('Expected success rate')).toHaveValue('83')
+    expect(
+      screen.getByLabelText('Other variable cost for every attempt')
+    ).toHaveValue('0.12')
+    expect(screen.getByLabelText('Risk buffer')).toHaveValue('0.08')
+    expect(screen.getByLabelText('Proposed price points')).toHaveValue('123')
+    fireEvent.change(screen.getByLabelText('Service provider cost'), {
+      target: { value: '12.35' },
+    })
+    fireEvent.change(screen.getByLabelText('Service provider cost'), {
+      target: { value: '12.34' },
+    })
+    fireEvent.change(screen.getByLabelText('Change reason (optional)'), {
+      target: { value: 'restore all points facts' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledOnce())
+    expect(mocks.preview.mock.calls[0][0].scopes[0].providerRate).toEqual({
+      nativeAmount: '12.34',
+      currency: 'USD',
+      exchangeRateSnapshot: {
+        rate: '6.9',
+        source: 'snapshot',
+        asOf: '2026-08-01T00:00:00.000Z',
+      },
+      failureChargePolicy: { mode: 'FIXED', nativeAmount: '0.75' },
+    })
+  })
+
+  it('restores non-empty CNY original input for the selected scope and price group', async () => {
+    const detail = await mocks.detail()
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                inputMode: 'CNY',
+                originalInput: {
+                  inputMode: 'CNY',
+                  billingUnit: 'SECOND',
+                  priceVersionId: 'price-1',
+                  priceVersion: 2,
+                  providerRateVersionId: 'rate-1',
+                  providerRateVersion: 3,
+                  providerSuccessPriceCny: '1.25',
+                  customerPriceCny: '2.75',
+                },
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    expect(
+      await screen.findByRole('radio', { name: 'CNY pricing' })
+    ).toBeChecked()
+    expect(
+      await screen.findByLabelText(/Provider successful price/)
+    ).toHaveValue('1.25')
+    expect(screen.getByLabelText(/Customer CNY price/)).toHaveValue('2.75')
+  })
+
+  it('restores all applicable POINTS scalar facts for REQUEST pricing', async () => {
+    const detail = await mocks.detail()
+    const requestModel = {
+      ...model,
+      billingUnit: 'REQUEST',
+      allowedBillingUnits: ['REQUEST', 'SECOND'],
+    }
+    const original = {
+      inputMode: 'POINTS',
+      billingUnit: 'REQUEST',
+      priceVersionId: 'price-1',
+      priceVersion: 9,
+      providerRateVersionId: 'rate-1',
+      providerRateVersion: 9,
+      providerRate: {
+        nativeAmount: '3.21',
+        currency: 'JPY',
+        exchangeRateSnapshot: {
+          rate: '0.048',
+          source: 'fx-snapshot',
+          asOf: '2026-08-15T00:00:00.000Z',
+        },
+        failureChargePolicy: { mode: 'FIXED', nativeAmount: '0.12' },
+        tokenRates: null,
+      },
+      points: '456',
+      tokenRates: null,
+      targetMarginRate: '0.51',
+      successProbability: '0.77',
+      otherVariableCostRmb: '0.09',
+      riskBufferRmb: '0.06',
+      tokenCategoryAssumptions: {
+        input: { otherVariableCostRmb: '0.07', riskBufferRmb: '0.05' },
+        output: { otherVariableCostRmb: '0.08', riskBufferRmb: '0.06' },
+        cacheRead: { otherVariableCostRmb: '0.09', riskBufferRmb: '0.07' },
+        cacheWrite: { otherVariableCostRmb: '0.10', riskBufferRmb: '0.08' },
+      },
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [requestModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: requestModel,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          currentProviderRate: {
+            ...detail.pricingScopes[0].currentProviderRate,
+            billingUnit: 'REQUEST',
+          },
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                inputMode: 'POINTS',
+                originalInput: original,
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    expect(await screen.findByLabelText('Service provider cost')).toHaveValue(
+      '3.21'
+    )
+    expect(screen.getByLabelText('Failed call cost')).toHaveValue('0.12')
+    expect(screen.getByLabelText('Target margin rate')).toHaveValue('51')
+    expect(screen.getByLabelText('Expected success rate')).toHaveValue('77')
+    expect(
+      screen.getByLabelText('Other variable cost for every attempt')
+    ).toHaveValue('0.09')
+    expect(screen.getByLabelText('Risk buffer')).toHaveValue('0.06')
+    expect(screen.getByLabelText('Proposed price points')).toHaveValue('456')
+    fireEvent.change(screen.getByLabelText('Proposed price points'), {
+      target: { value: '457' },
+    })
+    fireEvent.change(screen.getByLabelText('Proposed price points'), {
+      target: { value: '456' },
+    })
+    fireEvent.change(screen.getByLabelText('Service provider cost'), {
+      target: { value: '3.22' },
+    })
+    fireEvent.change(screen.getByLabelText('Change reason (optional)'), {
+      target: { value: 'request restore' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledOnce())
+    expect(mocks.preview.mock.calls[0][0].billingUnit).toBe('REQUEST')
+    expect(mocks.preview.mock.calls[0][0].scopes[0].providerRate).toMatchObject(
+      {
+        nativeAmount: '3.22',
+        currency: 'JPY',
+        exchangeRateSnapshot: original.providerRate.exchangeRateSnapshot,
+        failureChargePolicy: original.providerRate.failureChargePolicy,
+      }
+    )
+    expect(mocks.preview.mock.calls[0][0].scopes[0].prices[0]).toMatchObject({
+      points: '456',
+      targetMarginRate: '0.51',
+      successProbability: '0.77',
+      otherVariableCostRmb: '0.09',
+      riskBufferRmb: '0.06',
+    })
+  })
+
+  it('restores POINTS Token provider and customer vectors without filling defaults', async () => {
+    const detail = await mocks.detail()
+    const tokenModel = {
+      ...model,
+      billingUnit: 'MILLION_TOKENS',
+      allowedBillingUnits: ['MILLION_TOKENS'],
+      tokenCategories: ['input', 'output', 'cacheRead', 'cacheWrite'],
+    }
+    const original = {
+      inputMode: 'POINTS',
+      billingUnit: 'MILLION_TOKENS',
+      priceVersionId: 'price-1',
+      priceVersion: 7,
+      providerRateVersionId: 'rate-1',
+      providerRateVersion: 7,
+      providerRate: {
+        nativeAmount: '0',
+        currency: 'USD',
+        exchangeRateSnapshot: {
+          rate: '7.1',
+          source: 'token-fx',
+          asOf: '2026-08-20T00:00:00.000Z',
+        },
+        failureChargePolicy: { mode: 'NONE' },
+        tokenRates: {
+          input: '0.11',
+          output: '0.22',
+          cacheRead: '0.33',
+          cacheWrite: '0.44',
+        },
+      },
+      points: '0',
+      tokenRates: {
+        input: '11',
+        output: '22',
+        cacheRead: '33',
+        cacheWrite: '44',
+      },
+      targetMarginRate: '0.41',
+      successProbability: '0.86',
+      otherVariableCostRmb: '0.07',
+      riskBufferRmb: '0.05',
+      tokenCategoryAssumptions: {
+        input: { otherVariableCostRmb: '0.07', riskBufferRmb: '0.05' },
+        output: { otherVariableCostRmb: '0.08', riskBufferRmb: '0.06' },
+        cacheRead: { otherVariableCostRmb: '0.09', riskBufferRmb: '0.07' },
+        cacheWrite: { otherVariableCostRmb: '0.10', riskBufferRmb: '0.08' },
+      },
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [tokenModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: tokenModel,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          currentProviderRate: {
+            ...detail.pricingScopes[0].currentProviderRate,
+            billingUnit: 'MILLION_TOKENS',
+            normalizedTokenRates: {
+              input: '9.11',
+              output: '9.22',
+              cacheRead: '9.33',
+              cacheWrite: '9.44',
+            },
+          },
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                billingUnit: 'MILLION_TOKENS',
+                inputMode: 'POINTS',
+                tokenRates: {
+                  input: '91',
+                  output: '92',
+                  cacheRead: '93',
+                  cacheWrite: '94',
+                },
+                questionnaire: {
+                  ...detail.pricingScopes[0].prices[0].current.questionnaire,
+                  tokenCategoryAssumptions: {
+                    input: {
+                      otherVariableCostRmb: '9.07',
+                      riskBufferRmb: '9.05',
+                    },
+                    output: {
+                      otherVariableCostRmb: '9.08',
+                      riskBufferRmb: '9.06',
+                    },
+                    cacheRead: {
+                      otherVariableCostRmb: '9.09',
+                      riskBufferRmb: '9.07',
+                    },
+                    cacheWrite: {
+                      otherVariableCostRmb: '9.10',
+                      riskBufferRmb: '9.08',
+                    },
+                  },
+                },
+                originalInput: original,
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    expect(
+      await screen.findByLabelText('input · RMB / per million tokens')
+    ).toHaveValue('0.11')
+    expect(
+      screen.getByLabelText('output · RMB / per million tokens')
+    ).toHaveValue('0.22')
+    expect(
+      screen.getByLabelText('cacheRead · RMB / per million tokens')
+    ).toHaveValue('0.33')
+    expect(
+      screen.getByLabelText('cacheWrite · RMB / per million tokens')
+    ).toHaveValue('0.44')
+    expect(
+      screen.getByLabelText('Customer price per million tokens · input')
+    ).toHaveValue('11')
+    expect(
+      screen.getByLabelText('Customer price per million tokens · output')
+    ).toHaveValue('22')
+    expect(
+      screen.getByLabelText('Customer price per million tokens · cacheRead')
+    ).toHaveValue('33')
+    expect(
+      screen.getByLabelText('Customer price per million tokens · cacheWrite')
+    ).toHaveValue('44')
+    expect(screen.getByLabelText('Target margin rate')).toHaveValue('41')
+    expect(screen.getByLabelText('Expected success rate')).toHaveValue('86')
+    expect(
+      screen.getByLabelText('Additional cost per million tokens · input')
+    ).toHaveValue('0.07')
+    expect(
+      screen.getByLabelText('Risk buffer per successful million tokens · input')
+    ).toHaveValue('0.05')
+    fireEvent.change(
+      screen.getByLabelText('input · RMB / per million tokens'),
+      {
+        target: { value: '0.12' },
+      }
+    )
+    fireEvent.change(
+      screen.getByLabelText('input · RMB / per million tokens'),
+      {
+        target: { value: '0.11' },
+      }
+    )
+    fireEvent.change(
+      screen.getByLabelText('Customer price per million tokens · input'),
+      { target: { value: '11.1' } }
+    )
+    fireEvent.change(
+      screen.getByLabelText('Customer price per million tokens · input'),
+      { target: { value: '11' } }
+    )
+    fireEvent.change(screen.getByLabelText('Change reason (optional)'), {
+      target: { value: 'token restore' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledOnce())
+    expect(
+      mocks.preview.mock.calls[0][0].scopes[0].providerRate.tokenRates
+    ).toEqual(original.providerRate.tokenRates)
+    expect(
+      mocks.preview.mock.calls[0][0].scopes[0].prices[0].tokenRates
+    ).toEqual(original.tokenRates)
+    expect(
+      mocks.preview.mock.calls[0][0].scopes[0].prices[0]
+        .tokenCategoryAssumptions
+    ).toEqual(original.tokenCategoryAssumptions)
+  })
+
+  it('restores each current mode independently across scopes and price groups', async () => {
+    const detail = await mocks.detail()
+    const premium = { id: 'group-2', code: 'PREMIUM', internalName: 'Premium' }
+    const pointsCurrent = detail.pricingScopes[0].prices[0].current
+    const cnyCurrent = {
+      ...pointsCurrent,
+      inputMode: 'CNY',
+      originalInput: {
+        inputMode: 'CNY',
+        billingUnit: 'SECOND',
+        priceVersionId: 'price-2',
+        priceVersion: 2,
+        providerRateVersionId: 'rate-1',
+        providerRateVersion: 2,
+        providerSuccessPriceCny: '1.50',
+        customerPriceCny: '3.50',
+      },
+      restorationError: null,
+    }
+    const cnyCurrent2 = {
+      ...cnyCurrent,
+      originalInput: {
+        ...cnyCurrent.originalInput,
+        providerSuccessPriceCny: '1.75',
+        customerPriceCny: '3.75',
+      },
+    }
+    const scope2 = {
+      ...detail.pricingScopes[0],
+      parameterCombinationId: 'scope-2',
+      combinationKey: 'quality-4k',
+      parameters: { quality: '4K' },
+      prices: [
+        { ...detail.pricingScopes[0].prices[0], current: cnyCurrent2 },
+        {
+          ...detail.pricingScopes[0].prices[0],
+          priceGroupId: 'group-2',
+          current: pointsCurrent,
+        },
+      ],
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [
+        {
+          ...model,
+          combinations: [
+            ...model.combinations,
+            {
+              id: 'scope-2',
+              key: 'quality-4k',
+              parameters: { quality: '4K' },
+              enabled: true,
+            },
+          ],
+        },
+      ],
+      priceGroups: [detail.priceGroups[0], premium],
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      priceGroups: [detail.priceGroups[0], premium],
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          prices: [
+            detail.pricingScopes[0].prices[0],
+            {
+              ...detail.pricingScopes[0].prices[0],
+              priceGroupId: 'group-2',
+              current: cnyCurrent,
+            },
+          ],
+        },
+        {
+          ...scope2,
+          prices: [
+            {
+              ...scope2.prices[0],
+            },
+            {
+              ...scope2.prices[1],
+              current: {
+                ...scope2.prices[1].current,
+                restorationError: {
+                  code: 'INCOMPLETE_PRICING_INPUT_SNAPSHOT',
+                  missingFields: ['points'],
+                },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    expect(
+      await screen.findByRole('radio', { name: 'Points pricing' })
+    ).toBeChecked()
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Premium' }))
+    expect(
+      await screen.findByRole('radio', { name: 'CNY pricing' })
+    ).toBeChecked()
+    expect(screen.getByLabelText(/Provider successful price/)).toHaveValue(
+      '1.50'
+    )
+    expect(screen.getByLabelText(/Customer CNY price/)).toHaveValue('3.50')
+    await user.click(screen.getByRole('combobox', { name: 'Pricing scope' }))
+    await user.click(screen.getByRole('option', { name: 'Quality: 4K' }))
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Premium' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Pricing is incomplete'
+    )
+    expect(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    ).toBeDisabled()
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Standard' }))
+    expect(
+      await screen.findByRole('radio', { name: 'CNY pricing' })
+    ).toBeChecked()
+    expect(screen.getByLabelText(/Provider successful price/)).toHaveValue(
+      '1.75'
+    )
+    expect(screen.getByLabelText(/Customer CNY price/)).toHaveValue('3.75')
+    expect(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    ).not.toBeDisabled()
+    await user.click(screen.getByRole('combobox', { name: 'Pricing scope' }))
+    await user.click(screen.getByRole('option', { name: 'Quality: HD' }))
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(screen.getByRole('option', { name: 'Premium' }))
+    expect(screen.getByLabelText(/Provider successful price/)).toHaveValue(
+      '1.50'
+    )
+    expect(screen.getByLabelText(/Customer CNY price/)).toHaveValue('3.50')
+  })
+
+  it('restores every CNY Token category from its original snapshot', async () => {
+    const detail = await mocks.detail()
+    const tokenModel = {
+      ...model,
+      billingUnit: 'MILLION_TOKENS',
+      allowedBillingUnits: ['MILLION_TOKENS'],
+      tokenCategories: ['input', 'output', 'cacheRead', 'cacheWrite'],
+    }
+    const cnyInput = {
+      inputMode: 'CNY',
+      billingUnit: 'MILLION_TOKENS',
+      priceVersionId: 'price-1',
+      priceVersion: 2,
+      providerRateVersionId: 'rate-1',
+      providerRateVersion: 2,
+      providerSuccessPriceCny: {
+        input: '1.01',
+        output: '1.02',
+        cacheRead: '1.03',
+        cacheWrite: '1.04',
+      },
+      customerPriceCny: {
+        input: '2.01',
+        output: '2.02',
+        cacheRead: '2.03',
+        cacheWrite: '2.04',
+      },
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [tokenModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: tokenModel,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          currentProviderRate: {
+            ...detail.pricingScopes[0].currentProviderRate,
+            billingUnit: 'MILLION_TOKENS',
+            normalizedTokenRates: {
+              input: '0.1',
+              output: '0.2',
+              cacheRead: '0.3',
+              cacheWrite: '0.4',
+            },
+          },
+          prices: [
+            {
+              ...detail.pricingScopes[0].prices[0],
+              current: {
+                ...detail.pricingScopes[0].prices[0].current,
+                billingUnit: 'MILLION_TOKENS',
+                inputMode: 'CNY',
+                originalInput: cnyInput,
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    expect(
+      await screen.findByRole('radio', { name: 'CNY pricing' })
+    ).toBeChecked()
+    for (const value of [
+      '1.01',
+      '1.02',
+      '1.03',
+      '1.04',
+      '2.01',
+      '2.02',
+      '2.03',
+      '2.04',
+    ]) {
+      expect(await screen.findByDisplayValue(value)).toBeVisible()
+    }
+  })
+
+  it.each([
+    [
+      'incomplete',
+      {
+        inputMode: 'POINTS',
+        restorationError: {
+          code: 'INCOMPLETE_PRICING_INPUT_SNAPSHOT',
+          missingFields: ['points'],
+        },
+      },
+    ],
+    [
+      'invalid',
+      {
+        inputMode: 'BROKEN',
+        restorationError: {
+          code: 'INVALID_PRICING_INPUT_MODE',
+          missingFields: [],
+        },
+      },
+    ],
+  ])(
+    'shows a safe blocked state for %s restoration data',
+    async (_name, currentPatch) => {
+      const detail = await mocks.detail()
+      mocks.detail.mockResolvedValue({
+        ...detail,
+        pricingScopes: [
+          {
+            ...detail.pricingScopes[0],
+            prices: [
+              {
+                ...detail.pricingScopes[0].prices[0],
+                current: {
+                  ...detail.pricingScopes[0].prices[0].current,
+                  ...currentPatch,
+                },
+              },
+            ],
+          },
+        ],
+      })
+      renderPricing('model-1', { tab: 'set' })
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Pricing is incomplete'
+      )
+      expect(
+        screen.getByRole('button', { name: 'Preview and publish' })
+      ).toBeDisabled()
+    }
+  )
+
+  it.each(['success', 'failure'])(
+    'ignores a late CNY calculation %s for an older revision',
+    async (outcome) => {
+      const result = await mocks.calculateCny()
+      const pending: Array<{
+        resolve: (value: unknown) => void
+        reject: (error: Error) => void
+      }> = []
+      mocks.calculateCny.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => pending.push({ resolve, reject }))
+      )
+      const user = userEvent.setup()
+      renderPricing('model-1', { tab: 'set' })
+      await user.click(
+        await screen.findByRole('radio', { name: 'CNY pricing' })
+      )
+      fireEvent.change(
+        await screen.findByLabelText(/Provider successful price/),
+        { target: { value: '1.20' } }
+      )
+      fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+        target: { value: '2.40' },
+      })
+      await waitFor(() => expect(pending).toHaveLength(1))
+      fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+        target: { value: '1.30' },
+      })
+      fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+        target: { value: '2.60' },
+      })
+      await waitFor(() => expect(pending).toHaveLength(2))
+      if (outcome === 'success') {
+        pending[0].resolve(result)
+      } else {
+        pending[0].reject(new Error('late failure'))
+      }
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(
+        screen.queryByText('Calculated customer points')
+      ).not.toBeInTheDocument()
+      if (outcome === 'failure') {
+        expect(
+          screen.queryByText('Pricing preview could not be created')
+        ).not.toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', { name: 'Retry' })
+        ).not.toBeInTheDocument()
+      }
+      pending[1].resolve(result)
+      expect(
+        await screen.findByText('Calculated customer points')
+      ).toBeVisible()
+    }
+  )
+
+  it('keeps CNY inputs visible and retryable when final preview calculation rejects', async () => {
+    const calculation = await mocks.calculateCny()
+    mocks.calculateCny
+      .mockRejectedValueOnce(new Error('final calculation unavailable'))
+      .mockResolvedValue(calculation)
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    await user.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    const provider = await screen.findByLabelText(/Provider successful price/)
+    const customer = screen.getByLabelText(/Customer CNY price/)
+    fireEvent.change(provider, { target: { value: '1.20' } })
+    fireEvent.change(customer, { target: { value: '2.40' } })
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    expect(
+      await screen.findByText('Pricing preview could not be created')
+    ).toBeVisible()
+    expect(provider).toHaveValue('1.20')
+    expect(customer).toHaveValue('2.40')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Calculated customer points')).toBeVisible()
+  })
   it('keeps POINTS target margin to an integer from 1 through 99', async () => {
     renderPricing('model-1')
     await openPricing()
@@ -241,6 +1097,7 @@ describe('UnifiedModelPricing', () => {
       customerModelId: 'model-1',
       billingUnit: 'SECOND',
       inputMode: 'CNY',
+      calculationIdentity,
       effectiveMode: 'IMMEDIATE',
       decisionSummary: 'direct CNY price',
       scopes: [
@@ -262,6 +1119,259 @@ describe('UnifiedModelPricing', () => {
     await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
     expect(screen.getByLabelText('Change reason (optional)')).toHaveValue('')
     expect(screen.getByLabelText('Expected success rate')).toBeVisible()
+  })
+
+  it('automatically calculates a complete CNY draft without creating a preview', async () => {
+    renderPricing('model-1', { tab: 'set' })
+    fireEvent.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '1.20' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '2.40' },
+    })
+
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalledOnce())
+    expect(mocks.calculateCny).toHaveBeenCalledWith({
+      customerModelId: 'model-1',
+      billingUnit: 'SECOND',
+      scopes: [
+        expect.objectContaining({
+          parameterCombinationId: 'scope-1',
+          providerSuccessPriceCny: '1.20',
+        }),
+      ],
+    })
+    expect(await screen.findByText('Calculated customer points')).toBeVisible()
+    expect(screen.getByText(/240 points/)).toBeVisible()
+    expect(screen.getByText('50.00%')).toBeVisible()
+    expect(screen.getByText(/1\.20 RMB/)).toBeVisible()
+    expect(screen.getByText(/100 points per RMB/)).toBeVisible()
+    expect(screen.getByText('Can publish')).toBeVisible()
+    expect(mocks.preview).not.toHaveBeenCalled()
+  })
+
+  it('includes every currently priced group in an automatic CNY calculation', async () => {
+    const detail = await mocks.detail()
+    const premium = { id: 'group-2', code: 'PREMIUM', internalName: 'Premium' }
+    const current = detail.pricingScopes[0].prices[0].current
+    mocks.workspace.mockResolvedValue({
+      models: [model],
+      priceGroups: [...detail.priceGroups, premium],
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      priceGroups: [...detail.priceGroups, premium],
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          prices: [
+            ...detail.pricingScopes[0].prices,
+            {
+              priceGroupId: 'group-2',
+              priceGroupCode: 'PREMIUM',
+              priceGroupName: 'Premium',
+              current: {
+                ...current,
+                id: 'price-2',
+                inputMode: 'CNY',
+                originalInput: {
+                  inputMode: 'CNY',
+                  billingUnit: 'SECOND',
+                  priceVersionId: 'price-2',
+                  priceVersion: 1,
+                  providerRateVersionId: 'rate-1',
+                  providerRateVersion: 1,
+                  providerSuccessPriceCny: '0.08',
+                  customerPriceCny: '0.48',
+                },
+                restorationError: null,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    fireEvent.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '0.08' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '0.32' },
+    })
+
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalledOnce())
+    expect(mocks.calculateCny.mock.calls[0][0].scopes).toEqual([
+      {
+        parameterCombinationId: 'scope-1',
+        providerSuccessPriceCny: '0.08',
+        prices: [
+          {
+            priceGroupId: 'group-1',
+            sourcePriceVersionId: 'price-1',
+            customerPriceCny: '0.32',
+          },
+          {
+            priceGroupId: 'group-2',
+            sourcePriceVersionId: 'price-2',
+            customerPriceCny: '0.48',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('treats initial CNY pricing as the active scope instead of a unit switch', async () => {
+    const detail = await mocks.detail()
+    const initialModel = {
+      ...model,
+      billingUnit: null,
+      combinations: [
+        ...model.combinations,
+        {
+          id: 'scope-2',
+          key: 'quality-4k',
+          parameters: { quality: '4K' },
+          enabled: true,
+        },
+      ],
+    }
+    mocks.workspace.mockResolvedValue({
+      models: [initialModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      model: initialModel,
+      pricingScopes: [
+        ...detail.pricingScopes.map(
+          (scope: (typeof detail.pricingScopes)[number]) => ({
+            ...scope,
+            currentProviderRate: null,
+            prices: scope.prices.map(
+              (price: (typeof scope.prices)[number]) => ({
+                ...price,
+                current: null,
+              })
+            ),
+          })
+        ),
+        {
+          ...detail.pricingScopes[0],
+          parameterCombinationId: 'scope-2',
+          combinationKey: 'quality-4k',
+          parameters: { quality: '4K' },
+          currentProviderRate: null,
+          prices: detail.pricingScopes[0].prices.map(
+            (
+              price: (typeof detail.pricingScopes)[number]['prices'][number]
+            ) => ({
+              ...price,
+              current: null,
+            })
+          ),
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    fireEvent.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '0.08' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '0.32' },
+    })
+
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalledOnce())
+    expect(mocks.calculateCny.mock.calls[0][0].scopes).toEqual([
+      {
+        parameterCombinationId: 'scope-1',
+        providerSuccessPriceCny: '0.08',
+        prices: [
+          {
+            priceGroupId: 'group-1',
+            customerPriceCny: '0.32',
+          },
+        ],
+      },
+    ])
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledOnce())
+    expect(mocks.preview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billingUnit: 'REQUEST',
+        inputMode: 'CNY',
+        scopes: [
+          {
+            parameterCombinationId: 'scope-1',
+            providerSuccessPriceCny: '0.08',
+            prices: [
+              {
+                priceGroupId: 'group-1',
+                customerPriceCny: '0.32',
+              },
+            ],
+          },
+        ],
+      })
+    )
+  })
+
+  it('defaults to the first enabled scope when a disabled current scope sorts first', async () => {
+    const detail = await mocks.detail()
+    mocks.detail.mockResolvedValue({
+      ...detail,
+      pricingScopes: [
+        {
+          ...detail.pricingScopes[0],
+          parameterCombinationId: 'scope-disabled',
+          combinationKey: 'disabled',
+          enabled: false,
+        },
+        detail.pricingScopes[0],
+      ],
+    })
+    renderPricing('model-1', { tab: 'set' })
+    fireEvent.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    fireEvent.change(screen.getByLabelText(/Provider successful price/), {
+      target: { value: '0.08' },
+    })
+    fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
+      target: { value: '0.32' },
+    })
+
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalledOnce())
+    expect(mocks.calculateCny.mock.calls[0][0].scopes[0]).toEqual(
+      expect.objectContaining({ parameterCombinationId: 'scope-1' })
+    )
+  })
+
+  it('keeps a failed CNY calculation editable and retries the current draft', async () => {
+    mocks.calculateCny.mockRejectedValueOnce(
+      new Error('calculation unavailable')
+    )
+    const user = userEvent.setup()
+    renderPricing('model-1', { tab: 'set' })
+    await user.click(await screen.findByRole('radio', { name: 'CNY pricing' }))
+    const provider = screen.getByLabelText(/Provider successful price/)
+    const customer = screen.getByLabelText(/Customer CNY price/)
+    fireEvent.change(provider, { target: { value: '1.20' } })
+    fireEvent.change(customer, { target: { value: '2.40' } })
+
+    expect(
+      (await screen.findByText('Pricing preview could not be created')).closest(
+        '[role="alert"]'
+      )
+    ).toBeVisible()
+    expect(provider).toHaveValue('1.20')
+    expect(customer).toHaveValue('2.40')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('Calculated customer points')).toBeVisible()
   })
 
   it('submits one provider price with independent CNY prices for every priced group', async () => {
@@ -356,6 +1466,22 @@ describe('UnifiedModelPricing', () => {
         },
       ],
     }
+    const providerOnlyScope = {
+      ...scope2,
+      parameterCombinationId: 'scope-provider-only',
+      combinationKey: 'provider-only',
+      parameters: { quality: 'legacy' },
+      enabled: false,
+      currentProviderRate: {
+        ...scope2.currentProviderRate,
+        id: 'rate-provider-only',
+        normalizedAmountMinor: '0.14',
+      },
+      prices: scope2.prices.map((price: (typeof scope2.prices)[number]) => ({
+        ...price,
+        current: null,
+      })),
+    }
     const twoScopeModel = {
       ...model,
       combinations: [
@@ -366,6 +1492,12 @@ describe('UnifiedModelPricing', () => {
           parameters: { quality: '4K' },
           enabled: true,
         },
+        {
+          id: 'scope-provider-only',
+          key: 'provider-only',
+          parameters: { quality: 'legacy' },
+          enabled: false,
+        },
       ],
     }
     mocks.workspace.mockResolvedValue({
@@ -375,7 +1507,7 @@ describe('UnifiedModelPricing', () => {
     mocks.detail.mockResolvedValue({
       ...detail,
       model: twoScopeModel,
-      pricingScopes: [...detail.pricingScopes, scope2],
+      pricingScopes: [...detail.pricingScopes, scope2, providerOnlyScope],
     })
     const user = userEvent.setup()
     renderPricing('model-1', { tab: 'set' })
@@ -396,17 +1528,29 @@ describe('UnifiedModelPricing', () => {
     fireEvent.change(screen.getByLabelText(/Customer CNY price/), {
       target: { value: '4.00' },
     })
+    await waitFor(() => expect(mocks.calculateCny).toHaveBeenCalled())
+    expect(mocks.calculateCny.mock.calls.at(-1)?.[0].scopes).toHaveLength(3)
+    expect(mocks.calculateCny.mock.calls.at(-1)?.[0].scopes[2]).toEqual({
+      parameterCombinationId: 'scope-provider-only',
+      providerSuccessPriceCny: '0.14',
+      prices: [],
+    })
     await user.click(
       screen.getByRole('button', { name: 'Preview and publish' })
     )
     await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
-    expect(mocks.preview.mock.calls[0][0].scopes).toHaveLength(2)
+    expect(mocks.preview.mock.calls[0][0].scopes).toHaveLength(3)
     expect(mocks.preview.mock.calls[0][0].scopes[1]).toEqual(
       expect.objectContaining({
         parameterCombinationId: 'scope-2',
         providerSuccessPriceCny: '3.00',
       })
     )
+    expect(mocks.preview.mock.calls[0][0].scopes[2]).toEqual({
+      parameterCombinationId: 'scope-provider-only',
+      providerSuccessPriceCny: '0.14',
+      prices: [],
+    })
   })
 
   it('includes priced and unpriced published groups for an enabled scope during a CNY unit change', async () => {
@@ -662,7 +1806,7 @@ describe('UnifiedModelPricing', () => {
     ).toBeDisabled()
   })
 
-  it('opens POINTS with defaults when the current version was entered in CNY', async () => {
+  it('selects CNY when the current version was entered in CNY', async () => {
     const detail = await mocks.detail()
     mocks.detail.mockResolvedValue({
       ...detail,
@@ -689,8 +1833,9 @@ describe('UnifiedModelPricing', () => {
     })
     renderPricing('model-1')
     await openPricing()
-    expect(screen.getByLabelText(/Target margin/)).toHaveValue('40')
-    expect(screen.getByLabelText('Proposed price points')).toHaveValue('')
+    expect(screen.getByRole('radio', { name: 'CNY pricing' })).toBeChecked()
+    expect(screen.getByLabelText(/Provider successful price/)).toHaveValue('')
+    expect(screen.getByLabelText(/Customer CNY price/)).toHaveValue('')
   })
 
   it('clears the published CNY draft and navigation warning after success', async () => {
@@ -1589,7 +2734,7 @@ describe('UnifiedModelPricing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and publish' }))
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
     expect(
-      await screen.findByRole('tab', { name: 'Current pricing' })
+      await screen.findByRole('tab', { name: 'Set prices' })
     ).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -1658,7 +2803,7 @@ describe('UnifiedModelPricing', () => {
     expect(mocks.preview.mock.calls[0][0].scopes[0].prices).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Confirm and publish' }))
     expect(
-      await screen.findByRole('tab', { name: 'Current pricing' })
+      await screen.findByRole('tab', { name: 'Set prices' })
     ).toHaveAttribute('aria-selected', 'true')
   })
 

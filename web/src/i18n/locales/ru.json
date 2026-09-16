@@ -7975,7 +7975,7 @@
     "Generation method": "Способ генерации",
     "Custom": "Пользовательский",
     "System generated": "Сгенерирован системой",
-    "Custom invite code must be 6–8 uppercase letters or digits": "Код должен содержать 6–8 заглавных букв или цифр",
+    "Custom invite code must be 4–8 uppercase letters or digits": "Код должен содержать 4–8 заглавных букв или цифр",
     "System will generate CANVAS- followed by 8 uppercase letters or digits": "Система создаст CANVAS- и 8 символов",
     "Extend expiration": "Продлить срок",
     "Only the expiration time will change.": "Изменится только срок",

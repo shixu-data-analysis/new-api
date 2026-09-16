@@ -682,7 +682,10 @@ export interface CanvasCustomerRechargeRedemption {
 export interface CanvasCustomerTaskOutputSummary {
   outputIndex: number
   executionStatus: string
-  error: { code: string | null; messages: Record<string, string> | null } | null
+  error: {
+    code: string | null
+    messages: Record<string, string> | null
+  } | null
 }
 
 export interface CanvasCustomerTask {
@@ -1039,7 +1042,7 @@ export interface CanvasModelPricingProviderRate {
 }
 
 export interface CanvasModelPricingPriceSnapshot {
-  inputMode: 'POINTS' | 'CNY'
+  inputMode: 'POINTS' | 'CNY' | null
   billingUnit: CanvasBillingUnit
   points: string
   tokenRates: CanvasModelPricingTokenRateVector | null
@@ -1057,6 +1060,44 @@ export interface CanvasModelPricingPriceSnapshot {
   status?: string
   effectiveAt?: string | null
   providerRateVersionId?: string | null
+  originalInput:
+    | {
+        inputMode: 'POINTS'
+        billingUnit: CanvasBillingUnit
+        priceVersionId: string
+        priceVersion: number
+        providerRateVersionId: string
+        providerRateVersion: number
+        providerRate: {
+          nativeAmount: string
+          tokenRates: CanvasModelPricingTokenRateVector | null
+          currency: string
+          exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+          failureChargePolicy: CanvasModelPricingFailureChargePolicy
+        }
+        points: string
+        tokenRates: CanvasModelPricingTokenRateVector | null
+        targetMarginRate: string
+        successProbability: string
+        otherVariableCostRmb: string
+        riskBufferRmb: string
+        tokenCategoryAssumptions: CanvasTokenCategoryAssumptions | null
+      }
+    | {
+        inputMode: 'CNY'
+        billingUnit: CanvasBillingUnit
+        priceVersionId: string
+        priceVersion: number
+        providerRateVersionId: string
+        providerRateVersion: number
+        providerSuccessPriceCny: CanvasModelPricingCnyValue
+        customerPriceCny: CanvasModelPricingCnyValue
+      }
+    | null
+  restorationError: {
+    code: 'INCOMPLETE_PRICING_INPUT_SNAPSHOT' | 'INVALID_PRICING_INPUT_MODE'
+    missingFields: string[]
+  } | null
   assumptions?: {
     schemaVersion: number
     billingContractVersion: number
@@ -1204,6 +1245,62 @@ export interface CanvasModelPricingPreview {
     message: string
   }>
   canPublish: boolean
+}
+
+export interface CanvasModelPricingCnyCalculationIdentity {
+  requestHash: string
+  calculationVersion: string
+  customerModelId: string
+  customerModelVersion: number
+  pointIssuanceRateConfigVersionId: string
+  pointIssuanceRateVersion: number
+  scopes: Array<{
+    parameterCombinationId: string
+    providerRateVersionId: string | null
+    providerRateVersion: number | null
+    prices: Array<{
+      priceGroupId: string
+      sourcePriceVersionId: string | null
+      sourcePriceVersion: number | null
+    }>
+  }>
+}
+
+export type CanvasModelPricingCnyCalculation = Omit<
+  CanvasModelPricingPreview,
+  'id' | 'expiresAt' | 'scopes'
+> & {
+  calculatedAt: string
+  inputIdentity: CanvasModelPricingCnyCalculationIdentity
+  scopes: Array<{
+    parameterCombinationId: string
+    providerRateVersionId: string | null
+    providerRateVersion: number | null
+    prices: Array<{
+      priceGroupId: string
+      sourcePriceVersionId: string | null
+      sourcePriceVersion: number | null
+      normalizedPoints: string
+      normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+      fullCostCny: CanvasModelPricingCnyValue
+      actualMarginRate: CanvasModelPricingCnyValue
+      canPublish: boolean
+      fieldErrors: Array<{
+        field: 'customerPriceCny'
+        reason: string
+        parameterCombinationId: string
+        priceGroupId: string
+        tokenCategories?: CanvasTokenCategory[]
+      }>
+    }>
+  }>
+  fieldErrors: Array<{
+    field: 'customerPriceCny'
+    reason: string
+    parameterCombinationId: string
+    priceGroupId: string
+    tokenCategories?: CanvasTokenCategory[]
+  }>
 }
 
 export interface CanvasModelPricingLegacyFacts {

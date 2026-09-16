@@ -62,6 +62,7 @@ import {
 import { cn } from '@/lib/utils'
 
 import {
+  calculateCanvasModelPricingCny,
   getCanvasModelPricingModel,
   getCanvasModelPricingWorkspace,
   getCanvasPointIssuanceRates,
@@ -79,6 +80,8 @@ import type {
   CanvasBillingUnit,
   CanvasModelPricingScope,
   CanvasModelPricingCnyScope,
+  CanvasModelPricingCnyCalculation,
+  CanvasModelPricingCnyCalculationIdentity,
   CanvasModelPricingDetail,
   CanvasModelPricingProviderRate,
   CanvasModelPricingPriceSnapshot,
@@ -242,11 +245,116 @@ function cnyTokenRates(
     input: draft.input ?? '',
     output: draft.output ?? '',
   }
-  if (categories.includes('cacheRead')) result.cacheRead = draft.cacheRead ?? ''
+  if (categories.includes('cacheRead')) {
+    result.cacheRead = draft.cacheRead ?? ''
+  }
   if (categories.includes('cacheWrite')) {
     result.cacheWrite = draft.cacheWrite ?? ''
   }
   return result
+}
+
+function cnyCalculationDisplay(
+  price:
+    | CanvasModelPricingCnyCalculation['scopes'][number]['prices'][number]
+    | undefined,
+  providerSuccessPriceCny: CanvasModelPricingCnyScope['providerSuccessPriceCny'],
+  customerPriceCny: CanvasModelPricingCnyScope['prices'][number]['customerPriceCny']
+) {
+  if (!price) return undefined
+  return {
+    providerSuccessPriceCny,
+    customerPriceCny,
+    actualMarginRate: price.actualMarginRate,
+    fullCostCny: price.fullCostCny,
+    canPublish: price.canPublish,
+  }
+}
+
+function currentProviderCnyDraft(
+  rate: CanvasModelPricingProviderRate | null,
+  billingUnit: CanvasBillingUnit | null | undefined
+): Record<string, string> {
+  if (billingUnit === 'MILLION_TOKENS') {
+    return rate?.normalizedTokenRates ?? {}
+  }
+  return rate?.normalizedAmountMinor
+    ? { scalar: rate.normalizedAmountMinor }
+    : {}
+}
+
+function completeCnyCalculationScopes(input: {
+  detail: CanvasModelPricingDetail
+  drafts: Record<string, CnyScopeDraft>
+  billingUnit: CanvasBillingUnit
+  currentBillingUnit: CanvasBillingUnit | null
+  tokenCategories: CanvasTokenCategory[]
+  activeScopeId: string
+  activePriceGroupId: string
+}): CanvasModelPricingCnyScope[] | null {
+  const fields =
+    input.billingUnit === 'MILLION_TOKENS'
+      ? input.tokenCategories
+      : (['scalar'] as const)
+  const isUnitChange =
+    input.currentBillingUnit !== null &&
+    input.currentBillingUnit !== input.billingUnit
+  const relevantScopes = isUnitChange
+    ? input.detail.pricingScopes.filter(
+        (scope) =>
+          scope.enabled ||
+          Boolean(scope.currentProviderRate) ||
+          scope.prices.some((price) => price.current)
+      )
+    : input.detail.pricingScopes.filter(
+        (scope) => scope.parameterCombinationId === input.activeScopeId
+      )
+  const scopes: CanvasModelPricingCnyScope[] = []
+  for (const scope of relevantScopes) {
+    const draft = input.drafts[scope.parameterCombinationId]
+    const relevantPrices = scope.prices.filter((price) =>
+      isUnitChange
+        ? scope.enabled || Boolean(price.current)
+        : Boolean(price.current) ||
+          price.priceGroupId === input.activePriceGroupId
+    )
+    if (
+      !draft?.provider ||
+      !fields.every((field) =>
+        isPositiveRmbAmount(draft.provider[field] ?? '')
+      ) ||
+      relevantPrices.some((price) => {
+        const customer = draft.customers[price.priceGroupId]
+        return (
+          !customer ||
+          !fields.every((field) => isPositiveRmbAmount(customer[field] ?? ''))
+        )
+      })
+    ) {
+      return null
+    }
+    scopes.push({
+      parameterCombinationId: scope.parameterCombinationId,
+      providerSuccessPriceCny:
+        input.billingUnit === 'MILLION_TOKENS'
+          ? cnyTokenRates(draft.provider, input.tokenCategories)
+          : (draft.provider.scalar ?? ''),
+      prices: relevantPrices.map((price) => {
+        const customer = draft.customers[price.priceGroupId]
+        return {
+          priceGroupId: price.priceGroupId,
+          ...(price.current?.id
+            ? { sourcePriceVersionId: price.current.id }
+            : {}),
+          customerPriceCny:
+            input.billingUnit === 'MILLION_TOKENS'
+              ? cnyTokenRates(customer, input.tokenCategories)
+              : (customer.scalar ?? ''),
+        }
+      }),
+    })
+  }
+  return scopes.length > 0 ? scopes : null
 }
 
 function billingUnitLabel(
@@ -346,6 +454,7 @@ export function UnifiedModelPricing(props: {
     null
   )
   const [publishedPlanKeys, setPublishedPlanKeys] = useState<string[]>([])
+  const [restorationError, setRestorationError] = useState(false)
   const form = useForm<PricingMetaValues>({
     resolver: zodResolver(pricingMetaSchema),
     mode: 'onTouched',
@@ -509,6 +618,30 @@ export function UnifiedModelPricing(props: {
     )
     setDrafts((currentDrafts) =>
       detail.data.pricingScopes.map((scope): ScopeDraft => {
+        const restoredProvider = scope.prices.find(
+          (price) => price.current?.originalInput?.inputMode === 'POINTS'
+        )?.current?.originalInput
+        let restoredNativeAmount = editableRmb(
+          scope.currentProviderRate?.normalizedAmountMinor
+        )
+        if (restoredProvider?.inputMode === 'POINTS') {
+          restoredNativeAmount = restoredProvider.providerRate.nativeAmount
+        }
+        if (selected.billingUnit === 'MILLION_TOKENS') {
+          restoredNativeAmount = '0'
+        }
+        const restoredFailurePolicy =
+          restoredProvider?.inputMode === 'POINTS'
+            ? restoredProvider.providerRate.failureChargePolicy
+            : scope.currentProviderRate?.failureChargePolicy
+        const restoredFailureAmount =
+          restoredFailurePolicy?.mode === 'FIXED'
+            ? editableRmb(
+                'normalizedAmountMinor' in restoredFailurePolicy
+                  ? restoredFailurePolicy.normalizedAmountMinor
+                  : restoredFailurePolicy.nativeAmount
+              )
+            : ''
         const retained = publishedScopeIds?.includes(
           scope.parameterCombinationId
         )
@@ -520,27 +653,19 @@ export function UnifiedModelPricing(props: {
         return {
           combinationId: scope.parameterCombinationId,
           costEdited: false,
-          nativeAmount:
-            selected.billingUnit === 'MILLION_TOKENS'
-              ? '0'
-              : editableRmb(scope.currentProviderRate?.normalizedAmountMinor),
+          nativeAmount: restoredNativeAmount,
           // New publications are RMB-only. Existing original-currency facts remain
           // available in history, but must never be silently reused as an RMB edit.
           currency: 'CNY',
           exchangeRate: '1',
           exchangeSource: 'manual',
           exchangeAsOf: new Date().toISOString(),
-          failureChargeMode:
-            scope.currentProviderRate?.failureChargePolicy.mode ?? 'NONE',
-          failureNativeAmount:
-            scope.currentProviderRate?.failureChargePolicy.mode === 'FIXED'
-              ? editableRmb(
-                  scope.currentProviderRate.failureChargePolicy
-                    .normalizedAmountMinor
-                )
-              : '',
+          failureChargeMode: restoredFailurePolicy?.mode ?? 'NONE',
+          failureNativeAmount: restoredFailureAmount,
           input: editableRmb(
-            scope.currentProviderRate?.normalizedTokenRates?.input
+            restoredProvider?.inputMode === 'POINTS'
+              ? restoredProvider.providerRate.tokenRates?.input
+              : scope.currentProviderRate?.normalizedTokenRates?.input
           ),
           output: editableRmb(
             scope.currentProviderRate?.normalizedTokenRates?.output
@@ -580,30 +705,44 @@ export function UnifiedModelPricing(props: {
       detail.data.pricingScopes.flatMap((scope) =>
         scope.prices.map((price) => {
           const current = price.current
+          const restored =
+            current?.originalInput?.inputMode === 'POINTS'
+              ? current.originalInput
+              : null
           return [
             `${scope.parameterCombinationId}:${price.priceGroupId}`,
             current && current.inputMode !== 'CNY'
               ? {
                   targetMarginPercent: String(
-                    Number(current.questionnaire.targetMarginRate) * 100
+                    Number(
+                      restored?.targetMarginRate ??
+                        current.questionnaire.targetMarginRate
+                    ) * 100
                   ),
                   successProbabilityPercent: String(
-                    Number(current.questionnaire.successProbability) * 100
+                    Number(
+                      restored?.successProbability ??
+                        current.questionnaire.successProbability
+                    ) * 100
                   ),
                   successfulTaskCostRmb:
                     current.questionnaire.successfulTaskCostRmb ?? '',
                   failedUnrecoverableCostRmb:
                     current.questionnaire.failedUnrecoverableCostRmb ?? '',
                   otherVariableCostRmb: editableRmb(
-                    current.questionnaire.otherVariableCostRmb
+                    restored?.otherVariableCostRmb ??
+                      current.questionnaire.otherVariableCostRmb
                   ),
                   riskBufferRmb: editableRmb(
-                    current.questionnaire.riskBufferRmb
+                    restored?.riskBufferRmb ??
+                      current.questionnaire.riskBufferRmb
                   ),
                   evidenceRefs: current.questionnaire.evidenceRefs,
-                  proposedPoints: current.points,
+                  proposedPoints: restored?.points ?? current.points,
                   tokenCategoryAssumptions:
-                    current.questionnaire.tokenCategoryAssumptions ?? {},
+                    restored?.tokenCategoryAssumptions ??
+                    current.questionnaire.tokenCategoryAssumptions ??
+                    {},
                 }
               : emptyQuestionnaire,
           ]
@@ -620,6 +759,45 @@ export function UnifiedModelPricing(props: {
         })
       )
     )
+    setCnyDrafts(
+      Object.fromEntries(
+        detail.data.pricingScopes.map((scope) => {
+          const cnyInputs = scope.prices.flatMap((price) =>
+            price.current?.originalInput?.inputMode === 'CNY'
+              ? [[price.priceGroupId, price.current.originalInput] as const]
+              : []
+          )
+          const provider = cnyInputs[0]?.[1].providerSuccessPriceCny
+          let providerDraft: Record<string, string> = {}
+          if (provider) {
+            providerDraft =
+              typeof provider === 'string' ? { scalar: provider } : provider
+          } else if (
+            !scope.enabled &&
+            !scope.prices.some((price) => price.current)
+          ) {
+            providerDraft = currentProviderCnyDraft(
+              scope.currentProviderRate,
+              scope.currentProviderRate?.billingUnit
+            )
+          }
+          return [
+            scope.parameterCombinationId,
+            {
+              provider: providerDraft,
+              customers: Object.fromEntries(
+                cnyInputs.map(([priceGroupId, input]) => [
+                  priceGroupId,
+                  typeof input.customerPriceCny === 'string'
+                    ? { scalar: input.customerPriceCny }
+                    : input.customerPriceCny,
+                ])
+              ),
+            },
+          ]
+        })
+      )
+    )
     setPublishedScopeIds(null)
     setPreviewId(null)
     setPublishIdempotencyKey(null)
@@ -631,7 +809,12 @@ export function UnifiedModelPricing(props: {
       effectiveMode: 'IMMEDIATE',
     })
     setHasEdits(false)
-    setActiveScopeId(detail.data.pricingScopes[0]?.parameterCombinationId ?? '')
+    setActiveScopeId(
+      detail.data.pricingScopes.find((scope) => scope.enabled)
+        ?.parameterCombinationId ??
+        detail.data.pricingScopes[0]?.parameterCombinationId ??
+        ''
+    )
     setActivePriceGroupId(detail.data.priceGroups[0]?.id ?? '')
   }, [
     detail.data,
@@ -642,14 +825,214 @@ export function UnifiedModelPricing(props: {
     publishedScopeIds,
   ])
 
+  useEffect(() => {
+    if (!detail.data || !activeScopeId || !activePriceGroupId) return
+    const current = detail.data.pricingScopes
+      .find((scope) => scope.parameterCombinationId === activeScopeId)
+      ?.prices.find(
+        (price) => price.priceGroupId === activePriceGroupId
+      )?.current
+    if (!current) {
+      setRestorationError(false)
+      if (!hasEdits && !cnyHasEdits) setInputMode('POINTS')
+      return
+    }
+    if (current.inputMode !== 'POINTS' && current.inputMode !== 'CNY') {
+      setRestorationError(true)
+      return
+    }
+    if (hasEdits || cnyHasEdits) {
+      setRestorationError(false)
+      return
+    }
+    setInputMode(current.inputMode)
+    setRestorationError(Boolean(current.restorationError))
+    if (current.restorationError || !current.originalInput) return
+    if (current.originalInput.inputMode === 'CNY') {
+      const original = current.originalInput
+      setCnyDrafts((drafts) => ({
+        ...drafts,
+        [activeScopeId]: {
+          provider:
+            typeof original.providerSuccessPriceCny === 'string'
+              ? { scalar: original.providerSuccessPriceCny }
+              : original.providerSuccessPriceCny,
+          customers: {
+            ...drafts[activeScopeId]?.customers,
+            [activePriceGroupId]:
+              typeof original.customerPriceCny === 'string'
+                ? { scalar: original.customerPriceCny }
+                : original.customerPriceCny,
+          },
+        },
+      }))
+      setDrafts((drafts) =>
+        drafts.map((scope) =>
+          scope.combinationId === activeScopeId
+            ? {
+                ...scope,
+                nativeAmount: '',
+                input: '',
+                output: '',
+                cacheRead: '',
+                cacheWrite: '',
+                failureNativeAmount: '',
+                prices: scope.prices.map((price) =>
+                  price.priceGroupId === activePriceGroupId
+                    ? {
+                        ...price,
+                        points: '',
+                        input: '',
+                        output: '',
+                        cacheRead: '',
+                        cacheWrite: '',
+                      }
+                    : price
+                ),
+              }
+            : scope
+        )
+      )
+      return
+    }
+    const original = current.originalInput
+    setDrafts((drafts) =>
+      drafts.map((scope) =>
+        scope.combinationId === activeScopeId
+          ? {
+              ...scope,
+              nativeAmount: original.providerRate.nativeAmount,
+              currency: original.providerRate.currency,
+              exchangeRate: original.providerRate.exchangeRateSnapshot.rate,
+              exchangeSource: original.providerRate.exchangeRateSnapshot.source,
+              exchangeAsOf: original.providerRate.exchangeRateSnapshot.asOf,
+              failureChargeMode: original.providerRate.failureChargePolicy.mode,
+              failureNativeAmount:
+                original.providerRate.failureChargePolicy.mode === 'FIXED'
+                  ? original.providerRate.failureChargePolicy.nativeAmount
+                  : '',
+              input: original.providerRate.tokenRates?.input ?? '',
+              output: original.providerRate.tokenRates?.output ?? '',
+              cacheRead: original.providerRate.tokenRates?.cacheRead ?? '',
+              cacheWrite: original.providerRate.tokenRates?.cacheWrite ?? '',
+              prices: scope.prices.map((price) =>
+                price.priceGroupId === activePriceGroupId
+                  ? {
+                      ...price,
+                      points: original.points,
+                      input: original.tokenRates?.input ?? '',
+                      output: original.tokenRates?.output ?? '',
+                      cacheRead: original.tokenRates?.cacheRead ?? '',
+                      cacheWrite: original.tokenRates?.cacheWrite ?? '',
+                    }
+                  : price
+              ),
+            }
+          : scope
+      )
+    )
+    setCnyDrafts((drafts) => ({
+      ...drafts,
+      [activeScopeId]: {
+        provider: {},
+        customers: {
+          ...drafts[activeScopeId]?.customers,
+          [activePriceGroupId]: {},
+        },
+      },
+    }))
+  }, [activePriceGroupId, activeScopeId, cnyHasEdits, detail.data, hasEdits])
+
   const previewRevision = useRef(0)
+  const cnyCalculationRevision = useRef(0)
+  const [latestCnyCalculation, setLatestCnyCalculation] =
+    useState<CanvasModelPricingCnyCalculation | null>(null)
+  const [cnyRetryRevision, setCnyRetryRevision] = useState(0)
+  const [cnyCalculationError, setCnyCalculationError] = useState(false)
+  const cnyCalculation = useMutation({
+    mutationFn: (input: {
+      revision: number
+      scopes: CanvasModelPricingCnyScope[]
+    }) =>
+      calculateCanvasModelPricingCny({
+        customerModelId: modelId,
+        billingUnit,
+        scopes: input.scopes,
+      }),
+    onMutate: () => setCnyCalculationError(false),
+    onSuccess: (result, input) => {
+      if (input.revision !== cnyCalculationRevision.current) return
+      setLatestCnyCalculation(result)
+      setCnyFieldErrors(
+        Object.fromEntries(
+          result.fieldErrors.flatMap((error) =>
+            (error.tokenCategories ?? ['scalar']).map((category) => [
+              `${error.parameterCombinationId}:${error.priceGroupId}:customer:${category}`,
+              t(
+                'Customer CNY price must be above the provider successful price.'
+              ),
+            ])
+          )
+        )
+      )
+    },
+    onError: (_error, input) => {
+      if (input.revision !== cnyCalculationRevision.current) return
+      setCnyCalculationError(true)
+    },
+  })
+  const calculateCny = cnyCalculation.mutate
+  useEffect(() => {
+    cnyCalculationRevision.current += 1
+    setLatestCnyCalculation(null)
+    setCnyCalculationError(false)
+    if (
+      inputMode !== 'CNY' ||
+      !selected ||
+      !detail.data ||
+      !activeScopeId ||
+      !activePriceGroupId
+    ) {
+      return
+    }
+    const scopes = completeCnyCalculationScopes({
+      detail: detail.data,
+      drafts: cnyDrafts,
+      billingUnit,
+      currentBillingUnit: selected.billingUnit,
+      tokenCategories: selected.tokenCategories,
+      activeScopeId,
+      activePriceGroupId,
+    })
+    if (!scopes) return
+    const revision = cnyCalculationRevision.current
+    const timeout = window.setTimeout(() => {
+      calculateCny({
+        revision,
+        scopes,
+      })
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [
+    activePriceGroupId,
+    activeScopeId,
+    billingUnit,
+    calculateCny,
+    cnyDrafts,
+    detail.data,
+    inputMode,
+    selected,
+    cnyRetryRevision,
+  ])
   const preview = useMutation({
     mutationFn: ({
       scopes,
       costRiskResolution,
+      calculationIdentity,
     }: {
       scopes: CanvasModelPricingScope[] | CanvasModelPricingCnyScope[]
       revision: number
+      calculationIdentity?: CanvasModelPricingCnyCalculationIdentity
       costRiskResolution?:
         | {
             type: 'TEMPORARY_LOSS'
@@ -669,9 +1052,13 @@ export function UnifiedModelPricing(props: {
         decisionSummary: decisionSummary.trim(),
       }
       if (inputMode === 'CNY') {
+        if (!calculationIdentity) {
+          return Promise.reject(new Error('CNY calculation is required'))
+        }
         return previewCanvasModelPricing({
           ...common,
           inputMode: 'CNY',
+          calculationIdentity,
           scopes: scopes as CanvasModelPricingCnyScope[],
         })
       }
@@ -711,6 +1098,10 @@ export function UnifiedModelPricing(props: {
           })
           return
         }
+        if (inputMode === 'CNY') {
+          setLatestCnyCalculation(null)
+          setCnyRetryRevision((current) => current + 1)
+        }
         toast.error(
           t(
             getServerErrorMessageKey(error) ??
@@ -730,6 +1121,8 @@ export function UnifiedModelPricing(props: {
       setPublishIdempotencyKey(null)
       setHasEdits(false)
       if (publishedPreview?.inputMode === 'CNY') {
+        setLatestCnyCalculation(null)
+        setCnyRetryRevision(0)
         setCnyDrafts({})
         setCnyTouched({})
         setCnyFieldErrors({})
@@ -740,8 +1133,8 @@ export function UnifiedModelPricing(props: {
         effectiveAt: '',
         effectiveMode: 'IMMEDIATE',
       })
-      setTab('current')
-      props.onTabChange?.('current')
+      setTab('set')
+      props.onTabChange?.('set')
       toast.success(t('Model pricing published'))
       const changedScopeIds =
         publishedPreview?.scopes.map((scope) => scope.parameterCombinationId) ??
@@ -918,7 +1311,29 @@ export function UnifiedModelPricing(props: {
     invalidatePreview()
     setValidationErrors([])
     setHasEdits(true)
-    setCnyDrafts({})
+    setCnyDrafts(
+      Object.fromEntries(
+        (detail.data?.pricingScopes ?? [])
+          .filter(
+            (scope) =>
+              !scope.enabled &&
+              scope.currentProviderRate &&
+              !scope.prices.some((price) => price.current)
+          )
+          .map((scope) => {
+            return [
+              scope.parameterCombinationId,
+              {
+                provider: currentProviderCnyDraft(
+                  scope.currentProviderRate,
+                  next
+                ),
+                customers: {},
+              },
+            ]
+          })
+      )
+    )
     setCnyTouched({})
     setCnyFieldErrors({})
     setCnyHasEdits(inputMode === 'CNY')
@@ -1181,11 +1596,14 @@ export function UnifiedModelPricing(props: {
         billingUnit === 'MILLION_TOKENS'
           ? selected.tokenCategories
           : (['scalar'] as const)
-      const isUnitChange = selected.billingUnit !== billingUnit
+      const isUnitChange =
+        selected.billingUnit !== null && selected.billingUnit !== billingUnit
       const relevantScopes = isUnitChange
         ? detail.data.pricingScopes.filter(
             (scope) =>
-              scope.enabled || scope.prices.some((price) => price.current)
+              scope.enabled ||
+              Boolean(scope.currentProviderRate) ||
+              scope.prices.some((price) => price.current)
           )
         : detail.data.pricingScopes.filter(
             (scope) => scope.parameterCombinationId === activeScopeId
@@ -1273,8 +1691,28 @@ export function UnifiedModelPricing(props: {
         return
       }
       setValidationErrors([])
+      let currentCalculation: CanvasModelPricingCnyCalculation
+      try {
+        currentCalculation = await calculateCanvasModelPricingCny({
+          customerModelId: modelId,
+          billingUnit,
+          scopes,
+        })
+      } catch {
+        if (draftRevision === previewRevision.current) {
+          setLatestCnyCalculation(null)
+          setCnyCalculationError(true)
+        }
+        return
+      }
+      if (draftRevision !== previewRevision.current) return
+      setLatestCnyCalculation(currentCalculation)
       const revision = ++previewRevision.current
-      preview.mutate({ revision, scopes })
+      preview.mutate({
+        revision,
+        scopes,
+        calculationIdentity: currentCalculation.inputIdentity,
+      })
       return
     }
     let riskValid = includeRiskResolution ? await riskForm.trigger() : true
@@ -1798,7 +2236,18 @@ export function UnifiedModelPricing(props: {
             }}
           />
         </TabsContent>
-        <TabsContent value='set' className='mt-4 max-w-3xl space-y-4'>
+        <TabsContent
+          value='set'
+          className={cn(
+            'mt-4 max-w-3xl space-y-4',
+            restorationError && '[&>*:not([role=alert])]:hidden'
+          )}
+        >
+          {restorationError ? (
+            <p role='alert' className='text-destructive text-sm'>
+              {t('Pricing is incomplete')}
+            </p>
+          ) : null}
           <div
             className={
               selected.allowedBillingUnits.length === 1
@@ -2568,105 +3017,156 @@ export function UnifiedModelPricing(props: {
               })}
             </>
           ) : (
-            <CnyPricingQuestionnaire
-              idPrefix={`cny-pricing-${activeScopeId}-${activePriceGroupId}`}
-              billingUnit={billingUnit}
-              categories={selected.tokenCategories}
-              draft={cnyDraft}
-              errors={Object.fromEntries(
-                Object.entries(cnyTouched)
-                  .filter(
-                    ([key, touched]) =>
-                      touched && key.startsWith(`${questionnaireKey}:`)
-                  )
-                  .map(([key]) => {
-                    const field = key.slice(questionnaireKey.length + 1)
-                    const value = field.startsWith('provider:')
-                      ? cnyDraft.provider[field.slice('provider:'.length)]
-                      : cnyDraft.customer[field.slice('customer:'.length)]
-                    return [
-                      field,
-                      cnyFieldErrors[key] ??
-                        (isPositiveRmbAmount(value ?? '')
-                          ? undefined
-                          : t('Enter an amount above 0 with up to 2 decimals')),
-                    ]
+            <div className='space-y-3'>
+              {cnyCalculation.isPending ? (
+                <p role='status'>{t('Calculating…')}</p>
+              ) : null}
+              {cnyCalculationError ? (
+                <div role='alert' className='space-y-2'>
+                  <p>{t('Pricing preview could not be created')}</p>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() =>
+                      setCnyRetryRevision((current) => current + 1)
+                    }
+                  >
+                    {t('Retry')}
+                  </Button>
+                </div>
+              ) : null}
+              <CnyPricingQuestionnaire
+                idPrefix={`cny-pricing-${activeScopeId}-${activePriceGroupId}`}
+                billingUnit={billingUnit}
+                categories={selected.tokenCategories}
+                draft={cnyDraft}
+                errors={Object.fromEntries(
+                  Object.entries(cnyTouched)
+                    .filter(
+                      ([key, touched]) =>
+                        touched && key.startsWith(`${questionnaireKey}:`)
+                    )
+                    .map(([key]) => {
+                      const field = key.slice(questionnaireKey.length + 1)
+                      const value = field.startsWith('provider:')
+                        ? cnyDraft.provider[field.slice('provider:'.length)]
+                        : cnyDraft.customer[field.slice('customer:'.length)]
+                      return [
+                        field,
+                        cnyFieldErrors[key] ??
+                          (isPositiveRmbAmount(value ?? '')
+                            ? undefined
+                            : t(
+                                'Enter an amount above 0 with up to 2 decimals'
+                              )),
+                      ]
+                    })
+                )}
+                calculation={
+                  preview.data
+                    ? preview.data.scopes
+                        .find(
+                          (scope) =>
+                            scope.parameterCombinationId === activeScopeId
+                        )
+                        ?.prices.find(
+                          (price) => price.priceGroupId === activePriceGroupId
+                        )?.proposed?.cnyCalculation
+                    : cnyCalculationDisplay(
+                        latestCnyCalculation?.scopes
+                          .find(
+                            (scope) =>
+                              scope.parameterCombinationId === activeScopeId
+                          )
+                          ?.prices.find(
+                            (price) => price.priceGroupId === activePriceGroupId
+                          ),
+                        billingUnit === 'MILLION_TOKENS'
+                          ? cnyTokenRates(
+                              cnyDraft.provider,
+                              selected.tokenCategories
+                            )
+                          : (cnyDraft.provider.scalar ?? ''),
+                        billingUnit === 'MILLION_TOKENS'
+                          ? cnyTokenRates(
+                              cnyDraft.customer,
+                              selected.tokenCategories
+                            )
+                          : (cnyDraft.customer.scalar ?? '')
+                      )
+                }
+                points={
+                  billingUnit === 'MILLION_TOKENS'
+                    ? (latestCnyCalculation?.scopes
+                        .find(
+                          (scope) =>
+                            scope.parameterCombinationId === activeScopeId
+                        )
+                        ?.prices.find(
+                          (price) => price.priceGroupId === activePriceGroupId
+                        )?.normalizedTokenRates ?? undefined)
+                    : latestCnyCalculation?.scopes
+                        .find(
+                          (scope) =>
+                            scope.parameterCombinationId === activeScopeId
+                        )
+                        ?.prices.find(
+                          (price) => price.priceGroupId === activePriceGroupId
+                        )?.normalizedPoints
+                }
+                pointsPerRmb={
+                  (preview.data ?? latestCnyCalculation)?.pointIssuanceRate
+                    .pointsPerRmb
+                }
+                onBlur={(side, field) =>
+                  setCnyTouched((current) => ({
+                    ...current,
+                    [`${questionnaireKey}:${side}:${field}`]: true,
+                  }))
+                }
+                onChange={(side, field, value) => {
+                  setCnyHasEdits(true)
+                  invalidatePreview()
+                  const errorKey = `${questionnaireKey}:${side}:${field}`
+                  setCnyFieldErrors((current) => {
+                    const next = { ...current }
+                    delete next[errorKey]
+                    return next
                   })
-              )}
-              calculation={
-                preview.data?.scopes
-                  .find(
-                    (scope) => scope.parameterCombinationId === activeScopeId
-                  )
-                  ?.prices.find(
-                    (price) => price.priceGroupId === activePriceGroupId
-                  )?.proposed?.cnyCalculation
-              }
-              points={
-                billingUnit === 'MILLION_TOKENS'
-                  ? (preview.data?.scopes
-                      .find(
-                        (scope) =>
-                          scope.parameterCombinationId === activeScopeId
-                      )
-                      ?.prices.find(
-                        (price) => price.priceGroupId === activePriceGroupId
-                      )?.proposed?.tokenRates ?? undefined)
-                  : preview.data?.scopes
-                      .find(
-                        (scope) =>
-                          scope.parameterCombinationId === activeScopeId
-                      )
-                      ?.prices.find(
-                        (price) => price.priceGroupId === activePriceGroupId
-                      )?.proposed?.points
-              }
-              pointsPerRmb={preview.data?.pointIssuanceRate.pointsPerRmb}
-              onBlur={(side, field) =>
-                setCnyTouched((current) => ({
-                  ...current,
-                  [`${questionnaireKey}:${side}:${field}`]: true,
-                }))
-              }
-              onChange={(side, field, value) => {
-                setCnyHasEdits(true)
-                invalidatePreview()
-                const errorKey = `${questionnaireKey}:${side}:${field}`
-                setCnyFieldErrors((current) => {
-                  const next = { ...current }
-                  delete next[errorKey]
-                  return next
-                })
-                setCnyDrafts((current) => {
-                  const scopeDraft = current[activeScopeId] ?? {
-                    provider: {},
-                    customers: {},
-                  }
-                  if (side === 'provider') {
+                  setCnyDrafts((current) => {
+                    const scopeDraft = current[activeScopeId] ?? {
+                      provider: {},
+                      customers: {},
+                    }
+                    if (side === 'provider') {
+                      return {
+                        ...current,
+                        [activeScopeId]: {
+                          ...scopeDraft,
+                          provider: {
+                            ...scopeDraft.provider,
+                            [field]: value,
+                          },
+                        },
+                      }
+                    }
                     return {
                       ...current,
                       [activeScopeId]: {
                         ...scopeDraft,
-                        provider: { ...scopeDraft.provider, [field]: value },
-                      },
-                    }
-                  }
-                  return {
-                    ...current,
-                    [activeScopeId]: {
-                      ...scopeDraft,
-                      customers: {
-                        ...scopeDraft.customers,
-                        [activePriceGroupId]: {
-                          ...scopeDraft.customers[activePriceGroupId],
-                          [field]: value,
+                        customers: {
+                          ...scopeDraft.customers,
+                          [activePriceGroupId]: {
+                            ...scopeDraft.customers[activePriceGroupId],
+                            [field]: value,
+                          },
                         },
                       },
-                    },
-                  }
-                })
-              }}
-            />
+                    }
+                  })
+                }}
+              />
+            </div>
           )}
           <div className='max-w-3xl space-y-4'>
             <fieldset className='space-y-2'>
@@ -2771,7 +3271,9 @@ export function UnifiedModelPricing(props: {
           </div>
           <div className='flex justify-end'>
             <Button
-              disabled={preview.isPending || publication.isPending}
+              disabled={
+                restorationError || preview.isPending || publication.isPending
+              }
               onClick={() => void requestPreview()}
             >
               {t('Preview and publish')}

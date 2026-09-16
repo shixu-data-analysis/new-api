@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { formatBusinessNumber } from '../number-format'
 import type {
   CanvasBillingUnit,
   CanvasModelPricingCnyValue,
@@ -196,8 +197,8 @@ export function CnyPricingQuestionnaire(props: {
       })}
       {props.pointsPerRmb ? (
         <p className='text-muted-foreground text-sm'>
-          {t('Pricing rate snapshot')}: {props.pointsPerRmb}{' '}
-          {t('points per RMB')}
+          {t('Pricing rate snapshot')}:{' '}
+          {formatBusinessNumber(props.pointsPerRmb, 8)} {t('points per RMB')}
         </p>
       ) : null}
     </div>

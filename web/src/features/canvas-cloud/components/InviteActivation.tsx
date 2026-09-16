@@ -56,7 +56,7 @@ export function InviteActivation() {
           className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end'
           onSubmit={(event) => {
             event.preventDefault()
-            if (code.trim().length >= 8) activation.mutate()
+            if (code.trim().length >= 4) activation.mutate()
           }}
         >
           <div className='space-y-2'>
@@ -80,7 +80,7 @@ export function InviteActivation() {
           </div>
           <Button
             type='submit'
-            disabled={activation.isPending || code.trim().length < 8}
+            disabled={activation.isPending || code.trim().length < 4}
           >
             {activation.isPending
               ? t('Activating…')

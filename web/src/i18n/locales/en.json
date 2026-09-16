@@ -7975,7 +7975,7 @@
     "Generation method": "Generation method",
     "Custom": "Custom",
     "System generated": "System generated",
-    "Custom invite code must be 6–8 uppercase letters or digits": "Custom invite code must be 6–8 uppercase letters or digits",
+    "Custom invite code must be 4–8 uppercase letters or digits": "Custom invite code must be 4–8 uppercase letters or digits",
     "System will generate CANVAS- followed by 8 uppercase letters or digits": "System will generate CANVAS- followed by 8 uppercase letters or digits",
     "Extend expiration": "Extend expiration",
     "Only the expiration time will change.": "Only the expiration time will change.",

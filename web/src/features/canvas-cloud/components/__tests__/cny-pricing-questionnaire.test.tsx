@@ -7,6 +7,29 @@ import { describe, expect, it, vi } from 'vitest'
 import { CnyPricingQuestionnaire } from '../CnyPricingQuestionnaire'
 
 describe('CnyPricingQuestionnaire', () => {
+  it.each([
+    ['50.00000000', '50 points per RMB'],
+    ['50.50000000', '50.5 points per RMB'],
+  ])(
+    'formats the pricing rate snapshot %s without meaningless zeros',
+    (rate, expected) => {
+      render(
+        <CnyPricingQuestionnaire
+          idPrefix='cny-rate'
+          billingUnit='REQUEST'
+          categories={[]}
+          draft={{ provider: {}, customer: {} }}
+          errors={{}}
+          pointsPerRmb={rate}
+          onChange={vi.fn()}
+          onBlur={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText(new RegExp(expected))).toBeVisible()
+    }
+  )
+
   it('renders only supported Token categories and exposes field errors accessibly', () => {
     const onChange = vi.fn()
     render(

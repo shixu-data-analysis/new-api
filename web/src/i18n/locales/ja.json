@@ -7975,7 +7975,7 @@
     "Generation method": "生成方法",
     "Custom": "カスタム",
     "System generated": "システム生成",
-    "Custom invite code must be 6–8 uppercase letters or digits": "大文字英数字6～8文字",
+    "Custom invite code must be 4–8 uppercase letters or digits": "大文字英数字4～8文字",
     "System will generate CANVAS- followed by 8 uppercase letters or digits": "CANVAS-と大文字英数字8文字を生成",
     "Extend expiration": "有効期限を延長",
     "Only the expiration time will change.": "有効期限のみ変更",

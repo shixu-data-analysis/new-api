@@ -256,6 +256,18 @@ describe('Canvas invite code management', () => {
       expect(screen.getByLabelText('Invite bonus campaign')).toHaveValue(
         'invite-v2'
       )
+      expect(
+        screen.queryByRole('alertdialog', { name: 'Create invite code' })
+      ).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Invite bonus campaign')).toHaveFocus()
+      expect(screen.getByLabelText('Invite bonus campaign')).toHaveAttribute(
+        'aria-invalid',
+        'true'
+      )
+      expect(screen.getByLabelText('Invite bonus campaign')).toHaveAttribute(
+        'aria-describedby',
+        'invite-bonus-campaign-error'
+      )
       expect(apiMocks.createCanvasAdminInviteCode).toHaveBeenCalledWith(
         expect.objectContaining({ idempotencyKey: expect.any(String) })
       )
@@ -477,6 +489,123 @@ describe('Canvas invite code management', () => {
         'VIP2026'
       )
     )
+  })
+
+  it.each(['VIP1', 'ABCDEFG8'])(
+    'accepts the %s custom invite code boundary for availability checks',
+    async (value) => {
+      await renderInviteManagement()
+      fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+      const code = screen.getByLabelText('Invite code')
+      fireEvent.change(code, { target: { value } })
+      fireEvent.blur(code)
+
+      await waitFor(() =>
+        expect(apiMocks.checkCanvasInviteCodeAvailability).toHaveBeenCalledWith(
+          value
+        )
+      )
+      expect(code).not.toHaveAttribute('aria-invalid', 'true')
+    }
+  )
+
+  it.each(['ABC', 'ABCDEFGHI', 'AB-C', 'AB C', 'CANVAS-VIP1'])(
+    'rejects invalid custom invite code %s without checking availability',
+    async (value) => {
+      await renderInviteManagement()
+      fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+      const code = screen.getByLabelText('Invite code')
+      fireEvent.change(code, { target: { value } })
+      fireEvent.blur(code)
+
+      await waitFor(() => expect(code).toHaveAttribute('aria-invalid', 'true'))
+      const error = document.querySelector('#invite-custom-code-error')
+      expect(error).toHaveTextContent(
+        'Custom invite code must be 4–8 uppercase letters or digits'
+      )
+      expect(error).toHaveAttribute('role', 'alert')
+      expect(code).toHaveAttribute('aria-invalid', 'true')
+      expect(code).toHaveAttribute(
+        'aria-describedby',
+        'invite-custom-code-error'
+      )
+      expect(apiMocks.checkCanvasInviteCodeAvailability).not.toHaveBeenCalled()
+    }
+  )
+
+  it('clears an invalid custom draft on mode changes and keeps generated mode code-free', async () => {
+    await renderInviteManagement()
+    expect(screen.queryByLabelText('Invite code')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/length/u)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const code = screen.getByLabelText('Invite code')
+    fireEvent.change(code, { target: { value: 'ABC' } })
+    fireEvent.blur(code)
+    await waitFor(() => expect(code).toHaveAttribute('aria-invalid', 'true'))
+    expect(
+      document.querySelector('#invite-custom-code-error')
+    ).toHaveTextContent(
+      'Custom invite code must be 4–8 uppercase letters or digits'
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'System generated' }))
+    expect(screen.queryByLabelText('Invite code')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    expect(screen.getByLabelText('Invite code')).toHaveValue('')
+    expect(
+      document.querySelector('#invite-custom-code-error')
+    ).not.toBeInTheDocument()
+  })
+
+  it('focuses the invalid custom code on submit and recovers after editing', async () => {
+    await renderInviteManagement()
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const code = screen.getByLabelText('Invite code')
+    fireEvent.change(code, { target: { value: 'ABC' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review and create invite' })
+    )
+
+    await waitFor(() => expect(code).toHaveFocus())
+    expect(code).toHaveAttribute('aria-invalid', 'true')
+    fireEvent.change(code, { target: { value: ' vip1 ' } })
+    expect(code).toHaveValue('VIP1')
+    expect(code).not.toHaveAttribute('aria-invalid', 'true')
+    expect(code).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('returns a create field error to the custom code while preserving the draft', async () => {
+    apiMocks.createCanvasAdminInviteCode.mockRejectedValue({
+      response: {
+        data: {
+          code: 'INVITE_CODE_UNAVAILABLE',
+          details: { field: 'code' },
+        },
+      },
+    })
+    await renderInviteManagement()
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
+    const code = screen.getByLabelText('Invite code')
+    fireEvent.change(code, { target: { value: 'VIP1' } })
+    fireEvent.change(screen.getByLabelText('Initial price group'), {
+      target: { value: 'group-v1' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review and create invite' })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm creation' })
+    )
+
+    await waitFor(() => expect(code).toHaveFocus())
+    expect(code).toHaveValue('VIP1')
+    expect(code).toHaveAttribute('aria-invalid', 'true')
+    expect(code).toHaveAttribute('aria-describedby', 'invite-custom-code-error')
+    expect(
+      screen.queryByRole('alertdialog', { name: 'Create invite code' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Initial price group')).toHaveValue('group-v1')
   })
 
   it('ignores an older availability result after the custom code changes', async () => {
@@ -861,19 +990,34 @@ describe('Canvas invite code management', () => {
     expect(currentCopy[1]).toBeEnabled()
   })
 
-  it('activates the signed-in customer with the entered invite code', async () => {
+  it('rejects a three-character activation code before calling Cloud', () => {
     renderWithClient(<InviteActivation />)
     fireEvent.change(screen.getByLabelText('Invite code'), {
-      target: { value: 'canvas-test-code' },
+      target: { value: 'abc' },
     })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Activate Canvas access' })
-    )
 
-    await waitFor(() =>
-      expect(apiMocks.activateCanvasInvite).toHaveBeenCalledWith(
-        'CANVAS-TEST-CODE'
-      )
-    )
+    expect(
+      screen.getByRole('button', { name: 'Activate Canvas access' })
+    ).toBeDisabled()
+    expect(apiMocks.activateCanvasInvite).not.toHaveBeenCalled()
   })
+
+  it.each(['vip1', 'ABCDEFG8', 'canvas-abcd1234', 'legacy-invite-code-2025'])(
+    'passes activation code %s to Cloud after safe client normalization',
+    async (value) => {
+      renderWithClient(<InviteActivation />)
+      fireEvent.change(screen.getByLabelText('Invite code'), {
+        target: { value: ` ${value} ` },
+      })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Activate Canvas access' })
+      )
+
+      await waitFor(() =>
+        expect(apiMocks.activateCanvasInvite).toHaveBeenCalledWith(
+          value.toUpperCase()
+        )
+      )
+    }
+  )
 })
