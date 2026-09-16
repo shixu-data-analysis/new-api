@@ -14,6 +14,7 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  useLocation,
 } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18next from 'i18next'
@@ -260,7 +261,10 @@ describe('Canvas customer point center', () => {
     expect(container.querySelectorAll('tr')).toHaveLength(tableRowCount + 1)
     const timer = timeoutSpy.mock.calls.find((call) => call[1] === 3_000)?.[0]
     expect(timer).toBeTypeOf('function')
-    act(() => (timer as TimerHandler)())
+    if (typeof timer !== 'function') {
+      throw new Error('Highlight timer is missing')
+    }
+    act(() => timer())
     expect(screen.getByText('RC-NEW-002').closest('tr')).not.toHaveClass(
       'bg-primary/10'
     )
@@ -328,7 +332,7 @@ describe('Canvas customer point center', () => {
     const rootRoute = createRootRoute({ component: Outlet })
     const pointsRoute = createRoute({
       getParentRoute: () => rootRoute,
-      path: '/canvas-cloud/points',
+      path: '/canvas-cloud/$section',
       validateSearch: (search: Record<string, unknown>) => ({
         view:
           search.view === 'lots' || search.view === 'ledger'
@@ -340,15 +344,24 @@ describe('Canvas customer point center', () => {
             : undefined,
       }),
       component: function PointRouteHarness() {
-        const search = pointsRoute.useSearch()
-        const navigate = pointsRoute.useNavigate()
+        const search = useLocation({
+          select: (location) => {
+            const params = new URLSearchParams(location.searchStr)
+            const view = params.get('view')
+            return {
+              view: view === 'lots' || view === 'ledger' ? view : 'redeem',
+              orderNumber: params.get('orderNumber') ?? undefined,
+            } satisfies { view: CustomerPointsView; orderNumber?: string }
+          },
+        })
         if (search.view === 'ledger') {
           return (
             <CustomerPointHistory
               view='ledger'
               onOpenOrder={(_orderId, orderNumber) =>
-                void navigate({
-                  to: '/canvas-cloud/points',
+                void router.navigate({
+                  to: '/canvas-cloud/$section',
+                  params: { section: 'points' },
                   search: (previous) =>
                     customerRedeemOrderSearch(previous, orderNumber),
                 })
@@ -360,9 +373,17 @@ describe('Canvas customer point center', () => {
           <CustomerPointsCenter
             view={search.view}
             initialOrderNumber={search.orderNumber}
-            onViewChange={(view) => void navigate({ search: { view } })}
+            onViewChange={(view) =>
+              void router.navigate({
+                to: '/canvas-cloud/$section',
+                params: { section: 'points' },
+                search: { view },
+              })
+            }
             onOrderNumberChange={(orderNumber) =>
-              void navigate({
+              void router.navigate({
+                to: '/canvas-cloud/$section',
+                params: { section: 'points' },
                 search: (previous) => ({
                   ...previous,
                   view: 'redeem',

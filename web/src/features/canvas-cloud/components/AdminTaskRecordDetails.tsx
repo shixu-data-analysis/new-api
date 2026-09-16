@@ -64,6 +64,7 @@ const failureLocations: Record<string, string> = {
 }
 const errorCategories: Record<string, string> = {
   EXECUTOR_RESOURCE_CONFIRMED_NOT_SENT: 'Executor request confirmed not sent',
+  PROVIDER_PREFLIGHT: 'Generation request preparation failed',
   PROVIDER_AUTH_FAILED: 'Provider authentication failed',
   PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
   PROVIDER_ACCESS_DENIED: 'Provider access denied',
@@ -128,7 +129,7 @@ function Points({ value }: { value: string | null | undefined }) {
     </span>
   )
 }
-function formatTime(locale: string, value: string | null) {
+function formatTime(locale: string | undefined, value: string | null) {
   return value
     ? new Intl.DateTimeFormat(locale, {
         dateStyle: 'medium',
@@ -190,6 +191,10 @@ function settlementSummary(
 }
 function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
   const { t } = useTranslation()
+  const showPreflightDiagnosis =
+    task.failureLocation === 'EXECUTOR_PREFLIGHT' &&
+    (task.derivedExecutionStatus === 'CONFIRMED_FAILED' ||
+      task.derivedExecutionStatus === 'PARTIAL_SUCCESS')
   const parameters = Object.entries(task.parameters ?? {}).filter(
     ([key, value]) =>
       parameterLabels[key] &&
@@ -199,6 +204,57 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
   )
   return (
     <div className='space-y-5'>
+      {showPreflightDiagnosis ? (
+        <section className='space-y-3'>
+          <h3 className='text-sm font-medium'>{t('Failure diagnosis')}</h3>
+          {task.preflightDiagnostic ? (
+            <dl className='grid gap-4 sm:grid-cols-2'>
+              <DetailValue label='Failure stage'>
+                <span className='font-mono select-text'>
+                  {task.preflightDiagnostic.stage}
+                </span>
+              </DetailValue>
+              <DetailValue label='Specific reason'>
+                {task.preflightDiagnostic.reason === 'BODY_TEMPLATE_INVALID'
+                  ? `${t('Request template invalid')} · `
+                  : null}
+                <span className='font-mono select-text'>
+                  {task.preflightDiagnostic.reason}
+                </span>
+              </DetailValue>
+              {task.preflightDiagnostic.detail ? (
+                <DetailValue label='Template error'>
+                  {task.preflightDiagnostic.detail ===
+                  'INTEGER_CONVERSION_FAILED'
+                    ? `${t('Integer conversion failed')} · `
+                    : null}
+                  <span className='font-mono select-text'>
+                    {task.preflightDiagnostic.detail}
+                  </span>
+                </DetailValue>
+              ) : null}
+              {task.preflightDiagnostic.field ? (
+                <DetailValue label='Field path'>
+                  <span className='font-mono select-text'>
+                    {task.preflightDiagnostic.field}
+                  </span>
+                </DetailValue>
+              ) : null}
+              {task.preflightDiagnostic.rule ? (
+                <DetailValue label='Validation rule'>
+                  <span className='font-mono select-text'>
+                    {task.preflightDiagnostic.rule}
+                  </span>
+                </DetailValue>
+              ) : null}
+            </dl>
+          ) : (
+            <p className='text-muted-foreground text-sm'>
+              {t('No more specific error was recorded for this task')}
+            </p>
+          )}
+        </section>
+      ) : null}
       <section className='space-y-3'>
         <h3 className='text-sm font-medium'>{t('Actual task parameters')}</h3>
         <dl className='grid gap-4 sm:grid-cols-2'>

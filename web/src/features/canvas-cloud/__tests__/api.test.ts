@@ -376,8 +376,6 @@ describe('Canvas Cloud API boundary', () => {
       { signal: undefined, skipErrorHandler: true }
     )
     await getCanvasTaskPointLedger('task-id', {
-      changeType: 'SETTLE',
-      lotType: 'PAID',
       page: 1,
       pageSize: 20,
     })
@@ -385,8 +383,6 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/tasks/task-id/point-ledger',
       {
         params: {
-          changeType: 'SETTLE',
-          lotType: 'PAID',
           page: 1,
           pageSize: 20,
         },
@@ -1166,6 +1162,7 @@ describe('Canvas Cloud API boundary', () => {
 
     mocks.post.mockResolvedValue({ data: { item: {}, code: 'CANVAS-TEST' } })
     const input = {
+      codeMode: 'GENERATED' as const,
       maxRegistrations: '10',
       validFrom: '2026-08-29T00:00:00.000Z',
       expiresAt: '2026-09-29T00:00:00.000Z',

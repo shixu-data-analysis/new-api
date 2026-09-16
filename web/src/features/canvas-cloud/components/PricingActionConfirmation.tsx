@@ -52,6 +52,7 @@ export function PricingActionConfirmation(props: {
   description: string
   details: ConfirmationDetail[]
   comparisonRows?: PricingComparisonRow[]
+  compact?: boolean
   cancelLabel?: string
   confirmLabel: string
   destructive?: boolean
@@ -130,68 +131,89 @@ export function PricingActionConfirmation(props: {
                     </h4>
                   )}
                   <div
-                    role='table'
+                    role={props.compact ? undefined : 'table'}
                     aria-label={group.label ?? scope.label}
                     className='min-w-0 rounded-lg border'
                   >
-                    <div role='rowgroup' className='sr-only sm:not-sr-only'>
-                      <div
-                        role='row'
-                        className='bg-muted/30 text-muted-foreground grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)] border-b'
-                      >
-                        {[t('Changed field'), t('Before'), t('After')].map(
-                          (label) => (
-                            <div
-                              key={label}
-                              role='columnheader'
-                              className='px-3 py-2 font-medium'
-                            >
-                              {label}
-                            </div>
-                          )
-                        )}
+                    {props.compact ? (
+                      <div className='space-y-1 p-3 text-sm'>
+                        {group.rows.map((row) => (
+                          <div
+                            key={row.field}
+                            className='flex flex-wrap justify-between gap-x-3 gap-y-1 [overflow-wrap:anywhere]'
+                          >
+                            <span className='text-muted-foreground'>
+                              {row.field}
+                            </span>
+                            <span className='tabular-nums'>
+                              {row.before ? <>{row.before} → </> : null}
+                              {row.after}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                    <div role='rowgroup'>
-                      {group.rows.map((row) => (
-                        <div
-                          key={row.field}
-                          role='row'
-                          className='grid min-w-0 border-b last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)]'
-                        >
+                    ) : (
+                      <>
+                        <div role='rowgroup' className='sr-only sm:not-sr-only'>
                           <div
-                            role='rowheader'
-                            className='min-w-0 px-3 py-2 font-medium [overflow-wrap:anywhere]'
+                            role='row'
+                            className='bg-muted/30 text-muted-foreground grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)] border-b'
                           >
-                            {row.field}
-                          </div>
-                          <div
-                            role='cell'
-                            className='min-w-0 px-3 py-2 [overflow-wrap:anywhere]'
-                          >
-                            <div
-                              aria-hidden='true'
-                              className='text-muted-foreground mb-1 sm:hidden'
-                            >
-                              {t('Before')}
-                            </div>
-                            {row.before}
-                          </div>
-                          <div
-                            role='cell'
-                            className='min-w-0 px-3 py-2 [overflow-wrap:anywhere]'
-                          >
-                            <div
-                              aria-hidden='true'
-                              className='text-muted-foreground mb-1 sm:hidden'
-                            >
-                              {t('After')}
-                            </div>
-                            {row.after}
+                            {[t('Changed field'), t('Before'), t('After')].map(
+                              (label) => (
+                                <div
+                                  key={label}
+                                  role='columnheader'
+                                  className='px-3 py-2 font-medium'
+                                >
+                                  {label}
+                                </div>
+                              )
+                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div role='rowgroup'>
+                          {group.rows.map((row) => (
+                            <div
+                              key={row.field}
+                              role='row'
+                              className='grid min-w-0 border-b last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1.25fr)]'
+                            >
+                              <div
+                                role='rowheader'
+                                className='min-w-0 px-3 py-2 font-medium [overflow-wrap:anywhere]'
+                              >
+                                {row.field}
+                              </div>
+                              <div
+                                role='cell'
+                                className='min-w-0 px-3 py-2 [overflow-wrap:anywhere]'
+                              >
+                                <div
+                                  aria-hidden='true'
+                                  className='text-muted-foreground mb-1 sm:hidden'
+                                >
+                                  {t('Before')}
+                                </div>
+                                {row.before}
+                              </div>
+                              <div
+                                role='cell'
+                                className='min-w-0 px-3 py-2 [overflow-wrap:anywhere]'
+                              >
+                                <div
+                                  aria-hidden='true'
+                                  className='text-muted-foreground mb-1 sm:hidden'
+                                >
+                                  {t('After')}
+                                </div>
+                                {row.after}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

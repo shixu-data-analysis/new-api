@@ -45,6 +45,7 @@ import {
 } from '../provider-pricing'
 import type {
   CanvasModelPricingDetail,
+  CanvasModelPricingCnyValue,
   CanvasModelPricingLegacyFacts,
   CanvasModelPricingPriceSnapshot,
   CanvasModelPricingPreview,
@@ -651,6 +652,51 @@ function PricingBasis(props: {
   const price = props.scope.prices.find(
     (value) => value.priceGroupId === props.priceGroupId
   )
+  if (price?.proposed?.inputMode === 'CNY') {
+    const original = price.proposed.originalInput
+    const cny = original?.inputMode === 'CNY' ? original : null
+    const unit = price.proposed.billingUnit
+    return (
+      <details>
+        <summary className='cursor-pointer text-sm font-medium'>
+          {t('Pricing basis')}
+        </summary>
+        <dl className='mt-3 space-y-2 text-sm'>
+          <div>
+            <dt className='text-muted-foreground'>{t('Provider cost')}</dt>
+            <dd>{cnyOriginalSummary(cny?.providerSuccessPriceCny, unit, t)}</dd>
+          </div>
+          <div>
+            <dt className='text-muted-foreground'>
+              {t('Inviter (agent) display price')}
+            </dt>
+            <dd>{cnyOriginalSummary(cny?.inviterDisplayPriceCny, unit, t)}</dd>
+          </div>
+          <div>
+            <dt className='text-muted-foreground'>
+              {t('Customer sale price')}
+            </dt>
+            <dd>{cnyOriginalSummary(cny?.customerPriceCny, unit, t)}</dd>
+          </div>
+          <div>
+            <dt className='text-muted-foreground'>
+              {t('Converted customer points')}
+            </dt>
+            <dd>{priceSummary(price.proposed, t)}</dd>
+          </div>
+          <div>
+            <dt className='text-muted-foreground'>
+              {t('Pricing rate snapshot')}
+            </dt>
+            <dd>
+              {props.pointIssuanceRate?.pointsPerRmb ?? t('Not recorded')}{' '}
+              {t('points per RMB')}
+            </dd>
+          </div>
+        </dl>
+      </details>
+    )
+  }
   return (
     <details>
       <summary className='cursor-pointer text-sm font-medium'>
@@ -1193,6 +1239,15 @@ function priceSummary(
       ? tokenRateSummary(price.tokenRates, t)
       : formatBusinessNumber(price.points, 8)
   return `${amount || t('Not recorded')} ${t('Points')} / ${billingUnitLabel(price.billingUnit, t)}`
+}
+function cnyOriginalSummary(
+  value: CanvasModelPricingCnyValue | null | undefined,
+  unit: CanvasModelPricingPriceSnapshot['billingUnit'],
+  t: (value: string) => string
+) {
+  if (!value) return t('Not recorded')
+  const amount = typeof value === 'string' ? value : tokenRateSummary(value, t)
+  return `${amount} ${t('RMB')} / ${billingUnitLabel(unit, t)}`
 }
 function legacyPriceSummary(
   facts: CanvasModelPricingLegacyFacts | null | undefined,

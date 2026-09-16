@@ -20,6 +20,7 @@ import type {
 
 export type CnyPricingDraft = {
   provider: Record<string, string>
+  inviter: Record<string, string>
   customer: Record<string, string>
 }
 
@@ -41,19 +42,19 @@ export function CnyPricingQuestionnaire(props: {
   errors: CnyPricingErrors
   calculation?: {
     providerSuccessPriceCny: CanvasModelPricingCnyValue
+    inviterDisplayPriceCny?: CanvasModelPricingCnyValue
     customerPriceCny: CanvasModelPricingCnyValue
-    actualMarginRate: CanvasModelPricingCnyValue
-    fullCostCny: CanvasModelPricingCnyValue
-    canPublish: boolean
+    inviterMinusProviderCny?: CanvasModelPricingCnyValue
+    customerMinusInviterCny?: CanvasModelPricingCnyValue
   }
   points?: CanvasModelPricingCnyValue
   pointsPerRmb?: string
   onChange: (
-    side: 'provider' | 'customer',
+    side: 'provider' | 'inviter' | 'customer',
     field: CanvasTokenCategory | 'scalar',
     value: string
   ) => void
-  onBlur: (side: 'provider' | 'customer', field: string) => void
+  onBlur: (side: 'provider' | 'inviter' | 'customer', field: string) => void
 }) {
   const { t } = useTranslation()
   const categories =
@@ -70,14 +71,22 @@ export function CnyPricingQuestionnaire(props: {
         const field = category ?? 'scalar'
         const suffix = category ? `-${category}` : ''
         const providerId = `${props.idPrefix}-provider${suffix}`
+        const inviterId = `${props.idPrefix}-inviter${suffix}`
         const customerId = `${props.idPrefix}-customer${suffix}`
         const label = category ? t(category) : null
         const providerError = props.errors[`provider:${field}`]
+        const inviterError = props.errors[`inviter:${field}`]
         const customerError = props.errors[`customer:${field}`]
         const calculation = props.calculation
         const points = categoryValues(props.points, category)
-        const margin = categoryValues(calculation?.actualMarginRate, category)
-        const cost = categoryValues(calculation?.fullCostCny, category)
+        const inviterDifference = categoryValues(
+          calculation?.inviterMinusProviderCny,
+          category
+        )
+        const customerDifference = categoryValues(
+          calculation?.customerMinusInviterCny,
+          category
+        )
         return (
           <section
             key={field}
@@ -92,9 +101,7 @@ export function CnyPricingQuestionnaire(props: {
               }
             >
               <div className='space-y-1'>
-                <Label htmlFor={providerId}>
-                  {t('Provider successful price')} *
-                </Label>
+                <Label htmlFor={providerId}>{t('Provider cost')} *</Label>
                 <Input
                   id={providerId}
                   inputMode='decimal'
@@ -124,7 +131,39 @@ export function CnyPricingQuestionnaire(props: {
                 ) : null}
               </div>
               <div className='space-y-1'>
-                <Label htmlFor={customerId}>{t('Customer CNY price')} *</Label>
+                <Label htmlFor={inviterId}>
+                  {t('Inviter (agent) display price')} *
+                </Label>
+                <Input
+                  id={inviterId}
+                  inputMode='decimal'
+                  value={props.draft.inviter[field] ?? ''}
+                  aria-required='true'
+                  aria-invalid={Boolean(inviterError)}
+                  aria-describedby={`${inviterId}-unit${inviterError ? ` ${inviterId}-error` : ''}`}
+                  onBlur={() => props.onBlur('inviter', field)}
+                  onChange={(event) =>
+                    props.onChange('inviter', field, event.target.value)
+                  }
+                />
+                <p
+                  id={`${inviterId}-unit`}
+                  className='text-muted-foreground text-xs'
+                >
+                  {t('RMB')} / {unit}
+                </p>
+                {inviterError ? (
+                  <p
+                    id={`${inviterId}-error`}
+                    role='alert'
+                    className='text-destructive text-xs'
+                  >
+                    {inviterError}
+                  </p>
+                ) : null}
+              </div>
+              <div className='space-y-1'>
+                <Label htmlFor={customerId}>{t('Customer sale price')} *</Label>
                 <Input
                   id={customerId}
                   inputMode='decimal'
@@ -155,10 +194,10 @@ export function CnyPricingQuestionnaire(props: {
               </div>
             </div>
             {calculation ? (
-              <dl className='mt-4 grid gap-2 text-sm sm:grid-cols-2'>
+              <dl className='mt-4 grid gap-2 text-sm'>
                 <div>
                   <dt className='text-muted-foreground'>
-                    {t('Calculated customer points')}
+                    {t('Converted customer points')}
                   </dt>
                   <dd className='tabular-nums'>
                     {points ?? '—'} {t('points')} / {unit}
@@ -166,28 +205,18 @@ export function CnyPricingQuestionnaire(props: {
                 </div>
                 <div>
                   <dt className='text-muted-foreground'>
-                    {t('Actual margin')}
+                    {t('Inviter display price minus provider cost')}
                   </dt>
                   <dd className='tabular-nums'>
-                    {margin === undefined
-                      ? '—'
-                      : `${(Number(margin) * 100).toFixed(2)}%`}
-                  </dd>
-                </div>
-                <div>
-                  <dt className='text-muted-foreground'>{t('Full cost')}</dt>
-                  <dd className='tabular-nums'>
-                    {cost ?? '—'} {t('RMB')} / {unit}
+                    {inviterDifference ?? '—'} {t('RMB')} / {unit}
                   </dd>
                 </div>
                 <div>
                   <dt className='text-muted-foreground'>
-                    {t('Publication result')}
+                    {t('Customer sale price minus inviter display price')}
                   </dt>
-                  <dd>
-                    {calculation.canPublish
-                      ? t('Can publish')
-                      : t('Cannot publish')}
+                  <dd className='tabular-nums'>
+                    {customerDifference ?? '—'} {t('RMB')} / {unit}
                   </dd>
                 </div>
               </dl>

@@ -1050,10 +1050,18 @@ export interface CanvasModelPricingPriceSnapshot {
   calculation?: CanvasModelPricingCalculation
   cnyCalculation?: {
     providerSuccessPriceCny: CanvasModelPricingCnyValue
+    inviterDisplayPriceCny?: CanvasModelPricingCnyValue
     customerPriceCny: CanvasModelPricingCnyValue
+    inviterMinusProviderCny?: CanvasModelPricingCnyValue
+    customerMinusInviterCny?: CanvasModelPricingCnyValue
     actualMarginRate: CanvasModelPricingCnyValue
     fullCostCny: CanvasModelPricingCnyValue
     canPublish: boolean
+  }
+  originalCnyValues?: {
+    providerSuccessPriceCny: CanvasModelPricingCnyValue | null
+    inviterDisplayPriceCny: CanvasModelPricingCnyValue | null
+    customerPriceCny: CanvasModelPricingCnyValue | null
   }
   id?: string
   version?: number
@@ -1091,6 +1099,7 @@ export interface CanvasModelPricingPriceSnapshot {
         providerRateVersionId: string
         providerRateVersion: number
         providerSuccessPriceCny: CanvasModelPricingCnyValue
+        inviterDisplayPriceCny?: CanvasModelPricingCnyValue
         customerPriceCny: CanvasModelPricingCnyValue
       }
     | null
@@ -1158,6 +1167,7 @@ export interface CanvasModelPricingCnyScope {
   prices: Array<{
     priceGroupId: string
     sourcePriceVersionId?: string
+    inviterDisplayPriceCny: CanvasModelPricingCnyValue
     customerPriceCny: CanvasModelPricingCnyValue
   }>
 }
@@ -1196,6 +1206,7 @@ export interface CanvasModelPricingDetail {
     parameters: Record<string, unknown>
     enabled: boolean
     currentProviderRate: CanvasModelPricingProviderRate | null
+    originalProviderSuccessPriceCny?: CanvasModelPricingCnyValue | null
     prices: Array<{
       priceGroupId: string
       priceGroupCode: string
@@ -1282,11 +1293,13 @@ export type CanvasModelPricingCnyCalculation = Omit<
       sourcePriceVersion: number | null
       normalizedPoints: string
       normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+      inviterMinusProviderCny: CanvasModelPricingCnyValue
+      customerMinusInviterCny: CanvasModelPricingCnyValue
       fullCostCny: CanvasModelPricingCnyValue
       actualMarginRate: CanvasModelPricingCnyValue
       canPublish: boolean
       fieldErrors: Array<{
-        field: 'customerPriceCny'
+        field: 'inviterDisplayPriceCny' | 'customerPriceCny'
         reason: string
         parameterCombinationId: string
         priceGroupId: string
@@ -1295,7 +1308,7 @@ export type CanvasModelPricingCnyCalculation = Omit<
     }>
   }>
   fieldErrors: Array<{
-    field: 'customerPriceCny'
+    field: 'inviterDisplayPriceCny' | 'customerPriceCny'
     reason: string
     parameterCombinationId: string
     priceGroupId: string
@@ -1847,6 +1860,13 @@ export interface CanvasAdminTaskRecordDetail {
     | 'RESPONSE_PROCESSING'
     | 'STORAGE'
     | null
+  preflightDiagnostic: {
+    stage: string
+    reason: string
+    field?: string
+    rule?: string
+    detail?: string
+  } | null
   outputs: CanvasAdminTaskRecordOutput[]
   upstreamTaskId: string | null
   taskError: {

@@ -307,6 +307,44 @@ it('uses the selected French language for frozen rates and status labels', async
 })
 
 describe('UnifiedModelPricingHistory', () => {
+  it('shows frozen CNY cost, inviter price, sale price, points and rate', async () => {
+    const publication: CanvasModelPricingPublication = structuredClone(unified)
+    const historyPreview = publication.preview
+    if (!historyPreview) throw new Error('History fixture has no preview')
+    historyPreview.inputMode = 'CNY'
+    const proposed = historyPreview.scopes[0].prices[0].proposed
+    if (!proposed) throw new Error('History fixture has no proposed price')
+    proposed.inputMode = 'CNY'
+    proposed.points = '124'
+    proposed.originalInput = {
+      inputMode: 'CNY',
+      billingUnit: 'SECOND',
+      priceVersionId: 'price-2',
+      priceVersion: 2,
+      providerRateVersionId: 'rate-2',
+      providerRateVersion: 2,
+      providerSuccessPriceCny: '0.5000',
+      inviterDisplayPriceCny: '1.0000',
+      customerPriceCny: '1.2345',
+    }
+    mocks.history.mockResolvedValue({
+      items: [publication],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    renderHistory()
+    fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByText('Pricing basis'))
+    expect(screen.getByText('Inviter (agent) display price')).toBeVisible()
+    expect(screen.getByText('1.0000 RMB / per second')).toBeVisible()
+    expect(screen.getByText('1.2345 RMB / per second')).toBeVisible()
+    expect(
+      screen.getAllByText('124 Points / per second').length
+    ).toBeGreaterThan(0)
+    expect(screen.getByText('100 points per RMB')).toBeVisible()
+  })
+
   it('labels an empty default scope for the history list', async () => {
     const defaultDetail: CanvasModelPricingDetail = {
       ...detail,

@@ -86,7 +86,6 @@ import type {
   CanvasModelPricingPreview,
   CanvasModelPricingPublication,
   CanvasModelPricingPublicationResult,
-  CanvasModelPricingScope,
   CanvasModelPricingCnyScope,
   CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyCalculationIdentity,
@@ -417,36 +416,16 @@ export async function getCanvasModelPricingPublication(
   ).data
 }
 
-export async function previewCanvasModelPricing(
-  input:
-    | {
-        customerModelId: string
-        billingUnit: import('./types').CanvasBillingUnit
-        inputMode: 'POINTS'
-        effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
-        effectiveAt?: string
-        decisionSummary?: string
-        scopes: CanvasModelPricingScope[]
-        costRiskResolution?:
-          | {
-              type: 'TEMPORARY_LOSS'
-              lossEndsAt: string
-              maxExpectedLossPoints: string
-              reason: string
-            }
-          | { type: 'MANUAL_PAUSE'; reason: string }
-      }
-    | {
-        customerModelId: string
-        billingUnit: import('./types').CanvasBillingUnit
-        inputMode: 'CNY'
-        calculationIdentity: CanvasModelPricingCnyCalculationIdentity
-        effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
-        effectiveAt?: string
-        decisionSummary?: string
-        scopes: CanvasModelPricingCnyScope[]
-      }
-): Promise<CanvasModelPricingPreview> {
+export async function previewCanvasModelPricing(input: {
+  customerModelId: string
+  billingUnit: import('./types').CanvasBillingUnit
+  inputMode: 'CNY'
+  calculationIdentity: CanvasModelPricingCnyCalculationIdentity
+  effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
+  effectiveAt?: string
+  decisionSummary?: string
+  scopes: CanvasModelPricingCnyScope[]
+}): Promise<CanvasModelPricingPreview> {
   return (
     await api.post(`${webBase}/admin/model-pricing/previews`, input, {
       skipErrorHandler: true,

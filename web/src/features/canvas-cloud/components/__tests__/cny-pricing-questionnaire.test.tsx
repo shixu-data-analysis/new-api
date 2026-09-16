@@ -18,7 +18,7 @@ describe('CnyPricingQuestionnaire', () => {
           idPrefix='cny-rate'
           billingUnit='REQUEST'
           categories={[]}
-          draft={{ provider: {}, customer: {} }}
+          draft={{ provider: {}, inviter: {}, customer: {} }}
           errors={{}}
           pointsPerRmb={rate}
           onChange={vi.fn()}
@@ -39,6 +39,7 @@ describe('CnyPricingQuestionnaire', () => {
         categories={['input', 'output', 'cacheRead']}
         draft={{
           provider: { input: '1.00', output: '', cacheRead: '0.20' },
+          inviter: { input: '1.50', output: '2.50', cacheRead: '0.30' },
           customer: { input: '2.00', output: '3.00', cacheRead: '0.40' },
         }}
         errors={{ 'provider:output': 'Enter a valid amount' }}
@@ -47,13 +48,9 @@ describe('CnyPricingQuestionnaire', () => {
       />
     )
 
-    expect(screen.getAllByLabelText(/Provider successful price/)).toHaveLength(
-      3
-    )
+    expect(screen.getAllByLabelText(/Provider cost/)).toHaveLength(3)
     expect(screen.queryByText('cacheWrite')).not.toBeInTheDocument()
-    const outputProvider = screen.getAllByLabelText(
-      /Provider successful price/
-    )[1]
+    const outputProvider = screen.getAllByLabelText(/Provider cost/)[1]
     expect(outputProvider).toHaveAttribute('aria-invalid', 'true')
     expect(outputProvider).toHaveAccessibleDescription(
       'RMB / per million tokens Enter a valid amount'
@@ -70,15 +67,16 @@ describe('CnyPricingQuestionnaire', () => {
         categories={[]}
         draft={{
           provider: { scalar: '1.20' },
+          inviter: { scalar: '1.80' },
           customer: { scalar: '2.40' },
         }}
         errors={{}}
         calculation={{
           providerSuccessPriceCny: '1.20',
+          inviterDisplayPriceCny: '1.80',
           customerPriceCny: '2.40',
-          actualMarginRate: '0.5',
-          fullCostCny: '1.20',
-          canPublish: true,
+          inviterMinusProviderCny: '0.60',
+          customerMinusInviterCny: '0.60',
         }}
         points='240'
         pointsPerRmb='100'
@@ -88,8 +86,8 @@ describe('CnyPricingQuestionnaire', () => {
     )
 
     expect(screen.getByText('240 points / per request')).toBeVisible()
-    expect(screen.getByText('50.00%')).toBeVisible()
-    expect(screen.getByText('Can publish')).toBeVisible()
+    expect(screen.getAllByText('0.60 RMB / per request')).toHaveLength(2)
+    expect(screen.queryByText('Can publish')).not.toBeInTheDocument()
     expect(screen.getByText(/100 points per RMB/)).toBeVisible()
     const fields = container.querySelector('.mt-4.grid.max-w-xs')
     expect(fields).not.toHaveClass('sm:grid-cols-2')

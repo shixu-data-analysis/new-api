@@ -205,9 +205,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     const details = await screen.findByRole('button', { name: 'Details' })
     expect(screen.getByText('202 → 200')).toBeVisible()
     fireEvent.click(details)
-    expect(
-      screen.getByRole('button', { name: 'Hide details' })
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Hide details' })).toBeVisible()
     expect(await screen.findByText('call-long-id')).toHaveClass('break-all')
     expect(screen.getByText('executor-01')).toBeVisible()
     fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
@@ -227,7 +225,10 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     const detailButtons = screen.getAllByRole('button', { name: 'Details' })
-    fireEvent.click(detailButtons.at(-1))
+    const lastDetailButton = detailButtons.at(-1)
+    if (!lastDetailButton)
+      throw new Error('Point record details button is missing')
+    fireEvent.click(lastDetailButton)
     expect(await screen.findByText('ledger-1')).toHaveClass('break-all')
     expect(screen.getByText('allocation-1')).toHaveClass('break-all')
     expect(
@@ -365,6 +366,87 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.queryByText('FUTURE_INTERNAL_CODE')).not.toBeInTheDocument()
   })
 
+  it('localizes a known preflight failure without exposing its internal code or message', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      taskError: {
+        code: 'PROVIDER_PREFLIGHT',
+        messages: { en: 'Private validation detail' },
+      },
+    })
+    mount()
+
+    expect(
+      await screen.findByText('Executor 预检 · 生成请求准备失败')
+    ).toBeVisible()
+    expect(screen.queryByText('PROVIDER_PREFLIGHT')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Private validation detail')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the recorded template error and safe field path above task parameters for a failed preflight', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      taskError: { code: 'PROVIDER_PREFLIGHT', messages: null },
+      preflightDiagnostic: {
+        stage: 'SUBMIT_REQUEST',
+        reason: 'BODY_TEMPLATE_INVALID',
+        detail: 'INTEGER_CONVERSION_FAILED',
+        field: '/durationSeconds',
+      },
+    })
+    mount()
+
+    expect(await screen.findByText('失败诊断')).toBeVisible()
+    expect(screen.getByText(/请求模板无效/)).toBeVisible()
+    expect(screen.getByText(/整数转换失败/)).toBeVisible()
+    expect(screen.getByText('INTEGER_CONVERSION_FAILED')).toBeVisible()
+    expect(screen.getByText('/durationSeconds')).toBeVisible()
+    expect(
+      screen
+        .getByText('失败诊断')
+        .compareDocumentPosition(screen.getByText('实际任务参数')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('says a historical preflight task has no finer recorded error without inventing one', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      preflightDiagnostic: null,
+    })
+    mount()
+
+    expect(await screen.findByText('该任务未记录更具体的错误')).toBeVisible()
+    expect(
+      screen.queryByText('INTEGER_CONVERSION_FAILED')
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not show failure diagnosis for a successful task', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'SUCCEEDED',
+      failureLocation: null,
+      preflightDiagnostic: null,
+    })
+    mount()
+
+    expect(
+      await screen.findByRole('button', { name: 'Execution details' })
+    ).toBeVisible()
+    expect(screen.queryByText('Failure diagnosis')).not.toBeInTheDocument()
+  })
+
   it('has non-empty UAT-018 terminology in all seven locales', () => {
     const keys = [
       'Actual task parameters',
@@ -372,6 +454,15 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'Fanout mode',
       'Provider response',
       'Failure summary',
+      'Failure diagnosis',
+      'Failure stage',
+      'Specific reason',
+      'Template error',
+      'Field path',
+      'Validation rule',
+      'No more specific error was recorded for this task',
+      'Request template invalid',
+      'Integer conversion failed',
       'Provider calls',
       'Point action',
       'Convert to grace bonus points',
@@ -381,6 +472,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'Target point lot available points',
       'Target point lot frozen points',
       'Executor request confirmed not sent',
+      'Generation request preparation failed',
       'Points released',
       'Hide details',
     ]

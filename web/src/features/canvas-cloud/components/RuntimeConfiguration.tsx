@@ -11,7 +11,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   cloneElement,
-  Fragment,
   useEffect,
   useId,
   useMemo,
@@ -24,11 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
-import {
-  DataTableColumnHeader,
-  DataTableRow,
-  StaticDataTable,
-} from '@/components/data-table'
+import { DataTableColumnHeader, StaticDataTable } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import {
   sideDrawerContentClassName,
@@ -66,7 +61,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { TableCell, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { useDebounce } from '@/hooks'
@@ -76,8 +70,6 @@ import {
   archiveCanvasCredentialGroup,
   checkCanvasDatabaseBackupStorage,
   checkCanvasTaskMediaStorage,
-  getCanvasCredentialRotationPreview,
-  getCanvasModelCredentialBindingHistory,
   getCanvasProviderConfiguration,
   getCanvasProviderCredentialGroupChanges,
   getCanvasRuntimeConfiguration,
@@ -544,15 +536,18 @@ export function RuntimeConfiguration(
     defaultValues: { name: '', apiKey: '', reason: '' },
   })
 
-  const hasUnsavedProviderEdit =
-    providerDrawer === 'management'
-      ? management.formState.isDirty ||
-        selectedModels.length !== managementInitialModels.length ||
-        selectedModels.some((id) => !managementInitialModels.includes(id))
-      : openEditor === 'credential' || addCredentialOpen
-        ? credential.formState.isDirty
-        : openEditor === 'binding' &&
-          (binding.formState.isDirty || selectedModels.length > 0)
+  let hasUnsavedProviderEdit = false
+  if (providerDrawer === 'management') {
+    hasUnsavedProviderEdit =
+      management.formState.isDirty ||
+      selectedModels.length !== managementInitialModels.length ||
+      selectedModels.some((id) => !managementInitialModels.includes(id))
+  } else if (openEditor === 'credential' || addCredentialOpen) {
+    hasUnsavedProviderEdit = credential.formState.isDirty
+  } else if (openEditor === 'binding') {
+    hasUnsavedProviderEdit =
+      binding.formState.isDirty || selectedModels.length > 0
+  }
   const hasUnsavedStorageEdit =
     (openEditor === 'taskMedia' && taskMedia.formState.isDirty) ||
     (openEditor === 'databaseBackup' && databaseBackup.formState.isDirty)
@@ -703,7 +698,9 @@ export function RuntimeConfiguration(
       toast.success(t('Task media configuration published'))
       await refresh()
     },
-    onError: () => toast.error(t('Task media configuration failed')),
+    onError: () => {
+      toast.error(t('Task media configuration failed'))
+    },
   })
   const databaseBackupMutation = useDirectAsync({
     execute: (value: DatabaseBackupForm) => {
@@ -738,7 +735,9 @@ export function RuntimeConfiguration(
       toast.success(t('Database backup configuration published'))
       await refresh()
     },
-    onError: () => toast.error(t('Database backup configuration failed')),
+    onError: () => {
+      toast.error(t('Database backup configuration failed'))
+    },
   })
   const credentialMutation = useDirectAsync({
     execute: (value: CredentialForm) => {
@@ -886,11 +885,6 @@ export function RuntimeConfiguration(
     onError: (error) => {
       toast.error(runtimeChangeError(error, t, 'credential'))
     },
-  })
-  const rotationPreviewMutation = useMutation({
-    mutationFn: (input: { credentialGroupId: string; requestId: number }) =>
-      getCanvasCredentialRotationPreview(input.credentialGroupId),
-    onError: (error) => toast.error(runtimeChangeError(error, t, 'preview')),
   })
   const bindingPreviewMutation = useMutation({
     mutationFn: (input: {
@@ -1520,9 +1514,9 @@ export function RuntimeConfiguration(
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
                     onSubmit={taskMedia.handleSubmit((value) => {
                       const currentAccessKeyId =
-                        storageData.taskMedia?.accessKeyId ?? ''
+                        storageData?.taskMedia?.accessKeyId ?? ''
                       if (
-                        (!storageData.taskMedia ||
+                        (!storageData?.taskMedia ||
                           value.accessKeyId !== currentAccessKeyId) &&
                         !value.secretAccessKey
                       ) {
@@ -1572,7 +1566,7 @@ export function RuntimeConfiguration(
                         {...taskMedia.register('secretAccessKey')}
                       />
                     </Field>
-                    {storageData.taskMedia?.credentialsConfigured ? (
+                    {storageData?.taskMedia?.credentialsConfigured ? (
                       <p className='text-muted-foreground text-xs sm:col-span-2'>
                         {t(
                           'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
@@ -1721,9 +1715,9 @@ export function RuntimeConfiguration(
                     className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
                     onSubmit={databaseBackup.handleSubmit((value) => {
                       const currentAccessKeyId =
-                        storageData.databaseBackup?.accessKeyId ?? ''
+                        storageData?.databaseBackup?.accessKeyId ?? ''
                       if (
-                        (!storageData.databaseBackup ||
+                        (!storageData?.databaseBackup ||
                           value.accessKeyId !== currentAccessKeyId) &&
                         !value.secretAccessKey
                       ) {
@@ -1775,7 +1769,7 @@ export function RuntimeConfiguration(
                         {...databaseBackup.register('secretAccessKey')}
                       />
                     </Field>
-                    {storageData.databaseBackup?.credentialsConfigured ? (
+                    {storageData?.databaseBackup?.credentialsConfigured ? (
                       <p className='text-muted-foreground text-xs sm:col-span-2'>
                         {t(
                           'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
@@ -2345,27 +2339,31 @@ export function RuntimeConfiguration(
                         }
                       />
                       <div className='space-y-2'>
-                        {managementCandidates.isPending ? (
+                        {managementCandidates.isPending && (
                           <p className='text-muted-foreground text-sm'>
                             {t('Loading')}
                           </p>
-                        ) : managementCandidates.isError ? (
-                          <div className='space-y-2 rounded-lg border p-3'>
-                            <p className='text-destructive text-sm'>
-                              {t('Unable to load model candidates')}
-                            </p>
-                            <Button
-                              type='button'
-                              variant='outline'
-                              size='sm'
-                              onClick={() =>
-                                void managementCandidates.refetch()
-                              }
-                            >
-                              {t('Retry')}
-                            </Button>
-                          </div>
-                        ) : (
+                        )}
+                        {!managementCandidates.isPending &&
+                          managementCandidates.isError && (
+                            <div className='space-y-2 rounded-lg border p-3'>
+                              <p className='text-destructive text-sm'>
+                                {t('Unable to load model candidates')}
+                              </p>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() =>
+                                  void managementCandidates.refetch()
+                                }
+                              >
+                                {t('Retry')}
+                              </Button>
+                            </div>
+                          )}
+                        {!managementCandidates.isPending &&
+                          !managementCandidates.isError &&
                           managementModels.map((model) => (
                             <label
                               key={model.id}
@@ -2391,8 +2389,7 @@ export function RuntimeConfiguration(
                                 </span>
                               </span>
                             </label>
-                          ))
-                        )}
+                          ))}
                         {managementCandidates.isSuccess &&
                         managementModels.length === 0 ? (
                           <p className='text-muted-foreground text-sm'>
@@ -2933,8 +2930,9 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
       ),
   })
   useEffect(() => setPage(1), [props.credentialGroupId])
-  if (changes.isPending)
+  if (changes.isPending) {
     return <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
+  }
   if (changes.isError) {
     return (
       <div className='space-y-2'>
@@ -2971,6 +2969,8 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
           </p>
           <ul className='space-y-1 text-sm'>
             {event.changes.map((change, index) => (
+              // Audit changes have no stable per-change identifier and are immutable within an event.
+              // eslint-disable-next-line react/no-array-index-key
               <li key={`${event.id}-${index}`}>
                 {formatCredentialGroupChange(change, t)}
               </li>
@@ -3010,11 +3010,15 @@ function formatCredentialGroupChange(
   change: CanvasProviderCredentialGroupChange['changes'][number],
   t: (key: string) => string
 ) {
-  if (change.type === 'KEY_REPLACED') return t('API Key replaced')
-  if (change.type === 'GROUP_RENAMED')
+  if (change.type === 'KEY_REPLACED') {
+    return t('API Key replaced')
+  }
+  if (change.type === 'GROUP_RENAMED') {
     return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
-  if (change.modelName)
+  }
+  if (change.modelName) {
     return `${change.modelName}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
+  }
   return t(change.type ?? 'GROUP_UPDATED')
 }
 
