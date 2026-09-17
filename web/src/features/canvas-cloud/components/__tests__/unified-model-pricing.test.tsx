@@ -101,12 +101,14 @@ const detail = {
         failureChargePolicy: { mode: 'NONE' },
       },
       originalProviderSuccessPriceCny: '0.5000',
+      scheduledProviderRate: null,
       prices: [
         {
           priceGroupId: 'group-1',
           priceGroupCode: 'STANDARD',
           priceGroupName: 'Standard',
           current,
+          scheduled: null,
         },
       ],
     },
@@ -189,19 +191,37 @@ const preview = {
   canPublish: true,
 }
 
-function renderPricing(tab: 'set' | 'current' = 'set') {
+function renderPricing(
+  tab: 'set' | 'current' = 'set',
+  onTabChange?: (tab: 'current' | 'set' | 'history') => void
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <UnifiedModelPricing
         initialModelId='model-1'
         tab={tab}
+        onTabChange={onTabChange}
         onBack={vi.fn()}
       />
     </QueryClientProvider>
   )
+  return {
+    ...view,
+    rerenderTab: (next: 'set' | 'current') =>
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <UnifiedModelPricing
+            initialModelId='model-1'
+            tab={next}
+            onTabChange={onTabChange}
+            onBack={vi.fn()}
+          />
+        </QueryClientProvider>
+      ),
+  }
 }
 
 async function fields() {
@@ -416,6 +436,7 @@ describe('UnifiedModelPricing UAT-028', () => {
       priceGroupId: 'group-2',
       priceGroupCode: 'PREMIUM',
       priceGroupName: 'Premium',
+      scheduled: null,
       current: {
         ...structuredClone(current),
         id: 'price-2',
@@ -557,5 +578,116 @@ describe('UnifiedModelPricing UAT-028', () => {
     expect(
       screen.queryByRole('button', { name: 'Confirm and publish' })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('UnifiedModelPricing UAT-030', () => {
+  it('shows refreshed immediate pricing after publication and allows a new edit', async () => {
+    const published = structuredClone(detail)
+    published.pricingScopes[0].prices[0].current.points = '200'
+    published.pricingScopes[0].prices[0].current.originalCnyValues.customerPriceCny =
+      '2.0000'
+    mocks.detail
+      .mockResolvedValueOnce(structuredClone(detail))
+      .mockResolvedValue(structuredClone(published))
+    const user = userEvent.setup()
+    renderPricing()
+    await fields()
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Confirm and publish' })
+    )
+    expect(await screen.findByText(/200 points/)).toBeVisible()
+    expect(
+      screen.getByRole('tab', { name: 'Current pricing' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(mocks.detail.mock.calls.length).toBeGreaterThan(1)
+    await user.click(screen.getByRole('button', { name: 'Adjust pricing' }))
+    expect(
+      screen.getByRole('tab', { name: 'Set prices', hidden: true })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect((await fields()).customer).toHaveValue('2.0000')
+    expect(mocks.preview).toHaveBeenCalledTimes(1)
+  })
+
+  it('requests the current URL tab on success and follows URL tab changes on reentry', async () => {
+    const onTabChange = vi.fn()
+    const user = userEvent.setup()
+    const view = renderPricing('set', onTabChange)
+    await fields()
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Confirm and publish' })
+    )
+    await waitFor(() => expect(onTabChange).toHaveBeenCalledWith('current'))
+    view.rerenderTab('current')
+    expect(
+      screen.getByRole('tab', { name: 'Current pricing' })
+    ).toHaveAttribute('aria-selected', 'true')
+    view.rerenderTab('set')
+    expect(screen.getByRole('tab', { name: 'Set prices' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect((await fields()).customer).toHaveValue('1.2345')
+    view.rerenderTab('current')
+    expect(
+      screen.getByRole('tab', { name: 'Current pricing' })
+    ).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps the editing draft and confirmation after a failed publication', async () => {
+    mocks.publish.mockRejectedValueOnce(new Error('publication failed'))
+    const user = userEvent.setup()
+    renderPricing()
+    const input = await fields()
+    await user.clear(input.customer)
+    await user.type(input.customer, '1.5000')
+    await user.click(
+      screen.getByRole('button', { name: 'Preview and publish' })
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Confirm and publish' })
+    )
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
+    expect(
+      screen.getByRole('tab', { name: 'Set prices', hidden: true })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(input.customer).toHaveValue('1.5000')
+    expect(
+      screen.getByRole('button', { name: 'Confirm and publish' })
+    ).toBeVisible()
+  })
+
+  it('keeps current and scheduled prices separate, including a scheduled-only row', async () => {
+    const scheduledDetail = structuredClone(detail)
+    scheduledDetail.pricingScopes[0].prices[0].scheduled = {
+      ...structuredClone(current),
+      id: 'price-2',
+      status: 'APPROVED',
+      effectiveAt: '2030-01-01T00:00:00Z',
+      points: '300',
+      originalCnyValues: { ...original, customerPriceCny: '3.0000' },
+    } as never
+    mocks.detail.mockResolvedValue(scheduledDetail)
+    const view = renderPricing('current')
+    expect(
+      await screen.findByRole('columnheader', { name: 'Scheduled price' })
+    ).toBeVisible()
+    expect(screen.getByText(/124 points/)).toBeVisible()
+    expect(screen.getByText(/300 points/)).toBeVisible()
+    expect(screen.getByText(/Effective at/)).toBeVisible()
+    const scheduledOnly = structuredClone(scheduledDetail)
+    scheduledOnly.pricingScopes[0].prices[0].current = null as never
+    mocks.detail.mockResolvedValue(scheduledOnly)
+    // A fresh mount represents returning to the route after a later scheduled publication.
+    view.unmount()
+    renderPricing('current')
+    expect(await screen.findByText('Not priced')).toBeVisible()
+    expect(screen.getAllByText(/300 points/).length).toBeGreaterThan(0)
   })
 })

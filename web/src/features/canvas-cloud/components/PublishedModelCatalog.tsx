@@ -81,6 +81,7 @@ import { TableCell, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 
 import {
+  getCanvasAdminModelTags,
   getCanvasAdminTestingModels,
   publishCanvasExecutionTargetPresentation,
   publishCanvasModelPresentation,
@@ -99,10 +100,16 @@ import {
   executionTargetSpecifications,
 } from './execution-target-label'
 import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
+import { ModelTagFilterButton } from './ModelTagFilterButton'
+import { ModelTagManager } from './ModelTagManager'
 import { PublishedModelDetails } from './PublishedModelDetails'
 
 function presentationVersion(model: CanvasAdminTestingModel) {
   return model.presentationVersion ?? 0
+}
+
+function sameTagIds(left: string[], right: string[]) {
+  return [...left].sort().join(',') === [...right].sort().join(',')
 }
 
 function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
@@ -138,6 +145,11 @@ export function PublishedModelCatalog(props: {
   const [visibility, setVisibility] = useState(
     () => navigation?.listState.visibility ?? 'ALL'
   )
+  const [tagId, setTagId] = useState(() => navigation?.listState.tagId ?? '')
+  const [tagsExpanded, setTagsExpanded] = useState(true)
+  const [managingTags, setManagingTags] = useState(false)
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [originalTagIds, setOriginalTagIds] = useState<string[]>([])
   const [pagination, setPagination] = useState<PaginationState>(
     () => navigation?.listState.pagination ?? { pageIndex: 0, pageSize: 20 }
   )
@@ -160,7 +172,7 @@ export function PublishedModelCatalog(props: {
     setPagination((current) =>
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
     )
-  }, [capability, modelId, provider, search, visibility])
+  }, [capability, modelId, provider, search, tagId, visibility])
   useEffect(() => {
     navigation?.updateListState({
       search,
@@ -168,6 +180,7 @@ export function PublishedModelCatalog(props: {
       provider,
       capability,
       visibility,
+      tagId,
       pagination,
       sorting,
       columnVisibility,
@@ -180,6 +193,7 @@ export function PublishedModelCatalog(props: {
     provider,
     search,
     sorting,
+    tagId,
     columnVisibility,
     visibility,
   ])
@@ -211,6 +225,20 @@ export function PublishedModelCatalog(props: {
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
   })
+  const tags = useQuery({
+    queryKey: ['canvas-cloud', 'admin-model-tags'],
+    queryFn: getCanvasAdminModelTags,
+  })
+  useEffect(() => {
+    if (
+      tags.data &&
+      tagId &&
+      tagId !== '__untagged__' &&
+      !tags.data.some((tag) => tag.id === tagId)
+    ) {
+      setTagId('')
+    }
+  }, [tagId, tags.data])
   useEffect(() => {
     if (!navigation?.listState.focusModelId || !models.data) return
     const modelIdToFocus = navigation.listState.focusModelId
@@ -255,7 +283,8 @@ export function PublishedModelCatalog(props: {
       }
       if (
         status === 409 &&
-        payload?.code === 'MODEL_PRESENTATION_VERSION_CONFLICT'
+        (payload?.code === 'MODEL_PRESENTATION_VERSION_CONFLICT' ||
+          payload?.code === 'MODEL_TAGS_CONFLICT')
       ) {
         setFormServerError(
           'This model was changed elsewhere. Reload and try again.'
@@ -338,6 +367,12 @@ export function PublishedModelCatalog(props: {
         displayName: current.name,
         description: current.description,
       })
+      setOriginalTagIds(current.tags.map((tag) => tag.id))
+      setSelectedTagIds((draft) =>
+        sameTagIds(draft, originalTagIds)
+          ? current.tags.map((tag) => tag.id)
+          : draft
+      )
     } else if (toggling) {
       const target = current.executionTargets.find(
         (candidate) => candidate.id === toggling.target.id
@@ -367,11 +402,36 @@ export function PublishedModelCatalog(props: {
       )}
     </div>
   )
-  const filtered = useMemo(() => {
+  const generationTypes = useMemo(
+    () => [
+      ...new Set(
+        (models.data ?? [])
+          .map((model) => model.publicCatalogSnapshot.capability)
+          .filter(
+            (value): value is string =>
+              typeof value === 'string' && Boolean(value)
+          )
+      ),
+    ],
+    [models.data]
+  )
+  const apiProviders = useMemo(
+    () => [
+      ...new Map(
+        (models.data ?? []).map((model) => [model.provider.id, model.provider])
+      ).values(),
+    ],
+    [models.data]
+  )
+  const selectedCapability = generationTypes.includes(capability)
+    ? capability
+    : ''
+  const selectedProvider = apiProviders.some((item) => item.id === provider)
+    ? provider
+    : ''
+  const modelsBeforeTag = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
     const idQuery = modelId.trim().toLocaleLowerCase()
-    const providerQuery = provider.trim().toLocaleLowerCase()
-    const capabilityQuery = capability.trim().toLocaleLowerCase()
     const matches = (models.data ?? []).filter((model) => {
       const providerModelIds = model.modelIds
         .map((entry) => entry.modelId)
@@ -385,19 +445,43 @@ export function PublishedModelCatalog(props: {
       return (
         visible &&
         (!query || model.name.toLocaleLowerCase().includes(query)) &&
-        (!providerQuery ||
-          `${model.provider.name} ${model.provider.code}`
-            .toLocaleLowerCase()
-            .includes(providerQuery)) &&
-        (!capabilityQuery ||
-          t(String(model.publicCatalogSnapshot.capability ?? ''))
-            .toLocaleLowerCase()
-            .includes(capabilityQuery)) &&
+        (!selectedProvider || model.provider.id === selectedProvider) &&
+        (!selectedCapability ||
+          model.publicCatalogSnapshot.capability === selectedCapability) &&
         (!idQuery || providerModelIds.includes(idQuery))
       )
     })
     return matches
-  }, [capability, modelId, models.data, provider, search, t, visibility])
+  }, [
+    modelId,
+    models.data,
+    search,
+    selectedCapability,
+    selectedProvider,
+    visibility,
+  ])
+  const filtered = useMemo(
+    () =>
+      modelsBeforeTag.filter(
+        (model) =>
+          !tagId ||
+          (tagId === '__untagged__'
+            ? model.tags.length === 0
+            : model.tags.some((tag) => tag.id === tagId))
+      ),
+    [modelsBeforeTag, tagId]
+  )
+  const tagFilterCounts = useMemo(() => {
+    const byId = new Map<string, number>()
+    let untagged = 0
+    for (const model of modelsBeforeTag) {
+      if (model.tags.length === 0) untagged += 1
+      for (const tag of model.tags) {
+        byId.set(tag.id, (byId.get(tag.id) ?? 0) + 1)
+      }
+    }
+    return { byId, untagged }
+  }, [modelsBeforeTag])
   let visibilityFilterLabel = t('All customer display states')
   if (visibility === 'CUSTOMER') {
     visibilityFilterLabel = t('Visible to customers')
@@ -406,9 +490,14 @@ export function PublishedModelCatalog(props: {
   }
   const startEdit = useCallback(
     (model: CanvasAdminTestingModel) => {
-      const values = { displayName: model.name, description: model.description }
+      const values = {
+        displayName: model.name,
+        description: model.description,
+      }
       displayForm.reset(values)
       setOriginalPresentation(values)
+      setOriginalTagIds(model.tags.map((tag) => tag.id))
+      setSelectedTagIds(model.tags.map((tag) => tag.id))
       setFormServerError(null)
       setPresentationConflict(false)
       setEditing(model)
@@ -419,13 +508,23 @@ export function PublishedModelCatalog(props: {
     if (presentationBusy) return
     if (
       originalPresentation &&
-      hasModelPresentationChanges(displayForm.getValues(), originalPresentation)
+      (hasModelPresentationChanges(
+        displayForm.getValues(),
+        originalPresentation
+      ) ||
+        !sameTagIds(selectedTagIds, originalTagIds))
     ) {
       setDiscardingEdit(true)
       return
     }
     setEditing(null)
-  }, [displayForm, originalPresentation, presentationBusy])
+  }, [
+    displayForm,
+    originalPresentation,
+    originalTagIds,
+    presentationBusy,
+    selectedTagIds,
+  ])
   const columns = useMemo<ColumnDef<CanvasAdminTestingModel, unknown>[]>(
     () => [
       {
@@ -439,8 +538,15 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='min-w-0 font-medium [overflow-wrap:anywhere] whitespace-normal'>
-              {model.name}
+            <div className='min-w-0 whitespace-normal'>
+              <div className='font-medium [overflow-wrap:anywhere]'>
+                {model.name}
+              </div>
+              {model.tags.length > 0 && (
+                <p className='text-muted-foreground text-xs break-words'>
+                  {model.tags.map((tag) => tag.name).join(' · ')}
+                </p>
+              )}
             </div>
           )
         },
@@ -465,9 +571,9 @@ export function PublishedModelCatalog(props: {
             ? model.publicCatalogSnapshot.capability
             : '',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Capability')} />
+          <DataTableColumnHeader column={column} title={t('Generation type')} />
         ),
-        meta: { label: t('Capability') },
+        meta: { label: t('Generation type') },
         cell: ({ getValue }) => (
           <span className='whitespace-normal'>
             {t(String(getValue() || '—'))}
@@ -705,6 +811,109 @@ export function PublishedModelCatalog(props: {
   return (
     <Card>
       <CardContent className='min-w-0'>
+        <section className='mb-4 space-y-2' aria-label={t('Generation type')}>
+          <p className='text-sm font-medium'>{t('Generation type')}</p>
+          <div
+            className='flex flex-wrap gap-2'
+            role='group'
+            aria-label={t('Generation type')}
+          >
+            <Button
+              variant={!selectedCapability ? 'default' : 'outline'}
+              aria-pressed={!selectedCapability}
+              onClick={() => setCapability('')}
+            >
+              {t('All types')}
+            </Button>
+            {generationTypes.map((value) => (
+              <Button
+                key={value}
+                variant={selectedCapability === value ? 'default' : 'outline'}
+                aria-pressed={selectedCapability === value}
+                onClick={() => setCapability(value)}
+              >
+                {t(value)}
+              </Button>
+            ))}
+          </div>
+        </section>
+        <section className='mb-4 space-y-2' aria-label={t('API provider')}>
+          <p className='text-sm font-medium'>{t('API provider')}</p>
+          <div
+            className='flex flex-wrap gap-2'
+            role='group'
+            aria-label={t('API provider')}
+          >
+            <Button
+              variant={!selectedProvider ? 'default' : 'outline'}
+              aria-pressed={!selectedProvider}
+              onClick={() => setProvider('')}
+            >
+              {t('All API providers')}
+            </Button>
+            {apiProviders.map((item) => (
+              <Button
+                key={item.id}
+                variant={selectedProvider === item.id ? 'default' : 'outline'}
+                aria-pressed={selectedProvider === item.id}
+                onClick={() => setProvider(item.id)}
+              >
+                {item.name}
+              </Button>
+            ))}
+          </div>
+        </section>
+        <section className='mb-4 space-y-2' aria-label={t('Model tags')}>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <Button
+              variant='ghost'
+              aria-expanded={tagsExpanded}
+              onClick={() => setTagsExpanded((value) => !value)}
+            >
+              {t('Model tags')}
+            </Button>
+            <Button
+              variant='outline'
+              disabled={tags.isPending || tags.isError}
+              onClick={() => setManagingTags(true)}
+            >
+              {t('Manage model tags')}
+            </Button>
+          </div>
+          {tags.isError && (
+            <div role='alert' className='text-destructive text-sm'>
+              {t('Unable to load model tags')}{' '}
+              <Button variant='outline' onClick={() => void tags.refetch()}>
+                {t('Retry')}
+              </Button>
+            </div>
+          )}
+          {tagsExpanded && (
+            <div className='flex flex-wrap gap-2'>
+              <ModelTagFilterButton
+                label={t('All tags')}
+                count={modelsBeforeTag.length}
+                selected={!tagId}
+                onClick={() => setTagId('')}
+              />
+              {(tags.data ?? []).map((tag) => (
+                <ModelTagFilterButton
+                  key={tag.id}
+                  label={tag.name}
+                  count={tagFilterCounts.byId.get(tag.id) ?? 0}
+                  selected={tagId === tag.id}
+                  onClick={() => setTagId(tag.id)}
+                />
+              ))}
+              <ModelTagFilterButton
+                label={t('Untagged')}
+                count={tagFilterCounts.untagged}
+                selected={tagId === '__untagged__'}
+                onClick={() => setTagId('__untagged__')}
+              />
+            </div>
+          )}
+        </section>
         <DataTablePage
           table={table}
           columns={sizedColumns}
@@ -760,8 +969,6 @@ export function PublishedModelCatalog(props: {
                     [
                       search,
                       modelId,
-                      provider,
-                      capability,
                       visibility === 'ALL' ? '' : visibility,
                     ].filter(Boolean).length
                   }
@@ -778,20 +985,6 @@ export function PublishedModelCatalog(props: {
                       value={modelId}
                       placeholder={t('Upstream model ID')}
                       onChange={(event) => setModelId(event.target.value)}
-                    />
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('API provider')}>
-                    <Input
-                      value={provider}
-                      placeholder={t('API provider')}
-                      onChange={(event) => setProvider(event.target.value)}
-                    />
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('Capability')}>
-                    <Input
-                      value={capability}
-                      placeholder={t('Capability')}
-                      onChange={(event) => setCapability(event.target.value)}
                     />
                   </DataTableColumnFilterField>
                   <DataTableColumnFilterField label={t('Customer display')}>
@@ -824,23 +1017,23 @@ export function PublishedModelCatalog(props: {
                 </DataTableColumnFilterPanel>
               }
               hasAdditionalFilters={Boolean(
-                search ||
-                modelId ||
-                provider ||
-                capability ||
-                visibility !== 'ALL'
+                search || modelId || visibility !== 'ALL'
               )}
               onReset={() => {
                 setSearch('')
                 setModelId('')
-                setProvider('')
-                setCapability('')
                 setVisibility('ALL')
               }}
             />
           }
         />
       </CardContent>
+      <ModelTagManager
+        open={managingTags}
+        onOpenChange={setManagingTags}
+        tags={tags.data ?? []}
+        models={models.data ?? []}
+      />
       <Dialog
         open={Boolean(editing)}
         onOpenChange={(open) => !open && closeEdit()}
@@ -864,7 +1057,8 @@ export function PublishedModelCatalog(props: {
                 presentationBusy ||
                 presentationConflict ||
                 !originalPresentation ||
-                !hasModelPresentationChanges(value, originalPresentation)
+                (!hasModelPresentationChanges(value, originalPresentation) &&
+                  sameTagIds(selectedTagIds, originalTagIds))
               ) {
                 return
               }
@@ -873,6 +1067,8 @@ export function PublishedModelCatalog(props: {
                 displayName: value.displayName.trim(),
                 description: value.description.trim(),
                 expectedVersion: presentationVersion(editing),
+                tagIds: selectedTagIds,
+                expectedTagIds: originalTagIds,
               })
             })}
           >
@@ -932,6 +1128,31 @@ export function PublishedModelCatalog(props: {
                 </p>
               )}
             </div>
+            <fieldset className='space-y-2'>
+              <legend className='text-sm font-medium'>{t('Model tags')}</legend>
+              <div className='flex flex-wrap gap-3'>
+                {(tags.data ?? []).map((tag) => (
+                  <label
+                    key={tag.id}
+                    className='flex items-center gap-2 text-sm'
+                  >
+                    <input
+                      type='checkbox'
+                      checked={selectedTagIds.includes(tag.id)}
+                      disabled={presentationBusy}
+                      onChange={(event) =>
+                        setSelectedTagIds((current) =>
+                          event.target.checked
+                            ? [...current, tag.id]
+                            : current.filter((id) => id !== tag.id)
+                        )
+                      }
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             {presentationFeedback}
             <DialogFooter>
               <Button
@@ -947,10 +1168,11 @@ export function PublishedModelCatalog(props: {
                 disabled={
                   !editing ||
                   !originalPresentation ||
-                  !hasModelPresentationChanges(
+                  (!hasModelPresentationChanges(
                     watchedPresentation,
                     originalPresentation
-                  ) ||
+                  ) &&
+                    sameTagIds(selectedTagIds, originalTagIds)) ||
                   !watchedPresentation.displayName.trim() ||
                   presentationBusy ||
                   presentationConflict

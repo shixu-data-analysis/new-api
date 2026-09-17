@@ -53,6 +53,7 @@ import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
+import { CustomerModelCenter } from './components/CustomerModelCenter'
 import {
   CustomerPointsCenter,
   type CustomerPointsView,
@@ -89,7 +90,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   invitations: 'Invitation management',
   catalog: 'Model management',
   points: 'Point center',
-  models: 'Available Models',
+  models: 'Model center',
   tasks: 'My Tasks',
   pricing: 'Model management',
   'pricing-point-rules': 'Pricing and point rules',
@@ -144,7 +145,6 @@ function CustomerContent(props: {
   onPointsOrderNumberChange: (orderNumber?: string) => void
   onRedeemOrderNavigate: (orderNumber: string) => void
 }) {
-  const { t } = useTranslation()
   const catalog = useQuery({
     queryKey: ['canvas-cloud', 'catalog'],
     queryFn: getCanvasCatalog,
@@ -166,38 +166,7 @@ function CustomerContent(props: {
     if (catalog.isError) {
       return <ErrorState onRetry={() => void catalog.refetch()} />
     }
-    return (
-      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
-        {catalog.data.map((model) => (
-          <Card key={model.id}>
-            <CardHeader>
-              <CardTitle>{model.name}</CardTitle>
-              <CardDescription>
-                {model.catalog.capability
-                  ? t(String(model.catalog.capability))
-                  : t('Canvas model')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='space-y-2'>
-              {model.parameterCombinations.map((combination) => (
-                <div
-                  key={combination.id}
-                  className='bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2'
-                >
-                  <span className='truncate'>
-                    {Object.values(combination.parameters).join(' · ') ||
-                      t('Default')}
-                  </span>
-                  <span className='font-medium tabular-nums'>
-                    {combination.points} {t('points')}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    )
+    return <CustomerModelCenter models={catalog.data} />
   }
   if (props.section === 'tasks') return <CustomerTasks />
   return null

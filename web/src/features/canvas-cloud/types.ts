@@ -716,6 +716,7 @@ export interface CanvasCatalogModel {
   id: string
   name: string
   catalog: Record<string, unknown>
+  tags: CanvasModelTag[]
   parameterCombinations: Array<{
     id: string
     executionTargetId: string
@@ -723,6 +724,16 @@ export interface CanvasCatalogModel {
     billingDimensions: Record<string, unknown>
     points: string
   }>
+}
+
+export interface CanvasModelTag {
+  id: string
+  name: string
+}
+
+export interface CanvasAdminModelTag extends CanvasModelTag {
+  modelCount: number
+  modelKeys: string[]
 }
 
 export interface CanvasAdminWorkspace {
@@ -926,6 +937,7 @@ export interface CanvasExecutionTargetPricingCoverage {
 export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
+  tags: CanvasModelTag[]
   modelIds: Array<{ quality: string | null; modelId: string }>
   executionTargets: Array<{
     id: string
@@ -1206,12 +1218,14 @@ export interface CanvasModelPricingDetail {
     parameters: Record<string, unknown>
     enabled: boolean
     currentProviderRate: CanvasModelPricingProviderRate | null
+    scheduledProviderRate: CanvasModelPricingProviderRate | null
     originalProviderSuccessPriceCny?: CanvasModelPricingCnyValue | null
     prices: Array<{
       priceGroupId: string
       priceGroupCode: string
       priceGroupName: string
       current: CanvasModelPricingPriceSnapshot | null
+      scheduled: CanvasModelPricingPriceSnapshot | null
     }>
   }>
 }
@@ -1402,9 +1416,30 @@ export interface CanvasModelCatalogBundle {
   bundleVersion: string
   providers: Array<Record<string, unknown>>
   channels: Array<Record<string, unknown>>
-  models: Array<Record<string, unknown>>
+  models: CanvasModelCatalogBundleModel[]
   openapiContracts: Array<{ path: string; document: Record<string, unknown> }>
   adapterProfiles: Array<{ path: string; profile: Record<string, unknown> }>
+}
+
+export interface CanvasModelCatalogBundleModel {
+  productKey: string
+  displayName: string
+  description?: string
+  capability: 'chat.generate' | 'image.generate' | 'video.generate'
+  release: {
+    channelId: string
+    execution: {
+      providerModel:
+        | { modelId: string }
+        | { defaultQuality: string; modelIdByQuality: Record<string, string> }
+    }
+    publicInteraction: {
+      defaultParams: Record<string, unknown>
+      paramSchema: Record<string, unknown>
+      referenceLimits: Record<string, unknown>
+    }
+  }
+  sourceKind: 'official' | 'relay'
 }
 
 export interface CanvasModelCatalogPlanChange {
@@ -1442,6 +1477,9 @@ export interface CanvasModelCatalogPlan {
     sourceFile: string
     jsonPath: string
     recommendation: string
+    profileKey?: string
+    operation?: string
+    templateReason?: string
   }>
   changes: CanvasModelCatalogPlanChange[]
   models: CanvasModelCatalogPlanModel[]

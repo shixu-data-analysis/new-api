@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
 import { CheckCircle2, FileJson2, FolderUp, ShieldAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,29 +72,38 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PublishedModelCatalog } from './PublishedModelCatalog'
 import { UnifiedModelPricing } from './UnifiedModelPricing'
 
-function errorDetails(error: unknown): { message: string; details: string[] } {
+type CatalogDiagnostic = Partial<CanvasModelCatalogPlan['diagnostics'][number]>
+
+function diagnosticDetails(
+  diagnostic: CatalogDiagnostic,
+  t: TFunction
+): string {
+  return [
+    diagnostic.profileKey &&
+      `${t('Adapter Profile')}: ${diagnostic.profileKey}`,
+    diagnostic.operation && `${t('Operation')}: ${diagnostic.operation}`,
+    diagnostic.sourceFile,
+    diagnostic.jsonPath && `${t('Path')}: ${diagnostic.jsonPath}`,
+    (diagnostic.templateReason || diagnostic.code) &&
+      `${t('Reason')}: ${diagnostic.templateReason || diagnostic.code}`,
+    diagnostic.recommendation,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function errorDetails(
+  error: unknown,
+  t: TFunction
+): { message: string; details: string[] } {
   if (error && typeof error === 'object') {
     const data = (error as { response?: { data?: unknown } }).response?.data as
       | { message?: unknown; diagnostics?: unknown }
       | undefined
     const details = Array.isArray(data?.diagnostics)
-      ? data.diagnostics.map((item) => {
-          const diagnostic = item as {
-            sourceFile?: unknown
-            jsonPath?: unknown
-            recommendation?: unknown
-          }
-          return [
-            diagnostic.sourceFile,
-            diagnostic.jsonPath,
-            diagnostic.recommendation,
-          ]
-            .filter(
-              (value): value is string =>
-                typeof value === 'string' && value.length > 0
-            )
-            .join(' · ')
-        })
+      ? data.diagnostics.map((item) =>
+          diagnosticDetails(item as CatalogDiagnostic, t)
+        )
       : []
     if (typeof data?.message === 'string') {
       return { message: data.message, details }
@@ -152,7 +162,7 @@ export function AdminModelCatalog(
   const planner = useMutation({
     mutationFn: planCanvasModelCatalogBundle,
     onSuccess: setPlan,
-    onError: (error) => setFailure(errorDetails(error)),
+    onError: (error) => setFailure(errorDetails(error, t)),
   })
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogBundle,
@@ -165,7 +175,7 @@ export function AdminModelCatalog(
     },
     onError: (error) => {
       setConfirming(false)
-      setFailure(errorDetails(error))
+      setFailure(errorDetails(error, t))
     },
   })
 
@@ -179,7 +189,7 @@ export function AdminModelCatalog(
       setBundle(next)
       planner.mutate(next)
     } catch (error) {
-      setFailure(errorDetails(error))
+      setFailure(errorDetails(error, t))
     }
   }
 
@@ -409,13 +419,7 @@ export function AdminModelCatalog(
                           <li
                             key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
                           >
-                            {[
-                              diagnostic.sourceFile,
-                              diagnostic.jsonPath,
-                              diagnostic.recommendation,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
+                            {diagnosticDetails(diagnostic, t)}
                           </li>
                         ))}
                       </ul>

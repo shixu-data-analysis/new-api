@@ -22,12 +22,14 @@ import { PublishedModelCatalog } from '../PublishedModelCatalog'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
+  tags: vi.fn(),
   publishPresentation: vi.fn(),
   publishTargetPresentation: vi.fn(),
 }))
 
 vi.mock('../../api', () => ({
   getCanvasAdminTestingModels: mocks.list,
+  getCanvasAdminModelTags: mocks.tags,
   publishCanvasModelPresentation: mocks.publishPresentation,
   publishCanvasExecutionTargetPresentation: mocks.publishTargetPresentation,
 }))
@@ -95,6 +97,7 @@ function model(
   return {
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
+    tags: [],
     modelIds: [{ quality: null, modelId: 'provider-alpha' }],
     executionTargets: [executionTarget()],
     version: 2,
@@ -145,9 +148,11 @@ function renderCatalog(
 describe('Published model catalog', () => {
   beforeEach(() => {
     mocks.list.mockReset()
+    mocks.tags.mockReset()
     mocks.publishPresentation.mockReset()
     mocks.publishTargetPresentation.mockReset()
     mocks.list.mockResolvedValue([model()])
+    mocks.tags.mockResolvedValue([])
     mocks.publishPresentation.mockResolvedValue({ status: 'PUBLISHED' })
     mocks.publishTargetPresentation.mockResolvedValue({ status: 'PUBLISHED' })
   })
@@ -164,6 +169,122 @@ describe('Published model catalog', () => {
         t
       )
     ).toBe('一千 · 默认 · provider-alpha')
+  })
+
+  it('keeps the column filter when a model tag changes', async () => {
+    mocks.tags.mockResolvedValue([
+      {
+        id: 'photo',
+        name: 'Photography',
+        modelCount: 1,
+        modelKeys: ['canvas.image.alpha'],
+      },
+    ])
+    mocks.list.mockResolvedValue([
+      model({ tags: [{ id: 'photo', name: 'Photography' }] }),
+      model({
+        id: 'second',
+        modelKey: 'second',
+        name: 'Second model',
+        tags: [],
+      }),
+    ])
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    expect(screen.getByRole('button', { name: 'All tags 2' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(screen.getByPlaceholderText('Model'), {
+      target: { value: 'Alpha' },
+    })
+    expect(screen.getByRole('button', { name: 'All tags 1' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Untagged 0' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Photography 1' }))
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    expect(screen.queryByText('Second model')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
+    expect(screen.queryByText('Second model')).not.toBeInTheDocument()
+  })
+
+  it('derives generation type and API provider groups from the current catalog and combines them with column filters', async () => {
+    mocks.list.mockResolvedValue([
+      model(),
+      model({
+        id: 'video-model',
+        modelKey: 'canvas.video.beta',
+        name: 'Beta video',
+        publicCatalogSnapshot: { capability: 'video.generate' },
+        provider: { id: 'partner', code: 'partner', name: 'Partner API' },
+      }),
+      model({
+        id: 'image-model',
+        modelKey: 'canvas.image.gamma',
+        name: 'Gamma image',
+        provider: { id: 'partner', code: 'partner', name: 'Partner API' },
+      }),
+    ])
+    renderCatalog()
+    await screen.findByText('Gamma image')
+    expect(
+      screen.getByRole('columnheader', { name: 'Generation type' })
+    ).toBeVisible()
+
+    const types = within(screen.getByRole('group', { name: 'Generation type' }))
+    const providers = within(
+      screen.getByRole('group', { name: 'API provider' })
+    )
+    expect(types.getByRole('button', { name: 'video.generate' })).toBeVisible()
+    expect(providers.getByRole('button', { name: 'Partner API' })).toBeVisible()
+    fireEvent.click(types.getByRole('button', { name: 'image.generate' }))
+    fireEvent.click(providers.getByRole('button', { name: 'Partner API' }))
+    expect(screen.getByText('Gamma image')).toBeVisible()
+    expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta video')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    expect(screen.queryByPlaceholderText('Capability')).not.toBeInTheDocument()
+    expect(
+      screen.queryByPlaceholderText('API provider')
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Model'), {
+      target: { value: 'no match' },
+    })
+    expect(screen.queryByText('Gamma image')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByText('Gamma image')).toBeVisible()
+    expect(
+      providers.getByRole('button', { name: 'Partner API' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(
+      providers.getByRole('button', { name: 'All API providers' })
+    )
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    expect(
+      types.getByRole('button', { name: 'image.generate' })
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('publishes a tag-only edit with the saved client description', async () => {
+    mocks.tags.mockResolvedValue([
+      { id: 'photo', name: 'Photography', modelCount: 0, modelKeys: [] },
+    ])
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit display information' })
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Photography' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and publish' }))
+    await waitFor(() =>
+      expect(mocks.publishPresentation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKey: 'canvas.image.alpha',
+          description: 'Client description',
+          tagIds: ['photo'],
+          expectedTagIds: [],
+        }),
+        expect.any(Object)
+      )
+    )
   })
 
   it('keeps identical upstream targets separate without exposing internal routing facts', async () => {
@@ -390,6 +511,8 @@ describe('Published model catalog', () => {
           displayName: 'Renamed Alpha',
           description: 'Client description',
           expectedVersion: 0,
+          tagIds: [],
+          expectedTagIds: [],
         },
         expect.any(Object)
       )

@@ -634,8 +634,6 @@ export function UnifiedModelPricing(props: {
         effectiveAt: '',
         effectiveMode: 'IMMEDIATE',
       })
-      setTab('set')
-      props.onTabChange?.('set')
       toast.success(t('Model pricing published'))
       preview.reset()
       publication.reset()
@@ -644,6 +642,8 @@ export function UnifiedModelPricing(props: {
       await queryClient.invalidateQueries({
         queryKey: ['canvas-cloud', 'model-pricing'],
       })
+      setTab('current')
+      props.onTabChange?.('current')
     },
     onError: (error) =>
       toast.error(
@@ -1793,6 +1793,36 @@ function CurrentModelPricingTable(props: {
         },
       },
       {
+        id: 'scheduled',
+        size: 256,
+        header: t('Scheduled price'),
+        meta: {
+          label: t('Scheduled price'),
+          className: 'text-right tabular-nums',
+        },
+        cell: ({ row }) => {
+          const scheduled = row.original.price.scheduled
+          if (!scheduled) return <span>—</span>
+          const original = scheduled.originalCnyValues?.customerPriceCny
+          return (
+            <div className='space-y-1 whitespace-normal'>
+              <p>
+                {t('Effective at')}:{' '}
+                {scheduled.effectiveAt
+                  ? `${new Date(scheduled.effectiveAt).toLocaleString(locale)} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`
+                  : t('Not recorded')}
+              </p>
+              <p>
+                {original ? (
+                  <>{cnyValueSummary(original, scheduled.billingUnit, t)} · </>
+                ) : null}
+                {customerPriceSummary(scheduled, t)}
+              </p>
+            </div>
+          )
+        },
+      },
+      {
         id: 'actions',
         size: actionColumnSize,
         enableHiding: false,
@@ -1960,7 +1990,10 @@ function CurrentModelPricingTable(props: {
           </colgroup>
         }
         getColumnClassName={(columnId, section) => {
-          const numeric = columnId === 'cost' || columnId === 'price'
+          const numeric =
+            columnId === 'cost' ||
+            columnId === 'price' ||
+            columnId === 'scheduled'
           if (section === 'header') {
             return numeric
               ? 'px-2 text-right tabular-nums [&>div]:justify-end [&_button]:justify-end'

@@ -16,7 +16,54 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import * as z from 'zod'
+
 import type { CanvasModelCatalogBundle } from './types'
+
+const stableId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+const jsonObject = z.record(z.string(), z.unknown())
+const modelSchema = z
+  .object({
+    productKey: stableId,
+    displayName: z.string().trim().min(1).max(191),
+    description: z.string().trim().max(500).optional(),
+    capability: z.enum(['chat.generate', 'image.generate', 'video.generate']),
+    release: z
+      .object({
+        channelId: stableId.max(64),
+        execution: z
+          .object({
+            providerModel: z.union([
+              z.object({ modelId: z.string().trim().min(1).max(191) }).strict(),
+              z
+                .object({
+                  defaultQuality: z.string().trim().min(1).max(64),
+                  modelIdByQuality: z.record(
+                    z.string().trim().min(1).max(64),
+                    z.string().trim().min(1).max(191)
+                  ),
+                })
+                .strict(),
+            ]),
+          })
+          .strict(),
+        publicInteraction: z
+          .object({
+            defaultParams: jsonObject,
+            paramSchema: jsonObject,
+            referenceLimits: jsonObject,
+          })
+          .strict(),
+      })
+      .strict(),
+    sourceKind: z.enum(['official', 'relay']),
+  })
+  .strict()
 
 type Manifest = {
   schemaVersion: 2
@@ -169,13 +216,23 @@ export async function buildCatalogBundle(
       'providers.json, channels.json, and models.json must contain arrays'
     )
   }
+  const parsedModels = models.models.map((value, index) => {
+    const result = modelSchema.safeParse(value)
+    if (!result.success) {
+      const issue = result.error.issues[0]
+      throw new Error(
+        `Invalid model in ${manifest.models} at models[${index}]${issue?.path.length ? `.${issue.path.join('.')}` : ''}: ${issue?.message ?? 'Invalid value'}`
+      )
+    }
+    return result.data
+  })
   return {
     schemaVersion: 2,
     bundleId: manifest.bundleId,
     bundleVersion: manifest.bundleVersion,
     providers: providers.providers as Array<Record<string, unknown>>,
     channels: channels.channels as Array<Record<string, unknown>>,
-    models: models.models as Array<Record<string, unknown>>,
+    models: parsedModels,
     openapiContracts,
     adapterProfiles,
   }

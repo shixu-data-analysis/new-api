@@ -156,7 +156,7 @@ export function useSidebarData(): SidebarData {
               icon: Wallet,
             },
             {
-              title: t('Available Models'),
+              title: t('Model center'),
               url: '/canvas-cloud/models',
               icon: Box,
             },

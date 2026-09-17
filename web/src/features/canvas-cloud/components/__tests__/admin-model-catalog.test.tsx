@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   plan: vi.fn(),
   publish: vi.fn(),
   published: vi.fn(),
+  tags: vi.fn(),
   priceGroups: vi.fn(),
   presentation: vi.fn(),
   targetPresentation: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../../api', () => ({
   planCanvasModelCatalogBundle: mocks.plan,
   publishCanvasModelCatalogBundle: mocks.publish,
   getCanvasAdminTestingModels: mocks.published,
+  getCanvasAdminModelTags: mocks.tags,
   getCanvasPriceGroups: mocks.priceGroups,
   publishCanvasModelPresentation: mocks.presentation,
   publishCanvasExecutionTargetPresentation: mocks.targetPresentation,
@@ -63,12 +65,44 @@ const manifest = {
   adapterProfiles: ['profiles/test.profile.json'],
 }
 
+const modelDefinition = {
+  productKey: 'canvas.image.test',
+  displayName: 'Client model',
+  capability: 'image.generate',
+  release: {
+    channelId: 'test-channel',
+    execution: { providerModel: { modelId: 'upstream-test' } },
+    publicInteraction: {
+      defaultParams: {},
+      paramSchema: {},
+      referenceLimits: {},
+    },
+  },
+  sourceKind: 'relay',
+}
+
+function bundleFiles(
+  model: unknown,
+  profile: Record<string, unknown> = { schemaVersion: 1 }
+) {
+  return [
+    catalogFile('manifest.json', manifest),
+    catalogFile('providers.json', { schemaVersion: 2, providers: [] }),
+    catalogFile('channels.json', { schemaVersion: 2, channels: [] }),
+    catalogFile('models.json', { schemaVersion: 2, models: [model] }),
+    catalogFile('openapi/test.openapi.json', { openapi: '3.0.0' }),
+    catalogFile('profiles/test.profile.json', profile),
+  ]
+}
+
 describe('Canvas model catalog folder upload', () => {
   beforeEach(() => {
     mocks.plan.mockReset()
     mocks.publish.mockReset()
     mocks.published.mockReset()
     mocks.published.mockResolvedValue([])
+    mocks.tags.mockReset()
+    mocks.tags.mockResolvedValue([])
     mocks.priceGroups.mockReset()
     mocks.priceGroups.mockResolvedValue([])
     mocks.presentation.mockReset()
@@ -79,6 +113,7 @@ describe('Canvas model catalog folder upload', () => {
       Array.from({ length: 21 }, (_, index) => ({
         id: `model-${index}`,
         modelKey: `model-${index}`,
+        tags: [],
         modelIds: [],
         executionTargets: [],
         version: 1,
@@ -161,10 +196,13 @@ describe('Canvas model catalog folder upload', () => {
       }),
       catalogFile('models.json', {
         schemaVersion: 2,
-        models: [{ productKey: 'm' }],
+        models: [{ ...modelDefinition, description: 'Published default' }],
       }),
       catalogFile('openapi/test.openapi.json', { openapi: '3.0.0' }),
-      catalogFile('profiles/test.profile.json', { schemaVersion: 1 }),
+      catalogFile('profiles/test.profile.json', {
+        schemaVersion: 1,
+        templateLanguageVersion: 1,
+      }),
     ])
     expect(bundle).toMatchObject({
       bundleId: 'canvas.test',
@@ -172,6 +210,61 @@ describe('Canvas model catalog folder upload', () => {
     })
     expect(bundle.openapiContracts[0]?.path).toBe('openapi/test.openapi.json')
     expect(bundle.adapterProfiles[0]?.path).toBe('profiles/test.profile.json')
+    expect(bundle.models[0]?.description).toBe('Published default')
+  })
+
+  it('uses only the model JSON description and keeps absence distinct from Profile text', async () => {
+    const withDefault = await buildCatalogBundle(
+      bundleFiles(
+        { ...modelDefinition, description: '  Client copy  ' },
+        { schemaVersion: 1, description: 'Technical Profile text' }
+      )
+    )
+    expect(withDefault.models[0]?.description).toBe('Client copy')
+    const withoutDefault = await buildCatalogBundle(
+      bundleFiles(modelDefinition, {
+        schemaVersion: 1,
+        description: 'Technical Profile text',
+      })
+    )
+    expect(withoutDefault.models[0]).not.toHaveProperty('description')
+  })
+
+  it('preserves the Profile template language version and templates in the Bundle payload', async () => {
+    const profile = {
+      schemaVersion: 1,
+      version: 2,
+      templateLanguageVersion: 1,
+      advanced: {
+        request: {
+          body: {
+            first_image: {
+              $call: 'mediaUrlByRole',
+              args: [{ $ref: 'media' }, 'first'],
+            },
+          },
+        },
+      },
+    }
+    const bundle = await buildCatalogBundle(
+      bundleFiles(modelDefinition, profile)
+    )
+    expect(bundle.adapterProfiles).toEqual([
+      { path: 'profiles/test.profile.json', profile },
+    ])
+  })
+
+  it('rejects an oversized description and unknown model fields before upload', async () => {
+    await expect(
+      buildCatalogBundle(
+        bundleFiles({ ...modelDefinition, description: 'x'.repeat(501) })
+      )
+    ).rejects.toThrow('description')
+    await expect(
+      buildCatalogBundle(
+        bundleFiles({ ...modelDefinition, surprise: 'not allowed' })
+      )
+    ).rejects.toThrow('surprise')
   })
 
   it('reports a missing referenced file before calling Canvas Cloud', async () => {
@@ -185,7 +278,84 @@ describe('Canvas model catalog folder upload', () => {
     ).rejects.toThrow('Missing required file: openapi/test.openapi.json')
   })
 
+  it('shows Profile, operation, path and stable reason from a rejected plan', async () => {
+    mocks.plan.mockRejectedValue({
+      response: {
+        data: {
+          message: 'Bundle validation failed',
+          diagnostics: [
+            {
+              code: 'TEMPLATE_INVALID',
+              sourceFile: 'profiles/test.profile.json',
+              jsonPath:
+                '$.adapterProfiles[0].profile.advanced.request.body.first_image',
+              profileKey: 'z5api.seedance@1.0.0',
+              operation: 'submitVideo',
+              templateReason: 'UNSUPPORTED_FUNCTION',
+              recommendation: 'Fix the template',
+            },
+            {
+              code: 'SOURCE_FIELD_REQUIRED',
+              sourceFile: 'profiles/test.profile.json',
+              jsonPath: '$.adapterProfiles[0].profile.templateLanguageVersion',
+              recommendation: 'Declare template language version',
+            },
+          ],
+        },
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: {
+        files: bundleFiles(modelDefinition, {
+          schemaVersion: 1,
+          templateLanguageVersion: 1,
+        }),
+      },
+    })
+    expect(await screen.findByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
+      'Operation: submitVideo'
+    )
+    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
+      'profiles/test.profile.json'
+    )
+    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
+      'Path: $.adapterProfiles[0].profile.advanced.request.body.first_image'
+    )
+    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
+      'Reason: UNSUPPORTED_FUNCTION'
+    )
+    expect(screen.getByText(/SOURCE_FIELD_REQUIRED/)).toHaveTextContent(
+      'Path: $.adapterProfiles[0].profile.templateLanguageVersion'
+    )
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
   it('shows server-planned changes and an explicit page indicator after folder selection', async () => {
+    mocks.publish.mockRejectedValue({
+      response: {
+        data: {
+          message: 'Bundle publication rejected',
+          diagnostics: [
+            {
+              code: 'TEMPLATE_INVALID',
+              sourceFile: 'profiles/test.profile.json',
+              jsonPath:
+                '$.adapterProfiles[0].profile.advanced.request.body.first_image',
+              profileKey: 'z5api.seedance@1.0.0',
+              operation: 'submitVideo',
+              templateReason: 'UNSUPPORTED_FUNCTION',
+              recommendation: 'Fix the template',
+            },
+          ],
+        },
+      },
+    })
     mocks.plan.mockResolvedValue({
       bundleId: 'canvas.test',
       bundleVersion: '1',
@@ -222,9 +392,17 @@ describe('Canvas model catalog folder upload', () => {
       catalogFile('manifest.json', manifest),
       catalogFile('providers.json', { schemaVersion: 2, providers: [] }),
       catalogFile('channels.json', { schemaVersion: 2, channels: [] }),
-      catalogFile('models.json', { schemaVersion: 2, models: [] }),
+      catalogFile('models.json', {
+        schemaVersion: 2,
+        models: [
+          { ...modelDefinition, description: 'Default customer description' },
+        ],
+      }),
       catalogFile('openapi/test.openapi.json', { openapi: '3.0.0' }),
-      catalogFile('profiles/test.profile.json', { schemaVersion: 1 }),
+      catalogFile('profiles/test.profile.json', {
+        schemaVersion: 1,
+        templateLanguageVersion: 1,
+      }),
     ]
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -236,6 +414,21 @@ describe('Canvas model catalog folder upload', () => {
       target: { files },
     })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
+    expect(mocks.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adapterProfiles: [
+          expect.objectContaining({
+            profile: expect.objectContaining({ templateLanguageVersion: 1 }),
+          }),
+        ],
+        models: [
+          expect.objectContaining({
+            description: 'Default customer description',
+          }),
+        ],
+      }),
+      expect.any(Object)
+    )
     expect(await screen.findByText('Client preview model')).toBeInTheDocument()
     screen
       .getAllByRole('tablist')
@@ -256,6 +449,11 @@ describe('Canvas model catalog folder upload', () => {
     expect(
       screen.getByRole('button', { name: 'Review and publish' })
     ).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Review and publish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
+    expect(await screen.findByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
+      'Reason: UNSUPPORTED_FUNCTION'
+    )
   })
 
   it('shows unchanged models and prevents a redundant publication', async () => {
