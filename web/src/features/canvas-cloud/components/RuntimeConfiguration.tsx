@@ -458,7 +458,7 @@ export function RuntimeConfiguration(
           {
             providerId,
             credentialGroupId,
-            modelScope: 'ELIGIBLE',
+            modelScope: 'GROUP_MANAGEMENT',
             sortBy: 'publicName',
             sortOrder: 'asc',
             page,
@@ -979,6 +979,15 @@ export function RuntimeConfiguration(
     ) {
       return
     }
+    if (providerData.navigationTarget.bindingStatus === 'HISTORICAL_BOUND') {
+      if (!selectedGroup) return
+      setNavigationTargetApplied(true)
+      setManagementInitializedGroupId('')
+      setManagementModelSearch('')
+      management.reset({ name: selectedGroup.name, apiKey: '', reason: '' })
+      setProviderDrawer('management')
+      return
+    }
     setNavigationTargetApplied(true)
     if (providerData.navigationTarget.bindingStatus === 'UNBOUND') {
       setUnboundTargetPending(true)
@@ -995,9 +1004,11 @@ export function RuntimeConfiguration(
     binding.reset({ reason: '' })
   }, [
     binding,
+    management,
     navigationTargetApplied,
     activeProviderTarget?.modelId,
     providerData?.navigationTarget,
+    selectedGroup,
     t,
   ])
   const pageModels = providerData?.models.items ?? []

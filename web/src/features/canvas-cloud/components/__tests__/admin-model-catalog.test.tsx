@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   presentation: vi.fn(),
   targetPresentation: vi.fn(),
   navigate: vi.fn(),
+  toastSuccess: vi.fn(),
 }))
 vi.mock('@tanstack/react-router', async (original) => ({
   ...(await original<typeof import('@tanstack/react-router')>()),
@@ -41,6 +42,7 @@ vi.mock('../../api', () => ({
   publishCanvasModelPresentation: mocks.presentation,
   publishCanvasExecutionTargetPresentation: mocks.targetPresentation,
 }))
+vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess } }))
 
 function catalogFile(path: string, value: unknown): File {
   const file = new File(
@@ -81,6 +83,15 @@ const modelDefinition = {
   sourceKind: 'relay',
 }
 
+const unboundCredential = {
+  status: 'NEEDS_BINDING',
+  reasonCode: 'UNBOUND_SOURCE',
+  sourceBindingId: null,
+  sourceModelId: null,
+  credentialGroupVersionId: null,
+  credentialGroupName: null,
+}
+
 function bundleFiles(
   model: unknown,
   profile: Record<string, unknown> = { schemaVersion: 1 }
@@ -107,6 +118,7 @@ describe('Canvas model catalog folder upload', () => {
     mocks.priceGroups.mockResolvedValue([])
     mocks.presentation.mockReset()
     mocks.targetPresentation.mockReset()
+    mocks.toastSuccess.mockReset()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {
     mocks.published.mockResolvedValue(
@@ -229,6 +241,7 @@ describe('Canvas model catalog folder upload', () => {
     )
     expect(withoutDefault.models[0]).not.toHaveProperty('description')
   })
+
 
   it('preserves the Profile template language version and templates in the Bundle payload', async () => {
     const profile = {
@@ -360,6 +373,8 @@ describe('Canvas model catalog folder upload', () => {
       bundleId: 'canvas.test',
       bundleVersion: '1',
       manifestSha256: 'a'.repeat(64),
+      planToken: 'plan-token-1',
+      pricingSummary: { reused: 1, needsPricing: 1 },
       action: 'PUBLISH',
       blocking: false,
       diagnostics: [],
@@ -367,16 +382,64 @@ describe('Canvas model catalog folder upload', () => {
         {
           productKey: 'canvas.image.preview',
           displayName: 'Client preview model',
+          channelId: 'test-channel',
+          providerId: 'test-provider',
           capability: 'image.generate',
           action: 'CREATE',
           currentVersion: null,
           proposedVersion: 1,
           customerVisibleAfterPublish: false,
+          credential: {
+            status: 'REUSE',
+            reasonCode: 'MATCHED_PUBLISHED_BINDING',
+            sourceBindingId: 'binding-1',
+            sourceModelId: 'model-1',
+            credentialGroupVersionId: 'group-version-1',
+            credentialGroupName: 'Test group',
+          },
           publicInteraction: {
             defaultParams: { quality: '2K' },
             paramSchema: { qualities: ['1K', '2K'] },
             referenceLimits: { maxImageReferences: 4 },
           },
+          pricing: [
+            {
+              combinationKey: '480p',
+              label: '480P',
+              parameters: { quality: '480P' },
+              billingDimensions: { billingUnit: 'REQUEST' },
+              priceGroupId: 'standard',
+              priceGroupCode: 'standard',
+              priceGroupName: 'Standard',
+              status: 'REUSE',
+              reasonCode: 'MATCHED_PUBLISHED_PRICE',
+              billingUnit: 'REQUEST',
+              points: '450',
+              tokenRates: null,
+              sourcePriceVersionId: 'price-version-1',
+              sourceProviderRateVersionId: 'provider-rate-version-1',
+              sourceModelVersion: 1,
+              effectiveAt: null,
+            },
+            {
+              combinationKey: '720p',
+              label: '720P',
+              parameters: { quality: '720P' },
+              billingDimensions: { billingUnit: 'REQUEST' },
+              priceGroupId: 'standard',
+              priceGroupCode: 'standard',
+              priceGroupName: 'Standard',
+              status: 'NEEDS_PRICING',
+              reasonCode: 'NEW_SPECIFICATION',
+              billingUnit: 'REQUEST',
+              points: null,
+              tokenRates: null,
+              sourcePriceVersionId: null,
+              sourceProviderRateVersionId: null,
+              sourceModelVersion: null,
+              effectiveAt: null,
+            },
+          ],
         },
       ],
       changes: Array.from({ length: 21 }, (_, index) => ({
@@ -439,8 +502,14 @@ describe('Canvas model catalog folder upload', () => {
       .getAllByRole('tab')
       .forEach((tab) => expect(tab).toHaveClass('flex-none'))
     expect(screen.getByText('canvas.image.preview')).toBeInTheDocument()
+    expect(screen.getByText('Published binding carried forward')).toBeInTheDocument()
+    expect(screen.getByText(/API Key group: Test group/)).toBeInTheDocument()
+    expect(screen.getByText(/450 points \/ /)).toBeInTheDocument()
     expect(
-      screen.getByText('Internal testing until pricing is published')
+      screen.getByText('New specification has no matching price')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Source price version: price-version-1')
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Database plan (21)' }))
     expect(await screen.findByText('model-1')).toBeInTheDocument()
@@ -450,10 +519,24 @@ describe('Canvas model catalog folder upload', () => {
       screen.getByRole('button', { name: 'Review and publish' })
     ).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Review and publish' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
-    expect(await screen.findByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
-      'Reason: UNSUPPORTED_FUNCTION'
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      /Existing prices reused:\s*1/
     )
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      /Specifications needing pricing:\s*1/
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
+    await waitFor(() =>
+      expect(mocks.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedPlanToken: 'plan-token-1' }),
+        expect.any(Object)
+      )
+    )
+    expect(
+      await screen.findByText(
+        'Adapter Profile template uses an unsupported function.'
+      )
+    ).toBeInTheDocument()
   })
 
   it('shows unchanged models and prevents a redundant publication', async () => {
@@ -461,6 +544,8 @@ describe('Canvas model catalog folder upload', () => {
       bundleId: 'canvas.test',
       bundleVersion: '2',
       manifestSha256: 'b'.repeat(64),
+      planToken: 'plan-token-2',
+      pricingSummary: { reused: 0, needsPricing: 0 },
       action: 'NO_CHANGES',
       blocking: false,
       diagnostics: [],
@@ -468,16 +553,20 @@ describe('Canvas model catalog folder upload', () => {
         {
           productKey: 'canvas.image.preview',
           displayName: 'Existing client model',
+          channelId: 'test-channel',
+          providerId: 'test-provider',
           capability: 'image.generate',
           action: 'NO_OP',
           currentVersion: 1,
           proposedVersion: 1,
           customerVisibleAfterPublish: false,
+          credential: unboundCredential,
           publicInteraction: {
             defaultParams: {},
             paramSchema: {},
             referenceLimits: {},
           },
+          pricing: [],
         },
       ],
       changes: [
@@ -517,5 +606,264 @@ describe('Canvas model catalog folder upload', () => {
       screen.getByRole('button', { name: 'Review and publish' })
     ).toBeDisabled()
     expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('allows verified price recovery without technical catalog changes', async () => {
+    mocks.plan.mockResolvedValue({
+      bundleId: 'canvas.test',
+      bundleVersion: '1',
+      manifestSha256: 'c'.repeat(64),
+      planToken: 'c'.repeat(64),
+      pricingSummary: { reused: 1, needsPricing: 0 },
+      action: 'RECOVER_PRICING',
+      blocking: false,
+      diagnostics: [],
+      models: [
+        {
+          productKey: 'canvas.image.test',
+          displayName: 'Client model',
+          channelId: 'test-channel',
+          providerId: 'test-provider',
+          capability: 'image.generate',
+          action: 'NO_OP',
+          currentVersion: 2,
+          proposedVersion: 2,
+          customerVisibleAfterPublish: false,
+          credential: unboundCredential,
+          publicInteraction: {
+            defaultParams: { quality: '480P' },
+            paramSchema: {},
+            referenceLimits: {},
+          },
+          pricing: [
+            {
+              combinationKey: '480p',
+              label: '480P',
+              parameters: { quality: '480P' },
+              billingDimensions: { billingUnit: 'REQUEST' },
+              priceGroupId: 'standard',
+              priceGroupCode: 'standard',
+              priceGroupName: 'Standard',
+              status: 'REUSE',
+              reasonCode: 'MATCHED_PUBLISHED_PRICE',
+              billingUnit: 'REQUEST',
+              points: '450',
+              tokenRates: null,
+              sourcePriceVersionId: 'price-version-1',
+              sourceProviderRateVersionId: 'provider-rate-version-1',
+              sourceModelVersion: 1,
+              effectiveAt: null,
+            },
+          ],
+        },
+      ],
+      changes: [
+        {
+          resourceType: 'CUSTOMER_MODEL',
+          key: 'canvas.image.test',
+          action: 'NO_OP',
+          currentVersion: 2,
+          proposedVersion: 2,
+          detail: {},
+        },
+      ],
+    })
+    mocks.publish.mockResolvedValue({})
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    expect(
+      await screen.findByText(
+        'Review the verified price links for this published catalog before restoring them.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Verified price links will be restored without a new catalog version'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Catalog unchanged; price links to restore')
+    ).toBeInTheDocument()
+    const review = screen.getByRole('button', {
+      name: 'Review and restore prices',
+    })
+    expect(review).toBeEnabled()
+    fireEvent.click(review)
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'This restores only the verified price links shown in the plan. Existing catalog versions remain unchanged.'
+    )
+    expect(screen.queryByText('Models to publish')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restore price links' }))
+    await waitFor(() =>
+      expect(mocks.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedPlanToken: 'c'.repeat(64) }),
+        expect.any(Object)
+      )
+    )
+    await waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        'Verified price links restored'
+      )
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Review and restore prices' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('allows verified price and API Key link recovery without technical catalog changes', async () => {
+    mocks.plan.mockResolvedValue({
+      bundleId: 'canvas.test',
+      bundleVersion: '1',
+      manifestSha256: 'd'.repeat(64),
+      planToken: 'd'.repeat(64),
+      pricingSummary: { reused: 0, needsPricing: 0 },
+      action: 'RECOVER_CONTINUITY',
+      blocking: false,
+      diagnostics: [],
+      changes: [],
+      models: [
+        {
+          productKey: 'canvas.image.test',
+          displayName: 'Client model',
+          channelId: 'test-channel',
+          providerId: 'test-provider',
+          capability: 'image.generate',
+          action: 'NO_OP',
+          currentVersion: 2,
+          proposedVersion: 2,
+          customerVisibleAfterPublish: false,
+          publicInteraction: {
+            defaultParams: {},
+            paramSchema: {},
+            referenceLimits: {},
+          },
+          credential: {
+            ...unboundCredential,
+            status: 'REUSE',
+            reasonCode: 'MATCHED_PUBLISHED_BINDING',
+            credentialGroupName: 'Test group',
+          },
+          pricing: [],
+        },
+      ],
+    })
+    mocks.publish.mockResolvedValue({})
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    const review = await screen.findByRole('button', {
+      name: 'Review and restore links',
+    })
+    expect(review).toBeEnabled()
+    expect(
+      screen.getByText('Catalog unchanged; verified links to restore')
+    ).toBeInTheDocument()
+    fireEvent.click(review)
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'This restores only the verified price and API Key links shown in the plan. Existing catalog versions remain unchanged.'
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Restore verified links' }))
+    await waitFor(() =>
+      expect(mocks.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedPlanToken: 'd'.repeat(64) }),
+        expect.any(Object)
+      )
+    )
+    await waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        'Verified price and API Key links restored'
+      )
+    )
+  })
+
+  it('invalidates a stale plan after a 409 and requires validation before retry', async () => {
+    const planned = {
+      bundleId: 'canvas.test',
+      bundleVersion: '1',
+      manifestSha256: 'd'.repeat(64),
+      planToken: 'e'.repeat(64),
+      pricingSummary: { reused: 0, needsPricing: 0 },
+      action: 'PUBLISH',
+      blocking: false,
+      diagnostics: [],
+      models: [],
+      changes: [
+        {
+          resourceType: 'CUSTOMER_MODEL',
+          key: 'canvas.image.test',
+          action: 'CREATE',
+          currentVersion: null,
+          proposedVersion: 1,
+          detail: {},
+        },
+      ],
+    }
+    mocks.plan
+      .mockResolvedValueOnce(planned)
+      .mockResolvedValueOnce({ ...planned, planToken: 'f'.repeat(64) })
+    mocks.publish.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'CONFLICT',
+          message:
+            'Catalog plan is stale; review the latest price sources and publish again',
+        },
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    const review = await screen.findByRole('button', {
+      name: 'Review and publish',
+    })
+    fireEvent.click(review)
+    fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
+    expect(
+      await screen.findByText(
+        'Publication failed. Validate the Bundle again before retrying.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Catalog plan is stale because price sources or versions changed after validation.'
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Catalog plan is stale; review the latest price sources and publish again'
+      )
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Review and publish' })
+    ).not.toBeInTheDocument()
+    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Validate Bundle again' })
+    )
+    await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
+    expect(
+      await screen.findByRole('button', { name: 'Review and publish' })
+    ).toBeEnabled()
+    expect(mocks.publish).toHaveBeenCalledTimes(1)
   })
 })

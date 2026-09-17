@@ -30,9 +30,12 @@ import { Input } from '@/components/ui/input'
 
 import type { CanvasModelCatalogPlanModel } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { CatalogPricingPreview } from './CatalogPricingPreview'
 
 export function CatalogModelPreview(props: {
   models: CanvasModelCatalogPlanModel[]
+  recoverPricing?: boolean
+  recoverContinuity?: boolean
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
@@ -99,7 +102,7 @@ export function CatalogModelPreview(props: {
         </DataTableColumnFilterField>
       </DataTableColumnFilterPanel>
       <StaticDataTable
-        tableClassName='min-w-[920px] table-fixed'
+        tableClassName='min-w-max table-fixed'
         columns={[
           {
             id: 'model',
@@ -110,6 +113,10 @@ export function CatalogModelPreview(props: {
                 <div className='font-medium'>{model.displayName}</div>
                 <div className='text-muted-foreground mt-1 font-mono text-xs break-all'>
                   {model.productKey}
+                </div>
+                <div className='text-muted-foreground mt-1 text-xs break-all'>
+                  {t('Channel')}: {model.channelId} · {t('Provider')}:{' '}
+                  {model.providerId}
                 </div>
               </div>
             ),
@@ -155,30 +162,94 @@ export function CatalogModelPreview(props: {
             ),
           },
           {
+            id: 'pricing',
+            className: canvasStaticColumnWidth.detail,
+            header: t('Price continuity by specification and plan'),
+            cell: (model: CanvasModelCatalogPlanModel) => (
+              <CatalogPricingPreview pricing={model.pricing} />
+            ),
+          },
+          {
+            id: 'credential',
+            className: canvasStaticColumnWidth.detail,
+            header: t('API Key binding continuity'),
+            cell: (model: CanvasModelCatalogPlanModel) => (
+              <div className='space-y-1 text-xs'>
+                <div className='font-medium'>
+                  {t(
+                    {
+                      REUSE: 'Binding retained',
+                      NEEDS_BINDING: 'Binding required',
+                      BLOCKED: 'Binding blocked',
+                    }[model.credential.status]
+                  )}
+                </div>
+                {model.credential.credentialGroupName && (
+                  <div className='break-words'>
+                    {t('API Key group')}:{' '}
+                    {model.credential.credentialGroupName}
+                  </div>
+                )}
+                <div className='text-muted-foreground break-words'>
+                  {t(
+                    {
+                      CURRENT_BINDING: 'Current binding retained',
+                      MATCHED_PUBLISHED_BINDING:
+                        'Published binding carried forward',
+                      UNBOUND_SOURCE: 'Previous model has no binding',
+                      PROVIDER_CHANGED: 'Provider changed',
+                      CHANNEL_CHANGED: 'Channel changed',
+                      CREDENTIAL_GROUP_UNAVAILABLE:
+                        'API Key group is unavailable',
+                      CREDENTIAL_SCHEME_MISMATCH:
+                        'API Key scheme does not match',
+                      BINDING_CONFLICT: 'Binding conflict',
+                    }[model.credential.reasonCode]
+                  )}
+                </div>
+              </div>
+            ),
+          },
+          {
             id: 'visibility',
             className: canvasStaticColumnWidth.wide,
             header: t('Customer visibility'),
             cell: (model: CanvasModelCatalogPlanModel) =>
               model.customerVisibleAfterPublish
                 ? t('Visible to customers')
-                : t('Internal testing until pricing is published'),
+                : t(
+                    'Customer availability depends on presentation, runtime controls, bindings, and price coverage'
+                  ),
           },
           {
             id: 'result',
             className: canvasStaticColumnWidth.standard,
             header: t('Publication result'),
-            cell: (model: CanvasModelCatalogPlanModel) =>
-              model.action === 'NO_OP' ? (
-                <Badge variant='secondary'>{t('Unchanged — skipped')}</Badge>
-              ) : (
-                <div className='space-y-1'>
-                  <Badge>{t(model.action)}</Badge>
-                  <div className='text-muted-foreground text-xs tabular-nums'>
-                    {model.currentVersion ?? '—'} →{' '}
-                    {model.proposedVersion ?? '—'}
+            cell: (model: CanvasModelCatalogPlanModel) => {
+              if (model.action !== 'NO_OP') {
+                return (
+                  <div className='space-y-1'>
+                    <Badge>{t(model.action)}</Badge>
+                    <div className='text-muted-foreground text-xs tabular-nums'>
+                      {model.currentVersion ?? '—'} →{' '}
+                      {model.proposedVersion ?? '—'}
+                    </div>
                   </div>
-                </div>
-              ),
+                )
+              }
+              const hasPriceLink = model.pricing.some(
+                (price) => price.reasonCode === 'MATCHED_PUBLISHED_PRICE'
+              )
+              let label = t('Unchanged — skipped')
+              if (props.recoverContinuity &&
+                (model.credential.reasonCode === 'MATCHED_PUBLISHED_BINDING' ||
+                  hasPriceLink)) {
+                label = t('Catalog unchanged; verified links to restore')
+              } else if (props.recoverPricing && hasPriceLink) {
+                label = t('Catalog unchanged; price links to restore')
+              }
+              return <Badge variant='secondary'>{label}</Badge>
+            },
           },
         ]}
         data={visible}

@@ -52,6 +52,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
+import {
+  getServerErrorCode,
+  getServerErrorStatus,
+} from '@/lib/server-error-message'
 
 import {
   planCanvasModelCatalogBundle,
@@ -116,6 +120,83 @@ function errorDetails(
   }
 }
 
+function publicationErrorReason(error: unknown, t: TFunction): string {
+  const code = getServerErrorCode(error)
+  const status = getServerErrorStatus(error)
+  const response = (
+    error as {
+      response?: { data?: { message?: unknown; diagnostics?: unknown } }
+    }
+  )?.response?.data
+  const message = response?.message
+  if (
+    Array.isArray(response?.diagnostics) &&
+    response.diagnostics.some((diagnostic: unknown) => {
+      if (!diagnostic || typeof diagnostic !== 'object') return false
+      const item = diagnostic as Record<string, unknown>
+      return (
+        item.code === 'TEMPLATE_INVALID' &&
+        item.templateReason === 'UNSUPPORTED_FUNCTION'
+      )
+    })
+  ) {
+    return t('Adapter Profile template uses an unsupported function.')
+  }
+  if (
+    code === 'CONFLICT' &&
+    message ===
+      'Catalog plan is stale; review the latest price sources and publish again'
+  ) {
+    return t(
+      'Catalog plan is stale because price sources or versions changed after validation.'
+    )
+  }
+  if (
+    code === 'CONFLICT' &&
+    message ===
+      'Catalog plan contains conflicting price or immutable definition facts'
+  ) {
+    return t(
+      'Catalog price sources or immutable definitions conflict with this publication.'
+    )
+  }
+  if (
+    code === 'CONFLICT' &&
+    message ===
+      'Bundle identity already exists with different immutable content'
+  ) {
+    return t(
+      'This Bundle version already exists with different immutable content.'
+    )
+  }
+  if (code === 'CONFLICT' && typeof message === 'string') {
+    if (/^Source price \S+ changed during publication$/.test(message)) {
+      return t('The source price changed during publication.')
+    }
+    if (/^Specification \S+ changed during publication$/.test(message)) {
+      return t('A model specification changed during publication.')
+    }
+    if (/^CustomerModel \S+ changed during publication$/.test(message)) {
+      return t('A client model changed during publication.')
+    }
+  }
+  if (code === 'IDEMPOTENCY_CONFLICT') {
+    return t('This publication request conflicts with an earlier request.')
+  }
+  if (code === 'UNAUTHORIZED') {
+    return t('Your administrator session is no longer authorized.')
+  }
+  if (code === 'VALIDATION_FAILED') {
+    return t('The Bundle publication request is no longer valid.')
+  }
+  if (status === 409) {
+    return t(
+      'Catalog publication conflicts with current catalog or pricing facts.'
+    )
+  }
+  return t('Catalog publication failed. Review the validation results.')
+}
+
 export function AdminModelCatalog(
   props: {
     initialPricingModelId?: string
@@ -167,15 +248,33 @@ export function AdminModelCatalog(
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogBundle,
     onSuccess: async () => {
+      const recovered = plan?.action === 'RECOVER_PRICING'
+      const continuityRecovered = plan?.action === 'RECOVER_CONTINUITY'
+      setPlan(null)
+      setBundle(null)
+      setFailure(null)
+      setConfirming(false)
       await queryClient.invalidateQueries({
         queryKey: ['canvas-cloud', 'admin-testing-models'],
       })
-      setConfirming(false)
-      toast.success(t('Model catalog published'))
+      let successMessage = t('Model catalog published')
+      if (recovered) {
+        successMessage = t('Verified price links restored')
+      }
+      if (continuityRecovered) {
+        successMessage = t('Verified price and API Key links restored')
+      }
+      toast.success(successMessage)
     },
     onError: (error) => {
+      setPlan(null)
       setConfirming(false)
-      setFailure(errorDetails(error, t))
+      setFailure({
+        message: t(
+          'Publication failed. Validate the Bundle again before retrying.'
+        ),
+        details: [publicationErrorReason(error, t)],
+      })
     },
   })
 
@@ -232,16 +331,28 @@ export function AdminModelCatalog(
   const changedModels = (plan?.models ?? []).filter(
     (model) => model.action !== 'NO_OP'
   )
+  const recoveringExisting =
+    plan?.action === 'RECOVER_PRICING' ||
+    plan?.action === 'RECOVER_CONTINUITY'
   const canPublish =
-    plan?.action === 'PUBLISH' &&
+    (plan?.action === 'PUBLISH' || recoveringExisting) &&
     !plan.blocking &&
-    publishableChanges.length > 0
+    Boolean(plan.planToken) &&
+    (publishableChanges.length > 0 || recoveringExisting)
   let planDescription = t(
     'Validation passed. Review the client model preview and every database change before publishing.'
   )
   if (plan?.blocking) {
     planDescription = t(
       'Publication is blocked. Fix every conflict and upload the Bundle again.'
+    )
+  } else if (plan?.action === 'RECOVER_PRICING') {
+    planDescription = t(
+      'Review the verified price links for this published catalog before restoring them.'
+    )
+  } else if (plan?.action === 'RECOVER_CONTINUITY') {
+    planDescription = t(
+      'Review the verified price and API Key links before restoring them.'
     )
   } else if (plan?.action === 'REPLAY') {
     planDescription = t(
@@ -251,6 +362,42 @@ export function AdminModelCatalog(
     planDescription = t(
       'All catalog resources are unchanged. No new publication will be created.'
     )
+  }
+  let publicationSummary = t('Nothing needs to be published')
+  if (plan?.action === 'RECOVER_PRICING' && canPublish) {
+    publicationSummary = t(
+      'Verified price links will be restored without a new catalog version'
+    )
+  } else if (plan?.action === 'RECOVER_CONTINUITY' && canPublish) {
+    publicationSummary = t(
+      'Verified price and API Key links will be restored without a new catalog version'
+    )
+  } else if (canPublish) {
+    publicationSummary = t(
+      '{{models}} models and {{changes}} resource changes will be published',
+      { models: changedModels.length, changes: publishableChanges.length }
+    )
+  }
+  let confirmationTitle = t('Publish model catalog Bundle?')
+  let reviewLabel = t('Review and publish')
+  let confirmationDescription = t(
+    'This publishes immutable catalog versions and the verified price links shown in the plan. Specifications needing pricing remain unpriced.'
+  )
+  let confirmLabel = t('Publish Bundle')
+  if (plan?.action === 'RECOVER_PRICING') {
+    reviewLabel = t('Review and restore prices')
+    confirmationTitle = t('Restore verified price links for this Bundle?')
+    confirmationDescription = t(
+      'This restores only the verified price links shown in the plan. Existing catalog versions remain unchanged.'
+    )
+    confirmLabel = t('Restore price links')
+  } else if (plan?.action === 'RECOVER_CONTINUITY') {
+    reviewLabel = t('Review and restore links')
+    confirmationTitle = t('Restore verified links for this Bundle?')
+    confirmationDescription = t(
+      'This restores only the verified price and API Key links shown in the plan. Existing catalog versions remain unchanged.'
+    )
+    confirmLabel = t('Restore verified links')
   }
   function changeSort(next: typeof sort) {
     if (sort === next) setDescending((value) => !value)
@@ -337,11 +484,15 @@ export function AdminModelCatalog(
                     className='sr-only'
                     type='file'
                     multiple
+                    disabled={publisher.isPending}
                     aria-label={t('Choose Bundle folder')}
                     ref={(node) => {
                       if (node) node.setAttribute('webkitdirectory', '')
                     }}
-                    onChange={(event) => void selectFolder(event.target.files)}
+                    onChange={(event) => {
+                      void selectFolder(event.target.files)
+                      event.target.value = ''
+                    }}
                   />
                 </label>
                 {failure && (
@@ -435,7 +586,11 @@ export function AdminModelCatalog(
                       </CanvasManagementTabsTrigger>
                     </CanvasManagementTabsList>
                     <TabsContent value='models' className='mt-4'>
-                      <CatalogModelPreview models={plan.models} />
+                      <CatalogModelPreview
+                        models={plan.models}
+                        recoverPricing={plan.action === 'RECOVER_PRICING'}
+                        recoverContinuity={plan.action === 'RECOVER_CONTINUITY'}
+                      />
                     </TabsContent>
                     <TabsContent value='changes' className='mt-4 space-y-4'>
                       <DataTableColumnFilterPanel
@@ -612,28 +767,27 @@ export function AdminModelCatalog(
                   </Tabs>
                   <div className='bg-muted/30 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>
                     <div className='text-sm'>
-                      <div className='font-medium'>
-                        {canPublish
-                          ? t(
-                              '{{models}} models and {{changes}} resource changes will be published',
-                              {
-                                models: changedModels.length,
-                                changes: publishableChanges.length,
-                              }
-                            )
-                          : t('Nothing needs to be published')}
-                      </div>
+                      <div className='font-medium'>{publicationSummary}</div>
                       <div className='text-muted-foreground mt-1'>
-                        {t(
-                          'Unchanged models are reused and never receive a new version.'
-                        )}
+                        {recoveringExisting
+                          ? t('Existing catalog versions remain unchanged.')
+                          : t(
+                              'Unchanged models are reused and never receive a new version.'
+                            )}
+                      </div>
+                      <div className='mt-2 text-sm tabular-nums'>
+                        {t('Existing prices reused')}:{' '}
+                        {plan.pricingSummary.reused}
+                        {' · '}
+                        {t('Specifications needing pricing')}:{' '}
+                        {plan.pricingSummary.needsPricing}
                       </div>
                     </div>
                     <Button
                       disabled={!canPublish || publisher.isPending}
                       onClick={() => setConfirming(true)}
                     >
-                      {t('Review and publish')}
+                      {reviewLabel}
                     </Button>
                   </div>
                 </CardContent>
@@ -641,31 +795,58 @@ export function AdminModelCatalog(
             )}
           </TabsContent>
         </Tabs>
+        {bundle && !plan && failure && (
+          <Button
+            variant='outline'
+            disabled={planner.isPending}
+            onClick={() => {
+              setFailure(null)
+              planner.mutate(bundle)
+            }}
+          >
+            {t('Validate Bundle again')}
+          </Button>
+        )}
         {bundle && plan && (
           <PricingActionConfirmation
             open={confirming}
             onOpenChange={setConfirming}
-            title={t('Publish model catalog Bundle?')}
-            description={t(
-              'This confirmation publishes immutable catalog versions. Imported models remain hidden from customers until pricing is published.'
-            )}
+            title={confirmationTitle}
+            description={confirmationDescription}
             details={[
-              [t('Bundle'), bundle.bundleId],
-              [t('Bundle version'), bundle.bundleVersion],
-              [t('Models to publish'), String(changedModels.length)],
-              [
-                t('Resource changes to publish'),
-                String(publishableChanges.length),
-              ],
-              [
-                t('Unchanged models skipped'),
-                String(plan.models.length - changedModels.length),
-              ],
-              [t('Plan action'), t(plan.action)],
-            ].map(([label, value]) => ({ label, value }))}
-            confirmLabel={t('Publish Bundle')}
+              { label: t('Bundle'), value: bundle.bundleId },
+              { label: t('Bundle version'), value: bundle.bundleVersion },
+              ...(recoveringExisting
+                ? []
+                : [
+                    {
+                      label: t('Models to publish'),
+                      value: String(changedModels.length),
+                    },
+                    {
+                      label: t('Resource changes to publish'),
+                      value: String(publishableChanges.length),
+                    },
+                    {
+                      label: t('Unchanged models skipped'),
+                      value: String(plan.models.length - changedModels.length),
+                    },
+                  ]),
+              { label: t('Plan action'), value: t(plan.action) },
+              {
+                label: t('Existing prices reused'),
+                value: String(plan.pricingSummary.reused),
+              },
+              {
+                label: t('Specifications needing pricing'),
+                value: String(plan.pricingSummary.needsPricing),
+              },
+            ]}
+            confirmLabel={confirmLabel}
             pending={publisher.isPending}
-            onConfirm={() => publisher.mutate(bundle)}
+            onConfirm={() =>
+              publisher.mutate({ bundle, expectedPlanToken: plan.planToken })
+            }
           />
         )}
       </div>

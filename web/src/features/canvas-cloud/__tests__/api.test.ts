@@ -560,11 +560,14 @@ describe('Canvas Cloud API boundary', () => {
       bundle,
       expect.objectContaining({ skipErrorHandler: true })
     )
-    await publishCanvasModelCatalogBundle(bundle)
+    await publishCanvasModelCatalogBundle({
+      bundle,
+      expectedPlanToken: 'plan-token-1',
+    })
     expect(mocks.post).toHaveBeenNthCalledWith(
       2,
       '/canvas-api/v1/web/admin/model-catalog-bundles/publications',
-      { confirmed: true, bundle },
+      { confirmed: true, bundle, expectedPlanToken: 'plan-token-1' },
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

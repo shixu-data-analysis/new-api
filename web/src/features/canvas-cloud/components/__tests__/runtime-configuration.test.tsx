@@ -470,8 +470,9 @@ describe('Canvas runtime configuration', () => {
         : {}),
     }))
     apiMocks.getCanvasProviderConfiguration.mockImplementation((query) => {
-      if (query.modelScope !== 'ELIGIBLE')
+      if (query.modelScope !== 'GROUP_MANAGEMENT') {
         return Promise.resolve(providerRuntime)
+      }
       const start = (query.page - 1) * query.pageSize
       return Promise.resolve({
         ...providerRuntime,
@@ -496,7 +497,7 @@ describe('Canvas runtime configuration', () => {
     ).toBeChecked()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelScope: 'ELIGIBLE',
+        modelScope: 'GROUP_MANAGEMENT',
         page: 2,
         pageSize: 100,
       }),
@@ -1059,6 +1060,43 @@ describe('Canvas runtime configuration', () => {
       expect(switchedQuery).not.toHaveProperty('credentialGroupVersionId')
       expect(switchedQuery).not.toHaveProperty('modelId')
     })
+  })
+
+  it('opens group management for a bound model on a retired channel', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: {
+        modelId: model.id,
+        bindingStatus: 'HISTORICAL_BOUND',
+      },
+      models: {
+        ...providerRuntime.models,
+        items: [{ ...model, status: 'RETIRED' }],
+      },
+    })
+    renderProviderConfiguration({ modelId: model.id })
+
+    const drawer = await screen.findByRole('dialog', {
+      name: 'Manage API Key group',
+    })
+    expect(within(drawer).getByLabelText('API Key group')).toHaveValue(
+      'Primary'
+    )
+    const historicalModel = await within(drawer).findByLabelText(
+      'Select model Image A'
+    )
+    expect(historicalModel).toBeChecked()
+    expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({ modelScope: 'GROUP_MANAGEMENT' }),
+      expect.anything()
+    )
+    fireEvent.click(historicalModel)
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
+    const confirmation = await screen.findByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('Remove binding')
+    expect(confirmation).toHaveTextContent('Image A')
   })
 
   it('requires an explicit credential group before opening an unbound model binding target', async () => {

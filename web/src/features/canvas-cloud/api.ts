@@ -908,13 +908,14 @@ export async function planCanvasModelCatalogBundle(
   ).data
 }
 
-export async function publishCanvasModelCatalogBundle(
+export async function publishCanvasModelCatalogBundle(input: {
   bundle: CanvasModelCatalogBundle
-) {
+  expectedPlanToken: string
+}) {
   return (
     await api.post(
       `${webBase}/admin/model-catalog-bundles/publications`,
-      { confirmed: true, bundle },
+      { confirmed: true, ...input },
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-catalog-publish') },
         skipErrorHandler: true,

@@ -75,7 +75,7 @@ export interface CanvasProviderConfigurationQuery {
   credentialGroupId?: string
   credentialGroupVersionId?: string
   modelId?: string
-  modelScope: 'BOUND_TO_GROUP' | 'ELIGIBLE'
+  modelScope: 'BOUND_TO_GROUP' | 'ELIGIBLE' | 'GROUP_MANAGEMENT'
   modelName?: string
   modelKey?: string
   modelStatus?: string
@@ -93,7 +93,7 @@ export interface CanvasProviderConfiguration {
   selectedCredentialGroupId: string | null
   navigationTarget: {
     modelId: string
-    bindingStatus: 'BOUND' | 'UNBOUND'
+    bindingStatus: 'BOUND' | 'UNBOUND' | 'HISTORICAL_BOUND'
   } | null
   providers: Array<{
     id: string
@@ -1454,23 +1454,69 @@ export interface CanvasModelCatalogPlanChange {
 export interface CanvasModelCatalogPlanModel {
   productKey: string
   displayName: string
+  channelId: string
+  providerId: string
   capability: 'chat.generate' | 'image.generate' | 'video.generate'
   action: CanvasModelCatalogPlanChange['action']
   currentVersion: number | null
   proposedVersion: number | null
-  customerVisibleAfterPublish: false
+  customerVisibleAfterPublish: boolean
   publicInteraction: {
     defaultParams: Record<string, unknown>
     paramSchema: Record<string, unknown>
     referenceLimits: Record<string, unknown>
   }
+  pricing: CanvasModelCatalogPlanPrice[]
+  credential: {
+    status: 'REUSE' | 'NEEDS_BINDING' | 'BLOCKED'
+    reasonCode:
+      | 'CURRENT_BINDING'
+      | 'MATCHED_PUBLISHED_BINDING'
+      | 'UNBOUND_SOURCE'
+      | 'PROVIDER_CHANGED'
+      | 'CHANNEL_CHANGED'
+      | 'CREDENTIAL_GROUP_UNAVAILABLE'
+      | 'CREDENTIAL_SCHEME_MISMATCH'
+      | 'BINDING_CONFLICT'
+    sourceBindingId: string | null
+    sourceModelId: string | null
+    credentialGroupVersionId: string | null
+    credentialGroupName: string | null
+  }
+}
+
+export interface CanvasModelCatalogPlanPrice {
+  combinationKey: string
+  label: string
+  parameters: Record<string, unknown>
+  billingDimensions: Record<string, unknown>
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  status: 'REUSE' | 'NEEDS_PRICING'
+  reasonCode: string
+  billingUnit: CanvasBillingUnit | null
+  points: string | null
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  sourcePriceVersionId: string | null
+  sourceProviderRateVersionId: string | null
+  sourceModelVersion: number | null
+  effectiveAt: string | null
 }
 
 export interface CanvasModelCatalogPlan {
   bundleId: string
   bundleVersion: string
   manifestSha256: string
-  action: 'PUBLISH' | 'REPLAY' | 'NO_CHANGES' | 'CONFLICT'
+  planToken: string
+  pricingSummary: { reused: number; needsPricing: number }
+  action:
+    | 'PUBLISH'
+    | 'REPLAY'
+    | 'RECOVER_PRICING'
+    | 'RECOVER_CONTINUITY'
+    | 'NO_CHANGES'
+    | 'CONFLICT'
   blocking: boolean
   diagnostics: Array<{
     code: string
