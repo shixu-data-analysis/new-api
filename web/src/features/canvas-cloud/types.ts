@@ -126,6 +126,11 @@ export interface CanvasProviderConfiguration {
 export interface CanvasProviderModel {
   id: string
   modelKey: string
+  modelVersion: number
+  channelCode: string
+  isLatestVersion: boolean
+  isSelectable: boolean
+  isHistoricalBinding: boolean
   publicName: string
   capability: 'chat.generate' | 'image.generate' | 'video.generate'
   status: string
@@ -302,7 +307,6 @@ export type CanvasAdminRechargeCodeExactSearchPage = CanvasAdminRechargeCodePage
 export interface CanvasAdminRechargeCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  name?: string
   status?: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
   createdFrom?: string
   createdTo?: string
@@ -310,11 +314,7 @@ export interface CanvasAdminRechargeCodeQuery {
   sortOrder: 'asc' | 'desc'
 }
 
-export interface CanvasAdminRechargeCodeExactSearch extends Omit<
-  CanvasAdminRechargeCodeQuery,
-  'name'
-> {
-  batchOrRemark?: string
+export interface CanvasAdminRechargeCodeExactSearch extends CanvasAdminRechargeCodeQuery {
   code: string
 }
 
@@ -353,6 +353,7 @@ export interface CanvasAdminInviteCode {
   reservedCount: string
   activeReservedCount: string
   consumedCount: string
+  activatedCustomers: string
   remainingCount: string
   validFrom: string
   expiresAt: string
@@ -417,7 +418,6 @@ export interface CanvasAdminAgentPage extends CanvasPage<CanvasAgentProfile> {
 export interface CanvasAdminInviteCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  code?: string
   priceGroup?: string
   inviter?: string
   inviterPrincipalId?: string
@@ -444,12 +444,88 @@ export interface CanvasAgentWorkspace {
     username: string
     status: 'ACTIVE'
   }
+  summary: CanvasAgentSummary
+  priceGroups: CanvasAgentPriceGroupSummary[]
+}
+
+export interface CanvasAgentSummary {
+  activatedCustomers: number
+  customersWithSuccessfulTasks: number
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAgentPriceGroupSummary {
+  priceGroupId: string
+  priceGroupName: string
+  currentCustomers: number
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAgentModelUsageRow {
+  priceGroupId: string
+  priceGroupName: string
+  customerModelId: string
+  modelKey: string
+  modelName: string
+  combinationKey: string
+  parameters: Record<string, unknown>
+  billingUnit: CanvasBillingUnit
+  usage: {
+    requests: string
+    seconds: string
+    inputTokens: string | null
+    outputTokens: string | null
+    cacheReadTokens: string | null
+    cacheWriteTokens: string | null
+  }
+  successfulTasks: number
+  settledPoints: string
+  agentPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
+  agentPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentModelUsageRow extends CanvasAgentModelUsageRow {
+  customerPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
+  customerPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAgentModelPrice {
+  customerModelId: string
+  modelKey: string
+  name: string
+  description: string | null
+  capability: string
+  tags: Array<{ id: string; name: string }>
+  priceGroups: Array<{
+    priceGroupId: string
+    priceGroupName: string
+    prices: Array<{
+      combinationKey: string
+      parameters: Record<string, unknown>
+      billingUnit: CanvasBillingUnit
+      customerPoints: string
+      customerTokenRates: Partial<CanvasTokenRateVector> | null
+      modelPriceCny: string | Partial<CanvasTokenRateVector> | null
+    }>
+  }>
 }
 
 export interface CanvasAgentInviteCode {
   id: string
   maskedCode: string
   status: CanvasInviteCodeStatus
+  priceGroupId: string
+  priceGroupName: string
   maxRegistrations: string
   reservedCount: string
   consumedCount: string
@@ -460,19 +536,28 @@ export interface CanvasAgentInviteCode {
   createdAt: string
 }
 
+export interface CanvasAgentInviteCodePage extends CanvasPage<CanvasAgentInviteCode> {
+  filters: { priceGroups: Array<{ id: string; name: string }> }
+}
+
 export interface CanvasAgentCustomer {
   id: string
   username: string | null
   emailMasked: string | null
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
   activatedAt: string | null
+  currentPriceGroup: { id: string; name: string } | null
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
 }
 
 export interface CanvasAgentInviteCodeQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  search?: string
   status?: CanvasInviteCodeStatus
+  priceGroupId?: string
   sortBy:
     | 'code'
     | 'status'
@@ -491,6 +576,34 @@ export interface CanvasAgentCustomerQuery {
   status?: CanvasAgentCustomer['status']
   sortBy: 'customer' | 'status' | 'activatedAt'
   sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminAgentSummary extends CanvasAgentSummary {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentPriceGroupSummary extends CanvasAgentPriceGroupSummary {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentCustomer extends CanvasAgentCustomer {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentStatistics {
+  profile: CanvasAgentProfile
+  summary: CanvasAdminAgentSummary
+  priceGroups: CanvasAdminAgentPriceGroupSummary[]
+}
+
+export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPrice> {
+  filters: {
+    capabilities: string[]
+    tags: Array<{ id: string; name: string }>
+  }
 }
 
 export type CanvasBillingUnit = 'REQUEST' | 'SECOND' | 'MILLION_TOKENS'
@@ -1193,6 +1306,8 @@ export interface CanvasModelPricingModel {
   capability: string
   status: string
   billingUnit: CanvasBillingUnit | null
+  billingUnitState: 'UNPRICED' | 'CONSISTENT' | 'MIXED'
+  publishedBillingUnits: CanvasBillingUnit[]
   allowedBillingUnits: CanvasBillingUnit[]
   tokenCategories: CanvasTokenCategory[]
   combinations: Array<{
@@ -1536,6 +1651,8 @@ export interface CanvasAdminCustomerPointBalance {
   username: string | null
   emailMasked: string | null
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+  isAgent: boolean
+  agentStatus: 'ACTIVE' | 'DISABLED' | null
   availablePoints: string
   paidAvailablePoints: string
   bonusAvailablePoints: string

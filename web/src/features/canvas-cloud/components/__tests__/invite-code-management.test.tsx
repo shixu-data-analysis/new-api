@@ -32,6 +32,7 @@ const apiMocks = vi.hoisted(() => ({
   extendCanvasAdminInviteCode: vi.fn(),
   exportCanvasAdminInviteCodes: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
+  searchCanvasAdminInviteCodes: vi.fn(),
   getCanvasInviteCodeOptions: vi.fn(),
   revealCanvasCode: vi.fn(),
   previewCanvasInviteCodeExtension: vi.fn(),
@@ -48,9 +49,12 @@ function renderWithClient(element: React.ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  return render(
-    <QueryClientProvider client={client}>{element}</QueryClientProvider>
-  )
+  return {
+    ...render(
+      <QueryClientProvider client={client}>{element}</QueryClientProvider>
+    ),
+    queryClient: client,
+  }
 }
 
 async function renderInviteManagement() {
@@ -82,6 +86,7 @@ function inviteFixture(
     activeReservedCount: '0',
     consumedCount: '2',
     remainingCount: '8',
+    activatedCustomers: '2',
     validFrom: '2026-01-01T00:00:00.000Z',
     expiresAt: expiry.toISOString(),
     priceGroupId: 'group-v1',
@@ -161,7 +166,7 @@ describe('Canvas invite code management', () => {
     expect(await screen.findByLabelText('Maximum registrations')).toHaveValue(
       '1'
     )
-    expect(screen.getByLabelText('Initial price group')).toHaveValue('')
+    expect(screen.getByLabelText('Initial price plan')).toHaveValue('')
     const validFrom = screen.getByRole('group', { name: 'Valid from' })
     const expiresAt = screen.getByRole('group', { name: 'Expires at' })
     expect(validFrom.querySelector('input[type="time"]')).toBeInTheDocument()
@@ -196,7 +201,7 @@ describe('Canvas invite code management', () => {
     const campaign = await screen.findByLabelText('Invite bonus campaign')
     await screen.findByRole('option', { name: /September invitation/u })
     fireEvent.change(campaign, { target: { value: 'invite-v2' } })
-    fireEvent.change(screen.getByLabelText('Initial price group'), {
+    fireEvent.change(screen.getByLabelText('Initial price plan'), {
       target: { value: 'group-v1' },
     })
     expect(screen.getByText('Bonus per new customer: 250 points')).toBeVisible()
@@ -239,7 +244,7 @@ describe('Canvas invite code management', () => {
       fireEvent.change(screen.getByLabelText('Invite bonus campaign'), {
         target: { value: 'invite-v2' },
       })
-      fireEvent.change(screen.getByLabelText('Initial price group'), {
+      fireEvent.change(screen.getByLabelText('Initial price plan'), {
         target: { value: 'group-v1' },
       })
       fireEvent.click(
@@ -588,7 +593,7 @@ describe('Canvas invite code management', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Custom' }))
     const code = screen.getByLabelText('Invite code')
     fireEvent.change(code, { target: { value: 'VIP1' } })
-    fireEvent.change(screen.getByLabelText('Initial price group'), {
+    fireEvent.change(screen.getByLabelText('Initial price plan'), {
       target: { value: 'group-v1' },
     })
     fireEvent.click(
@@ -605,7 +610,7 @@ describe('Canvas invite code management', () => {
     expect(
       screen.queryByRole('alertdialog', { name: 'Create invite code' })
     ).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Initial price group')).toHaveValue('group-v1')
+    expect(screen.getByLabelText('Initial price plan')).toHaveValue('group-v1')
   })
 
   it('ignores an older availability result after the custom code changes', async () => {
@@ -988,6 +993,73 @@ describe('Canvas invite code management', () => {
     await waitFor(() => expect(screen.getByText('FIRST01')).toBeVisible())
     currentCopy = screen.getAllByRole('button', { name: 'Copy invite code' })
     expect(currentCopy[1]).toBeEnabled()
+  })
+
+  it('searches complete invite codes through the POST endpoint', async () => {
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+      exactFilter: null,
+    })
+    apiMocks.searchCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [],
+      exactFilter: null,
+    })
+
+    const { queryClient } = renderWithClient(<InviteCodeManagement />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Column filters' })
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Invite code' }), {
+      target: { value: ' first01 ' },
+    })
+
+    await waitFor(() =>
+      expect(apiMocks.searchCanvasAdminInviteCodes).toHaveBeenLastCalledWith(
+        expect.objectContaining({ code: 'FIRST01' }),
+        expect.any(AbortSignal)
+      )
+    )
+    expect(JSON.stringify(queryClient.getQueryCache().getAll())).not.toContain(
+      'FIRST01'
+    )
+    expect(apiMocks.getCanvasAdminInviteCodes.mock.calls).not.toEqual(
+      expect.arrayContaining([
+        expect.arrayContaining([expect.objectContaining({ code: 'FIRST01' })]),
+      ])
+    )
+  })
+
+  it('treats a partial invite code as an empty exact result', async () => {
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+      exactFilter: null,
+    })
+    const { queryClient } = renderWithClient(<InviteCodeManagement />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Column filters' })
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Invite code' }), {
+      target: { value: 'ABC' },
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('No invite codes match current filters')
+      ).toBeVisible()
+    )
+    expect(apiMocks.searchCanvasAdminInviteCodes).not.toHaveBeenCalled()
+    expect(JSON.stringify(queryClient.getQueryCache().getAll())).not.toContain(
+      'ABC'
+    )
   })
 
   it('rejects a three-character activation code before calling Cloud', () => {

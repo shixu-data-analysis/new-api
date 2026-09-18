@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
@@ -31,8 +37,8 @@ import {
   vi,
 } from 'vitest'
 
-import { CanvasRechargeCodes } from '../RechargeCodes'
 import { isCanvasDateRangeValid } from '../date-range'
+import { CanvasRechargeCodes } from '../RechargeCodes'
 
 const apiMocks = vi.hoisted(() => ({
   getCanvasAdminRechargeCodes: vi.fn(),
@@ -95,9 +101,9 @@ function renderRechargeCodes() {
   })
   return {
     ...render(
-    <QueryClientProvider client={queryClient}>
-      <CanvasRechargeCodes embedded />
-    </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <CanvasRechargeCodes embedded />
+      </QueryClientProvider>
     ),
     queryClient,
   }
@@ -108,10 +114,7 @@ describe('Canvas recharge-code creation form', () => {
     const timestamp = new Date('2026-08-01T13:45:00.000Z')
     expect(isCanvasDateRangeValid(timestamp, timestamp)).toBe(true)
     expect(
-      isCanvasDateRangeValid(
-        new Date('2026-08-01T13:45:00.001Z'),
-        timestamp
-      )
+      isCanvasDateRangeValid(new Date('2026-08-01T13:45:00.001Z'), timestamp)
     ).toBe(false)
   })
   beforeAll(() => {
@@ -320,15 +323,26 @@ describe('Canvas recharge-code creation form', () => {
   })
 
   it('isolates interleaved secret responses between two component instances', async () => {
-    const resolvers: Array<(value: { created: true; codes: Array<{ id: string; code: string }> }) => void> = []
+    const resolvers: Array<
+      (value: {
+        created: true
+        codes: Array<{ id: string; code: string }>
+      }) => void
+    > = []
     apiMocks.issueCanvasAdminRechargeCodes.mockImplementation(
       () => new Promise((resolve) => resolvers.push(resolve))
     )
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
     render(
       <QueryClientProvider client={queryClient}>
-        <div data-testid='first-instance'><CanvasRechargeCodes embedded /></div>
-        <div data-testid='second-instance'><CanvasRechargeCodes embedded /></div>
+        <div data-testid='first-instance'>
+          <CanvasRechargeCodes embedded />
+        </div>
+        <div data-testid='second-instance'>
+          <CanvasRechargeCodes embedded />
+        </div>
       </QueryClientProvider>
     )
     const first = within(screen.getByTestId('first-instance'))
@@ -336,10 +350,18 @@ describe('Canvas recharge-code creation form', () => {
     fireEvent.click(first.getByRole('button', { name: 'Create codes' }))
     fireEvent.click(second.getByRole('button', { name: 'Create codes' }))
     await waitFor(() => expect(resolvers).toHaveLength(2))
-    resolvers[1]({ created: true, codes: [{ id: 'second', code: 'CANVAS-SECOND' }] })
+    resolvers[1]({
+      created: true,
+      codes: [{ id: 'second', code: 'CANVAS-SECOND' }],
+    })
     await second.findByRole('button', { name: 'Done' })
-    expect(first.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
-    resolvers[0]({ created: true, codes: [{ id: 'first', code: 'CANVAS-FIRST' }] })
+    expect(
+      first.queryByRole('button', { name: 'Done' })
+    ).not.toBeInTheDocument()
+    resolvers[0]({
+      created: true,
+      codes: [{ id: 'first', code: 'CANVAS-FIRST' }],
+    })
     await first.findByRole('button', { name: 'Done' })
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0)
   })
@@ -514,9 +536,9 @@ describe('Canvas recharge-code creation form', () => {
     await user.click(screen.getByRole('button', { name: 'Expiry time' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
     await user.click(screen.getByRole('button', { name: 'Column filters' }))
-    fireEvent.change(screen.getByPlaceholderText('Batch / note'), {
-      target: { value: 'Support batch' },
-    })
+    expect(
+      screen.queryByPlaceholderText('Batch / note')
+    ).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Start time' }))
     await user.click(screen.getByRole('button', { name: 'End time' }))
     await user.click(screen.getByLabelText('Status'))
@@ -526,11 +548,12 @@ describe('Canvas recharge-code creation form', () => {
     })
 
     await waitFor(() => {
-      expect(apiMocks.searchCanvasAdminRechargeCodeBatch).toHaveBeenLastCalledWith(
+      expect(
+        apiMocks.searchCanvasAdminRechargeCodeBatch
+      ).toHaveBeenLastCalledWith(
         expect.objectContaining({
           page: 1,
           pageSize: 20,
-          batchOrRemark: 'Support batch',
           code: 'CANVAS-Y1234567890123456789FA2E',
           status: 'EXPIRED',
           createdFrom: '2026-08-01T13:45:00.000Z',
@@ -542,7 +565,12 @@ describe('Canvas recharge-code creation form', () => {
       )
     })
     expect(
-      JSON.stringify(queryClient.getQueryCache().getAll().map((item) => item.queryKey))
+      JSON.stringify(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .map((item) => item.queryKey)
+      )
     ).not.toContain('CANVAS-Y1234567890123456789FA2E')
     expect(window.location.href).not.toContain(
       'CANVAS-Y1234567890123456789FA2E'
@@ -556,22 +584,21 @@ describe('Canvas recharge-code creation form', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() => {
-      expect(apiMocks.searchCanvasAdminRechargeCodeBatch).toHaveBeenLastCalledWith(
+      expect(
+        apiMocks.searchCanvasAdminRechargeCodeBatch
+      ).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 2 }),
         expect.any(AbortSignal)
       )
     })
 
-    await user.click(
-      screen.getByRole('button', { name: /^Column filters/u })
-    )
+    await user.click(screen.getByRole('button', { name: /^Column filters/u }))
     await user.click(
       screen.getByRole('button', { name: 'Clear exact recharge code' })
     )
     await waitFor(() => {
       expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          name: 'Support batch',
           status: 'EXPIRED',
           createdFrom: '2026-08-01T13:45:00.000Z',
           createdTo: '2026-08-01T14:30:00.000Z',
@@ -582,13 +609,14 @@ describe('Canvas recharge-code creation form', () => {
     expect(screen.getByLabelText('Recharge code')).toHaveValue('')
 
     await user.click(screen.getByLabelText('Status'))
-    await user.click(await screen.findByRole('option', { name: 'All statuses' }))
+    await user.click(
+      await screen.findByRole('option', { name: 'All statuses' })
+    )
     await waitFor(() => {
       const query = apiMocks.getCanvasAdminRechargeCodes.mock.calls.at(-1)?.[0]
       expect(query).not.toHaveProperty('status')
       expect(query).toEqual(
         expect.objectContaining({
-          name: 'Support batch',
           createdFrom: '2026-08-01T13:45:00.000Z',
           createdTo: '2026-08-01T14:30:00.000Z',
         })
@@ -613,6 +641,56 @@ describe('Canvas recharge-code creation form', () => {
     expect(apiMocks.getCanvasAdminRechargeCodes).toHaveBeenCalledTimes(
       requestsBefore
     )
+  })
+
+  it('shows only the batch total when no code or status filter is active', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminRechargeCodes.mockResolvedValue({
+      items: [
+        {
+          id: 'batch-1',
+          remark: null,
+          currency: 'CNY',
+          amountMinor: '1000',
+          points: '500',
+          bonusPoints: '0',
+          bonusTtlDays: null,
+          createdAt: '2026-08-25T00:00:00.000Z',
+          expiresAt: '2026-11-23T00:00:00.000Z',
+          totalCount: 1,
+          availableCount: 1,
+          redeemedCount: 0,
+          expiredCount: 0,
+          voidCount: 0,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    apiMocks.getCanvasAdminRechargeCodeBatchItems.mockResolvedValue({
+      items: [
+        {
+          maskedCode: 'CANVAS-A••••WXYZ',
+          status: 'ACTIVE',
+          redeemedAt: null,
+        },
+      ],
+      matchedCount: 1,
+      totalCount: 1,
+    })
+    renderRechargeCodes()
+
+    await user.click(
+      await screen.findByRole('button', { name: /Expand recharge-code batch/u })
+    )
+
+    expect(
+      await screen.findByText('Recharge codes in this batch (total 1)')
+    ).toBeVisible()
+    expect(
+      screen.queryByText(/Recharge codes in this batch \(matched/u)
+    ).not.toBeInTheDocument()
   })
 
   it('lazily expands one RTL batch from the keyboard without coupling the download action', async () => {
@@ -665,7 +743,9 @@ describe('Canvas recharge-code creation form', () => {
     })
     renderRechargeCodes()
 
-    await user.click(await screen.findByRole('button', { name: 'Column filters' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Column filters' })
+    )
     await user.click(screen.getByLabelText('Status'))
     await user.click(await screen.findByRole('option', { name: 'Redeemed' }))
     expect(
@@ -698,9 +778,7 @@ describe('Canvas recharge-code creation form', () => {
     ).toHaveAttribute('aria-expanded', 'true')
     expect(await screen.findAllByText('CANVAS-A••••WXYZ')).not.toHaveLength(0)
     expect(
-      screen.getAllByText(
-        'Recharge codes in this batch (matched 1 / total 2)'
-      )
+      screen.getAllByText('Recharge codes in this batch (matched 1 / total 2)')
     ).not.toHaveLength(0)
     expect(screen.getAllByText('Used time')).not.toHaveLength(0)
     expect(apiMocks.getCanvasAdminRechargeCodeBatchItems).toHaveBeenCalledWith(

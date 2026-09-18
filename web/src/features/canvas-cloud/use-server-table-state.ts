@@ -32,14 +32,15 @@ export interface CanvasServerTableState {
 
 export function useServerTableState<TSortBy extends string>(
   defaultSortBy: TSortBy,
-  initialSearch = ''
+  initialSearch = '',
+  defaultSortDescending = true
 ) {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   })
   const [sorting, setSorting] = useState<SortingState>([
-    { id: defaultSortBy, desc: true },
+    { id: defaultSortBy, desc: defaultSortDescending },
   ])
   const [search, setSearch] = useState(initialSearch)
   const debouncedSearch = useDebounce(search.trim(), 300)

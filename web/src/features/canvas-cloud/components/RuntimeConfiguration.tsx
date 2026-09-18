@@ -7,10 +7,16 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   cloneElement,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -37,7 +43,6 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardFooter,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -92,7 +97,7 @@ import type {
 } from '../types'
 import { useDirectAsync } from '../use-direct-async'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm } from './BusinessTerm'
+import { BusinessTerm, BusinessTermText } from './BusinessTerm'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
@@ -100,7 +105,12 @@ import {
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
-import { runtimeChangeError } from './runtime-change-error'
+import {
+  historicalBindingGroups,
+  isHistoricalBindingConflict,
+  runtimeChangeError,
+  type HistoricalBindingGroup,
+} from './runtime-change-error'
 
 function isHttpsOrigin(value: string) {
   try {
@@ -329,6 +339,8 @@ export function RuntimeConfiguration(
     'taskMedia' | 'databaseBackup' | null
   >(null)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [historicalCleanupConfirmed, setHistoricalCleanupConfirmed] =
+    useState(false)
   const [managementInitialModels, setManagementInitialModels] = useState<
     string[]
   >([])
@@ -342,6 +354,12 @@ export function RuntimeConfiguration(
     useState<CanvasCredentialRotationPreview | null>(null)
   const [bindingPreview, setBindingPreview] =
     useState<CanvasModelBindingPreview | null>(null)
+  const [bindingRecovery, setBindingRecovery] = useState<{
+    groups: HistoricalBindingGroup[]
+    targetGroupVersionId: string
+    customerModelIds: string[]
+  } | null>(null)
+  const [pendingCleanupGroupId, setPendingCleanupGroupId] = useState('')
   const rotationPreviewRequestRef = useRef(0)
   const bindingPreviewRequestRef = useRef(0)
   useEffect(() => {
@@ -540,6 +558,7 @@ export function RuntimeConfiguration(
   if (providerDrawer === 'management') {
     hasUnsavedProviderEdit =
       management.formState.isDirty ||
+      historicalCleanupConfirmed ||
       selectedModels.length !== managementInitialModels.length ||
       selectedModels.some((id) => !managementInitialModels.includes(id))
   } else if (openEditor === 'credential' || addCredentialOpen) {
@@ -600,6 +619,7 @@ export function RuntimeConfiguration(
     setAddCredentialOpen(false)
     setSelectedModels([])
     setBindingPreview(null)
+    setBindingRecovery(null)
     setRotationPreview(null)
     binding.reset({ reason: '' })
     credential.reset({
@@ -619,6 +639,8 @@ export function RuntimeConfiguration(
     value: string
   }) => {
     resetProviderEdit()
+    setBindingRecovery(null)
+    setPendingCleanupGroupId('')
     setExecutionPolicyDirty(false)
     if (change.kind === 'tab') {
       setProviderTab(change.value as 'overview' | 'execution')
@@ -809,12 +831,21 @@ export function RuntimeConfiguration(
       setOpenEditor(null)
       setSelectedModels([])
       setBindingPreview(null)
+      setBindingRecovery(null)
       toast.success(t('Model credential bindings published'))
       await refresh()
     },
     onError: async (error) => {
       setConfirmation(null)
-      toast.error(runtimeChangeError(error, t, 'binding'))
+      if (isHistoricalBindingConflict(error)) {
+        setBindingRecovery({
+          groups: historicalBindingGroups(error),
+          targetGroupVersionId: selectedGroupVersionRef.current,
+          customerModelIds: [...selectedModelsRef.current],
+        })
+      } else {
+        toast.error(runtimeChangeError(error, t, 'binding'))
+      }
       await refresh()
     },
   })
@@ -838,6 +869,13 @@ export function RuntimeConfiguration(
       })
     },
     onSuccess: async () => {
+      setBindingRecovery((current) => {
+        if (!current) return null
+        const groups = current.groups.filter(
+          (group) => group.id !== selectedGroup?.credentialGroupId
+        )
+        return groups.length > 0 ? { ...current, groups } : null
+      })
       setConfirmation(null)
       closeProviderDrawer()
       setSelectedModels([])
@@ -908,9 +946,30 @@ export function RuntimeConfiguration(
         return
       }
       setBindingPreview(preview)
+      setBindingRecovery(null)
       setConfirmation('binding')
     },
-    onError: (error) => toast.error(runtimeChangeError(error, t, 'preview')),
+    onError: (error, input) => {
+      if (
+        input.requestId !== bindingPreviewRequestRef.current ||
+        input.credentialGroupVersionId !== selectedGroupVersionRef.current ||
+        input.customerModelIds.length !== selectedModelsRef.current.length ||
+        input.customerModelIds.some(
+          (modelId) => !selectedModelsRef.current.includes(modelId)
+        )
+      ) {
+        return
+      }
+      if (isHistoricalBindingConflict(error)) {
+        setBindingRecovery({
+          groups: historicalBindingGroups(error),
+          targetGroupVersionId: input.credentialGroupVersionId,
+          customerModelIds: [...input.customerModelIds],
+        })
+      } else {
+        toast.error(runtimeChangeError(error, t, 'preview'))
+      }
+    },
   })
   const reportCheck = async (result: CanvasRuntimeConnectionCheck) => {
     if (result.outcome === 'PASSED') toast.success(t('Connection check passed'))
@@ -938,6 +997,7 @@ export function RuntimeConfiguration(
     databaseBackup.reset()
     management.reset({ name: '', apiKey: '', reason: '' })
     setManagementInitialModels([])
+    setHistoricalCleanupConfirmed(false)
     setManagementInitializedGroupId('')
     setProviderDrawer(null)
     setConfirmation(null)
@@ -1023,7 +1083,9 @@ export function RuntimeConfiguration(
     }
     const boundIds = managementCandidates.data
       .filter(
-        (model) => model.credentialGroupId === selectedGroup.credentialGroupId
+        (model) =>
+          model.isSelectable &&
+          model.credentialGroupId === selectedGroup.credentialGroupId
       )
       .map((model) => model.id)
     setSelectedModels(boundIds)
@@ -1036,12 +1098,36 @@ export function RuntimeConfiguration(
     providerDrawer,
     selectedGroup,
   ])
-  const openManagementDrawer = () => {
+  const openManagementDrawer = useCallback(() => {
     if (!selectedGroup) return
     setManagementInitializedGroupId('')
+    setHistoricalCleanupConfirmed(false)
     setManagementModelSearch('')
     management.reset({ name: selectedGroup.name, apiKey: '', reason: '' })
     setProviderDrawer('management')
+  }, [management, selectedGroup])
+  useEffect(() => {
+    if (
+      !pendingCleanupGroupId ||
+      selectedGroup?.credentialGroupId !== pendingCleanupGroupId
+    ) {
+      return
+    }
+    setPendingCleanupGroupId('')
+    openManagementDrawer()
+  }, [openManagementDrawer, pendingCleanupGroupId, selectedGroup])
+  const openCleanupGroup = (groupId: string) => {
+    const recovery = bindingRecovery
+    resetProviderEdit()
+    setBindingRecovery(recovery)
+    setActiveProviderTarget(undefined)
+    setNavigationTargetApplied(true)
+    setUnboundTargetPending(false)
+    setUnboundTargetModelId('')
+    setSelectedProviderId(selectedProvider?.id ?? '')
+    setSelectedCredentialGroupId(groupId)
+    setProviderTab('overview')
+    setPendingCleanupGroupId(groupId)
   }
   const closeProviderDrawer = () => {
     const closedDrawer = providerDrawer
@@ -1070,20 +1156,42 @@ export function RuntimeConfiguration(
     }
     return t('Currently unbound')
   }
-  const managementModels = (managementCandidates.data ?? []).filter((model) =>
-    model.publicName
-      .toLocaleLowerCase()
-      .includes(managementModelSearch.trim().toLocaleLowerCase())
+  const managementModels = (managementCandidates.data ?? []).filter(
+    (model) =>
+      model.isSelectable &&
+      model.publicName
+        .toLocaleLowerCase()
+        .includes(managementModelSearch.trim().toLocaleLowerCase())
+  )
+  const historicalGroupBindings = (managementCandidates.data ?? []).filter(
+    (model) =>
+      !model.isSelectable &&
+      model.credentialGroupId === selectedGroup?.credentialGroupId &&
+      model.credentialBindingId !== null
   )
   const allPageSelected =
     pageModels.length > 0 &&
     pageModels.every((model) => selectedModels.includes(model.id))
-  const updateSelectedModels = (update: (current: string[]) => string[]) => {
-    bindingPreviewRequestRef.current += 1
-    setBindingPreview(null)
-    setConfirmation((current) => (current === 'binding' ? null : current))
-    setSelectedModels(update)
-  }
+  const updateSelectedModels = useCallback(
+    (update: (current: string[]) => string[]) => {
+      bindingPreviewRequestRef.current += 1
+      setBindingPreview(null)
+      if (openEditor === 'binding') setBindingRecovery(null)
+      setConfirmation((current) => (current === 'binding' ? null : current))
+      setSelectedModels(update)
+    },
+    [openEditor]
+  )
+  const visibleBindingRecovery =
+    bindingRecovery &&
+    (openEditor !== 'binding' ||
+      (bindingRecovery.targetGroupVersionId === selectedGroup?.id &&
+        bindingRecovery.customerModelIds.length === selectedModels.length &&
+        bindingRecovery.customerModelIds.every((id) =>
+          selectedModels.includes(id)
+        )))
+      ? bindingRecovery
+      : null
   const modelColumns = useMemo<ColumnDef<CanvasProviderModel, unknown>[]>(
     () => [
       ...(openEditor === 'binding'
@@ -1117,12 +1225,39 @@ export function RuntimeConfiguration(
           <DataTableColumnHeader column={column} title={t('Model name')} />
         ),
         meta: { label: t('Model name') },
-        cell: ({ row }) =>
-          openEditor === 'binding' ? (
-            <span className='font-medium break-words whitespace-normal'>
-              {row.original.publicName}
-            </span>
-          ) : (
+        cell: ({ row }) => {
+          if (openEditor === 'binding') {
+            return (
+              <span className='font-medium break-words whitespace-normal'>
+                {row.original.publicName}
+              </span>
+            )
+          }
+          if (!row.original.isSelectable) {
+            return (
+              <div className='space-y-1'>
+                <span className='block font-medium break-words'>
+                  {row.original.publicName}
+                </span>
+                <span className='text-muted-foreground block text-xs break-words'>
+                  {row.original.modelKey} · {t('Technical version')} v
+                  {row.original.modelVersion} ·{' '}
+                  {row.original.isHistoricalBinding
+                    ? t('Older technical version')
+                    : t('Current version unavailable')}
+                </span>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  onClick={openManagementDrawer}
+                >
+                  {t('Manage binding cleanup')}
+                </Button>
+              </div>
+            )
+          }
+          return (
             <a
               className='text-primary max-w-full font-medium break-words whitespace-normal underline-offset-4 hover:underline'
               href={`/canvas-cloud/model-management/${encodeURIComponent(row.original.id)}/pricing`}
@@ -1139,7 +1274,8 @@ export function RuntimeConfiguration(
             >
               {row.original.publicName}
             </a>
-          ),
+          )
+        },
       },
       ...(openEditor === 'binding'
         ? [
@@ -1209,7 +1345,14 @@ export function RuntimeConfiguration(
             } satisfies ColumnDef<CanvasProviderModel, unknown>,
           ]),
     ],
-    [openEditor, selectedGroup, selectedModels, t]
+    [
+      openEditor,
+      openManagementDrawer,
+      selectedGroup,
+      selectedModels,
+      t,
+      updateSelectedModels,
+    ]
   )
   let confirmationDetails = [
     { label: t('Selected models'), value: String(selectedModels.length) },
@@ -1364,11 +1507,13 @@ export function RuntimeConfiguration(
     const value = management.getValues()
     const added = managementCandidates.data.filter(
       (model) =>
+        model.isSelectable &&
         selectedModels.includes(model.id) &&
         model.credentialGroupId !== selectedGroup.credentialGroupId
     )
     const removed = managementCandidates.data.filter(
       (model) =>
+        model.isSelectable &&
         !selectedModels.includes(model.id) &&
         model.credentialGroupId === selectedGroup.credentialGroupId
     )
@@ -1397,6 +1542,10 @@ export function RuntimeConfiguration(
       ...removed.map((model) => ({
         label: t('Remove binding'),
         value: model.publicName,
+      })),
+      ...historicalGroupBindings.map((model) => ({
+        label: t('Retire model binding'),
+        value: `${model.publicName} · ${model.modelKey} v${model.modelVersion}`,
       })),
       {
         label: t('Reason'),
@@ -1464,25 +1613,27 @@ export function RuntimeConfiguration(
           <TabsContent value='taskMedia'>
             <Card>
               <CardHeader>
-                <CardTitle>{t('Task media')}</CardTitle>
+                <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+                  <CardTitle>{t('Task media')}</CardTitle>
+                  {storageData?.taskMedia && (
+                    <>
+                      <Badge variant='secondary'>
+                        <BusinessTermText
+                          kind='configStatus'
+                          value={storageData.taskMedia.status}
+                        />
+                      </Badge>
+                      <Badge variant='secondary'>
+                        {t('Version')} {storageData.taskMedia.version}
+                      </Badge>
+                    </>
+                  )}
+                </div>
                 <CardDescription>
                   {t(
                     'Stores task inputs and generated outputs with separate retention controls.'
                   )}
                 </CardDescription>
-                {storageData?.taskMedia && (
-                  <CardAction>
-                    <div className='flex flex-wrap items-center justify-end gap-2'>
-                      <BusinessTerm
-                        kind='configStatus'
-                        value={storageData.taskMedia.status}
-                      />
-                      <Badge variant='secondary'>
-                        {t('Version')} {storageData.taskMedia.version}
-                      </Badge>
-                    </div>
-                  </CardAction>
-                )}
               </CardHeader>
               <CardContent className='space-y-5'>
                 {storageData?.taskMedia ? (
@@ -1666,25 +1817,27 @@ export function RuntimeConfiguration(
           <TabsContent value='databaseBackup'>
             <Card>
               <CardHeader>
-                <CardTitle>{t('Database backups')}</CardTitle>
+                <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+                  <CardTitle>{t('Database backups')}</CardTitle>
+                  {storageData?.databaseBackup && (
+                    <>
+                      <Badge variant='secondary'>
+                        <BusinessTermText
+                          kind='configStatus'
+                          value={storageData.databaseBackup.status}
+                        />
+                      </Badge>
+                      <Badge variant='secondary'>
+                        {t('Version')} {storageData.databaseBackup.version}
+                      </Badge>
+                    </>
+                  )}
+                </div>
                 <CardDescription>
                   {t(
                     'Stores database backups with dedicated credentials and lifecycle managed outside task media.'
                   )}
                 </CardDescription>
-                {storageData?.databaseBackup && (
-                  <CardAction>
-                    <div className='flex flex-wrap items-center justify-end gap-2'>
-                      <BusinessTerm
-                        kind='configStatus'
-                        value={storageData.databaseBackup.status}
-                      />
-                      <Badge variant='secondary'>
-                        {t('Version')} {storageData.databaseBackup.version}
-                      </Badge>
-                    </div>
-                  </CardAction>
-                )}
               </CardHeader>
               <CardContent className='space-y-5'>
                 {storageData?.databaseBackup ? (
@@ -1969,31 +2122,56 @@ export function RuntimeConfiguration(
                 <TabsContent value='overview' className='space-y-4'>
                   <Card>
                     <CardHeader>
-                      <CardTitle>{selectedGroup.name}</CardTitle>
-                      <CardDescription>
-                        {selectedProvider?.name ?? '—'}
-                      </CardDescription>
-                      <CardAction>
-                        <div className='flex flex-wrap justify-end gap-2'>
-                          <Badge variant='secondary'>
-                            {t('Version')} {selectedGroup.version}
-                          </Badge>
+                      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+                        <div className='min-w-0 space-y-1'>
+                          <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+                            <CardTitle className='break-words'>
+                              {selectedGroup.name}
+                            </CardTitle>
+                            <Badge variant='secondary'>
+                              {t(
+                                `Credential group ${selectedGroup.lifecycleStatus}`
+                              )}
+                            </Badge>
+                            <Badge variant='secondary'>
+                              {t('Version')} {selectedGroup.version}
+                            </Badge>
+                          </div>
+                          <CardDescription>
+                            {selectedProvider?.name ?? '—'}
+                          </CardDescription>
                         </div>
-                      </CardAction>
+                        <div className='flex flex-wrap gap-2 sm:justify-end'>
+                          <Button
+                            ref={historyTriggerRef}
+                            size='sm'
+                            variant='outline'
+                            onClick={() => setProviderDrawer('history')}
+                          >
+                            {t('View change history')}
+                          </Button>
+                          {selectedGroup.lifecycleStatus === 'ARCHIVED' ? (
+                            <Button
+                              size='sm'
+                              onClick={() => setRestoreConfirmationOpen(true)}
+                            >
+                              {t('Restore API Key group')}
+                            </Button>
+                          ) : (
+                            <Button
+                              ref={managementTriggerRef}
+                              size='sm'
+                              onClick={openManagementDrawer}
+                            >
+                              {t('Manage API Key group')}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent className='space-y-5'>
-                      <div className='flex items-center gap-2 text-sm'>
-                        <span className='text-muted-foreground'>
-                          {t('Lifecycle status')}
-                        </span>
-                        <span>
-                          {t(
-                            `Credential group ${selectedGroup.lifecycleStatus}`
-                          )}
-                        </span>
-                      </div>
-                      <dl className='grid gap-3 text-sm md:grid-cols-2'>
-                        <div className='bg-muted/30 rounded-lg p-3'>
+                      <dl className='grid gap-x-6 gap-y-3 border-t pt-3 text-sm md:grid-cols-2'>
+                        <div className='min-w-0'>
                           <dt className='text-muted-foreground text-xs'>
                             {t('Security scheme name')}
                           </dt>
@@ -2001,11 +2179,11 @@ export function RuntimeConfiguration(
                             {selectedGroup.schemeNames.join(', ')}
                           </dd>
                         </div>
-                        <div className='bg-muted/30 rounded-lg p-3'>
+                        <div className='min-w-0'>
                           <dt className='text-muted-foreground text-xs'>
-                            {t('Updated by')}
+                            {t('Current version record')}
                           </dt>
-                          <dd className='mt-1 font-medium'>
+                          <dd className='mt-1 font-medium break-words'>
                             {selectedGroup.updatedBy} ·{' '}
                             {formatCanvasDateTime(selectedGroup.createdAt)}
                           </dd>
@@ -2024,7 +2202,7 @@ export function RuntimeConfiguration(
                             >
                               {openEditor === 'binding'
                                 ? t('Eligible models')
-                                : t('Bound models ({{count}})', {
+                                : t('Model bindings and cleanup ({{count}})', {
                                     count: selectedGroup.boundModelCount,
                                   })}
                             </h3>
@@ -2154,6 +2332,30 @@ export function RuntimeConfiguration(
                             setBindingStatusFilter('')
                           }}
                         />
+                        {visibleBindingRecovery && (
+                          <section
+                            className='border-destructive/40 space-y-2 rounded-lg border p-3'
+                            aria-label={t('Binding cleanup required')}
+                          >
+                            <p className='text-destructive text-sm'>
+                              {t(
+                                'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
+                              )}
+                            </p>
+                            <div className='flex flex-wrap gap-2'>
+                              {visibleBindingRecovery.groups.map((group) => (
+                                <Button
+                                  key={group.id}
+                                  type='button'
+                                  variant='outline'
+                                  onClick={() => openCleanupGroup(group.id)}
+                                >
+                                  {t('Manage binding cleanup')}: {group.name}
+                                </Button>
+                              ))}
+                            </div>
+                          </section>
+                        )}
                         {openEditor === 'binding' && (
                           <form
                             aria-label={t('Publish model credential bindings')}
@@ -2222,32 +2424,6 @@ export function RuntimeConfiguration(
                         )}
                       </section>
                     </CardContent>
-                    <CardFooter className='flex flex-wrap justify-end gap-2'>
-                      <Button
-                        ref={historyTriggerRef}
-                        size='sm'
-                        variant='outline'
-                        onClick={() => setProviderDrawer('history')}
-                      >
-                        {t('View change history')}
-                      </Button>
-                      {selectedGroup.lifecycleStatus === 'ARCHIVED' ? (
-                        <Button
-                          size='sm'
-                          onClick={() => setRestoreConfirmationOpen(true)}
-                        >
-                          {t('Restore API Key group')}
-                        </Button>
-                      ) : (
-                        <Button
-                          ref={managementTriggerRef}
-                          size='sm'
-                          onClick={openManagementDrawer}
-                        >
-                          {t('Manage API Key group')}
-                        </Button>
-                      )}
-                    </CardFooter>
                   </Card>
                 </TabsContent>
 
@@ -2297,6 +2473,12 @@ export function RuntimeConfiguration(
                   aria-label={t('Manage API Key group')}
                   onSubmit={management.handleSubmit(() => {
                     if (!hasUnsavedProviderEdit) return
+                    if (
+                      historicalGroupBindings.length > 0 &&
+                      !historicalCleanupConfirmed
+                    ) {
+                      return
+                    }
                     setConfirmation('management')
                   })}
                 >
@@ -2409,6 +2591,36 @@ export function RuntimeConfiguration(
                         ) : null}
                       </div>
                     </section>
+                    {managementCandidates.isSuccess &&
+                      historicalGroupBindings.length > 0 && (
+                        <section className='space-y-2 rounded-lg border p-3'>
+                          <h3 className='text-sm font-medium'>
+                            {t('Model bindings requiring cleanup')}
+                          </h3>
+                          <p className='text-muted-foreground text-sm'>
+                            {t(
+                              'Older or currently unavailable model versions are still bound to this group. Confirm their retirement before publishing changes.'
+                            )}
+                          </p>
+                          <ul className='space-y-1 text-sm'>
+                            {historicalGroupBindings.map((model) => (
+                              <li key={model.id} className='break-words'>
+                                {model.publicName} · {model.modelKey} v
+                                {model.modelVersion}
+                              </li>
+                            ))}
+                          </ul>
+                          <label className='flex items-start gap-2 text-sm'>
+                            <Checkbox
+                              checked={historicalCleanupConfirmed}
+                              onCheckedChange={(checked) =>
+                                setHistoricalCleanupConfirmed(checked === true)
+                              }
+                            />
+                            <span>{t('Retire these model bindings')}</span>
+                          </label>
+                        </section>
+                      )}
                     <section className='border-destructive/40 space-y-2 border-t pt-4'>
                       <h3 className='text-destructive text-sm font-semibold'>
                         {t('Danger zone')}
@@ -2450,6 +2662,8 @@ export function RuntimeConfiguration(
                         managementInitializedGroupId !==
                           selectedGroup.credentialGroupId ||
                         !hasUnsavedProviderEdit ||
+                        (historicalGroupBindings.length > 0 &&
+                          !historicalCleanupConfirmed) ||
                         managementMutation.isPending
                       }
                     >
@@ -2925,26 +3139,28 @@ function CredentialEditor(props: {
 
 function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
   const { t } = useTranslation()
-  const [page, setPage] = useState(1)
-  const changes = useQuery({
+  const changes = useInfiniteQuery({
     queryKey: [
       'canvas-cloud',
       'provider-credential-group-changes',
       props.credentialGroupId,
-      page,
     ],
-    queryFn: ({ signal }) =>
+    initialPageParam: 1,
+    queryFn: ({ pageParam, signal }) =>
       getCanvasProviderCredentialGroupChanges(
         props.credentialGroupId,
-        { page, pageSize: 20 },
+        { page: pageParam, pageSize: 20 },
         signal
       ),
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.pageSize < lastPage.total
+        ? lastPage.page + 1
+        : undefined,
   })
-  useEffect(() => setPage(1), [props.credentialGroupId])
   if (changes.isPending) {
     return <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
   }
-  if (changes.isError) {
+  if (changes.isError && !changes.data) {
     return (
       <div className='space-y-2'>
         <p className='text-destructive text-sm'>
@@ -2961,14 +3177,16 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
       </div>
     )
   }
+  const events = changes.data?.pages.flatMap((page) => page.items) ?? []
+  const total = changes.data?.pages.at(-1)?.total ?? 0
   return (
     <div className='space-y-3'>
-      {changes.data.items.length === 0 ? (
+      {events.length === 0 ? (
         <p className='text-muted-foreground text-sm'>
           {t('No change history')}
         </p>
       ) : null}
-      {changes.data.items.map((event) => (
+      {events.map((event) => (
         <article key={event.id} className='space-y-2 rounded-lg border p-3'>
           <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
             <strong>{t(event.type)}</strong>
@@ -2993,26 +3211,37 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
           </p>
         </article>
       ))}
-      <div className='flex justify-end gap-2'>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          disabled={page === 1}
-          onClick={() => setPage((value) => value - 1)}
-        >
-          {t('Previous')}
-        </Button>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          disabled={page * changes.data.pageSize >= changes.data.total}
-          onClick={() => setPage((value) => value + 1)}
-        >
-          {t('Next')}
-        </Button>
-      </div>
+      {changes.hasNextPage ? (
+        <div className='flex flex-wrap items-center justify-between gap-2 pt-2'>
+          <span className='text-muted-foreground text-sm'>
+            {t('{{from}}–{{to}} of {{total}}', {
+              from: 1,
+              to: events.length,
+              total,
+            })}
+          </span>
+          <div className='space-y-2 text-right'>
+            {changes.isFetchNextPageError ? (
+              <p role='alert' className='text-destructive text-sm'>
+                {t('Unable to load change history')}
+              </p>
+            ) : null}
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={changes.isFetchingNextPage}
+              onClick={() => void changes.fetchNextPage()}
+            >
+              {t(
+                changes.isFetchingNextPage
+                  ? 'Loading'
+                  : 'Load older change records'
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

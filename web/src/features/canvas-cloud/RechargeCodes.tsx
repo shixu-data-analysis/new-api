@@ -19,7 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, Copy, Download, Eye, EyeOff, Plus, RefreshCw } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  Plus,
+  RefreshCw,
+} from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 import { useController, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -41,13 +50,13 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { TableCell, TableRow } from '@/components/ui/table'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
+import { TableCell, TableRow } from '@/components/ui/table'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
@@ -76,8 +85,8 @@ import type {
   CanvasAdminRechargeCodeQuery,
   CanvasIssuedRechargeCodes,
 } from './types'
-import { useServerTableState } from './use-server-table-state'
 import { useDirectAsync } from './use-direct-async'
+import { useServerTableState } from './use-server-table-state'
 
 function formatCny(value: string, language: string): string {
   return new Intl.NumberFormat(toIntlLocale(language), {
@@ -94,7 +103,6 @@ function formatDate(value: string | null, language: string): string {
       }).format(new Date(value))
     : '—'
 }
-
 
 function rechargeFailure(error: unknown): {
   code: string | null
@@ -124,9 +132,7 @@ function batchItemsFailureKind(
   ).response
   const data = response?.data
   const code =
-    data && typeof data === 'object'
-      ? (data as { code?: unknown }).code
-      : null
+    data && typeof data === 'object' ? (data as { code?: unknown }).code : null
   if (
     response?.status === 401 ||
     response?.status === 403 ||
@@ -203,10 +209,14 @@ function RechargeCodeBatchDetails(props: {
   return (
     <div className='space-y-2'>
       <p className='text-sm font-medium'>
-        {t('Recharge codes in this batch (matched {{matched}} / total {{total}})', {
-          matched: matchedCount,
-          total: totalCount,
-        })}
+        {props.status || props.exactMatch !== undefined
+          ? t(
+              'Recharge codes in this batch (matched {{matched}} / total {{total}})',
+              { matched: matchedCount, total: totalCount }
+            )
+          : t('Recharge codes in this batch (total {{total}})', {
+              total: totalCount,
+            })}
       </p>
       {!items.length ? (
         <p className='text-muted-foreground text-sm'>
@@ -227,7 +237,7 @@ function RechargeCodeBatchDetails(props: {
                 key={item.maskedCode}
                 className='grid gap-1 py-2 text-sm md:grid-cols-[minmax(12rem,1fr)_10rem_13rem] md:gap-3'
               >
-                <span className='break-all font-mono'>{item.maskedCode}</span>
+                <span className='font-mono break-all'>{item.maskedCode}</span>
                 <BusinessTerm kind='rechargeCodeStatus' value={item.status} />
                 <span className='text-muted-foreground'>
                   {formatDate(item.redeemedAt, language)}
@@ -287,7 +297,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     (item) => item.id === promotionVersionId
   )
   const [issued, setIssued] = useState<CanvasIssuedRechargeCodes | null>(null)
-  const [pendingDownloadId, setPendingDownloadId] = useState<string | null>(null)
+  const [pendingDownloadId, setPendingDownloadId] = useState<string | null>(
+    null
+  )
   const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null)
   const [issueError, setIssueError] = useState<string | null>(null)
   const [issueIdempotencyKey, setIssueIdempotencyKey] = useState('')
@@ -317,7 +329,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     pageSize: tableState.query.pageSize,
     sortBy: tableState.query.sortBy,
     sortOrder: tableState.query.sortOrder,
-    ...(tableState.query.search ? { name: tableState.query.search } : {}),
     ...(status ? { status } : {}),
     ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
     ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
@@ -356,9 +367,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     setExactSearchError(false)
     if (!normalizedCode || !createdRangeValid) return
     runExactSearch({
-      ...(tableState.query.search
-        ? { batchOrRemark: tableState.query.search }
-        : {}),
       code: normalizedCode,
       ...(status ? { status } : {}),
       ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
@@ -371,7 +379,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   }, [
     normalizedCode,
     createdRangeValid,
-    tableState.query.search,
     tableState.query.page,
     tableState.query.pageSize,
     tableState.query.sortBy,
@@ -464,7 +471,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     execute: downloadCanvasUnusedRechargeCodes,
     onSuccess: (result) => {
       setPendingDownloadId(null)
-      const blob = new Blob([result.content], { type: 'text/plain;charset=utf-8' })
+      const blob = new Blob([result.content], {
+        type: 'text/plain;charset=utf-8',
+      })
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -473,7 +482,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       anchor.click()
       anchor.remove()
       URL.revokeObjectURL(url)
-      toast.success(t('Downloaded {{count}} recharge codes', { count: result.downloadCount }))
+      toast.success(
+        t('Downloaded {{count}} recharge codes', {
+          count: result.downloadCount,
+        })
+      )
     },
     onError: (error) => {
       setPendingDownloadId(null)
@@ -547,7 +560,10 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       id: 'remark',
       accessorKey: 'remark',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Batch / note')} />
+        <DataTableColumnHeader
+          column={column}
+          title={t('Created time / Note')}
+        />
       ),
       cell: ({ row }) => (
         <Button
@@ -658,7 +674,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         <Button
           type='button'
           variant='outline'
-          disabled={row.original.availableCount === 0 || downloadBatch.isPending}
+          disabled={
+            row.original.availableCount === 0 || downloadBatch.isPending
+          }
           onClick={() => {
             setPendingDownloadId(row.original.id)
             downloadBatch.mutate(row.original.id)
@@ -704,9 +722,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         onRetry={() => {
           if (!normalizedCode) return
           runExactSearch({
-            ...(tableState.query.search
-              ? { batchOrRemark: tableState.query.search }
-              : {}),
             code: normalizedCode,
             ...(status ? { status } : {}),
             ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
@@ -717,8 +732,6 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
             sortOrder: tableState.query.sortOrder,
           })
         }}
-        searchLabel={t('Batch / note')}
-        searchPlaceholder={t('Batch / note')}
         loading={
           exactActive
             ? exactSearchPending
@@ -782,7 +795,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
                   setStatus(
                     value === 'ALL'
                       ? ''
-                      : ((value ?? '') as 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED')
+                      : ((value ?? '') as
+                          | 'ACTIVE'
+                          | 'REDEEMED'
+                          | 'VOID'
+                          | 'EXPIRED')
                   )
                   resetPage()
                 }}

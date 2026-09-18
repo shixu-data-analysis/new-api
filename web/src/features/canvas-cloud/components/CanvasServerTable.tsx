@@ -58,6 +58,7 @@ export function CanvasServerTable<TData>({
   renderExpandedContent,
   initialColumnVisibility,
   getColumnClassName,
+  hideMobile = false,
 }: {
   data: TData[]
   columns: ColumnDef<TData, unknown>[]
@@ -84,6 +85,7 @@ export function CanvasServerTable<TData>({
   renderExpandedContent?: (row: Row<TData>) => ReactNode
   initialColumnVisibility?: VisibilityState
   getColumnClassName?: DataTableColumnClassName
+  hideMobile?: boolean
 }) {
   const { pagination, setPagination, sorting, setSorting, search, setSearch } =
     state
@@ -134,6 +136,7 @@ export function CanvasServerTable<TData>({
         renderRow={renderRow ? (row) => renderRow(row) : undefined}
         mobileProps={{ renderExpandedContent }}
         applyHeaderSize
+        hideMobile={hideMobile}
         toolbar={
           <DataTableToolbar
             table={table}

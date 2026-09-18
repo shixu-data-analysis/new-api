@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, RefObject } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -64,19 +64,119 @@ vi.mock('../../execution-api', () => ({
 }))
 
 describe('execution detail focus boundary', () => {
+  it('uses the shared table filters and only lets numeric columns be hidden', async () => {
+    const user = userEvent.setup()
+    mocks.getCapacity.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      providers: [{ id: 'provider-one', name: 'Provider One' }],
+      items: [
+        {
+          credentialGroupId: 'group-1',
+          providerName: 'Provider One',
+          credentialGroupName: 'Primary',
+          requestConcurrency: { used: 0, limit: 16 },
+          asyncInFlight: { used: 0, limit: 30 },
+          waitingTasks: 0,
+          status: 'AVAILABLE',
+          reasons: [],
+        },
+      ],
+    })
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <ExecutionCapacityOverview />
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText('Primary')).toBeVisible())
+    expect(
+      screen.getByText(/even when the group has free capacity, a task may wait/)
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    expect(
+      screen.getByRole('menuitemcheckbox', {
+        name: 'Group request concurrency',
+      })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Service provider' })
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('menuitemcheckbox', {
+        name: 'Group request concurrency',
+      })
+    )
+    expect(
+      screen.queryByRole('columnheader', { name: 'Group request concurrency' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Column filters' }))
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Service provider' }),
+      'provider-one'
+    )
+    await waitFor(() =>
+      expect(mocks.getCapacity).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerId: 'provider-one',
+          page: 1,
+          sortBy: 'provider',
+          sortOrder: 'asc',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Waiting tasks' }),
+      'WITH_WAITING'
+    )
+    await waitFor(() =>
+      expect(mocks.getCapacity).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerId: 'provider-one',
+          waiting: 'WITH_WAITING',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    await user.type(
+      screen.getByRole('textbox', { name: 'API Key group' }),
+      'prim'
+    )
+    await waitFor(() =>
+      expect(mocks.getCapacity).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerId: 'provider-one',
+          waiting: 'WITH_WAITING',
+          credentialGroup: 'prim',
+          page: 1,
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
   it.each([
     ['AVAILABLE', 'Available capacity'],
     ['REQUEST_CONCURRENCY_FULL', 'Request concurrency full'],
-    ['ASYNC_IN_FLIGHT_FULL', 'Asynchronous in-flight full'],
+    ['ASYNC_IN_FLIGHT_FULL', 'Upstream unfinished asynchronous tasks full'],
     ['QUERY_CAPACITY_RESERVED', 'Reserving capacity for result queries'],
     ['REQUEST_RATE_LIMITED', 'Request rate limited'],
     ['TOKEN_RATE_LIMITED', 'Token quota limited'],
     ['DATA_INVARIANT', 'Capacity data anomaly'],
-    ['MULTIPLE_LIMITS', 'Multiple capacity limits reached'],
+    ['MULTIPLE_LIMITS', 'Unknown capacity status'],
     ['EXECUTOR_UNAVAILABLE', 'Executor unavailable'],
     ['FUTURE_STATUS', 'Unknown capacity status'],
   ])('renders capacity status %s safely as %s', async (status, label) => {
     mocks.getCapacity.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      providers: [{ id: 'provider-one', name: 'Provider One' }],
       items: [
         {
           credentialGroupId: `group-${status}`,
@@ -104,6 +204,10 @@ describe('execution detail focus boundary', () => {
   it('passes the active detail trigger as final focus without resetting group or page', async () => {
     const user = userEvent.setup()
     mocks.getCapacity.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      providers: [{ id: 'provider-one', name: 'Provider One' }],
       items: [
         {
           credentialGroupId: 'group-1',

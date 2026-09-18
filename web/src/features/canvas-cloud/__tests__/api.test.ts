@@ -40,6 +40,7 @@ import {
   getCanvasAdminRechargeCodeBatchItems,
   searchCanvasAdminRechargeCodeBatch,
   getCanvasAdminInviteCodes,
+  searchCanvasAdminInviteCodes,
   exportCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
   getCanvasAdminWorkspace,
@@ -77,6 +78,7 @@ import {
   getCanvasAgents,
   getCanvasAgentWorkspace,
   getCanvasAgentInviteCodes,
+  searchCanvasAgentInviteCodes,
   getCanvasAgentCustomers,
   getCanvasProviderPricingMatrix,
   getCanvasProviderCredentialGroupChanges,
@@ -1138,7 +1140,6 @@ describe('Canvas Cloud API boundary', () => {
       { params: inviteQuery, signal: undefined }
     )
     await exportCanvasAdminInviteCodes({
-      code: 'CANVAS-A',
       inviterPrincipalId: '11111111-1111-4111-8111-111111111111',
       sortBy: 'createdAt',
       sortOrder: 'desc',
@@ -1147,13 +1148,24 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/invite-codes/export',
       {
         params: {
-          code: 'CANVAS-A',
           inviterPrincipalId: '11111111-1111-4111-8111-111111111111',
           sortBy: 'createdAt',
           sortOrder: 'desc',
         },
         responseType: 'blob',
       }
+    )
+    mocks.post.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await searchCanvasAdminInviteCodes({
+      code: 'CANVAS-SECRET',
+      ...inviteQuery,
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/invite-code-searches',
+      { code: 'CANVAS-SECRET', ...inviteQuery },
+      { signal: undefined }
     )
     mocks.get.mockResolvedValue({
       data: { agents: [], priceGroups: [], promotions: [] },
@@ -1235,7 +1247,6 @@ describe('Canvas Cloud API boundary', () => {
     const agentInviteQuery = {
       page: 1,
       pageSize: 20 as const,
-      search: 'CANVAS-A',
       status: 'ACTIVE' as const,
       sortBy: 'createdAt' as const,
       sortOrder: 'desc' as const,
@@ -1244,6 +1255,18 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.get).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/agent/invite-codes',
       { params: agentInviteQuery, signal: undefined }
+    )
+    mocks.post.mockResolvedValue({
+      data: { items: [], total: 0, page: 1, pageSize: 20 },
+    })
+    await searchCanvasAgentInviteCodes({
+      code: 'CANVAS-SECRET',
+      ...agentInviteQuery,
+    })
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/agent/invite-code-searches',
+      { code: 'CANVAS-SECRET', ...agentInviteQuery },
+      { signal: undefined }
     )
     const agentCustomerQuery = {
       page: 1,

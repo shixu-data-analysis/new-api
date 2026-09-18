@@ -41,7 +41,7 @@ export function RuntimeManagement(props: {
     >
       <CanvasManagementTabsList>
         <CanvasManagementTabsTrigger value='execution'>
-          {t('Execution overview')}
+          {t('Task execution status and limits')}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='provider'>
           {t('Provider configuration')}

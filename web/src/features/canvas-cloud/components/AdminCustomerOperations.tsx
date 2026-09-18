@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
+import { Copy } from 'lucide-react'
 import {
   Fragment,
   useCallback,
@@ -27,6 +28,7 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { DataTableColumnHeader, DataTableRow } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
@@ -36,6 +38,8 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { ErrorState } from '@/components/error-state'
+import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -58,18 +62,32 @@ import { toIntlLocale } from '@/i18n/languages'
 
 import {
   getCanvasAdminCustomerTasks,
+  getCanvasAdminAgentStatistics,
+  getCanvasAdminAgentCustomers,
+  getCanvasAdminAgentCustomerModelUsage,
+  getCanvasAdminInviteCodes,
+  searchCanvasAdminInviteCodes,
+  revealCanvasCode,
   getCanvasOrderPointReturns,
   getCanvasAdminRechargeOrders,
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
+import { formatExactRmbReference } from '../point-conversion-types'
+import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
+  CanvasAdminAgentCustomer,
+  CanvasAdminAgentModelUsageRow,
+  CanvasBillingUnit,
+  CanvasAdminInviteCode,
+  CanvasAdminInviteCodeQuery,
   CanvasAdminCustomerTask,
   CanvasAdminRechargeOrder,
   CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
+import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
@@ -84,6 +102,12 @@ import {
 } from './CustomerBusinessFacts'
 import { CustomerPointHistory } from './CustomerPointHistory'
 import { CustomerRecordDetails } from './CustomerRecordDetails'
+
+const agentBillingUnitKeys: Record<CanvasBillingUnit, string> = {
+  REQUEST: 'Per request',
+  SECOND: 'Per second',
+  MILLION_TOKENS: 'Per million tokens',
+}
 
 const orderStatuses = [
   'CREATED',
@@ -995,8 +1019,647 @@ function CustomerTasks({
   )
 }
 
+function AgentStatistics({ customerId }: { customerId: string }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.language)
+  const statistics = useQuery({
+    queryKey: ['canvas-cloud', 'admin-agent-statistics', customerId],
+    queryFn: ({ signal }) => getCanvasAdminAgentStatistics(customerId, signal),
+  })
+  const inviteState =
+    useServerTableState<CanvasAdminInviteCodeQuery['sortBy']>('createdAt')
+  const customerState = useServerTableState<'activatedAt'>('activatedAt')
+  const setCustomerPagination = customerState.setPagination
+  const customerSearch = customerState.query.search
+  const customerPage = customerState.query.page
+  const customerPageSize = customerState.query.pageSize
+  const usageState = useServerTableState<'priceGroupName'>('priceGroupName')
+  const [exactCodeInput, setExactCodeInput] = useState('')
+  const [inviteStatus, setInviteStatus] = useState('')
+  const exactCodeRef = useRef('')
+  const [searchVersion, setSearchVersion] = useState(0)
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string>()
+  const [agentCustomerStatus, setAgentCustomerStatus] = useState('')
+  useEffect(() => {
+    setExpandedCustomerId(undefined)
+    setCustomerPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [agentCustomerStatus, customerSearch, customerId, setCustomerPagination])
+  useEffect(
+    () => setExpandedCustomerId(undefined),
+    [customerPage, customerPageSize]
+  )
+  const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
+  const revealInvite = useMutation({
+    mutationFn: (input: { id: string; action: 'DISPLAY' | 'COPY' }) =>
+      revealCanvasCode('admin-invite', input.id, input.action).then(
+        (result) => ({ ...result, ...input })
+      ),
+    onSuccess: async (result) => {
+      if (result.action === 'COPY') {
+        await navigator.clipboard.writeText(result.code)
+        toast.success(t('Invite code copied'))
+      } else {
+        setRevealedCodes((current) => ({
+          ...current,
+          [result.id]: result.code,
+        }))
+      }
+    },
+    onError: () => toast.error(t('Invite code could not be revealed')),
+  })
+  const invites = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin-agent-invites',
+      customerId,
+      statistics.data?.profile.principalId,
+      inviteState.query,
+      searchVersion,
+      inviteStatus,
+    ],
+    enabled:
+      Boolean(statistics.data?.profile.principalId) &&
+      (exactCodeRef.current.length === 0 || exactCodeRef.current.length >= 4),
+    queryFn: ({ signal }) => {
+      if (!statistics.data?.profile.principalId) {
+        throw new Error('Agent profile unavailable')
+      }
+      const query = {
+        page: inviteState.query.page,
+        pageSize: inviteState.query.pageSize,
+        sortBy: inviteState.query.sortBy,
+        sortOrder: inviteState.query.sortOrder,
+        inviterPrincipalId: statistics.data.profile.principalId,
+        ...(inviteStatus
+          ? { status: inviteStatus as CanvasAdminInviteCodeQuery['status'] }
+          : {}),
+      }
+      return exactCodeRef.current
+        ? searchCanvasAdminInviteCodes(
+            { ...query, code: exactCodeRef.current },
+            signal
+          )
+        : getCanvasAdminInviteCodes(query, signal)
+    },
+  })
+  const customers = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin-agent-customers',
+      customerId,
+      customerState.query,
+      agentCustomerStatus,
+    ],
+    queryFn: ({ signal }) =>
+      getCanvasAdminAgentCustomers(
+        customerId,
+        {
+          page: customerState.query.page,
+          pageSize: customerState.query.pageSize,
+          sortBy: 'activatedAt',
+          sortOrder: customerState.query.sortOrder,
+          ...(customerState.query.search
+            ? { username: customerState.query.search }
+            : {}),
+          ...(agentCustomerStatus
+            ? {
+                status:
+                  agentCustomerStatus as CanvasAdminAgentCustomer['status'],
+              }
+            : {}),
+        },
+        signal
+      ),
+  })
+  const usage = useQuery({
+    queryKey: [
+      'canvas-cloud',
+      'admin-agent-model-usage',
+      customerId,
+      expandedCustomerId,
+      usageState.query.page,
+      usageState.query.pageSize,
+    ],
+    enabled: Boolean(expandedCustomerId),
+    queryFn: ({ signal }) => {
+      if (!expandedCustomerId) throw new Error('Customer unavailable')
+      return getCanvasAdminAgentCustomerModelUsage(
+        customerId,
+        expandedCustomerId,
+        { page: usageState.query.page, pageSize: usageState.query.pageSize },
+        signal
+      )
+    },
+  })
+  const amount = (value: string | null, incomplete: boolean) => (
+    <span>
+      {value === null ? '—' : `¥${formatExactRmbReference(value, locale)}`}
+      {incomplete ? ` (${t('Amount incomplete')})` : ''}
+    </span>
+  )
+  const snapshot = (
+    value: CanvasAdminAgentModelUsageRow['agentPriceSnapshot'],
+    status: CanvasAdminAgentModelUsageRow['agentPriceSnapshotStatus']
+  ) => {
+    if (status === 'VARIES') {
+      return t('Multiple historical prices')
+    }
+    if (value === null) {
+      return '—'
+    }
+    if (typeof value === 'string') {
+      return `¥${formatExactRmbReference(value, locale)}`
+    }
+    const labels = {
+      input: 'Input',
+      output: 'Output',
+      cacheRead: 'Cache read',
+      cacheWrite: 'Cache write',
+    } as const
+    return Object.entries(value)
+      .map(
+        ([category, price]) =>
+          `${t(labels[category as keyof typeof labels])}: ¥${formatExactRmbReference(price, locale)}`
+      )
+      .join(' · ')
+  }
+  const inviteColumns: ColumnDef<CanvasAdminInviteCode, unknown>[] = [
+    {
+      id: 'maskedCode',
+      accessorKey: 'maskedCode',
+      header: t('Invite code'),
+      cell: ({ row }) => {
+        const item = row.original
+        return (
+          <div className='flex items-center gap-1'>
+            <span className='font-mono'>
+              {revealedCodes[item.id] ?? item.maskedCode}
+            </span>
+            <CanvasCodeRevealButton
+              label={t(
+                revealedCodes[item.id] ? 'Hide invite code' : 'Show invite code'
+              )}
+              revealed={Boolean(revealedCodes[item.id])}
+              disabled={revealInvite.isPending}
+              onClick={() => {
+                if (revealedCodes[item.id]) {
+                  setRevealedCodes((current) => {
+                    const next = { ...current }
+                    delete next[item.id]
+                    return next
+                  })
+                } else {
+                  revealInvite.mutate({ id: item.id, action: 'DISPLAY' })
+                }
+              }}
+            />
+            <Button
+              size='icon'
+              variant='ghost'
+              aria-label={t('Copy invite code')}
+              disabled={revealInvite.isPending}
+              onClick={() =>
+                revealInvite.mutate({ id: item.id, action: 'COPY' })
+              }
+            >
+              <Copy className='size-4' />
+            </Button>
+          </div>
+        )
+      },
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: t('Status'),
+      cell: ({ row }) => t(`Invite status ${row.original.status}`),
+    },
+    {
+      id: 'priceGroupName',
+      accessorKey: 'priceGroupName',
+      header: t('Price group'),
+    },
+    {
+      id: 'capacity',
+      header: t('Used / Capacity'),
+      cell: ({ row }) =>
+        `${row.original.consumedCount} / ${row.original.maxRegistrations}`,
+    },
+    {
+      id: 'activatedCustomers',
+      accessorKey: 'activatedCustomers',
+      header: t('Activated customers'),
+    },
+    {
+      id: 'expiresAt',
+      accessorKey: 'expiresAt',
+      header: t('Expires'),
+      cell: ({ row }) => formatCanvasDateTime(row.original.expiresAt),
+    },
+    {
+      id: 'createdAt',
+      accessorKey: 'createdAt',
+      header: t('Created At'),
+      cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
+    },
+  ]
+  const customerColumns: ColumnDef<CanvasAdminAgentCustomer, unknown>[] = [
+    { id: 'username', accessorKey: 'username', header: t('Username') },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: t('Status'),
+      cell: ({ row }) => (
+        <BusinessTerm kind='customerStatus' value={row.original.status} />
+      ),
+    },
+    {
+      id: 'activatedAt',
+      accessorKey: 'activatedAt',
+      header: t('Activated at'),
+      cell: ({ row }) => formatCanvasDateTime(row.original.activatedAt),
+    },
+    {
+      id: 'currentPriceGroup',
+      header: t('Current price group'),
+      cell: ({ row }) => row.original.currentPriceGroup?.name ?? '—',
+    },
+    {
+      id: 'successfulTasks',
+      accessorKey: 'successfulTasks',
+      header: t('Successful tasks'),
+    },
+    {
+      id: 'settledPoints',
+      accessorKey: 'settledPoints',
+      header: t('Consumed points'),
+    },
+    {
+      id: 'modelUsageAmount',
+      header: t('Agent display amount'),
+      cell: ({ row }) =>
+        amount(row.original.modelUsageAmount, row.original.amountIncomplete),
+    },
+    {
+      id: 'customerPriceAmount',
+      header: t('Customer price amount'),
+      cell: ({ row }) =>
+        amount(
+          row.original.customerPriceAmount,
+          row.original.customerAmountIncomplete
+        ),
+    },
+    {
+      id: 'action',
+      header: t('Action'),
+      cell: ({ row }) => (
+        <Button
+          size='sm'
+          variant='outline'
+          aria-expanded={expandedCustomerId === row.original.id}
+          onClick={() => {
+            setExpandedCustomerId(
+              expandedCustomerId === row.original.id
+                ? undefined
+                : row.original.id
+            )
+            usageState.setPagination((value) => ({ ...value, pageIndex: 0 }))
+          }}
+        >
+          {t('Model usage')}
+        </Button>
+      ),
+    },
+  ]
+  const usageColumns: ColumnDef<CanvasAdminAgentModelUsageRow, unknown>[] = [
+    {
+      id: 'priceGroupName',
+      accessorKey: 'priceGroupName',
+      header: t('Task-time price group'),
+    },
+    {
+      id: 'modelName',
+      accessorKey: 'modelName',
+      header: t('Model / specification'),
+      cell: ({ row }) =>
+        `${row.original.modelName} / ${pricingScopeLabel({ key: row.original.combinationKey, parameters: row.original.parameters }, t)}`,
+    },
+    {
+      id: 'billingUnit',
+      accessorKey: 'billingUnit',
+      header: t('Billing unit'),
+      cell: ({ row }) => t(agentBillingUnitKeys[row.original.billingUnit]),
+    },
+    {
+      id: 'usage',
+      header: t('Usage'),
+      cell: ({ row }) => {
+        const u = row.original.usage
+        if (row.original.billingUnit === 'MILLION_TOKENS') {
+          return `${t('Input')}: ${u.inputTokens ?? '—'}; ${t('Output')}: ${u.outputTokens ?? '—'}; ${t('Cache read')}: ${u.cacheReadTokens ?? '—'}; ${t('Cache write')}: ${u.cacheWriteTokens ?? '—'}`
+        }
+        if (row.original.billingUnit === 'SECOND') {
+          return u.seconds
+        }
+        return u.requests
+      },
+    },
+    {
+      id: 'successfulTasks',
+      accessorKey: 'successfulTasks',
+      header: t('Successful tasks'),
+    },
+    {
+      id: 'settledPoints',
+      accessorKey: 'settledPoints',
+      header: t('Consumed points'),
+    },
+    {
+      id: 'agentPriceSnapshot',
+      header: t('Agent display price snapshot'),
+      cell: ({ row }) =>
+        snapshot(
+          row.original.agentPriceSnapshot,
+          row.original.agentPriceSnapshotStatus
+        ),
+    },
+    {
+      id: 'customerPriceSnapshot',
+      header: t('Customer price snapshot'),
+      cell: ({ row }) =>
+        snapshot(
+          row.original.customerPriceSnapshot,
+          row.original.customerPriceSnapshotStatus
+        ),
+    },
+    {
+      id: 'modelUsageAmount',
+      header: t('Agent display amount'),
+      cell: ({ row }) =>
+        amount(row.original.modelUsageAmount, row.original.amountIncomplete),
+    },
+    {
+      id: 'customerPriceAmount',
+      header: t('Customer price amount'),
+      cell: ({ row }) =>
+        amount(
+          row.original.customerPriceAmount,
+          row.original.customerAmountIncomplete
+        ),
+    },
+  ]
+  if (statistics.isPending) return <LoadingState />
+  if (statistics.isError) {
+    return <ErrorState onRetry={() => void statistics.refetch()} />
+  }
+  const { summary, priceGroups } = statistics.data
+  const inviteFilters = (
+    <>
+      <DataTableColumnFilterField label={t('Exact invite code')}>
+        <form
+          className='flex gap-2'
+          onSubmit={(event) => {
+            event.preventDefault()
+            exactCodeRef.current = exactCodeInput.trim().toUpperCase()
+            setSearchVersion((value) => value + 1)
+            inviteState.setPagination((value) => ({ ...value, pageIndex: 0 }))
+          }}
+        >
+          <Input
+            aria-label={t('Exact invite code')}
+            autoComplete='off'
+            value={exactCodeInput}
+            onChange={(event) => setExactCodeInput(event.target.value)}
+          />
+          <Button type='submit' size='sm'>
+            {t('Search')}
+          </Button>
+        </form>
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField label={t('Status')}>
+        <Select
+          value={inviteStatus || 'ALL'}
+          onValueChange={(value) => {
+            setInviteStatus(value === 'ALL' ? '' : (value ?? ''))
+            inviteState.setPagination((page) => ({ ...page, pageIndex: 0 }))
+          }}
+        >
+          <SelectTrigger className='w-full' aria-label={t('Status')}>
+            <CanvasLocalizedSelectValue
+              value={inviteStatus}
+              emptyLabelKey='All statuses'
+              displayValue={
+                inviteStatus ? t(`Invite status ${inviteStatus}`) : undefined
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+            {['DRAFT', 'ACTIVE', 'PAUSED', 'REVOKED', 'EXPIRED'].map(
+              (value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`Invite status ${value}`)}
+                </SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+      </DataTableColumnFilterField>
+    </>
+  )
+  return (
+    <div className='space-y-5'>
+      <section className='space-y-2'>
+        <h3 className='font-semibold'>{t('Cumulative overview')}</h3>
+        <div className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-4'>
+          <span>
+            {t('Activated customers')}: {summary.activatedCustomers}
+          </span>
+          <span>
+            {t('Customers with successful tasks')}:{' '}
+            {summary.customersWithSuccessfulTasks}
+          </span>
+          <span>
+            {t('Successful tasks')}: {summary.successfulTasks}
+          </span>
+          <span>
+            {t('Consumed points')}: {summary.settledPoints}
+          </span>
+          <span>
+            {t('Agent display amount')}:{' '}
+            {amount(summary.modelUsageAmount, summary.amountIncomplete)}
+          </span>
+          <span>
+            {t('Customer price amount')}:{' '}
+            {amount(
+              summary.customerPriceAmount,
+              summary.customerAmountIncomplete
+            )}
+          </span>
+        </div>
+      </section>
+      <section className='space-y-2'>
+        <h3 className='font-semibold'>{t('Invite codes')}</h3>
+        <CanvasServerTable
+          data={invites.data?.items ?? []}
+          columns={inviteColumns}
+          total={invites.data?.total ?? 0}
+          state={inviteState}
+          loading={
+            (invites.isPending &&
+              (exactCodeRef.current.length === 0 ||
+                exactCodeRef.current.length >= 4)) ||
+            invites.isFetching
+          }
+          error={invites.isError}
+          onRetry={() => void invites.refetch()}
+          emptyTitle={t('No invite codes')}
+          additionalFilters={inviteFilters}
+          hasActiveFilters={Boolean(exactCodeRef.current || inviteStatus)}
+          onResetFilters={() => {
+            exactCodeRef.current = ''
+            setExactCodeInput('')
+            setInviteStatus('')
+            setSearchVersion((value) => value + 1)
+          }}
+          getRowId={(row) => row.id}
+        />
+      </section>
+      <section className='space-y-2'>
+        <h3 className='font-semibold'>{t('Price group summary')}</h3>
+        {priceGroups.length ? (
+          priceGroups.map((group) => (
+            <div
+              key={group.priceGroupId}
+              className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-5'
+            >
+              <strong>{group.priceGroupName}</strong>
+              <span>
+                {t('Current customers')}: {group.currentCustomers}
+              </span>
+              <span>
+                {t('Successful tasks')}: {group.successfulTasks}
+              </span>
+              <span>
+                {t('Consumed points')}: {group.settledPoints}
+              </span>
+              <span>
+                {t('Agent display amount')}:{' '}
+                {amount(group.modelUsageAmount, group.amountIncomplete)}
+              </span>
+              <span>
+                {t('Customer price amount')}:{' '}
+                {amount(
+                  group.customerPriceAmount,
+                  group.customerAmountIncomplete
+                )}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p>{t('No price groups')}</p>
+        )}
+      </section>
+      <section className='space-y-2'>
+        <h3 className='font-semibold'>{t('Agent customers')}</h3>
+        <CanvasServerTable
+          data={customers.data?.items ?? []}
+          columns={customerColumns}
+          total={customers.data?.total ?? 0}
+          state={customerState}
+          searchLabel={t('Username')}
+          additionalFilters={
+            <DataTableColumnFilterField label={t('Status')}>
+              <Select
+                value={agentCustomerStatus || 'ALL'}
+                onValueChange={(value) =>
+                  setAgentCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
+                }
+              >
+                <SelectTrigger className='w-full' aria-label={t('Status')}>
+                  <CanvasLocalizedSelectValue
+                    value={agentCustomerStatus}
+                    emptyLabelKey='All statuses'
+                    termKind='customerStatus'
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                    <SelectItem key={value} value={value}>
+                      <BusinessTerm kind='customerStatus' value={value} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DataTableColumnFilterField>
+          }
+          hasActiveFilters={Boolean(agentCustomerStatus)}
+          onResetFilters={() => setAgentCustomerStatus('')}
+          loading={customers.isPending || customers.isFetching}
+          error={customers.isError}
+          onRetry={() => void customers.refetch()}
+          emptyTitle={t('No customers')}
+          getRowId={(row) => row.id}
+          renderRow={(row) => (
+            <Fragment key={row.id}>
+              <DataTableRow
+                row={row}
+                cellRenderColumns={customerColumns}
+                aria-expanded={expandedCustomerId === row.original.id}
+              />
+              {expandedCustomerId === row.original.id ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={row.getVisibleCells().length}
+                    className='bg-muted/20 p-4'
+                  >
+                    <CanvasServerTable
+                      data={usage.data?.items ?? []}
+                      columns={usageColumns}
+                      total={usage.data?.total ?? 0}
+                      state={usageState}
+                      loading={usage.isPending || usage.isFetching}
+                      error={usage.isError}
+                      onRetry={() => void usage.refetch()}
+                      emptyTitle={t('No model usage')}
+                      getRowId={(item) =>
+                        `${item.priceGroupId}:${item.customerModelId}:${item.combinationKey}:${item.billingUnit}`
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </Fragment>
+          )}
+          renderExpandedContent={(row) =>
+            expandedCustomerId === row.original.id ? (
+              <CanvasServerTable
+                data={usage.data?.items ?? []}
+                columns={usageColumns}
+                total={usage.data?.total ?? 0}
+                state={usageState}
+                loading={usage.isPending || usage.isFetching}
+                error={usage.isError}
+                onRetry={() => void usage.refetch()}
+                emptyTitle={t('No model usage')}
+                getRowId={(item) =>
+                  `${item.priceGroupId}:${item.customerModelId}:${item.combinationKey}:${item.billingUnit}`
+                }
+              />
+            ) : null
+          }
+        />
+      </section>
+    </div>
+  )
+}
+
 export function AdminCustomerOperations({
   customerId,
+  isAgent,
   selectedOrderId,
   initialOrderId,
   initialLotId,
@@ -1006,6 +1669,7 @@ export function AdminCustomerOperations({
   onDeductLot,
 }: {
   customerId: string
+  isAgent?: boolean
   selectedOrderId?: string
   initialOrderId?: string
   initialLotId?: string
@@ -1089,6 +1753,11 @@ export function AdminCustomerOperations({
           <CanvasManagementTabsTrigger value='tasks'>
             {t('Consumption tasks')}
           </CanvasManagementTabsTrigger>
+          {isAgent ? (
+            <CanvasManagementTabsTrigger value='agent-statistics'>
+              {t('Agent statistics')}
+            </CanvasManagementTabsTrigger>
+          ) : null}
         </CanvasManagementTabsList>
         <TabsContent value='orders' keepMounted>
           <CustomerOrders
@@ -1136,6 +1805,11 @@ export function AdminCustomerOperations({
         <TabsContent value='tasks' keepMounted>
           <CustomerTasks customerId={customerId} onInspect={inspect} />
         </TabsContent>
+        {isAgent ? (
+          <TabsContent value='agent-statistics'>
+            <AgentStatistics customerId={customerId} />
+          </TabsContent>
+        ) : null}
       </Tabs>
       <Sheet
         open={Boolean(target)}

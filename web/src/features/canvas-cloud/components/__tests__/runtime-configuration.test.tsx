@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -25,7 +26,10 @@ import vietnamese from '@/i18n/locales/vi.json'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
-import { runtimeChangeError } from '../runtime-change-error'
+import {
+  historicalBindingGroups,
+  runtimeChangeError,
+} from '../runtime-change-error'
 import {
   RuntimeConfiguration,
   type CanvasProviderNavigationTarget,
@@ -109,6 +113,11 @@ const runtime = {
 const model = {
   id: '85000000-0000-7000-8000-000000000005',
   modelKey: 'image-a',
+  modelVersion: 1,
+  channelCode: 'image-channel',
+  isLatestVersion: true,
+  isSelectable: true,
+  isHistoricalBinding: false,
   publicName: 'Image A',
   capability: 'image.generate',
   status: 'PUBLISHED',
@@ -295,6 +304,36 @@ describe('Canvas runtime configuration', () => {
     expect(
       runtimeChangeError(error('PREVIEW_STALE'), translate, 'binding')
     ).toBe('Configuration changed. Preview again before confirming.')
+    const historicalBindingError = {
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+          message: 'internal secret must not be rendered',
+        },
+      },
+    }
+    for (const operation of ['preview', 'binding'] as const) {
+      expect(
+        runtimeChangeError(historicalBindingError, translate, operation)
+      ).toBe(
+        'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
+      )
+    }
+    expect(historicalBindingGroups(historicalBindingError)).toEqual([
+      {
+        id: providerRuntime.credentialGroups[0].credentialGroupId,
+        name: 'Primary',
+      },
+    ])
     expect(
       runtimeChangeError(
         error('CREDENTIAL_GROUP_VERSION_STALE'),
@@ -360,7 +399,7 @@ describe('Canvas runtime configuration', () => {
       )
     ).not.toBeInTheDocument()
     expect(
-      screen.getByRole('tab', { name: 'Execution overview' })
+      screen.getByRole('tab', { name: 'Task execution status and limits' })
     ).toBeVisible()
     expect(
       screen.getByRole('tab', { name: 'Provider configuration' })
@@ -407,14 +446,77 @@ describe('Canvas runtime configuration', () => {
       selector: '[data-slot="card-title"]',
     })
     const groupCard = groupCardTitle.closest('[data-slot="card"]')
+    const groupHeader = groupCardTitle.closest('[data-slot="card-header"]')
     expect(
       within(groupCard as HTMLElement)
         .getByText('Version 1')
-        .closest('[data-slot="card-action"]')
-    ).not.toBeNull()
+        .closest('[data-slot="badge"]')
+    ).toHaveAttribute('data-variant', 'secondary')
+    expect(within(groupHeader as HTMLElement).getByText('Active')).toBeVisible()
+    expect(
+      within(groupHeader as HTMLElement).getByRole('button', {
+        name: 'View change history',
+      })
+    ).toBeVisible()
+    expect(
+      within(groupHeader as HTMLElement).getByRole('button', {
+        name: 'Manage API Key group',
+      })
+    ).toBeVisible()
+    expect(
+      within(groupCard as HTMLElement).getByText('Current version record')
+    ).toBeVisible()
     expect(
       within(groupCard as HTMLElement).queryByText(/^v1$/)
     ).not.toBeInTheDocument()
+  })
+
+  it('routes an older bound model from the main list to explicit cleanup', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      models: {
+        ...providerRuntime.models,
+        items: [
+          {
+            ...model,
+            isLatestVersion: false,
+            isSelectable: false,
+            isHistoricalBinding: true,
+          },
+        ],
+      },
+    })
+
+    renderProviderConfiguration()
+    expect(
+      await screen.findByText('Model bindings and cleanup (1)')
+    ).toBeVisible()
+    expect(screen.getByText(/Older technical version/)).toBeVisible()
+    expect(
+      screen.queryByRole('link', { name: 'Image A' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage binding cleanup' })
+    )
+    expect(
+      await screen.findByRole('dialog', { name: 'Manage API Key group' })
+    ).toBeVisible()
+  })
+
+  it('labels a currently unavailable latest binding as cleanup', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      models: {
+        ...providerRuntime.models,
+        items: [{ ...model, isSelectable: false }],
+      },
+    })
+
+    renderProviderConfiguration()
+    expect(await screen.findByText(/Current version unavailable/)).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Manage binding cleanup' })
+    ).toBeVisible()
   })
 
   it('manages one API Key group in a single drawer and previews actual changes', async () => {
@@ -503,6 +605,585 @@ describe('Canvas runtime configuration', () => {
       }),
       expect.anything()
     )
+  })
+
+  it('shows one current model while requiring explicit cleanup of its older binding', async () => {
+    const oldModel = {
+      ...model,
+      id: '85000000-0000-7000-8000-000000000010',
+      modelVersion: 1,
+      isLatestVersion: false,
+      isSelectable: false,
+    }
+    const currentModel = {
+      ...model,
+      id: '85000000-0000-7000-8000-000000000011',
+      modelVersion: 2,
+      credentialBindingId: null,
+      credentialBindingVersion: null,
+      credentialGroupId: null,
+      credentialGroupName: null,
+      credentialGroupVersionId: null,
+      credentialGroupVersion: null,
+    }
+    apiMocks.getCanvasProviderConfiguration.mockImplementation((query) =>
+      Promise.resolve(
+        query.modelScope === 'GROUP_MANAGEMENT'
+          ? {
+              ...providerRuntime,
+              models: {
+                ...providerRuntime.models,
+                total: 2,
+                items: [oldModel, currentModel],
+              },
+            }
+          : providerRuntime
+      )
+    )
+
+    renderProviderConfiguration()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Manage API Key group' })
+    )
+    const drawer = screen.getByRole('dialog', { name: 'Manage API Key group' })
+    expect(
+      await within(drawer).findByText('Model bindings requiring cleanup')
+    ).toBeVisible()
+    expect(
+      within(drawer).getAllByLabelText('Select model Image A')
+    ).toHaveLength(1)
+    fireEvent.click(within(drawer).getByLabelText('Select model Image A'))
+    expect(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    ).toBeDisabled()
+    fireEvent.click(
+      within(drawer).getByRole('checkbox', {
+        name: 'Retire these model bindings',
+      })
+    )
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
+    const confirmation = await screen.findByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('Retire model binding')
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.publishCanvasCredentialGroupManagement
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customerModelIds: [currentModel.id],
+          expectedBindings: expect.arrayContaining([
+            expect.objectContaining({ customerModelId: oldModel.id }),
+            expect.objectContaining({ customerModelId: currentModel.id }),
+          ]),
+        })
+      )
+    )
+  })
+
+  it('keeps another group’s current binding unselected during a group name edit', async () => {
+    const oldModel = {
+      ...model,
+      isLatestVersion: false,
+      isSelectable: false,
+    }
+    const currentModel = {
+      ...model,
+      id: '85000000-0000-7000-8000-000000000011',
+      modelVersion: 2,
+      credentialGroupId: '85000000-0000-7000-8000-000000000012',
+      credentialGroupName: 'Other group',
+      credentialGroupVersionId: '85000000-0000-7000-8000-000000000013',
+    }
+    apiMocks.getCanvasProviderConfiguration.mockImplementation((query) =>
+      Promise.resolve(
+        query.modelScope === 'GROUP_MANAGEMENT'
+          ? {
+              ...providerRuntime,
+              models: {
+                ...providerRuntime.models,
+                total: 2,
+                items: [oldModel, currentModel],
+              },
+            }
+          : providerRuntime
+      )
+    )
+
+    renderProviderConfiguration()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Manage API Key group' })
+    )
+    const drawer = screen.getByRole('dialog', { name: 'Manage API Key group' })
+    expect(
+      await within(drawer).findByText('Model bindings requiring cleanup')
+    ).toBeVisible()
+    expect(
+      within(drawer).getByLabelText('Select model Image A')
+    ).not.toBeChecked()
+    fireEvent.change(within(drawer).getByLabelText('API Key group'), {
+      target: { value: 'Primary renamed' },
+    })
+    fireEvent.click(
+      within(drawer).getByRole('checkbox', {
+        name: 'Retire these model bindings',
+      })
+    )
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
+    const confirmation = await screen.findByRole('alertdialog')
+    expect(confirmation).not.toHaveTextContent('Move binding')
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.publishCanvasCredentialGroupManagement
+      ).toHaveBeenCalledWith(expect.objectContaining({ customerModelIds: [] }))
+    )
+  })
+
+  it('opens group cleanup after a historical binding blocks direct preview', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+        },
+      },
+    })
+    renderProviderConfiguration({
+      providerId: providerRuntime.providers[0].id,
+      credentialGroupId: providerRuntime.credentialGroups[0].credentialGroupId,
+      credentialGroupVersionId: providerRuntime.credentialGroups[0].id,
+      modelId: model.id,
+    })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    const recovery = await screen.findByText(
+      'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
+    )
+    expect(recovery).toBeVisible()
+    expect(toastMocks.error).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage binding cleanup: Primary' })
+    )
+    expect(
+      await screen.findByRole('dialog', { name: 'Manage API Key group' })
+    ).toBeVisible()
+  })
+
+  it('offers group cleanup when historical binding blocks confirmation', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.bindCanvasProviderCredentials.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+        },
+      },
+    })
+    renderProviderConfiguration({ modelId: model.id })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    const confirmation = await screen.findByRole('alertdialog')
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    expect(
+      await screen.findByRole('button', {
+        name: 'Manage binding cleanup: Primary',
+      })
+    ).toBeVisible()
+    expect(toastMocks.error).not.toHaveBeenCalled()
+  })
+
+  it('removes the failed selection cleanup prompt when a different model is selected', async () => {
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+      models: {
+        ...providerRuntime.models,
+        total: 2,
+        items: [model, secondModel],
+      },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+        },
+      },
+    })
+    renderProviderConfiguration({ modelId: model.id })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    expect(
+      await screen.findByLabelText('Binding cleanup required')
+    ).toBeVisible()
+    fireEvent.click(screen.getByLabelText('Select model Image B'))
+    expect(
+      screen.queryByLabelText('Binding cleanup required')
+    ).not.toBeInTheDocument()
+  })
+
+  it('removes the failed selection cleanup prompt after switching groups', async () => {
+    const secondGroup = {
+      ...providerRuntime.credentialGroups[0],
+      id: '85000000-0000-7000-8000-000000000020',
+      credentialGroupId: '85000000-0000-7000-8000-000000000021',
+      name: 'Second group',
+    }
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      credentialGroups: [...providerRuntime.credentialGroups, secondGroup],
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+        },
+      },
+    })
+    renderProviderConfiguration({ modelId: model.id })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    expect(
+      await screen.findByLabelText('Binding cleanup required')
+    ).toBeVisible()
+    fireEvent.change(screen.getByRole('combobox', { name: 'API Key group' }), {
+      target: { value: secondGroup.credentialGroupId },
+    })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Discard changes' })
+    )
+    expect(
+      screen.queryByLabelText('Binding cleanup required')
+    ).not.toBeInTheDocument()
+  })
+
+  it('clears the recovery prompt after its old binding group is cleaned', async () => {
+    const oldModel = {
+      ...model,
+      id: '85000000-0000-7000-8000-000000000030',
+      isLatestVersion: false,
+      isSelectable: false,
+      isHistoricalBinding: true,
+    }
+    apiMocks.getCanvasProviderConfiguration.mockImplementation((query) =>
+      Promise.resolve(
+        query.modelScope === 'GROUP_MANAGEMENT'
+          ? {
+              ...providerRuntime,
+              models: {
+                ...providerRuntime.models,
+                items: [oldModel, model],
+                total: 2,
+              },
+            }
+          : {
+              ...providerRuntime,
+              navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+            }
+      )
+    )
+    apiMocks.previewCanvasProviderCredentialBindings.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              {
+                id: providerRuntime.credentialGroups[0].credentialGroupId,
+                name: 'Primary',
+              },
+            ],
+          },
+        },
+      },
+    })
+    apiMocks.publishCanvasCredentialGroupManagement.mockResolvedValue({})
+    renderProviderConfiguration({ modelId: model.id })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Manage binding cleanup: Primary',
+      })
+    )
+    const drawer = await screen.findByRole('dialog', {
+      name: 'Manage API Key group',
+    })
+    expect(
+      await within(drawer).findByText('Model bindings requiring cleanup')
+    ).toBeVisible()
+    fireEvent.click(
+      within(drawer).getByRole('checkbox', {
+        name: 'Retire these model bindings',
+      })
+    )
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    )
+    const confirmation = await screen.findByRole('alertdialog')
+    fireEvent.click(
+      within(confirmation).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.publishCanvasCredentialGroupManagement).toHaveBeenCalled()
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText('Binding cleanup required')
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it('routes each cross-group cleanup action to the actual old binding group', async () => {
+    const groupA = providerRuntime.credentialGroups[0]
+    const groupB = {
+      ...groupA,
+      id: '85000000-0000-7000-8000-000000000020',
+      credentialGroupId: '85000000-0000-7000-8000-000000000021',
+      name: 'Target B',
+    }
+    const groupC = {
+      ...groupA,
+      id: '85000000-0000-7000-8000-000000000022',
+      credentialGroupId: '85000000-0000-7000-8000-000000000023',
+      name: 'Old C',
+    }
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      selectedCredentialGroupId: groupB.credentialGroupId,
+      credentialGroups: [groupA, groupB, groupC],
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockRejectedValue({
+      response: {
+        data: {
+          code: 'PREVIEW_STALE',
+          details: {
+            reason: 'historicalBinding',
+            historicalGroups: [
+              { id: groupA.credentialGroupId, name: groupA.name },
+              { id: groupC.credentialGroupId, name: groupC.name },
+            ],
+          },
+        },
+      },
+    })
+    renderProviderConfiguration({
+      providerId: groupB.providerId,
+      credentialGroupId: groupB.credentialGroupId,
+      credentialGroupVersionId: groupB.id,
+      modelId: model.id,
+    })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    const first = await screen.findByRole('button', {
+      name: 'Manage binding cleanup: Primary',
+    })
+    expect(
+      screen.getByRole('button', { name: 'Manage binding cleanup: Old C' })
+    ).toBeVisible()
+    fireEvent.click(first)
+    const drawerA = await screen.findByRole('dialog', {
+      name: 'Manage API Key group',
+    })
+    expect(within(drawerA).getByText('Primary · Provider A')).toBeVisible()
+    fireEvent.click(within(drawerA).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'API Key group' })
+      ).toHaveValue(groupA.credentialGroupId)
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage binding cleanup: Old C' })
+    )
+    const drawerC = await screen.findByRole('dialog', {
+      name: 'Manage API Key group',
+    })
+    expect(within(drawerC).getByText('Old C · Provider A')).toBeVisible()
+  })
+
+  it('ignores a late preview rejection after the model selection changes', async () => {
+    let rejectPreview!: (reason: unknown) => void
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectPreview = reject
+      })
+    )
+    renderProviderConfiguration({ modelId: model.id })
+
+    const selection = await screen.findByLabelText('Select model Image A')
+    fireEvent.click(selection)
+    expect(screen.getByText('Selected models: 1')).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.previewCanvasProviderCredentialBindings
+      ).toHaveBeenCalled()
+    )
+    fireEvent.click(screen.getByLabelText('Select model Image A'))
+    expect(screen.getByText('Selected models: 0')).toBeVisible()
+    await act(async () => {
+      rejectPreview({
+        response: {
+          data: {
+            code: 'PREVIEW_STALE',
+            details: {
+              reason: 'historicalBinding',
+              historicalGroups: [
+                {
+                  id: providerRuntime.credentialGroups[0].credentialGroupId,
+                  name: 'Primary',
+                },
+              ],
+            },
+          },
+        },
+      })
+    })
+    expect(
+      screen.queryByLabelText('Binding cleanup required')
+    ).not.toBeInTheDocument()
+    expect(toastMocks.error).not.toHaveBeenCalled()
+  })
+
+  it('ignores a late preview rejection after switching API Key groups', async () => {
+    const secondGroup = {
+      ...providerRuntime.credentialGroups[0],
+      id: '85000000-0000-7000-8000-000000000020',
+      credentialGroupId: '85000000-0000-7000-8000-000000000021',
+      name: 'Second group',
+    }
+    let rejectPreview!: (reason: unknown) => void
+    apiMocks.getCanvasProviderConfiguration.mockResolvedValue({
+      ...providerRuntime,
+      credentialGroups: [...providerRuntime.credentialGroups, secondGroup],
+      navigationTarget: { modelId: model.id, bindingStatus: 'BOUND' },
+    })
+    apiMocks.previewCanvasProviderCredentialBindings.mockReturnValue(
+      new Promise((_, reject) => {
+        rejectPreview = reject
+      })
+    )
+    renderProviderConfiguration({ modelId: model.id })
+
+    fireEvent.click(await screen.findByLabelText('Select model Image A'))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Review model bindings/ })
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.previewCanvasProviderCredentialBindings
+      ).toHaveBeenCalled()
+    )
+    fireEvent.change(screen.getByRole('combobox', { name: 'API Key group' }), {
+      target: { value: secondGroup.credentialGroupId },
+    })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Discard changes' })
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'API Key group' })
+      ).toHaveValue(secondGroup.credentialGroupId)
+    )
+    await act(async () => {
+      rejectPreview({
+        response: {
+          data: {
+            code: 'PREVIEW_STALE',
+            details: {
+              reason: 'historicalBinding',
+              historicalGroups: [
+                {
+                  id: providerRuntime.credentialGroups[0].credentialGroupId,
+                  name: 'Primary',
+                },
+              ],
+            },
+          },
+        },
+      })
+    })
+    expect(
+      screen.queryByLabelText('Binding cleanup required')
+    ).not.toBeInTheDocument()
+    expect(toastMocks.error).not.toHaveBeenCalled()
   })
 
   it('keeps selections hidden by filtering and discards a late binding preview after selection changes', async () => {
@@ -609,6 +1290,93 @@ describe('Canvas runtime configuration', () => {
     ).toHaveBeenCalledWith(
       providerRuntime.credentialGroups[0].credentialGroupId,
       { page: 1, pageSize: 20 },
+      expect.anything()
+    )
+    expect(
+      within(drawer).queryByRole('button', { name: 'Previous' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole('button', { name: 'Next' })
+    ).not.toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole('button', {
+        name: 'Load older change records',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps visible change records when older loading fails and appends the next page on retry', async () => {
+    const change = (id: string) => ({
+      id,
+      occurredAt: '2026-09-04T01:00:00.000Z',
+      operator: 'Platform Admin',
+      type: 'KEY_REPLACED',
+      outcome: 'SUCCESS',
+      reason: `reason-${id}`,
+      changes: [{ type: 'KEY_REPLACED' }],
+    })
+    let olderAttempt = 0
+    apiMocks.getCanvasProviderCredentialGroupChanges.mockImplementation(
+      (_groupId: string, query: { page: number }) => {
+        if (query.page === 1) {
+          return Promise.resolve({
+            page: 1,
+            pageSize: 20,
+            total: 21,
+            items: [
+              change('A'),
+              ...Array.from({ length: 19 }, (_, index) =>
+                change(String(index + 2))
+              ),
+            ],
+          })
+        }
+        olderAttempt += 1
+        if (olderAttempt === 1) return Promise.reject(new Error('temporary'))
+        return Promise.resolve({
+          page: 2,
+          pageSize: 20,
+          total: 21,
+          items: [change('Z')],
+        })
+      }
+    )
+    renderProviderConfiguration()
+    await screen.findByText('Provider API Key groups')
+    fireEvent.click(screen.getByRole('button', { name: 'View change history' }))
+    const drawer = screen.getByRole('dialog', { name: 'Change history' })
+    const firstRecord = (await within(drawer).findByText(/reason-A/)).closest(
+      'article'
+    )
+    expect(within(drawer).getByText('1–20 of 21')).toBeVisible()
+
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Load older change records' })
+    )
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent(
+      'Unable to load change history'
+    )
+    expect(firstRecord).toBeInTheDocument()
+
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Load older change records' })
+    )
+    expect(await within(drawer).findByText(/reason-Z/)).toBeVisible()
+    expect(
+      within(drawer)
+        .getByText(/reason-A/)
+        .closest('article')
+    ).toBe(firstRecord)
+    expect(
+      within(drawer).queryByRole('button', {
+        name: 'Load older change records',
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      apiMocks.getCanvasProviderCredentialGroupChanges
+    ).toHaveBeenCalledWith(
+      providerRuntime.credentialGroups[0].credentialGroupId,
+      { page: 2, pageSize: 20 },
       expect.anything()
     )
   })
@@ -760,8 +1528,8 @@ describe('Canvas runtime configuration', () => {
     expect(
       within(taskMediaCard as HTMLElement)
         .getByText('Version 1')
-        .closest('[data-slot="card-action"]')
-    ).not.toBeNull()
+        .closest('[data-slot="badge"]')
+    ).toHaveAttribute('data-variant', 'secondary')
     expect(screen.queryByText('Runtime storage')).not.toBeInTheDocument()
     expect(
       screen.queryByText(
@@ -809,8 +1577,8 @@ describe('Canvas runtime configuration', () => {
     expect(
       within(backupCard as HTMLElement)
         .getByText('Version 2')
-        .closest('[data-slot="card-action"]')
-    ).not.toBeNull()
+        .closest('[data-slot="badge"]')
+    ).toHaveAttribute('data-variant', 'secondary')
     expect(screen.queryByText(/^v[12]$/)).not.toBeInTheDocument()
     expect(screen.queryByText('canvas-uat-task-media')).not.toBeInTheDocument()
     expect(
@@ -1071,7 +1839,15 @@ describe('Canvas runtime configuration', () => {
       },
       models: {
         ...providerRuntime.models,
-        items: [{ ...model, status: 'RETIRED' }],
+        items: [
+          {
+            ...model,
+            status: 'RETIRED',
+            isSelectable: false,
+            isLatestVersion: false,
+            isHistoricalBinding: true,
+          },
+        ],
       },
     })
     renderProviderConfiguration({ modelId: model.id })
@@ -1082,20 +1858,29 @@ describe('Canvas runtime configuration', () => {
     expect(within(drawer).getByLabelText('API Key group')).toHaveValue(
       'Primary'
     )
-    const historicalModel = await within(drawer).findByLabelText(
-      'Select model Image A'
-    )
-    expect(historicalModel).toBeChecked()
+    expect(
+      await within(drawer).findByText('Model bindings requiring cleanup')
+    ).toBeVisible()
+    expect(
+      within(drawer).queryByLabelText('Select model Image A')
+    ).not.toBeInTheDocument()
     expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalledWith(
       expect.objectContaining({ modelScope: 'GROUP_MANAGEMENT' }),
       expect.anything()
     )
-    fireEvent.click(historicalModel)
+    expect(
+      within(drawer).getByRole('button', { name: 'Preview changes' })
+    ).toBeDisabled()
+    fireEvent.click(
+      within(drawer).getByRole('checkbox', {
+        name: 'Retire these model bindings',
+      })
+    )
     fireEvent.click(
       within(drawer).getByRole('button', { name: 'Preview changes' })
     )
     const confirmation = await screen.findByRole('alertdialog')
-    expect(confirmation).toHaveTextContent('Remove binding')
+    expect(confirmation).toHaveTextContent('Retire model binding')
     expect(confirmation).toHaveTextContent('Image A')
   })
 

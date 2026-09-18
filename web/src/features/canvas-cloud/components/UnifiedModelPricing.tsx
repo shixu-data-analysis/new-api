@@ -182,6 +182,7 @@ function completeCnyCalculationScopes(input: {
   drafts: Record<string, CnyScopeDraft>
   billingUnit: CanvasBillingUnit
   currentBillingUnit: CanvasBillingUnit | null
+  billingUnitState: CanvasModelPricingDetail['model']['billingUnitState']
   tokenCategories: CanvasTokenCategory[]
   activeScopeId: string
   activePriceGroupId: string
@@ -191,8 +192,9 @@ function completeCnyCalculationScopes(input: {
       ? input.tokenCategories
       : (['scalar'] as const)
   const isUnitChange =
-    input.currentBillingUnit !== null &&
-    input.currentBillingUnit !== input.billingUnit
+    input.billingUnitState === 'MIXED' ||
+    (input.currentBillingUnit !== null &&
+      input.currentBillingUnit !== input.billingUnit)
   const relevantScopes = isUnitChange
     ? input.detail.pricingScopes.filter(
         (scope) =>
@@ -310,6 +312,8 @@ export function UnifiedModelPricing(props: {
     props.tab ?? 'current'
   )
   const [billingUnit, setBillingUnit] = useState<CanvasBillingUnit>('REQUEST')
+  const [billingUnitChoiceConfirmed, setBillingUnitChoiceConfirmed] =
+    useState(true)
   const [cnyDrafts, setCnyDrafts] = useState<Record<string, CnyScopeDraft>>({})
   const [cnyTouched, setCnyTouched] = useState<Record<string, boolean>>({})
   const [cnyFieldErrors, setCnyFieldErrors] = useState<Record<string, string>>(
@@ -435,7 +439,7 @@ export function UnifiedModelPricing(props: {
     queryFn: () => getCanvasModelPricingModel(modelId),
     enabled: Boolean(modelId),
   })
-  const selected = workspaceSelected ?? detail.data?.model ?? null
+  const selected = detail.data?.model ?? workspaceSelected ?? null
   useEffect(() => {
     if (
       !selected ||
@@ -448,6 +452,7 @@ export function UnifiedModelPricing(props: {
     setBillingUnit(
       selected.billingUnit ?? selected.allowedBillingUnits[0] ?? 'REQUEST'
     )
+    setBillingUnitChoiceConfirmed(selected.billingUnitState !== 'MIXED')
     setCnyDrafts(
       Object.fromEntries(
         detail.data.pricingScopes.map((scope) => {
@@ -541,7 +546,13 @@ export function UnifiedModelPricing(props: {
     cnyCalculationRevision.current += 1
     setLatestCnyCalculation(null)
     setCnyCalculationError(false)
-    if (!selected || !detail.data || !activeScopeId || !activePriceGroupId) {
+    if (
+      !selected ||
+      !detail.data ||
+      !activeScopeId ||
+      !activePriceGroupId ||
+      !billingUnitChoiceConfirmed
+    ) {
       return
     }
     const scopes = completeCnyCalculationScopes({
@@ -549,6 +560,7 @@ export function UnifiedModelPricing(props: {
       drafts: cnyDrafts,
       billingUnit,
       currentBillingUnit: selected.billingUnit,
+      billingUnitState: selected.billingUnitState,
       tokenCategories: selected.tokenCategories,
       activeScopeId,
       activePriceGroupId,
@@ -566,6 +578,7 @@ export function UnifiedModelPricing(props: {
     activePriceGroupId,
     activeScopeId,
     billingUnit,
+    billingUnitChoiceConfirmed,
     calculateCny,
     cnyDrafts,
     detail.data,
@@ -671,30 +684,33 @@ export function UnifiedModelPricing(props: {
   )
 
   function handleBillingUnitChange(next: CanvasBillingUnit) {
-    if (next === billingUnit) return
+    if (next === billingUnit && billingUnitChoiceConfirmed) return
     setBillingUnit(next)
+    setBillingUnitChoiceConfirmed(true)
     invalidatePreview()
     setValidationErrors([])
     setCnyDrafts(
-      Object.fromEntries(
-        (detail.data?.pricingScopes ?? [])
-          .filter(
-            (scope) =>
-              !scope.enabled &&
-              scope.currentProviderRate &&
-              !scope.prices.some((price) => price.current)
+      selected?.billingUnitState === 'MIXED'
+        ? {}
+        : Object.fromEntries(
+            (detail.data?.pricingScopes ?? [])
+              .filter(
+                (scope) =>
+                  !scope.enabled &&
+                  scope.currentProviderRate &&
+                  !scope.prices.some((price) => price.current)
+              )
+              .map((scope) => {
+                return [
+                  scope.parameterCombinationId,
+                  {
+                    provider: {},
+                    inviters: {},
+                    customers: {},
+                  },
+                ]
+              })
           )
-          .map((scope) => {
-            return [
-              scope.parameterCombinationId,
-              {
-                provider: {},
-                inviters: {},
-                customers: {},
-              },
-            ]
-          })
-      )
     )
     setCnyTouched({})
     setCnyFieldErrors({})
@@ -715,6 +731,7 @@ export function UnifiedModelPricing(props: {
 
   async function requestPreview() {
     if (!selected || !detail.data) return
+    if (!billingUnitChoiceConfirmed) return
     const draftRevision = previewRevision.current
     setSubmitAttempted(true)
     const formValid = await form.trigger()
@@ -733,7 +750,8 @@ export function UnifiedModelPricing(props: {
         ? selected.tokenCategories
         : (['scalar'] as const)
     const isUnitChange =
-      selected.billingUnit !== null && selected.billingUnit !== billingUnit
+      selected.billingUnitState === 'MIXED' ||
+      (selected.billingUnit !== null && selected.billingUnit !== billingUnit)
     const relevantScopes = isUnitChange
       ? detail.data.pricingScopes.filter(
           (scope) =>
@@ -946,7 +964,8 @@ export function UnifiedModelPricing(props: {
   }
 
   const isBillingUnitChange =
-    selected.billingUnit !== null && billingUnit !== selected.billingUnit
+    selected.billingUnitState === 'MIXED' ||
+    (selected.billingUnit !== null && billingUnit !== selected.billingUnit)
   const activeCnyCalculationPrice = latestCnyCalculation?.scopes
     .find((scope) => scope.parameterCombinationId === activeScopeId)
     ?.prices.find((price) => price.priceGroupId === activePriceGroupId)
@@ -1176,6 +1195,12 @@ export function UnifiedModelPricing(props: {
           />
         </TabsContent>
         <TabsContent value='set' className='mt-4 max-w-3xl space-y-4'>
+          {selected.billingUnitState === 'MIXED' ? (
+            <p role='alert' className='rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm'>
+              {t('Published pricing contains mixed billing units. Choose one unit and re-enter every scope and price plan before publishing.')}{' '}
+              {selected.publishedBillingUnits.map((unit) => billingUnitLabel(unit, t)).join(' · ')}
+            </p>
+          ) : null}
           {detail.data.pricingScopes
             .find((scope) => scope.parameterCombinationId === activeScopeId)
             ?.prices.find((price) => price.priceGroupId === activePriceGroupId)
@@ -1202,14 +1227,16 @@ export function UnifiedModelPricing(props: {
           ) : null}
           <div
             className={
-              selected.allowedBillingUnits.length === 1
+              selected.allowedBillingUnits.length === 1 &&
+              selected.billingUnitState !== 'MIXED'
                 ? 'grid gap-3 sm:grid-cols-[max-content_minmax(10rem,16rem)_minmax(0,1fr)] sm:gap-x-6'
                 : 'grid gap-3 sm:grid-cols-[minmax(8rem,12rem)_minmax(10rem,16rem)_minmax(0,1fr)]'
             }
           >
             <div className='min-w-0 space-y-2'>
               <Label htmlFor='model-pricing-unit'>{t('Billing unit')}</Label>
-              {selected.allowedBillingUnits.length === 1 ? (
+              {selected.allowedBillingUnits.length === 1 &&
+              selected.billingUnitState !== 'MIXED' ? (
                 <p
                   id='model-pricing-unit'
                   className='flex min-h-9 items-center text-sm'
@@ -1218,14 +1245,16 @@ export function UnifiedModelPricing(props: {
                 </p>
               ) : (
                 <Select
-                  value={billingUnit}
+                  value={billingUnitChoiceConfirmed ? billingUnit : ''}
                   onValueChange={(value) =>
                     handleBillingUnitChange(value as CanvasBillingUnit)
                   }
                 >
                   <SelectTrigger id='model-pricing-unit' className='w-full'>
-                    <SelectValue>
-                      {billingUnitLabel(billingUnit, t)}
+                    <SelectValue placeholder={t('Billing unit')}>
+                      {billingUnitChoiceConfirmed
+                        ? billingUnitLabel(billingUnit, t)
+                        : undefined}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -1333,7 +1362,7 @@ export function UnifiedModelPricing(props: {
           )}
           <div className='space-y-3'>
             {cnyCalculation.isPending ? (
-              <p role='status'>{t('Calculating…')}</p>
+              <p role='status'>{t('Calculating...')}</p>
             ) : null}
             {cnyCalculationError ? (
               <div role='alert' className='space-y-2'>
@@ -1469,6 +1498,10 @@ export function UnifiedModelPricing(props: {
                       value={mode}
                       {...form.register('effectiveMode')}
                       checked={effectiveMode === mode}
+                      disabled={
+                        selected.billingUnitState === 'MIXED' &&
+                        mode === 'SCHEDULED'
+                      }
                       onChange={() => {
                         form.setValue('effectiveMode', mode, {
                           shouldDirty: true,
@@ -1559,7 +1592,11 @@ export function UnifiedModelPricing(props: {
           </div>
           <div className='flex justify-end'>
             <Button
-              disabled={preview.isPending || publication.isPending}
+              disabled={
+                preview.isPending ||
+                publication.isPending ||
+                !billingUnitChoiceConfirmed
+              }
               onClick={() => void requestPreview()}
             >
               {t('Preview and publish')}

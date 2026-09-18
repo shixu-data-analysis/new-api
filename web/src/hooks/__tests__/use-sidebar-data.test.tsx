@@ -139,9 +139,9 @@ describe('Canvas administrator primary sidebar', () => {
     expect(
       inviter.result.current.navGroups
         .flatMap((group) => group.items)
-        .some(
+        .find(
           (item) => 'url' in item && item.url === '/canvas-cloud/agent-center'
-        )
-    ).toBe(true)
+        )?.title
+    ).toBe('My customers')
   })
 })

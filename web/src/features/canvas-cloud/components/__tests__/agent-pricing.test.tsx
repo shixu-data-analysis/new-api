@@ -14,6 +14,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +28,10 @@ import { ProviderPricingMatrix } from '../ProviderPricingMatrix'
 const apiMocks = vi.hoisted(() => ({
   getCanvasAgentWorkspace: vi.fn(),
   getCanvasAgentInviteCodes: vi.fn(),
+  searchCanvasAgentInviteCodes: vi.fn(),
   getCanvasAgentCustomers: vi.fn(),
+  getCanvasAgentModelPrices: vi.fn(),
+  getCanvasAgentCustomerModelUsage: vi.fn(),
   getCanvasAgents: vi.fn(),
   provisionCanvasAgent: vi.fn(),
   getCanvasProviderPricingMatrix: vi.fn(),
@@ -55,7 +59,7 @@ function renderWithClient(element: React.ReactNode) {
 async function renderAgentManagement() {
   const result = renderWithClient(<AgentManagement />)
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Enable invitation ability' })
+    await screen.findByRole('button', { name: 'Enable agent role' })
   )
   return result
 }
@@ -81,8 +85,41 @@ describe('Canvas Agent and provider pricing governance', () => {
         username: 'tokyo-agent',
         status: 'ACTIVE',
       },
+      summary: {
+        activatedCustomers: 1,
+        customersWithSuccessfulTasks: 1,
+        successfulTasks: 2,
+        settledPoints: '20',
+        modelUsageAmount: null,
+        amountIncomplete: true,
+      },
+      priceGroups: [
+        {
+          priceGroupId: 'group-v1',
+          priceGroupName: 'Standard',
+          currentCustomers: 1,
+          successfulTasks: 2,
+          settledPoints: '20',
+          modelUsageAmount: null,
+          amountIncomplete: true,
+        },
+      ],
     })
     apiMocks.getCanvasAgentInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+      filters: { priceGroups: [{ id: 'group-v1', name: 'Standard' }] },
+    })
+    apiMocks.getCanvasAgentModelPrices.mockResolvedValue({
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      items: [],
+      filters: { capabilities: [], tags: [] },
+    })
+    apiMocks.getCanvasAgentCustomerModelUsage.mockResolvedValue({
       page: 1,
       pageSize: 20,
       total: 0,
@@ -99,6 +136,11 @@ describe('Canvas Agent and provider pricing governance', () => {
           emailMasked: 'i***@example.com',
           status: 'ACTIVE',
           activatedAt: '2026-08-30T00:00:00.000Z',
+          currentPriceGroup: { id: 'group-v1', name: 'Standard' },
+          successfulTasks: 2,
+          settledPoints: '20',
+          modelUsageAmount: null,
+          amountIncomplete: true,
         },
       ],
     })
@@ -153,9 +195,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(screen.getByLabelText('Enable reason'), {
       target: { value: 'Approved partner onboarding' },
     })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Enable invitation ability' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Enable agent role' }))
     expect(await screen.findByText(/keeps all customer pages/)).toBeVisible()
     expect(apiMocks.provisionCanvasAgent).not.toHaveBeenCalled()
   })
@@ -164,7 +204,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     await renderAgentManagement()
 
     const createButton = await screen.findByRole('button', {
-      name: 'Enable invitation ability',
+      name: 'Enable agent role',
     })
     expect(createButton).toBeEnabled()
     fireEvent.click(createButton)
@@ -189,16 +229,14 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.change(screen.getByLabelText('Enable reason'), {
       target: { value: 'Approved partner onboarding' },
     })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Enable invitation ability' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Enable agent role' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Confirm creation' })
     )
 
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(
-        'Invitation ability could not be enabled',
+        'Agent role could not be enabled',
         {
           description: 'This customer already has invitation ability.',
         }
@@ -216,12 +254,12 @@ describe('Canvas Agent and provider pricing governance', () => {
       target: { value: 'Approved customer referral program' },
     })
     const createButton = screen.getByRole('button', {
-      name: 'Enable invitation ability',
+      name: 'Enable agent role',
     })
     expect(createButton).toBeEnabled()
     fireEvent.click(createButton)
     expect(
-      await screen.findByText('Enable invitation ability for this customer?')
+      await screen.findByText('Enable agent role for this customer?')
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Confirm creation' }))
     await waitFor(() =>
@@ -245,7 +283,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(await screen.findByText('Discard this draft?')).toBeVisible()
     expect(
-      screen.getByText('Leaving will discard the unpublished inviter draft.')
+      screen.getByText('Leaving will discard the unpublished agent draft.')
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
     await waitFor(() =>
@@ -262,6 +300,199 @@ describe('Canvas Agent and provider pricing governance', () => {
     expect(screen.getByText('Valid')).toBeVisible()
     expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument()
     expect(screen.queryByText('My models')).not.toBeInTheDocument()
+    expect(screen.getByText('Cumulative overview')).toBeVisible()
+    expect(screen.getAllByText(/Amount incomplete/u).length).toBeGreaterThan(0)
+  })
+
+  it('localizes the current model specification and billing unit', async () => {
+    apiMocks.getCanvasAgentModelPrices.mockResolvedValue({
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      filters: { capabilities: ['TEXT'], tags: [] },
+      items: [
+        {
+          customerModelId: 'text-v1',
+          modelKey: 'text.model',
+          name: 'Text Model',
+          description: 'Client description',
+          capability: 'TEXT',
+          tags: [],
+          priceGroups: [
+            {
+              priceGroupId: 'group-v1',
+              priceGroupName: 'Standard',
+              prices: [
+                {
+                  combinationKey: 'default',
+                  parameters: {},
+                  billingUnit: 'MILLION_TOKENS',
+                  customerPoints: '0',
+                  customerTokenRates: { input: '0', output: '1' },
+                  modelPriceCny: { input: '0', output: '0.25' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    renderWithClient(<AgentCenter />)
+    expect(
+      await screen.findByText('Default scope · Per million tokens')
+    ).toBeVisible()
+    expect(screen.getByText('Client description')).toBeVisible()
+    expect(screen.getByText(/Input: 0/u)).toBeVisible()
+  })
+
+  it('keeps a short exact invite code local and sends a complete code in the POST body', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAgentInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      filters: { priceGroups: [{ id: 'group-v1', name: 'Standard' }] },
+      items: [
+        {
+          id: 'invite-v1',
+          maskedCode: 'CANVAS-U••••••••CRET',
+          status: 'ACTIVE',
+          priceGroupId: 'group-v1',
+          priceGroupName: 'Standard',
+          maxRegistrations: '10',
+          reservedCount: '0',
+          consumedCount: '1',
+          remainingCount: '9',
+          validFrom: '2026-08-30T00:00:00.000Z',
+          expiresAt: '2027-08-30T00:00:00.000Z',
+          activatedCustomers: '1',
+          createdAt: '2026-08-30T00:00:00.000Z',
+        },
+      ],
+    })
+    apiMocks.searchCanvasAgentInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+      filters: { priceGroups: [{ id: 'group-v1', name: 'Standard' }] },
+    })
+    renderWithClient(<AgentCenter />)
+    expect(await screen.findByText('CANVAS-U••••••••CRET')).toBeVisible()
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: 'Column filters' }))[0]
+    )
+    const code = await screen.findByRole('textbox', {
+      name: 'Exact invite code',
+    })
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(await screen.findByRole('option', { name: 'Standard' }))
+    fireEvent.change(code, { target: { value: 'ABC' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(apiMocks.searchCanvasAgentInviteCodes).not.toHaveBeenCalled()
+    expect(screen.queryByText('CANVAS-U••••••••CRET')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('combobox', { name: 'Price plan' })
+    ).toHaveTextContent('Standard')
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    expect(
+      await screen.findByRole('option', { name: 'Standard' })
+    ).toBeVisible()
+    fireEvent.change(code, { target: { value: 'ABCD-SECRET' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    await waitFor(() =>
+      expect(apiMocks.searchCanvasAgentInviteCodes).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'ABCD-SECRET' }),
+        expect.anything()
+      )
+    )
+  })
+
+  it('filters owned invite codes by the selected price plan', async () => {
+    const user = userEvent.setup()
+    renderWithClient(<AgentCenter />)
+    await user.click(
+      (await screen.findAllByRole('button', { name: 'Column filters' }))[0]
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
+    await user.click(await screen.findByRole('option', { name: 'Standard' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgentInviteCodes).toHaveBeenCalledWith(
+        expect.objectContaining({ priceGroupId: 'group-v1' }),
+        expect.anything()
+      )
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Price plan' })
+    ).toHaveTextContent('Standard')
+  })
+
+  it('expands task-time model usage with a frozen price snapshot and missing amount', async () => {
+    apiMocks.getCanvasAgentCustomerModelUsage.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [
+        {
+          priceGroupId: 'old-group',
+          priceGroupName: 'Previous plan',
+          customerModelId: 'model-v1',
+          modelKey: 'image.model',
+          modelName: 'Image Model',
+          combinationKey: 'quality=4K',
+          parameters: { quality: '4K' },
+          billingUnit: 'REQUEST',
+          usage: {
+            requests: '2',
+            seconds: '0',
+            inputTokens: '0',
+            outputTokens: '0',
+            cacheReadTokens: '0',
+            cacheWriteTokens: '0',
+          },
+          successfulTasks: 2,
+          settledPoints: '20',
+          agentPriceSnapshot: '0.25',
+          agentPriceSnapshotStatus: 'SINGLE',
+          modelUsageAmount: null,
+          amountIncomplete: true,
+        },
+        {
+          priceGroupId: 'old-group',
+          priceGroupName: 'Previous plan',
+          customerModelId: 'text-v1',
+          modelKey: 'text.model',
+          modelName: 'Text Model',
+          combinationKey: 'default',
+          parameters: {},
+          billingUnit: 'MILLION_TOKENS',
+          usage: {
+            requests: '1',
+            seconds: '0',
+            inputTokens: null,
+            outputTokens: '0',
+            cacheReadTokens: '0',
+            cacheWriteTokens: '0',
+          },
+          successfulTasks: 1,
+          settledPoints: '0',
+          agentPriceSnapshot: null,
+          agentPriceSnapshotStatus: 'VARIES',
+          modelUsageAmount: null,
+          amountIncomplete: true,
+        },
+      ],
+    })
+    renderWithClient(<AgentCenter />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Model usage' }))
+    expect((await screen.findAllByText('Previous plan')).length).toBe(2)
+    expect(screen.getByText('¥0.25')).toBeVisible()
+    expect(screen.getByText('Image Model / Quality: 4K')).toBeVisible()
+    expect(screen.getByText('Text Model / Default scope')).toBeVisible()
+    expect(screen.getByText('Multiple historical prices')).toBeVisible()
+    expect(screen.getByText('Per million tokens')).toBeVisible()
+    expect(screen.getAllByText(/Amount incomplete/u).length).toBeGreaterThan(0)
   })
 
   it('reveals and hides an owned invite code without decrypting twice', async () => {
@@ -269,11 +500,14 @@ describe('Canvas Agent and provider pricing governance', () => {
       page: 1,
       pageSize: 20,
       total: 1,
+      filters: { priceGroups: [{ id: 'group-v1', name: 'Standard' }] },
       items: [
         {
           id: 'invite-v1',
           maskedCode: 'CANVAS-U••••••••CRET',
           status: 'ACTIVE',
+          priceGroupId: 'group-v1',
+          priceGroupName: 'Standard',
           maxRegistrations: '10',
           reservedCount: '0',
           consumedCount: '1',

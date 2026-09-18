@@ -119,8 +119,8 @@ export type ChannelPolicy = PolicyResolution<
   ChannelExecutionConfig
 >
 export type ErrorPolicy = PolicyResolution<
-  { rules?: ErrorRule[] },
-  { rules: ErrorRule[] }
+  { rules?: ErrorRule[]; showSafeErrorDetailsToCustomer?: boolean },
+  { rules: ErrorRule[]; showSafeErrorDetailsToCustomer: boolean }
 >
 export type LimitPolicy = PolicyResolution<
   { rules?: LimitRule[] },
@@ -159,6 +159,8 @@ export interface ExecutionOverview {
 export type ExecutionCapacityStatus =
   | 'AVAILABLE'
   | 'REQUEST_CONCURRENCY_FULL'
+  | 'INSTANCE_CONCURRENCY_FULL'
+  | 'GROUP_REQUEST_CONCURRENCY_FULL'
   | 'ASYNC_IN_FLIGHT_FULL'
   | 'QUERY_CAPACITY_RESERVED'
   | 'REQUEST_RATE_LIMITED'
@@ -166,6 +168,11 @@ export type ExecutionCapacityStatus =
   | 'DATA_INVARIANT'
   | 'MULTIPLE_LIMITS'
   | 'EXECUTOR_UNAVAILABLE'
+
+export type ExecutionCapacityReason = Exclude<
+  ExecutionCapacityStatus,
+  'AVAILABLE' | 'REQUEST_CONCURRENCY_FULL' | 'MULTIPLE_LIMITS'
+>
 
 export interface ExecutionCapacityCounter {
   used: number
@@ -180,11 +187,23 @@ export interface ExecutionCapacityItem {
   asyncInFlight: ExecutionCapacityCounter
   waitingTasks: number
   status: ExecutionCapacityStatus
+  reasons: ExecutionCapacityReason[]
 }
 
 export interface ExecutionCapacityOverview {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  total: number
+  providers: Array<{ id: string; name: string }>
   items: ExecutionCapacityItem[]
 }
+
+export type ExecutionCapacityFilterStatus =
+  | 'AVAILABLE'
+  | Exclude<
+      ExecutionCapacityStatus,
+      'REQUEST_CONCURRENCY_FULL' | 'MULTIPLE_LIMITS'
+    >
 
 export type ExecutionWaitStage = 'SUBMIT' | 'QUERY'
 export type ExecutionWaitRequestState =

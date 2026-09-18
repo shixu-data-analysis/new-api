@@ -44,6 +44,8 @@ const model = {
   capability: 'video.generate',
   status: 'ACTIVE',
   billingUnit: 'REQUEST',
+  billingUnitState: 'CONSISTENT',
+  publishedBillingUnits: ['REQUEST'],
   allowedBillingUnits: ['REQUEST'],
   tokenCategories: [],
   combinations: [
@@ -259,6 +261,52 @@ beforeEach(() => {
 })
 
 describe('UnifiedModelPricing UAT-028', () => {
+  it('keeps a mixed-unit model editable but requires an explicit unit and fresh complete prices', async () => {
+    const mixedModel = {
+      ...model,
+      billingUnit: null,
+      billingUnitState: 'MIXED',
+      publishedBillingUnits: ['REQUEST', 'SECOND'],
+    }
+    const mixedDetail = structuredClone(detail)
+    mixedDetail.model = mixedModel as never
+    mocks.workspace.mockResolvedValue({
+      models: [mixedModel],
+      priceGroups: mixedDetail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue(mixedDetail)
+    const user = userEvent.setup()
+    renderPricing()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Published pricing contains mixed billing units.'
+    )
+    const previewButton = screen.getByRole('button', {
+      name: 'Preview and publish',
+    })
+    expect(previewButton).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Schedule for later' })).toBeDisabled()
+    expect(mocks.preview).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(screen.getByRole('option', { name: 'per request' }))
+    const input = await fields()
+    expect(input.provider).toHaveValue('')
+    expect(input.inviter).toHaveValue('')
+    expect(input.customer).toHaveValue('')
+    expect(previewButton).toBeEnabled()
+    await user.click(previewButton)
+    expect(mocks.preview).not.toHaveBeenCalled()
+    fireEvent.change(input.provider, { target: { value: '0.5000' } })
+    fireEvent.change(input.inviter, { target: { value: '1.0000' } })
+    fireEvent.change(input.customer, { target: { value: '1.2345' } })
+    await user.click(previewButton)
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    expect(mocks.preview.mock.calls[0][0]).toMatchObject({
+      billingUnit: 'REQUEST',
+      effectiveMode: 'IMMEDIATE',
+      scopes: [{ parameterCombinationId: 'scope-1' }],
+    })
+  })
+
   it('shows current CNY cost, inviter price, sale price and points without inventing legacy RMB originals', async () => {
     renderPricing('current')
     expect(

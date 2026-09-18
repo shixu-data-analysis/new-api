@@ -2,23 +2,28 @@
 Copyright (C) 2023-2026 QuantumNous
 This program is free software under the GNU Affero General Public License version 3 or later.
 */
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  StaticDataTable,
-  type StaticDataTableColumn,
-} from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   Sheet,
   SheetContent,
@@ -33,6 +38,7 @@ import {
 } from '../execution-api'
 import type {
   ExecutionCapacityItem,
+  ExecutionCapacityFilterStatus,
   ExecutionCapacityStatus,
   ExecutionWaitItem,
   ExecutionWaitRequestState,
@@ -41,10 +47,23 @@ import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 
 const refreshIntervalMs = 10_000
+const filterStatuses: ExecutionCapacityFilterStatus[] = [
+  'AVAILABLE',
+  'INSTANCE_CONCURRENCY_FULL',
+  'GROUP_REQUEST_CONCURRENCY_FULL',
+  'ASYNC_IN_FLIGHT_FULL',
+  'QUERY_CAPACITY_RESERVED',
+  'REQUEST_RATE_LIMITED',
+  'TOKEN_RATE_LIMITED',
+  'DATA_INVARIANT',
+  'EXECUTOR_UNAVAILABLE',
+]
 const statusKeys: Record<ExecutionCapacityStatus, string> = {
   AVAILABLE: 'Available capacity',
   REQUEST_CONCURRENCY_FULL: 'Request concurrency full',
-  ASYNC_IN_FLIGHT_FULL: 'Asynchronous in-flight full',
+  INSTANCE_CONCURRENCY_FULL: 'Executor instance concurrency full',
+  GROUP_REQUEST_CONCURRENCY_FULL: 'API Key group request concurrency full',
+  ASYNC_IN_FLIGHT_FULL: 'Upstream unfinished asynchronous tasks full',
   QUERY_CAPACITY_RESERVED: 'Reserving capacity for result queries',
   REQUEST_RATE_LIMITED: 'Request rate limited',
   TOKEN_RATE_LIMITED: 'Token quota limited',
@@ -59,7 +78,12 @@ const requestKeys: Record<ExecutionWaitRequestState, string> = {
 }
 type Translate = (key: string, options?: Record<string, unknown>) => string
 const statusLabel = (value: string, t: Translate) =>
-  t(statusKeys[value as ExecutionCapacityStatus] ?? 'Unknown capacity status')
+  t(
+    value === 'MULTIPLE_LIMITS'
+      ? 'Unknown capacity status'
+      : (statusKeys[value as ExecutionCapacityStatus] ??
+          'Unknown capacity status')
+  )
 const requestLabel = (value: string, t: Translate) =>
   t(requestKeys[value as ExecutionWaitRequestState] ?? 'Unknown request status')
 const stageLabel = (value: string, t: Translate) => {
@@ -129,13 +153,47 @@ export function executionWaitDurationParts(startedAt: string, now: Date) {
 export function ExecutionCapacityOverview() {
   const { t } = useTranslation()
   const table = useServerTableState<'startedAt'>('startedAt')
+  const capacityTable = useServerTableState<'provider' | 'credentialGroup'>(
+    'provider',
+    '',
+    false
+  )
+  const [providerId, setProviderId] = useState('')
+  const [statuses, setStatuses] = useState<ExecutionCapacityFilterStatus[]>([])
+  const [waiting, setWaiting] = useState<
+    '' | 'WITH_WAITING' | 'WITHOUT_WAITING'
+  >('')
   const [groupId, setGroupId] = useState<string>()
   const [taskId, setTaskId] = useState<string>()
   const detailTrigger = useRef<HTMLButtonElement | null>(null)
   const now = new Date()
   const capacity = useQuery({
-    queryKey: ['canvas-cloud', 'execution', 'capacity'],
-    queryFn: ({ signal }) => getCanvasExecutionCapacity(signal),
+    queryKey: [
+      'canvas-cloud',
+      'execution',
+      'capacity',
+      capacityTable.query,
+      providerId,
+      statuses,
+      waiting,
+    ],
+    queryFn: ({ signal }) =>
+      getCanvasExecutionCapacity(
+        {
+          page: capacityTable.query.page,
+          pageSize: capacityTable.query.pageSize,
+          sortBy: capacityTable.query.sortBy,
+          sortOrder: capacityTable.query.sortOrder,
+          ...(providerId ? { providerId } : {}),
+          ...(capacityTable.query.search
+            ? { credentialGroup: capacityTable.query.search }
+            : {}),
+          ...(statuses.length ? { status: statuses } : {}),
+          ...(waiting ? { waiting } : {}),
+        },
+        signal
+      ),
+    placeholderData: keepPreviousData,
     refetchInterval: refreshIntervalMs,
   })
   const waits = useQuery({
@@ -166,6 +224,19 @@ export function ExecutionCapacityOverview() {
     refetchInterval: refreshIntervalMs,
   })
   useEffect(() => {
+    if (!capacity.data || capacity.isPlaceholderData) return
+    const finalPage = Math.max(
+      1,
+      Math.ceil(capacity.data.total / capacity.data.pageSize)
+    )
+    if (capacityTable.query.page > finalPage) {
+      capacityTable.setPagination((value) => ({
+        ...value,
+        pageIndex: finalPage - 1,
+      }))
+    }
+  }, [capacity.data, capacity.isPlaceholderData, capacityTable])
+  useEffect(() => {
     if (!waits.data || waits.data.total === 0) return
     const finalPage = Math.ceil(waits.data.total / waits.data.pageSize)
     if (table.query.page > finalPage) {
@@ -185,52 +256,97 @@ export function ExecutionCapacityOverview() {
   const closeDetail = () => {
     setTaskId(undefined)
   }
-  const capacityColumns: StaticDataTableColumn<ExecutionCapacityItem>[] = [
+  const capacityColumns: ColumnDef<ExecutionCapacityItem, unknown>[] = [
     {
       id: 'provider',
-      header: t('Provider'),
-      cell: (item) => item.providerName,
+      accessorKey: 'providerName',
+      header: t('Service provider'),
+      enableHiding: false,
+      cell: ({ row }) => (
+        <span className='break-words'>{row.original.providerName}</span>
+      ),
     },
     {
-      id: 'group',
+      id: 'credentialGroup',
+      accessorKey: 'credentialGroupName',
       header: t('API Key group'),
-      cell: (item) => item.credentialGroupName,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <span className='break-words'>{row.original.credentialGroupName}</span>
+      ),
     },
     {
       id: 'requests',
-      header: t('Request concurrency'),
-      cellClassName: 'tabular-nums',
-      cell: (item) =>
-        `${item.requestConcurrency.used} / ${item.requestConcurrency.limit}`,
+      accessorFn: (item) => item.requestConcurrency.used,
+      header: t('Group request concurrency'),
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className='tabular-nums'>
+          {row.original.requestConcurrency.used} /{' '}
+          {row.original.requestConcurrency.limit}
+        </span>
+      ),
     },
     {
       id: 'async',
-      header: t('Asynchronous in-flight'),
-      cellClassName: 'tabular-nums',
-      cell: (item) =>
-        `${item.asyncInFlight.used} / ${item.asyncInFlight.limit}`,
+      accessorFn: (item) => item.asyncInFlight.used,
+      header: t('Upstream unfinished asynchronous tasks'),
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className='tabular-nums'>
+          {row.original.asyncInFlight.used} / {row.original.asyncInFlight.limit}
+        </span>
+      ),
     },
     {
       id: 'waiting',
+      accessorKey: 'waitingTasks',
       header: t('Waiting tasks'),
-      cellClassName: 'tabular-nums',
-      cell: (item) => item.waitingTasks,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className='tabular-nums'>{row.original.waitingTasks}</span>
+      ),
     },
     {
       id: 'status',
       header: t('Status'),
-      cell: (item) => (
-        <Badge variant='outline'>{statusLabel(item.status, t)}</Badge>
-      ),
+      size: 256,
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) => {
+        const item = row.original
+        let reasons: string[]
+        if (item.reasons) {
+          reasons = item.reasons.length > 0 ? item.reasons : ['AVAILABLE']
+        } else if (item.status === 'MULTIPLE_LIMITS') {
+          reasons = []
+        } else {
+          reasons = [item.status]
+        }
+        if (reasons.length === 0 && item.status === 'MULTIPLE_LIMITS') {
+          return <Badge variant='outline'>{t('Unknown capacity status')}</Badge>
+        }
+        return (
+          <div className='flex flex-wrap gap-1'>
+            {reasons.map((reason) => (
+              <Badge key={reason} variant='outline'>
+                {statusLabel(reason, t)}
+              </Badge>
+            ))}
+          </div>
+        )
+      },
     },
     {
       id: 'actions',
       header: t('Actions'),
-      cell: (item) =>
-        item.waitingTasks > 0 ? (
+      enableSorting: false,
+      enableHiding: false,
+      cell: ({ row }) =>
+        row.original.waitingTasks > 0 ? (
           <Button
             variant='link'
-            onClick={() => selectGroup(item.credentialGroupId)}
+            onClick={() => selectGroup(row.original.credentialGroupId)}
           >
             {t('View waiting tasks')}
           </Button>
@@ -297,37 +413,119 @@ export function ExecutionCapacityOverview() {
       <Card>
         <CardHeader>
           <CardTitle id='execution-capacity-title'>
-            {t('Execution capacity')}
+            {t('API Key group live capacity')}
           </CardTitle>
+          <CardDescription>
+            {t(
+              'The table shows API Key group usage, not executor instance usage. Each request needs both an instance slot and a group slot; even when the group has free capacity, a task may wait because instance concurrency is full.'
+            )}
+          </CardDescription>
         </CardHeader>
-        <CardContent className='space-y-3'>
-          {capacity.isPending ? <p>{t('Loading')}</p> : null}
-          {capacity.isError ? (
-            <div role='alert' className='space-y-2'>
-              <p>
-                {t(
-                  errorKey(capacity.error, 'Unable to load execution capacity')
-                )}
-              </p>
-              <Button variant='outline' onClick={() => void capacity.refetch()}>
-                {t('Retry')}
-              </Button>
-            </div>
-          ) : null}
-          {capacity.data ? (
-            <StaticDataTable
-              columns={capacityColumns}
-              data={capacity.data.items}
-              getRowKey={(item) => item.credentialGroupId}
-              emptyContent={t('No execution capacity records')}
-              tableClassName='min-w-[920px]'
-              containerProps={{
-                tabIndex: 0,
-                role: 'region',
-                'aria-label': t('Execution capacity'),
-              }}
-            />
-          ) : null}
+        <CardContent>
+          <CanvasServerTable
+            data={capacity.data?.items ?? []}
+            columns={capacityColumns}
+            total={capacity.data?.total ?? 0}
+            state={capacityTable}
+            loading={capacity.isPending && !capacity.data}
+            error={capacity.isError}
+            errorTitle={t(
+              errorKey(capacity.error, 'Unable to load execution capacity')
+            )}
+            onRetry={() => void capacity.refetch()}
+            emptyTitle={t('No execution capacity records')}
+            filteredEmptyTitle={t('No matching results')}
+            searchLabel={t('API Key group')}
+            hasActiveFilters={Boolean(providerId || statuses.length || waiting)}
+            activeFilterCount={
+              Number(Boolean(providerId)) +
+              Number(Boolean(statuses.length)) +
+              Number(Boolean(waiting))
+            }
+            onResetFilters={() => {
+              setProviderId('')
+              setStatuses([])
+              setWaiting('')
+              capacityTable.setPagination((value) => ({
+                ...value,
+                pageIndex: 0,
+              }))
+            }}
+            additionalFilters={
+              <>
+                <DataTableColumnFilterField label={t('Service provider')}>
+                  <NativeSelect
+                    aria-label={t('Service provider')}
+                    value={providerId}
+                    onChange={(event) => {
+                      setProviderId(event.target.value)
+                      capacityTable.setPagination((value) => ({
+                        ...value,
+                        pageIndex: 0,
+                      }))
+                    }}
+                  >
+                    <NativeSelectOption value=''>
+                      {t('All service providers')}
+                    </NativeSelectOption>
+                    {(capacity.data?.providers ?? []).map((provider) => (
+                      <NativeSelectOption key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Status')}>
+                  <MultiSelect
+                    options={filterStatuses.map((value) => ({
+                      value,
+                      label: statusLabel(value, t),
+                    }))}
+                    selected={statuses}
+                    onChange={(values) => {
+                      setStatuses(values as ExecutionCapacityFilterStatus[])
+                      capacityTable.setPagination((value) => ({
+                        ...value,
+                        pageIndex: 0,
+                      }))
+                    }}
+                    placeholder={t('All capacity statuses')}
+                    maxVisibleChips={2}
+                    renderSelectedSummary={(values) =>
+                      t('Selected statuses ({{count}})', {
+                        count: values.length,
+                      })
+                    }
+                  />
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Waiting tasks')}>
+                  <NativeSelect
+                    aria-label={t('Waiting tasks')}
+                    value={waiting}
+                    onChange={(event) => {
+                      setWaiting(event.target.value as typeof waiting)
+                      capacityTable.setPagination((value) => ({
+                        ...value,
+                        pageIndex: 0,
+                      }))
+                    }}
+                  >
+                    <NativeSelectOption value=''>
+                      {t('All waiting tasks')}
+                    </NativeSelectOption>
+                    <NativeSelectOption value='WITH_WAITING'>
+                      {t('With waiting tasks')}
+                    </NativeSelectOption>
+                    <NativeSelectOption value='WITHOUT_WAITING'>
+                      {t('Without waiting tasks')}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </DataTableColumnFilterField>
+              </>
+            }
+            getRowId={(item) => item.credentialGroupId}
+            hideMobile
+          />
         </CardContent>
       </Card>
       {groupId ? (

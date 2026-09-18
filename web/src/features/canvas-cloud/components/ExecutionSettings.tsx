@@ -53,6 +53,8 @@ import type {
 } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
 import { BusinessTerm } from './BusinessTerm'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
@@ -127,7 +129,10 @@ const errorRuleSchema = z.object({
   source: z.enum(['SYSTEM', 'OVERRIDE', 'CUSTOM']),
 })
 const errorSchema = z
-  .object({ rules: z.array(errorRuleSchema).max(500) })
+  .object({
+    rules: z.array(errorRuleSchema).max(500),
+    showSafeErrorDetailsToCustomer: z.boolean(),
+  })
   .superRefine(({ rules }, context) => {
     const statuses = new Map<number, number>()
     for (const [ruleIndex, rule] of rules.entries()) {
@@ -281,6 +286,7 @@ type Confirmation = {
   title: string
   description: string
   details: Array<{ label: string; value: string }>
+  cancelLabel?: string
   confirmLabel: string
   run: () => void
 }
@@ -314,10 +320,10 @@ const conditionValueTypes: ErrorConditionValueType[] = [
   'NULL',
 ]
 const limitMetricLabelKeys: Record<LimitRule['metric'], string> = {
-  CONCURRENCY: 'Concurrent requests',
-  RPM: 'Requests per minute',
-  TPM: 'Tokens per minute',
-  ASYNC_IN_FLIGHT: 'Asynchronous in-flight requests',
+  CONCURRENCY: 'Concurrency · Simultaneous requests',
+  RPM: 'RPM · Requests per minute',
+  TPM: 'TPM · Tokens per minute',
+  ASYNC_IN_FLIGHT: 'Unfinished asynchronous tasks',
 }
 const categoryDescriptionKeys: Record<ErrorCategory, string> = {
   INVALID_REQUEST: 'Invalid request',
@@ -350,7 +356,7 @@ const emptyLimitRule = (): LimitForm['rules'][number] => ({
   credentialGroupId: '',
   modelIds: [],
   sharedGroup: '',
-  metric: 'CONCURRENCY',
+  metric: 'RPM',
   limit: '1',
   tokenIncludes: {
     input: true,
@@ -450,7 +456,6 @@ export function ExecutionSettings(
       <>
         <FormNavigationGuard when={anyDirty} />
         <div className='space-y-6'>
-          <ExecutionCapacityOverview />
           {overview.isPending && (
             <Card size='sm'>
               <CardContent className='text-muted-foreground text-sm'>
@@ -474,8 +479,6 @@ export function ExecutionSettings(
             <GlobalSection
               data={overview.data.global.effective}
               version={overview.data.global.version}
-              recovery={overview.data.systemRecovery}
-              instances={overview.data.instances}
               onReview={setConfirmation}
               onPublish={(config) =>
                 publish.mutate({
@@ -488,6 +491,13 @@ export function ExecutionSettings(
               onDirtyChange={setGlobalDirty}
             />
           )}
+          <ExecutionCapacityOverview />
+          {overview.data && (
+            <ExecutionRuntimeFacts
+              recovery={overview.data.systemRecovery}
+              instances={overview.data.instances}
+            />
+          )}
         </div>
         <PricingActionConfirmation
           open={Boolean(confirmation)}
@@ -497,6 +507,7 @@ export function ExecutionSettings(
           title={confirmation?.title ?? ''}
           description={confirmation?.description ?? ''}
           details={confirmation?.details ?? []}
+          cancelLabel={confirmation?.cancelLabel}
           confirmLabel={confirmation?.confirmLabel ?? t('Publish')}
           pending={publish.isPending}
           onConfirm={() => confirmation?.run()}
@@ -527,17 +538,17 @@ export function ExecutionSettings(
       {group.data && (
         <Card>
           <CardHeader>
-            <CardTitle>{t('Credential group execution policy')}</CardTitle>
-            <CardDescription>
-              {t(
-                'Timeouts, concurrency, and shared limits apply to every bound model. Error mappings remain shared by the provider.'
-              )}
-            </CardDescription>
-            <CardAction>
+            <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+              <CardTitle>{t('Credential group execution policy')}</CardTitle>
               <Badge variant='secondary'>
                 {t('Version')} {group.data.group.version ?? t('Default')}
               </Badge>
-            </CardAction>
+            </div>
+            <CardDescription>
+              {t(
+                'Set timeouts and base capacity for this group. Additional limits below apply by target. Error mappings are shared by the provider.'
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent className='space-y-4'>
             <CredentialGroupSection
@@ -567,14 +578,6 @@ export function ExecutionSettings(
                     rule.scope === 'MODEL' ||
                     rule.scope === 'MODEL_GROUP'
                 )}
-                credentialGroups={[
-                  {
-                    credentialGroupId,
-                    name:
-                      props.credentialGroupName ??
-                      t('Selected credential group'),
-                  },
-                ]}
                 models={group.data.models}
                 providerName={props.providerName ?? group.data.providerId}
                 credentialGroupName={
@@ -598,12 +601,16 @@ export function ExecutionSettings(
                 providerId={group.data.providerId}
                 providerName={props.providerName ?? group.data.providerId}
                 rules={group.data.errors.effective.rules}
+                showSafeErrorDetailsToCustomer={
+                  group.data.errors.effective.showSafeErrorDetailsToCustomer ??
+                  true
+                }
                 onReview={setConfirmation}
-                onPublish={(rules) =>
+                onPublish={(config) =>
                   publish.mutate({
                     kind: 'ERROR_MAPPING',
                     scopeKey: group.data.providerId,
-                    config: { rules },
+                    config,
                   })
                 }
                 pending={publish.isPending}
@@ -621,6 +628,7 @@ export function ExecutionSettings(
         title={confirmation?.title ?? ''}
         description={confirmation?.description ?? ''}
         details={confirmation?.details ?? []}
+        cancelLabel={confirmation?.cancelLabel}
         confirmLabel={confirmation?.confirmLabel ?? t('Publish')}
         pending={publish.isPending}
         onConfirm={() => confirmation?.run()}
@@ -632,21 +640,6 @@ export function ExecutionSettings(
 function GlobalSection(props: {
   data: GlobalExecutionConfig
   version: number | null
-  recovery: {
-    heartbeatMs: number
-    leaseMs: number
-    scanMs: number
-    defaultInstances: number
-  }
-  instances: Array<{
-    queueName: string
-    mode: string
-    workerId: string
-    status: string
-    credentialsConfigured: boolean
-    heartbeatAt: string | null
-    leaseExpiresAt: string | null
-  }>
   pending: boolean
   onReview: (value: Confirmation) => void
   onPublish: (config: Record<string, unknown>) => void
@@ -654,12 +647,6 @@ function GlobalSection(props: {
 }) {
   const { t } = useTranslation()
   const onDirtyChange = props.onDirtyChange
-  const visibleInstances = props.instances.filter(
-    (instance) =>
-      instance.status !== 'STOPPED' &&
-      instance.leaseExpiresAt !== null &&
-      Date.parse(instance.leaseExpiresAt) > Date.now()
-  )
   const form = useForm<GlobalForm>({
     resolver: zodResolver(globalSchema),
     values: props.data,
@@ -680,6 +667,122 @@ function GlobalSection(props: {
       confirmLabel: t('Publish'),
       run: () => props.onPublish(values),
     })
+  )
+  return (
+    <div className='space-y-6'>
+      <Card>
+        <CardHeader>
+          <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+            <CardTitle>{t('Task submission and execution limits')}</CardTitle>
+            <Badge variant='secondary'>
+              {t('Version')} {props.version ?? t('Default')}
+            </Badge>
+          </div>
+          <CardDescription>
+            {t(
+              'Instance concurrency is per executor instance; result-query reservation uses slots within that limit. The unfinished-result limit applies per user at task admission.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            aria-label={t('Global execution limits')}
+            className='space-y-4'
+            onSubmit={review}
+          >
+            <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(10rem,14rem))]'>
+              <NumberField
+                id='instance-concurrency'
+                label={t('Instance concurrency')}
+                registration={form.register('instanceConcurrency', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.instanceConcurrency?.message}
+                help={t(
+                  'Concurrent upstream requests per executor instance; all API Key groups share these slots.'
+                )}
+              />
+              <NumberField
+                id='query-reserved-concurrency'
+                label={t('Query reserved concurrency')}
+                registration={form.register('queryReservedConcurrency', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.queryReservedConcurrency?.message}
+                help={t(
+                  'Slots reserved within instance concurrency for result queries; no extra slots are added.'
+                )}
+              />
+              <NumberField
+                id='user-output-limit'
+                label={t('User output limit')}
+                registration={form.register('userOutputLimit', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.userOutputLimit?.message}
+                help={t(
+                  'Maximum unfinished results per user; a task that would exceed it is not admitted.'
+                )}
+              />
+            </div>
+            <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={props.pending}
+                onClick={() =>
+                  props.onReview({
+                    title: t('Restore global defaults'),
+                    description: t(
+                      'The next version will inherit every global default.'
+                    ),
+                    details: [
+                      {
+                        label: t('Scope'),
+                        value: t('Task submission and execution limits'),
+                      },
+                    ],
+                    confirmLabel: t('Restore defaults'),
+                    run: () => props.onPublish({}),
+                  })
+                }
+              >
+                {t('Restore defaults')}
+              </Button>
+              <Button type='submit' disabled={props.pending}>
+                {t('Review publication')}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function ExecutionRuntimeFacts(props: {
+  recovery: {
+    heartbeatMs: number
+    leaseMs: number
+    scanMs: number
+    defaultInstances: number
+  }
+  instances: Array<{
+    queueName: string
+    mode: string
+    workerId: string
+    status: string
+    credentialsConfigured: boolean
+    heartbeatAt: string | null
+    leaseExpiresAt: string | null
+  }>
+}) {
+  const { t } = useTranslation()
+  const visibleInstances = props.instances.filter(
+    (instance) =>
+      instance.status !== 'STOPPED' &&
+      instance.leaseExpiresAt !== null &&
+      Date.parse(instance.leaseExpiresAt) > Date.now()
   )
   const workerColumns: StaticDataTableColumn<
     (typeof visibleInstances)[number]
@@ -792,81 +895,9 @@ function GlobalSection(props: {
           </CardContent>
         </Card>
       </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('Global execution limits')}</CardTitle>
-          <CardDescription>
-            {t('This creates a new version and changes executor capacity.')}
-          </CardDescription>
-          <CardAction>
-            <Badge variant='secondary'>
-              {t('Version')} {props.version ?? t('Default')}
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          <form
-            aria-label={t('Global execution limits')}
-            className='space-y-4'
-            onSubmit={review}
-          >
-            <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(10rem,14rem))]'>
-              <NumberField
-                id='instance-concurrency'
-                label={t('Instance concurrency')}
-                registration={form.register('instanceConcurrency', {
-                  valueAsNumber: true,
-                })}
-                error={form.formState.errors.instanceConcurrency?.message}
-              />
-              <NumberField
-                id='query-reserved-concurrency'
-                label={t('Query reserved concurrency')}
-                registration={form.register('queryReservedConcurrency', {
-                  valueAsNumber: true,
-                })}
-                error={form.formState.errors.queryReservedConcurrency?.message}
-              />
-              <NumberField
-                id='user-output-limit'
-                label={t('User output limit')}
-                registration={form.register('userOutputLimit', {
-                  valueAsNumber: true,
-                })}
-                error={form.formState.errors.userOutputLimit?.message}
-              />
-            </div>
-            <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
-              <Button
-                type='button'
-                variant='outline'
-                disabled={props.pending}
-                onClick={() =>
-                  props.onReview({
-                    title: t('Restore global defaults'),
-                    description: t(
-                      'The next version will inherit every global default.'
-                    ),
-                    details: [{ label: t('Scope'), value: 'GLOBAL' }],
-                    confirmLabel: t('Restore defaults'),
-                    run: () => props.onPublish({}),
-                  })
-                }
-              >
-                {t('Restore defaults')}
-              </Button>
-              <Button type='submit' disabled={props.pending}>
-                {t('Review publication')}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
     </div>
   )
 }
-
 function CredentialGroupSection(props: {
   data: ChannelExecutionConfig
   version: number | null
@@ -933,15 +964,48 @@ function CredentialGroupSection(props: {
             'requestConcurrency',
             'asyncInFlightLimit',
           ] as const
-        ).map((name) => (
-          <NumberField
-            key={name}
-            id={`credential-group-${name}`}
-            label={t(name)}
-            registration={form.register(name, { valueAsNumber: true })}
-            error={form.formState.errors[name]?.message}
-          />
-        ))}
+        ).map((name) => {
+          let help: string | undefined
+          if (name === 'requestTimeoutMs') {
+            help = t(
+              'The maximum wait for one non-streaming upstream request or result download.'
+            )
+          } else if (name === 'streamIdleTimeoutMs') {
+            help = t(
+              'The maximum time a streaming response may go without new data.'
+            )
+          } else if (name === 'pollIntervalMs') {
+            help = t(
+              'How often an asynchronous task checks the upstream result; this does not control client refresh.'
+            )
+          } else if (name === 'deadlineMs') {
+            help = t(
+              'The asynchronous result deadline measured from task acceptance, not a per-request timeout.'
+            )
+          } else if (name === 'requestConcurrency') {
+            help = t(
+              'Concurrent upstream requests across all instances for this API Key group; full capacity queues admitted tasks.'
+            )
+          } else if (name === 'asyncInFlightLimit') {
+            help = t(
+              'Unfinished upstream asynchronous tasks for this group; full capacity queues new asynchronous submissions. Result queries do not use this allowance.'
+            )
+          }
+          return (
+            <NumberField
+              key={name}
+              id={`credential-group-${name}`}
+              label={
+                name === 'asyncInFlightLimit'
+                  ? t('Upstream unfinished asynchronous task limit')
+                  : t(name)
+              }
+              registration={form.register(name, { valueAsNumber: true })}
+              error={form.formState.errors[name]?.message}
+              help={help}
+            />
+          )
+        })}
       </div>
       <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
         <Button
@@ -978,7 +1042,6 @@ type EditableLimitRule = Omit<LimitRule, 'scope'> & {
 
 function LimitSection(props: {
   rules: EditableLimitRule[]
-  credentialGroups: Array<{ credentialGroupId: string; name: string }>
   models: Array<{ id: string; publicName: string }>
   pending: boolean
   onReview: (value: Confirmation) => void
@@ -991,7 +1054,6 @@ function LimitSection(props: {
   const onDirtyChange = props.onDirtyChange
   const localizeError = (message?: string) =>
     message === undefined ? undefined : t(message)
-  const currentCredentialGroup = props.credentialGroups[0]
   const initialRules = useMemo(
     () =>
       props.rules.map((rule) => ({
@@ -1011,10 +1073,11 @@ function LimitSection(props: {
     reValidateMode: 'onBlur',
   })
   const fields = useFieldArray({ control: form.control, name: 'rules' })
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   useEffect(() => {
     onDirtyChange(form.formState.isDirty)
   }, [form.formState.isDirty, onDirtyChange])
-  const review = form.handleSubmit((values) => {
+  const showReview = (values: LimitForm, change: string) => {
     const rules: EditableLimitRule[] = values.rules.map((rule) => ({
       id: rule.id,
       enabled: rule.enabled,
@@ -1061,13 +1124,15 @@ function LimitSection(props: {
     const formatRule = (rule: EditableLimitRule) =>
       `${formatTarget(rule)} · ${t(rule.enabled ? 'Enabled' : 'Disabled')} · ${formatLimit(rule)}`
     props.onReview({
-      title: t('Publish limit rules'),
+      title: t('Review publication'),
+      cancelLabel: t('Return to editing'),
       description: t(
         'This replaces the configured limit-rule list for the selected credential group.'
       ),
       details: [
         { label: t('Provider'), value: props.providerName },
         { label: t('Credential group'), value: props.credentialGroupName },
+        { label: t('Change'), value: t(change) },
         { label: t('Rules'), value: String(rules.length) },
         ...rules.flatMap((rule, index) => {
           const previous = initialRules.find((item) => item.id === rule.id)
@@ -1096,58 +1161,219 @@ function LimitSection(props: {
       confirmLabel: t('Publish'),
       run: () => props.onPublish(rules),
     })
+  }
+  const review = form.handleSubmit((values) => {
+    if (editingIndex === null) return
+    const activeRule = values.rules[editingIndex]
+    if (!activeRule) return
+    if (
+      activeRule.scope === 'CREDENTIAL_GROUP' &&
+      activeRule.metric !== 'RPM' &&
+      activeRule.metric !== 'TPM'
+    ) {
+      form.setError(`rules.${editingIndex}.metric`, {
+        type: 'custom',
+        message: 'Select RPM or TPM for the entire API Key group',
+      })
+      return
+    }
+    showReview(
+      values,
+      initialRules.some((rule) => rule.id === activeRule.id)
+        ? 'Edit rule'
+        : 'Add rule'
+    )
   })
   return (
     <form aria-label={t('Limit rules')} className='space-y-4' onSubmit={review}>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <div>
-          <h3 className='font-semibold'>{t('Scoped limit rules')}</h3>
+          <h3 className='font-semibold'>{t('Additional limit rules')}</h3>
           <p className='text-muted-foreground text-sm'>
             {t(
-              'Configure credential-group, credential, model, shared-group, and token limits.'
+              'Additional rules apply only to this API Key group and its bound models. Group request concurrency and unfinished asynchronous task limits are set above.'
             )}
           </p>
         </div>
-        <Button type='button' onClick={() => fields.append(emptyLimitRule())}>
+        <Button
+          type='button'
+          disabled={editingIndex !== null}
+          aria-controls={
+            editingIndex !== null ? 'limit-rule-editor' : undefined
+          }
+          aria-expanded={editingIndex !== null}
+          onClick={() => {
+            fields.append(emptyLimitRule())
+            setEditingIndex(fields.fields.length)
+          }}
+        >
           {t('Add rule')}
         </Button>
       </div>
-      {fields.fields.length === 0 && (
-        <p className='text-muted-foreground rounded-lg border p-4 text-sm'>
-          {t('No configured limit rules')}
-        </p>
-      )}
+      <StaticDataTable
+        className='max-w-full overflow-x-auto'
+        tableClassName='min-w-max'
+        columns={
+          [
+            {
+              id: 'target',
+              className: canvasStaticColumnWidth.wide,
+              header: t('Limit target'),
+              cell: (rule: EditableLimitRule) => {
+                if (rule.scope === 'CREDENTIAL_GROUP') {
+                  return t('Entire API Key group')
+                }
+                const modelNames = (rule.modelIds ?? []).map(
+                  (id) =>
+                    props.models.find((model) => model.id === id)?.publicName ??
+                    id
+                )
+                const label =
+                  rule.scope === 'MODEL_GROUP'
+                    ? t('Multiple models share')
+                    : t('Single model')
+                return (
+                  <span className='block min-w-0'>
+                    <span className='block'>{label}</span>
+                    <span className='text-muted-foreground block text-xs break-words'>
+                      {modelNames.join(', ')}
+                    </span>
+                  </span>
+                )
+              },
+            },
+            {
+              id: 'metric',
+              className: canvasStaticColumnWidth.wide,
+              header: t('Metric'),
+              cell: (rule: EditableLimitRule) => (
+                <span className='break-words'>
+                  {t(limitMetricLabelKeys[rule.metric])}
+                </span>
+              ),
+            },
+            {
+              id: 'limit',
+              className: canvasStaticColumnWidth.compact,
+              header: t('Upper limit'),
+              cell: (rule: EditableLimitRule) => rule.limit,
+            },
+            {
+              id: 'status',
+              className: canvasStaticColumnWidth.compact,
+              header: t('Status'),
+              cell: (rule: EditableLimitRule) => (
+                <CanvasStatusBadge
+                  status={rule.enabled ? 'ACTIVE' : 'DISABLED'}
+                  label={t(rule.enabled ? 'Enabled' : 'Disabled')}
+                />
+              ),
+            },
+            {
+              id: 'actions',
+              className: canvasStaticColumnWidth.compact,
+              header: t('Actions'),
+              cell: (rule: EditableLimitRule) => {
+                const index = form
+                  .getValues('rules')
+                  .findIndex((item) => item.id === rule.id)
+                return (
+                  <div className='flex gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      disabled={editingIndex !== null}
+                      onClick={() => setEditingIndex(index)}
+                    >
+                      {t('Edit')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      className='text-destructive hover:text-destructive'
+                      disabled={editingIndex !== null}
+                      onClick={() =>
+                        showReview(
+                          {
+                            rules: form
+                              .getValues('rules')
+                              .filter((_, ruleIndex) => ruleIndex !== index),
+                          },
+                          'Delete rule'
+                        )
+                      }
+                    >
+                      {t('Delete')}
+                    </Button>
+                  </div>
+                )
+              },
+            },
+          ] as StaticDataTableColumn<EditableLimitRule>[]
+        }
+        data={initialRules}
+        getRowKey={(rule) => rule.id}
+        emptyContent={t(
+          'No additional rules are configured; the group capacity above and platform limits still apply.'
+        )}
+        containerProps={{
+          tabIndex: 0,
+          role: 'region',
+          'aria-label': t('Additional limit rules'),
+        }}
+      />
       {fields.fields.map((field, index) => {
+        if (editingIndex !== index) return null
         const scope = form.watch(`rules.${index}.scope`)
         const metric = form.watch(`rules.${index}.metric`)
         const ruleId = form.watch(`rules.${index}.id`)
+        const isEditingExisting = initialRules.some(
+          (rule) => rule.id === ruleId
+        )
+        const unsupportedGroupMetric =
+          scope === 'CREDENTIAL_GROUP' && metric !== 'RPM' && metric !== 'TPM'
         const ruleErrors = form.formState.errors.rules?.[index]
+        let editorHelpKey =
+          'Set group concurrency and unfinished asynchronous task limits above.'
+        if (unsupportedGroupMetric) {
+          editorHelpKey =
+            'This existing group rule uses a metric configured above. Choose RPM or TPM before publishing changes.'
+        } else if (scope === 'MODEL') {
+          editorHelpKey =
+            'Only models bound to this API Key group can be selected; this limit remains subject to group capacity.'
+        } else if (scope === 'MODEL_GROUP') {
+          editorHelpKey =
+            'Only models bound to this API Key group can be selected; selected models share the limit and remain subject to group capacity.'
+        }
         return (
-          <div key={field.id} className='space-y-4 rounded-xl border p-4'>
+          <div
+            key={field.id}
+            id='limit-rule-editor'
+            className='space-y-4 rounded-xl border p-4'
+          >
             <input type='hidden' {...form.register(`rules.${index}.id`)} />
-            <div className='flex justify-between gap-2'>
-              <Controller
-                control={form.control}
-                name={`rules.${index}.enabled`}
-                render={({ field: item }) => (
-                  <label className='flex items-center gap-2 text-sm font-medium'>
-                    <Checkbox
-                      checked={item.value}
-                      onCheckedChange={(checked) =>
-                        item.onChange(checked === true)
-                      }
-                    />
-                    {t('Enabled')}
-                  </label>
-                )}
-              />
+            <div className='flex items-center justify-between gap-2'>
+              <h4 className='font-semibold'>
+                {t(isEditingExisting ? 'Edit rule' : 'Add rule')}
+              </h4>
               <Button
                 type='button'
                 size='sm'
-                variant='destructive'
-                onClick={() => fields.remove(index)}
+                variant='outline'
+                onClick={() => {
+                  if (
+                    !initialRules.some(
+                      (rule) => rule.id === form.getValues(`rules.${index}.id`)
+                    )
+                  ) {
+                    fields.remove(index)
+                  } else {
+                    form.reset({ rules: initialRules })
+                  }
+                  setEditingIndex(null)
+                }}
               >
-                {t('Remove')}
+                {t('Cancel')}
               </Button>
             </div>
             <div className='grid gap-4 md:grid-cols-3'>
@@ -1164,6 +1390,15 @@ function LimitSection(props: {
                       const nextScope =
                         value as LimitForm['rules'][number]['scope']
                       item.onChange(nextScope)
+                      if (
+                        nextScope === 'CREDENTIAL_GROUP' &&
+                        metric !== 'RPM' &&
+                        metric !== 'TPM'
+                      ) {
+                        form.setValue(`rules.${index}.metric`, 'RPM', {
+                          shouldDirty: true,
+                        })
+                      }
                       form.setValue(`rules.${index}.credentialGroupId`, '', {
                         shouldDirty: true,
                       })
@@ -1178,6 +1413,7 @@ function LimitSection(props: {
                         `rules.${index}.credentialGroupId`,
                         `rules.${index}.modelIds`,
                         `rules.${index}.scope`,
+                        `rules.${index}.metric`,
                       ])
                     }}
                     options={[
@@ -1195,41 +1431,44 @@ function LimitSection(props: {
                   />
                 )}
               />
-              <SelectField
-                id={`limit-metric-${index}`}
-                label={t('Metric')}
-                registration={form.register(`rules.${index}.metric`)}
-                options={[
-                  { value: 'CONCURRENCY', label: t('Concurrent requests') },
-                  { value: 'RPM', label: t('Requests per minute') },
-                  { value: 'TPM', label: t('Tokens per minute') },
-                  {
-                    value: 'ASYNC_IN_FLIGHT',
-                    label: t('Asynchronous in-flight requests'),
-                  },
-                ]}
-                error={localizeError(ruleErrors?.metric?.message)}
+              <Controller
+                control={form.control}
+                name={`rules.${index}.metric`}
+                render={({ field: item }) => (
+                  <SelectField
+                    id={`limit-metric-${index}`}
+                    label={t('Metric')}
+                    value={unsupportedGroupMetric ? '' : item.value}
+                    onBlur={item.onBlur}
+                    onChange={(value) => {
+                      item.onChange(value)
+                      form.clearErrors(`rules.${index}.metric`)
+                    }}
+                    options={(scope === 'CREDENTIAL_GROUP'
+                      ? (['RPM', 'TPM'] as const)
+                      : ([
+                          'RPM',
+                          'TPM',
+                          'CONCURRENCY',
+                          'ASYNC_IN_FLIGHT',
+                        ] as const)
+                    ).map((value) => ({
+                      value,
+                      label: t(limitMetricLabelKeys[value]),
+                    }))}
+                    includeBlank={unsupportedGroupMetric}
+                    blankLabel={t('Choose RPM or TPM')}
+                    error={localizeError(ruleErrors?.metric?.message)}
+                  />
+                )}
               />
               <TextField
                 id={`limit-value-${index}`}
-                label={t('Limit')}
+                label={t('Upper limit')}
                 registration={form.register(`rules.${index}.limit`)}
                 error={localizeError(ruleErrors?.limit?.message)}
               />
             </div>
-            {scope === 'CREDENTIAL_GROUP' && currentCredentialGroup && (
-              <ReadOnlyFacts
-                facts={[
-                  [t('Limit target'), currentCredentialGroup.name],
-                  [
-                    t('Shared limit meaning'),
-                    t(
-                      'All bound models in this API Key group share this limit.'
-                    ),
-                  ],
-                ]}
-              />
-            )}
             {scope === 'MODEL_GROUP' &&
               (props.models.length === 0 ? (
                 <p className='text-muted-foreground text-sm' role='status'>
@@ -1305,17 +1544,6 @@ function LimitSection(props: {
                   )}
                 />
               ))}
-            <details className='border-t pt-4'>
-              <summary className='cursor-pointer text-sm font-semibold'>
-                {t('Rule details')}
-              </summary>
-              <div className='mt-3 space-y-1'>
-                <Label>{t('Rule ID')}</Label>
-                <code className='bg-muted block overflow-x-auto rounded-md px-3 py-2 text-xs'>
-                  {ruleId}
-                </code>
-              </div>
-            </details>
             {metric === 'TPM' && (
               <fieldset className='space-y-2'>
                 <legend className='text-sm font-medium'>
@@ -1345,16 +1573,34 @@ function LimitSection(props: {
                 </div>
               </fieldset>
             )}
+            <p className='text-muted-foreground text-xs'>{t(editorHelpKey)}</p>
+            {isEditingExisting && (
+              <Controller
+                control={form.control}
+                name={`rules.${index}.enabled`}
+                render={({ field: item }) => (
+                  <label className='flex items-center gap-2 text-sm font-medium'>
+                    <Checkbox
+                      checked={item.value}
+                      onCheckedChange={(checked) =>
+                        item.onChange(checked === true)
+                      }
+                    />
+                    {t('Enabled')}
+                  </label>
+                )}
+              />
+            )}
+            {Object.keys(form.formState.errors).length > 0 &&
+              fieldError(t('Fix the highlighted rule fields'))}
+            <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
+              <Button type='submit' disabled={props.pending}>
+                {t('Review publication')}
+              </Button>
+            </div>
           </div>
         )
       })}
-      {Object.keys(form.formState.errors).length > 0 &&
-        fieldError(t('Fix the highlighted rule fields'))}
-      <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
-        <Button type='submit' disabled={props.pending}>
-          {t('Review publication')}
-        </Button>
-      </div>
     </form>
   )
 }
@@ -1363,9 +1609,13 @@ function ErrorSection(props: {
   providerId: string
   providerName: string
   rules: ErrorRule[]
+  showSafeErrorDetailsToCustomer: boolean
   pending: boolean
   onReview: (value: Confirmation) => void
-  onPublish: (rules: ErrorRule[]) => void
+  onPublish: (config: {
+    rules: ErrorRule[]
+    showSafeErrorDetailsToCustomer: boolean
+  }) => void
   onDirtyChange: (dirty: boolean) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -1373,6 +1623,7 @@ function ErrorSection(props: {
   const form = useForm<ErrorForm>({
     resolver: zodResolver(errorSchema),
     defaultValues: {
+      showSafeErrorDetailsToCustomer: props.showSafeErrorDetailsToCustomer,
       rules: props.rules.map((rule) => ({
         ...rule,
         httpStatus: rule.httpStatus ?? '',
@@ -1449,6 +1700,14 @@ function ErrorSection(props: {
     const originalById = new Map(props.rules.map((rule) => [rule.id, rule]))
     const draftById = new Map(draft.map((rule) => [rule.id, rule]))
     const changes = [
+      ...(values.showSafeErrorDetailsToCustomer ===
+      props.showSafeErrorDetailsToCustomer
+        ? []
+        : [
+            `${t('Show safe error details to customers')}: ${t(
+              values.showSafeErrorDetailsToCustomer ? 'Enabled' : 'Disabled'
+            )}`,
+          ]),
       ...draft
         .filter((rule) => !originalById.has(rule.id))
         .map((rule) => `${t('Added')}: ${errorRuleReviewSummary(rule, t)}`),
@@ -1497,7 +1756,11 @@ function ErrorSection(props: {
         },
       ],
       confirmLabel: t('Publish'),
-      run: () => props.onPublish(rules),
+      run: () =>
+        props.onPublish({
+          rules,
+          showSafeErrorDetailsToCustomer: values.showSafeErrorDetailsToCustomer,
+        }),
     })
   })
   const watchedRules = form.watch('rules')
@@ -1589,6 +1852,19 @@ function ErrorSection(props: {
           </Button>
         </div>
       </div>
+      <Controller
+        control={form.control}
+        name='showSafeErrorDetailsToCustomer'
+        render={({ field }) => (
+          <label className='flex items-center gap-2 text-sm font-medium'>
+            <Checkbox
+              checked={field.value}
+              onCheckedChange={(checked) => field.onChange(checked === true)}
+            />
+            {t('Show safe error details to customers')}
+          </label>
+        )}
+      />
       {previewOpen && (
         <Card size='sm'>
           <CardHeader>
@@ -2286,11 +2562,22 @@ function NumberField(props: {
   label: string
   registration: Record<string, unknown>
   error?: string
+  help?: string
 }) {
   return (
     <div className='space-y-1'>
       <Label htmlFor={props.id}>{props.label}</Label>
-      <Input id={props.id} type='number' {...props.registration} />
+      <Input
+        id={props.id}
+        type='number'
+        aria-describedby={props.help ? `${props.id}-help` : undefined}
+        {...props.registration}
+      />
+      {props.help && (
+        <p id={`${props.id}-help`} className='text-muted-foreground text-xs'>
+          {props.help}
+        </p>
+      )}
       {props.error && fieldError(props.error)}
     </div>
   )

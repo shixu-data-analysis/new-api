@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,6 +23,10 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminCustomerPointLedger: vi.fn(),
   getCanvasAdminCustomerTasks: vi.fn(),
   getCanvasAdminCustomers: vi.fn(),
+  getCanvasAdminAgentStatistics: vi.fn(),
+  getCanvasAdminAgentCustomers: vi.fn(),
+  getCanvasAdminInviteCodes: vi.fn(),
+  revealCanvasCode: vi.fn(),
   getCanvasAdminRechargeOrders: vi.fn(),
   getCanvasCustomerPriceAssignments: vi.fn(),
   getCanvasOrderPointReturns: vi.fn(),
@@ -49,6 +54,8 @@ const customer = {
   username: 'uatcustomer',
   emailMasked: null,
   status: 'ACTIVE' as const,
+  isAgent: false,
+  agentStatus: null,
   availablePoints: '900',
   paidAvailablePoints: '500',
   bonusAvailablePoints: '400',
@@ -218,6 +225,115 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(
       screen.queryByRole('tab', { name: 'Business facts' })
     ).not.toBeInTheDocument()
+  })
+
+  it('filters agent identity while retaining disabled agents as agents', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [{ ...customer, isAgent: true, agentStatus: 'DISABLED' }],
+    })
+    renderWithQuery(<AdminPointAdjustments />)
+    expect(await screen.findByText('Agent')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    await user.click(screen.getByRole('combobox', { name: 'Agent identity' }))
+    await user.click(await screen.findByRole('option', { name: 'Agent' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenCalledWith(
+        expect.objectContaining({ agentIdentity: 'AGENT' }),
+        expect.anything()
+      )
+    )
+  })
+
+  it('opens agent statistics only for an agent identity', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomer.mockResolvedValue({
+      ...customer,
+      isAgent: true,
+      agentStatus: 'DISABLED',
+    })
+    apiMocks.getCanvasAdminAgentStatistics.mockResolvedValue({
+      profile: {
+        principalId: 'agent-v1',
+        username: 'uatcustomer',
+        status: 'DISABLED',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+      summary: {
+        activatedCustomers: 0,
+        customersWithSuccessfulTasks: 0,
+        successfulTasks: 0,
+        settledPoints: '0',
+        modelUsageAmount: null,
+        amountIncomplete: true,
+        customerPriceAmount: null,
+        customerAmountIncomplete: true,
+      },
+      priceGroups: [],
+    })
+    apiMocks.getCanvasAdminAgentCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'invite-v1',
+          maskedCode: 'CANVAS-••••',
+          status: 'ACTIVE',
+          priceGroupName: 'Standard',
+          consumedCount: '1',
+          maxRegistrations: '10',
+          activatedCustomers: '1',
+          expiresAt: '2027-01-01T00:00:00Z',
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      exactFilter: null,
+    })
+    apiMocks.revealCanvasCode.mockResolvedValue({ code: 'CANVAS-SECRET' })
+    renderWithQuery(<AdminPointAdjustments customerId={customer.customerId} />)
+    expect(await screen.findByText('Agent: Disabled')).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: 'Agent statistics' }))
+    expect(await screen.findByText('Cumulative overview')).toBeVisible()
+    expect(apiMocks.getCanvasAdminInviteCodes).toHaveBeenCalledWith(
+      expect.objectContaining({ inviterPrincipalId: 'agent-v1' }),
+      expect.anything()
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show invite code' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.revealCanvasCode).toHaveBeenCalledWith(
+        'admin-invite',
+        'invite-v1',
+        'DISPLAY'
+      )
+    )
+    const customersSection = screen
+      .getByText('Agent customers')
+      .closest('section')
+    if (!customersSection) throw new Error('Agent customers section missing')
+    await user.click(
+      within(customersSection).getByRole('button', { name: 'Column filters' })
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.click(await screen.findByRole('option', { name: 'Valid' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminAgentCustomers).toHaveBeenCalledWith(
+        customer.customerId,
+        expect.objectContaining({ status: 'ACTIVE', page: 1 }),
+        expect.anything()
+      )
+    )
   })
 
   it('restores the customer-list search and scroll position after returning from details', async () => {

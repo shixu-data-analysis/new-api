@@ -18,13 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type PaginationState,
+} from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { CheckCircle2, FileJson2, FolderUp, ShieldAlert } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { StaticDataTable } from '@/components/data-table'
+import { DataTablePagination, StaticDataTable } from '@/components/data-table'
 import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
@@ -239,7 +245,10 @@ export function AdminModelCatalog(
     'resourceType' | 'key' | 'action' | 'currentVersion' | 'proposedVersion'
   >('resourceType')
   const [descending, setDescending] = useState(false)
-  const [page, setPage] = useState(1)
+  const [changePagination, setChangePagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  })
   const planner = useMutation({
     mutationFn: planCanvasModelCatalogBundle,
     onSuccess: setPlan,
@@ -320,11 +329,42 @@ export function AdminModelCatalog(
         return descending ? -compared : compared
       })
   }, [action, descending, plan?.changes, resourceType, search, sort])
-  const pageCount = Math.max(1, Math.ceil(filteredChanges.length / 20))
-  const visibleChanges = filteredChanges.slice(
-    (Math.min(page, pageCount) - 1) * 20,
-    Math.min(page, pageCount) * 20
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredChanges.length / changePagination.pageSize)
   )
+  useEffect(() => {
+    setChangePagination((value) =>
+      value.pageIndex >= pageCount
+        ? { ...value, pageIndex: pageCount - 1 }
+        : value
+    )
+  }, [pageCount])
+  const effectiveChangePagination = {
+    ...changePagination,
+    pageIndex: Math.min(changePagination.pageIndex, pageCount - 1),
+  }
+  const changeTable = useReactTable({
+    data: filteredChanges,
+    columns: [{ id: 'change', accessorFn: (change) => change.key }],
+    state: { pagination: effectiveChangePagination },
+    onPaginationChange: (updater) => {
+      const next =
+        typeof updater === 'function'
+          ? updater(effectiveChangePagination)
+          : updater
+      setChangePagination(
+        next.pageSize === effectiveChangePagination.pageSize
+          ? next
+          : { ...next, pageIndex: 0 }
+      )
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+  const visibleChanges = changeTable
+    .getRowModel()
+    .rows.map((row) => row.original)
   const publishableChanges = (plan?.changes ?? []).filter(
     (change) => change.action === 'CREATE' || change.action === 'CREATE_VERSION'
   )
@@ -332,8 +372,7 @@ export function AdminModelCatalog(
     (model) => model.action !== 'NO_OP'
   )
   const recoveringExisting =
-    plan?.action === 'RECOVER_PRICING' ||
-    plan?.action === 'RECOVER_CONTINUITY'
+    plan?.action === 'RECOVER_PRICING' || plan?.action === 'RECOVER_CONTINUITY'
   const canPublish =
     (plan?.action === 'PUBLISH' || recoveringExisting) &&
     !plan.blocking &&
@@ -405,7 +444,7 @@ export function AdminModelCatalog(
       setSort(next)
       setDescending(false)
     }
-    setPage(1)
+    setChangePagination((value) => ({ ...value, pageIndex: 0 }))
   }
   return (
     <>
@@ -585,14 +624,18 @@ export function AdminModelCatalog(
                         {t('Database plan')} ({plan.changes.length})
                       </CanvasManagementTabsTrigger>
                     </CanvasManagementTabsList>
-                    <TabsContent value='models' className='mt-4'>
+                    <TabsContent value='models' className='mt-4' keepMounted>
                       <CatalogModelPreview
                         models={plan.models}
                         recoverPricing={plan.action === 'RECOVER_PRICING'}
                         recoverContinuity={plan.action === 'RECOVER_CONTINUITY'}
                       />
                     </TabsContent>
-                    <TabsContent value='changes' className='mt-4 space-y-4'>
+                    <TabsContent
+                      value='changes'
+                      className='mt-4 space-y-4'
+                      keepMounted
+                    >
                       <DataTableColumnFilterPanel
                         activeCount={
                           [
@@ -605,7 +648,10 @@ export function AdminModelCatalog(
                           setResourceType('')
                           setSearch('')
                           setAction('ALL')
-                          setPage(1)
+                          setChangePagination((value) => ({
+                            ...value,
+                            pageIndex: 0,
+                          }))
                         }}
                       >
                         <DataTableColumnFilterField label={t('Resource type')}>
@@ -614,7 +660,10 @@ export function AdminModelCatalog(
                             placeholder={t('Resource type')}
                             onChange={(event) => {
                               setResourceType(event.target.value)
-                              setPage(1)
+                              setChangePagination((value) => ({
+                                ...value,
+                                pageIndex: 0,
+                              }))
                             }}
                           />
                         </DataTableColumnFilterField>
@@ -624,7 +673,10 @@ export function AdminModelCatalog(
                             placeholder={t('Key')}
                             onChange={(event) => {
                               setSearch(event.target.value)
-                              setPage(1)
+                              setChangePagination((value) => ({
+                                ...value,
+                                pageIndex: 0,
+                              }))
                             }}
                           />
                         </DataTableColumnFilterField>
@@ -633,7 +685,10 @@ export function AdminModelCatalog(
                             value={action}
                             onValueChange={(value) => {
                               setAction(value ?? 'ALL')
-                              setPage(1)
+                              setChangePagination((value) => ({
+                                ...value,
+                                pageIndex: 0,
+                              }))
                             }}
                           >
                             <SelectTrigger
@@ -664,7 +719,14 @@ export function AdminModelCatalog(
                           </Select>
                         </DataTableColumnFilterField>
                       </DataTableColumnFilterPanel>
-                      <StaticDataTable tableClassName='min-w-[880px] table-fixed'>
+                      <StaticDataTable
+                        className='max-w-full overflow-x-auto'
+                        containerProps={{
+                          'aria-label': t('Database plan'),
+                          tabIndex: 0,
+                        }}
+                        tableClassName='min-w-[880px] table-fixed'
+                      >
                         <TableHeader>
                           <TableRow>
                             <TableHead
@@ -741,28 +803,7 @@ export function AdminModelCatalog(
                           ))}
                         </TableBody>
                       </StaticDataTable>
-                      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                        <span className='text-muted-foreground text-sm'>
-                          {filteredChanges.length} {t('records')} ·{' '}
-                          {Math.min(page, pageCount)} / {pageCount}
-                        </span>
-                        <div className='flex gap-2'>
-                          <Button
-                            variant='outline'
-                            disabled={page <= 1}
-                            onClick={() => setPage((value) => value - 1)}
-                          >
-                            {t('Previous')}
-                          </Button>
-                          <Button
-                            variant='outline'
-                            disabled={page >= pageCount}
-                            onClick={() => setPage((value) => value + 1)}
-                          >
-                            {t('Next')}
-                          </Button>
-                        </div>
-                      </div>
+                      <DataTablePagination table={changeTable} />
                     </TabsContent>
                   </Tabs>
                   <div className='bg-muted/30 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>

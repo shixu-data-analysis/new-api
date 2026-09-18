@@ -394,7 +394,11 @@ const runtimeConfigurationKeys = [
   'Version change',
   'Select a credential group to edit its execution policy.',
   'Credential group execution policy',
-  'Timeouts, concurrency, and shared limits apply to every bound model. Error mappings remain shared by the provider.',
+  'Set timeouts and base capacity for this group. Additional limits below apply by target. Error mappings are shared by the provider.',
+  'The maximum wait for one non-streaming upstream request or result download.',
+  'The maximum time a streaming response may go without new data.',
+  'How often an asynchronous task checks the upstream result; this does not control client refresh.',
+  'The asynchronous result deadline measured from task acceptance, not a per-request timeout.',
   'Selected credential group',
   'Publish credential group execution policy',
   'This creates a new policy version for the selected credential group.',
@@ -428,6 +432,19 @@ const runtimeConfigurationKeys = [
 ] as const
 const limitEditorKeys = [
   'Limit target',
+  'Upper limit',
+  'Additional rules apply only to this API Key group and its bound models. Group request concurrency and unfinished asynchronous task limits are set above.',
+  'No additional rules are configured; the group capacity above and platform limits still apply.',
+  'Set group concurrency and unfinished asynchronous task limits above.',
+  'Only models bound to this API Key group can be selected; this limit remains subject to group capacity.',
+  'Only models bound to this API Key group can be selected; selected models share the limit and remain subject to group capacity.',
+  'RPM · Requests per minute',
+  'TPM · Tokens per minute',
+  'Concurrency · Simultaneous requests',
+  'Unfinished asynchronous tasks',
+  'Choose RPM or TPM',
+  'Select RPM or TPM for the entire API Key group',
+  'This existing group rule uses a metric configured above. Choose RPM or TPM before publishing changes.',
   'Entire API Key group',
   'Single model',
   'Multiple models share',
@@ -756,8 +773,16 @@ describe('Canvas interface localization', () => {
   it('localizes the recharge-code creation-time filter in every supported locale', () => {
     expect(en.translation['Creation time']).toBe('Creation time')
     expect(zh.translation['Creation time']).toBe('创建时间')
+    expect(zh.translation['Created time / Note']).toBe('创建时间 / 备注')
+    expect(
+      zh.translation['Recharge codes in this batch (total {{total}})']
+    ).toBe('本批充值码（共 {{total}} 张）')
     for (const resource of Object.values(localizedResources)) {
       expect(resource.translation['Creation time']).not.toBe('Creation time')
+      expect(resource.translation['Created time / Note']).toBeTruthy()
+      expect(
+        resource.translation['Recharge codes in this batch (total {{total}})']
+      ).toBeTruthy()
     }
   })
 

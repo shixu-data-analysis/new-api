@@ -168,7 +168,7 @@ export function useSidebarData(): SidebarData {
             ...(canvasSession.data.inviterEnabled
               ? [
                   {
-                    title: t('Inviter center'),
+                    title: t('My customers'),
                     url: '/canvas-cloud/agent-center',
                     icon: Users,
                   },

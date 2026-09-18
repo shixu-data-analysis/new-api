@@ -14,6 +14,7 @@ import type {
   ErrorPreviewResult,
   ExecutionLocale,
   ExecutionCapacityOverview,
+  ExecutionCapacityFilterStatus,
   ExecutionOverview,
   ExecutionWaitItem,
   ExecutionWaitPage,
@@ -36,12 +37,22 @@ export async function getCanvasExecutionOverview(
 }
 
 export async function getCanvasExecutionCapacity(
+  query: {
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+    sortBy: 'provider' | 'credentialGroup'
+    sortOrder: 'asc' | 'desc'
+    providerId?: string
+    credentialGroup?: string
+    status?: ExecutionCapacityFilterStatus[]
+    waiting?: 'WITH_WAITING' | 'WITHOUT_WAITING'
+  },
   signal?: AbortSignal
 ): Promise<ExecutionCapacityOverview> {
   return (
     await api.get<ExecutionCapacityOverview>(
       `${webBase}/admin/execution/capacity`,
-      { signal }
+      { params: { ...query, status: query.status?.join(',') }, signal }
     )
   ).data
 }

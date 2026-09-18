@@ -64,14 +64,17 @@ import {
   createCanvasAdminInviteCode,
   exportCanvasAdminInviteCodes,
   getCanvasAdminInviteCodes,
+  searchCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
   revealCanvasCode,
 } from '../api'
 import type {
   CanvasAdminInviteCode,
+  CanvasAdminInviteCodePage,
   CanvasInvitationExactFilter,
   CanvasInviteCodeStatus,
 } from '../types'
+import { useDirectAsync } from '../use-direct-async'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -295,8 +298,28 @@ export function InviteCodeManagement(props: {
   const [status, setStatus] = useState('')
   const [priceGroup, setPriceGroup] = useState('')
   const [inviter, setInviter] = useState('')
+  const [exactCode, setExactCode] = useState('')
+  const debouncedExactCode = useDebounce(exactCode, 300)
   const debouncedPriceGroup = useDebounce(priceGroup.trim(), 300)
   const debouncedInviter = useDebounce(inviter.trim(), 300)
+  const [exactSearchResult, setExactSearchResult] =
+    useState<CanvasAdminInviteCodePage | null>(null)
+  const [exactSearchError, setExactSearchError] = useState(false)
+  const {
+    mutate: runExactSearch,
+    reset: resetExactSearch,
+    isPending: exactSearchPending,
+  } = useDirectAsync({
+    execute: searchCanvasAdminInviteCodes,
+    onSuccess: (result) => {
+      setExactSearchError(false)
+      setExactSearchResult(result)
+    },
+    onError: () => {
+      setExactSearchResult(null)
+      setExactSearchError(true)
+    },
+  })
   useEffect(() => {
     if (pendingAction !== null || !createErrorFocusTarget) return
     inviteForm.setFocus(createErrorFocusTarget)
@@ -308,6 +331,7 @@ export function InviteCodeManagement(props: {
     )
   }, [
     debouncedInviter,
+    debouncedExactCode,
     debouncedPriceGroup,
     props.inviterPrincipalId,
     setPagination,
@@ -330,7 +354,6 @@ export function InviteCodeManagement(props: {
           pageSize: tableState.query.pageSize,
           sortBy: tableState.query.sortBy,
           sortOrder: tableState.query.sortOrder,
-          ...(tableState.query.search ? { code: tableState.query.search } : {}),
           ...(debouncedPriceGroup ? { priceGroup: debouncedPriceGroup } : {}),
           ...(debouncedInviter ? { inviter: debouncedInviter } : {}),
           ...(props.inviterPrincipalId
@@ -342,6 +365,47 @@ export function InviteCodeManagement(props: {
       ),
     placeholderData: (previous) => previous,
   })
+  useEffect(() => {
+    resetExactSearch()
+    setExactSearchResult(null)
+    setExactSearchError(false)
+    if (!debouncedExactCode) return
+    if (normalizeInviteCode(debouncedExactCode).length < 4) {
+      setExactSearchResult({
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        items: [],
+        exactFilter: null,
+      })
+      return
+    }
+    runExactSearch({
+      code: normalizeInviteCode(debouncedExactCode),
+      ...(debouncedPriceGroup ? { priceGroup: debouncedPriceGroup } : {}),
+      ...(debouncedInviter ? { inviter: debouncedInviter } : {}),
+      ...(props.inviterPrincipalId
+        ? { inviterPrincipalId: props.inviterPrincipalId }
+        : {}),
+      ...(status ? { status: status as CanvasInviteCodeStatus } : {}),
+      page: tableState.query.page,
+      pageSize: tableState.query.pageSize,
+      sortBy: tableState.query.sortBy,
+      sortOrder: tableState.query.sortOrder,
+    })
+  }, [
+    debouncedExactCode,
+    debouncedPriceGroup,
+    debouncedInviter,
+    props.inviterPrincipalId,
+    status,
+    tableState.query.page,
+    tableState.query.pageSize,
+    tableState.query.sortBy,
+    tableState.query.sortOrder,
+    resetExactSearch,
+    runExactSearch,
+  ])
   useEffect(() => {
     onExactFilterChange?.(codes.data?.exactFilter ?? null)
   }, [codes.data?.exactFilter, onExactFilterChange])
@@ -607,7 +671,6 @@ export function InviteCodeManagement(props: {
       exportCanvasAdminInviteCodes({
         sortBy: tableState.query.sortBy,
         sortOrder: tableState.query.sortOrder,
-        ...(tableState.query.search ? { code: tableState.query.search } : {}),
         ...(debouncedPriceGroup ? { priceGroup: debouncedPriceGroup } : {}),
         ...(debouncedInviter ? { inviter: debouncedInviter } : {}),
         ...(props.inviterPrincipalId
@@ -1108,7 +1171,7 @@ export function InviteCodeManagement(props: {
         <Button
           type='button'
           variant='outline'
-          disabled={exportCodes.isPending}
+          disabled={exportCodes.isPending || Boolean(exactCode)}
           onClick={() => exportCodes.mutate()}
         >
           <Download />
@@ -1814,14 +1877,20 @@ export function InviteCodeManagement(props: {
       <Card>
         <CardContent>
           <CanvasServerTable
-            data={codes.data?.items ?? []}
+            data={
+              debouncedExactCode
+                ? (exactSearchResult?.items ?? [])
+                : (codes.data?.items ?? [])
+            }
             columns={columns}
-            total={codes.data?.total ?? 0}
+            total={
+              debouncedExactCode
+                ? (exactSearchResult?.total ?? 0)
+                : (codes.data?.total ?? 0)
+            }
             state={tableState}
-            searchLabel={t('Invite code')}
-            searchPlaceholder={t('Visible invite code prefix')}
-            loading={codes.isFetching}
-            error={codes.isError}
+            loading={debouncedExactCode ? exactSearchPending : codes.isFetching}
+            error={debouncedExactCode ? exactSearchError : codes.isError}
             errorTitle={(() => {
               const code = inviteCodeFailureCode(codes.error)
               if (props.inviterPrincipalId && code === 'NOT_FOUND') {
@@ -1832,7 +1901,29 @@ export function InviteCodeManagement(props: {
               }
               return undefined
             })()}
-            onRetry={() => void codes.refetch()}
+            onRetry={() => {
+              if (debouncedExactCode) {
+                runExactSearch({
+                  code: normalizeInviteCode(debouncedExactCode),
+                  ...(debouncedPriceGroup
+                    ? { priceGroup: debouncedPriceGroup }
+                    : {}),
+                  ...(debouncedInviter ? { inviter: debouncedInviter } : {}),
+                  ...(props.inviterPrincipalId
+                    ? { inviterPrincipalId: props.inviterPrincipalId }
+                    : {}),
+                  ...(status
+                    ? { status: status as CanvasInviteCodeStatus }
+                    : {}),
+                  page: tableState.query.page,
+                  pageSize: tableState.query.pageSize,
+                  sortBy: tableState.query.sortBy,
+                  sortOrder: tableState.query.sortOrder,
+                })
+                return
+              }
+              void codes.refetch()
+            }}
             emptyTitle={
               props.inviterPrincipalId
                 ? t('No invite codes match this precise inviter')
@@ -1841,6 +1932,21 @@ export function InviteCodeManagement(props: {
             filteredEmptyTitle={t('No invite codes match current filters')}
             additionalFilters={
               <>
+                <DataTableColumnFilterField label={t('Invite code')}>
+                  <Input
+                    value={exactCode}
+                    aria-label={t('Invite code')}
+                    placeholder={t('Enter complete invite code')}
+                    onChange={(event) => {
+                      setExactCode(event.target.value)
+                      setPagination((value) =>
+                        value.pageIndex === 0
+                          ? value
+                          : { ...value, pageIndex: 0 }
+                      )
+                    }}
+                  />
+                </DataTableColumnFilterField>
                 <DataTableColumnFilterField label={t('Price plan')}>
                   <Input
                     value={priceGroup}
@@ -1891,13 +1997,19 @@ export function InviteCodeManagement(props: {
                 </DataTableColumnFilterField>
               </>
             }
-            hasActiveFilters={Boolean(priceGroup || inviter || status)}
+            hasActiveFilters={Boolean(
+              exactCode || priceGroup || inviter || status
+            )}
             activeFilterCount={
-              (priceGroup ? 1 : 0) + (inviter ? 1 : 0) + (status ? 1 : 0)
+              (exactCode ? 1 : 0) +
+              (priceGroup ? 1 : 0) +
+              (inviter ? 1 : 0) +
+              (status ? 1 : 0)
             }
             onResetFilters={() => {
               setPriceGroup('')
               setInviter('')
+              setExactCode('')
               setStatus('')
             }}
             getRowId={(row) => row.id}

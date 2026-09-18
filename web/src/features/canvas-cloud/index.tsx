@@ -99,7 +99,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   execution: 'Runtime management',
   'provider-configuration': 'Provider configuration',
   audit: 'Canvas Audit Log',
-  'agent-center': 'Inviter center',
+  'agent-center': 'My customers',
 }
 
 const invalidCanvasCloudRuntimeView = '__invalid_canvas_cloud_runtime_view__'

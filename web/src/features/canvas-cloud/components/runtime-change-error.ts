@@ -6,25 +6,79 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+function runtimeErrorData(error: unknown): Record<string, unknown> | null {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return null
+  }
+  const response = error.response
+  if (
+    typeof response !== 'object' ||
+    response === null ||
+    !('data' in response)
+  ) {
+    return null
+  }
+  const data = response.data
+  return typeof data === 'object' && data !== null
+    ? (data as Record<string, unknown>)
+    : null
+}
+
+export function isHistoricalBindingConflict(error: unknown): boolean {
+  const data = runtimeErrorData(error)
+  if (data?.code !== 'PREVIEW_STALE') return false
+  const details = data.details
+  return (
+    typeof details === 'object' &&
+    details !== null &&
+    'reason' in details &&
+    details.reason === 'historicalBinding'
+  )
+}
+
+export interface HistoricalBindingGroup {
+  id: string
+  name: string
+}
+
+export function historicalBindingGroups(
+  error: unknown
+): HistoricalBindingGroup[] {
+  if (!isHistoricalBindingConflict(error)) return []
+  const details = runtimeErrorData(error)?.details
+  if (
+    typeof details !== 'object' ||
+    details === null ||
+    !('historicalGroups' in details)
+  ) {
+    return []
+  }
+  const groups = details.historicalGroups
+  if (!Array.isArray(groups)) return []
+  return groups.filter(
+    (group): group is HistoricalBindingGroup =>
+      typeof group === 'object' &&
+      group !== null &&
+      typeof group.id === 'string' &&
+      group.id.length > 0 &&
+      typeof group.name === 'string' &&
+      group.name.length > 0
+  )
+}
+
 export function runtimeChangeError(
   error: unknown,
   translate: (key: string) => string,
   operation: 'credential' | 'management' | 'binding' | 'preview'
 ) {
-  const code =
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof error.response === 'object' &&
-    error.response !== null &&
-    'data' in error.response &&
-    typeof error.response.data === 'object' &&
-    error.response.data !== null &&
-    'code' in error.response.data &&
-    typeof error.response.data.code === 'string'
-      ? error.response.data.code
-      : null
+  const data = runtimeErrorData(error)
+  const code = typeof data?.code === 'string' ? data.code : null
   if (code === 'PREVIEW_STALE') {
+    if (isHistoricalBindingConflict(error)) {
+      return translate(
+        'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
+      )
+    }
     return translate('Configuration changed. Preview again before confirming.')
   }
   if (code === 'CREDENTIAL_GROUP_VERSION_STALE') {
@@ -48,7 +102,9 @@ export function runtimeChangeError(
     )
   }
   if (code === 'CREDENTIAL_GROUP_HAS_BINDINGS') {
-    return translate('Remove all model bindings before archiving this API Key group.')
+    return translate(
+      'Remove all model bindings before archiving this API Key group.'
+    )
   }
   if (code === 'CREDENTIAL_GROUP_ACTIVE') {
     return translate('This API Key group is already active.')

@@ -159,6 +159,9 @@ export function AdminPointAdjustments({
     useState<CanvasOrderPointReturnPreview | null>(null)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [customerStatus, setCustomerStatus] = useState('')
+  const [agentIdentity, setAgentIdentity] = useState<
+    'ALL' | 'AGENT' | 'CUSTOMER'
+  >('ALL')
   const [refreshingCustomer, setRefreshingCustomer] = useState(false)
   const submittingAction = useRef(false)
   const customersState = useServerTableState('createdAt')
@@ -169,7 +172,7 @@ export function AdminPointAdjustments({
     setCustomersPagination((value) =>
       value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
     )
-  }, [customerStatus, setCustomersPagination])
+  }, [agentIdentity, customerStatus, setCustomersPagination])
 
   const customersQueryKey = [
     'canvas-cloud',
@@ -177,6 +180,7 @@ export function AdminPointAdjustments({
     'customers',
     customersState.query,
     customerStatus,
+    agentIdentity,
   ] as const
   const customers = useQuery({
     queryKey: customersQueryKey,
@@ -187,6 +191,7 @@ export function AdminPointAdjustments({
           ...(customerStatus
             ? { status: customerStatus as 'ACTIVE' | 'SUSPENDED' | 'CLOSED' }
             : {}),
+          agentIdentity,
         },
         signal
       ),
@@ -566,6 +571,15 @@ export function AdminPointAdjustments({
         ),
       },
       {
+        id: 'agentIdentity',
+        accessorFn: (customer) => customer.isAgent,
+        header: t('Agent identity'),
+        meta: { label: t('Agent identity') },
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.isAgent ? t('Agent') : t('Regular customer'),
+      },
+      {
         id: 'availablePoints',
         accessorKey: 'availablePoints',
         header: ({ column }) => (
@@ -617,33 +631,70 @@ export function AdminPointAdjustments({
             emptyTitle={t('No customers')}
             filteredEmptyTitle={t('No matching results')}
             additionalFilters={
-              <DataTableColumnFilterField label={t('Status')}>
-                <Select
-                  value={customerStatus || 'ALL'}
-                  onValueChange={(value) =>
-                    setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger className='w-full'>
-                    <CanvasLocalizedSelectValue
-                      value={customerStatus}
-                      emptyLabelKey='All statuses'
-                      termKind='customerStatus'
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                    {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        <BusinessTerm kind='customerStatus' value={value} />
+              <>
+                <DataTableColumnFilterField label={t('Status')}>
+                  <Select
+                    value={customerStatus || 'ALL'}
+                    onValueChange={(value) =>
+                      setCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <CanvasLocalizedSelectValue
+                        value={customerStatus}
+                        emptyLabelKey='All statuses'
+                        termKind='customerStatus'
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                      {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          <BusinessTerm kind='customerStatus' value={value} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Agent identity')}>
+                  <Select
+                    value={agentIdentity}
+                    onValueChange={(value) =>
+                      setAgentIdentity(value as 'ALL' | 'AGENT' | 'CUSTOMER')
+                    }
+                  >
+                    <SelectTrigger
+                      className='w-full'
+                      aria-label={t('Agent identity')}
+                    >
+                      <CanvasLocalizedSelectValue
+                        value={agentIdentity === 'ALL' ? '' : agentIdentity}
+                        emptyLabelKey='All identities'
+                        displayValue={
+                          agentIdentity === 'AGENT'
+                            ? t('Agent')
+                            : t('Regular customer')
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>{t('All identities')}</SelectItem>
+                      <SelectItem value='AGENT'>{t('Agent')}</SelectItem>
+                      <SelectItem value='CUSTOMER'>
+                        {t('Regular customer')}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
+                    </SelectContent>
+                  </Select>
+                </DataTableColumnFilterField>
+              </>
             }
-            hasActiveFilters={Boolean(customerStatus)}
-            onResetFilters={() => setCustomerStatus('')}
+            hasActiveFilters={Boolean(
+              customerStatus || agentIdentity !== 'ALL'
+            )}
+            onResetFilters={() => {
+              setCustomerStatus('')
+              setAgentIdentity('ALL')
+            }}
             getRowId={(row) => row.customerId}
           />
         </CardContent>
@@ -805,6 +856,14 @@ export function AdminPointAdjustments({
                   {t('Status')}:{' '}
                   <BusinessTerm kind='customerStatus' value={customer.status} />
                 </span>
+                {customer.isAgent && (
+                  <span>
+                    {t('Agent')}:{' '}
+                    {customer.agentStatus === 'ACTIVE'
+                      ? t('Enabled')
+                      : t('Disabled')}
+                  </span>
+                )}
                 <span>
                   {t('Available points')}:{' '}
                   {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
@@ -852,6 +911,7 @@ export function AdminPointAdjustments({
       </Card>
       <AdminCustomerOperations
         customerId={customer.customerId}
+        isAgent={customer.isAgent}
         selectedOrderId={selectedOrder?.id}
         initialOrderId={orderId}
         initialLotId={pointLotId}

@@ -1,5 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildCatalogBundle } from '../../catalogBundleReader'
@@ -242,7 +249,6 @@ describe('Canvas model catalog folder upload', () => {
     expect(withoutDefault.models[0]).not.toHaveProperty('description')
   })
 
-
   it('preserves the Profile template language version and templates in the Bundle payload', async () => {
     const profile = {
       schemaVersion: 1,
@@ -441,6 +447,24 @@ describe('Canvas model catalog folder upload', () => {
             },
           ],
         },
+        ...Array.from({ length: 20 }, (_, index) => ({
+          productKey: `canvas.image.extra-${index + 1}`,
+          displayName: `Additional client model ${index + 1}`,
+          channelId: 'test-channel',
+          providerId: 'test-provider',
+          capability: 'image.generate',
+          action: 'NO_OP',
+          currentVersion: 1,
+          proposedVersion: null,
+          customerVisibleAfterPublish: false,
+          credential: unboundCredential,
+          publicInteraction: {
+            defaultParams: {},
+            paramSchema: {},
+            referenceLimits: {},
+          },
+          pricing: [],
+        })),
       ],
       changes: Array.from({ length: 21 }, (_, index) => ({
         resourceType: 'CUSTOMER_MODEL',
@@ -502,7 +526,10 @@ describe('Canvas model catalog folder upload', () => {
       .getAllByRole('tab')
       .forEach((tab) => expect(tab).toHaveClass('flex-none'))
     expect(screen.getByText('canvas.image.preview')).toBeInTheDocument()
-    expect(screen.getByText('Published binding carried forward')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'View details' })[0])
+    expect(
+      screen.getByText('Published binding carried forward')
+    ).toBeInTheDocument()
     expect(screen.getByText(/API Key group: Test group/)).toBeInTheDocument()
     expect(screen.getByText(/450 points \/ /)).toBeInTheDocument()
     expect(
@@ -511,10 +538,51 @@ describe('Canvas model catalog folder upload', () => {
     expect(
       screen.getByText('Source price version: price-version-1')
     ).toBeInTheDocument()
+    const modelPanel = screen.getByRole('tabpanel', {
+      name: 'Client model preview (21)',
+    })
+    expect(within(modelPanel).getByText('Page 1 of 2')).toBeVisible()
+    fireEvent.click(
+      within(modelPanel).getByRole('button', { name: 'Go to next page' })
+    )
+    expect(within(modelPanel).getByText('Page 2 of 2')).toBeVisible()
+    expect(screen.getByText('Additional client model 20')).toBeVisible()
+    expect(
+      screen.queryByText('Source price version: price-version-1')
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Database plan (21)' }))
+    const databasePanel = screen.getByRole('tabpanel', {
+      name: 'Database plan (21)',
+    })
     expect(await screen.findByText('model-1')).toBeInTheDocument()
     expect(screen.queryByText('model-21')).not.toBeInTheDocument()
-    expect(screen.getByText('21 records · 1 / 2')).toBeInTheDocument()
+    expect(within(databasePanel).getByText('Page 1 of 2')).toBeInTheDocument()
+    expect(within(databasePanel).getByText('21')).toBeInTheDocument()
+    fireEvent.click(
+      within(databasePanel).getByRole('button', { name: 'Go to next page' })
+    )
+    expect(within(databasePanel).getByText('Page 2 of 2')).toBeVisible()
+    const pageSize = within(databasePanel).getByRole('combobox', {
+      name: 'Rows per page',
+    })
+    expect(pageSize).toHaveTextContent('20')
+    await userEvent.click(pageSize)
+    await userEvent.click(screen.getByRole('option', { name: '10' }))
+    expect(await within(databasePanel).findByText('Page 1 of 3')).toBeVisible()
+    fireEvent.click(
+      within(databasePanel).getByRole('button', { name: /Go to page 3/ })
+    )
+    expect(within(databasePanel).getByText('Page 3 of 3')).toBeVisible()
+    expect(screen.getByText('model-21')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(
+      screen.getByRole('tab', { name: 'Client model preview (21)' })
+    )
+    expect(within(modelPanel).getByText('Page 2 of 2')).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('tab', { name: 'Database plan (21)' })
+    )
+    expect(within(databasePanel).getByText('Page 3 of 3')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Review and publish' })
     ).toBeEnabled()
@@ -775,7 +843,9 @@ describe('Canvas model catalog folder upload', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       'This restores only the verified price and API Key links shown in the plan. Existing catalog versions remain unchanged.'
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Restore verified links' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restore verified links' })
+    )
     await waitFor(() =>
       expect(mocks.publish).toHaveBeenCalledWith(
         expect.objectContaining({ expectedPlanToken: 'd'.repeat(64) }),

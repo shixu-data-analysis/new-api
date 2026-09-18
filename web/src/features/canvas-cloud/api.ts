@@ -48,10 +48,15 @@ import type {
   CanvasAdminAgentPage,
   CanvasAdminAgentQuery,
   CanvasAgentWorkspace,
-  CanvasAgentInviteCode,
+  CanvasAgentInviteCodePage,
   CanvasAgentInviteCodeQuery,
   CanvasAgentCustomer,
   CanvasAgentCustomerQuery,
+  CanvasAgentModelUsageRow,
+  CanvasAdminAgentModelUsageRow,
+  CanvasAgentModelPricePage,
+  CanvasAdminAgentCustomer,
+  CanvasAdminAgentStatistics,
   CanvasProviderPricingRow,
   CanvasAdminPointLot,
   CanvasAdminRechargeOrder,
@@ -619,6 +624,19 @@ export async function getCanvasAdminInviteCodes(
   ).data
 }
 
+export async function searchCanvasAdminInviteCodes(
+  input: { code: string } & Partial<CanvasAdminInviteCodeQuery>,
+  signal?: AbortSignal
+): Promise<CanvasAdminInviteCodePage> {
+  return (
+    await api.post<CanvasAdminInviteCodePage>(
+      `${webBase}/admin/invite-code-searches`,
+      input,
+      { signal }
+    )
+  ).data
+}
+
 export async function exportCanvasAdminInviteCodes(
   query: Omit<CanvasAdminInviteCodeQuery, 'page' | 'pageSize'>
 ): Promise<Blob> {
@@ -781,11 +799,32 @@ export async function getCanvasAgentWorkspace(): Promise<CanvasAgentWorkspace> {
 export async function getCanvasAgentInviteCodes(
   query: CanvasAgentInviteCodeQuery,
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAgentInviteCode>> {
+): Promise<CanvasAgentInviteCodePage> {
   return (
-    await api.get<CanvasPage<CanvasAgentInviteCode>>(
-      `${webBase}/agent/invite-codes`,
-      { params: query, signal }
+    await api.get<CanvasAgentInviteCodePage>(`${webBase}/agent/invite-codes`, {
+      params: query,
+      signal,
+    })
+  ).data
+}
+
+export async function searchCanvasAgentInviteCodes(
+  input: {
+    code: string
+    status?: CanvasAgentInviteCodeQuery['status']
+    priceGroupId?: string
+    page?: number
+    pageSize?: CanvasAgentInviteCodeQuery['pageSize']
+    sortBy?: CanvasAgentInviteCodeQuery['sortBy']
+    sortOrder?: CanvasAgentInviteCodeQuery['sortOrder']
+  },
+  signal?: AbortSignal
+): Promise<CanvasAgentInviteCodePage> {
+  return (
+    await api.post<CanvasAgentInviteCodePage>(
+      `${webBase}/agent/invite-code-searches`,
+      input,
+      { signal }
     )
   ).data
 }
@@ -797,6 +836,76 @@ export async function getCanvasAgentCustomers(
   return (
     await api.get<CanvasPage<CanvasAgentCustomer>>(
       `${webBase}/agent/customers`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasAgentModelPrices(
+  query: {
+    capability?: string
+    tagId?: string
+    search?: string
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  },
+  signal?: AbortSignal
+): Promise<CanvasAgentModelPricePage> {
+  return (
+    await api.get<CanvasAgentModelPricePage>(`${webBase}/agent/model-prices`, {
+      params: query,
+      signal,
+    })
+  ).data
+}
+
+export async function getCanvasAgentCustomerModelUsage(
+  customerId: string,
+  query: { page: number; pageSize: 10 | 20 | 30 | 40 | 50 | 100 },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAgentModelUsageRow>> {
+  return (
+    await api.get<CanvasPage<CanvasAgentModelUsageRow>>(
+      `${webBase}/agent/customers/${customerId}/model-usage`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasAdminAgentStatistics(
+  customerId: string,
+  signal?: AbortSignal
+): Promise<CanvasAdminAgentStatistics> {
+  return (
+    await api.get<CanvasAdminAgentStatistics>(
+      `${webBase}/admin/customers/${customerId}/agent-statistics`,
+      { signal }
+    )
+  ).data
+}
+
+export async function getCanvasAdminAgentCustomers(
+  customerId: string,
+  query: CanvasAgentCustomerQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminAgentCustomer>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminAgentCustomer>>(
+      `${webBase}/admin/customers/${customerId}/agent-customers`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasAdminAgentCustomerModelUsage(
+  customerId: string,
+  referredCustomerId: string,
+  query: { page: number; pageSize: 10 | 20 | 30 | 40 | 50 | 100 },
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminAgentModelUsageRow>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminAgentModelUsageRow>>(
+      `${webBase}/admin/customers/${customerId}/agent-customers/${referredCustomerId}/model-usage`,
       { params: query, signal }
     )
   ).data
@@ -1837,6 +1946,7 @@ export async function getCanvasAdminCustomers(
     username?: string
     email?: string
     status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+    agentIdentity?: 'ALL' | 'AGENT' | 'CUSTOMER'
     sortBy?: 'customer' | 'status' | 'availablePoints' | 'createdAt'
     sortOrder?: 'asc' | 'desc'
     page?: number
