@@ -143,11 +143,24 @@ describe('logical model monitoring overview', () => {
     const matrix = screen.getByRole('table', {
       name: 'Per-model result matrix',
     })
+    const alphaRow = within(matrix)
+      .getByRole('button', { name: 'Alpha model' })
+      .closest('[role="row"]')
+    expect(alphaRow).toHaveAttribute('aria-selected', 'true')
+    expect(alphaRow).toHaveClass('bg-primary/10')
+    const betaButton = within(matrix).getByRole('button', { name: 'Beta model' })
+    fireEvent.click(betaButton)
+    expect(betaButton.closest('[role="row"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(betaButton.closest('[role="row"]')).toHaveClass('bg-primary/10')
+    expect(alphaRow).toHaveAttribute('aria-selected', 'false')
     expect(
       within(matrix).getByRole('button', {
         name: /Alpha model.*Successful results 9.*Confirmed failures 1/,
       })
-    ).toHaveAttribute('aria-pressed', 'false')
+    ).toHaveClass('h-6', 'w-5')
     const unknownBucket = within(matrix).getByRole('button', {
       name: /Alpha model.*No data.*Unknown outcomes 1/,
     })

@@ -53,7 +53,7 @@ export function ModelMonitoringMatrix(props: {
   const language = i18n.language
   const locale = toIntlLocale(language)
   const ticks = props.data.rows[0]?.trend ?? []
-  const gridTemplateColumns = `208px 128px 128px repeat(${ticks.length}, 44px) 128px`
+  const gridTemplateColumns = `208px 128px 128px repeat(${ticks.length}, 24px) 128px`
 
   return (
     <Card>
@@ -116,7 +116,8 @@ export function ModelMonitoringMatrix(props: {
                 <div
                   key={model.modelKey}
                   role='row'
-                  className='grid items-center gap-1 border-b py-2 last:border-0'
+                  aria-selected={props.selectedKey === model.modelKey}
+                  className={`grid items-center gap-1 border-b px-2 py-2 last:border-0 ${props.selectedKey === model.modelKey ? 'bg-primary/10' : ''}`}
                   style={{ gridTemplateColumns }}
                 >
                   <div role='cell' className='min-w-0'>
@@ -154,7 +155,7 @@ export function ModelMonitoringMatrix(props: {
                     >
                       <button
                         type='button'
-                        className={`focus-visible:ring-ring size-7 rounded border outline-none focus-visible:ring-2 ${toneClasses[monitoringRateTone(bucket)]} ${props.selectedKey === model.modelKey && props.selectedBucket === index ? 'ring-ring ring-2' : ''}`}
+                        className={`focus-visible:ring-ring h-6 w-5 rounded-sm border outline-none focus-visible:ring-2 ${toneClasses[monitoringRateTone(bucket)]} ${props.selectedKey === model.modelKey && props.selectedBucket === index ? 'ring-ring ring-2' : ''}`}
                         aria-label={bucketDescription(
                           model,
                           bucket,
