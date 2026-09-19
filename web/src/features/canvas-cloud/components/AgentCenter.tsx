@@ -63,12 +63,12 @@ import type {
   CanvasAgentCustomerQuery,
   CanvasAgentInviteCode,
   CanvasAgentInviteCodeQuery,
-  CanvasAgentModelPrice,
   CanvasAgentModelUsageRow,
   CanvasBillingUnit,
   CanvasInviteCodeStatus,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { AgentModelPriceList } from './AgentModelPriceList'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -253,14 +253,14 @@ function ModelUsage({ customerId }: { customerId: string }) {
       onRetry={() => void query.refetch()}
       emptyTitle={t('No model usage')}
       getRowId={(row) =>
-        `${row.priceGroupId}:${row.customerModelId}:${row.combinationKey}:${row.billingUnit}`
+        `${row.priceGroupId}:${row.modelKey}:${row.combinationKey}:${row.billingUnit}`
       }
     />
   )
 }
 
 export function AgentCenter() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [revealed, setRevealed] = useState<Record<string, string>>({})
   const [inviteCodeInput, setInviteCodeInput] = useState('')
   const inviteCodeRef = useRef('')
@@ -598,89 +598,13 @@ export function AgentCenter() {
     )
   }
   const data = workspace.data
-  const tokenLabel = (category: string) =>
-    t(
-      (
-        {
-          input: 'Input',
-          output: 'Output',
-          cacheRead: 'Cache read',
-          cacheWrite: 'Cache write',
-        } as Record<string, string>
-      )[category] ?? category
-    )
-  const modelPrice = (
-    value: CanvasAgentModelPrice['priceGroups'][number]['prices'][number]['modelPriceCny']
-  ) => {
-    if (value === null) {
-      return '—'
-    }
-    if (typeof value === 'string') {
-      return <UsageAmount value={value} incomplete={false} />
-    }
-    return Object.entries(value)
-      .map(
-        ([key, amount]) =>
-          `${tokenLabel(key)}: ¥${formatExactRmbReference(amount, toIntlLocale(i18n.language))}`
-      )
-      .join(' · ')
-  }
   let pricesContent: ReactNode = null
   if (prices.isError) {
     pricesContent = <ErrorState onRetry={() => void prices.refetch()} />
   } else if (prices.isPending) {
     pricesContent = <LoadingState />
-  } else if (prices.data.items.length === 0) {
-    pricesContent = <p>{t('No current model prices')}</p>
   } else {
-    pricesContent = prices.data.items.map((model) => (
-      <div key={model.customerModelId} className='space-y-2 rounded border p-3'>
-        <div>
-          <strong>{model.name}</strong>{' '}
-          <span className='text-muted-foreground text-sm'>
-            {t(model.capability)}
-          </span>
-        </div>
-        {model.description ? (
-          <p className='text-muted-foreground text-sm'>{model.description}</p>
-        ) : null}
-        {model.tags.length ? (
-          <p className='text-muted-foreground text-sm'>
-            {model.tags.map((tag) => tag.name).join(' · ')}
-          </p>
-        ) : null}
-        {model.priceGroups.map((group) => (
-          <div key={group.priceGroupId} className='text-sm'>
-            <strong>{group.priceGroupName}</strong>
-            {group.prices.map((price) => (
-              <div
-                key={`${price.combinationKey}:${price.billingUnit}`}
-                className='grid gap-2 border-t py-2 sm:grid-cols-3'
-              >
-                <span>
-                  {pricingScopeLabel(
-                    { key: price.combinationKey, parameters: price.parameters },
-                    t
-                  )}{' '}
-                  · {t(billingUnitKeys[price.billingUnit])}
-                </span>
-                <span>
-                  {t('Customer points')}:{' '}
-                  {price.customerTokenRates
-                    ? Object.entries(price.customerTokenRates)
-                        .map(([key, value]) => `${tokenLabel(key)}: ${value}`)
-                        .join(' · ')
-                    : price.customerPoints}
-                </span>
-                <span>
-                  {t('Model price')}: {modelPrice(price.modelPriceCny)}
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    ))
+    pricesContent = <AgentModelPriceList models={prices.data.items} />
   }
   return (
     <div className='space-y-4'>

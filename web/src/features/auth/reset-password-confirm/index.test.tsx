@@ -21,12 +21,13 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'zhCN' },
     t: (key: string, values?: { productName?: string }) =>
       values?.productName ? `${key}:${values.productName}` : key,
   }),
 }))
 vi.mock('@/hooks/use-system-config', () => ({
-  useSystemConfig: () => ({ systemName: '灵猫工坊' }),
+  useSystemConfig: () => ({ systemName: '像素喵片场' }),
 }))
 vi.mock('@/lib/api', () => ({
   api: { post: mocks.apiPost },
@@ -124,7 +125,7 @@ describe('Canvas password-reset completion', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'auth.resetPasswordConfirm.canvasExternalNext:灵猫工坊'
+          'auth.resetPasswordConfirm.canvasExternalNext:像素喵片场'
         )
       ).toBeVisible()
     })

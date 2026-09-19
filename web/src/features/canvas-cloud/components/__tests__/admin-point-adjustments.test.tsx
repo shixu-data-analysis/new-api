@@ -24,6 +24,7 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminCustomerTasks: vi.fn(),
   getCanvasAdminCustomers: vi.fn(),
   getCanvasAdminAgentStatistics: vi.fn(),
+  getCanvasAdminAgentModelPrices: vi.fn(),
   getCanvasAdminAgentCustomers: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
   revealCanvasCode: vi.fn(),
@@ -274,6 +275,38 @@ describe('ADMIN-REWORK-004 customer management', () => {
       },
       priceGroups: [],
     })
+    apiMocks.getCanvasAdminAgentModelPrices.mockResolvedValue({
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      filters: { capabilities: ['IMAGE'], tags: [] },
+      items: [
+        {
+          customerModelId: 'model-v3',
+          modelKey: 'image.model',
+          name: 'Latest Image Model',
+          description: null,
+          capability: 'IMAGE',
+          tags: [],
+          priceGroups: [
+            {
+              priceGroupId: 'group-v1',
+              priceGroupName: 'Standard',
+              prices: [
+                {
+                  combinationKey: 'default',
+                  parameters: {},
+                  billingUnit: 'REQUEST',
+                  customerPoints: '5',
+                  customerTokenRates: null,
+                  modelPriceCny: '0.25',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
     apiMocks.getCanvasAdminAgentCustomers.mockResolvedValue({
       page: 1,
       pageSize: 20,
@@ -304,6 +337,12 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(await screen.findByText('Agent: Disabled')).toBeVisible()
     fireEvent.click(screen.getByRole('tab', { name: 'Agent statistics' }))
     expect(await screen.findByText('Cumulative overview')).toBeVisible()
+    expect(await screen.findByText('Latest Image Model')).toBeVisible()
+    expect(apiMocks.getCanvasAdminAgentModelPrices).toHaveBeenCalledWith(
+      customer.customerId,
+      expect.objectContaining({ page: 1, pageSize: 10 }),
+      expect.anything()
+    )
     expect(apiMocks.getCanvasAdminInviteCodes).toHaveBeenCalledWith(
       expect.objectContaining({ inviterPrincipalId: 'agent-v1' }),
       expect.anything()

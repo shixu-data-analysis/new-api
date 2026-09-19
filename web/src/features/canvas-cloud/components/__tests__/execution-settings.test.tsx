@@ -261,16 +261,19 @@ beforeEach(async () => {
     models: [
       {
         id: '85000000-0000-7000-8000-000000000004',
+        modelKey: 'canvas.image',
         publicName: 'Canvas Image',
         providerChannelId: channelId,
       },
       {
         id: '85000000-0000-7000-8000-000000000005',
+        modelKey: 'canvas.video',
         publicName: 'Canvas Video',
         providerChannelId: channelId,
       },
       {
         id: '85000000-0000-7000-8000-000000000006',
+        modelKey: 'canvas.audio',
         publicName: 'Canvas Audio',
         providerChannelId: channelId,
       },
@@ -1588,6 +1591,17 @@ describe('execution settings', () => {
     expect(review).toHaveTextContent('Canvas Image, Canvas Video')
     expect(review).toHaveTextContent('Selected models share this limit.')
     expect(review).toHaveTextContent('Concurrency · Simultaneous requests')
+    await user.click(within(review).getByRole('button', { name: 'Publish' }))
+    await waitFor(() => {
+      const rule =
+        mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0]?.config
+          ?.rules?.[0]
+      expect(rule).toMatchObject({
+        scope: 'MODEL_GROUP',
+        modelKeys: ['canvas.image', 'canvas.video'],
+      })
+      expect(rule).not.toHaveProperty('modelIds')
+    })
   })
 
   it('localizes the shared-model required error after the field first loses focus', async () => {

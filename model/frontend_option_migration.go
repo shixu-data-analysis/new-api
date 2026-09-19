@@ -12,6 +12,12 @@ import (
 
 const retiredThemeOptionKey = "theme.frontend"
 
+var legacyCanvasSystemNames = map[string]string{
+	"灵猫工坊":           "像素喵片场",
+	"靈貓工坊":           "像素喵片場",
+	"LingCat Studio": "PixMiao Studio",
+}
+
 type legacyOptionTransform func(string) (string, error)
 
 // MigrateRetiredFrontendOptions normalizes options that belonged to the
@@ -25,6 +31,9 @@ func MigrateRetiredFrontendOptions() error {
 	var migrationErrors []error
 	if err := normalizeRetiredThemeOption(); err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("normalize %s: %w", retiredThemeOptionKey, err))
+	}
+	if err := migrateLegacyCanvasSystemName(); err != nil {
+		migrationErrors = append(migrationErrors, fmt.Errorf("normalize Canvas system name: %w", err))
 	}
 
 	migrations := []struct {
@@ -45,6 +54,24 @@ func MigrateRetiredFrontendOptions() error {
 		migrationErrors = append(migrationErrors, err)
 	}
 	return errors.Join(migrationErrors...)
+}
+
+func migrateLegacyCanvasSystemName() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.Where(&Option{Key: "SystemName"}).First(&option).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		replacement, legacy := legacyCanvasSystemNames[strings.TrimSpace(option.Value)]
+		if !legacy {
+			return nil
+		}
+		return tx.Model(&option).Update("value", replacement).Error
+	})
 }
 
 func normalizeRetiredThemeOption() error {

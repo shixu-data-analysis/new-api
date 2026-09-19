@@ -46,32 +46,23 @@ function ModelManagementIndex() {
       />
     )
   }
-  const tab = search.tab === 'import' ? 'import' : 'published'
+  const tab =
+    search.tab === 'import' || search.tab === 'monitoring'
+      ? search.tab
+      : 'published'
   return (
     <AdminModelCatalog
       tab={tab}
       onTabChange={(next) =>
         void navigate({
           to: '/canvas-cloud/model-management',
-          search: next === 'import' ? { tab: 'import' } : {},
+          search: next === 'published' ? {} : { tab: next },
         })
       }
       onManagePricing={(modelId, returnContext) =>
         void navigate({
           to: '/canvas-cloud/model-management/$modelId/pricing',
           params: { modelId },
-          state: returnContext
-            ? (previous) => ({
-                ...previous,
-                [modelManagementReturnStateKey]: returnContext,
-              })
-            : undefined,
-        })
-      }
-      onManageMonitoring={(modelId, executionTargetId, returnContext) =>
-        void navigate({
-          to: '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId',
-          params: { modelId, executionTargetId },
           state: returnContext
             ? (previous) => ({
                 ...previous,

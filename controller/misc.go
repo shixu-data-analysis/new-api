@@ -63,7 +63,7 @@ func GetStatus(c *gin.Context) {
 		"telegram_oauth":              common.TelegramOAuthEnabled,
 		"telegram_bot_name":           common.TelegramBotName,
 		"theme":                       "default",
-		"system_name":                 common.SystemName,
+		"system_name":                 canvasPublicSystemName(common.SystemName),
 		"logo":                        common.Logo,
 		"footer_html":                 common.Footer,
 		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
@@ -169,6 +169,19 @@ func GetStatus(c *gin.Context) {
 		"data":    data,
 	})
 	return
+}
+
+func canvasPublicSystemName(systemName string) string {
+	switch strings.TrimSpace(systemName) {
+	case "灵猫工坊":
+		return "像素喵片场"
+	case "靈貓工坊":
+		return "像素喵片場"
+	case "LingCat Studio":
+		return "PixMiao Studio"
+	default:
+		return systemName
+	}
 }
 
 func GetNotice(c *gin.Context) {

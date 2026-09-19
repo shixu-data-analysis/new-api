@@ -15,21 +15,21 @@ import (
 )
 
 func TestCanvasAccountEmailWording(t *testing.T) {
-	subject, content := buildEmailVerificationMessage("灵猫工坊", "123456", 10)
-	if subject != "灵猫工坊 邮箱验证码" {
+	subject, content := buildEmailVerificationMessage("像素喵片场", "123456", 10)
+	if subject != "像素喵片场 邮箱验证码" {
 		t.Fatalf("unexpected verification subject: %q", subject)
 	}
-	for _, expected := range []string{"验证灵猫工坊账号的邮箱地址", "123456", "10 分钟内有效"} {
+	for _, expected := range []string{"验证像素喵片场账号的邮箱地址", "123456", "10 分钟内有效"} {
 		if !strings.Contains(content, expected) {
 			t.Fatalf("verification content missing %q: %q", expected, content)
 		}
 	}
 
-	resetSubject, resetContent := buildPasswordResetMessage("灵猫工坊", "https://canvas.example/reset", 10)
-	if resetSubject != "灵猫工坊 密码重置" {
+	resetSubject, resetContent := buildPasswordResetMessage("像素喵片场", "https://canvas.example/reset", 10)
+	if resetSubject != "像素喵片场 密码重置" {
 		t.Fatalf("unexpected reset subject: %q", resetSubject)
 	}
-	for _, expected := range []string{"重置灵猫工坊账号的密码", "https://canvas.example/reset", "10 分钟内有效"} {
+	for _, expected := range []string{"重置像素喵片场账号的密码", "https://canvas.example/reset", "10 分钟内有效"} {
 		if !strings.Contains(resetContent, expected) {
 			t.Fatalf("reset content missing %q: %q", expected, resetContent)
 		}

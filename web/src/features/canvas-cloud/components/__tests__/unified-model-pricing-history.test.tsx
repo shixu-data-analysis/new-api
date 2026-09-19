@@ -39,6 +39,8 @@ const detail: CanvasModelPricingDetail = {
     capability: 'video.generate',
     status: 'ACTIVE',
     billingUnit: 'SECOND',
+    billingUnitState: 'CONSISTENT',
+    publishedBillingUnits: ['SECOND'],
     allowedBillingUnits: ['SECOND'],
     tokenCategories: [],
     hasPublishedPricing: true,

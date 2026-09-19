@@ -129,17 +129,13 @@ function model(
   }
 }
 
-function renderCatalog(
-  props: {
-    onManageMonitoring?: (modelId: string, targetId: string) => void
-  } = {}
-) {
+function renderCatalog() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <PublishedModelCatalog onManagePricing={vi.fn()} {...props} />
+      <PublishedModelCatalog onManagePricing={vi.fn()} />
     </QueryClientProvider>
   )
   return { client, ...view }
@@ -478,18 +474,12 @@ describe('Published model catalog', () => {
     )
   })
 
-  it('opens monitoring with both the customer model and execution target identity', async () => {
-    const onManageMonitoring = vi.fn()
-    renderCatalog({ onManageMonitoring })
-
+  it('keeps execution target rows focused on display controls after monitoring moves to its own tab', async () => {
+    renderCatalog()
     await screen.findByText('Alpha model')
-    fireEvent.click(screen.getByRole('button', { name: 'Runtime monitoring' }))
-
-    expect(onManageMonitoring).toHaveBeenCalledWith(
-      '85000000-0000-7000-8000-000000000004',
-      '85000000-0000-7000-8000-000000000005',
-      undefined
-    )
+    expect(
+      screen.queryByRole('button', { name: 'Runtime monitoring' })
+    ).not.toBeInTheDocument()
   })
 
   it('keeps shared display publication separate from target visibility', async () => {

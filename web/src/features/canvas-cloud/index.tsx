@@ -47,6 +47,7 @@ import {
   getCanvasContributionReport,
   getCanvasSession,
 } from './api'
+import { getCanvasProductName } from './brand'
 import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
@@ -387,7 +388,10 @@ export function AdminContent(props: {
 }
 
 export function CanvasCloud() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const canvasName = getCanvasProductName(
+    i18n.resolvedLanguage ?? i18n.language
+  )
   const queryClient = useQueryClient()
   const params = route.useParams()
   const search = route.useSearch()
@@ -402,7 +406,7 @@ export function CanvasCloud() {
   if (session.isPending) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <LoadingState />
         </SectionPageLayout.Content>
@@ -412,7 +416,7 @@ export function CanvasCloud() {
   if (session.isError) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             <ErrorState
@@ -437,7 +441,7 @@ export function CanvasCloud() {
   ) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{t('Canvas Cloud')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <ErrorState
             title={t('Access denied')}

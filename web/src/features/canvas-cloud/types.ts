@@ -1885,6 +1885,47 @@ export interface CanvasModelMonitoringStats {
   successRate: number | null
 }
 
+export interface CanvasModelMonitoringOverviewQuery {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from?: string
+  to?: string
+  capability?: string
+  providerId?: string
+  tagId?: string
+  untagged?: true
+  search?: string
+  page: number
+  pageSize: 5 | 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasModelMonitoringOverview {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from: string
+  to: string
+  bucketSeconds: number
+  page: number
+  pageSize: number
+  total: number
+  capabilities: Array<{ value: string; count: number }>
+  providers: Array<{ id: string; name: string; count: number }>
+  preTagTotal: number
+  tags: Array<{ id: string; name: string; count: number }>
+  untaggedCount: number
+  rows: Array<{
+    modelKey: string
+    name: string
+    capability: string | null
+    provider: { id: string; name: string }
+    tags: Array<{ id: string; name: string }>
+    manualEnabled: boolean
+    controlVersion: number
+    summary: CanvasModelMonitoringStats
+    trend: Array<CanvasModelMonitoringStats & { from: string; to: string }>
+  }>
+}
+
 export interface CanvasModelMonitoringQuery {
   window: CanvasModelMonitoringWindow
   origin: 'REAL' | 'MOCK'

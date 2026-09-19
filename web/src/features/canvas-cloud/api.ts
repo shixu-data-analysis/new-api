@@ -102,6 +102,8 @@ import type {
   CanvasModelMonitoringControlRecord,
   CanvasModelMonitoringControlResult,
   CanvasModelMonitoringQuery,
+  CanvasModelMonitoringOverview,
+  CanvasModelMonitoringOverviewQuery,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -288,6 +290,40 @@ export async function getCanvasModelMonitoring(
     await api.get<CanvasModelMonitoring>(
       `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}`,
       { params: query, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasModelMonitoringOverview(
+  query: CanvasModelMonitoringOverviewQuery,
+  signal?: AbortSignal
+): Promise<CanvasModelMonitoringOverview> {
+  return (
+    await api.get<CanvasModelMonitoringOverview>(
+      `${webBase}/admin/model-monitoring`,
+      { params: query, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function controlCanvasLogicalModel(
+  modelKey: string,
+  input: {
+    enabled: boolean
+    expectedVersion: number
+    reasonCode: string
+    note: string
+    confirmed: true
+  }
+): Promise<CanvasModelMonitoringControlResult> {
+  return (
+    await api.post<CanvasModelMonitoringControlResult>(
+      `${webBase}/admin/model-monitoring/models/${encodeURIComponent(modelKey)}/control`,
+      input,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey('web-model-control') },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }
@@ -856,6 +892,25 @@ export async function getCanvasAgentModelPrices(
       params: query,
       signal,
     })
+  ).data
+}
+
+export async function getCanvasAdminAgentModelPrices(
+  customerId: string,
+  query: {
+    capability?: string
+    tagId?: string
+    search?: string
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  },
+  signal?: AbortSignal
+): Promise<CanvasAgentModelPricePage> {
+  return (
+    await api.get<CanvasAgentModelPricePage>(
+      `${webBase}/admin/customers/${customerId}/agent-model-prices`,
+      { params: query, signal }
+    )
   ).data
 }
 

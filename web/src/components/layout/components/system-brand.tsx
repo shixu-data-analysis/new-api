@@ -107,7 +107,7 @@ export function SystemBrand(props: SystemBrandProps) {
           <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
             <img
               src={displayedLogo}
-              alt={t('Logo')}
+              alt={isCanvasShell ? canvasName : t('Logo')}
               className='size-full rounded-lg object-cover'
             />
           </div>

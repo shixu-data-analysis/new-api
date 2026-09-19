@@ -78,6 +78,7 @@ import {
 } from './CanvasManagementTabs'
 import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { CatalogModelPreview } from './CatalogModelPreview'
+import { ModelMonitoringOverview } from './ModelMonitoringOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PublishedModelCatalog } from './PublishedModelCatalog'
 import { UnifiedModelPricing } from './UnifiedModelPricing'
@@ -207,15 +208,10 @@ export function AdminModelCatalog(
   props: {
     initialPricingModelId?: string
     initialPricingPublicationId?: string
-    tab?: 'published' | 'import'
-    onTabChange?: (tab: 'published' | 'import') => void
+    tab?: 'published' | 'import' | 'monitoring'
+    onTabChange?: (tab: 'published' | 'import' | 'monitoring') => void
     onManagePricing?: (
       modelId: string,
-      returnContext?: ModelManagementReturnContext
-    ) => void
-    onManageMonitoring?: (
-      modelId: string,
-      executionTargetId: string,
       returnContext?: ModelManagementReturnContext
     ) => void
     onManageBindings?: (
@@ -234,7 +230,7 @@ export function AdminModelCatalog(
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<
-    'published' | 'import'
+    'published' | 'import' | 'monitoring'
   >('published')
   const activeTab = props.tab ?? uncontrolledActiveTab
   const navigate = useNavigate()
@@ -465,7 +461,13 @@ export function AdminModelCatalog(
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
-            if (value !== 'published' && value !== 'import') return
+            if (
+              value !== 'published' &&
+              value !== 'import' &&
+              value !== 'monitoring'
+            ) {
+              return
+            }
             if (props.tab === undefined) setUncontrolledActiveTab(value)
             props.onTabChange?.(value)
           }}
@@ -476,6 +478,9 @@ export function AdminModelCatalog(
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='import'>
               {t('Import and publish')}
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='monitoring'>
+              {t('Runtime monitoring')}
             </CanvasManagementTabsTrigger>
           </CanvasManagementTabsList>
           <TabsContent value='published' className='mt-4'>
@@ -491,9 +496,11 @@ export function AdminModelCatalog(
                   search: { modelId },
                 })
               }}
-              onManageMonitoring={props.onManageMonitoring}
               onManageBindings={props.onManageBindings}
             />
+          </TabsContent>
+          <TabsContent value='monitoring' className='mt-4'>
+            <ModelMonitoringOverview />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>
             <Card>

@@ -40,6 +40,9 @@ vi.mock('../UnifiedModelPricing', () => ({
     </div>
   ),
 }))
+vi.mock('../ModelMonitoringOverview', () => ({
+  ModelMonitoringOverview: () => <div>Logical model monitoring overview</div>,
+}))
 vi.mock('../../api', () => ({
   planCanvasModelCatalogBundle: mocks.plan,
   publishCanvasModelCatalogBundle: mocks.publish,
@@ -126,6 +129,25 @@ describe('Canvas model catalog folder upload', () => {
     mocks.presentation.mockReset()
     mocks.targetPresentation.mockReset()
     mocks.toastSuccess.mockReset()
+  })
+  it('shows published models, import, and model-level monitoring as three primary tabs', async () => {
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <AdminModelCatalog />
+      </QueryClientProvider>
+    )
+    expect(screen.getByRole('tab', { name: 'Model list' })).toBeVisible()
+    expect(
+      screen.getByRole('tab', { name: 'Import and publish' })
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: 'Runtime monitoring' }))
+    expect(
+      await screen.findByText('Logical model monitoring overview')
+    ).toBeVisible()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {
     mocks.published.mockResolvedValue(

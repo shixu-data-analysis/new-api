@@ -20,7 +20,12 @@ import {
   isCanvasAdministrator,
   isCanvasSectionAllowed,
 } from '../access'
-import { getCanvasProductName, isCanvasProductName } from '../brand'
+import {
+  canvasCompactName,
+  getCanvasProductName,
+  isCanvasBrandContext,
+  isCanvasProductName,
+} from '../brand'
 import { lingCatStudioIcon } from '../lingcat-icon'
 
 describe('Canvas role-scoped information architecture', () => {
@@ -94,14 +99,24 @@ describe('Canvas role-scoped information architecture', () => {
     ).toBe(false)
   })
 
-  it('uses the approved localized LingCat product name without changing upstream attribution', () => {
-    expect(getCanvasProductName('zh-CN')).toBe('灵猫工坊')
-    expect(getCanvasProductName('zh-TW')).toBe('靈貓工坊')
-    expect(getCanvasProductName('en')).toBe('LingCat Studio')
-    expect(getCanvasProductName('ja')).toBe('LingCat Studio')
-    expect(isCanvasProductName('灵猫工坊')).toBe(true)
-    expect(isCanvasProductName('LingCat Studio')).toBe(true)
+  it('uses the approved localized PixMiao product name without changing upstream attribution', () => {
+    expect(getCanvasProductName('zh-CN')).toBe('像素喵片场')
+    expect(getCanvasProductName('zh-TW')).toBe('像素喵片場')
+    expect(getCanvasProductName('en')).toBe('PixMiao Studio')
+    expect(getCanvasProductName('ja')).toBe('PixMiao Studio')
+    for (const language of ['fr', 'ru', 'vi']) {
+      expect(getCanvasProductName(language)).toBe('PixMiao Studio')
+    }
+    expect(isCanvasProductName('像素喵片场')).toBe(true)
+    expect(isCanvasProductName('PixMiao Studio')).toBe(true)
     expect(isCanvasProductName('New API')).toBe(false)
+    expect(canvasCompactName).toBe('PixMiao')
+    expect(isCanvasBrandContext('像素喵片场', '/sign-in')).toBe(true)
+    expect(isCanvasBrandContext('New API', '/canvas-cloud/points')).toBe(true)
+    expect(
+      isCanvasBrandContext('New API', '/sign-in', '/canvas-cloud/points')
+    ).toBe(true)
+    expect(isCanvasBrandContext('New API', '/sign-in')).toBe(false)
     const iconBytes = Buffer.from(
       lingCatStudioIcon.split(',')[1] ?? '',
       'base64'

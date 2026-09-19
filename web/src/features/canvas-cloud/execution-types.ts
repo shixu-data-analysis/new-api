@@ -94,7 +94,7 @@ export interface LimitRule {
     | 'MODEL_GROUP'
     | 'CREDENTIAL_MODEL'
   credentialGroupId?: string
-  modelIds?: string[]
+  modelKeys?: string[]
   sharedGroup?: string
   metric: 'CONCURRENCY' | 'RPM' | 'TPM' | 'ASYNC_IN_FLIGHT'
   limit: string
@@ -241,6 +241,7 @@ export interface CredentialGroupExecutionOverview {
   limits: LimitPolicy
   models: Array<{
     id: string
+    modelKey: string
     publicName: string
     providerChannelId: string
   }>

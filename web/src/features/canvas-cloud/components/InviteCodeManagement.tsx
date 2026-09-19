@@ -68,6 +68,7 @@ import {
   getCanvasInviteCodeOptions,
   revealCanvasCode,
 } from '../api'
+import { canvasCompactName } from '../brand'
 import type {
   CanvasAdminInviteCode,
   CanvasAdminInviteCodePage,
@@ -682,7 +683,7 @@ export function InviteCodeManagement(props: {
       const url = URL.createObjectURL(csv)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `canvas-invite-codes-${new Date().toISOString()}.csv`
+      anchor.download = `${canvasCompactName}-invite-codes-${new Date().toISOString()}.csv`
       document.body.append(anchor)
       anchor.click()
       anchor.remove()
@@ -751,7 +752,7 @@ export function InviteCodeManagement(props: {
     )
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `canvas-invite-${new Date().toISOString().slice(0, 10)}.txt`
+    anchor.download = `${canvasCompactName}-invite-${new Date().toISOString().slice(0, 10)}.txt`
     anchor.click()
     URL.revokeObjectURL(url)
   }

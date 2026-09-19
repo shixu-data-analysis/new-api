@@ -69,6 +69,7 @@ import {
   issueCanvasAdminRechargeCodes,
   searchCanvasAdminRechargeCodeBatch,
 } from './api'
+import { canvasCompactName } from './brand'
 import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
@@ -477,7 +478,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = 'canvas-recharge-codes.txt'
+      anchor.download = `${canvasCompactName}-recharge-codes.txt`
       document.body.append(anchor)
       anchor.click()
       anchor.remove()
@@ -522,7 +523,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `canvas-recharge-codes-${new Date()
+    anchor.download = `${canvasCompactName}-recharge-codes-${new Date()
       .toISOString()
       .slice(0, 10)}.txt`
     document.body.append(anchor)

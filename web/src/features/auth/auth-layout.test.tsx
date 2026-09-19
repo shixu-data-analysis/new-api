@@ -17,24 +17,27 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }))
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'zhCN' },
+  }),
 }))
 vi.mock('@/hooks/use-system-config', () => ({
   useSystemConfig: () => ({
-    systemName: '灵猫工坊',
+    systemName: '像素喵片场',
     logo: '/upstream-logo.png',
     loading: false,
   }),
 }))
 
 describe('Canvas authentication brand', () => {
-  it('uses the approved LingCat icon instead of the upstream system logo', () => {
+  it('uses the approved PixMiao icon instead of the upstream system logo', () => {
     render(<AuthLayout>content</AuthLayout>)
 
-    expect(screen.getByRole('img', { name: 'Logo' })).toHaveAttribute(
+    expect(screen.getByRole('img', { name: '像素喵片场' })).toHaveAttribute(
       'src',
       lingCatStudioIcon
     )
-    expect(screen.getByText('灵猫工坊')).toBeVisible()
+    expect(screen.getByText('像素喵片场')).toBeVisible()
   })
 })

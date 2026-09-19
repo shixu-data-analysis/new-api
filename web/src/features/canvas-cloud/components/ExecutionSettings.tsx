@@ -216,7 +216,7 @@ const limitRuleSchema = z.object({
   enabled: z.boolean(),
   scope: z.enum(['CREDENTIAL_GROUP', 'MODEL', 'MODEL_GROUP']),
   credentialGroupId: z.string(),
-  modelIds: z.array(z.string()),
+  modelKeys: z.array(z.string()),
   sharedGroup: z.string().max(191),
   metric: z.enum(['CONCURRENCY', 'RPM', 'TPM', 'ASYNC_IN_FLIGHT']),
   limit: z.string().regex(/^[1-9][0-9]*$/, 'Enter a positive whole number'),
@@ -241,17 +241,17 @@ const limitSchema = z
       }
       ids.add(rule.id)
       const needsModels = ['MODEL', 'MODEL_GROUP'].includes(rule.scope)
-      if (needsModels && rule.modelIds.length === 0) {
+      if (needsModels && rule.modelKeys.length === 0) {
         context.addIssue({
           code: 'custom',
-          path: ['rules', index, 'modelIds'],
+          path: ['rules', index, 'modelKeys'],
           message: 'Select at least one model',
         })
       }
-      if (rule.scope === 'MODEL' && rule.modelIds.length !== 1) {
+      if (rule.scope === 'MODEL' && rule.modelKeys.length !== 1) {
         context.addIssue({
           code: 'custom',
-          path: ['rules', index, 'modelIds'],
+          path: ['rules', index, 'modelKeys'],
           message: 'Select exactly one model',
         })
       }
@@ -354,7 +354,7 @@ const emptyLimitRule = (): LimitForm['rules'][number] => ({
   enabled: true,
   scope: 'CREDENTIAL_GROUP',
   credentialGroupId: '',
-  modelIds: [],
+  modelKeys: [],
   sharedGroup: '',
   metric: 'RPM',
   limit: '1',
@@ -1042,7 +1042,7 @@ type EditableLimitRule = Omit<LimitRule, 'scope'> & {
 
 function LimitSection(props: {
   rules: EditableLimitRule[]
-  models: Array<{ id: string; publicName: string }>
+  models: Array<{ modelKey: string; publicName: string }>
   pending: boolean
   onReview: (value: Confirmation) => void
   onPublish: (rules: LimitRule[]) => void
@@ -1060,7 +1060,7 @@ function LimitSection(props: {
         ...emptyLimitRule(),
         ...rule,
         credentialGroupId: rule.credentialGroupId ?? '',
-        modelIds: rule.modelIds ?? [],
+        modelKeys: rule.modelKeys ?? [],
         sharedGroup: rule.sharedGroup ?? '',
         tokenIncludes: rule.tokenIncludes ?? emptyLimitRule().tokenIncludes,
       })),
@@ -1085,17 +1085,17 @@ function LimitSection(props: {
       ...(rule.credentialGroupId
         ? { credentialGroupId: rule.credentialGroupId }
         : {}),
-      ...(rule.modelIds.length ? { modelIds: rule.modelIds } : {}),
+      ...(rule.modelKeys.length ? { modelKeys: rule.modelKeys } : {}),
       ...(rule.sharedGroup ? { sharedGroup: rule.sharedGroup } : {}),
       metric: rule.metric,
       limit: rule.limit,
       ...(rule.metric === 'TPM' ? { tokenIncludes: rule.tokenIncludes } : {}),
     }))
     const modelNamesFor = (rule: EditableLimitRule) =>
-      (rule.modelIds ?? []).map(
-        (modelId) =>
-          props.models.find((model) => model.id === modelId)?.publicName ??
-          modelId
+      (rule.modelKeys ?? []).map(
+        (modelKey) =>
+          props.models.find((model) => model.modelKey === modelKey)
+            ?.publicName ?? modelKey
       )
     const formatTarget = (rule: EditableLimitRule) => {
       if (rule.scope === 'CREDENTIAL_GROUP') {
@@ -1223,10 +1223,10 @@ function LimitSection(props: {
                 if (rule.scope === 'CREDENTIAL_GROUP') {
                   return t('Entire API Key group')
                 }
-                const modelNames = (rule.modelIds ?? []).map(
-                  (id) =>
-                    props.models.find((model) => model.id === id)?.publicName ??
-                    id
+                const modelNames = (rule.modelKeys ?? []).map(
+                  (modelKey) =>
+                    props.models.find((model) => model.modelKey === modelKey)
+                      ?.publicName ?? modelKey
                 )
                 const label =
                   rule.scope === 'MODEL_GROUP'
@@ -1402,16 +1402,16 @@ function LimitSection(props: {
                       form.setValue(`rules.${index}.credentialGroupId`, '', {
                         shouldDirty: true,
                       })
-                      form.setValue(`rules.${index}.modelIds`, [], {
+                      form.setValue(`rules.${index}.modelKeys`, [], {
                         shouldDirty: true,
                       })
-                      form.resetField(`rules.${index}.modelIds`, {
+                      form.resetField(`rules.${index}.modelKeys`, {
                         defaultValue: [],
                         keepDirty: true,
                       })
                       form.clearErrors([
                         `rules.${index}.credentialGroupId`,
-                        `rules.${index}.modelIds`,
+                        `rules.${index}.modelKeys`,
                         `rules.${index}.scope`,
                         `rules.${index}.metric`,
                       ])
@@ -1479,7 +1479,7 @@ function LimitSection(props: {
               ) : (
                 <Controller
                   control={form.control}
-                  name={`rules.${index}.modelIds`}
+                  name={`rules.${index}.modelKeys`}
                   render={({ field: item }) => (
                     <div className='space-y-2'>
                       <Label htmlFor={`limit-models-${index}`}>
@@ -1488,13 +1488,13 @@ function LimitSection(props: {
                       <MultiSelect
                         id={`limit-models-${index}`}
                         options={props.models.map((model) => ({
-                          value: model.id,
+                          value: model.modelKey,
                           label: model.publicName,
                         }))}
                         selected={item.value}
                         onChange={(value) => item.onChange(value)}
                         onBlur={item.onBlur}
-                        ariaInvalid={Boolean(ruleErrors?.modelIds?.message)}
+                        ariaInvalid={Boolean(ruleErrors?.modelKeys?.message)}
                         ariaDescribedBy={`limit-models-error-${index}`}
                         placeholder={t('Search bound models')}
                         renderSelectedSummary={(values) =>
@@ -1506,9 +1506,9 @@ function LimitSection(props: {
                       <p className='text-muted-foreground text-sm'>
                         {t('Selected models share this limit.')}
                       </p>
-                      {ruleErrors?.modelIds?.message &&
+                      {ruleErrors?.modelKeys?.message &&
                         fieldError(
-                          t(ruleErrors.modelIds.message),
+                          t(ruleErrors.modelKeys.message),
                           `limit-models-error-${index}`
                         )}
                     </div>
@@ -1525,7 +1525,7 @@ function LimitSection(props: {
               ) : (
                 <Controller
                   control={form.control}
-                  name={`rules.${index}.modelIds`}
+                  name={`rules.${index}.modelKeys`}
                   render={({ field: item }) => (
                     <SelectField
                       id={`limit-model-${index}`}
@@ -1534,12 +1534,12 @@ function LimitSection(props: {
                       onChange={(value) => item.onChange(value ? [value] : [])}
                       onBlur={item.onBlur}
                       options={props.models.map((model) => ({
-                        value: model.id,
+                        value: model.modelKey,
                         label: model.publicName,
                       }))}
                       includeBlank
                       blankLabel={t('Select a bound model')}
-                      error={localizeError(ruleErrors?.modelIds?.message)}
+                      error={localizeError(ruleErrors?.modelKeys?.message)}
                     />
                   )}
                 />

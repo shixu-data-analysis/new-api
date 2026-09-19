@@ -118,11 +118,6 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
-  onManageMonitoring?: (
-    modelId: string,
-    executionTargetId: string,
-    returnContext?: { nonce: string }
-  ) => void
   onManageBindings?: (
     modelId: string,
     returnContext?: { nonce: string }
@@ -711,26 +706,6 @@ export function PublishedModelCatalog(props: {
         }}
       />
     )
-    const monitoringAction = (
-      target: CanvasAdminTestingModel['executionTargets'][number]
-    ) => (
-      <Button
-        variant='outline'
-        disabled={presentationBusy || !props.onManageMonitoring}
-        data-model-navigation-id={`${model.id}:monitoring:${target.id}`}
-        onClick={() => {
-          props.onManageMonitoring?.(
-            model.id,
-            target.id,
-            navigation?.captureReturnContext(
-              `${model.id}:monitoring:${target.id}`
-            )
-          )
-        }}
-      >
-        {t('Runtime monitoring')}
-      </Button>
-    )
     if (mobile) {
       return (
         <div className='space-y-3' aria-label={t('Execution targets')}>
@@ -758,7 +733,6 @@ export function PublishedModelCatalog(props: {
                 </dt>
                 <dd>{displayControl(target)}</dd>
               </dl>
-              {monitoringAction(target)}
             </section>
           ))}
         </div>
@@ -795,11 +769,6 @@ export function PublishedModelCatalog(props: {
             id: 'display',
             header: t('Display settings'),
             cell: displayControl,
-          },
-          {
-            id: 'monitoring',
-            header: t('Actions'),
-            cell: monitoringAction,
           },
         ]}
       />

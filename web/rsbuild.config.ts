@@ -94,11 +94,16 @@ export default defineConfig(({ envMode }) => {
       },
     },
     html: {
-      template: './index.html',
+      // Keep the protected upstream entry intact while shipping the Canvas product shell.
+      template: './canvas-index.html',
+      favicon: './public/pixmiao-icon.webp',
     },
     server: {
       host: '0.0.0.0',
       strictPort: false,
+      publicDir: {
+        ignore: ['favicon.ico'],
+      },
       proxy: devProxy,
     },
     output: {

@@ -19,7 +19,7 @@ export type MonitoringTrendBucket = CanvasModelMonitoring['trend'][number] & {
   successRateLabel: string
 }
 
-function formatMonitoringPercent(
+export function formatMonitoringPercent(
   value: number | null,
   language: string,
   t: (key: string) => string
@@ -30,7 +30,7 @@ function formatMonitoringPercent(
     maximumFractionDigits: 1,
   }).format(value)
 }
-function formatMonitoringDateTime(value: string, language: string) {
+export function formatMonitoringDateTime(value: string, language: string) {
   return new Intl.DateTimeFormat(toIntlLocale(language), {
     dateStyle: 'short',
     timeStyle: 'medium',

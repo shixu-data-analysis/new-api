@@ -80,20 +80,20 @@ describe('SystemBrand responsive layout', () => {
     )
   })
 
-  it('uses the LingCat identity and role dashboard for a Canvas administrator', () => {
+  it('uses the PixMiao identity and role dashboard for a Canvas administrator', () => {
     canvasSessionState.data = { principalType: 'PLATFORM_ADMIN' }
     canvasSessionState.isSuccess = true
     canvasSessionState.isCanvasShell = true
 
     render(<SystemBrand variant='inline' />)
 
-    expect(screen.getByRole('img', { name: 'LingCat Studio' })).toBeVisible()
-    expect(screen.getByText('LingCat Studio')).toHaveClass(
+    expect(screen.getByRole('img', { name: 'PixMiao Studio' })).toBeVisible()
+    expect(screen.getByText('PixMiao Studio')).toHaveClass(
       'hidden',
       'sm:inline'
     )
     expect(
-      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+      screen.getByRole('link', { name: 'Return to PixMiao Studio dashboard' })
     ).toHaveAttribute('href', '/canvas-cloud/$section')
   })
 
@@ -105,19 +105,19 @@ describe('SystemBrand responsive layout', () => {
     render(<SystemBrand variant='inline' />)
 
     expect(
-      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+      screen.getByRole('link', { name: 'Return to PixMiao Studio dashboard' })
     ).toHaveAttribute('href', '/canvas-cloud/$section')
   })
 
-  it('keeps the LingCat identity while Canvas registration is pending', () => {
+  it('keeps the PixMiao identity while Canvas registration is pending', () => {
     canvasSessionState.isCanvasShell = true
 
     render(<SystemBrand variant='inline' />)
 
-    expect(screen.getByRole('img', { name: 'LingCat Studio' })).toBeVisible()
-    expect(screen.getByText('LingCat Studio')).toBeVisible()
+    expect(screen.getByRole('img', { name: 'PixMiao Studio' })).toBeVisible()
+    expect(screen.getByText('PixMiao Studio')).toBeVisible()
     expect(
-      screen.getByRole('link', { name: 'Return to LingCat Studio dashboard' })
+      screen.getByRole('link', { name: 'Return to PixMiao Studio dashboard' })
     ).toHaveAttribute('href', '/canvas-cloud/$section')
   })
 })

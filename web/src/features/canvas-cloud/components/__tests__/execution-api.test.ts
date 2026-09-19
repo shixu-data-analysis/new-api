@@ -33,7 +33,12 @@ describe('execution policy API boundary', () => {
   })
 
   it('reads the frozen safe capacity and waiting-task endpoints', async () => {
-    await getCanvasExecutionCapacity()
+    await getCanvasExecutionCapacity({
+      page: 1,
+      pageSize: 10,
+      sortBy: 'provider',
+      sortOrder: 'asc',
+    })
     await getCanvasExecutionWaits({
       credentialGroupId: 'group/one',
       page: 2,
@@ -43,7 +48,16 @@ describe('execution policy API boundary', () => {
     expect(mocks.get).toHaveBeenNthCalledWith(
       1,
       '/canvas-api/v1/web/admin/execution/capacity',
-      { signal: undefined }
+      {
+        params: {
+          page: 1,
+          pageSize: 10,
+          sortBy: 'provider',
+          sortOrder: 'asc',
+          status: undefined,
+        },
+        signal: undefined,
+      }
     )
     expect(mocks.get).toHaveBeenNthCalledWith(
       2,

@@ -38,7 +38,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { resetPasswordFormSchema } from '@/features/auth/constants'
-import { isCanvasProductName } from '@/features/canvas-cloud/brand'
+import {
+  getCanvasProductName,
+  isCanvasProductName,
+} from '@/features/canvas-cloud/brand'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { api } from '@/lib/api'
 import { isCanvasDesktopView } from '@/lib/canvas-desktop-sign-out'
@@ -56,7 +59,7 @@ export function ResetPasswordConfirm({
   email,
   token,
 }: ResetPasswordConfirmProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const { systemName } = useSystemConfig()
   const isCanvasProduct = isCanvasProductName(systemName)
@@ -105,7 +108,7 @@ export function ResetPasswordConfirm({
     description = t('auth.resetPasswordConfirm.canvasDesktopNext')
   } else if (resetComplete) {
     description = t('auth.resetPasswordConfirm.canvasExternalNext', {
-      productName: systemName,
+      productName: getCanvasProductName(i18n.resolvedLanguage ?? i18n.language),
     })
   }
 
