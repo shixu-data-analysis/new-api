@@ -77,14 +77,20 @@ function openInNewTab(url: string, target: Window | null): void {
   link.click()
 }
 
-function inputMediaLabel(
-  asset: CanvasAdminTaskInputAsset,
+function orderedInputMedia(
+  assets: CanvasAdminTaskInputAsset[],
   t: (key: string) => string
-): string {
-  let type = 'Audio'
-  if (asset.mediaType === 'IMAGE') type = 'Image'
-  if (asset.mediaType === 'VIDEO') type = 'Video'
-  return `${t(type)} ${asset.inputIndex + 1}`
+): Array<{ asset: CanvasAdminTaskInputAsset; label: string }> {
+  const sequence = { IMAGE: 0, VIDEO: 0, AUDIO: 0 }
+  return [...assets]
+    .sort((left, right) => left.inputIndex - right.inputIndex)
+    .map((asset) => {
+      sequence[asset.mediaType] += 1
+      let type = 'Audio'
+      if (asset.mediaType === 'IMAGE') type = 'Image'
+      if (asset.mediaType === 'VIDEO') type = 'Video'
+      return { asset, label: `${t(type)} ${sequence[asset.mediaType]}` }
+    })
 }
 
 function CallDetails({
@@ -167,17 +173,14 @@ function CallDetails({
         <section className='space-y-2'>
           <h4 className='text-sm font-medium'>{t('Input media')}</h4>
           <ul className='grid gap-2 sm:grid-cols-2'>
-            {inputAssets.map((asset) => {
-              const mediaLabel = inputMediaLabel(asset, t)
+            {orderedInputMedia(inputAssets, t).map(({ asset, label }) => {
               return (
                 <li
                   key={asset.assetId}
                   className='bg-muted/50 flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2'
                 >
                   <span className='min-w-0'>
-                    <span className='block text-sm font-medium'>
-                      {mediaLabel}
-                    </span>
+                    <span className='block text-sm font-medium'>{label}</span>
                     <span className='text-muted-foreground block truncate text-xs'>
                       {asset.mimeType}
                     </span>
@@ -187,7 +190,7 @@ function CallDetails({
                     variant='outline'
                     size='sm'
                     disabled={openingInput === asset.assetId}
-                    aria-label={`${t('Open')} ${mediaLabel}`}
+                    aria-label={`${t('Open')} ${label}`}
                     onClick={() => onOpenInput(asset)}
                   >
                     {t('Open')}

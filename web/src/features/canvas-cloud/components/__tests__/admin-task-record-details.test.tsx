@@ -228,20 +228,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       ...task,
       inputAssets: [
         {
-          assetId: 'asset-video',
-          inputIndex: 0,
-          inputRole: 'video-reference',
-          mediaType: 'VIDEO',
-          mimeType: 'video/mp4',
-          sizeBytes: '256',
-          sha256: 'b'.repeat(64),
-          availableUntil: '2026-09-15T09:16:33.000Z',
-          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-video/download`,
-        },
-        {
           assetId: 'asset-image',
-          inputIndex: 1,
-          inputRole: 'image-reference',
+          inputIndex: 0,
+          inputRole: 'prompt-reference',
           mediaType: 'IMAGE',
           mimeType: 'image/png',
           sizeBytes: '128',
@@ -251,7 +240,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         },
         {
           assetId: 'asset-audio',
-          inputIndex: 2,
+          inputIndex: 1,
           inputRole: 'audio-reference',
           mediaType: 'AUDIO',
           mimeType: 'audio/mpeg',
@@ -259,6 +248,28 @@ describe('AdminTaskRecordDetails UAT-018', () => {
           sha256: 'c'.repeat(64),
           availableUntil: '2026-09-15T09:16:33.000Z',
           downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-audio/download`,
+        },
+        {
+          assetId: 'asset-image-2',
+          inputIndex: 2,
+          inputRole: 'prompt-reference',
+          mediaType: 'IMAGE',
+          mimeType: 'image/jpeg',
+          sizeBytes: '192',
+          sha256: 'd'.repeat(64),
+          availableUntil: '2026-09-15T09:16:33.000Z',
+          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-image-2/download`,
+        },
+        {
+          assetId: 'asset-video',
+          inputIndex: 3,
+          inputRole: 'video-reference',
+          mediaType: 'VIDEO',
+          mimeType: 'video/mp4',
+          sizeBytes: '256',
+          sha256: 'b'.repeat(64),
+          availableUntil: '2026-09-15T09:16:33.000Z',
+          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-video/download`,
         },
       ],
     })
@@ -295,8 +306,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     api.getCanvasAdminTaskInputDownload.mockResolvedValueOnce({
       url: 'https://storage.example.com/fresh-signed-input',
       expiresAt: '2026-09-14T09:31:33.000Z',
-      inputIndex: 1,
-      inputRole: 'image-reference',
+      inputIndex: 0,
+      inputRole: 'prompt-reference',
       mediaType: 'IMAGE',
       mimeType: 'image/png',
       sizeBytes: '128',
@@ -306,9 +317,10 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     mount()
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
     expect(screen.getByText('Input media')).toBeVisible()
-    expect(screen.getByText('Video 1')).toBeVisible()
+    expect(screen.getByText('Image 1')).toBeVisible()
+    expect(screen.getByText('Audio 1')).toBeVisible()
     expect(screen.getByText('Image 2')).toBeVisible()
-    expect(screen.getByText('Audio 3')).toBeVisible()
+    expect(screen.getByText('Video 1')).toBeVisible()
     fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
     const requestSnapshot = screen.getByText(/\[provider-url-hidden\]/)
     expect(
@@ -329,7 +341,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       screen.queryByText(/X-Amz-Signature=REDACTED/)
     ).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open Image 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open Image 1' }))
     await waitFor(() =>
       expect(api.getCanvasAdminTaskInputDownload).toHaveBeenCalledWith(
         `/v1/web/admin/tasks/${task.id}/inputs/asset-image/download`,
