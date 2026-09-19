@@ -354,8 +354,7 @@ export function ModelMonitoringOverview() {
               {t('Clear filters')}
             </Button>
           ) : null}
-          <div className='flex flex-wrap items-center justify-between gap-3 text-sm'>
-            <span>{t('Total models: {{count}}', { count: data.total })}</span>
+          <div className='flex flex-wrap items-center justify-end gap-3 text-sm'>
             <div className='flex flex-wrap items-center gap-2'>
               <label htmlFor='monitoring-page-size'>{t('Rows per page')}</label>
               <NativeSelect

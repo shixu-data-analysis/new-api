@@ -127,9 +127,11 @@ describe('logical model monitoring overview', () => {
 
   it('shows a model-key matrix and keeps unknown-only buckets as no-data results', async () => {
     mount()
-    expect(
-      await screen.findByRole('heading', { name: 'Per-model result matrix' })
-    ).toBeVisible()
+    const matrixHeading = await screen.findByRole('heading', {
+      name: 'Per-model result matrix',
+    })
+    expect(matrixHeading).toBeVisible()
+    expect(matrixHeading.parentElement).toHaveTextContent('Total models: 2')
     expect(mocks.getOverview).toHaveBeenCalledWith(
       expect.objectContaining({ window: 'day', origin: 'REAL', page: 1 }),
       expect.anything()

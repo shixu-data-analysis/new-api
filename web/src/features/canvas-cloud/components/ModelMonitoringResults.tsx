@@ -59,7 +59,12 @@ export function ModelMonitoringMatrix(props: {
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>{t('Per-model result matrix')}</h2>
+          <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
+            <h2>{t('Per-model result matrix')}</h2>
+            <span className='text-muted-foreground text-sm font-normal tabular-nums'>
+              {t('Total models: {{count}}', { count: props.data.total })}
+            </span>
+          </div>
         </CardTitle>
         <p className='text-muted-foreground text-sm'>
           {t('Time granularity')}: {props.data.bucketSeconds / 60}{' '}
