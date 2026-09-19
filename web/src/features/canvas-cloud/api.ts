@@ -126,7 +126,7 @@ function assertCanvasTaskAssetPath(
 
 interface TopupLinkResponse {
   success?: boolean
-  data?: { topup_link?: unknown }
+  data?: { canvas_recharge_purchase_url?: unknown }
 }
 
 export function normalizeCanvasRechargePurchaseLink(
@@ -291,7 +291,9 @@ export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
   const response = (await api.get<TopupLinkResponse>('/api/user/topup/info'))
     .data
   if (response.success !== true) return null
-  return normalizeCanvasRechargePurchaseLink(response.data?.topup_link)
+  return normalizeCanvasRechargePurchaseLink(
+    response.data?.canvas_recharge_purchase_url
+  )
 }
 
 export async function getCanvasAdminWorkspace(): Promise<CanvasAdminWorkspace> {

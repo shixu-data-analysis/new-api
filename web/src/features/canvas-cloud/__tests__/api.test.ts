@@ -1386,11 +1386,15 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('reuses only safe administrator-configured purchase links', async () => {
+  it('uses only the safe Canvas runtime purchase link', async () => {
     mocks.get.mockResolvedValue({
       data: {
         success: true,
-        data: { topup_link: 'https://shop.example.com/canvas-codes' },
+        data: {
+          canvas_recharge_purchase_url:
+            'https://shop.example.com/canvas-codes',
+          topup_link: 'https://unrelated.example.com/new-api-wallet',
+        },
       },
     })
 
@@ -1407,5 +1411,19 @@ describe('Canvas Cloud API boundary', () => {
     expect(
       normalizeCanvasRechargePurchaseLink('//untrusted.example.com')
     ).toBeNull()
+  })
+
+  it('hides the Canvas purchase entry when the runtime URL is empty', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          canvas_recharge_purchase_url: '',
+          topup_link: 'https://unrelated.example.com/new-api-wallet',
+        },
+      },
+    })
+
+    await expect(getCanvasRechargePurchaseLink()).resolves.toBeNull()
   })
 })
