@@ -276,7 +276,7 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
       </section>
       <section className='space-y-3'>
         <h3 className='text-sm font-medium'>{t('Provider calls')}</h3>
-        <TaskCallHistory taskId={task.id} />
+        <TaskCallHistory taskId={task.id} inputAssets={task.inputAssets} />
       </section>
     </div>
   )

@@ -64,6 +64,7 @@ import type {
   CanvasAdminCustomerTask,
   CanvasAdminTaskLog,
   CanvasAdminTaskLogQuery,
+  CanvasAdminTaskInputAsset,
   CanvasAdminTaskRecordDetail,
   CanvasTaskLogOptions,
   CanvasAdminTaskPointRecord,
@@ -438,6 +439,54 @@ export async function getCanvasAdminTaskRecord(
       `${webBase}/admin/tasks/${encodeURIComponent(taskId)}`,
       { signal, skipErrorHandler: true }
     )
+  ).data
+}
+
+export interface CanvasAdminTaskInputDownload {
+  url: string
+  expiresAt: string
+  inputIndex: number
+  inputRole: string
+  mediaType: CanvasAdminTaskInputAsset['mediaType']
+  mimeType: string
+  sizeBytes: string
+  sha256: string
+}
+
+function assertCanvasAdminTaskInputPath(
+  path: string,
+  taskId: string,
+  assetId: string,
+  suffix: 'download' | 'content'
+) {
+  const expected = `/v1/web/admin/tasks/${encodeURIComponent(taskId)}/inputs/${encodeURIComponent(assetId)}/${suffix}`
+  if (path !== expected) throw new Error('Task input asset path is invalid')
+}
+
+export async function getCanvasAdminTaskInputDownload(
+  downloadPath: string,
+  taskId: string,
+  assetId: string
+): Promise<CanvasAdminTaskInputDownload> {
+  assertCanvasAdminTaskInputPath(downloadPath, taskId, assetId, 'download')
+  return (
+    await api.get<CanvasAdminTaskInputDownload>(`/canvas-api${downloadPath}`, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function getCanvasAdminTaskInputBlob(
+  contentPath: string,
+  taskId: string,
+  assetId: string
+): Promise<Blob> {
+  assertCanvasAdminTaskInputPath(contentPath, taskId, assetId, 'content')
+  return (
+    await api.get<Blob>(`/canvas-api${contentPath}`, {
+      responseType: 'blob',
+      skipErrorHandler: true,
+    })
   ).data
 }
 

@@ -2095,6 +2095,18 @@ export interface CanvasAdminTaskRecordOutput {
   billingFinalizedAt: string | null
 }
 
+export interface CanvasAdminTaskInputAsset {
+  assetId: string
+  inputIndex: number
+  inputRole: string
+  mediaType: 'IMAGE' | 'VIDEO' | 'AUDIO'
+  mimeType: string
+  sizeBytes: string
+  sha256: string
+  availableUntil: string | null
+  downloadPath: string
+}
+
 export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
@@ -2130,6 +2142,7 @@ export interface CanvasAdminTaskRecordDetail {
     detail?: string
   } | null
   outputs: CanvasAdminTaskRecordOutput[]
+  inputAssets: CanvasAdminTaskInputAsset[]
   upstreamTaskId: string | null
   taskError: {
     code?: string | null

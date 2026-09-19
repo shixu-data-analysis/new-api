@@ -16,6 +16,8 @@ import { AdminTaskRecordDetails } from '../AdminTaskRecordDetails'
 
 const api = vi.hoisted(() => ({
   getCanvasAdminTaskRecord: vi.fn(),
+  getCanvasAdminTaskInputDownload: vi.fn(),
+  getCanvasAdminTaskInputBlob: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
 }))
 const calls = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
@@ -57,6 +59,7 @@ const task = {
   },
   multiResultMode: 'FANOUT',
   failureLocation: 'PROVIDER_RESPONSE',
+  inputAssets: [],
   outputs: [],
   upstreamTaskId: null,
   taskError: {
@@ -212,6 +215,136 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.getAllByText(/gpt-image-2-pro/).length).toBeGreaterThan(0)
   })
 
+  it('shows ordered input media separately and opens a freshly signed URL', async () => {
+    const replace = vi.fn()
+    const close = vi.fn()
+    const popup = {
+      opener: window,
+      location: { replace },
+      close,
+    } as unknown as Window
+    const open = vi.spyOn(window, 'open').mockReturnValue(popup)
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      inputAssets: [
+        {
+          assetId: 'asset-video',
+          inputIndex: 0,
+          inputRole: 'video-reference',
+          mediaType: 'VIDEO',
+          mimeType: 'video/mp4',
+          sizeBytes: '256',
+          sha256: 'b'.repeat(64),
+          availableUntil: '2026-09-15T09:16:33.000Z',
+          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-video/download`,
+        },
+        {
+          assetId: 'asset-image',
+          inputIndex: 1,
+          inputRole: 'image-reference',
+          mediaType: 'IMAGE',
+          mimeType: 'image/png',
+          sizeBytes: '128',
+          sha256: 'a'.repeat(64),
+          availableUntil: '2026-09-15T09:16:33.000Z',
+          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-image/download`,
+        },
+        {
+          assetId: 'asset-audio',
+          inputIndex: 2,
+          inputRole: 'audio-reference',
+          mediaType: 'AUDIO',
+          mimeType: 'audio/mpeg',
+          sizeBytes: '64',
+          sha256: 'c'.repeat(64),
+          availableUntil: '2026-09-15T09:16:33.000Z',
+          downloadPath: `/v1/web/admin/tasks/${task.id}/inputs/asset-audio/download`,
+        },
+      ],
+    })
+    calls.getCanvasTaskCalls.mockResolvedValueOnce({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          ...providerCall,
+          sanitizedRequest: {
+            body: {
+              reference_images: [
+                'https://storage.example.com/very/long/input/asset-image?X-Amz-Signature=REDACTED',
+              ],
+              reference_videos: [
+                'https://storage.example.com/very/long/input/asset-video?X-Amz-Signature=REDACTED',
+              ],
+              reference_audios: [
+                'https://storage.example.com/very/long/input/asset-audio?X-Amz-Signature=REDACTED',
+              ],
+              provider_asset: 'asset://remote-asset',
+              local_file: 'file:///private/tmp/input.png',
+              custom_asset: 'canvas-media://private/input',
+              inline_data: 'data:image/png;base64,cG5n',
+              safe_relative_path: '/v1/videos/upstream-1/file?quality=hd',
+              signed_relative_path:
+                '/v1/videos/upstream-1/file?signature=REDACTED',
+            },
+          },
+        },
+      ],
+    })
+    api.getCanvasAdminTaskInputDownload.mockResolvedValueOnce({
+      url: 'https://storage.example.com/fresh-signed-input',
+      expiresAt: '2026-09-14T09:31:33.000Z',
+      inputIndex: 1,
+      inputRole: 'image-reference',
+      mediaType: 'IMAGE',
+      mimeType: 'image/png',
+      sizeBytes: '128',
+      sha256: 'a'.repeat(64),
+    })
+
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
+    expect(screen.getByText('Input media')).toBeVisible()
+    expect(screen.getByText('Video 1')).toBeVisible()
+    expect(screen.getByText('Image 2')).toBeVisible()
+    expect(screen.getByText('Audio 3')).toBeVisible()
+    fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
+    const requestSnapshot = screen.getByText(/\[provider-url-hidden\]/)
+    expect(
+      requestSnapshot.textContent?.match(/\[provider-url-hidden\]/g)
+    ).toHaveLength(7)
+    expect(requestSnapshot).toHaveTextContent(
+      '/v1/videos/upstream-1/file?quality=hd'
+    )
+    expect(requestSnapshot).not.toHaveTextContent('asset://remote-asset')
+    expect(requestSnapshot).not.toHaveTextContent(
+      'file:///private/tmp/input.png'
+    )
+    expect(requestSnapshot).not.toHaveTextContent(
+      'canvas-media://private/input'
+    )
+    expect(requestSnapshot).toHaveTextContent('[provider-data-hidden]')
+    expect(
+      screen.queryByText(/X-Amz-Signature=REDACTED/)
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Image 2' }))
+    await waitFor(() =>
+      expect(api.getCanvasAdminTaskInputDownload).toHaveBeenCalledWith(
+        `/v1/web/admin/tasks/${task.id}/inputs/asset-image/download`,
+        task.id,
+        'asset-image'
+      )
+    )
+    expect(replace).toHaveBeenCalledWith(
+      'https://storage.example.com/fresh-signed-input'
+    )
+    expect(popup.opener).toBeNull()
+    expect(close).not.toHaveBeenCalled()
+    open.mockRestore()
+  })
+
   it('loads a filter-free point lifecycle table and expands its identifiers in place', async () => {
     mount()
     fireEvent.click(
@@ -226,8 +359,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     const detailButtons = screen.getAllByRole('button', { name: 'Details' })
     const lastDetailButton = detailButtons.at(-1)
-    if (!lastDetailButton)
+    if (!lastDetailButton) {
       throw new Error('Point record details button is missing')
+    }
     fireEvent.click(lastDetailButton)
     expect(await screen.findByText('ledger-1')).toHaveClass('break-all')
     expect(screen.getByText('allocation-1')).toHaveClass('break-all')
@@ -463,6 +597,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'No more specific error was recorded for this task',
       'Request template invalid',
       'Integer conversion failed',
+      'Input media',
+      'Input media is no longer available.',
       'Provider calls',
       'Point action',
       'Convert to grace bonus points',

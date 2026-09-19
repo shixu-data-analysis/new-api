@@ -26,3 +26,21 @@ export function monitoringDeterminedCount(
 ): number {
   return stats.succeeded + stats.failed
 }
+
+export function monitoringTickLabelIndexes(
+  tickCount: number,
+  maximumLabels = 6
+): Set<number> {
+  if (tickCount <= 0 || maximumLabels <= 0) return new Set()
+  if (tickCount <= maximumLabels) {
+    return new Set(Array.from({ length: tickCount }, (_, index) => index))
+  }
+  if (maximumLabels === 1) return new Set([0])
+
+  const lastIndex = tickCount - 1
+  return new Set(
+    Array.from({ length: maximumLabels }, (_, index) =>
+      Math.round((index * lastIndex) / (maximumLabels - 1))
+    )
+  )
+}

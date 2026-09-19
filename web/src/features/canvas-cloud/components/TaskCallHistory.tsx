@@ -3,12 +3,18 @@ import { useQuery } from '@tanstack/react-query'
 import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 
+import {
+  getCanvasAdminTaskInputBlob,
+  getCanvasAdminTaskInputDownload,
+} from '../api'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
+import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
@@ -34,7 +40,64 @@ function callResponse(call: CanvasTaskCall) {
     : String(call.initialHttpStatus)
 }
 
-function CallDetails({ call }: { call: CanvasTaskCall }) {
+function compactRequestSnapshot(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(compactRequestSnapshot)
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        compactRequestSnapshot(entry),
+      ])
+    )
+  }
+  if (typeof value === 'string') {
+    if (/^data:/i.test(value)) return '[provider-data-hidden]'
+    if (
+      /^[a-z][a-z0-9+.-]*:/i.test(value) ||
+      (value.startsWith('/') &&
+        /(?:redacted|x-amz-|signature|token)/i.test(value))
+    ) {
+      return '[provider-url-hidden]'
+    }
+  }
+  return value
+}
+
+function openInNewTab(url: string, target: Window | null): void {
+  if (target) {
+    target.location.replace(url)
+    return
+  }
+  const link = document.createElement('a')
+  link.href = url
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.click()
+}
+
+function inputMediaLabel(
+  asset: CanvasAdminTaskInputAsset,
+  t: (key: string) => string
+): string {
+  let type = 'Audio'
+  if (asset.mediaType === 'IMAGE') type = 'Image'
+  if (asset.mediaType === 'VIDEO') type = 'Video'
+  return `${t(type)} ${asset.inputIndex + 1}`
+}
+
+function CallDetails({
+  call,
+  inputAssets,
+  openingInput,
+  onOpenInput,
+}: {
+  call: CanvasTaskCall
+  inputAssets: CanvasAdminTaskInputAsset[]
+  openingInput: string | null
+  onOpenInput: (asset: CanvasAdminTaskInputAsset) => void
+}) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const time = (input: string | null) =>
@@ -47,7 +110,7 @@ function CallDetails({ call }: { call: CanvasTaskCall }) {
   const request =
     call.sanitizedRequest === null
       ? null
-      : JSON.stringify(call.sanitizedRequest, null, 2)
+      : JSON.stringify(compactRequestSnapshot(call.sanitizedRequest), null, 2)
   const fields: Array<[string, ReactNode]> = [
     ['Upstream model', present(call.upstreamModelId)],
     [
@@ -100,6 +163,41 @@ function CallDetails({ call }: { call: CanvasTaskCall }) {
           </div>
         ))}
       </dl>
+      {inputAssets.length ? (
+        <section className='space-y-2'>
+          <h4 className='text-sm font-medium'>{t('Input media')}</h4>
+          <ul className='grid gap-2 sm:grid-cols-2'>
+            {inputAssets.map((asset) => {
+              const mediaLabel = inputMediaLabel(asset, t)
+              return (
+                <li
+                  key={asset.assetId}
+                  className='bg-muted/50 flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2'
+                >
+                  <span className='min-w-0'>
+                    <span className='block text-sm font-medium'>
+                      {mediaLabel}
+                    </span>
+                    <span className='text-muted-foreground block truncate text-xs'>
+                      {asset.mimeType}
+                    </span>
+                  </span>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    disabled={openingInput === asset.assetId}
+                    aria-label={`${t('Open')} ${mediaLabel}`}
+                    onClick={() => onOpenInput(asset)}
+                  >
+                    {t('Open')}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
       {request ? (
         <details>
           <summary className='cursor-pointer text-sm font-medium'>
@@ -118,11 +216,47 @@ function CallDetails({ call }: { call: CanvasTaskCall }) {
   )
 }
 
-export function TaskCallHistory({ taskId }: { taskId: string }) {
+export function TaskCallHistory({
+  taskId,
+  inputAssets = [],
+}: {
+  taskId: string
+  inputAssets?: CanvasAdminTaskInputAsset[]
+}) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const state = useServerTableState('startedAt')
   const [expanded, setExpanded] = useState<string>()
+  const [openingInput, setOpeningInput] = useState<string | null>(null)
+  const openInput = async (asset: CanvasAdminTaskInputAsset) => {
+    const target = window.open('about:blank', '_blank')
+    if (target) target.opener = null
+    setOpeningInput(asset.assetId)
+    try {
+      const descriptor = await getCanvasAdminTaskInputDownload(
+        asset.downloadPath,
+        taskId,
+        asset.assetId
+      )
+      if (/^https?:\/\//i.test(descriptor.url)) {
+        openInNewTab(descriptor.url, target)
+        return
+      }
+      const blob = await getCanvasAdminTaskInputBlob(
+        descriptor.url,
+        taskId,
+        asset.assetId
+      )
+      const objectUrl = URL.createObjectURL(blob)
+      openInNewTab(objectUrl, target)
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } catch {
+      target?.close()
+      toast.error(t('Input media is no longer available.'))
+    } finally {
+      setOpeningInput((current) => (current === asset.assetId ? null : current))
+    }
+  }
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -249,7 +383,12 @@ export function TaskCallHistory({ taskId }: { taskId: string }) {
       {expanded === row.original.localCallId ? (
         <TableRow>
           <TableCell colSpan={row.getVisibleCells().length}>
-            <CallDetails call={row.original} />
+            <CallDetails
+              call={row.original}
+              inputAssets={inputAssets}
+              openingInput={openingInput}
+              onOpenInput={(asset) => void openInput(asset)}
+            />
           </TableCell>
         </TableRow>
       ) : null}
@@ -270,7 +409,12 @@ export function TaskCallHistory({ taskId }: { taskId: string }) {
       renderRow={rowRenderer}
       renderExpandedContent={(row) =>
         expanded === row.original.localCallId ? (
-          <CallDetails call={row.original} />
+          <CallDetails
+            call={row.original}
+            inputAssets={inputAssets}
+            openingInput={openingInput}
+            onOpenInput={(asset) => void openInput(asset)}
+          />
         ) : null
       }
     />

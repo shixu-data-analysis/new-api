@@ -2739,6 +2739,8 @@
     "Initializing…": "Đang khởi tạo…",
     "Inpaint": "Inpaint",
     "Input": "Đầu vào",
+    "Input media": "Phương tiện đầu vào",
+    "Input media is no longer available.": "Phương tiện đầu vào không còn khả dụng.",
     "Input mode": "Chế độ nhập",
     "Input price": "Giá đầu vào",
     "Input price is required before saving dependent prices.": "Cần có giá đầu vào trước khi lưu các giá phụ thuộc.",

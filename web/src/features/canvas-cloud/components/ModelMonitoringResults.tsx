@@ -15,6 +15,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import {
   monitoringDeterminedCount,
   monitoringRateTone,
+  monitoringTickLabelIndexes,
   type MonitoringRateTone,
 } from '../model-monitoring-overview'
 import type { CanvasModelMonitoringOverview } from '../types'
@@ -53,6 +54,7 @@ export function ModelMonitoringMatrix(props: {
   const language = i18n.language
   const locale = toIntlLocale(language)
   const ticks = props.data.rows[0]?.trend ?? []
+  const visibleTickLabels = monitoringTickLabelIndexes(ticks.length)
   const gridTemplateColumns = `208px 128px 128px repeat(${ticks.length}, 24px) 128px`
 
   return (
@@ -88,29 +90,42 @@ export function ModelMonitoringMatrix(props: {
               aria-label={t('Per-model result matrix')}
             >
               <div
-                className='grid items-center gap-1 border-b pb-2 text-xs font-medium'
+                className='grid items-center gap-1 border-b px-2 pb-2 text-xs font-medium'
                 role='row'
                 style={{ gridTemplateColumns }}
               >
                 <span role='columnheader'>{t('Model')}</span>
                 <span role='columnheader'>{t('Success rate')}</span>
                 <span role='columnheader'>{t('Determined results')}</span>
-                {ticks.map((bucket) => (
-                  <span
-                    key={bucket.from}
-                    role='columnheader'
-                    className='text-muted-foreground text-center'
-                    title={formatMonitoringDateTime(bucket.from, language)}
-                  >
-                    {new Intl.DateTimeFormat(
-                      locale,
-                      props.data.bucketSeconds >= 86400
-                        ? { month: 'numeric', day: 'numeric' }
-                        : { hour: '2-digit', minute: '2-digit' }
-                    ).format(new Date(bucket.from))}
-                  </span>
-                ))}
-                <span role='columnheader'>{t('Actions')}</span>
+                {ticks.map((bucket, index) => {
+                  let alignment = 'text-center'
+                  if (index === 0) alignment = 'text-left'
+                  else if (index === ticks.length - 1) alignment = 'text-right'
+                  return (
+                    <span
+                      key={bucket.from}
+                      role='columnheader'
+                      aria-label={formatMonitoringDateTime(
+                        bucket.from,
+                        language
+                      )}
+                      className={`text-muted-foreground whitespace-nowrap ${alignment}`}
+                      title={formatMonitoringDateTime(bucket.from, language)}
+                    >
+                      {visibleTickLabels.has(index)
+                        ? new Intl.DateTimeFormat(
+                            locale,
+                            props.data.bucketSeconds >= 86400
+                              ? { month: 'numeric', day: 'numeric' }
+                              : { hour: '2-digit', minute: '2-digit' }
+                          ).format(new Date(bucket.from))
+                        : null}
+                    </span>
+                  )
+                })}
+                <span role='columnheader' className='text-center'>
+                  {t('Actions')}
+                </span>
               </div>
               {props.data.rows.map((model) => (
                 <div
@@ -173,7 +188,7 @@ export function ModelMonitoringMatrix(props: {
                       />
                     </div>
                   ))}
-                  <div role='cell'>
+                  <div role='cell' className='flex justify-center'>
                     <Button
                       size='sm'
                       variant={model.manualEnabled ? 'destructive' : 'outline'}

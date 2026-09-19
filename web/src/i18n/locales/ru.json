@@ -2739,6 +2739,8 @@
     "Initializing…": "Инициализация…",
     "Inpaint": "Инпейнтинг",
     "Input": "Ввод",
+    "Input media": "Входные медиафайлы",
+    "Input media is no longer available.": "Входной медиафайл больше недоступен.",
     "Input mode": "Режим ввода",
     "Input price": "Цена входа",
     "Input price is required before saving dependent prices.": "Перед сохранением зависимых цен укажите входную цену.",

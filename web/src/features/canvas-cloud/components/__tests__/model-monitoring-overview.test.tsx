@@ -20,6 +20,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
+import { monitoringTickLabelIndexes } from '../../model-monitoring-overview'
 import type { CanvasModelMonitoringOverview } from '../../types'
 import { ModelMonitoringOverview } from '../ModelMonitoringOverview'
 
@@ -131,6 +132,12 @@ const overview: CanvasModelMonitoringOverview = {
     },
   ],
 }
+
+it('keeps the first and last time labels while limiting dense matrix ticks', () => {
+  expect([...monitoringTickLabelIndexes(24)]).toEqual([0, 5, 9, 14, 18, 23])
+  expect([...monitoringTickLabelIndexes(6)]).toEqual([0, 1, 2, 3, 4, 5])
+  expect([...monitoringTickLabelIndexes(0)]).toEqual([])
+})
 
 function mount() {
   const client = new QueryClient({
