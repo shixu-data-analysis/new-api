@@ -24,6 +24,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { getCanvasHomeSection } from '@/features/canvas-cloud/access'
+import { getCanvasProductName } from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -42,24 +46,39 @@ type SystemBrandProps = {
 /**
  * System brand component
  * Displays current system logo + name.
- * - inline: compact pill in the top app bar; clicking navigates to home (/)
+ * - inline: compact pill in the top app bar; clicking navigates to the dashboard
  * - sidebar: stacked card in the sidebar header (display only)
  */
 export function SystemBrand(props: SystemBrandProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status } = useStatus()
   const { logo } = useSystemConfig()
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
 
   const variant = props.variant ?? 'sidebar'
-  const name = status?.system_name || props.defaultName || 'New API'
+  const canvasName = getCanvasProductName(
+    i18n.resolvedLanguage ?? i18n.language
+  )
+  const name = isCanvasShell
+    ? canvasName
+    : status?.system_name || props.defaultName || 'New API'
+  const homeSection = canvasSession.data
+    ? getCanvasHomeSection(canvasSession.data.principalType)
+    : 'overview'
+  const displayedLogo = isCanvasShell ? lingCatStudioIcon : logo
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 
   if (variant === 'inline') {
     return (
       <Link
-        to='/'
-        aria-label={t('Go to home')}
+        to={isCanvasShell ? '/canvas-cloud/$section' : '/dashboard'}
+        params={isCanvasShell ? { section: homeSection } : undefined}
+        aria-label={
+          isCanvasShell
+            ? t('Return to {{name}} dashboard', { name: canvasName })
+            : t('Go to home')
+        }
         className={cn(
           'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
@@ -67,12 +86,12 @@ export function SystemBrand(props: SystemBrandProps) {
       >
         <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
           <img
-            src={logo}
-            alt={t('Logo')}
+            src={displayedLogo}
+            alt={isCanvasShell ? canvasName : t('Logo')}
             className='size-full rounded-md object-cover'
           />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span className='hidden max-w-[12rem] truncate sm:inline'>{name}</span>
       </Link>
     )
   }
@@ -87,8 +106,8 @@ export function SystemBrand(props: SystemBrandProps) {
         >
           <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
             <img
-              src={logo}
-              alt={t('Logo')}
+              src={displayedLogo}
+              alt={isCanvasShell ? canvasName : t('Logo')}
               className='size-full rounded-lg object-cover'
             />
           </div>

@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
+import { CanvasCustomerPointBalances } from '@/features/canvas-cloud/CustomerPointBalances'
+import { usesCanvasCustomerBalances } from '@/features/canvas-cloud/role-routing'
 import { Users } from '@/features/users'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -49,5 +51,14 @@ export const Route = createFileRoute('/_authenticated/users/')({
     }
   },
   validateSearch: usersSearchSchema,
-  component: Users,
+  component: UsersPage,
 })
+
+function UsersPage() {
+  const role = useAuthStore((state) => state.auth.user?.role)
+  return usesCanvasCustomerBalances(role) ? (
+    <CanvasCustomerPointBalances />
+  ) : (
+    <Users />
+  )
+}

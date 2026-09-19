@@ -34,6 +34,9 @@ import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as AuthenticatedCanvasCloudSectionRouteImport } from './routes/_authenticated/canvas-cloud/$section'
+import { Route as AuthenticatedCanvasCloudInvitationsRouteImport } from './routes/_authenticated/canvas-cloud/invitations'
+import { Route as AuthenticatedCanvasCloudModelManagementRouteRouteImport } from './routes/_authenticated/canvas-cloud/model-management/route'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
@@ -53,6 +56,7 @@ import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_aut
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as AuthenticatedCanvasCloudModelManagementIndexRouteImport } from './routes/_authenticated/canvas-cloud/model-management/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
@@ -67,6 +71,9 @@ import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
+import { Route as AuthenticatedCanvasCloudModelManagementModelIdPricingRouteImport } from './routes/_authenticated/canvas-cloud/model-management/$modelId/pricing'
+import { Route as AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRouteImport } from './routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/index'
+import { Route as AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRouteImport } from './routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -192,6 +199,24 @@ const authUserResetRoute = authUserResetRouteImport.update({
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const AuthenticatedCanvasCloudSectionRoute =
+  AuthenticatedCanvasCloudSectionRouteImport.update({
+    id: '/canvas-cloud/$section',
+    path: '/canvas-cloud/$section',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCanvasCloudInvitationsRoute =
+  AuthenticatedCanvasCloudInvitationsRouteImport.update({
+    id: '/canvas-cloud/invitations',
+    path: '/canvas-cloud/invitations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedCanvasCloudModelManagementRouteRoute =
+  AuthenticatedCanvasCloudModelManagementRouteRouteImport.update({
+    id: '/canvas-cloud/model-management',
+    path: '/canvas-cloud/model-management',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
@@ -302,6 +327,12 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedCanvasCloudModelManagementIndexRoute =
+  AuthenticatedCanvasCloudModelManagementIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedCanvasCloudModelManagementRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsAuthIndexRoute =
   AuthenticatedSystemSettingsAuthIndexRouteImport.update({
     id: '/auth/',
@@ -386,6 +417,28 @@ const AuthenticatedSystemSettingsSiteSectionRoute =
     path: '/site/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedCanvasCloudModelManagementModelIdPricingRoute =
+  AuthenticatedCanvasCloudModelManagementModelIdPricingRouteImport.update({
+    id: '/$modelId/pricing',
+    path: '/$modelId/pricing',
+    getParentRoute: () => AuthenticatedCanvasCloudModelManagementRouteRoute,
+  } as any)
+const AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute =
+  AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRouteImport.update(
+    {
+      id: '/$modelId/monitoring/',
+      path: '/$modelId/monitoring/',
+      getParentRoute: () => AuthenticatedCanvasCloudModelManagementRouteRoute,
+    } as any,
+  )
+const AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute =
+  AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRouteImport.update(
+    {
+      id: '/$modelId/monitoring/$executionTargetId',
+      path: '/$modelId/monitoring/$executionTargetId',
+      getParentRoute: () => AuthenticatedCanvasCloudModelManagementRouteRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -410,7 +463,10 @@ export interface FileRoutesByFullPath {
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/canvas-cloud/model-management': typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
   '/user/reset': typeof authUserResetRoute
+  '/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -437,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/canvas-cloud/model-management/': typeof AuthenticatedCanvasCloudModelManagementIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -444,6 +501,9 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/canvas-cloud/model-management/$modelId/pricing': typeof AuthenticatedCanvasCloudModelManagementModelIdPricingRoute
+  '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute
+  '/canvas-cloud/model-management/$modelId/monitoring/': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -468,6 +528,8 @@ export interface FileRoutesByTo {
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
   '/user/reset': typeof authUserResetRoute
+  '/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -494,6 +556,7 @@ export interface FileRoutesByTo {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/canvas-cloud/model-management': typeof AuthenticatedCanvasCloudModelManagementIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -501,6 +564,9 @@ export interface FileRoutesByTo {
   '/system-settings/operations': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/canvas-cloud/model-management/$modelId/pricing': typeof AuthenticatedCanvasCloudModelManagementModelIdPricingRoute
+  '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute
+  '/canvas-cloud/model-management/$modelId/monitoring': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -528,7 +594,10 @@ export interface FileRoutesById {
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/_authenticated/canvas-cloud/model-management': typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
   '/(auth)/user/reset': typeof authUserResetRoute
+  '/_authenticated/canvas-cloud/$section': typeof AuthenticatedCanvasCloudSectionRoute
+  '/_authenticated/canvas-cloud/invitations': typeof AuthenticatedCanvasCloudInvitationsRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
@@ -555,6 +624,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/_authenticated/canvas-cloud/model-management/': typeof AuthenticatedCanvasCloudModelManagementIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -562,6 +632,9 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/_authenticated/canvas-cloud/model-management/$modelId/pricing': typeof AuthenticatedCanvasCloudModelManagementModelIdPricingRoute
+  '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute
+  '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/': typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -588,7 +661,10 @@ export interface FileRouteTypes {
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/canvas-cloud/model-management'
     | '/user/reset'
+    | '/canvas-cloud/$section'
+    | '/canvas-cloud/invitations'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -615,6 +691,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/canvas-cloud/model-management/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -622,6 +699,9 @@ export interface FileRouteTypes {
     | '/system-settings/operations/'
     | '/system-settings/security/'
     | '/system-settings/site/'
+    | '/canvas-cloud/model-management/$modelId/pricing'
+    | '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
+    | '/canvas-cloud/model-management/$modelId/monitoring/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -646,6 +726,8 @@ export interface FileRouteTypes {
     | '/rankings'
     | '/setup'
     | '/user/reset'
+    | '/canvas-cloud/$section'
+    | '/canvas-cloud/invitations'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
@@ -672,6 +754,7 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/canvas-cloud/model-management'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -679,6 +762,9 @@ export interface FileRouteTypes {
     | '/system-settings/operations'
     | '/system-settings/security'
     | '/system-settings/site'
+    | '/canvas-cloud/model-management/$modelId/pricing'
+    | '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
+    | '/canvas-cloud/model-management/$modelId/monitoring'
   id:
     | '__root__'
     | '/'
@@ -705,7 +791,10 @@ export interface FileRouteTypes {
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
+    | '/_authenticated/canvas-cloud/model-management'
     | '/(auth)/user/reset'
+    | '/_authenticated/canvas-cloud/$section'
+    | '/_authenticated/canvas-cloud/invitations'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
@@ -732,6 +821,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/_authenticated/canvas-cloud/model-management/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -739,6 +829,9 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/'
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
+    | '/_authenticated/canvas-cloud/model-management/$modelId/pricing'
+    | '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
+    | '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -937,6 +1030,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
     }
+    '/_authenticated/canvas-cloud/$section': {
+      id: '/_authenticated/canvas-cloud/$section'
+      path: '/canvas-cloud/$section'
+      fullPath: '/canvas-cloud/$section'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudSectionRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/canvas-cloud/invitations': {
+      id: '/_authenticated/canvas-cloud/invitations'
+      path: '/canvas-cloud/invitations'
+      fullPath: '/canvas-cloud/invitations'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudInvitationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/canvas-cloud/model-management': {
+      id: '/_authenticated/canvas-cloud/model-management'
+      path: '/canvas-cloud/model-management'
+      fullPath: '/canvas-cloud/model-management'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -1070,6 +1184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/canvas-cloud/model-management/': {
+      id: '/_authenticated/canvas-cloud/model-management/'
+      path: '/'
+      fullPath: '/canvas-cloud/model-management/'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudModelManagementIndexRouteImport
+      parentRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRoute
+    }
     '/_authenticated/system-settings/auth/': {
       id: '/_authenticated/system-settings/auth/'
       path: '/auth'
@@ -1168,6 +1289,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsSiteSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/canvas-cloud/model-management/$modelId/pricing': {
+      id: '/_authenticated/canvas-cloud/model-management/$modelId/pricing'
+      path: '/$modelId/pricing'
+      fullPath: '/canvas-cloud/model-management/$modelId/pricing'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdPricingRouteImport
+      parentRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRoute
+    }
+    '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/': {
+      id: '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/'
+      path: '/$modelId/monitoring'
+      fullPath: '/canvas-cloud/model-management/$modelId/monitoring/'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRouteImport
+      parentRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRoute
+    }
+    '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId': {
+      id: '/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
+      path: '/$modelId/monitoring/$executionTargetId'
+      fullPath: '/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId'
+      preLoaderRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRouteImport
+      parentRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRoute
+    }
   }
 }
 
@@ -1254,9 +1396,36 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
     AuthenticatedSystemSettingsRouteRouteChildren,
   )
 
+interface AuthenticatedCanvasCloudModelManagementRouteRouteChildren {
+  AuthenticatedCanvasCloudModelManagementIndexRoute: typeof AuthenticatedCanvasCloudModelManagementIndexRoute
+  AuthenticatedCanvasCloudModelManagementModelIdPricingRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdPricingRoute
+  AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute
+  AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute: typeof AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute
+}
+
+const AuthenticatedCanvasCloudModelManagementRouteRouteChildren: AuthenticatedCanvasCloudModelManagementRouteRouteChildren =
+  {
+    AuthenticatedCanvasCloudModelManagementIndexRoute:
+      AuthenticatedCanvasCloudModelManagementIndexRoute,
+    AuthenticatedCanvasCloudModelManagementModelIdPricingRoute:
+      AuthenticatedCanvasCloudModelManagementModelIdPricingRoute,
+    AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute:
+      AuthenticatedCanvasCloudModelManagementModelIdMonitoringExecutionTargetIdRoute,
+    AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute:
+      AuthenticatedCanvasCloudModelManagementModelIdMonitoringIndexRoute,
+  }
+
+const AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren =
+  AuthenticatedCanvasCloudModelManagementRouteRoute._addFileChildren(
+    AuthenticatedCanvasCloudModelManagementRouteRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedCanvasCloudModelManagementRouteRoute: typeof AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren
+  AuthenticatedCanvasCloudSectionRoute: typeof AuthenticatedCanvasCloudSectionRoute
+  AuthenticatedCanvasCloudInvitationsRoute: typeof AuthenticatedCanvasCloudInvitationsRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1280,6 +1449,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedCanvasCloudModelManagementRouteRoute:
+    AuthenticatedCanvasCloudModelManagementRouteRouteWithChildren,
+  AuthenticatedCanvasCloudSectionRoute: AuthenticatedCanvasCloudSectionRoute,
+  AuthenticatedCanvasCloudInvitationsRoute:
+    AuthenticatedCanvasCloudInvitationsRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

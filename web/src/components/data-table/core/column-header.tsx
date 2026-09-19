@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Column } from '@tanstack/react-table'
+import type { Column } from '@tanstack/react-table'
 import {
   ArrowDown as ArrowDownIcon,
   ArrowUp as ArrowUpIcon,
-  ChevronsUpDown as CaretSortIcon,
+  ArrowUpDown as SortIcon,
   EyeOff as EyeNoneIcon,
+  CircleHelp,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,65 +34,109 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
-type DataTableColumnHeaderProps<TData, TValue> =
-  React.HTMLAttributes<HTMLDivElement> & {
-    column: Column<TData, TValue>
-    title: React.ReactNode
-  }
+type DataTableColumnHeaderProps<TData, TValue> = Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  'title'
+> & {
+  column: Column<TData, TValue>
+  title: React.ReactNode
+  description?: string
+}
 
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,
   className,
+  description,
 }: DataTableColumnHeaderProps<TData, TValue>) {
   const { t } = useTranslation()
   if (!column.getCanSort()) {
     return <div className={cn(className)}>{title}</div>
   }
 
+  const sortIcon = (() => {
+    if (column.getIsSorted() === 'desc') {
+      return <ArrowDownIcon className='size-4 shrink-0' />
+    }
+    if (column.getIsSorted() === 'asc') {
+      return <ArrowUpIcon className='size-4 shrink-0' />
+    }
+    return <SortIcon className='size-4 shrink-0' />
+  })()
+
   return (
-    <div className={cn('flex items-center space-x-2', className)}>
+    <div
+      className={cn(
+        'flex items-center',
+        description && 'min-w-0 gap-1',
+        className
+      )}
+    >
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               variant='ghost'
               size='sm'
-              className='data-popup-open:bg-accent -ms-3 h-8'
+              className={cn(
+                'data-popup-open:bg-accent -ms-3 h-8 gap-1.5 px-3',
+                description &&
+                  'ms-0 h-auto min-w-0 shrink px-0 py-2 whitespace-normal'
+              )}
             />
           }
         >
-          <span>{title}</span>
-          {column.getIsSorted() === 'desc' ? (
-            <ArrowDownIcon className='ms-2 h-4 w-4' />
-          ) : column.getIsSorted() === 'asc' ? (
-            <ArrowUpIcon className='ms-2 h-4 w-4' />
-          ) : (
-            <CaretSortIcon className='ms-2 h-4 w-4' />
-          )}
+          <span className={description ? 'min-w-0 text-left' : undefined}>
+            {title}
+          </span>
+          {sortIcon}
         </DropdownMenuTrigger>
         <DropdownMenuContent align='start'>
           <DropdownMenuItem onClick={() => column.toggleSorting(false)}>
-            <ArrowUpIcon className='text-muted-foreground/70 size-3.5' />
+            <ArrowUpIcon className='text-muted-foreground/70 size-4' />
             {t('Asc')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => column.toggleSorting(true)}>
-            <ArrowDownIcon className='text-muted-foreground/70 size-3.5' />
+            <ArrowDownIcon className='text-muted-foreground/70 size-4' />
             {t('Desc')}
           </DropdownMenuItem>
           {column.getCanHide() && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => column.toggleVisibility(false)}>
-                <EyeNoneIcon className='text-muted-foreground/70 size-3.5' />
+                <EyeNoneIcon className='text-muted-foreground/70 size-4' />
                 {t('Hide')}
               </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {description && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='text-muted-foreground size-5 shrink-0'
+                aria-label={description}
+              />
+            }
+          >
+            <CircleHelp className='size-4' aria-hidden='true' />
+          </TooltipTrigger>
+          <TooltipContent className='max-w-80 text-sm whitespace-normal'>
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }

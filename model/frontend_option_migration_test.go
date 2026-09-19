@@ -44,6 +44,7 @@ func TestMigrateRetiredFrontendOptionsMigratesValidValuesIdempotently(t *testing
 	db := useFrontendOptionMigrationDB(t)
 	legacy := []Option{
 		{Key: retiredThemeOptionKey, Value: "classic"},
+		{Key: "SystemName", Value: "灵猫工坊"},
 		{Key: "ApiInfo", Value: `[{"url":"https://api.example.com","route":"primary","description":"API","color":"blue"}]`},
 		{Key: "Announcements", Value: `[{"content":"maintenance","publishDate":"2026-07-20T00:00:00Z","type":"warning"}]`},
 		{Key: "FAQ", Value: `[{"title":"Question","content":"Answer"}]`},
@@ -54,8 +55,9 @@ func TestMigrateRetiredFrontendOptionsMigratesValidValuesIdempotently(t *testing
 
 	require.NoError(t, MigrateRetiredFrontendOptions())
 	assert.Equal(t, "default", requireOptionValue(t, db, retiredThemeOptionKey))
-	assert.JSONEq(t, legacy[1].Value, requireOptionValue(t, db, "console_setting.api_info"))
-	assert.Equal(t, legacy[2].Value, requireOptionValue(t, db, "console_setting.announcements"))
+	assert.Equal(t, "像素喵片场", requireOptionValue(t, db, "SystemName"))
+	assert.JSONEq(t, legacy[2].Value, requireOptionValue(t, db, "console_setting.api_info"))
+	assert.Equal(t, legacy[3].Value, requireOptionValue(t, db, "console_setting.announcements"))
 	assert.JSONEq(t, `[{"question":"Question","answer":"Answer"}]`, requireOptionValue(t, db, "console_setting.faq"))
 	assert.JSONEq(t, `[{
 		"id":1,"categoryName":"old","url":"https://status.example.com","slug":"status","description":""
@@ -70,6 +72,60 @@ func TestMigrateRetiredFrontendOptionsMigratesValidValuesIdempotently(t *testing
 	after, err := AllOption()
 	require.NoError(t, err)
 	assert.ElementsMatch(t, before, after)
+}
+
+func TestMigrateRetiredFrontendOptionsPreservesCustomSystemName(t *testing.T) {
+	db := useFrontendOptionMigrationDB(t)
+	require.NoError(t, db.Create(&Option{Key: "SystemName", Value: "Customer Gateway"}).Error)
+
+	require.NoError(t, MigrateRetiredFrontendOptions())
+	assert.Equal(t, "Customer Gateway", requireOptionValue(t, db, "SystemName"))
+}
+
+func TestMigrateRetiredFrontendOptionsNormalizesCanvasDefaults(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "missing", want: common.DefaultCanvasSystemName},
+		{name: "empty", value: "", want: common.DefaultCanvasSystemName},
+		{name: "upstream default", value: "New API", want: common.DefaultCanvasSystemName},
+		{name: "legacy Chinese", value: "灵猫工坊", want: common.DefaultCanvasSystemName},
+		{name: "legacy Traditional Chinese", value: "靈貓工坊", want: common.DefaultCanvasTraditionalName},
+		{name: "legacy English", value: "LingCat Studio", want: common.DefaultCanvasEnglishSystemName},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := useFrontendOptionMigrationDB(t)
+			if tt.value != "" || tt.name == "empty" {
+				require.NoError(t, db.Create(&Option{Key: "SystemName", Value: tt.value}).Error)
+			}
+			require.NoError(t, MigrateRetiredFrontendOptions())
+			assert.Equal(t, tt.want, requireOptionValue(t, db, "SystemName"))
+		})
+	}
+}
+
+func TestMigrateRetiredFrontendOptionsNormalizesPasskeyDisplayName(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "upstream default", value: "New API", want: common.DefaultCanvasSystemName},
+		{name: "empty", value: "", want: common.DefaultCanvasSystemName},
+		{name: "legacy English", value: "LingCat Studio", want: common.DefaultCanvasEnglishSystemName},
+		{name: "custom", value: "Customer Gateway", want: "Customer Gateway"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := useFrontendOptionMigrationDB(t)
+			require.NoError(t, db.Create(&Option{Key: "passkey.rp_display_name", Value: tt.value}).Error)
+			require.NoError(t, MigrateRetiredFrontendOptions())
+			assert.Equal(t, tt.want, requireOptionValue(t, db, "passkey.rp_display_name"))
+		})
+	}
 }
 
 func TestLegacyConsoleListMigrationCapsAPIInfoAndFAQ(t *testing.T) {

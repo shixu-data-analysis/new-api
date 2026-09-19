@@ -20,6 +20,11 @@ import { Link } from '@tanstack/react-router'
 import { Fragment, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  getCanvasProductName,
+  isCanvasBrandContext,
+} from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -150,7 +155,7 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
 }
 
 export function Footer(props: FooterProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const {
     systemName,
     logo: systemLogo,
@@ -158,8 +163,17 @@ export function Footer(props: FooterProps) {
     demoSiteEnabled,
   } = useSystemConfig()
 
-  const displayLogo = systemLogo || props.logo || '/logo.png'
-  const displayName = systemName || props.name || 'New API'
+  const isCanvasProduct = isCanvasBrandContext(
+    systemName,
+    window.location.pathname,
+    new URLSearchParams(window.location.search).get('redirect')
+  )
+  const displayLogo = isCanvasProduct
+    ? lingCatStudioIcon
+    : systemLogo || props.logo || '/logo.png'
+  const displayName = isCanvasProduct
+    ? getCanvasProductName(i18n.resolvedLanguage ?? i18n.language)
+    : systemName || props.name || 'New API'
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
@@ -264,22 +278,24 @@ export function Footer(props: FooterProps) {
                 {displayName}
               </span>
             </Link>
-            <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
-              {t('Powerful API Management Platform')}
-            </p>
+            {!isCanvasProduct ? (
+              <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
+                {t('Powerful API Management Platform')}
+              </p>
+            ) : null}
           </div>
 
           {/* Links columns */}
-          {isDemoSiteMode && (
+          {isDemoSiteMode && !isCanvasProduct && (
             <div className='grid grid-cols-3 gap-8 md:gap-16'>
-              {displayColumns.map((column, index) => (
-                <div key={index}>
+              {displayColumns.map((column) => (
+                <div key={column.title}>
                   <p className='text-muted-foreground/50 mb-3 text-xs font-medium tracking-wider uppercase'>
                     {t(column.title)}
                   </p>
                   <ul className='space-y-2.5'>
-                    {column.links.map((link, linkIndex) => (
-                      <li key={linkIndex}>
+                    {column.links.map((link) => (
+                      <li key={`${link.href}:${link.text}`}>
                         <FooterLinkItem link={link} />
                       </li>
                     ))}

@@ -31,6 +31,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import useDialogState from '@/hooks/use-dialog'
 import { useIsSidebarModuleVisible } from '@/hooks/use-sidebar-config'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -46,6 +48,8 @@ export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, roleLabel } = useUserDisplay(user)
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
+  const canvasIdentity = canvasSession.data
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
   const isWalletVisible = useIsSidebarModuleVisible('/wallet')
   const avatarName = user?.username || displayName
@@ -82,13 +86,19 @@ export function ProfileDropdown() {
             </Avatar>
             <div className='flex flex-1 flex-col gap-0.5 overflow-hidden'>
               <p className='text-foreground truncate text-sm font-medium'>
-                {displayName}
+                {canvasIdentity?.displayName ?? displayName}
               </p>
               <div className='flex items-center gap-1.5'>
                 <span className='text-muted-foreground text-xs'>
-                  {roleLabel}
+                  {canvasIdentity
+                    ? t(
+                        isCanvasAdministrator(canvasIdentity.principalType)
+                          ? 'Canvas Platform Administrator'
+                          : 'Canvas Customer'
+                      )
+                    : roleLabel}
                 </span>
-                {user?.group && (
+                {!canvasIdentity && user?.group && (
                   <>
                     <span className='text-muted-foreground text-xs'>·</span>
                     <span className='text-muted-foreground truncate text-xs'>
@@ -107,14 +117,14 @@ export function ProfileDropdown() {
             {t('Profile')}
           </DropdownMenuItem>
 
-          {isWalletVisible && (
+          {!isCanvasShell && isWalletVisible && (
             <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
               <Wallet className='size-4' />
               {t('Wallet')}
             </DropdownMenuItem>
           )}
 
-          {isSuperAdmin && (
+          {!isCanvasShell && isSuperAdmin && (
             <DropdownMenuItem
               onClick={() =>
                 navigate({

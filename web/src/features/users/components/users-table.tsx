@@ -221,24 +221,23 @@ export function UsersTable() {
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: getUserStatusOptions(t),
             singleSelect: true,
           },
           {
             columnId: 'role',
             title: t('Role'),
+            allLabel: t('All roles'),
             options: getUserRoleOptions(t),
             singleSelect: true,
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
+      getRowClassName={(row, { isMobile }) => {
+        if (!isDisabledUserRow(row.original)) return undefined
+        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

@@ -26,6 +26,12 @@ func MigrateRetiredFrontendOptions() error {
 	if err := normalizeRetiredThemeOption(); err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("normalize %s: %w", retiredThemeOptionKey, err))
 	}
+	if err := migrateLegacyCanvasSystemName(); err != nil {
+		migrationErrors = append(migrationErrors, fmt.Errorf("normalize Canvas system name: %w", err))
+	}
+	if err := normalizePasskeyDisplayName(); err != nil {
+		migrationErrors = append(migrationErrors, fmt.Errorf("normalize passkey display name: %w", err))
+	}
 
 	migrations := []struct {
 		source    string
@@ -45,6 +51,42 @@ func MigrateRetiredFrontendOptions() error {
 		migrationErrors = append(migrationErrors, err)
 	}
 	return errors.Join(migrationErrors...)
+}
+
+func normalizePasskeyDisplayName() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.Where(&Option{Key: "passkey.rp_display_name"}).First(&option).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		replacement := common.NormalizeSystemName(option.Value)
+		if replacement == option.Value {
+			return nil
+		}
+		return tx.Model(&option).Update("value", replacement).Error
+	})
+}
+
+func migrateLegacyCanvasSystemName() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.Where(&Option{Key: "SystemName"}).First(&option).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return tx.Create(&Option{Key: "SystemName", Value: common.DefaultCanvasSystemName}).Error
+		}
+		if err != nil {
+			return err
+		}
+		replacement := common.NormalizeSystemName(option.Value)
+		if replacement == option.Value {
+			return nil
+		}
+		return tx.Model(&option).Update("value", replacement).Error
+	})
 }
 
 func normalizeRetiredThemeOption() error {

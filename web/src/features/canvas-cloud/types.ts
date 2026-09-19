@@ -1,0 +1,2283 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+export type CanvasPrincipalType = 'CUSTOMER' | 'PLATFORM_ADMIN' | 'SUPER_ADMIN'
+
+export interface CanvasSession {
+  principalId: string
+  principalType: CanvasPrincipalType
+  displayName: string
+  emailMasked: string | null
+  inviterEnabled: boolean
+}
+
+export interface CanvasRuntimeConfiguration {
+  environment: 'UAT' | 'STG' | 'PROD'
+  taskMedia: CanvasRuntimeTaskMediaConfiguration | null
+  databaseBackup: CanvasRuntimeDatabaseBackupConfiguration | null
+}
+
+export interface CanvasRuntimeTaskMediaConfiguration {
+  id: string
+  version: number
+  status: string
+  endpoint: string
+  bucket: string
+  accessKeyId: string | null
+  credentialsConfigured: boolean
+  inputRetentionHours: number
+  outputRetentionHours: number
+  downloadUrlTtlSeconds: number
+  reason: string
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  createdAt: string
+  latestCheck: CanvasRuntimeConnectionCheck | null
+}
+
+export interface CanvasRuntimeDatabaseBackupConfiguration {
+  id: string
+  version: number
+  status: string
+  endpoint: string
+  bucket: string
+  accessKeyId: string | null
+  credentialsConfigured: boolean
+  backupRetentionHours: number
+  downloadUrlTtlSeconds: number
+  reason: string
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  createdAt: string
+  latestCheck: CanvasRuntimeConnectionCheck | null
+}
+
+export interface CanvasProviderConfigurationQuery {
+  credentialGroupStatus?: 'ACTIVE' | 'ARCHIVED'
+  providerId?: string
+  credentialGroupId?: string
+  credentialGroupVersionId?: string
+  modelId?: string
+  modelScope: 'BOUND_TO_GROUP' | 'ELIGIBLE' | 'GROUP_MANAGEMENT'
+  modelName?: string
+  modelKey?: string
+  modelStatus?: string
+  credentialGroup?: string
+  bindingStatus?: 'BOUND' | 'UNBOUND'
+  sortBy: 'publicName' | 'modelKey' | 'status' | 'credentialGroup'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasProviderConfiguration {
+  environment: 'UAT' | 'STG' | 'PROD'
+  selectedProviderId: string | null
+  selectedCredentialGroupId: string | null
+  navigationTarget: {
+    modelId: string
+    bindingStatus: 'BOUND' | 'UNBOUND' | 'HISTORICAL_BOUND'
+  } | null
+  providers: Array<{
+    id: string
+    code: string
+    name: string
+    credentialSchemes: string[]
+  }>
+  credentialGroups: Array<{
+    id: string
+    credentialGroupId: string
+    providerId: string
+    providerCode: string
+    name: string
+    version: number
+    status: string
+    lifecycleStatus: 'ACTIVE' | 'ARCHIVED'
+    archivedAt: string | null
+    schemeNames: string[]
+    reason: string | null
+    effectiveAt: string | null
+    createdByPrincipalId: string
+    updatedBy: string
+    createdAt: string
+    boundModelCount: number
+    versionCount: number
+  }>
+  models: CanvasPage<CanvasProviderModel>
+}
+
+export interface CanvasProviderModel {
+  id: string
+  modelKey: string
+  modelVersion: number
+  channelCode: string
+  isLatestVersion: boolean
+  isSelectable: boolean
+  isHistoricalBinding: boolean
+  publicName: string
+  capability: 'chat.generate' | 'image.generate' | 'video.generate'
+  status: string
+  providerId: string
+  providerCode: string
+  providerChannelId: string
+  credentialBindingId: string | null
+  credentialBindingVersion: number | null
+  credentialBindingEffectiveAt: string | null
+  credentialGroupId: string | null
+  credentialGroupName: string | null
+  credentialGroupVersionId: string | null
+  credentialGroupVersion: number | null
+  latestAccessCheck: CanvasModelAccessPermissionCheck | null
+}
+
+export interface CanvasProviderCredentialVersion {
+  id: string
+  credentialGroupId: string
+  providerId: string
+  providerCode: string
+  name: string
+  version: number
+  status: string
+  schemeNames: string[]
+  reason: string | null
+  effectiveAt: string | null
+  createdByPrincipalId: string
+  updatedBy: string
+  affectedModelCount: number | null
+  createdAt: string
+}
+
+export interface CanvasProviderCredentialHistoryQuery {
+  targetVersionId?: string
+  version?: number
+  operator?: string
+  reason?: string
+  sortBy: 'version' | 'effectiveAt' | 'updatedBy' | 'reason'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasProviderCredentialGroupChange {
+  id: string
+  occurredAt: string
+  operator: string | null
+  type:
+    | 'GROUP_CREATED'
+    | 'GROUP_RENAMED'
+    | 'KEY_REPLACED'
+    | 'MODEL_BINDING_CHANGED'
+    | 'MODEL_REBOUND'
+    | 'GROUP_ARCHIVED'
+    | 'GROUP_RESTORED'
+    | 'GROUP_UPDATED'
+  outcome: 'SUCCESS'
+  reason: string | null
+  changes: Array<{
+    type?: string
+    before?: string | null
+    after?: string | null
+    groupName?: string
+    modelName?: string
+    fromGroup?: string | null
+    toGroup?: string | null
+  }>
+}
+
+export interface CanvasCredentialVersionAffectedModels extends CanvasPage<{
+  id: string
+  publicName: string
+}> {
+  factAvailable: boolean
+}
+
+export interface CanvasModelCredentialBindingVersion {
+  id: string
+  version: number
+  status: string
+  credentialGroupId: string
+  credentialGroupVersionId: string
+  credentialGroupVersion: number
+  credentialGroupName: string
+  reason: string | null
+  effectiveAt: string | null
+  updatedBy: string
+  createdAt: string
+}
+
+export interface CanvasCredentialRotationPreview {
+  credentialGroupId: string
+  providerId: string
+  name: string
+  currentCredentialGroupVersionId: string
+  currentVersion: number
+  nextVersion: number
+  affectedModels: Array<{
+    customerModelId: string
+    publicName: string
+    bindingId: string
+    bindingVersion: number
+  }>
+}
+
+export interface CanvasModelBindingPreview {
+  credentialGroupVersionId: string
+  targetCredentialGroupName: string
+  targetCredentialGroupVersion: number
+  models: Array<{
+    customerModelId: string
+    publicName: string
+    currentCredentialGroupName: string | null
+    currentCredentialGroupVersion: number | null
+    bindingId: string | null
+    bindingVersion: number | null
+  }>
+}
+
+export interface CanvasRuntimeConnectionCheck {
+  outcome: 'PASSED' | 'FAILED'
+  reasonCode: string | null
+  checkedBy?: string
+  checkedAt: string
+}
+
+export interface CanvasModelAccessPermissionCheck {
+  outcome: 'PASSED' | 'FAILED' | 'UNVERIFIABLE'
+  reasonCode: string | null
+  checkedBy?: string
+  checkedAt: string
+}
+
+export interface CanvasAdminRechargeCode {
+  id: string
+  remark: string | null
+  currency: 'CNY'
+  amountMinor: string
+  points: string
+  bonusPoints: string
+  bonusTtlDays: number | null
+  createdAt: string
+  expiresAt: string
+  totalCount: number
+  availableCount: number
+  redeemedCount: number
+  expiredCount: number
+  voidCount: number
+}
+
+export interface CanvasAdminRechargeCodePage {
+  items: CanvasAdminRechargeCode[]
+  matchedCode: CanvasAdminRechargeCodeBatchItem | null
+  total: number
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasAdminRechargeCodeBatchItem {
+  maskedCode: string
+  status: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
+  redeemedAt: string | null
+}
+
+export interface CanvasAdminRechargeCodeBatchItems {
+  items: CanvasAdminRechargeCodeBatchItem[]
+  matchedCount: number
+  totalCount: number
+}
+
+export type CanvasAdminRechargeCodeExactSearchPage = CanvasAdminRechargeCodePage
+
+export interface CanvasAdminRechargeCodeQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  status?: 'ACTIVE' | 'REDEEMED' | 'VOID' | 'EXPIRED'
+  createdFrom?: string
+  createdTo?: string
+  sortBy: 'remark' | 'status' | 'amount' | 'points' | 'createdAt' | 'expiresAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminRechargeCodeExactSearch extends CanvasAdminRechargeCodeQuery {
+  code: string
+}
+
+export interface CanvasIssuedRechargeCodes {
+  created: boolean
+  codes: Array<{ id: string; code: string }>
+  batch: CanvasAdminRechargeCode
+}
+
+export type CanvasInviteCodeStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'REVOKED'
+  | 'EXPIRED'
+
+export interface CanvasAdminInviteCode {
+  id: string
+  maskedCode: string
+  codeMode: 'GENERATED' | 'CUSTOM'
+  status: CanvasInviteCodeStatus
+  redeemable: boolean
+  unavailableReasons: Array<
+    | 'DRAFT'
+    | 'NOT_STARTED'
+    | 'PAUSED'
+    | 'EXPIRED'
+    | 'TEMPORARILY_FULL'
+    | 'EXHAUSTED'
+    | 'REVOKED'
+  >
+  allowedActions: Array<
+    'DISPLAY' | 'COPY' | 'PAUSE' | 'RESUME' | 'EXTEND_EXPIRATION' | 'REVOKE'
+  >
+  maxRegistrations: string
+  reservedCount: string
+  activeReservedCount: string
+  consumedCount: string
+  activatedCustomers: string
+  remainingCount: string
+  validFrom: string
+  expiresAt: string
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  initialBonusPoints: string | null
+  initialBonusTtlDays: number | null
+  promotionVersionId: string | null
+  referralSource: string | null
+  agent: CanvasAgentReference | null
+  pausedAt: string | null
+  revokedAt: string | null
+  createdAt: string
+}
+
+export interface CanvasInviteCodeOptions {
+  agents: CanvasAgentReference[]
+  priceGroups: Array<{ id: string; code: string; internalName: string }>
+  promotions: Array<{
+    id: string
+    code: string
+    internalName: string
+    version: number
+    status: string
+    bonusPoints: string
+    bonusTtlDays: number
+  }>
+}
+
+export interface CanvasAgentReference {
+  principalId: string
+  username: string
+}
+
+export interface CanvasAgentProfile {
+  principalId: string
+  username: string
+  status: 'ACTIVE' | 'DISABLED'
+  createdAt: string
+}
+
+export interface CanvasAdminAgentQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  search?: string
+  status?: CanvasAgentProfile['status']
+  principalId?: string
+  sortBy: 'username' | 'status' | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasInvitationExactFilter {
+  username: string
+  status: CanvasAgentProfile['status']
+}
+
+export interface CanvasAdminAgentPage extends CanvasPage<CanvasAgentProfile> {
+  exactFilter: CanvasInvitationExactFilter | null
+}
+
+export interface CanvasAdminInviteCodeQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  priceGroup?: string
+  inviter?: string
+  inviterPrincipalId?: string
+  status?: CanvasInviteCodeStatus
+  sortBy:
+    | 'code'
+    | 'status'
+    | 'priceGroup'
+    | 'inviter'
+    | 'capacity'
+    | 'validFrom'
+    | 'expiresAt'
+    | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminInviteCodePage extends CanvasPage<CanvasAdminInviteCode> {
+  exactFilter: CanvasInvitationExactFilter | null
+}
+
+export interface CanvasAgentWorkspace {
+  profile: {
+    principalId: string
+    username: string
+    status: 'ACTIVE'
+  }
+  summary: CanvasAgentSummary
+  priceGroups: CanvasAgentPriceGroupSummary[]
+}
+
+export interface CanvasAgentSummary {
+  activatedCustomers: number
+  customersWithSuccessfulTasks: number
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAgentPriceGroupSummary {
+  priceGroupId: string
+  priceGroupName: string
+  currentCustomers: number
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAgentModelUsageRow {
+  priceGroupId: string
+  priceGroupName: string
+  customerModelId: string
+  modelKey: string
+  modelName: string
+  combinationKey: string
+  parameters: Record<string, unknown>
+  billingUnit: CanvasBillingUnit
+  usage: {
+    requests: string
+    seconds: string
+    inputTokens: string | null
+    outputTokens: string | null
+    cacheReadTokens: string | null
+    cacheWriteTokens: string | null
+  }
+  successfulTasks: number
+  settledPoints: string
+  agentPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
+  agentPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentModelUsageRow extends CanvasAgentModelUsageRow {
+  customerPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
+  customerPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAgentModelPrice {
+  customerModelId: string
+  modelKey: string
+  name: string
+  description: string | null
+  capability: string
+  tags: Array<{ id: string; name: string }>
+  priceGroups: Array<{
+    priceGroupId: string
+    priceGroupName: string
+    prices: Array<{
+      combinationKey: string
+      parameters: Record<string, unknown>
+      billingUnit: CanvasBillingUnit
+      customerPoints: string
+      customerTokenRates: Partial<CanvasTokenRateVector> | null
+      modelPriceCny: string | Partial<CanvasTokenRateVector> | null
+    }>
+  }>
+}
+
+export interface CanvasAgentInviteCode {
+  id: string
+  maskedCode: string
+  status: CanvasInviteCodeStatus
+  priceGroupId: string
+  priceGroupName: string
+  maxRegistrations: string
+  reservedCount: string
+  consumedCount: string
+  remainingCount: string
+  validFrom: string
+  expiresAt: string
+  activatedCustomers: string
+  createdAt: string
+}
+
+export interface CanvasAgentInviteCodePage extends CanvasPage<CanvasAgentInviteCode> {
+  filters: { priceGroups: Array<{ id: string; name: string }> }
+}
+
+export interface CanvasAgentCustomer {
+  id: string
+  username: string | null
+  emailMasked: string | null
+  status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+  activatedAt: string | null
+  currentPriceGroup: { id: string; name: string } | null
+  successfulTasks: number
+  settledPoints: string
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+}
+
+export interface CanvasAgentInviteCodeQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  status?: CanvasInviteCodeStatus
+  priceGroupId?: string
+  sortBy:
+    | 'code'
+    | 'status'
+    | 'capacity'
+    | 'activatedCustomers'
+    | 'expiresAt'
+    | 'createdAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAgentCustomerQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  username?: string
+  email?: string
+  status?: CanvasAgentCustomer['status']
+  sortBy: 'customer' | 'status' | 'activatedAt'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasAdminAgentSummary extends CanvasAgentSummary {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentPriceGroupSummary extends CanvasAgentPriceGroupSummary {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentCustomer extends CanvasAgentCustomer {
+  customerPriceAmount: string | null
+  customerAmountIncomplete: boolean
+}
+
+export interface CanvasAdminAgentStatistics {
+  profile: CanvasAgentProfile
+  summary: CanvasAdminAgentSummary
+  priceGroups: CanvasAdminAgentPriceGroupSummary[]
+}
+
+export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPrice> {
+  filters: {
+    capabilities: string[]
+    tags: Array<{ id: string; name: string }>
+  }
+}
+
+export type CanvasBillingUnit = 'REQUEST' | 'SECOND' | 'MILLION_TOKENS'
+export type CanvasTokenCategory =
+  | 'input'
+  | 'output'
+  | 'cacheRead'
+  | 'cacheWrite'
+export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
+export type CanvasModelPricingTokenRateVector = {
+  input: string
+  output: string
+  cacheRead?: string
+  cacheWrite?: string
+}
+export interface CanvasTokenCategoryRisk {
+  category: CanvasTokenCategory
+  providerRateRmb: string
+  customerRatePoints: string
+  breakEvenPointsCeil: string
+  belowBreakEven: boolean
+  otherVariableCostRmb?: string
+  failedUnrecoverableCostRmb?: string
+  riskBufferRmb?: string
+  kTheoryRmb?: string
+  kPricingRmb?: string
+  pricingBreakEvenPointsCeil?: string
+  targetMarginPointsCeil?: string
+  recommendedCustomerRatePoints?: string
+  belowPricingBreakEven?: boolean
+  belowTargetMargin?: boolean
+}
+
+export interface CanvasProviderPricingRow {
+  providerId: string
+  providerCode: string
+  providerName: string
+  channelId: string
+  channelCode: string
+  customerModelId: string
+  modelKey: string
+  modelName: string
+  combinationId: string
+  combinationKey: string
+  parameters: Record<string, unknown>
+  billingDimensions: Record<string, unknown>
+  resolvedProviderModelId: string
+  rateId: string | null
+  rateVersion: number | null
+  rateStatus: string | null
+  billingUnit: CanvasBillingUnit | null
+  nativeAmount: string | null
+  tokenRates: CanvasTokenRateVector | null
+  currency: string | null
+  normalizedAmountMinor: string | null
+  normalizedTokenRates: CanvasTokenRateVector | null
+  failureChargePolicy:
+    | { mode: 'NONE' }
+    | { mode: 'SAME_AS_SUCCESS' }
+    | { mode: 'FIXED'; normalizedAmountMinor: string }
+    | null
+  rateEffectiveAt: string | null
+  prices: Array<{
+    id: string
+    groupId: string
+    groupName: string
+    billingUnit: CanvasBillingUnit
+    points: string
+    tokenRates: CanvasTokenRateVector | null
+    version: number
+    status: string
+    providerRateVersionId: string | null
+    effectiveAt: string | null
+    breakEvenPoints: string
+    newBreakEvenPoints: string | null
+    belowBreakEven: boolean
+    categoryRisks: CanvasTokenCategoryRisk[]
+    success_probability?: string
+    risk_buffer_minor?: string
+    pricing_assumptions_snapshot?: Record<string, unknown>
+  }>
+  riskDecision: {
+    id: string
+    decisionType: 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
+    lossEndsAt: string | null
+    maxExpectedLossPoints: string | null
+    consumedExpectedLossPoints: string
+    reason: string
+  } | null
+}
+
+export interface CanvasCreatedInviteCode {
+  item: CanvasAdminInviteCode
+  code: string | null
+}
+
+export interface CanvasInviteCodeAvailability {
+  available: boolean
+  unavailableReasons: string[]
+}
+
+export interface CanvasInviteCodeExtensionPreview {
+  item: CanvasAdminInviteCode
+  expectedExpiresAt: string
+  currentExpiresAt: string
+  newExpiresAt: string
+  redeemable: boolean
+  unavailableReasons: CanvasAdminInviteCode['unavailableReasons']
+}
+
+export interface CanvasCustomerWorkspace {
+  wallet: {
+    debtPoints?: string
+    netAvailablePoints?: string
+    availablePoints: string
+    paidAvailablePoints: string
+    bonusAvailablePoints: string
+    lots: Array<{
+      id: string
+      type: string
+      availablePoints: string
+      remainingPoints: string
+      reservedPoints: string
+      expiresAt: string | null
+      issuedAt: string
+    }>
+  }
+  rechargeOrders: Array<{
+    id: string
+    orderNumber: string
+    status: string
+    currency: string
+    listedAmountMinor: string
+    createdAt: string
+  }>
+  tasks: Array<{
+    id: string
+    modelName: string
+    quotedPoints: string
+    settledPoints?: string
+    outstandingDebtPoints?: string
+    outputSummaries?: Array<{
+      outputIndex: number
+      executionStatus: string
+      billingStatus: string
+      quotedPoints: string
+      settledPoints: string | null
+      error?: {
+        code: string | null
+        messages: Record<string, string> | null
+      } | null
+    }>
+    executionStatus: string
+    customerBillingStatus: string
+    providerReconcileStatus: string
+    acceptedAt: string
+    completedAt: string | null
+  }>
+  ledger: Array<{
+    id: string
+    eventType: string
+    eventPoints: string
+    remainingDelta: string
+    reservedDelta: string
+    taskId: string | null
+    refundLinkId: string | null
+    reason: string | null
+    occurredAt: string
+  }>
+}
+
+export interface CanvasCustomerPointSummary {
+  availablePoints: string
+  paidAvailablePoints: string
+  bonusAvailablePoints: string
+  debtPoints: string
+}
+
+export interface CanvasCustomerRechargeRedemption {
+  redeemedAt: string
+  orderNumber: string
+  currency: string
+  listedAmountMinor: string
+  issuedPaidPoints: string
+  issuedBonusPoints: string
+  status: 'REDEEMED'
+}
+
+export interface CanvasCustomerTaskOutputSummary {
+  outputIndex: number
+  executionStatus: string
+  error: {
+    code: string | null
+    messages: Record<string, string> | null
+  } | null
+}
+
+export interface CanvasCustomerTaskAsset {
+  assetId: string
+  outputIndex: number
+  mediaType: 'IMAGE' | 'VIDEO' | 'AUDIO'
+  mimeType: string
+  sizeBytes: string
+  availableUntil: string | null
+  downloadPath: string
+}
+
+export interface CanvasCustomerTask {
+  id: string
+  modelName: string
+  derivedExecutionStatus: string
+  executionSummary: {
+    expectedResults: number
+    recordedResults: number
+    acceptedResults: number
+    processingResults: number
+    succeededResults: number
+    failedResults: number
+    unknownResults: number
+    resultsIncomplete: boolean
+  }
+  outputSummaries: CanvasCustomerTaskOutputSummary[]
+  assets: CanvasCustomerTaskAsset[]
+  settlementProgress: 'PENDING' | 'PROCESSING' | 'COMPLETED'
+  customerBillingStatus: string
+  allocatedPoints: string
+  deductedPoints: string
+  releasedPoints: string
+  outstandingDebtPoints: string
+  acceptedAt: string
+}
+
+export interface CanvasTaskAssetDownload {
+  url: string
+  expiresAt: string
+  outputIndex: number
+  mimeType: string
+  sizeBytes: string
+  sha256: string
+}
+
+export interface CanvasCatalogModel {
+  id: string
+  name: string
+  catalog: Record<string, unknown>
+  tags: CanvasModelTag[]
+  parameterCombinations: Array<{
+    id: string
+    executionTargetId: string
+    parameters: Record<string, unknown>
+    billingDimensions: Record<string, unknown>
+    points: string
+  }>
+}
+
+export interface CanvasModelTag {
+  id: string
+  name: string
+}
+
+export interface CanvasAdminModelTag extends CanvasModelTag {
+  modelCount: number
+  modelKeys: string[]
+}
+
+export interface CanvasAdminWorkspace {
+  principal: { principalId: string; principalType: 'PLATFORM_ADMIN' }
+  customers: CanvasAdminCustomerPointBalance[]
+  channels: Array<{
+    id: string
+    providerName: string
+    code: string
+    version: number
+    status: string
+    protocolAdapter: string
+    upstreamModel: string
+    effectiveAt: string | null
+  }>
+  prices: Array<{
+    id: string
+    modelKey: string
+    modelName: string
+    priceGroupCode: string
+    priceGroup: string
+    combinationKey: string
+    normalizedParameters: Record<string, unknown>
+    version: number
+    status: string
+    points: string
+    baseRatePointsPerRmb: string
+    targetMarginRate: string
+    successProbability: string
+    kTheoryRmb: string
+    kActualRmb: string | null
+    kPricingRmb: string
+    riskBufferRmb: string
+    breakEvenPoints: string
+    targetMarginPoints: string
+    pricingAssumptionsSnapshot: Record<string, unknown>
+    createdByPrincipalId: string
+    approvedByPrincipalId: string | null
+    createdAt: string
+    approvedAt: string | null
+    effectiveAt: string | null
+  }>
+  pricePromotions: Array<{
+    id: string
+    version: number
+    status: 'APPROVED' | 'ACTIVE' | 'STOPPED' | 'EXPIRED'
+    sourcePriceVersionId: string
+    modelKey: string
+    modelName: string
+    priceGroupCode: string
+    priceGroup: string
+    combinationKey: string
+    basePoints: string
+    specialPoints: string
+    expectedContributionRate: string
+    campaignBudgetMinor: string | null
+    maxExpectedLossMinor: string | null
+    maxParticipants: string | null
+    usedBudgetMinor: string
+    usedExpectedLossMinor: string
+    participants: string
+    approvalReason: string
+    startsAt: string
+    endsAt: string
+    createdAt: string
+    approvedAt: string | null
+    effectiveAt: string | null
+  }>
+  refunds: Array<{
+    id: string
+    refundReference: string
+    customerConfirmationReference: string | null
+    orderNumber: string
+    status: string
+    cashAmountMinor: string
+    pointsRequested: string
+    pointsClawedBack: string
+    pointsOutstanding: string
+    recoveryStatus: string | null
+    createdAt: string
+  }>
+  executorWorkers: Array<{
+    queueName: string
+    mode: 'MOCK' | 'REAL'
+    workerId: string
+    status: 'RUNNING' | 'STOPPING' | 'STOPPED'
+    credentialsConfigured: boolean
+    startedAt: string
+    heartbeatAt: string
+    leaseExpiresAt: string
+  }>
+  reconciliationTasks: Array<{
+    id: string
+    modelName: string
+    executionStatus: string
+    customerBillingStatus: string
+    providerReconcileStatus: string
+    executionOrigin: 'MOCK' | 'REAL' | null
+    upstreamTaskId: string | null
+    acceptedAt: string
+  }>
+  recentTasks: Array<{
+    id: string
+    customerId: string
+    customerName: string
+    modelName: string
+    quotedPoints: string
+    settledPoints?: string
+    executionStatus: string
+    customerBillingStatus: string
+    providerReconcileStatus: string
+    executionOrigin: 'MOCK' | 'REAL' | null
+    upstreamTaskId: string | null
+    acceptedAt: string
+    completedAt: string | null
+  }>
+}
+
+export interface CanvasAuditEventPage {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  total: number
+  items: Array<{
+    id: string
+    occurredAt: string
+    service: string
+    environment: string
+    category: string
+    action: string
+    outcome: 'SUCCESS' | 'FAILURE' | 'DEFERRED'
+    severity: 'INFO' | 'WARN' | 'ERROR'
+    actorPrincipalId: string | null
+    actorType: string
+    actorUsername: string | null
+    requestId: string | null
+    traceId: string | null
+    resourceType: string
+    resourceId: string | null
+    resourceKey: string | null
+    reasonCode: string | null
+    publicMetadata: Record<string, unknown>
+  }>
+}
+
+export interface CanvasAuditEventQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  resource?: string
+  reason?: string
+  category?: string
+  action?: string
+  outcome?: CanvasAuditEventPage['items'][number]['outcome']
+  actorPrincipalId?: string
+  resourceType?: string
+  resourceId?: string
+  customerId?: string
+  from?: string
+  to?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface CanvasPointIssuanceRateVersion {
+  id: string
+  version: number
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'RETIRED'
+  pointsPerRmb: string
+  decisionSummary: string
+  evidenceRefs: string[]
+  createdByPrincipalId: string
+  approvedByPrincipalId: string | null
+  createdAt: string
+  approvedAt: string | null
+  effectiveAt: string | null
+}
+
+export interface CanvasTaskPolicySettings {
+  quoteTtlSeconds: number
+  quoteTtlVersion: number | null
+  quoteTtlEffectiveAt: string | null
+  bonusFailureGraceDays: number
+  bonusFailureGraceVersion: number | null
+  bonusFailureGraceEffectiveAt: string | null
+  paidExpiryDays: number
+  paidExpiryVersion: number | null
+  paidExpiryEffectiveAt: string | null
+}
+
+export interface CanvasExecutionTargetPricingCoverage {
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  requiredCount: number
+  pricedCount: number
+  complete: boolean
+  customerVisible: boolean
+  invisibleReasons: string[]
+  pricedCombinationIds: string[]
+  missingCombinationIds: string[]
+}
+
+export interface CanvasAdminTestingModel {
+  id: string
+  modelKey: string
+  tags: CanvasModelTag[]
+  modelIds: Array<{ quality: string | null; modelId: string }>
+  executionTargets: Array<{
+    id: string
+    upstreamModelId: string
+    enabled: boolean
+    presentationVersion: number | null
+    effectiveEnabled: boolean
+    blockingReasons: string[]
+    customerVisible: boolean
+    pricingComplete: boolean
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+      enabled: boolean
+    }>
+  }>
+  version: number
+  name: string
+  description: string
+  enabled: boolean
+  resourceEnabled: boolean
+  presentationVersion: number | null
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
+  customerVisible: boolean
+  pricedTargets: number
+  totalTargets: number
+  provider: { id: string; code: string; name: string }
+  binding: {
+    status: 'BOUND' | 'UNBOUND'
+    credentialGroupId: string | null
+    credentialGroupName: string | null
+    credentialGroupVersionId: string | null
+    credentialGroupVersion: number | null
+  }
+  billingUnit: CanvasBillingUnit | null
+  billingUnits: CanvasBillingUnit[]
+  publicCatalogSnapshot: Record<string, unknown>
+  parameterCombinations: Array<{
+    id: string
+    key: string
+    enabled: boolean
+    normalizedParameters: Record<string, unknown>
+    billingDimensionsSnapshot: Record<string, unknown>
+  }>
+  pricingTargets: Array<{
+    priceGroupId: string
+    priceGroupCode: string
+    priceGroupName: string
+    priceGroupVersion: number
+    parameterCombinationId: string
+    combinationKey: string
+    priced: boolean
+    priceVersionId: string | null
+    priceVersion: number | null
+    points: string | null
+  }>
+  createdAt: string
+  effectiveAt: string | null
+}
+
+export type CanvasModelPricingFailureChargePolicy =
+  | { mode: 'NONE' }
+  | { mode: 'SAME_AS_SUCCESS' }
+  | { mode: 'FIXED'; nativeAmount: string; normalizedAmountMinor?: string }
+
+export type CanvasTokenCategoryAssumptions = Partial<
+  Record<
+    CanvasTokenCategory,
+    {
+      otherVariableCostRmb: string
+      riskBufferRmb: string
+    }
+  >
+>
+
+export interface CanvasModelPricingQuestionnaire {
+  targetMarginRate: string | null
+  successProbability: string
+  successfulTaskCostRmb: string | null
+  failedUnrecoverableCostRmb: string | null
+  otherVariableCostRmb: string | null
+  riskBufferRmb: string
+  decisionSummary: string
+  evidenceRefs: string[]
+  tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions | null
+}
+
+export interface CanvasModelPricingCalculation {
+  baseRatePointsPerRmb: string
+  kTheoryRmb: string
+  kPricingRmb: string
+  breakEvenPointsCeil: string
+  targetMarginPointsCeil: string
+  actualMarginRate?: string | null
+}
+
+export interface CanvasModelPricingProviderRate {
+  billingUnit: CanvasBillingUnit
+  nativeAmount: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  currency: string
+  exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+  normalizedAmountMinor: string
+  normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+  failureChargePolicy: CanvasModelPricingFailureChargePolicy
+  id?: string
+  version?: number
+  status?: string
+  decisionSummary?: string
+  effectiveAt?: string | null
+}
+
+export interface CanvasModelPricingPriceSnapshot {
+  inputMode: 'POINTS' | 'CNY' | null
+  billingUnit: CanvasBillingUnit
+  points: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  questionnaire: CanvasModelPricingQuestionnaire
+  calculation?: CanvasModelPricingCalculation
+  cnyCalculation?: {
+    providerSuccessPriceCny: CanvasModelPricingCnyValue
+    inviterDisplayPriceCny?: CanvasModelPricingCnyValue
+    customerPriceCny: CanvasModelPricingCnyValue
+    inviterMinusProviderCny?: CanvasModelPricingCnyValue
+    customerMinusInviterCny?: CanvasModelPricingCnyValue
+    actualMarginRate: CanvasModelPricingCnyValue
+    fullCostCny: CanvasModelPricingCnyValue
+    canPublish: boolean
+  }
+  originalCnyValues?: {
+    providerSuccessPriceCny: CanvasModelPricingCnyValue | null
+    inviterDisplayPriceCny: CanvasModelPricingCnyValue | null
+    customerPriceCny: CanvasModelPricingCnyValue | null
+  }
+  id?: string
+  version?: number
+  status?: string
+  effectiveAt?: string | null
+  providerRateVersionId?: string | null
+  originalInput:
+    | {
+        inputMode: 'POINTS'
+        billingUnit: CanvasBillingUnit
+        priceVersionId: string
+        priceVersion: number
+        providerRateVersionId: string
+        providerRateVersion: number
+        providerRate: {
+          nativeAmount: string
+          tokenRates: CanvasModelPricingTokenRateVector | null
+          currency: string
+          exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+          failureChargePolicy: CanvasModelPricingFailureChargePolicy
+        }
+        points: string
+        tokenRates: CanvasModelPricingTokenRateVector | null
+        targetMarginRate: string
+        successProbability: string
+        otherVariableCostRmb: string
+        riskBufferRmb: string
+        tokenCategoryAssumptions: CanvasTokenCategoryAssumptions | null
+      }
+    | {
+        inputMode: 'CNY'
+        billingUnit: CanvasBillingUnit
+        priceVersionId: string
+        priceVersion: number
+        providerRateVersionId: string
+        providerRateVersion: number
+        providerSuccessPriceCny: CanvasModelPricingCnyValue
+        inviterDisplayPriceCny?: CanvasModelPricingCnyValue
+        customerPriceCny: CanvasModelPricingCnyValue
+      }
+    | null
+  restorationError: {
+    code: 'INCOMPLETE_PRICING_INPUT_SNAPSHOT' | 'INVALID_PRICING_INPUT_MODE'
+    missingFields: string[]
+  } | null
+  assumptions?: {
+    schemaVersion: number
+    billingContractVersion: number
+    billingUnit: CanvasBillingUnit
+    tokenRates: CanvasModelPricingTokenRateVector | null
+    tokenCategoryRisks: CanvasTokenCategoryRisk[]
+    tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions | null
+    sourcePriceVersionId: string | null
+    pointIssuanceRateConfigVersionId: string
+    pointIssuanceRateVersion: number
+    targetMarginRate: string
+    successfulTaskCostRmb: string
+    failedUnrecoverableCostRmb: string
+    otherVariableCostRmb: string
+    decisionSummary: string
+    evidenceRefs: string[]
+  }
+}
+
+export interface CanvasModelPricingPointsScope {
+  parameterCombinationId: string
+  providerRate:
+    | {
+        action?: 'SET'
+        nativeAmount: string
+        currency: string
+        exchangeRateSnapshot: { rate: string; source: string; asOf: string }
+        tokenRates?: CanvasModelPricingTokenRateVector
+        failureChargePolicy: CanvasModelPricingFailureChargePolicy
+      }
+    | {
+        action: 'KEEP'
+        sourceProviderRateVersionId: string
+      }
+  prices: Array<{
+    priceGroupId: string
+    action: 'KEEP' | 'SET'
+    sourcePriceVersionId?: string
+    points?: string
+    tokenRates?: CanvasModelPricingTokenRateVector
+    targetMarginRate?: string
+    tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions
+    successProbability?: string
+    otherVariableCostRmb?: string
+    riskBufferRmb?: string
+    decisionSummary?: string
+    evidenceRefs?: string[]
+  }>
+}
+
+export type CanvasModelPricingCnyValue =
+  | string
+  | CanvasModelPricingTokenRateVector
+
+export interface CanvasModelPricingCnyScope {
+  parameterCombinationId: string
+  providerSuccessPriceCny: CanvasModelPricingCnyValue
+  prices: Array<{
+    priceGroupId: string
+    sourcePriceVersionId?: string
+    inviterDisplayPriceCny: CanvasModelPricingCnyValue
+    customerPriceCny: CanvasModelPricingCnyValue
+  }>
+}
+
+export type CanvasModelPricingScope = CanvasModelPricingPointsScope
+
+export interface CanvasModelPricingModel {
+  id: string
+  modelKey: string
+  name: string
+  capability: string
+  status: string
+  billingUnit: CanvasBillingUnit | null
+  billingUnitState: 'UNPRICED' | 'CONSISTENT' | 'MIXED'
+  publishedBillingUnits: CanvasBillingUnit[]
+  allowedBillingUnits: CanvasBillingUnit[]
+  tokenCategories: CanvasTokenCategory[]
+  combinations: Array<{
+    id: string
+    key: string
+    parameters: Record<string, unknown>
+    enabled: boolean
+  }>
+  hasPublishedPricing: boolean
+}
+
+export interface CanvasModelPricingWorkspace {
+  models: CanvasModelPricingModel[]
+  priceGroups: Array<{ id: string; code: string; internalName: string }>
+}
+
+export interface CanvasModelPricingDetail {
+  model: CanvasModelPricingModel
+  priceGroups: CanvasModelPricingWorkspace['priceGroups']
+  pricingScopes: Array<{
+    parameterCombinationId: string
+    combinationKey: string
+    parameters: Record<string, unknown>
+    enabled: boolean
+    currentProviderRate: CanvasModelPricingProviderRate | null
+    scheduledProviderRate: CanvasModelPricingProviderRate | null
+    originalProviderSuccessPriceCny?: CanvasModelPricingCnyValue | null
+    prices: Array<{
+      priceGroupId: string
+      priceGroupCode: string
+      priceGroupName: string
+      current: CanvasModelPricingPriceSnapshot | null
+      scheduled: CanvasModelPricingPriceSnapshot | null
+    }>
+  }>
+}
+
+export interface CanvasModelPricingPreviewPrice {
+  priceGroupId: string
+  action: 'KEEP' | 'SET'
+  current: CanvasModelPricingPriceSnapshot | null
+  proposed: CanvasModelPricingPriceSnapshot | null
+  calculation: CanvasModelPricingCalculation | null
+  changed: boolean
+}
+
+export interface CanvasModelPricingPreview {
+  id: string
+  expiresAt: string
+  customerModelId: string
+  billingUnit: CanvasBillingUnit
+  effectiveAt: string
+  inputMode: 'POINTS' | 'CNY'
+  effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
+  pointIssuanceRate: { id: string; version: number; pointsPerRmb: string }
+  unitChange: {
+    from: CanvasBillingUnit | null
+    to: CanvasBillingUnit
+    changed: boolean
+  }
+  scopes: Array<{
+    parameterCombinationId: string
+    combinationKey: string
+    parameters: Record<string, unknown>
+    currentProviderRate: CanvasModelPricingProviderRate | null
+    proposedProviderRate: CanvasModelPricingProviderRate
+    costChanged: boolean
+    prices: CanvasModelPricingPreviewPrice[]
+  }>
+  conflicts: Array<{
+    code: string
+    parameterCombinationId?: string
+    priceGroupId?: string
+    categories?: CanvasTokenCategory[]
+    message: string
+  }>
+  canPublish: boolean
+}
+
+export interface CanvasModelPricingCnyCalculationIdentity {
+  requestHash: string
+  calculationVersion: string
+  customerModelId: string
+  customerModelVersion: number
+  pointIssuanceRateConfigVersionId: string
+  pointIssuanceRateVersion: number
+  scopes: Array<{
+    parameterCombinationId: string
+    providerRateVersionId: string | null
+    providerRateVersion: number | null
+    prices: Array<{
+      priceGroupId: string
+      sourcePriceVersionId: string | null
+      sourcePriceVersion: number | null
+    }>
+  }>
+}
+
+export type CanvasModelPricingCnyCalculation = Omit<
+  CanvasModelPricingPreview,
+  'id' | 'expiresAt' | 'scopes'
+> & {
+  calculatedAt: string
+  inputIdentity: CanvasModelPricingCnyCalculationIdentity
+  scopes: Array<{
+    parameterCombinationId: string
+    providerRateVersionId: string | null
+    providerRateVersion: number | null
+    prices: Array<{
+      priceGroupId: string
+      sourcePriceVersionId: string | null
+      sourcePriceVersion: number | null
+      normalizedPoints: string
+      normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+      inviterMinusProviderCny: CanvasModelPricingCnyValue
+      customerMinusInviterCny: CanvasModelPricingCnyValue
+      fullCostCny: CanvasModelPricingCnyValue
+      actualMarginRate: CanvasModelPricingCnyValue
+      canPublish: boolean
+      fieldErrors: Array<{
+        field: 'inviterDisplayPriceCny' | 'customerPriceCny'
+        reason: string
+        parameterCombinationId: string
+        priceGroupId: string
+        tokenCategories?: CanvasTokenCategory[]
+      }>
+    }>
+  }>
+  fieldErrors: Array<{
+    field: 'inviterDisplayPriceCny' | 'customerPriceCny'
+    reason: string
+    parameterCombinationId: string
+    priceGroupId: string
+    tokenCategories?: CanvasTokenCategory[]
+  }>
+}
+
+export interface CanvasModelPricingLegacyFacts {
+  id: string
+  version: number
+  status: string
+  billingUnit: CanvasBillingUnit
+  nativeAmount?: string
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  currency?: string
+  exchangeRateSnapshot?: { rate: string; source: string; asOf: string }
+  normalizedAmountMinor?: string
+  normalizedTokenRates?: CanvasModelPricingTokenRateVector | null
+  failureChargePolicy?: CanvasModelPricingFailureChargePolicy
+  points?: string
+  questionnaire?: CanvasModelPricingQuestionnaire
+  calculation?: CanvasModelPricingCalculation
+  effectiveAt: string
+  providerRateVersionId?: string | null
+}
+
+export interface CanvasModelPricingPublicationResult {
+  id: string
+  customerModelId: string
+  version: number
+  status: 'APPROVED' | 'PUBLISHED' | 'CANCELLED'
+  effectiveAt: string
+  inputMode: 'POINTS' | 'CNY'
+  effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
+  billingUnit: CanvasBillingUnit
+  providerRateVersionIds: string[]
+  priceVersionIds: string[]
+  changed: { cost: boolean; price: boolean }
+}
+
+export interface CanvasModelPricingPublication {
+  id: string
+  customerModelId: string
+  version: number
+  source: 'UNIFIED' | 'LEGACY_PROVIDER_RATE' | 'LEGACY_PRICE'
+  status:
+    | 'SCHEDULED'
+    | 'CANCELLED'
+    | 'CURRENT'
+    | 'PARTIALLY_CURRENT'
+    | 'SUPERSEDED'
+  change: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT'
+  effectiveAt: string
+  billingUnit: CanvasBillingUnit
+  createdAt: string
+  decisionSummary: string
+  scopeSummary: Array<{
+    combinationId: string
+    priceGroupId: string | null
+    changeKind: string
+    providerRateVersionId: string | null
+    priceVersionId: string | null
+    rateCurrent: boolean | null
+    priceCurrent: boolean | null
+  }>
+  preview: CanvasModelPricingPreview | null
+  before?: CanvasModelPricingLegacyFacts | null
+  after?: CanvasModelPricingLegacyFacts | null
+  beforeUnavailableReason?:
+    | 'LEGACY_SOURCE_NOT_RECORDED'
+    | 'SOURCE_PRICE_VERSION_UNAVAILABLE'
+  actor: { principalId: string; displayName: string; principalType: string }
+}
+
+export interface CanvasModelPricingHistory extends CanvasPage<CanvasModelPricingPublication> {}
+
+export interface CanvasPriceGroupVersion {
+  id: string
+  code: string
+  internalName: string
+  version: number
+  status: 'DRAFT' | 'APPROVED' | 'PUBLISHED' | 'RETIRED'
+  createdAt: string
+  approvedAt: string | null
+  effectiveAt: string | null
+}
+
+export interface CanvasModelCatalogBundle {
+  schemaVersion: 2
+  bundleId: string
+  bundleVersion: string
+  providers: Array<Record<string, unknown>>
+  channels: Array<Record<string, unknown>>
+  models: CanvasModelCatalogBundleModel[]
+  openapiContracts: Array<{ path: string; document: Record<string, unknown> }>
+  adapterProfiles: Array<{ path: string; profile: Record<string, unknown> }>
+}
+
+export interface CanvasModelCatalogBundleModel {
+  productKey: string
+  displayName: string
+  description?: string
+  capability: 'chat.generate' | 'image.generate' | 'video.generate'
+  release: {
+    channelId: string
+    execution: {
+      providerModel:
+        | { modelId: string }
+        | { defaultQuality: string; modelIdByQuality: Record<string, string> }
+    }
+    publicInteraction: {
+      defaultParams: Record<string, unknown>
+      paramSchema: Record<string, unknown>
+      referenceLimits: Record<string, unknown>
+    }
+  }
+  sourceKind: 'official' | 'relay'
+}
+
+export interface CanvasModelCatalogPlanChange {
+  resourceType: string
+  key: string
+  action: 'CREATE' | 'REUSE' | 'CREATE_VERSION' | 'NO_OP' | 'CONFLICT'
+  currentVersion: number | null
+  proposedVersion: number | null
+  detail: Record<string, unknown>
+}
+
+export interface CanvasModelCatalogPlanModel {
+  productKey: string
+  displayName: string
+  channelId: string
+  providerId: string
+  capability: 'chat.generate' | 'image.generate' | 'video.generate'
+  action: CanvasModelCatalogPlanChange['action']
+  currentVersion: number | null
+  proposedVersion: number | null
+  customerVisibleAfterPublish: boolean
+  publicInteraction: {
+    defaultParams: Record<string, unknown>
+    paramSchema: Record<string, unknown>
+    referenceLimits: Record<string, unknown>
+  }
+  pricing: CanvasModelCatalogPlanPrice[]
+  credential: {
+    status: 'REUSE' | 'NEEDS_BINDING' | 'BLOCKED'
+    reasonCode:
+      | 'CURRENT_BINDING'
+      | 'MATCHED_PUBLISHED_BINDING'
+      | 'UNBOUND_SOURCE'
+      | 'PROVIDER_CHANGED'
+      | 'CHANNEL_CHANGED'
+      | 'CREDENTIAL_GROUP_UNAVAILABLE'
+      | 'CREDENTIAL_SCHEME_MISMATCH'
+      | 'BINDING_CONFLICT'
+    sourceBindingId: string | null
+    sourceModelId: string | null
+    credentialGroupVersionId: string | null
+    credentialGroupName: string | null
+  }
+}
+
+export interface CanvasModelCatalogPlanPrice {
+  combinationKey: string
+  label: string
+  parameters: Record<string, unknown>
+  billingDimensions: Record<string, unknown>
+  priceGroupId: string
+  priceGroupCode: string
+  priceGroupName: string
+  status: 'REUSE' | 'NEEDS_PRICING'
+  reasonCode: string
+  billingUnit: CanvasBillingUnit | null
+  points: string | null
+  tokenRates: CanvasModelPricingTokenRateVector | null
+  sourcePriceVersionId: string | null
+  sourceProviderRateVersionId: string | null
+  sourceModelVersion: number | null
+  effectiveAt: string | null
+}
+
+export interface CanvasModelCatalogPlan {
+  bundleId: string
+  bundleVersion: string
+  manifestSha256: string
+  planToken: string
+  pricingSummary: { reused: number; needsPricing: number }
+  action:
+    | 'PUBLISH'
+    | 'REPLAY'
+    | 'RECOVER_PRICING'
+    | 'RECOVER_CONTINUITY'
+    | 'NO_CHANGES'
+    | 'CONFLICT'
+  blocking: boolean
+  diagnostics: Array<{
+    code: string
+    sourceFile: string
+    jsonPath: string
+    recommendation: string
+    profileKey?: string
+    operation?: string
+    templateReason?: string
+  }>
+  changes: CanvasModelCatalogPlanChange[]
+  models: CanvasModelCatalogPlanModel[]
+}
+
+export interface CanvasAdminCustomerPointBalance {
+  customerId: string
+  username: string | null
+  emailMasked: string | null
+  status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
+  isAgent: boolean
+  agentStatus: 'ACTIVE' | 'DISABLED' | null
+  availablePoints: string
+  paidAvailablePoints: string
+  bonusAvailablePoints: string
+  debtPoints?: string
+  netAvailablePoints?: string
+  currentPriceGroupId?: string | null
+  createdAt?: string
+}
+
+export interface CanvasAdminRechargeOrder {
+  id: string
+  orderNumber: string
+  customerId: string | null
+  customerName: string | null
+  customerEmailMasked: string | null
+  status: string
+  currency: string
+  listedAmountMinor: string
+  rechargeCodeMask: string | null
+  rechargeCodeStatus: string | null
+  expectedPaidPoints: string
+  purchasedPoints: string
+  originalPaidPoints: string
+  correctedPaidPoints: string
+  issuedPaidPoints: string
+  issuedBonusPoints: string
+  availablePaidPoints: string
+  availableBonusPoints: string
+  pointReturnCount: number
+  returnedPoints: string
+  returnedReferenceAmountMinor: string
+  remainingCorrectionPoints: string
+  eligibleForPaidCorrection: boolean
+  paidCorrectionIneligibleReason: string | null
+  createdAt: string
+  redeemedAt: string | null
+}
+
+export interface CanvasPage<T> {
+  page: number
+  pageSize: number
+  total: number
+  items: T[]
+}
+
+export interface CanvasAdminRefund {
+  id: string
+  refundReference: string
+  customerConfirmationReference: string | null
+  orderNumber: string
+  status: string
+  cashAmountMinor: string
+  pointsRequested: string
+  pointsClawedBack: string
+  pointsOutstanding: string
+  recoveryStatus: string | null
+  createdAt: string
+}
+
+export interface CanvasPointLedgerItem {
+  id: string
+  pointLotId: string
+  eventType:
+    | 'ISSUE'
+    | 'FREEZE'
+    | 'SETTLE'
+    | 'RELEASE'
+    | 'EXPIRE'
+    | 'CLAWBACK'
+    | 'ADJUSTMENT_DEBIT'
+    | 'POINT_RETURN'
+    | 'TRANSFER_OUT'
+    | 'TRANSFER_IN'
+    | 'DEBT_REPAYMENT'
+  eventPoints: string
+  remainingDelta: string
+  reservedDelta: string
+  availableDelta: string
+  taskId: string | null
+  taskOutputId: string | null
+  outputIndex: number | null
+  refundLinkId: string | null
+  pointReturnId: string | null
+  rechargeOrderId: string | null
+  rechargeOrderNumber: string | null
+  reason: string | null
+  occurredAt: string
+}
+
+export interface CanvasOrderPointReturnPreview {
+  rechargeOrderId: string
+  orderNumber: string
+  customerId: string
+  currency: string
+  originalOrderAmountMinor: string
+  originalPurchasedPoints: string
+  availablePaidPoints: string
+  cumulativeReturnedPoints: string
+  cumulativeReferenceAmountMinor: string
+  returnPoints: string
+  referenceAmountMinor: string
+  remainingAvailablePaidPoints: string
+}
+
+export interface CanvasOrderPointReturnRecord {
+  id: string
+  rechargeOrderId: string
+  customerId: string
+  points: string
+  referenceAmountMinor: string
+  currency: string
+  actorName: string | null
+  reason: string
+  createdAt: string
+}
+
+export interface CanvasOrderPointReturn extends CanvasOrderPointReturnPreview {
+  id: string
+  ledgerGroupId: string
+  createdAt: string
+  allocations: Array<{
+    pointLotId: string
+    pointLedgerId: string
+    points: string
+    expiresAt: string | null
+  }>
+}
+
+export interface CanvasAdminCustomerTask {
+  id: string
+  modelName: string
+  quotedPoints: string
+  allocatedPoints: string
+  settledPoints: string
+  releasedPoints: string
+  executionStatus: string
+  customerBillingStatus: string
+  providerReconcileStatus: string
+  debtPoints?: string
+  repaidDebtPoints?: string
+  outstandingDebtPoints?: string
+  outputSummaries?: Array<{
+    id?: string
+    outputIndex: number
+    executionStatus: string
+    billingStatus: string
+    quotedPoints: string
+    settledPoints: string | null
+    completedAt?: string | null
+    billingFinalizedAt?: string | null
+    error?: {
+      code?: string | null
+      messages?: Record<string, string> | null
+    } | null
+  }>
+  upstreamTaskId: string | null
+  acceptedAt: string
+  completedAt: string | null
+}
+
+export interface CanvasAdminTaskLog {
+  id: string
+  customerId: string
+  customerName: string | null
+  customerModelId: string | null
+  modelName: string | null
+  outputSummaries: CanvasTaskOutputSummary[]
+  derivedExecutionStatus: string
+  executionSummary: CanvasTaskExecutionSummary
+  settlementProgress: string
+  customerBillingStatus: string
+  settledPoints: string | null
+  outstandingDebtPoints: string | null
+  acceptedAt: string
+}
+
+export interface CanvasTaskOutputSummary {
+  id: string
+  outputIndex: number
+  quotedPoints: string
+  settledPoints: string | null
+  executionStatus: string
+  billingStatus: string
+  error: {
+    code?: string | null
+    messages?: Record<string, string> | null
+  } | null
+  completedAt: string | null
+  billingFinalizedAt: string | null
+}
+
+export interface CanvasAdminTaskLogQuery {
+  taskId?: string
+  customer?: string
+  modelId?: string
+  executionTargetId?: string
+  derivedExecutionStatus?: string
+  settlementProgress?: string
+  upstreamTaskId?: string
+  billingStatus?: string
+  executionOrigin?: 'REAL' | 'MOCK'
+  from?: string
+  to?: string
+  sortBy:
+    | 'customer'
+    | 'taskId'
+    | 'derivedExecutionStatus'
+    | 'settledPoints'
+    | 'acceptedAt'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export type CanvasModelMonitoringWindow =
+  | 'hour'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'custom'
+  | 'round'
+
+export interface CanvasModelMonitoringStats {
+  succeeded: number
+  failed: number
+  unknown: number
+  processing: number
+  resultCount: number
+  sampleCount: number
+  successRate: number | null
+}
+
+export interface CanvasModelMonitoringOverviewQuery {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from?: string
+  to?: string
+  capability?: string
+  providerId?: string
+  tagId?: string
+  untagged?: true
+  search?: string
+  page: number
+  pageSize: 5 | 10 | 20 | 30 | 40 | 50 | 100
+}
+
+export interface CanvasModelMonitoringOverview {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from: string
+  to: string
+  bucketSeconds: number
+  page: number
+  pageSize: number
+  total: number
+  capabilities: Array<{ value: string; count: number }>
+  providers: Array<{ id: string; name: string; count: number }>
+  preTagTotal: number
+  tags: Array<{ id: string; name: string; count: number }>
+  untaggedCount: number
+  rows: Array<{
+    modelKey: string
+    name: string
+    capability: string | null
+    provider: { id: string; name: string }
+    tags: Array<{ id: string; name: string }>
+    manualEnabled: boolean
+    controlVersion: number
+    summary: CanvasModelMonitoringStats
+    trend: Array<CanvasModelMonitoringStats & { from: string; to: string }>
+  }>
+}
+
+export interface CanvasModelMonitoringQuery {
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from?: string
+  to?: string
+}
+
+export interface CanvasModelMonitoringTargets {
+  customerModel: {
+    id: string
+    modelKey: string
+    name: string
+    providerName: string
+    version: number
+    status: string
+  }
+  targets: Array<{
+    id: string
+    upstreamModelId: string
+    manualEnabled: boolean
+    controlVersion: number
+    effectiveEnabled: boolean
+    blockingReasons: string[]
+    presentationEnabled: boolean
+    presentationVersion: number | null
+    pricingComplete: boolean
+    customerVisible: boolean
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+    }>
+  }>
+}
+
+export interface CanvasModelMonitoring {
+  customerModel: {
+    id: string
+    modelKey: string
+    name: string
+    providerName: string
+    version: number
+    capability: string | null
+    status: string
+  }
+  executionTarget: {
+    id: string
+    upstreamModelId: string
+    presentationEnabled: boolean
+    presentationVersion: number | null
+    customerVisible: boolean
+    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
+    parameterCombinations: Array<{
+      id: string
+      key: string
+      label: string
+      normalizedParameters: Record<string, unknown>
+    }>
+  }
+  manualEnabled: boolean
+  controlVersion: number
+  effectiveEnabled: boolean
+  blockingReasons: string[]
+  roundStartedAt: string
+  window: CanvasModelMonitoringWindow
+  origin: 'REAL' | 'MOCK'
+  from: string
+  to: string
+  bucketSeconds: number
+  summary: CanvasModelMonitoringStats
+  trend: Array<
+    CanvasModelMonitoringStats & {
+      from: string
+      to: string
+    }
+  >
+  failures: Array<{ category: string; count: number }>
+}
+
+export interface CanvasModelMonitoringControlQuery {
+  page: number
+  pageSize: 10 | 20 | 30 | 40 | 50 | 100
+  action?: 'DISABLE' | 'ENABLE'
+  actor?: string
+  from?: string
+  to?: string
+  reasonCode?: string
+  sortBy: 'occurredAt' | 'version' | 'action' | 'reason' | 'actor'
+  sortOrder: 'asc' | 'desc'
+}
+
+export interface CanvasModelMonitoringControlRecord {
+  id: string
+  version: number
+  occurredAt: string
+  action: 'DISABLE' | 'ENABLE'
+  enabled: boolean
+  previousEnabled: boolean | null
+  actor: {
+    principalId: string
+    userId: string | null
+    name: string | null
+  }
+  reasonCode: string | null
+  note: string | null
+  legacyReason: string | null
+}
+
+export interface CanvasModelMonitoringControlResult {
+  id: string
+  version: number
+  status: 'PUBLISHED'
+  effectiveAt: string
+}
+
+export interface CanvasTaskLogOptions {
+  models: Array<{ id: string; name: string }>
+}
+
+export interface CanvasTaskExecutionSummary {
+  expectedResults: number | null
+  recordedResults: number
+  acceptedResults: number
+  processingResults: number
+  succeededResults: number
+  failedResults: number
+  unknownResults: number
+  resultsIncomplete: boolean
+}
+
+export interface CanvasAdminTaskRecordOutput {
+  id: string | null
+  outputIndex: number
+  quotedPoints: string
+  settledPoints: string | null
+  executionStatus: string
+  billingStatus: string
+  error: {
+    code?: string | null
+    messages?: Record<string, string> | null
+    sanitizedMessage?: string | null
+  } | null
+  usageSnapshot: Record<string, string | number | boolean | null> | null
+  completedAt: string | null
+  billingFinalizedAt: string | null
+}
+
+export interface CanvasAdminTaskInputAsset {
+  assetId: string
+  inputIndex: number
+  inputRole: string
+  mediaType: 'IMAGE' | 'VIDEO' | 'AUDIO'
+  mimeType: string
+  sizeBytes: string
+  sha256: string
+  availableUntil: string | null
+  downloadPath: string
+}
+
+export interface CanvasAdminTaskRecordDetail {
+  id: string
+  customerId: string
+  customerName: string | null
+  customerModelId: string | null
+  modelName: string | null
+  quotedPoints: string
+  settledPoints: string | null
+  deductedPoints: string | null
+  releasedPoints: string | null
+  outstandingDebtPoints: string | null
+  derivedExecutionStatus: string
+  executionSummary: CanvasTaskExecutionSummary
+  settlementProgress: string
+  executionStatus: string
+  customerBillingStatus: string
+  billingUnit: string | null
+  billingFinalizedAt: string | null
+  parameters: Record<string, string | number | boolean | null> | null
+  multiResultMode: 'NATIVE' | 'FANOUT'
+  failureLocation:
+    | 'EXECUTOR_PREFLIGHT'
+    | 'PROVIDER_NETWORK'
+    | 'PROVIDER_RESPONSE'
+    | 'RESPONSE_PROCESSING'
+    | 'STORAGE'
+    | null
+  preflightDiagnostic: {
+    stage: string
+    reason: string
+    field?: string
+    rule?: string
+    detail?: string
+  } | null
+  outputs: CanvasAdminTaskRecordOutput[]
+  inputAssets: CanvasAdminTaskInputAsset[]
+  upstreamTaskId: string | null
+  taskError: {
+    code?: string | null
+    messages?: Record<string, string> | null
+  } | null
+  acceptedAt: string
+  completedAt: string | null
+}
+
+export interface CanvasAdminTaskPointRecord {
+  id: string
+  occurredAt: string
+  eventType: string
+  outputIndex: number | null
+  points: string
+  lotType: string | null
+  sourceLotType: string | null
+  targetLotType: string | null
+  ledgerId: string | null
+  sourceLedgerId: string | null
+  targetLedgerId: string | null
+  pointLotId: string | null
+  sourceLotId: string | null
+  targetLotId: string | null
+  allocationId: string | null
+  debtId: string | null
+  remainingBefore: string | null
+  remainingAfter: string | null
+  reservedBefore: string | null
+  reservedAfter: string | null
+  sourceRemainingBefore: string | null
+  sourceRemainingAfter: string | null
+  sourceReservedBefore: string | null
+  sourceReservedAfter: string | null
+  targetRemainingBefore: string | null
+  targetRemainingAfter: string | null
+  targetReservedBefore: string | null
+  targetReservedAfter: string | null
+}
+
+export interface CanvasTaskPointLedgerDetail {
+  id: string
+  occurredAt: string
+  eventType: string
+  eventPoints: string
+  pointLotId: string | null
+  lotType: string | null
+  taskOutputId: string | null
+  outputIndex: number | null
+  debtId: string | null
+  reason: string | null
+  remainingBefore: string | null
+  remainingAfter: string | null
+  reservedBefore: string | null
+  reservedAfter: string | null
+}
+
+export interface CanvasAdminPointLot {
+  id: string
+  type: string
+  sourceType: string
+  rechargeOrderId: string | null
+  rechargeOrderNumber: string | null
+  initialPoints: string
+  remainingPoints: string
+  reservedPoints: string
+  availablePoints: string
+  expiresAt: string | null
+  issuedAt: string
+}
+
+export interface CanvasContributionReport {
+  originalBatchContributionMinor: string
+  refundAndChargebackAdjustmentsMinor: string
+  adjustedContributionMinor: string
+  reconciliationTimeoutLossMinor: string
+  disclaimer: string
+}
+
+export interface CanvasCustomerPriceAssignment {
+  id: string
+  priceGroupId: string
+  internalName: string
+  version: number
+  reason: string
+  actorName: string | null
+  effectiveAt: string
+  endedAt: string | null
+}
+
+export interface CanvasCustomerPriceAssignments extends CanvasPage<CanvasCustomerPriceAssignment> {
+  customerId: string
+  customerName: string | null
+  currentGroup: Pick<
+    CanvasPriceGroupVersion,
+    'id' | 'internalName' | 'version' | 'status'
+  >
+}
+
+export type CanvasBusinessFactKind =
+  | 'task'
+  | 'output'
+  | 'debt'
+  | 'repayment'
+  | 'quote'
+  | 'lot'
+  | 'ledger'
+  | 'allocation'
+  | 'order'
+  | 'payment'
+  | 'pointReturn'
+  | 'refund'
+  | 'recovery'
+  | 'cost'
+  | 'reconciliation'
+export interface CanvasBusinessFact {
+  id: string
+  kind: CanvasBusinessFactKind
+  name: string
+  status: string
+  at: string
+}
+export interface CanvasBusinessFactDetail extends CanvasBusinessFact {
+  fields: Record<
+    string,
+    | string
+    | null
+    | Array<{
+        pointLotId: string
+        pointLedgerId: string
+        points: string
+        expiresAt: string | null
+      }>
+  >
+}
+export interface CanvasBusinessFactPage extends CanvasPage<CanvasBusinessFact> {
+  fact?: CanvasBusinessFactDetail
+}

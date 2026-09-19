@@ -59,6 +59,7 @@ interface MobileCardListProps<TData> {
   emptyDescription?: string
   getRowKey?: (row: Row<TData>) => string | number
   getRowClassName?: (row: Row<TData>) => string | undefined
+  renderExpandedContent?: (row: Row<TData>) => React.ReactNode
 }
 
 function ListSkeleton() {
@@ -121,6 +122,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
     emptyDescription,
     getRowKey,
     getRowClassName,
+    renderExpandedContent,
   } = props
   const { t } = useTranslation()
 
@@ -160,6 +162,7 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
     <div className='divide-y overflow-hidden rounded-lg border'>
       {rows.map((row) => {
         const key = getRowKey ? getRowKey(row) : row.id
+        const expandedContent = renderExpandedContent?.(row)
         return (
           <div
             key={key}
@@ -169,6 +172,9 @@ export function MobileCardList<TData>(props: MobileCardListProps<TData>) {
             )}
           >
             <CardRowContent row={row} compact={hasCompactMeta} />
+            {expandedContent ? (
+              <div className='mt-3 border-t pt-3'>{expandedContent}</div>
+            ) : null}
           </div>
         )
       })}

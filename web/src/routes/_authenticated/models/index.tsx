@@ -18,15 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { canManageUpstreamModels } from '@/features/canvas-cloud/role-routing'
 import { MODELS_DEFAULT_SECTION } from '@/features/models/section-registry'
-import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated/models/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
 
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!canManageUpstreamModels(auth.user?.role)) {
       throw redirect({
         to: '/403',
       })

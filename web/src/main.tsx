@@ -28,6 +28,12 @@ import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { toast } from 'sonner'
 
+import {
+  getCanvasProductName,
+  isCanvasBrandContext,
+} from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { initializeCanvasManualUat } from '@/features/canvas-cloud/manual-uat'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
@@ -49,6 +55,7 @@ import './styles/index.css'
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
 initializeFrontendCache()
 installBuildMetadata()
+const canvasManualUatReady = initializeCanvasManualUat().catch(() => undefined)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,16 +120,24 @@ const rootElement = document.querySelector<HTMLElement>('#root')
 if (!rootElement) {
   throw new Error('Root element not found')
 }
+const applicationRoot = rootElement
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name: string) => {
-      document.title = name
+      const displayName = isCanvasBrandContext(
+        name,
+        window.location.pathname,
+        new URLSearchParams(window.location.search).get('redirect')
+      )
+        ? getCanvasProductName(i18next.resolvedLanguage ?? i18next.language)
+        : name
+      document.title = displayName
       const metaTitle = document.querySelector(
         'meta[name="title"]'
       ) as HTMLMetaElement | null
-      if (metaTitle) metaTitle.setAttribute('content', name)
+      if (metaTitle) metaTitle.setAttribute('content', displayName)
     }
     // Cache-first
     try {
@@ -130,7 +145,17 @@ if (!rootElement) {
       if (saved) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
-        if (s?.logo) applyFaviconToDom(s.logo)
+        if (s?.logo) {
+          applyFaviconToDom(
+            isCanvasBrandContext(
+              typeof s.system_name === 'string' ? s.system_name : '',
+              window.location.pathname,
+              new URLSearchParams(window.location.search).get('redirect')
+            )
+              ? lingCatStudioIcon
+              : s.logo
+          )
+        }
       }
     } catch {
       /* empty */
@@ -146,7 +171,17 @@ if (!rootElement) {
             /* empty */
           }
         }
-        if (s?.logo) applyFaviconToDom(s.logo as string)
+        if (s?.logo) {
+          applyFaviconToDom(
+            isCanvasBrandContext(
+              typeof s.system_name === 'string' ? s.system_name : '',
+              window.location.pathname,
+              new URLSearchParams(window.location.search).get('redirect')
+            )
+              ? lingCatStudioIcon
+              : (s.logo as string)
+          )
+        }
       })
       .catch(() => {
         /* empty */
@@ -155,8 +190,11 @@ if (!rootElement) {
     /* empty */
   }
 })()
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement)
+async function renderApplication(): Promise<void> {
+  await canvasManualUatReady
+  if (applicationRoot.innerHTML) return
+
+  const root = ReactDOM.createRoot(applicationRoot)
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
@@ -171,3 +209,5 @@ if (!rootElement.innerHTML) {
     </StrictMode>
   )
 }
+
+void renderApplication()

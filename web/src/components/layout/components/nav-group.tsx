@@ -125,6 +125,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
+        className='h-auto min-h-8 items-start [&>span:last-child]:overflow-visible [&>span:last-child]:text-clip [&>span:last-child]:whitespace-normal'
         isActive={checkIsActive(href, item)}
         tooltip={item.title}
         render={
@@ -136,7 +137,9 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         }
       >
         {item.icon && <item.icon className='shrink-0' />}
-        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+        <span className='min-w-0 flex-1 leading-5 break-words'>
+          {item.title}
+        </span>
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
       </SidebarMenuButton>
     </SidebarMenuItem>

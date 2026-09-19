@@ -1,0 +1,511 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+*/
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CanvasAdminTestingModel } from '../../types'
+import { executionTargetLabel } from '../execution-target-label'
+import { PublishedModelCatalog } from '../PublishedModelCatalog'
+
+const mocks = vi.hoisted(() => ({
+  list: vi.fn(),
+  tags: vi.fn(),
+  publishPresentation: vi.fn(),
+  publishTargetPresentation: vi.fn(),
+}))
+
+vi.mock('../../api', () => ({
+  getCanvasAdminTestingModels: mocks.list,
+  getCanvasAdminModelTags: mocks.tags,
+  publishCanvasModelPresentation: mocks.publishPresentation,
+  publishCanvasExecutionTargetPresentation: mocks.publishTargetPresentation,
+}))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+function executionTarget(
+  overrides: Partial<CanvasAdminTestingModel['executionTargets'][number]> = {}
+): CanvasAdminTestingModel['executionTargets'][number] {
+  return {
+    id: '85000000-0000-7000-8000-000000000005',
+    upstreamModelId: 'provider-alpha',
+    enabled: true,
+    presentationVersion: 3,
+    effectiveEnabled: true,
+    blockingReasons: [],
+    customerVisible: false,
+    pricingComplete: false,
+    pricingCoverage: [
+      {
+        priceGroupId: '85000000-0000-7000-8000-000000000006',
+        priceGroupCode: 'STANDARD',
+        priceGroupName: 'Standard',
+        requiredCount: 3,
+        pricedCount: 1,
+        complete: false,
+        customerVisible: false,
+        invisibleReasons: ['MISSING_PRICING'],
+        pricedCombinationIds: ['85000000-0000-7000-8000-000000000007'],
+        missingCombinationIds: [
+          '85000000-0000-7000-8000-000000000009',
+          '85000000-0000-7000-8000-000000000010',
+        ],
+      },
+    ],
+    parameterCombinations: [
+      {
+        id: '85000000-0000-7000-8000-000000000007',
+        key: 'quality=1K',
+        label: '1K',
+        normalizedParameters: { quality: '1K' },
+        enabled: true,
+      },
+      {
+        id: '85000000-0000-7000-8000-000000000009',
+        key: 'quality=2K',
+        label: '2K',
+        normalizedParameters: { quality: '2K' },
+        enabled: true,
+      },
+      {
+        id: '85000000-0000-7000-8000-000000000010',
+        key: 'quality=4K',
+        label: '4K',
+        normalizedParameters: { quality: '4K' },
+        enabled: true,
+      },
+    ],
+    ...overrides,
+  }
+}
+
+function model(
+  overrides: Partial<CanvasAdminTestingModel> = {}
+): CanvasAdminTestingModel {
+  return {
+    id: '85000000-0000-7000-8000-000000000004',
+    modelKey: 'canvas.image.alpha',
+    tags: [],
+    modelIds: [{ quality: null, modelId: 'provider-alpha' }],
+    executionTargets: [executionTarget()],
+    version: 2,
+    name: 'Alpha model',
+    description: 'Client description',
+    enabled: true,
+    resourceEnabled: true,
+    presentationVersion: 0,
+    status: 'ACTIVE',
+    customerVisible: true,
+    pricedTargets: 1,
+    totalTargets: 1,
+    provider: { id: 'provider-official', code: 'official', name: 'Official' },
+    binding: {
+      status: 'UNBOUND',
+      credentialGroupId: null,
+      credentialGroupName: null,
+      credentialGroupVersionId: null,
+      credentialGroupVersion: null,
+    },
+    billingUnit: null,
+    billingUnits: [],
+    publicCatalogSnapshot: { capability: 'image.generate' },
+    parameterCombinations: [],
+    pricingTargets: [],
+    createdAt: '2026-08-27T00:00:00.000Z',
+    effectiveAt: '2026-08-27T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function renderCatalog() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const view = render(
+    <QueryClientProvider client={client}>
+      <PublishedModelCatalog onManagePricing={vi.fn()} />
+    </QueryClientProvider>
+  )
+  return { client, ...view }
+}
+
+describe('Published model catalog', () => {
+  beforeEach(() => {
+    mocks.list.mockReset()
+    mocks.tags.mockReset()
+    mocks.publishPresentation.mockReset()
+    mocks.publishTargetPresentation.mockReset()
+    mocks.list.mockResolvedValue([model()])
+    mocks.tags.mockResolvedValue([])
+    mocks.publishPresentation.mockResolvedValue({ status: 'PUBLISHED' })
+    mocks.publishTargetPresentation.mockResolvedValue({ status: 'PUBLISHED' })
+  })
+
+  it('uses backend labels rather than internal parameter keys for target labels', () => {
+    const t = (key: string) => ({ '1K': '一千', Default: '默认' })[key] ?? key
+
+    expect(
+      executionTargetLabel(
+        {
+          upstreamModelId: 'provider-alpha',
+          parameterCombinations: [{ label: '1K' }, { label: 'Default' }],
+        },
+        t
+      )
+    ).toBe('一千 · 默认 · provider-alpha')
+  })
+
+  it('keeps the column filter when a model tag changes', async () => {
+    mocks.tags.mockResolvedValue([
+      {
+        id: 'photo',
+        name: 'Photography',
+        modelCount: 1,
+        modelKeys: ['canvas.image.alpha'],
+      },
+    ])
+    mocks.list.mockResolvedValue([
+      model({ tags: [{ id: 'photo', name: 'Photography' }] }),
+      model({
+        id: 'second',
+        modelKey: 'second',
+        name: 'Second model',
+        tags: [],
+      }),
+    ])
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    expect(screen.getByRole('button', { name: 'All tags 2' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(screen.getByPlaceholderText('Model'), {
+      target: { value: 'Alpha' },
+    })
+    expect(screen.getByRole('button', { name: 'All tags 1' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Untagged 0' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Photography 1' }))
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    expect(screen.queryByText('Second model')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
+    expect(screen.queryByText('Second model')).not.toBeInTheDocument()
+  })
+
+  it('derives generation type and API provider groups from the current catalog and combines them with column filters', async () => {
+    mocks.list.mockResolvedValue([
+      model(),
+      model({
+        id: 'video-model',
+        modelKey: 'canvas.video.beta',
+        name: 'Beta video',
+        publicCatalogSnapshot: { capability: 'video.generate' },
+        provider: { id: 'partner', code: 'partner', name: 'Partner API' },
+      }),
+      model({
+        id: 'image-model',
+        modelKey: 'canvas.image.gamma',
+        name: 'Gamma image',
+        provider: { id: 'partner', code: 'partner', name: 'Partner API' },
+      }),
+    ])
+    renderCatalog()
+    await screen.findByText('Gamma image')
+    expect(
+      screen.getByRole('columnheader', { name: 'Generation type' })
+    ).toBeVisible()
+
+    const types = within(screen.getByRole('group', { name: 'Generation type' }))
+    const providers = within(
+      screen.getByRole('group', { name: 'API provider' })
+    )
+    expect(types.getByRole('button', { name: 'video.generate' })).toBeVisible()
+    expect(providers.getByRole('button', { name: 'Partner API' })).toBeVisible()
+    fireEvent.click(types.getByRole('button', { name: 'image.generate' }))
+    fireEvent.click(providers.getByRole('button', { name: 'Partner API' }))
+    expect(screen.getByText('Gamma image')).toBeVisible()
+    expect(screen.queryByText('Alpha model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta video')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    expect(screen.queryByPlaceholderText('Capability')).not.toBeInTheDocument()
+    expect(
+      screen.queryByPlaceholderText('API provider')
+    ).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText('Model'), {
+      target: { value: 'no match' },
+    })
+    expect(screen.queryByText('Gamma image')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByText('Gamma image')).toBeVisible()
+    expect(
+      providers.getByRole('button', { name: 'Partner API' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(
+      providers.getByRole('button', { name: 'All API providers' })
+    )
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    expect(
+      types.getByRole('button', { name: 'image.generate' })
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('publishes a tag-only edit with the saved client description', async () => {
+    mocks.tags.mockResolvedValue([
+      { id: 'photo', name: 'Photography', modelCount: 0, modelKeys: [] },
+    ])
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit display information' })
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Photography' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and publish' }))
+    await waitFor(() =>
+      expect(mocks.publishPresentation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKey: 'canvas.image.alpha',
+          description: 'Client description',
+          tagIds: ['photo'],
+          expectedTagIds: [],
+        }),
+        expect.any(Object)
+      )
+    )
+  })
+
+  it('keeps identical upstream targets separate without exposing internal routing facts', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget(),
+          executionTarget({
+            id: '85000000-0000-7000-8000-000000000008',
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    expect(screen.getAllByText('1K · 2K · 4K')).toHaveLength(2)
+    expect(screen.getAllByText('provider-alpha').length).toBeGreaterThanOrEqual(
+      2
+    )
+    expect(
+      screen.getAllByRole('switch', {
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
+      })
+    ).toHaveLength(2)
+    expect(
+      screen.queryByText(/85000000-0000-7000-8000-000000000010/)
+    ).toBeNull()
+  })
+
+  it('keeps all parameter combinations of one target under one display switch', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({
+            parameterCombinations: [
+              {
+                id: '85000000-0000-7000-8000-000000000007',
+                key: 'quality=1K',
+                label: '1K',
+                normalizedParameters: { quality: '1K' },
+                enabled: true,
+              },
+              {
+                id: '85000000-0000-7000-8000-000000000009',
+                key: 'quality=2K',
+                label: '2K',
+                normalizedParameters: { quality: '2K' },
+                enabled: true,
+              },
+            ],
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    expect(screen.getByText('1K · 2K')).toBeVisible()
+    expect(screen.getAllByRole('switch')).toHaveLength(1)
+  })
+
+  it('shows missing 2K and 4K specifications for a three-quality target with one priced combination', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({
+            pricingCoverage: [
+              {
+                priceGroupId: '85000000-0000-7000-8000-000000000006',
+                priceGroupCode: 'STANDARD',
+                priceGroupName: 'Standard',
+                requiredCount: 3,
+                pricedCount: 1,
+                complete: false,
+                customerVisible: false,
+                invisibleReasons: ['MISSING_PRICING'],
+                pricedCombinationIds: ['85000000-0000-7000-8000-000000000007'],
+                missingCombinationIds: [
+                  '85000000-0000-7000-8000-000000000009',
+                  '85000000-0000-7000-8000-000000000010',
+                ],
+              },
+            ],
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    expect(
+      await screen.findByText(
+        'Price plan: Standard · 1/3 Not shown to customers'
+      )
+    ).toBeVisible()
+    expect(screen.getByText('No price plans visible (0/1)')).toBeVisible()
+    expect(screen.getByText('Reason: Missing pricing')).toBeVisible()
+    expect(screen.getByText('Missing specifications: 2K · 4K')).toBeVisible()
+  })
+
+  it('keeps the raw catalog configuration in its own model-table column', async () => {
+    renderCatalog()
+
+    expect(
+      await screen.findByText('Original catalog configuration')
+    ).toBeVisible()
+    expect(await screen.findByText('Alpha model')).toBeVisible()
+    expect(screen.getByText('Alpha model').closest('td')).not.toHaveTextContent(
+      'Original catalog configuration'
+    )
+  })
+
+  it('publishes only the selected target display switch after confirmation', async () => {
+    const targetId = '85000000-0000-7000-8000-000000000005'
+    const { client } = renderCatalog()
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
+      })
+    )
+    const confirmation = screen.getByRole('alertdialog')
+    expect(confirmation).toHaveTextContent('1K · 2K · 4K')
+    expect(confirmation).toHaveTextContent('provider-alpha')
+    fireEvent.click(
+      within(confirmation).getByRole('button', {
+        name: 'Turn off display switch',
+      })
+    )
+
+    await waitFor(() =>
+      expect(mocks.publishTargetPresentation).toHaveBeenCalledWith(
+        {
+          executionTargetId: targetId,
+          enabled: false,
+          expectedVersion: 3,
+        },
+        expect.any(Object)
+      )
+    )
+    await waitFor(() =>
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: [
+          'canvas-cloud',
+          'model-monitoring-targets',
+          '85000000-0000-7000-8000-000000000004',
+        ],
+      })
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: [
+        'canvas-cloud',
+        'model-monitoring',
+        '85000000-0000-7000-8000-000000000004',
+        targetId,
+      ],
+    })
+    expect(mocks.publishPresentation).not.toHaveBeenCalled()
+  })
+
+  it('uses version zero when a target has no published presentation yet', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [executionTarget({ presentationVersion: null })],
+      }),
+    ])
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('switch', {
+        name: 'Customer display for Alpha model · 1K · 2K · 4K · provider-alpha',
+      })
+    )
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Turn off display switch',
+      })
+    )
+
+    await waitFor(() =>
+      expect(mocks.publishTargetPresentation).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedVersion: 0 }),
+        expect.any(Object)
+      )
+    )
+  })
+
+  it('keeps execution target rows focused on display controls after monitoring moves to its own tab', async () => {
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    expect(
+      screen.queryByRole('button', { name: 'Runtime monitoring' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps shared display publication separate from target visibility', async () => {
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit display information' })
+    )
+    fireEvent.change(screen.getByLabelText(/Client display name/), {
+      target: { value: 'Renamed Alpha' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and publish' }))
+
+    await waitFor(() =>
+      expect(mocks.publishPresentation).toHaveBeenCalledWith(
+        {
+          modelKey: 'canvas.image.alpha',
+          displayName: 'Renamed Alpha',
+          description: 'Client description',
+          expectedVersion: 0,
+          tagIds: [],
+          expectedTagIds: [],
+        },
+        expect.any(Object)
+      )
+    )
+  })
+})

@@ -226,7 +226,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 onClick={handleMobileReset}
                 disabled={!props.hasActiveFilters}
               >
-                {t('Reset')}
+                {t('Clear filters')}
               </Button>
               <Button
                 type='button'
@@ -277,7 +277,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
             onClick={props.onReset}
             disabled={!props.hasActiveFilters}
           >
-            {t('Reset')}
+            {t('Clear filters')}
           </Button>
           <Button
             type='button'

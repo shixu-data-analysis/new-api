@@ -20,6 +20,11 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  getCanvasProductName,
+  isCanvasBrandContext,
+} from '@/features/canvas-cloud/brand'
+import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 type AuthLayoutProps = {
@@ -27,8 +32,17 @@ type AuthLayoutProps = {
 }
 
 export function AuthLayout({ children }: AuthLayoutProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { systemName, logo, loading } = useSystemConfig()
+  const isCanvasProduct = isCanvasBrandContext(
+    systemName,
+    window.location.pathname,
+    new URLSearchParams(window.location.search).get('redirect')
+  )
+  const displayedName = isCanvasProduct
+    ? getCanvasProductName(i18n.resolvedLanguage ?? i18n.language)
+    : systemName
+  const displayedLogo = isCanvasProduct ? lingCatStudioIcon : logo
 
   return (
     <div className='relative grid h-svh max-w-none'>
@@ -41,8 +55,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             <Skeleton className='absolute inset-0 rounded-full' />
           ) : (
             <img
-              src={logo}
-              alt={t('Logo')}
+              src={displayedLogo}
+              alt={isCanvasProduct ? displayedName : t('Logo')}
               className='h-8 w-8 rounded-full object-cover'
             />
           )}
@@ -50,7 +64,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1 className='text-xl font-medium'>{displayedName}</h1>
         )}
       </Link>
       <div className='container flex items-center pt-16 sm:pt-0'>

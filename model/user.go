@@ -155,6 +155,37 @@ func UpdateUserAccessToken(id int, token string) error {
 	return nil
 }
 
+// EnsureUserAccessToken returns the user's existing dashboard personal access
+// token or creates it once. Unlike UpdateUserAccessToken, this operation is
+// idempotent so a Canvas sign-in or a second device does not revoke bindings on
+// other devices.
+func EnsureUserAccessToken(id int) (string, error) {
+	if id == 0 {
+		return "", errors.New("id 为空！")
+	}
+	var token string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id", "access_token").Where("id = ?", id).First(&user).Error; err != nil {
+			return err
+		}
+		if existing := strings.TrimSpace(user.GetAccessToken()); existing != "" {
+			token = existing
+			return nil
+		}
+		generated, err := common.GenerateRandomKey(32)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", id).Update("access_token", generated).Error; err != nil {
+			return err
+		}
+		token = generated
+		return nil
+	})
+	return token, err
+}
+
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {

@@ -239,7 +239,7 @@ func Register(c *gin.Context) {
 		}
 		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
 			if errors.Is(err, model.ErrEmailAlreadyTaken) {
-				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+				registrationIdentityUnavailable(c)
 				return
 			}
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
@@ -257,7 +257,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	if exist {
-		common.ApiErrorI18n(c, i18n.MsgUserExists)
+		registrationIdentityUnavailable(c)
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
@@ -274,7 +274,7 @@ func Register(c *gin.Context) {
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
-			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+			registrationIdentityUnavailable(c)
 			return
 		}
 		common.ApiError(c, err)
@@ -321,6 +321,14 @@ func Register(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+func registrationIdentityUnavailable(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": i18n.T(c, i18n.MsgUserRegistrationIdentityUnavailable),
+		"code":    "REGISTRATION_IDENTITY_UNAVAILABLE",
+	})
 }
 
 func GetAllUsers(c *gin.Context) {
@@ -423,6 +431,71 @@ func GenerateAccessToken(c *gin.Context) {
 		"data":    key,
 	})
 	return
+}
+
+// EnsureCanvasAccessKey binds Canvas clients to the user's single dashboard
+// personal access token without rotating an existing key on every sign-in.
+func EnsureCanvasAccessKey(c *gin.Context) {
+	key, err := model.EnsureUserAccessToken(c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	setAuthNoStore(c)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    key,
+	})
+}
+
+func CreateCanvasCustomerCenterHandoff(c *gin.Context) {
+	userID := c.GetInt("id")
+	if userID <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgAuthNotLoggedIn)
+		return
+	}
+	ticket, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeCanvasCustomerCenter,
+		UserId:    userID,
+		ExpiresAt: time.Now().Add(60 * time.Second),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	setAuthNoStore(c)
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"path":       "/api/user/canvas/customer-center-handoff?ticket=" + url.QueryEscape(ticket),
+			"expires_at": time.Now().Add(60 * time.Second).Unix(),
+		},
+	})
+}
+
+func ConsumeCanvasCustomerCenterHandoff(c *gin.Context) {
+	flow, err := model.ConsumeAuthFlow(c.Query("ticket"), model.AuthFlowMatch{Purpose: model.AuthFlowPurposeCanvasCustomerCenter})
+	if err != nil {
+		c.Header("Cache-Control", "no-store")
+		c.String(http.StatusUnauthorized, "Customer-center sign-in link is invalid or expired.")
+		return
+	}
+	user, err := model.GetUserById(flow.UserId, false)
+	if err != nil || user.Status != common.UserStatusEnabled {
+		common.ApiErrorI18n(c, i18n.MsgAuthUserBanned)
+		return
+	}
+	bundle, err := service.CreateLoginSession(user.Id, "canvas_customer_center", c.ClientIP(), c.Request.UserAgent())
+	if err != nil {
+		writeAuthSessionError(c, err)
+		return
+	}
+	service.WriteRefreshCookie(c, bundle.RefreshToken)
+	c.Header("Cache-Control", "no-store")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusSeeOther, "/canvas-cloud/overview")
 }
 
 type TransferAffQuotaRequest struct {

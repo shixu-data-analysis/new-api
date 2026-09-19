@@ -26,6 +26,9 @@ type FormNavigationGuardProps = {
   when: boolean
   title?: string
   message?: string
+  confirmText?: string
+  cancelText?: string
+  onDiscard?: () => void
 }
 
 /**
@@ -47,6 +50,9 @@ export function FormNavigationGuard({
   when,
   title,
   message,
+  confirmText,
+  cancelText,
+  onDiscard,
 }: FormNavigationGuardProps) {
   const { t } = useTranslation()
   const resolvedTitle = title ?? t('Unsaved changes')
@@ -64,6 +70,7 @@ export function FormNavigationGuard({
   }, [blocker.status])
 
   const handleConfirm = () => {
+    onDiscard?.()
     setShowDialog(false)
     blocker.proceed?.()
   }
@@ -95,8 +102,8 @@ export function FormNavigationGuard({
       }}
       title={resolvedTitle}
       desc={resolvedMessage}
-      confirmText={t('Leave')}
-      cancelBtnText={t('Stay')}
+      confirmText={confirmText ?? t('Leave')}
+      cancelBtnText={cancelText ?? t('Stay')}
       destructive
       handleConfirm={handleConfirm}
     />

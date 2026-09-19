@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 const serverErrorMessageKeys = {
+  TOKEN_CATEGORY_ASSUMPTIONS_REQUIRED:
+    'Enter the additional cost and risk buffer for this Token category.',
   AUTH_SESSION_LIMIT:
     'Too many active login sessions. On a device where you are already signed in, open Login sessions and use “Sign out other sessions” to revoke them. If you cannot access a signed-in device, reset your password to sign out all sessions.',
   AUTH_SESSION_ISSUANCE_LIMIT:
@@ -32,6 +34,20 @@ const serverErrorMessageKeys = {
   TELEGRAM_BIND_USER_DELETED: 'This user account no longer exists.',
   TELEGRAM_BIND_USER_DISABLED: 'This user account is disabled.',
   TELEGRAM_BIND_INTERNAL_ERROR: 'Telegram binding failed. Please try again.',
+  RECHARGE_CODE_ALREADY_REDEEMED: 'This recharge code has already been used.',
+  RECHARGE_CODE_UNAVAILABLE:
+    'This recharge code is invalid, expired, or unavailable.',
+} as const
+
+const modelPricingErrorMessageKeys = {
+  TOKEN_CATEGORY_ASSUMPTIONS_REQUIRED:
+    'Enter the additional cost and risk buffer for this Token category.',
+  STALE_PREVIEW: 'Pricing changed after this preview. Create a new preview and review it again.',
+  IDEMPOTENCY_CONFLICT: 'This publication request conflicts with an earlier request. Create a new preview and try again.',
+  INVALID_STATE_TRANSITION: 'The pricing state changed. Refresh the model pricing and review the current state.',
+  NOT_FOUND: 'The pricing record no longer exists. Refresh the model pricing and try again.',
+  VALIDATION_FAILED: 'The pricing request is no longer valid. Review the fields and create a new preview.',
+  UNAUTHORIZED: 'Your administrator session is no longer authorized. Refresh the page and sign in again.',
 } as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -48,13 +64,32 @@ function serverErrorPayload(value: unknown): Record<string, unknown> | null {
   return value
 }
 
-export function getServerErrorMessageKey(value: unknown): string | null {
+export function getServerErrorStatus(value: unknown): number | null {
+  if (!isRecord(value) || !isRecord(value.response)) return null
+  const status = value.response.status
+  return typeof status === 'number' ? status : null
+}
+
+export function getServerErrorCode(value: unknown): string | null {
   const payload = serverErrorPayload(value)
-  if (!payload || typeof payload.code !== 'string') return null
+  return payload && typeof payload.code === 'string' ? payload.code : null
+}
+
+export function getServerErrorMessageKey(value: unknown): string | null {
+  const code = getServerErrorCode(value)
+  if (!code) return null
 
   return (
     serverErrorMessageKeys[
-      payload.code as keyof typeof serverErrorMessageKeys
+      code as keyof typeof serverErrorMessageKeys
     ] ?? null
   )
+}
+
+export function getModelPricingServerErrorMessageKey(value: unknown): string | null {
+  const code = getServerErrorCode(value)
+  if (!code) return null
+  return modelPricingErrorMessageKeys[
+    code as keyof typeof modelPricingErrorMessageKeys
+  ] ?? null
 }

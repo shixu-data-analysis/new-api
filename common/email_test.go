@@ -289,6 +289,7 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 	select {
 	case message := <-server.messages:
 		require.Contains(t, message, "Subject: =?UTF-8?B?")
+		require.Contains(t, message, "From: 像素喵片场 <sender@example.com>")
 		require.Contains(t, message, "<p>123456</p>")
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SMTP DATA")

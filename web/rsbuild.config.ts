@@ -14,14 +14,35 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_REACT_APP_SERVER_URL ||
     env.rawPublicVars.VITE_REACT_APP_SERVER_URL ||
     'http://localhost:3000'
+  const canvasCloudServerUrl =
+    process.env.VITE_CANVAS_CLOUD_SERVER_URL ||
+    env.rawPublicVars.VITE_CANVAS_CLOUD_SERVER_URL ||
+    'http://localhost:10689'
+  const canvasManualUat =
+    process.env.VITE_CANVAS_MANUAL_UAT ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT ||
+    ''
+  const canvasManualUatCustomerLogin =
+    process.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
+    ''
+  const canvasManualUatAdminLogin =
+    process.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
+    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
+    ''
 
   const isProd = envMode === 'production'
-  const devProxy = Object.fromEntries(
+  const devProxy: Record<string, object> = Object.fromEntries(
     (['/api', '/mj', '/pg'] as const).map((key) => [
       key,
       { target: serverUrl, changeOrigin: true },
     ])
-  ) as Record<string, { target: string; changeOrigin: boolean }>
+  )
+  devProxy['/canvas-api'] = {
+    target: canvasCloudServerUrl,
+    changeOrigin: true,
+    pathRewrite: { '^/canvas-api': '' },
+  }
 
   return {
     plugins: [pluginReact(), pluginTailwindcss({ optimize: false })],
@@ -56,6 +77,16 @@ export default defineConfig(({ envMode }) => {
       entry: {
         index: './src/main.tsx',
       },
+      define: {
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT':
+          JSON.stringify(canvasManualUat),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN': JSON.stringify(
+          canvasManualUatCustomerLogin
+        ),
+        'import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN': JSON.stringify(
+          canvasManualUatAdminLogin
+        ),
+      },
     },
     resolve: {
       alias: {
@@ -63,11 +94,16 @@ export default defineConfig(({ envMode }) => {
       },
     },
     html: {
-      template: './index.html',
+      // Keep the protected upstream entry intact while shipping the Canvas product shell.
+      template: './canvas-index.html',
+      favicon: './public/pixmiao-icon.webp',
     },
     server: {
       host: '0.0.0.0',
       strictPort: false,
+      publicDir: {
+        ignore: ['favicon.ico'],
+      },
       proxy: devProxy,
     },
     output: {

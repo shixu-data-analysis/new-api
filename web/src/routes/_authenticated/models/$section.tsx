@@ -19,12 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
+import { canManageUpstreamModels } from '@/features/canvas-cloud/role-routing'
 import { Models } from '@/features/models'
 import {
   MODELS_SECTION_IDS,
   MODELS_DEFAULT_SECTION,
 } from '@/features/models/section-registry'
-import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 const modelsSearchSchema = z.object({
@@ -44,7 +44,7 @@ export const Route = createFileRoute('/_authenticated/models/$section')({
   beforeLoad: ({ params }) => {
     const { auth } = useAuthStore.getState()
 
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!canManageUpstreamModels(auth.user?.role)) {
       throw redirect({
         to: '/403',
       })

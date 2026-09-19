@@ -110,11 +110,17 @@ function CompactContent<TData>({ row }: { row: Row<TData> }) {
             return (
               <div key={cell.id} className='min-w-0 flex-1 overflow-hidden'>
                 {label && (
-                  <div className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'>
+                  <div
+                    data-slot='card-field-label'
+                    className='text-muted-foreground mb-0.5 text-[10px] leading-none select-none'
+                  >
                     {label}
                   </div>
                 )}
-                <div className='min-w-0 overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
+                <div
+                  data-slot='card-field-value'
+                  className='min-w-0 overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'
+                >
                   <StatusBadgeTypeContext.Provider value='text'>
                     {renderCellContent(cell) ?? '-'}
                   </StatusBadgeTypeContext.Provider>
@@ -180,10 +186,16 @@ function FallbackContent<TData>({ row }: { row: Row<TData> }) {
             key={cell.id}
             className='flex items-start justify-between gap-2 overflow-hidden'
           >
-            <span className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'>
+            <span
+              data-slot='card-field-label'
+              className='text-muted-foreground shrink-0 text-[10px] font-medium select-none'
+            >
               {label}
             </span>
-            <div className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'>
+            <div
+              data-slot='card-field-value'
+              className='flex min-w-0 flex-1 items-center justify-end overflow-hidden text-xs [&_:is([data-slot=badge-cell],[data-slot=provider-badge],[data-slot=status-badge])]:ml-0'
+            >
               <StatusBadgeTypeContext.Provider value='text'>
                 {renderCellContent(cell) ?? '-'}
               </StatusBadgeTypeContext.Provider>

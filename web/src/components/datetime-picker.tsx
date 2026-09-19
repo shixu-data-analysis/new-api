@@ -46,13 +46,36 @@ interface DateTimePickerProps {
   onChange?: (date: Date | undefined) => void
   placeholder?: string
   className?: string
+  futureOnly?: boolean
 }
+
+const startOfLocalDay = (value: Date) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate())
+
+const nextLocalMinute = (value: Date) => {
+  const result = new Date(value)
+  result.setSeconds(0, 0)
+  result.setMinutes(result.getMinutes() + 1)
+  return result
+}
+
+const isSameLocalDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate()
+
+const formatLocalTime = (value: Date) =>
+  `${value.getHours().toString().padStart(2, '0')}:${value
+    .getMinutes()
+    .toString()
+    .padStart(2, '0')}`
 
 export function DateTimePicker({
   value,
   onChange,
   placeholder,
   className,
+  futureOnly = false,
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
@@ -63,14 +86,13 @@ export function DateTimePicker({
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
   const [time, setTime] = React.useState<string>('00:00')
+  const minimumDateTime = futureOnly ? nextLocalMinute(new Date()) : undefined
 
   React.useEffect(() => {
     setDate(value)
     setMonth(value)
     if (value) {
-      const hours = value.getHours().toString().padStart(2, '0')
-      const minutes = value.getMinutes().toString().padStart(2, '0')
-      setTime(`${hours}:${minutes}`)
+      setTime(formatLocalTime(value))
     }
   }, [value])
 
@@ -79,6 +101,13 @@ export function DateTimePicker({
       const [hours, minutes] = time.split(':').map(Number)
       const newDate = new Date(selectedDate)
       newDate.setHours(hours, minutes, 0, 0)
+      const currentMinimum = futureOnly
+        ? nextLocalMinute(new Date())
+        : undefined
+      if (currentMinimum && newDate < currentMinimum) {
+        newDate.setTime(currentMinimum.getTime())
+        setTime(formatLocalTime(currentMinimum))
+      }
       setDate(newDate)
       setMonth(newDate)
       onChange?.(newDate)
@@ -98,6 +127,13 @@ export function DateTimePicker({
       const [hours, minutes] = newTime.split(':').map(Number)
       const newDate = new Date(date)
       newDate.setHours(hours, minutes, 0, 0)
+      const currentMinimum = futureOnly
+        ? nextLocalMinute(new Date())
+        : undefined
+      if (currentMinimum && newDate < currentMinimum) {
+        newDate.setTime(currentMinimum.getTime())
+        setTime(formatLocalTime(currentMinimum))
+      }
       setDate(newDate)
       onChange?.(newDate)
     }
@@ -138,6 +174,11 @@ export function DateTimePicker({
             locale={calendarLocale}
             startMonth={new Date(currentYear - 100, 0)}
             endMonth={new Date(currentYear + 100, 11)}
+            disabled={
+              minimumDateTime
+                ? { before: startOfLocalDay(minimumDateTime) }
+                : undefined
+            }
           />
         </PopoverContent>
       </Popover>
@@ -147,6 +188,11 @@ export function DateTimePicker({
         onChange={handleTimeChange}
         className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
         disabled={!date}
+        min={
+          date && minimumDateTime && isSameLocalDay(date, minimumDateTime)
+            ? formatLocalTime(minimumDateTime)
+            : undefined
+        }
       />
       {date && (
         <Button

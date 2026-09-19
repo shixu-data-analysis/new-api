@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
+import * as z from 'zod'
 
 // ============================================================================
 // Form Schemas
@@ -48,6 +48,19 @@ export const forgotPasswordFormSchema = z.object({
     message: 'Please enter a valid email address',
   }),
 })
+
+export const resetPasswordFormSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, 'Password must be between 8 and 20 characters')
+      .max(20, 'Password must be at most 20 characters long'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match.",
+    path: ['confirmPassword'],
+  })
 
 export const otpFormSchema = z.object({
   otp: z.string().min(1, 'Please enter a code.'),

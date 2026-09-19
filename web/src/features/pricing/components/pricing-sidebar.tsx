@@ -263,7 +263,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
           className='h-7 gap-1.5 px-2 text-xs'
         >
           <RotateCcw className='size-3.5' />
-          {t('Reset')}
+          {t('Clear filters')}
         </Button>
       </div>
 

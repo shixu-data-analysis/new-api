@@ -207,18 +207,21 @@ export function ModelsTable() {
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: [...getModelStatusOptions(t)],
             singleSelect: true,
           },
           {
             columnId: 'vendor_id',
             title: t('Vendor'),
+            allLabel: t('All Vendors'),
             options: vendorFilterOptions,
             singleSelect: true,
           },
           {
             columnId: 'sync_official',
             title: t('Official Sync'),
+            allLabel: t('All Sync Status'),
             options: [...getSyncStatusOptions(t)],
             singleSelect: true,
           },

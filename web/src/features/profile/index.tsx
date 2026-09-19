@@ -21,6 +21,11 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import {
+  canCanvasPrincipalManageAdvancedAuthentication,
+  canCanvasPrincipalManageClientAccessToken,
+} from '@/features/canvas-cloud/access'
+import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -39,6 +44,20 @@ export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
+  const canvasSession = useCanvasSession()
+  const isCanvasPrincipal = canvasSession.isSuccess
+  const allowAccessToken =
+    canvasSession.isError ||
+    (canvasSession.isSuccess &&
+      canCanvasPrincipalManageClientAccessToken(
+        canvasSession.data.principalType
+      ))
+  const allowAdvancedAuthentication =
+    canvasSession.isError ||
+    (canvasSession.isSuccess &&
+      canCanvasPrincipalManageAdvancedAuthentication(
+        canvasSession.data.principalType
+      ))
 
   const checkinEnabled = status?.checkin_enabled === true
   const turnstileEnabled = !!(
@@ -52,7 +71,11 @@ export function Profile() {
       <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
-            <ProfileHeader profile={profile} loading={loading} />
+            <ProfileHeader
+              profile={profile}
+              loading={loading}
+              canvasSession={canvasSession.data ?? null}
+            />
           </CardStaggerItem>
 
           <CardStaggerItem>
@@ -67,21 +90,31 @@ export function Profile() {
                   profile={profile}
                   onProfileUpdate={refreshProfile}
                 />
-                <ProfileSecurityCard profile={profile} loading={loading} />
+                <ProfileSecurityCard
+                  profile={profile}
+                  loading={loading}
+                  allowAccessToken={allowAccessToken}
+                />
                 <LoginSessionsCard />
               </div>
 
               <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {checkinEnabled && (
+                {!isCanvasPrincipal && checkinEnabled && (
                   <CheckinCalendarCard
                     checkinEnabled={checkinEnabled}
                     turnstileEnabled={turnstileEnabled}
                     turnstileSiteKey={turnstileSiteKey}
                   />
                 )}
-                {canConfigureSidebar && <SidebarModulesCard />}
-                <PasskeyCard loading={loading} />
-                <TwoFACard loading={loading} />
+                {!isCanvasPrincipal && canConfigureSidebar && (
+                  <SidebarModulesCard />
+                )}
+                {allowAdvancedAuthentication && (
+                  <>
+                    <PasskeyCard loading={loading} />
+                    <TwoFACard loading={loading} />
+                  </>
+                )}
               </div>
             </div>
           </CardStaggerItem>

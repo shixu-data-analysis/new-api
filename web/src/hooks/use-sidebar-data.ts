@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BarChart3,
+  BookOpenCheck,
   Box,
+  Boxes,
+  CircleDollarSign,
+  Cloud,
   CreditCard,
   FileText,
   FlaskConical,
@@ -31,12 +36,15 @@ import {
   Settings,
   Ticket,
   User,
+  UserPlus,
   Users,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
+import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
+import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -47,6 +55,158 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { canvasSession, isCanvasShell } = useCanvasShellSession()
+
+  if (canvasSession.isPending) return { navGroups: [] }
+
+  if (canvasSession.isSuccess) {
+    if (isCanvasAdministrator(canvasSession.data.principalType)) {
+      return {
+        navGroups: [
+          {
+            id: 'canvas-admin-operations',
+            title: t('Operations'),
+            items: [
+              {
+                title: t('Canvas Dashboard'),
+                url: '/canvas-cloud/dashboard',
+                icon: BarChart3,
+              },
+              {
+                title: t('Task Records'),
+                url: '/canvas-cloud/task-logs',
+                icon: ListTodo,
+              },
+              {
+                title: t('Canvas Audit Log'),
+                url: '/canvas-cloud/audit',
+                icon: BookOpenCheck,
+              },
+            ],
+          },
+          {
+            id: 'canvas-admin-business',
+            title: t('Business'),
+            items: [
+              {
+                title: t('Customer management'),
+                url: '/canvas-cloud/customers',
+                icon: Users,
+              },
+              {
+                title: t('Activity management'),
+                url: '/canvas-cloud/point-campaigns',
+                icon: Wallet,
+              },
+              {
+                title: t('Invitation management'),
+                url: '/canvas-cloud/invitations',
+                icon: UserPlus,
+              },
+              {
+                title: t('Recharge codes'),
+                url: '/canvas-cloud/recharge-codes',
+                icon: Key,
+              },
+            ],
+          },
+          {
+            id: 'canvas-admin-models-cost',
+            title: t('Models & Cost'),
+            items: [
+              {
+                title: t('Model management'),
+                url: '/canvas-cloud/model-management',
+                activeUrls: ['/canvas-cloud/model-management/'],
+                icon: Boxes,
+              },
+              {
+                title: t('Pricing and point rules'),
+                url: '/canvas-cloud/pricing-point-rules',
+                icon: CircleDollarSign,
+              },
+              {
+                title: t('Runtime management'),
+                url: '/canvas-cloud/runtime',
+                activeUrls: [
+                  '/canvas-cloud/runtime',
+                  '/canvas-cloud/provider-configuration',
+                ],
+                icon: ServerCog,
+              },
+            ],
+          },
+          {
+            id: 'account',
+            title: t('Account'),
+            items: [{ title: t('Profile'), url: '/profile', icon: User }],
+          },
+        ],
+      }
+    }
+    return {
+      navGroups: [
+        {
+          id: 'canvas',
+          title: t('Canvas Cloud'),
+          items: [
+            {
+              title: t('Point center'),
+              url: '/canvas-cloud/points',
+              icon: Wallet,
+            },
+            {
+              title: t('Model center'),
+              url: '/canvas-cloud/models',
+              icon: Box,
+            },
+            {
+              title: t('My Tasks'),
+              url: '/canvas-cloud/tasks',
+              icon: ListTodo,
+            },
+            ...(canvasSession.data.inviterEnabled
+              ? [
+                  {
+                    title: t('My customers'),
+                    url: '/canvas-cloud/agent-center',
+                    icon: Users,
+                  },
+                ]
+              : []),
+          ],
+        },
+        {
+          id: 'account',
+          title: t('Account'),
+          items: [{ title: t('Profile'), url: '/profile', icon: User }],
+        },
+      ],
+    }
+  }
+
+  if (isCanvasShell) {
+    return {
+      navGroups: [
+        {
+          id: 'canvas-activation',
+          title: t('Canvas Cloud'),
+          items: [
+            {
+              title: t('Canvas Cloud'),
+              url: '/canvas-cloud/points',
+              icon: Cloud,
+            },
+          ],
+        },
+        {
+          id: 'account',
+          title: t('Account'),
+          items: [{ title: t('Profile'), url: '/profile', icon: User }],
+        },
+      ],
+    }
+  }
 
   return {
     navGroups: [
@@ -109,6 +269,12 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Canvas Cloud'),
+            url: '/canvas-cloud/points',
+            activeUrls: ['/canvas-cloud'],
+            icon: Cloud,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -128,6 +294,7 @@ export function useSidebarData(): SidebarData {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Users'),
@@ -143,6 +310,7 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('System Info'),

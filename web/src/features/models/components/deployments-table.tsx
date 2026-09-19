@@ -235,6 +235,7 @@ export function DeploymentsTable() {
             {
               columnId: 'status',
               title: t('Status'),
+              allLabel: t('All statuses'),
               options: statusFilterOptions,
               singleSelect: true,
             },

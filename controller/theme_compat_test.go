@@ -45,3 +45,43 @@ func TestGetStatusAdvertisesDefaultDashboard(t *testing.T) {
 	assert.True(t, payload.Success)
 	assert.Equal(t, "default", payload.Data["theme"])
 }
+
+func TestGetStatusReplacesLegacyCanvasSystemName(t *testing.T) {
+	previousMap := common.OptionMap
+	previousName := common.SystemName
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() {
+		common.OptionMap = previousMap
+		common.SystemName = previousName
+	})
+
+	tests := []struct {
+		name       string
+		systemName string
+		want       string
+	}{
+		{name: "missing system name", systemName: "", want: "像素喵片场"},
+		{name: "simplified Chinese legacy name", systemName: "灵猫工坊", want: "像素喵片场"},
+		{name: "upstream default name", systemName: "New API", want: "像素喵片场"},
+		{name: "English legacy name", systemName: "LingCat Studio", want: "PixMiao Studio"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			common.SystemName = tt.systemName
+			response := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(response)
+			context.Request = httptest.NewRequest(http.MethodGet, "/api/status", nil)
+
+			GetStatus(context)
+
+			var payload struct {
+				Success bool           `json:"success"`
+				Data    map[string]any `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
+			assert.True(t, payload.Success)
+			assert.Equal(t, tt.want, payload.Data["system_name"])
+		})
+	}
+}

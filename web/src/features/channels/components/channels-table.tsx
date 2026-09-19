@@ -35,6 +35,7 @@ import {
   useDebouncedColumnFilter,
   useDataTable,
 } from '@/components/data-table'
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -432,31 +433,37 @@ export function ChannelsTable() {
           resetModelFilterInput()
         },
         additionalSearch: (
-          <Input
-            placeholder={t('Filter by model...')}
-            value={modelFilterInput}
-            onChange={onModelFilterInputChange}
-            onCompositionStart={onModelFilterCompositionStart}
-            onCompositionEnd={onModelFilterCompositionEnd}
-            className='w-full sm:w-[150px] lg:w-[180px]'
-          />
+          <DataTableColumnFilterField label={t('Filter by model...')}>
+            <Input
+              placeholder={t('Filter by model...')}
+              aria-label={t('Filter by model...')}
+              value={modelFilterInput}
+              onChange={onModelFilterInputChange}
+              onCompositionStart={onModelFilterCompositionStart}
+              onCompositionEnd={onModelFilterCompositionEnd}
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+          </DataTableColumnFilterField>
         ),
         filters: [
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: [...CHANNEL_STATUS_OPTIONS],
             singleSelect: true,
           },
           {
             columnId: 'type',
             title: t('Type'),
+            allLabel: t('All Types'),
             options: typeFilterOptions,
             singleSelect: true,
           },
           {
             columnId: 'group',
             title: t('Group'),
+            allLabel: t('All Groups'),
             options: groupFilterOptions,
             singleSelect: true,
           },

@@ -176,6 +176,7 @@ export function RedemptionsTable() {
           {
             columnId: 'status',
             title: t('Status'),
+            allLabel: t('All statuses'),
             options: redemptionStatusOptions,
             singleSelect: true,
           },
