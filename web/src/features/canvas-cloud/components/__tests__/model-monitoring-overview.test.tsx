@@ -174,6 +174,14 @@ describe('logical model monitoring overview', () => {
     })
     expect(matrixHeading).toBeVisible()
     expect(matrixHeading.parentElement).toHaveTextContent('Total models: 2')
+    expect(screen.getByText('Page 1 of 1')).toBeVisible()
+    expect(screen.getByLabelText('Rows per page')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Go to previous page' })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Go to next page' })
+    ).toBeDisabled()
     expect(mocks.getOverview).toHaveBeenCalledWith(
       expect.objectContaining({ window: 'day', origin: 'REAL', page: 1 }),
       expect.anything()
@@ -256,7 +264,7 @@ describe('logical model monitoring overview', () => {
         name: /Alpha model.*No data.*Unknown outcomes 1/,
       })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() =>
       expect(mocks.getOverview).toHaveBeenCalledWith(
         expect.objectContaining({ page: 2 }),
@@ -368,15 +376,17 @@ describe('logical model monitoring overview', () => {
     })
     fireEvent.click(unknownBucket)
     expect(unknownBucket).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() =>
       expect(mocks.getOverview).toHaveBeenCalledWith(
         expect.objectContaining({ page: 2 }),
         expect.anything()
       )
     )
-    await waitFor(() => expect(screen.getByText('1 / 1')).toBeVisible())
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    await waitFor(() => expect(screen.getByText('Page 1 of 1')).toBeVisible())
+    expect(
+      screen.getByRole('button', { name: 'Go to next page' })
+    ).toBeDisabled()
     expect(
       within(
         screen.getByRole('table', { name: 'Per-model result matrix' })

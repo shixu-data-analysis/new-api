@@ -7,21 +7,29 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+} from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { DataTablePagination } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { useDebounce } from '@/hooks'
 import { getServerErrorStatus } from '@/lib/server-error-message'
 
 import { getCanvasModelMonitoringOverview } from '../api'
-import type { CanvasModelMonitoringOverview } from '../types'
+import type {
+  CanvasModelMonitoringOverview,
+  CanvasModelMonitoringOverviewQuery,
+} from '../types'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import {
@@ -33,6 +41,7 @@ import { ModelTagFilterButton } from './ModelTagFilterButton'
 type PresetWindow = 'hour' | 'day' | 'week' | 'month'
 type Window = PresetWindow | 'custom'
 type ModelRow = CanvasModelMonitoringOverview['rows'][number]
+type PageSize = CanvasModelMonitoringOverviewQuery['pageSize']
 
 const windows: Array<{ value: Window; label: string }> = [
   { value: 'hour', label: 'Last hour' },
@@ -41,8 +50,10 @@ const windows: Array<{ value: Window; label: string }> = [
   { value: 'month', label: 'Last 30 days' },
   { value: 'custom', label: 'Custom range' },
 ]
-const pageSizes = [10, 20, 30, 40, 50, 100] as const
 const maximumCustomRangeMilliseconds = 30 * 86_400_000
+const monitoringPaginationColumns: ColumnDef<ModelRow, unknown>[] = [
+  { id: 'modelKey', accessorKey: 'modelKey' },
+]
 
 function FilterButton(props: {
   selected: boolean
@@ -79,7 +90,7 @@ export function ModelMonitoringOverview() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search.trim(), 300)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<(typeof pageSizes)[number]>(10)
+  const [pageSize, setPageSize] = useState<PageSize>(10)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [selectedBucket, setSelectedBucket] = useState<number | null>(null)
   const [control, setControl] = useState<ModelRow | null>(null)
@@ -135,6 +146,23 @@ export function ModelMonitoringOverview() {
   })
   const data = monitoring.data
   const rows = data?.rows ?? []
+  const paginationTable = useReactTable({
+    data: rows,
+    columns: monitoringPaginationColumns,
+    rowCount: data?.total ?? 0,
+    pageCount: Math.max(1, Math.ceil((data?.total ?? 0) / pageSize)),
+    manualPagination: true,
+    state: { pagination: { pageIndex: page - 1, pageSize } },
+    onPaginationChange: (updater) => {
+      const current = { pageIndex: page - 1, pageSize }
+      const next = typeof updater === 'function' ? updater(current) : updater
+      setPage(next.pageSize === pageSize ? next.pageIndex + 1 : 1)
+      setPageSize(next.pageSize as PageSize)
+      setSelectedKey(null)
+      setSelectedBucket(null)
+    },
+    getCoreRowModel: getCoreRowModel(),
+  })
   const selectedModel =
     rows.find((row) => row.modelKey === selectedKey) ?? rows[0] ?? null
   const currentKey = selectedModel?.modelKey ?? null
@@ -430,53 +458,8 @@ export function ModelMonitoringOverview() {
               {t('Clear filters')}
             </Button>
           ) : null}
-          <div className='flex flex-wrap items-center justify-end gap-3 text-sm'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <label htmlFor='monitoring-page-size'>{t('Rows per page')}</label>
-              <NativeSelect
-                id='monitoring-page-size'
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(
-                    Number(event.target.value) as (typeof pageSizes)[number]
-                  )
-                  resetPage()
-                }}
-              >
-                {pageSizes.map((size) => (
-                  <NativeSelectOption key={size} value={size}>
-                    {size}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <span>
-                {data.page} / {Math.max(1, Math.ceil(data.total / pageSize))}
-              </span>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={data.page <= 1}
-                onClick={() => {
-                  setPage(data.page - 1)
-                  setSelectedKey(null)
-                  setSelectedBucket(null)
-                }}
-              >
-                {t('Previous')}
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={data.page * pageSize >= data.total}
-                onClick={() => {
-                  setPage(data.page + 1)
-                  setSelectedKey(null)
-                  setSelectedBucket(null)
-                }}
-              >
-                {t('Next')}
-              </Button>
-            </div>
+          <div className='pt-2'>
+            <DataTablePagination table={paginationTable} />
           </div>
           <ModelMonitoringChart
             model={selectedModel}
