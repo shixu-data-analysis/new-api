@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, RefreshCw } from 'lucide-react'
+import { Copy, Download, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -19,10 +19,14 @@ import {
 import { useDebounce } from '@/hooks'
 import { normalizeInterfaceLanguage, toIntlLocale } from '@/i18n/languages'
 
-import { getCanvasCustomerTasks } from '../api'
+import {
+  getCanvasCustomerTasks,
+  getCanvasTaskAssetBlob,
+  getCanvasTaskAssetDownload,
+} from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
-import type { CanvasCustomerTask } from '../types'
+import type { CanvasCustomerTask, CanvasCustomerTaskAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -60,6 +64,53 @@ const customerTaskErrorMessageKeys: Record<string, string> = {
     'The generation service is unavailable. Please contact an administrator.',
 }
 
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    (error as { response?: { status?: unknown } }).response?.status === 404
+  )
+}
+
+function absoluteDownloadUrl(value: string): string | null {
+  try {
+    const url = new URL(value)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    if (url.username || url.password) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+function resultFileExtension(mimeType: string): string {
+  const extensions: Record<string, string> = {
+    'audio/mpeg': 'mp3',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'video/mp4': 'mp4',
+    'video/webm': 'webm',
+  }
+  return extensions[mimeType] ?? 'bin'
+}
+
+function clickDownload(url: string, fileName?: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = url
+  if (fileName) anchor.download = fileName
+  else {
+    anchor.target = '_blank'
+    anchor.rel = 'noopener noreferrer'
+  }
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 export function CustomerTasks() {
   const { t, i18n } = useTranslation()
   const state = useServerTableState('acceptedAt')
@@ -69,6 +120,7 @@ export function CustomerTasks() {
   const [settlementProgress, setSettlementProgress] = useState('')
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
+  const [downloadingAsset, setDownloadingAsset] = useState<string | null>(null)
   const debouncedModel = useDebounce(model.trim(), 300)
   const dateRangeValid = isCanvasDateRangeValid(from, to)
   useEffect(() => {
@@ -130,6 +182,49 @@ export function CustomerTasks() {
     async (id: string) => {
       await navigator.clipboard.writeText(id)
       toast.success(t('Task ID copied'))
+    },
+    [t]
+  )
+  const downloadResult = useCallback(
+    async (taskId: string, asset: CanvasCustomerTaskAsset) => {
+      const key = `${taskId}:${asset.assetId}`
+      setDownloadingAsset(key)
+      try {
+        const descriptor = await getCanvasTaskAssetDownload(
+          asset.downloadPath,
+          taskId,
+          asset.assetId
+        )
+        const signedUrl = absoluteDownloadUrl(descriptor.url)
+        if (signedUrl) {
+          clickDownload(signedUrl)
+          return
+        }
+        const blob = await getCanvasTaskAssetBlob(
+          descriptor.url,
+          taskId,
+          asset.assetId
+        )
+        const objectUrl = URL.createObjectURL(blob)
+        try {
+          clickDownload(
+            objectUrl,
+            `result-${asset.outputIndex + 1}.${resultFileExtension(descriptor.mimeType)}`
+          )
+        } finally {
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+        }
+      } catch (error) {
+        toast.error(
+          t(
+            isNotFound(error)
+              ? 'The result file is no longer available.'
+              : 'Result download failed. Please try again.'
+          )
+        )
+      } finally {
+        setDownloadingAsset((current) => (current === key ? null : current))
+      }
     },
     [t]
   )
@@ -206,6 +301,11 @@ export function CustomerTasks() {
           const failures = row.original.outputSummaries.filter(
             (output) => output.error
           )
+          const assets = [...(row.original.assets ?? [])].sort(
+            (left, right) =>
+              left.outputIndex - right.outputIndex ||
+              left.assetId.localeCompare(right.assetId)
+          )
           return (
             <div className='space-y-1'>
               <p>{parts.join(' · ')}</p>
@@ -226,6 +326,34 @@ export function CustomerTasks() {
                     )}
                 </p>
               ))}
+              {assets.length ? (
+                <div className='flex flex-wrap gap-1 pt-1'>
+                  {assets.map((asset) => {
+                    const key = `${row.original.id}:${asset.assetId}`
+                    const pending = downloadingAsset === key
+                    const label = t('Download result {{number}}', {
+                      number: asset.outputIndex + 1,
+                    })
+                    return (
+                      <Button
+                        key={asset.assetId}
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        disabled={downloadingAsset !== null}
+                        aria-label={label}
+                        title={label}
+                        onClick={() =>
+                          void downloadResult(row.original.id, asset)
+                        }
+                      >
+                        <Download aria-hidden='true' />
+                        {pending ? t('Downloading…') : label}
+                      </Button>
+                    )
+                  })}
+                </div>
+              ) : null}
             </div>
           )
         },
@@ -275,7 +403,15 @@ export function CustomerTasks() {
         cell: ({ row }) => formatCanvasDateTime(row.original.acceptedAt),
       },
     ],
-    [copyTaskId, formatPoints, i18n.language, i18n.resolvedLanguage, t]
+    [
+      copyTaskId,
+      downloadResult,
+      downloadingAsset,
+      formatPoints,
+      i18n.language,
+      i18n.resolvedLanguage,
+      t,
+    ]
   )
   return (
     <div className='space-y-4'>

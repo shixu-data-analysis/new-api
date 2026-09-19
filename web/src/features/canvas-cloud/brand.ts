@@ -45,8 +45,11 @@ export function isCanvasBrandContext(
   pathname: string,
   redirect?: string | null
 ): boolean {
+  const normalizedSystemName = systemName.trim()
   return (
-    isCanvasProductName(systemName) ||
+    isCanvasProductName(normalizedSystemName) ||
+    normalizedSystemName === '' ||
+    normalizedSystemName === 'New API' ||
     pathname.startsWith('/canvas-cloud/') ||
     redirect?.startsWith('/canvas-cloud/') === true
   )

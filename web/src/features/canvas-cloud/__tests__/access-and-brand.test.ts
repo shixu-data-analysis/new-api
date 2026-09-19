@@ -113,10 +113,12 @@ describe('Canvas role-scoped information architecture', () => {
     expect(canvasCompactName).toBe('PixMiao')
     expect(isCanvasBrandContext('像素喵片场', '/sign-in')).toBe(true)
     expect(isCanvasBrandContext('New API', '/canvas-cloud/points')).toBe(true)
+    expect(isCanvasBrandContext('New API', '/sign-in')).toBe(true)
+    expect(isCanvasBrandContext('', '/sign-in')).toBe(true)
     expect(
       isCanvasBrandContext('New API', '/sign-in', '/canvas-cloud/points')
     ).toBe(true)
-    expect(isCanvasBrandContext('New API', '/sign-in')).toBe(false)
+    expect(isCanvasBrandContext('Customer Gateway', '/sign-in')).toBe(false)
     const iconBytes = Buffer.from(
       lingCatStudioIcon.split(',')[1] ?? '',
       'base64'

@@ -12,6 +12,8 @@ package controller
 import (
 	"strings"
 	"testing"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 func TestCanvasAccountEmailWording(t *testing.T) {
@@ -33,5 +35,20 @@ func TestCanvasAccountEmailWording(t *testing.T) {
 		if !strings.Contains(resetContent, expected) {
 			t.Fatalf("reset content missing %q: %q", expected, resetContent)
 		}
+	}
+}
+
+func TestCanvasAccountEmailNormalizesRuntimeBrand(t *testing.T) {
+	previousName := common.SystemName
+	t.Cleanup(func() { common.SystemName = previousName })
+	common.SystemName = "New API"
+
+	subject, content := buildEmailVerificationMessage(common.SystemName, "123456", 10)
+	if strings.Contains(subject+content, "New API") || !strings.Contains(subject+content, "像素喵片场") {
+		t.Fatalf("email leaked retired brand: %q %q", subject, content)
+	}
+	resetSubject, resetContent := buildPasswordResetMessage(common.SystemName, "https://canvas.example/reset", 10)
+	if strings.Contains(resetSubject+resetContent, "New API") || !strings.Contains(resetSubject+resetContent, "像素喵片场") {
+		t.Fatalf("password reset email leaked retired brand: %q %q", resetSubject, resetContent)
 	}
 }

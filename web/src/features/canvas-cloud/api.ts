@@ -70,6 +70,7 @@ import type {
   CanvasCustomerPointSummary,
   CanvasCustomerRechargeRedemption,
   CanvasCustomerTask,
+  CanvasTaskAssetDownload,
   CanvasTaskPointLedgerDetail,
   CanvasAdminRefund,
   CanvasPage,
@@ -107,6 +108,20 @@ import type {
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
+
+function expectedCanvasTaskAssetPath(taskId: string, assetId: string): string {
+  return `/v1/tasks/${taskId}/assets/${assetId}`
+}
+
+function assertCanvasTaskAssetPath(
+  path: string,
+  taskId: string,
+  assetId: string,
+  download: boolean
+): void {
+  const expected = `${expectedCanvasTaskAssetPath(taskId, assetId)}${download ? '/download' : ''}`
+  if (path !== expected) throw new Error('Unexpected Canvas task asset path')
+}
 
 interface TopupLinkResponse {
   success?: boolean
@@ -235,6 +250,33 @@ export async function getCanvasCustomerTasks(
         ...query,
       },
       signal,
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function getCanvasTaskAssetDownload(
+  downloadPath: string,
+  taskId: string,
+  assetId: string
+): Promise<CanvasTaskAssetDownload> {
+  assertCanvasTaskAssetPath(downloadPath, taskId, assetId, true)
+  return (
+    await api.get<CanvasTaskAssetDownload>(`/canvas-api${downloadPath}`, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+export async function getCanvasTaskAssetBlob(
+  assetPath: string,
+  taskId: string,
+  assetId: string
+): Promise<Blob> {
+  assertCanvasTaskAssetPath(assetPath, taskId, assetId, false)
+  return (
+    await api.get<Blob>(`/canvas-api${assetPath}`, {
+      responseType: 'blob',
       skipErrorHandler: true,
     })
   ).data

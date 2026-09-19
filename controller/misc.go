@@ -172,16 +172,7 @@ func GetStatus(c *gin.Context) {
 }
 
 func canvasPublicSystemName(systemName string) string {
-	switch strings.TrimSpace(systemName) {
-	case "灵猫工坊":
-		return "像素喵片场"
-	case "靈貓工坊":
-		return "像素喵片場"
-	case "LingCat Studio":
-		return "PixMiao Studio"
-	default:
-		return systemName
-	}
+	return common.NormalizeSystemName(systemName)
 }
 
 func GetNotice(c *gin.Context) {
@@ -295,7 +286,7 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
-	subject, content := buildEmailVerificationMessage(common.SystemName, code, common.VerificationValidMinutes)
+	subject, content := buildEmailVerificationMessage(common.NormalizeSystemName(common.SystemName), code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
 		common.ApiError(c, err)
@@ -318,7 +309,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
-		subject, content := buildPasswordResetMessage(common.SystemName, link, common.VerificationValidMinutes)
+		subject, content := buildPasswordResetMessage(common.NormalizeSystemName(common.SystemName), link, common.VerificationValidMinutes)
 		err := common.SendEmail(subject, email, content)
 		if err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
@@ -333,6 +324,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 }
 
 func buildEmailVerificationMessage(systemName, code string, validMinutes int) (string, string) {
+	systemName = common.NormalizeSystemName(systemName)
 	subject := fmt.Sprintf("%s 邮箱验证码", systemName)
 	content := fmt.Sprintf("<p>您好，您正在验证%s账号的邮箱地址。</p>"+
 		"<p>您的验证码为：<strong>%s</strong></p>"+
@@ -341,6 +333,7 @@ func buildEmailVerificationMessage(systemName, code string, validMinutes int) (s
 }
 
 func buildPasswordResetMessage(systemName, link string, validMinutes int) (string, string) {
+	systemName = common.NormalizeSystemName(systemName)
 	subject := fmt.Sprintf("%s 密码重置", systemName)
 	content := fmt.Sprintf("<p>您好，您正在重置%s账号的密码。</p>"+
 		"<p>点击 <a href='%s'>此处</a> 设置新密码。</p>"+

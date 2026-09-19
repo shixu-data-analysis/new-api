@@ -21,8 +21,14 @@ import zh from '@/i18n/locales/zh.json'
 
 import { CustomerTasks } from '../CustomerTasks'
 
-const apiMocks = vi.hoisted(() => ({ getCanvasCustomerTasks: vi.fn() }))
+const apiMocks = vi.hoisted(() => ({
+  getCanvasCustomerTasks: vi.fn(),
+  getCanvasTaskAssetBlob: vi.fn(),
+  getCanvasTaskAssetDownload: vi.fn(),
+}))
+const toastMocks = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 vi.mock('../../api', () => apiMocks)
+vi.mock('sonner', () => ({ toast: toastMocks }))
 
 function renderTasks() {
   const client = new QueryClient({
@@ -57,11 +63,21 @@ describe('Canvas customer tasks', () => {
   })
   beforeEach(async () => {
     vi.clearAllMocks()
+    apiMocks.getCanvasTaskAssetBlob.mockReset()
+    apiMocks.getCanvasTaskAssetDownload.mockReset()
     localStorage.clear()
     await i18next.changeLanguage('en')
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    })
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:canvas-result'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
     })
     apiMocks.getCanvasCustomerTasks.mockResolvedValue({
       page: 1,
@@ -83,6 +99,7 @@ describe('Canvas customer tasks', () => {
             resultsIncomplete: false,
           },
           outputSummaries: [],
+          assets: [],
           settlementProgress: 'COMPLETED',
           customerBillingStatus: 'SETTLED',
           allocatedPoints: '7',
@@ -107,6 +124,9 @@ describe('Canvas customer tasks', () => {
     expect(
       screen.queryByRole('button', { name: /detail/i })
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /download result/i })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() =>
       expect(apiMocks.getCanvasCustomerTasks).toHaveBeenLastCalledWith(
@@ -118,6 +138,177 @@ describe('Canvas customer tasks', () => {
     await waitFor(() =>
       expect(apiMocks.getCanvasCustomerTasks).toHaveBeenCalledTimes(3)
     )
+  })
+
+  it('downloads an available partial-success output through a fresh signed descriptor', async () => {
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    apiMocks.getCanvasCustomerTasks.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: '81000000-0000-7000-8000-000000000001',
+          modelName: 'Video model',
+          derivedExecutionStatus: 'PARTIAL_SUCCESS',
+          executionSummary: {
+            expectedResults: 2,
+            recordedResults: 2,
+            acceptedResults: 0,
+            processingResults: 0,
+            succeededResults: 1,
+            failedResults: 1,
+            unknownResults: 0,
+            resultsIncomplete: false,
+          },
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'CONFIRMED_FAILED',
+              error: { code: 'PROVIDER_UNAVAILABLE', messages: null },
+            },
+            { outputIndex: 1, executionStatus: 'SUCCEEDED', error: null },
+          ],
+          assets: [
+            {
+              assetId: '82000000-0000-7000-8000-000000000001',
+              outputIndex: 1,
+              mediaType: 'VIDEO',
+              mimeType: 'video/mp4',
+              sizeBytes: '1024',
+              availableUntil: '2026-09-21T09:00:00.000Z',
+              downloadPath:
+                '/v1/tasks/81000000-0000-7000-8000-000000000001/assets/82000000-0000-7000-8000-000000000001/download',
+            },
+          ],
+          settlementProgress: 'COMPLETED',
+          customerBillingStatus: 'SETTLED',
+          allocatedPoints: '14',
+          deductedPoints: '7',
+          releasedPoints: '7',
+          outstandingDebtPoints: '0',
+          acceptedAt: '2026-09-19T09:16:00.000Z',
+        },
+      ],
+    })
+    apiMocks.getCanvasTaskAssetDownload.mockResolvedValue({
+      url: 'https://signed.example/result.mp4?signature=opaque',
+      expiresAt: '2026-09-19T09:31:00.000Z',
+      outputIndex: 1,
+      mimeType: 'video/mp4',
+      sizeBytes: '1024',
+      sha256: 'a'.repeat(64),
+    })
+
+    renderTasks()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Download result 2' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasTaskAssetDownload).toHaveBeenCalledWith(
+        '/v1/tasks/81000000-0000-7000-8000-000000000001/assets/82000000-0000-7000-8000-000000000001/download',
+        '81000000-0000-7000-8000-000000000001',
+        '82000000-0000-7000-8000-000000000001'
+      )
+    )
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(apiMocks.getCanvasTaskAssetBlob).not.toHaveBeenCalled()
+    click.mockRestore()
+  })
+
+  it('fetches Mock bytes with authentication and reports an expired asset locally', async () => {
+    const taskId = '81000000-0000-7000-8000-000000000001'
+    const assetId = '82000000-0000-7000-8000-000000000001'
+    const downloadPath = `/v1/tasks/${taskId}/assets/${assetId}/download`
+    const asset = {
+      assetId,
+      outputIndex: 0,
+      mediaType: 'IMAGE',
+      mimeType: 'image/png',
+      sizeBytes: '68',
+      availableUntil: null,
+      downloadPath,
+    }
+    apiMocks.getCanvasCustomerTasks.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: taskId,
+          modelName: 'Image model',
+          derivedExecutionStatus: 'SUCCEEDED',
+          executionSummary: {
+            expectedResults: 1,
+            recordedResults: 1,
+            acceptedResults: 0,
+            processingResults: 0,
+            succeededResults: 1,
+            failedResults: 0,
+            unknownResults: 0,
+            resultsIncomplete: false,
+          },
+          outputSummaries: [],
+          assets: [asset],
+          settlementProgress: 'COMPLETED',
+          customerBillingStatus: 'SETTLED',
+          allocatedPoints: '7',
+          deductedPoints: '7',
+          releasedPoints: '0',
+          outstandingDebtPoints: '0',
+          acceptedAt: '2026-09-19T09:16:00.000Z',
+        },
+      ],
+    })
+    apiMocks.getCanvasTaskAssetDownload.mockResolvedValueOnce({
+      url: `/v1/tasks/${taskId}/assets/${assetId}`,
+      expiresAt: '2026-09-19T09:31:00.000Z',
+      outputIndex: 0,
+      mimeType: 'image/png',
+      sizeBytes: '68',
+      sha256: 'a'.repeat(64),
+    })
+    apiMocks.getCanvasTaskAssetBlob.mockResolvedValue(
+      new Blob(['image'], { type: 'image/png' })
+    )
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+
+    renderTasks()
+    await screen.findByRole('button', {
+      name: 'Download result 1',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Download result 1' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasTaskAssetBlob).toHaveBeenCalledWith(
+        `/v1/tasks/${taskId}/assets/${assetId}`,
+        taskId,
+        assetId
+      )
+    )
+    expect(URL.createObjectURL).toHaveBeenCalled()
+    await waitFor(() =>
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:canvas-result')
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Download result 1' })
+      ).toBeEnabled()
+    )
+
+    apiMocks.getCanvasTaskAssetDownload.mockRejectedValueOnce({
+      response: { status: 404 },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Download result 1' }))
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'The result file is no longer available.'
+      )
+    )
+    click.mockRestore()
   })
 
   it('sends task and model filters and returns to the first page', async () => {

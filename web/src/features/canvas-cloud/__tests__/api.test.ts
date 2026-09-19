@@ -50,6 +50,8 @@ import {
   getCanvasCustomerPointSummary,
   getCanvasCustomerRechargeRedemptions,
   getCanvasCustomerTasks,
+  getCanvasTaskAssetBlob,
+  getCanvasTaskAssetDownload,
   getCanvasSessionFailureRoute,
   getCanvasSession,
   getCanvasPointIssuanceRates,
@@ -292,6 +294,50 @@ describe('Canvas Cloud API boundary', () => {
         skipErrorHandler: true,
       }
     )
+  })
+
+  it('uses only declared task asset paths for download descriptors and authenticated bytes', async () => {
+    const taskId = '81000000-0000-7000-8000-000000000001'
+    const assetId = '82000000-0000-7000-8000-000000000001'
+    const downloadPath = `/v1/tasks/${taskId}/assets/${assetId}/download`
+    const assetPath = `/v1/tasks/${taskId}/assets/${assetId}`
+    const descriptor = {
+      url: 'https://signed.example/result.png',
+      expiresAt: '2026-09-19T01:15:00.000Z',
+      outputIndex: 0,
+      mimeType: 'image/png',
+      sizeBytes: '68',
+      sha256: 'a'.repeat(64),
+    }
+    const blob = new Blob(['result'], { type: 'image/png' })
+    mocks.get
+      .mockResolvedValueOnce({ data: descriptor })
+      .mockResolvedValueOnce({
+        data: blob,
+      })
+
+    await expect(
+      getCanvasTaskAssetDownload(downloadPath, taskId, assetId)
+    ).resolves.toEqual(descriptor)
+    expect(mocks.get).toHaveBeenLastCalledWith(`/canvas-api${downloadPath}`, {
+      skipErrorHandler: true,
+    })
+    await expect(
+      getCanvasTaskAssetBlob(assetPath, taskId, assetId)
+    ).resolves.toBe(blob)
+    expect(mocks.get).toHaveBeenLastCalledWith(`/canvas-api${assetPath}`, {
+      responseType: 'blob',
+      skipErrorHandler: true,
+    })
+
+    await expect(
+      getCanvasTaskAssetDownload(
+        'https://upstream.example/file',
+        taskId,
+        assetId
+      )
+    ).rejects.toThrow('Unexpected Canvas task asset path')
+    expect(mocks.get).toHaveBeenCalledTimes(2)
   })
 
   it('keeps point-return calculation server-owned and routes governed Lot adjustments', async () => {

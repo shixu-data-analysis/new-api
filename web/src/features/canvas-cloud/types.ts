@@ -801,6 +801,16 @@ export interface CanvasCustomerTaskOutputSummary {
   } | null
 }
 
+export interface CanvasCustomerTaskAsset {
+  assetId: string
+  outputIndex: number
+  mediaType: 'IMAGE' | 'VIDEO' | 'AUDIO'
+  mimeType: string
+  sizeBytes: string
+  availableUntil: string | null
+  downloadPath: string
+}
+
 export interface CanvasCustomerTask {
   id: string
   modelName: string
@@ -816,6 +826,7 @@ export interface CanvasCustomerTask {
     resultsIncomplete: boolean
   }
   outputSummaries: CanvasCustomerTaskOutputSummary[]
+  assets: CanvasCustomerTaskAsset[]
   settlementProgress: 'PENDING' | 'PROCESSING' | 'COMPLETED'
   customerBillingStatus: string
   allocatedPoints: string
@@ -823,6 +834,15 @@ export interface CanvasCustomerTask {
   releasedPoints: string
   outstandingDebtPoints: string
   acceptedAt: string
+}
+
+export interface CanvasTaskAssetDownload {
+  url: string
+  expiresAt: string
+  outputIndex: number
+  mimeType: string
+  sizeBytes: string
+  sha256: string
 }
 
 export interface CanvasCatalogModel {

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	//"os"
 	//"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,7 +13,32 @@ import (
 
 var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
-var SystemName = "New API"
+// SystemName is the persisted display name used by the Canvas deployment.
+// Keep the upstream project identity in module paths, imports, and source
+// attribution; the runtime product default is PixMiao.
+const (
+	DefaultCanvasSystemName        = "像素喵片场"
+	DefaultCanvasTraditionalName   = "像素喵片場"
+	DefaultCanvasEnglishSystemName = "PixMiao Studio"
+)
+
+var SystemName = DefaultCanvasSystemName
+
+// NormalizeSystemName keeps explicit customer branding while preventing
+// retired/default upstream names from leaking into Canvas runtime surfaces.
+func NormalizeSystemName(systemName string) string {
+	switch strings.TrimSpace(systemName) {
+	case "", "New API", "灵猫工坊":
+		return DefaultCanvasSystemName
+	case "靈貓工坊":
+		return DefaultCanvasTraditionalName
+	case "LingCat Studio":
+		return DefaultCanvasEnglishSystemName
+	default:
+		return systemName
+	}
+}
+
 var Footer = ""
 var Logo = ""
 var TopUpLink = ""

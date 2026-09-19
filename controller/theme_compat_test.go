@@ -60,9 +60,10 @@ func TestGetStatusReplacesLegacyCanvasSystemName(t *testing.T) {
 		systemName string
 		want       string
 	}{
+		{name: "missing system name", systemName: "", want: "像素喵片场"},
 		{name: "simplified Chinese legacy name", systemName: "灵猫工坊", want: "像素喵片场"},
+		{name: "upstream default name", systemName: "New API", want: "像素喵片场"},
 		{name: "English legacy name", systemName: "LingCat Studio", want: "PixMiao Studio"},
-		{name: "upstream technical identity", systemName: "New API", want: "New API"},
 	}
 
 	for _, tt := range tests {
