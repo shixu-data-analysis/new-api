@@ -22,14 +22,16 @@ import { getServerErrorStatus } from '@/lib/server-error-message'
 
 import { getCanvasModelMonitoringOverview } from '../api'
 import type { CanvasModelMonitoringOverview } from '../types'
+import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
-import { ModelTagFilterButton } from './ModelTagFilterButton'
 import {
   ModelMonitoringChart,
   ModelMonitoringMatrix,
 } from './ModelMonitoringResults'
+import { ModelTagFilterButton } from './ModelTagFilterButton'
 
-type Window = 'hour' | 'day' | 'week' | 'month'
+type PresetWindow = 'hour' | 'day' | 'week' | 'month'
+type Window = PresetWindow | 'custom'
 type ModelRow = CanvasModelMonitoringOverview['rows'][number]
 
 const windows: Array<{ value: Window; label: string }> = [
@@ -37,8 +39,10 @@ const windows: Array<{ value: Window; label: string }> = [
   { value: 'day', label: 'Last 24 hours' },
   { value: 'week', label: 'Last 7 days' },
   { value: 'month', label: 'Last 30 days' },
+  { value: 'custom', label: 'Custom range' },
 ]
 const pageSizes = [10, 20, 30, 40, 50, 100] as const
+const maximumCustomRangeMilliseconds = 30 * 86_400_000
 
 function FilterButton(props: {
   selected: boolean
@@ -61,7 +65,12 @@ function FilterButton(props: {
 export function ModelMonitoringOverview() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [window, setWindow] = useState<Window>('day')
+  const [rangeSelection, setRangeSelection] = useState<Window>('day')
+  const [appliedWindow, setAppliedWindow] = useState<Window>('day')
+  const [draftFrom, setDraftFrom] = useState<Date>()
+  const [draftTo, setDraftTo] = useState<Date>()
+  const [appliedFrom, setAppliedFrom] = useState<string>()
+  const [appliedTo, setAppliedTo] = useState<string>()
   const [origin, setOrigin] = useState<'REAL' | 'MOCK'>('REAL')
   const [capability, setCapability] = useState('')
   const [providerId, setProviderId] = useState('')
@@ -79,7 +88,9 @@ export function ModelMonitoringOverview() {
       [
         'canvas-cloud',
         'model-monitoring-overview',
-        window,
+        appliedWindow,
+        appliedFrom,
+        appliedTo,
         origin,
         capability,
         providerId,
@@ -89,7 +100,9 @@ export function ModelMonitoringOverview() {
         pageSize,
       ] as const,
     [
-      window,
+      appliedWindow,
+      appliedFrom,
+      appliedTo,
       origin,
       capability,
       providerId,
@@ -104,10 +117,13 @@ export function ModelMonitoringOverview() {
     queryFn: ({ signal }) =>
       getCanvasModelMonitoringOverview(
         {
-          window,
+          window: appliedWindow,
           origin,
           page,
           pageSize,
+          ...(appliedWindow === 'custom' && appliedFrom && appliedTo
+            ? { from: appliedFrom, to: appliedTo }
+            : {}),
           ...(capability ? { capability } : {}),
           ...(providerId ? { providerId } : {}),
           ...(tagId === 'untagged' ? { untagged: true as const } : {}),
@@ -126,7 +142,7 @@ export function ModelMonitoringOverview() {
   useEffect(() => {
     if (data && data.page !== page) {
       queryClient.setQueryData(
-        [...queryKey.slice(0, 8), data.page, pageSize],
+        [...queryKey.slice(0, -2), data.page, pageSize],
         data
       )
       setPage(data.page)
@@ -145,9 +161,29 @@ export function ModelMonitoringOverview() {
     setSearch('')
     resetPage()
   }
+  const customRangeValid = Boolean(
+    draftFrom &&
+    draftTo &&
+    Number.isFinite(+draftFrom) &&
+    Number.isFinite(+draftTo) &&
+    +draftFrom < +draftTo &&
+    +draftTo - +draftFrom <= maximumCustomRangeMilliseconds
+  )
+  const customRangeStarted = Boolean(draftFrom || draftTo)
   const changeWindow = (value: Window) => {
-    setWindow(value)
-    setSelectedBucket(null)
+    setRangeSelection(value)
+    if (value === 'custom') return
+    setAppliedWindow(value)
+    setAppliedFrom(undefined)
+    setAppliedTo(undefined)
+    resetPage()
+  }
+  const applyCustomRange = () => {
+    if (!customRangeValid || !draftFrom || !draftTo) return
+    setAppliedWindow('custom')
+    setAppliedFrom(draftFrom.toISOString())
+    setAppliedTo(draftTo.toISOString())
+    resetPage()
   }
   const changeOrigin = (value: 'REAL' | 'MOCK') => {
     setOrigin(value)
@@ -276,54 +312,94 @@ export function ModelMonitoringOverview() {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className='flex flex-wrap items-center gap-3 pt-5'>
-          <div
-            className='flex flex-wrap gap-2'
-            role='group'
-            aria-label={t('Time range')}
-          >
-            {windows.map((item) => (
-              <FilterButton
-                key={item.value}
-                selected={window === item.value}
-                onClick={() => changeWindow(item.value)}
-              >
-                {t(item.label)}
-              </FilterButton>
-            ))}
-          </div>
-          <Input
-            className='min-w-48 flex-1'
-            type='search'
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              resetPage()
-            }}
-            placeholder={t('Search model name')}
-            aria-label={t('Search model name')}
-          />
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-sm font-medium'>{t('Execution source')}</span>
+        <CardContent className='space-y-3 pt-5'>
+          <div className='flex flex-wrap items-center gap-3'>
             <div
-              className='flex gap-2'
+              className='flex flex-wrap gap-2'
               role='group'
-              aria-label={t('Execution source')}
+              aria-label={t('Time range')}
             >
-              <FilterButton
-                selected={origin === 'REAL'}
-                onClick={() => changeOrigin('REAL')}
+              {windows.map((item) => (
+                <FilterButton
+                  key={item.value}
+                  selected={rangeSelection === item.value}
+                  onClick={() => changeWindow(item.value)}
+                >
+                  {t(item.label)}
+                </FilterButton>
+              ))}
+            </div>
+            <Input
+              className='min-w-48 flex-1'
+              type='search'
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                resetPage()
+              }}
+              placeholder={t('Search model name')}
+              aria-label={t('Search model name')}
+            />
+            <div className='flex flex-wrap items-center gap-2'>
+              <span className='text-sm font-medium'>
+                {t('Execution source')}
+              </span>
+              <div
+                className='flex gap-2'
+                role='group'
+                aria-label={t('Execution source')}
               >
-                {t('Real calls')}
-              </FilterButton>
-              <FilterButton
-                selected={origin === 'MOCK'}
-                onClick={() => changeOrigin('MOCK')}
-              >
-                {t('Mock calls')}
-              </FilterButton>
+                <FilterButton
+                  selected={origin === 'REAL'}
+                  onClick={() => changeOrigin('REAL')}
+                >
+                  {t('Real calls')}
+                </FilterButton>
+                <FilterButton
+                  selected={origin === 'MOCK'}
+                  onClick={() => changeOrigin('MOCK')}
+                >
+                  {t('Mock calls')}
+                </FilterButton>
+              </div>
             </div>
           </div>
+          {rangeSelection === 'custom' ? (
+            <div
+              className='bg-muted/30 grid items-end gap-3 rounded-md border p-3 lg:grid-cols-[minmax(0,1fr)_auto]'
+              role='group'
+              aria-label={t('Custom range')}
+            >
+              <div className='max-w-3xl min-w-0'>
+                <p className='mb-2 text-sm font-medium'>{t('Custom range')}</p>
+                <CanvasDateRangeFilter
+                  from={draftFrom}
+                  to={draftTo}
+                  onFromChange={setDraftFrom}
+                  onToChange={setDraftTo}
+                />
+                {!customRangeValid ? (
+                  <p
+                    role={customRangeStarted ? 'alert' : undefined}
+                    className={
+                      customRangeStarted
+                        ? 'text-destructive mt-2 text-sm'
+                        : 'text-muted-foreground mt-2 text-sm'
+                    }
+                  >
+                    {t('Select a positive time range of at most 30 days')}
+                  </p>
+                ) : null}
+              </div>
+              <Button
+                type='button'
+                disabled={!customRangeValid}
+                onClick={applyCustomRange}
+              >
+                {t('Confirm')}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
       {monitoring.isPending ? <LoadingState /> : null}
@@ -407,7 +483,7 @@ export function ModelMonitoringOverview() {
             selectedBucket={selectedBucket}
             onSelectBucket={setSelectedBucket}
             windowLabel={t(
-              windows.find((item) => item.value === window)?.label ??
+              windows.find((item) => item.value === appliedWindow)?.label ??
                 'Last 24 hours'
             )}
           />

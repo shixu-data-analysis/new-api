@@ -31,6 +31,41 @@ vi.mock('../../api', () => ({
   getCanvasModelMonitoringOverview: mocks.getOverview,
   controlCanvasLogicalModel: mocks.control,
 }))
+vi.mock('../CanvasDateRangeFilter', () => ({
+  CanvasDateRangeFilter: (props: {
+    from?: Date
+    to?: Date
+    onFromChange: (value?: Date) => void
+    onToChange: (value?: Date) => void
+  }) => (
+    <div>
+      <label>
+        Start time
+        <input
+          aria-label='Start time'
+          value={props.from?.toISOString() ?? ''}
+          onChange={(event) =>
+            props.onFromChange(
+              event.target.value ? new Date(event.target.value) : undefined
+            )
+          }
+        />
+      </label>
+      <label>
+        End time
+        <input
+          aria-label='End time'
+          value={props.to?.toISOString() ?? ''}
+          onChange={(event) =>
+            props.onToChange(
+              event.target.value ? new Date(event.target.value) : undefined
+            )
+          }
+        />
+      </label>
+    </div>
+  ),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 
 const bucket = (
@@ -148,7 +183,9 @@ describe('logical model monitoring overview', () => {
       .closest('[role="row"]')
     expect(alphaRow).toHaveAttribute('aria-selected', 'true')
     expect(alphaRow).toHaveClass('bg-primary/10')
-    const betaButton = within(matrix).getByRole('button', { name: 'Beta model' })
+    const betaButton = within(matrix).getByRole('button', {
+      name: 'Beta model',
+    })
     fireEvent.click(betaButton)
     expect(betaButton.closest('[role="row"]')).toHaveAttribute(
       'aria-selected',
@@ -195,6 +232,86 @@ describe('logical model monitoring overview', () => {
         expect.anything()
       )
     )
+  })
+
+  it('applies only a complete valid custom range and clears it for a preset', async () => {
+    mocks.getOverview.mockImplementation(async (query: { page: number }) => ({
+      ...overview,
+      page: query.page,
+      total: 22,
+    }))
+    mount()
+    const matrix = await screen.findByRole('table', {
+      name: 'Per-model result matrix',
+    })
+    fireEvent.click(
+      within(matrix).getByRole('button', {
+        name: /Alpha model.*No data.*Unknown outcomes 1/,
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() =>
+      expect(mocks.getOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.anything()
+      )
+    )
+
+    const callsBeforeDraft = mocks.getOverview.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Custom range' }))
+    const confirm = screen.getByRole('button', { name: 'Confirm' })
+    expect(confirm).toBeDisabled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Select a positive time range of at most 30 days')
+    ).toBeVisible()
+    expect(mocks.getOverview).toHaveBeenCalledTimes(callsBeforeDraft)
+
+    fireEvent.change(screen.getByLabelText('Start time'), {
+      target: { value: '2026-09-01T00:00:00.000Z' },
+    })
+    fireEvent.change(screen.getByLabelText('End time'), {
+      target: { value: '2026-10-02T00:00:00.000Z' },
+    })
+    expect(confirm).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Select a positive time range of at most 30 days'
+    )
+    expect(mocks.getOverview).toHaveBeenCalledTimes(callsBeforeDraft)
+
+    fireEvent.change(screen.getByLabelText('End time'), {
+      target: { value: '2026-09-15T12:30:00.000Z' },
+    })
+    expect(confirm).toBeEnabled()
+    fireEvent.click(confirm)
+    await waitFor(() =>
+      expect(mocks.getOverview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          window: 'custom',
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-15T12:30:00.000Z',
+          page: 1,
+        }),
+        expect.anything()
+      )
+    )
+    expect(
+      within(
+        screen.getByRole('table', { name: 'Per-model result matrix' })
+      ).getByRole('button', {
+        name: /Alpha model.*No data.*Unknown outcomes 1/,
+      })
+    ).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Last hour' }))
+    await waitFor(() => {
+      const query = mocks.getOverview.mock.calls.at(-1)?.[0]
+      expect(query).toEqual(
+        expect.objectContaining({ window: 'hour', page: 1 })
+      )
+      expect(query).not.toHaveProperty('from')
+      expect(query).not.toHaveProperty('to')
+    })
   })
 
   it('submits a reasoned whole-model control with the expected version', async () => {
