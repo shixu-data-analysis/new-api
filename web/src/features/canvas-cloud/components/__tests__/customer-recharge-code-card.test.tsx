@@ -43,7 +43,7 @@ describe('Canvas customer recharge card', () => {
     })
   })
 
-  it('shows the safe administrator-configured purchase link', async () => {
+  it('shows the safe runtime-configured purchase link', async () => {
     vi.mocked(getCanvasRechargePurchaseLink).mockResolvedValue(
       'https://shop.example.com/canvas-codes'
     )
@@ -65,5 +65,27 @@ describe('Canvas customer recharge card', () => {
     expect(
       await screen.findByRole('link', { name: 'Purchase recharge code' })
     ).toHaveAttribute('href', 'https://shop.example.com/canvas-codes')
+  })
+
+  it('hides the purchase action when the runtime URL is empty', async () => {
+    vi.mocked(getCanvasRechargePurchaseLink).mockResolvedValue(null)
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CustomerRechargeCodeCard
+          code=''
+          onCodeChange={vi.fn()}
+          onRedeem={vi.fn()}
+          redeeming={false}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(
+      screen.queryByRole('link', { name: 'Purchase recharge code' })
+    ).not.toBeInTheDocument()
   })
 })
