@@ -134,6 +134,9 @@ describe('logical model monitoring overview', () => {
       expect.objectContaining({ window: 'day', origin: 'REAL', page: 1 }),
       expect.anything()
     )
+    const allTags = screen.getByRole('button', { name: 'All tags 2' })
+    expect(allTags).toHaveAttribute('aria-pressed', 'true')
+    expect(within(allTags).getByText('2')).toHaveAttribute('data-slot', 'badge')
     expect(screen.getByRole('button', { name: 'Photo 1' })).toBeVisible()
     const matrix = screen.getByRole('table', {
       name: 'Per-model result matrix',

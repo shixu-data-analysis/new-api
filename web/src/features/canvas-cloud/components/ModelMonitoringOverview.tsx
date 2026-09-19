@@ -23,6 +23,7 @@ import { getServerErrorStatus } from '@/lib/server-error-message'
 import { getCanvasModelMonitoringOverview } from '../api'
 import type { CanvasModelMonitoringOverview } from '../types'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
+import { ModelTagFilterButton } from './ModelTagFilterButton'
 import {
   ModelMonitoringChart,
   ModelMonitoringMatrix,
@@ -239,36 +240,36 @@ export function ModelMonitoringOverview() {
                 role='group'
                 aria-label={t('Model tags')}
               >
-                <FilterButton
+                <ModelTagFilterButton
+                  label={t('All tags')}
+                  count={data?.preTagTotal ?? 0}
                   selected={!tagId}
                   onClick={() => {
                     setTagId('')
                     resetPage()
                   }}
-                >
-                  {t('All tags')} {data?.preTagTotal ?? 0}
-                </FilterButton>
+                />
                 {data?.tags.map((tag) => (
-                  <FilterButton
+                  <ModelTagFilterButton
                     key={tag.id}
+                    label={tag.name}
+                    count={tag.count}
                     selected={tagId === tag.id}
                     onClick={() => {
                       setTagId(tag.id)
                       resetPage()
                     }}
-                  >
-                    {tag.name} {tag.count}
-                  </FilterButton>
+                  />
                 ))}
-                <FilterButton
+                <ModelTagFilterButton
+                  label={t('Untagged')}
+                  count={data?.untaggedCount ?? 0}
                   selected={tagId === 'untagged'}
                   onClick={() => {
                     setTagId('untagged')
                     resetPage()
                   }}
-                >
-                  {t('Untagged')} {data?.untaggedCount ?? 0}
-                </FilterButton>
+                />
               </div>
             ) : null}
           </div>
