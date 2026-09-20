@@ -16,12 +16,13 @@ assert.match(publishCondition, /github\.ref == 'refs\/heads\/stg'/);
 assert.doesNotMatch(publishCondition, /workflow_dispatch|pull_request/, "manual and pull-request runs must never publish");
 assert.match(workflow, /\n  publish:\n[\s\S]*?\n    environment: stg\n/, "publish job must use the protected stg environment");
 
-for (const permission of ["contents: read", "packages: write", "id-token: write", "attestations: write", "artifact-metadata: write"]) {
+for (const permission of ["contents: read", "packages: write", "id-token: write"]) {
   assert.match(workflow, new RegExp(`^\\s*${permission}$`, "m"), `missing least-privilege permission: ${permission}`);
 }
+assert.doesNotMatch(workflow, /^\s*(?:attestations|artifact-metadata): write$/m);
 
 const actionReferences = [...workflow.matchAll(/^\s*uses:\s+([^@\s]+)@([^\s#]+)/gm)];
-assert.ok(actionReferences.length >= 6, "expected checkout, Docker, attestation, and artifact actions");
+assert.ok(actionReferences.length >= 6, "expected checkout, Docker, Cosign, and artifact actions");
 for (const [, action, reference] of actionReferences) {
   assert.match(reference, /^[a-f0-9]{40}$/, `${action} must be pinned to a full commit SHA`);
 }
@@ -40,14 +41,18 @@ assert.match(workflow, /vnd\.docker\.reference\.digest/);
 assert.match(workflow, /imagetools inspect "\$\{IMAGE\}@\$\{attestation_digest\}" --raw/);
 assert.match(workflow, /https:\/\/spdx\.dev\/Document/);
 assert.match(workflow, /https:\/\/slsa\.dev\/provenance\//);
-assert.match(workflow, /actions\/attest@[a-f0-9]{40}/);
-assert.match(workflow, /push-to-registry: true/);
-assert.match(workflow, /gh attestation verify "oci:\/\/\$\{IMAGE\}@\$\{DIGEST\}"/);
-assert.match(workflow, /--signer-workflow "\$GITHUB_REPOSITORY\/\.github\/workflows\/canvas-stg-artifact\.yml"/);
-assert.match(workflow, /--source-ref "\$GITHUB_REF"/);
-assert.match(workflow, /--source-digest "\$GITHUB_SHA"/);
+assert.match(workflow, /sigstore\/cosign-installer@[a-f0-9]{40}/);
+assert.match(workflow, /cosign sign --yes "\$\{IMAGE\}@\$\{DIGEST\}"/);
+assert.match(workflow, /cosign verify "\$\{IMAGE\}@\$\{DIGEST\}"/);
+assert.match(workflow, /--certificate-identity "\$\{GITHUB_SERVER_URL\}\/\$\{GITHUB_REPOSITORY\}\/\.github\/workflows\/canvas-stg-artifact\.yml@\$\{GITHUB_REF\}"/);
+assert.match(workflow, /--certificate-oidc-issuer "https:\/\/token\.actions\.githubusercontent\.com"/);
+assert.match(workflow, /--certificate-github-workflow-repository "\$GITHUB_REPOSITORY"/);
+assert.match(workflow, /--certificate-github-workflow-ref "\$GITHUB_REF"/);
+assert.match(workflow, /--certificate-github-workflow-sha "\$GITHUB_SHA"/);
+assert.match(workflow, /schemaVersion: 2/);
+assert.match(workflow, /type: "sigstore-keyless"/);
 assert.match(workflow, /stg-candidate\.json/);
 assert.match(workflow, /actions\/upload-artifact@[a-f0-9]{40}/);
 assert.doesNotMatch(workflow, /terraform apply|kubectl|coolify|docker\.io|calciumion\/new-api|docker hub/i, "Canvas artifact publication must not deploy or alter the upstream Docker Hub release path");
 
-console.log("Pinned New API Canvas STG artifacts use guarded full-SHA GHCR tags, registry digests, BuildKit SBOM/provenance, and GitHub-signed provenance verification without deployment.");
+console.log("Pinned New API Canvas STG artifacts use guarded full-SHA GHCR tags, registry digests, BuildKit SBOM/provenance, and Sigstore keyless signature verification without deployment.");
