@@ -118,10 +118,21 @@ jobs:
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: |
           subject="${IMAGE}@${DIGEST}"
-          docker buildx imagetools inspect "$subject" --format '{{json .SBOM}}' \
-            | jq -e '[.. | objects | select(has("SPDX")) | .SPDX.SPDXID] | length > 0 and all(.[]; . == "SPDXRef-DOCUMENT")' >/dev/null
-          docker buildx imagetools inspect "$subject" --format '{{json .Provenance}}' \
-            | jq -e '[.. | objects | select(has("SLSA")) | .SLSA.buildType] | length > 0 and all(.[]; . == "https://mobyproject.org/buildkit@v1")' >/dev/null
+          index_json=$(docker buildx imagetools inspect "$subject" --format '{{json .Manifest}}')
+          attestation_digest=$(printf '%s\n' "$index_json" | jq -er '
+            . as $index
+            | [$index.manifests[] as $candidate
+                | select($candidate.annotations["vnd.docker.reference.type"] == "attestation-manifest")
+                | select(any($index.manifests[]; .digest == $candidate.annotations["vnd.docker.reference.digest"]))
+                | $candidate.digest]
+            | if length == 1 then .[0] else error("expected one image-linked attestation manifest") end
+          ')
+          docker buildx imagetools inspect "${IMAGE}@${attestation_digest}" --raw \
+            | jq -e '
+                [.layers[]?.annotations["in-toto.io/predicate-type"]]
+                | index("https://spdx.dev/Document") != null
+                  and any(.[]; startswith("https://slsa.dev/provenance/"))
+              ' >/dev/null
       - name: Create the GitHub build provenance attestation
         id: attestation
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
