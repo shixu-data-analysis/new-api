@@ -27,7 +27,7 @@ import { quotaUnitsToDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { UserFormData, User } from '../types'
 
 // ============================================================================
 // Form Schema
@@ -37,6 +37,7 @@ export const userFormSchema = z.object({
   username: z.string().min(1, 'Username is required'),
   display_name: z.string().optional(),
   password: z.string().optional(),
+  confirmPassword: z.string().optional(),
   role: z.number().optional(),
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
@@ -56,6 +57,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   username: '',
   display_name: '',
   password: '',
+  confirmPassword: '',
   role: 1, // Default to common user
   quota_dollars: 0,
   group: DEFAULT_GROUP,
@@ -117,6 +119,7 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     username: user.username,
     display_name: user.display_name,
     password: '',
+    confirmPassword: '',
     role: user.role,
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,

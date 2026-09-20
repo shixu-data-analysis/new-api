@@ -22,8 +22,6 @@ import {
   Trash2,
   Power,
   PowerOff,
-  ArrowUp,
-  ArrowDown,
   KeyRound,
   ShieldAlert,
   Link2,
@@ -132,7 +130,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   const isDisabled = user.status === USER_STATUS.DISABLED
-  const isAdmin = user.role >= USER_ROLE.ADMIN
   const isRoot = user.role === USER_ROLE.ROOT
 
   if (isUserDeleted(user)) {
@@ -176,24 +173,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             {t('Disable')}
             <DropdownMenuShortcut>
               <PowerOff size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-        )}
-
-        {isAdmin && !isRoot && (
-          <DropdownMenuItem onClick={() => handleManage('demote')}>
-            {t('Demote')}
-            <DropdownMenuShortcut>
-              <ArrowDown size={16} />
-            </DropdownMenuShortcut>
-          </DropdownMenuItem>
-        )}
-
-        {!isAdmin && (
-          <DropdownMenuItem onClick={() => handleManage('promote')}>
-            {t('Promote')}
-            <DropdownMenuShortcut>
-              <ArrowUp size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}

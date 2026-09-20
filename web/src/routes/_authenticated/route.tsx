@@ -29,6 +29,7 @@ import {
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
+import { isCanvasRootUserManagementPath } from '@/features/users/lib/canvas-root-user-management'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -45,21 +46,47 @@ export const Route = createFileRoute('/_authenticated')({
 
     if (location.pathname === '/403' || location.pathname === '/503') return
 
+    const isAccountPath =
+      location.pathname === '/profile' ||
+      location.pathname.startsWith('/profile/')
+    if (isAccountPath) return
+
+    const isCanvasPath = location.pathname.startsWith('/canvas-cloud/')
+    if (auth.user.role === ROLE.USER && !isCanvasPath) {
+      throw redirect({
+        to: '/canvas-cloud/$section',
+        params: { section: 'points' },
+        replace: true,
+      })
+    }
+
+    const isRootUserManagementPath = isCanvasRootUserManagementPath(
+      location.pathname,
+      auth.user.role
+    )
+    if (isRootUserManagementPath) return
+
+    const isDefaultLandingPath = isCanvasDefaultLandingPath(location.pathname)
+    if (!isCanvasPath && !isDefaultLandingPath) return
+
     let canvasSession
     try {
       canvasSession = await getCanvasSession()
     } catch (error) {
       if (isCanvasInviteRegistrationRequired(error)) {
+        if (!isCanvasPath) return
         if (!canCanvasPrincipalAccessPath(location.pathname)) {
           throw redirect({ to: '/403' })
         }
         canvasSession = null
       } else {
-        throw redirect({ to: getCanvasSessionFailureRoute(error) })
+        const failureRoute = getCanvasSessionFailureRoute(error)
+        if (!isCanvasPath) return
+        throw redirect({ to: failureRoute })
       }
     }
     if (canvasSession) {
-      if (isCanvasDefaultLandingPath(location.pathname)) {
+      if (isDefaultLandingPath) {
         throw redirect({
           to: '/canvas-cloud/$section',
           params: {
@@ -76,8 +103,7 @@ export const Route = createFileRoute('/_authenticated')({
     }
 
     if (auth.user.role === ROLE.ADMIN) {
-      const isAccountPath = location.pathname.startsWith('/profile')
-      if (!isAccountPath) throw redirect({ to: '/403' })
+      throw redirect({ to: '/403' })
     }
   },
   component: AuthenticatedLayout,

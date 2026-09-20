@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ROLE } from '@/lib/roles'
 import type { AuthUser } from '@/stores/auth-store'
 
 const allowedRedirectProtocols = new Set(['http:', 'https:'])
@@ -77,4 +78,30 @@ export function sanitizeAuthRedirect(
   }
 
   return `${redirectURL.pathname}${redirectURL.search}${redirectURL.hash}`
+}
+
+function defaultPostLoginRedirect(user: Pick<AuthUser, 'role'>): string {
+  if (user.role === ROLE.SUPER_ADMIN) return '/users'
+  if (user.role === ROLE.ADMIN) return '/canvas-cloud/dashboard'
+  return '/canvas-cloud/points'
+}
+
+function isRootUserManagementPath(pathname: string): boolean {
+  return pathname === '/users' || pathname.startsWith('/users/')
+}
+
+export function resolvePostLoginRedirect(
+  value: unknown,
+  origin: string,
+  user: Pick<AuthUser, 'role'>
+): string {
+  const fallback = defaultPostLoginRedirect(user)
+  const target = sanitizeAuthRedirect(value, origin)
+  if (!target) return fallback
+
+  const pathname = new URL(target, origin).pathname
+  if (isRootUserManagementPath(pathname) && user.role !== ROLE.SUPER_ADMIN) {
+    return fallback
+  }
+  return target
 }

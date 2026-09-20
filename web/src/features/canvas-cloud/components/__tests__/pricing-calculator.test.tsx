@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +33,25 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('../../api', () => apiMocks)
 
 describe('Canvas pricing calculator', () => {
+  it('calculates with 100 when a new environment has no published rate yet', async () => {
+    apiMocks.getCanvasPointIssuanceRates.mockResolvedValueOnce([])
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PricingCalculator />
+      </QueryClientProvider>
+    )
+
+    fireEvent.change(screen.getByLabelText('Target margin rate'), {
+      target: { value: '25' },
+    })
+    fireEvent.change(screen.getByLabelText('Proposed price points'), {
+      target: { value: '' },
+    })
+    expect(
+      screen.getByRole('region', { name: 'Pricing recommendation' })
+    ).toHaveTextContent('316 points')
+  })
+
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
   })
@@ -140,7 +159,7 @@ describe('Canvas pricing calculator', () => {
     const recommendation = screen.getByRole('region', {
       name: 'Pricing recommendation',
     })
-    expect(recommendation).toHaveTextContent('158 points')
+    await waitFor(() => expect(recommendation).toHaveTextContent('158 points'))
     expect(
       screen.queryByText(/meets or exceeds this price version/)
     ).not.toBeInTheDocument()

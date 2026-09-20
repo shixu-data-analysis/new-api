@@ -26,6 +26,24 @@ export interface CanvasSession {
   inviterEnabled: boolean
 }
 
+export interface CanvasProvisionedAdministrator {
+  principalId: string
+  principalType: 'SUPER_ADMIN' | 'PLATFORM_ADMIN'
+  externalId: string
+  displayName: string | null
+  createdAt: string
+}
+
+export interface CanvasAdminProvisioningStatus {
+  bootstrapStatus: 'REQUIRED' | 'COMPLETE' | 'CONFLICT'
+  currentRootExternalId: string
+  superAdminExternalId: string | null
+}
+
+export interface CanvasAdminProvisioningPrincipals {
+  items: CanvasProvisionedAdministrator[]
+}
+
 export interface CanvasRuntimeConfiguration {
   environment: 'UAT' | 'STG' | 'PROD'
   taskMedia: CanvasRuntimeTaskMediaConfiguration | null

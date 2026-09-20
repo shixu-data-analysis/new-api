@@ -131,19 +131,28 @@ export function ModelMonitoringMatrix(props: {
                 <div
                   key={model.modelKey}
                   role='row'
+                  tabIndex={0}
                   aria-selected={props.selectedKey === model.modelKey}
-                  className={`grid items-center gap-1 border-b px-2 py-2 last:border-0 ${props.selectedKey === model.modelKey ? 'bg-primary/10' : ''}`}
+                  className={`focus-visible:ring-ring grid cursor-pointer items-center gap-1 border-b px-2 py-2 outline-none last:border-0 focus-visible:ring-2 focus-visible:ring-inset ${props.selectedKey === model.modelKey ? 'bg-primary/10' : ''}`}
                   style={{ gridTemplateColumns }}
+                  onClick={(event) => {
+                    const target = event.target as HTMLElement
+                    if (target.closest('button, a, input, select, textarea')) {
+                      return
+                    }
+                    props.onSelectModel(model.modelKey)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    event.preventDefault()
+                    props.onSelectModel(model.modelKey)
+                  }}
                 >
                   <div role='cell' className='min-w-0'>
-                    <Button
-                      variant='ghost'
-                      className='h-auto max-w-full justify-start p-1 text-left'
-                      onClick={() => props.onSelectModel(model.modelKey)}
-                      aria-pressed={props.selectedKey === model.modelKey}
-                    >
-                      <span className='min-w-0 break-words'>{model.name}</span>
-                    </Button>
+                    <span className='min-w-0 font-medium break-words'>
+                      {model.name}
+                    </span>
                     {!model.manualEnabled ? (
                       <span className='text-muted-foreground block text-xs'>
                         {t('Disabled')}

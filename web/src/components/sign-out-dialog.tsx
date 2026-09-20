@@ -24,7 +24,11 @@ import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { logout } from '@/features/auth/api'
-import { clearAuthenticatedClientState } from '@/lib/auth-session'
+import {
+  beginAuthenticationSignOut,
+  clearAuthenticatedClientState,
+  finishAuthenticationSignOut,
+} from '@/lib/auth-session'
 import { requestCanvasDesktopSignOut } from '@/lib/canvas-desktop-sign-out'
 
 interface SignOutDialogProps {
@@ -40,7 +44,9 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
+    beginAuthenticationSignOut()
     try {
+      await queryClient.cancelQueries()
       const desktopSignOut = requestCanvasDesktopSignOut()
       if (desktopSignOut) {
         const result = await desktopSignOut
@@ -63,6 +69,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
         error instanceof Error ? error.message : t('Failed to sign out session')
       )
     } finally {
+      finishAuthenticationSignOut()
       setIsSigningOut(false)
     }
   }

@@ -22,10 +22,13 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { useAuthStore, type AuthBundle } from '../stores/auth-store'
 import {
   applyAuthRotation,
+  beginAuthenticationSignOut,
   bootstrapAuthentication,
   clearAuthenticatedClientState,
   createRefreshRunner,
+  finishAuthenticationSignOut,
   isAuthBundle,
+  isAuthenticationSignOutInProgress,
   type AuthRefreshRuntime,
 } from './auth-session'
 
@@ -51,10 +54,21 @@ const bundle: AuthBundle = {
 }
 
 afterEach(() => {
+  finishAuthenticationSignOut()
   useAuthStore.getState().auth.reset('idle')
 })
 
 describe('authentication session coordination', () => {
+  test('explicit sign-out exposes one shared transition for request suppression', () => {
+    expect(isAuthenticationSignOutInProgress()).toBe(false)
+
+    beginAuthenticationSignOut()
+    expect(isAuthenticationSignOutInProgress()).toBe(true)
+
+    finishAuthenticationSignOut()
+    expect(isAuthenticationSignOutInProgress()).toBe(false)
+  })
+
   test('bootstrap distinguishes a completed anonymous check from an active session', async () => {
     useAuthStore.getState().auth.reset('complete')
     expect(await bootstrapAuthentication()).toEqual({ kind: 'anonymous' })

@@ -53,6 +53,18 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.False(t, Can(3, common.RoleCommonUser, ChannelRead))
 }
 
+func TestDeniedPermissionsIncludesEveryRegisteredAction(t *testing.T) {
+	denied := DeniedPermissions()
+
+	for _, permission := range AllPermissions() {
+		actions, ok := denied[permission.Resource]
+		require.True(t, ok)
+		allowed, ok := actions[permission.Action]
+		require.True(t, ok)
+		assert.False(t, allowed)
+	}
+}
+
 func TestInitOnSlaveOnlyLoadsPolicies(t *testing.T) {
 	wasMaster := common.IsMasterNode
 	common.IsMasterNode = false

@@ -17,8 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { CanceledError } from 'axios'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  beginAuthenticationSignOut,
+  finishAuthenticationSignOut,
+} from '@/lib/auth-session'
 import { handleServerError } from '@/lib/handle-server-error'
 import { api } from '@/lib/http-client'
 
@@ -27,7 +31,11 @@ const toastMocks = vi.hoisted(() => ({ error: vi.fn() }))
 vi.mock('sonner', () => ({ toast: toastMocks }))
 
 describe('HTTP request cancellation feedback', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    finishAuthenticationSignOut()
+    vi.clearAllMocks()
+  })
+  afterEach(() => finishAuthenticationSignOut())
 
   it('does not show global errors for an intentionally canceled request', async () => {
     const cancellation = new CanceledError('canceled')
@@ -85,5 +93,44 @@ describe('HTTP request cancellation feedback', () => {
       data: { source: 'replacement request' },
     })
     expect(adapter).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not report expected 401 responses while explicit sign-out is in progress', async () => {
+    const unauthorized = {
+      config: { skipAuthRefresh: true },
+      response: { status: 401 },
+    }
+    beginAuthenticationSignOut()
+
+    await expect(
+      api.get('/sign-out-race-test', {
+        adapter: async () => {
+          throw unauthorized
+        },
+      })
+    ).rejects.toBe(unauthorized)
+
+    expect(toastMocks.error).not.toHaveBeenCalled()
+  })
+
+  it('uses one visual notification identity for concurrent session expiry failures', async () => {
+    const requests = Array.from({ length: 3 }, (_, index) =>
+      api.get(`/session-expiry-test-${index}`, {
+        skipAuthRefresh: true,
+        adapter: async (config) => {
+          throw {
+            config,
+            response: { status: 401 },
+          }
+        },
+      })
+    )
+
+    await Promise.allSettled(requests)
+
+    expect(toastMocks.error).toHaveBeenCalledTimes(3)
+    for (const call of toastMocks.error.mock.calls) {
+      expect(call[1]).toEqual({ id: 'auth-session-expired' })
+    }
   })
 })
