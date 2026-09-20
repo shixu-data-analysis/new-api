@@ -5863,7 +5863,7 @@
     "Heartbeat interval (milliseconds)": "心跳间隔（毫秒）",
     "Lease duration (milliseconds)": "租约时长（毫秒）",
     "Scan interval (milliseconds)": "扫描间隔（毫秒）",
-    "Default instances": "默认实例数",
+    "Deployment target instances": "部署目标实例数",
     "Mock mode": "模拟模式",
     "Real mode": "真实模式",
     "Task health": "任务健康度",

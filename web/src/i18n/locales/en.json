@@ -5863,7 +5863,7 @@
     "Heartbeat interval (milliseconds)": "Heartbeat interval (milliseconds)",
     "Lease duration (milliseconds)": "Lease duration (milliseconds)",
     "Scan interval (milliseconds)": "Scan interval (milliseconds)",
-    "Default instances": "Default instances",
+    "Deployment target instances": "Deployment target instances",
     "Mock mode": "Mock mode",
     "Real mode": "Real mode",
     "Task health": "Task health",

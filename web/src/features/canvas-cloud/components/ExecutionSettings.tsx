@@ -877,7 +877,7 @@ function ExecutionRuntimeFacts(props: {
                   String(props.recovery.scanMs),
                 ],
                 [
-                  t('Default instances'),
+                  t('Deployment target instances'),
                   String(props.recovery.defaultInstances),
                 ],
               ].map(([label, value]) => (
