@@ -124,7 +124,7 @@ describe('Canvas role-scoped information architecture', () => {
       'base64'
     )
     expect(createHash('sha256').update(iconBytes).digest('hex')).toBe(
-      '95155f46d794cef0f598e48959765d2bbe55c3d9bbd581c22acb6258ac8d998c'
+      '9887b17590e2805a1dce57a3bbe1387c3fe2ff0e5bb9038d4d8731b37424490b'
     )
   })
 
