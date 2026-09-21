@@ -10,7 +10,7 @@ React／TypeScript 前端，使用 Rsbuild、Base UI、Tailwind CSS 和 Bun；�
 
 ### Canvas UI 迭代例外
 
-大型 Canvas UI 任务按[根 AGENTS 的迭代边界](../../AGENTS.md#canvas-ui-迭代边界)执行：用户明确说 `complete` 前不运行完整 Canvas 测试、生产构建、全量类型检查或综合 Docker 门禁，只运行最小受影响检查。纯视觉结果由用户在热更新页面确认；高风险业务／接口检查不得延后。浏览器验证范围和证据复用按[实施指南](../../docs/agent-guides/implementation-and-verification.md#风险相称验证与证据复用)执行。
+大型 Canvas UI 任务按工作区根 `AGENTS.md` 的“Canvas UI 迭代边界”执行：用户明确说 `complete` 前不运行完整 Canvas 测试、生产构建、全量类型检查或综合 Docker 门禁，只运行最小受影响检查。纯视觉结果由用户在热更新页面确认；高风险业务／接口检查不得延后。浏览器验证范围和证据复用按工作区根 `docs/agent-guides/implementation-and-verification.md` 的“风险相称验证与证据复用”执行。
 
 <a id="frozen-candidate-gate"></a>
 
@@ -42,4 +42,4 @@ bash scripts/run-docker-affected-gate.sh --test <test-file> [--test <test-file>.
 - 测试、测试位置、交互／无障碍覆盖或验证：**3.14 测试**。
 - 依赖或构建／发布行为：**3.15–3.16** 节。
 
-修改 Canvas Cloud UI、表单、校验、多语言或表格时，还须完整阅读[共通 UI 指南](../../docs/agent-guides/ui-form-consistency.md)；表格、历史或选择列表另读[Cloud 数据表规范](../../docs/agent-guides/canvas-cloud-table-design.md)及其引用的通用规范。Cloud API 是业务校验真源，本 UI 镜像可在本地判断的规则。修改 Canvas Cloud 模块前，必读 [`src/features/canvas-cloud/AGENTS.md`](src/features/canvas-cloud/AGENTS.md)的布局及验证补充。
+修改 Canvas Cloud UI、表单、校验或多语言时，还须完整阅读工作区根 `docs/agent-guides/ui-form-consistency.md`；表格、历史或选择列表另读工作区根 `docs/agent-guides/canvas-cloud-table-design.md` 及其引用的通用规范。Cloud API 是业务校验真源，本 UI 镜像可在本地判断的规则。修改 Canvas Cloud 模块前，必读 [`src/features/canvas-cloud/AGENTS.md`](src/features/canvas-cloud/AGENTS.md)的布局及验证补充。

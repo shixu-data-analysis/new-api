@@ -1,6 +1,6 @@
 # Pinned New API 文档入口
 
-本目录保留 New API 的认证、配置、安装和翻译文档，以及本仓实施规则。Canvas 业务规则与交付状态由 [Cloud 文档入口](../../.worktrees/canvas-cloud-integration/docs/README.md)维护，不在本仓复制。
+本目录保留 New API 的认证、配置、安装和翻译文档，以及本仓实施规则。Canvas 业务规则与交付状态由工作区根 `.worktrees/canvas-cloud-integration/docs/README.md` 维护，不在本仓复制。
 
 | 用途 | 文档 |
 | --- | --- |

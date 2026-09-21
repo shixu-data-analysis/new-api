@@ -21,6 +21,6 @@
 ## 专题文档
 
 - [Web 级 AGENTS.md](../../../AGENTS.md)：修改本模块前必读，按其路由加载规范并使用唯一验证入口。
-- [共通 UI 指南](../../../../../docs/agent-guides/ui-form-consistency.md)：UI、表单、校验或多语言变更前完整阅读。
-- [Cloud 数据表规范](../../../../../docs/agent-guides/canvas-cloud-table-design.md)：表格、历史或选择列表变更前读取。
-- [实施指南](../../../../../docs/agent-guides/implementation-and-verification.md#风险相称验证与证据复用)：验证前读取对应证据规则。
+- 工作区根 `docs/agent-guides/ui-form-consistency.md`：UI、表单、校验或多语言变更前完整阅读。
+- 工作区根 `docs/agent-guides/canvas-cloud-table-design.md`：表格、历史或选择列表变更前读取。
+- 工作区根 `docs/agent-guides/implementation-and-verification.md` 的“风险相称验证与证据复用”：验证前读取。

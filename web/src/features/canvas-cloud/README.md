@@ -1,10 +1,10 @@
-# Canvas Cloud Web extension
+# Canvas Cloud Web module
 
-This feature is the isolated WEB-001 extension for the pinned New API revision `2d8e50bf36e94200b809dfb39e73624ec48b1e23`.
+This directory contains Canvas-owned pages embedded in the Pinned New API Web shell.
 
-- Keep Canvas API calls under `/canvas-api` and forward the existing in-memory New API Bearer through the shared HTTP client.
-- Keep customer and administrator authorization authoritative in Canvas Cloud. Never infer Canvas authority from a visible tab or a New API role alone.
-- Model catalog publication accepts the complete App Bundle folder through the role-10 catalog tab or the governed local/CI pipeline. Both entries use Canvas Cloud server validation and one confirmed publication transaction; never restore the retired reviewed-package draft/self-approval workflow.
-- Reuse New API layout, theme, components, i18n, error handling, responsive behavior, and accessibility patterns.
-- Do not import Canvas modules into New API account, API-key, security, channel, forwarding, or quota features.
-- Before upgrading upstream, compare this feature's route, sidebar, auth-client, layout, shared-state components, themes, i18n, and Rsbuild proxy surfaces and rerun the WEB-001 gates.
+- Module rules: [AGENTS.md](AGENTS.md).
+- Parent Web rules: [../../../AGENTS.md](../../../AGENTS.md).
+- Current Cloud business and API authority: workspace-root `.worktrees/canvas-cloud-integration/AGENTS.md`.
+- Shared Canvas UI rules: workspace-root `docs/agent-guides/ui-form-consistency.md`.
+
+Keep Canvas API calls under `/canvas-api`. Canvas Cloud owns customer and administrator authorization. Reuse the host layout, components, themes, i18n, error handling, responsive behavior and accessibility patterns. Do not infer current feature scope or pinned revisions from this README.

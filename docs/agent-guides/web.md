@@ -79,7 +79,7 @@
 
 ### 3.7 表单
 
-- Canvas Cloud 表单、字段校验、多语言和数据表一致性同时遵循[工作区表单一致性规则](../../../docs/agent-guides/ui-form-consistency.md)；Cloud API 是业务校验真源，本前端复用 New API 设计系统并镜像可提前判断的规则。
+- Canvas Cloud 表单、字段校验、多语言和数据表一致性同时遵循工作区根 `docs/agent-guides/ui-form-consistency.md`；Cloud API 是业务校验真源，本前端复用 New API 设计系统并镜像可提前判断的规则。
 - 使用 React Hook Form + Zod：在功能模块的 `lib/` 下定义 schema，并用 `z.infer` 导出表单类型；`useForm` 配合 `@hookform/resolvers/zod` 做校验。
 - 提交逻辑放在 `onSubmit`，展示加载与错误状态；成功后视场景重置表单或关闭弹窗。服务端校验错误映射到对应字段并展示（字段级错误展示方式见 [3.9 错误处理](#39-错误处理)）。
 

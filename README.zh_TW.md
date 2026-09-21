@@ -1,6 +1,6 @@
 <div align="center">
 
-![new-api](/web/public/logo.png)
+![new-api](./web/public/logo.png)
 
 # New API
 
@@ -396,7 +396,7 @@ docker run --name new-api -d --restart always \
 2. 在應用商店搜尋 **New-API**
 3. 一鍵安裝
 
-📖 [圖文教學](./docs/BT.md)
+📖 [圖文教學](./docs/installation/BT.md)
 
 </details>
 

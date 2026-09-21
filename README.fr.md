@@ -1,6 +1,6 @@
 <div align="center">
 
-![new-api](/web/public/logo.png)
+![new-api](./web/public/logo.png)
 
 # New API
 
@@ -397,7 +397,7 @@ docker run --name new-api -d --restart always \
 2. Recherchez **New-API** dans le magasin d'applications
 3. Installation en un clic
 
-📖 [Tutoriel avec des images](./docs/BT.md)
+📖 [Tutoriel avec des images](./docs/installation/BT.md)
 
 </details>
 
