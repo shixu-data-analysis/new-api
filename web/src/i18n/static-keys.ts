@@ -594,7 +594,7 @@ export const STATIC_I18N_KEYS = [
   'Inviter username copied',
   'No actions',
   'Invalid runtime view',
-  'Choose execution, provider configuration, or storage and backups.',
+  'Choose execution, provider configuration, or task media.',
   'The selected inviter is no longer available.',
   'The selected bonus campaign is no longer available.',
   'Upstream cost',

@@ -363,7 +363,6 @@ const runtimeConfigurationKeys = [
   'Wait and next attempt',
   'Time waiting',
   'Last scheduled',
-  'Storage and backups',
   'Choose one provider and credential group. The overview keeps current status, bound models, and version history together.',
   'Add credential group',
   'Select credential group',

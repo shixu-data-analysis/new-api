@@ -45,7 +45,7 @@ const canvasViewSearch = z
     if (
       value === 'execution' ||
       value === 'provider' ||
-      value === 'storage' ||
+      value === 'taskMedia' ||
       value === 'redeem' ||
       value === 'lots' ||
       value === 'ledger'

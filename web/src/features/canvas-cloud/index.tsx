@@ -457,7 +457,7 @@ export function CanvasCloud() {
           <ErrorState
             title={t('Invalid runtime view')}
             description={t(
-              'Choose execution, provider configuration, or storage and backups.'
+              'Choose execution, provider configuration, or task media.'
             )}
           />
         </SectionPageLayout.Content>
@@ -546,7 +546,7 @@ export function CanvasCloud() {
         runtimeView={
           search.view === 'execution' ||
           search.view === 'provider' ||
-          search.view === 'storage'
+          search.view === 'taskMedia'
             ? search.view
             : undefined
         }

@@ -64,6 +64,15 @@ describe('Canvas Cloud legacy section search', () => {
     expect(search.view).toBe(invalidCanvasCloudRuntimeView)
   })
 
+  it('accepts task media and rejects the retired storage view', () => {
+    expect(canvasCloudSearchSchema.parse({ view: 'taskMedia' }).view).toBe(
+      'taskMedia'
+    )
+    expect(canvasCloudSearchSchema.parse({ view: 'storage' }).view).toBe(
+      invalidCanvasCloudRuntimeView
+    )
+  })
+
   it.each([
     ['overview', 'redeem'],
     ['recharge', 'redeem'],
