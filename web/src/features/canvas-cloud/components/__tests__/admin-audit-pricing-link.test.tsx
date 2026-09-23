@@ -32,7 +32,7 @@ vi.mock('@tanstack/react-router', () => ({
     children: ReactNode
   }) => (
     <a
-      href={to.replace('$modelId', params.modelId) + `?${new URLSearchParams(search)}`}
+      href={`${to.replace('$modelId', params.modelId)}?${new URLSearchParams(search)}`}
     >
       {children}
     </a>

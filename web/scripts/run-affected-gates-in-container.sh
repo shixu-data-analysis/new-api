@@ -79,6 +79,7 @@ run_stage() {
 }
 
 run_stage "focused tests" bun run test -- "${tests[@]}"
+run_stage "catalog import contract freshness" bun run canvas:catalog-types:check
 run_stage "typecheck" bun run typecheck
 run_stage "affected lint" bun x oxlint -c .oxlintrc.json -- "${files[@]}"
 run_stage "affected format check" bun run format:check -- "${files[@]}"

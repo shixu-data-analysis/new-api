@@ -174,6 +174,7 @@ function CustomerContent(props: {
 }
 
 export function AdminContent(props: {
+  principalId: string
   section: AdminSection
   providerTarget: CanvasProviderNavigationTarget
   initialPricingModelId?: string
@@ -251,6 +252,7 @@ export function AdminContent(props: {
   if (props.section === 'catalog' || props.section === 'pricing') {
     return (
       <AdminModelCatalog
+        principalId={props.principalId}
         initialPricingModelId={props.initialPricingModelId}
         initialPricingPublicationId={props.initialPricingPublicationId}
       />
@@ -516,6 +518,7 @@ export function CanvasCloud() {
   } else if (isCanvasAdministrator(session.data.principalType)) {
     content = (
       <AdminContent
+        principalId={session.data.principalId}
         section={section as AdminSection}
         providerTarget={search}
         initialPricingModelId={search.modelId}

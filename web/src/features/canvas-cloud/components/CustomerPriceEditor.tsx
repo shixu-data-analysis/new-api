@@ -152,9 +152,7 @@ export function CustomerPriceEditor(props: {
       ? providerTokenCategories
           .map(
             (category) =>
-              t(providerTokenCategoryLabel[category]) +
-              ': ' +
-              review.values.tokenRates[category]
+              `${t(providerTokenCategoryLabel[category])}: ${review.values.tokenRates[category]}`
           )
           .join(' · ')
       : (review?.values.points ?? '—')
@@ -248,11 +246,9 @@ export function CustomerPriceEditor(props: {
                 <FormLabel>{t('Model and quality')}</FormLabel>
                 <Input
                   value={
-                    props.row.modelName +
-                    ' · ' +
-                    String(
+                    `${props.row.modelName} · ${String(
                       props.row.parameters.quality ?? props.row.combinationKey
-                    )
+                    )}`
                   }
                   disabled
                 />
@@ -282,14 +278,13 @@ export function CustomerPriceEditor(props: {
                           <CustomerPriceInput
                             control={form.control}
                             name={
-                              ('tokenRates.' +
-                                category) as FieldPath<CustomerPriceFormValues>
+                              `tokenRates.${category}` as FieldPath<CustomerPriceFormValues>
                             }
                             label=''
                             ariaLabel={
-                              t(providerTokenCategoryLabel[category]) +
-                              ' ' +
-                              t('Customer points per million tokens')
+                              `${t(providerTokenCategoryLabel[category])} ${t(
+                                'Customer points per million tokens'
+                              )}`
                             }
                           />
                         </TableCell>

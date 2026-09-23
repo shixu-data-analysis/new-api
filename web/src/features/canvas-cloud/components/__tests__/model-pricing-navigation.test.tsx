@@ -65,6 +65,7 @@ describe('Model pricing route continuity', () => {
         modelKey: `model-${index}`,
         name: `Series ${String(index).padStart(2, '0')}`,
         description: '',
+        tags: [],
         version: 1,
         presentationVersion: null,
         enabled: true,
@@ -147,6 +148,7 @@ describe('Model pricing route continuity', () => {
       return (
         <ModelManagementNavigationProvider>
           <AdminModelCatalog
+            principalId='admin-1'
             onManagePricing={(modelId) =>
               void navigate({
                 to: '/canvas-cloud/model-management/$modelId/pricing',

@@ -28,6 +28,7 @@ describe('Model management entry', () => {
       render(
         <QueryClientProvider client={client}>
           <AdminContent
+            principalId='admin-1'
             section={section}
             providerTarget={{}}
             initialPricingModelId='selected-model'

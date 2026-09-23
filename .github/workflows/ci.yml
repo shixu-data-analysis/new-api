@@ -84,5 +84,8 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Check Canvas catalog import contract snapshot
+        run: bun run canvas:catalog-types:check
+
       - name: Test
         run: bun run test

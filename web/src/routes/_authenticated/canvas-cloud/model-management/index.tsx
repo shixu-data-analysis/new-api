@@ -11,8 +11,10 @@ import { useTranslation } from 'react-i18next'
 import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
+import { LoadingState } from '@/components/loading-state'
 import { AdminModelCatalog } from '@/features/canvas-cloud/components/AdminModelCatalog'
 import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation-state'
+import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -32,6 +34,9 @@ function ModelManagementIndex() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const search = Route.useSearch()
+  const session = useCanvasSession()
+  if (session.isPending) return <LoadingState />
+  if (session.isError) return <ErrorState />
   if (search.legacyError) {
     let description = t('The model parameter is invalid.')
     if (search.legacyError === 'missing-model') {
@@ -52,6 +57,7 @@ function ModelManagementIndex() {
       : 'published'
   return (
     <AdminModelCatalog
+      principalId={session.data.principalId}
       tab={tab}
       onTabChange={(next) =>
         void navigate({

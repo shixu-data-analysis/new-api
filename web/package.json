@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "rsbuild dev",
-    "build": "rsbuild build",
-    "build:check": "tsgo -b && rsbuild build",
+    "build": "node scripts/generate-canvas-catalog-import-types.mjs --check && rsbuild build",
+    "build:check": "node scripts/generate-canvas-catalog-import-types.mjs --check && tsgo -b && rsbuild build",
     "typecheck": "tsgo -b",
     "lint": "oxlint -c .oxlintrc.json .",
     "lint:fix": "oxlint -c .oxlintrc.json . --fix",
@@ -20,6 +20,9 @@
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
+    "canvas:catalog-types": "node scripts/generate-canvas-catalog-import-types.mjs",
+    "canvas:catalog-types:check": "node scripts/generate-canvas-catalog-import-types.mjs --check",
+    "canvas:catalog-types:cross-check": "node scripts/generate-canvas-catalog-import-types.mjs --check --input ../../.worktrees/canvas-cloud-integration/api/openapi-v1.json",
     "knip": "knip"
   },
   "dependencies": {

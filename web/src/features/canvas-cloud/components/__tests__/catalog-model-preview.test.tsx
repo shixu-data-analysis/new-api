@@ -2,10 +2,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import type { CanvasModelCatalogPlanModel } from '../../types'
+import type { ModelCatalogPlan } from '../../generated/model-catalog-import'
 import { CatalogModelPreview } from '../CatalogModelPreview'
 
-function previewModel(index: number): CanvasModelCatalogPlanModel {
+function previewModel(index: number): ModelCatalogPlan['models'][number] {
   return {
     productKey: `canvas.image.model-${index}`,
     displayName: `Client model ${index}`,

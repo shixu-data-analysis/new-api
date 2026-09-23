@@ -1,0 +1,1004 @@
+{
+  "components": {
+    "parameters": {
+      "IdempotencyKey": {
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "maxLength": 191,
+          "minLength": 8,
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "BusinessRuleViolation": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Frozen business guard rejected the request"
+      },
+      "IdempotencyConflict": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The key already owns a different payload or a conflicting terminal transition"
+      },
+      "NotFound": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Resource not found or not visible to this principal"
+      },
+      "Unauthorized": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "Authentication or authorization failed"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "UNAUTHORIZED",
+              "INVITE_REGISTRATION_REQUIRED",
+              "NOT_FOUND",
+              "NOT_AN_INVITER",
+              "IDEMPOTENCY_CONFLICT",
+              "CONFLICT",
+              "INVALID_STATE_TRANSITION",
+              "QUOTE_EXPIRED",
+              "HIGHER_PRICE_CONFIRMATION_REQUIRED",
+              "INSUFFICIENT_POINTS",
+              "RECHARGE_CODE_ALREADY_REDEEMED",
+              "RECHARGE_CODE_UNAVAILABLE",
+              "PROMOTION_GATE_CLOSED",
+              "VALIDATION_FAILED",
+              "PAYLOAD_TOO_LARGE",
+              "AUDIT_UNAVAILABLE",
+              "CATALOG_IMPORT_EXPIRED",
+              "CATALOG_PLAN_ACTOR_MISMATCH",
+              "CATALOG_PLAN_VALIDATOR_CHANGED",
+              "CATALOG_PLAN_SNAPSHOT_INVALID",
+              "CATALOG_PLAN_HASH_MISMATCH",
+              "CATALOG_PLAN_TOKEN_MISMATCH",
+              "CATALOG_PLAN_STALE",
+              "CATALOG_PLAN_PUBLICATION_CONFLICT",
+              "CATALOG_PLAN_BLOCKING",
+              "CATALOG_PLAN_NO_CHANGES",
+              "MODEL_UNAVAILABLE",
+              "MODEL_VERSION_CHANGED",
+              "CODE_ENCRYPTION_UNAVAILABLE",
+              "INVALID_INVITE_CAPACITY",
+              "INVALID_VALIDITY_WINDOW",
+              "INVALID_INITIAL_BONUS",
+              "PRICE_GROUP_UNAVAILABLE",
+              "PROMOTION_UNAVAILABLE",
+              "PROMOTION_CHANGED",
+              "INVITER_UNAVAILABLE",
+              "INVITER_TARGET_UNAVAILABLE",
+              "INVALID_RECHARGE_NAME",
+              "INVALID_RECHARGE_COUNT",
+              "AMOUNT_NOT_REDEEMABLE",
+              "INVITER_CAPABILITY_ALREADY_GRANTED",
+              "CREDENTIAL_GROUP_VERSION_STALE",
+              "CREDENTIAL_GROUP_ARCHIVED",
+              "PREVIEW_STALE",
+              "MODEL_PROVIDER_MISMATCH",
+              "CREDENTIAL_SCHEME_MISMATCH",
+              "NO_CHANGES",
+              "CREDENTIAL_GROUP_HAS_BINDINGS",
+              "CREDENTIAL_GROUP_ACTIVE"
+            ],
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "description": "Administrator form failures expose a stable details.field and may expose details.reason or details.scope; UI must map code and details rather than message.",
+            "properties": {
+              "historicalGroups": {
+                "description": "For historicalBinding only: all actual old-binding credential groups, deduplicated and sorted by id; contains no secret data.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "name"],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "diagnostics": {
+            "description": "Bundle validation failures expose source-located diagnostics. A missing Profile templateLanguageVersion uses SOURCE_FIELD_REQUIRED and TEMPLATE_LANGUAGE_VERSION_REQUIRED; an explicit unsupported version uses TEMPLATE_LANGUAGE_UNSUPPORTED for both code and templateReason.",
+            "items": {
+              "$ref": "#/components/schemas/ModelCatalogDiagnostic"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": ["code", "message", "requestId"],
+        "type": "object"
+      },
+      "ModelCatalogChange": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": ["CREATE", "REUSE", "CREATE_VERSION", "NO_OP", "CONFLICT"],
+            "type": "string"
+          },
+          "currentVersion": {
+            "type": ["integer", "null"]
+          },
+          "detail": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "key": {
+            "type": "string"
+          },
+          "proposedVersion": {
+            "type": ["integer", "null"]
+          },
+          "resourceType": {
+            "enum": [
+              "PROVIDER",
+              "PROVIDER_CHANNEL",
+              "CUSTOMER_MODEL",
+              "MODEL_DESCRIPTION_DEFAULT",
+              "MODEL_DEFINITION_ARTIFACT",
+              "PARAMETER_COMBINATION"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "resourceType",
+          "key",
+          "action",
+          "currentVersion",
+          "proposedVersion",
+          "detail"
+        ],
+        "type": "object"
+      },
+      "ModelCatalogDiagnostic": {
+        "additionalProperties": false,
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "SOURCE_FIELD_REQUIRED",
+              "SOURCE_FIELD_UNKNOWN",
+              "PROGRAM_CAPABILITY_MISSING",
+              "DATABASE_CAPABILITY_MISSING",
+              "API_CAPABILITY_MISSING",
+              "CLIENT_CAPABILITY_MISSING",
+              "TEMPLATE_INVALID",
+              "TEMPLATE_LANGUAGE_UNSUPPORTED",
+              "PRICING_SOURCE_CONFLICT",
+              "CATALOG_REFERENCE_INVALID",
+              "CATALOG_DUPLICATE_IDENTIFIER",
+              "CATALOG_SECRET_FORBIDDEN",
+              "PAYLOAD_TOO_LARGE",
+              "AUDIT_UNAVAILABLE",
+              "CATALOG_IMPORT_EXPIRED",
+              "CATALOG_PLAN_ACTOR_MISMATCH",
+              "CATALOG_PLAN_VALIDATOR_CHANGED",
+              "CATALOG_PLAN_SNAPSHOT_INVALID",
+              "CATALOG_PLAN_HASH_MISMATCH",
+              "CATALOG_PLAN_TOKEN_MISMATCH",
+              "CATALOG_PLAN_STALE",
+              "CATALOG_PLAN_PUBLICATION_CONFLICT",
+              "CATALOG_PLAN_BLOCKING",
+              "CATALOG_PLAN_NO_CHANGES",
+              "CATALOG_MANIFEST_INVALID",
+              "CATALOG_MANIFEST_REFERENCE_DUPLICATE",
+              "CATALOG_MANIFEST_REFERENCE_INVALID",
+              "CATALOG_SCHEMA_INVALID",
+              "CATALOG_SOURCE_BASE64_INVALID",
+              "CATALOG_SOURCE_ENVELOPE_INVALID",
+              "CATALOG_SOURCE_FILE_IGNORED",
+              "CATALOG_SOURCE_FILE_TOO_LARGE",
+              "CATALOG_SOURCE_JSON_INVALID",
+              "CATALOG_SOURCE_PATH_DUPLICATE",
+              "CATALOG_SOURCE_PATH_INVALID",
+              "CATALOG_SOURCE_REFERENCE_MISSING",
+              "CATALOG_SOURCE_TOO_MANY_FILES",
+              "CATALOG_SOURCE_TOTAL_TOO_LARGE",
+              "CATALOG_SOURCE_UTF8_INVALID"
+            ],
+            "type": "string"
+          },
+          "internalTestingAllowed": {
+            "type": "boolean"
+          },
+          "jsonPath": {
+            "type": "string"
+          },
+          "messageKey": {
+            "enum": [
+              "catalog.schema.invalid",
+              "catalog.http.payloadTooLarge",
+              "catalog.http.malformedJson",
+              "catalog.reference.invalid",
+              "catalog.template.versionRequired",
+              "catalog.template.versionUnsupported",
+              "catalog.template.invalid",
+              "catalog.mediaConstraint.invalidFrameRate",
+              "catalog.pricing.sourceConflict",
+              "catalog.catalog_manifest_invalid",
+              "catalog.catalog_manifest_reference_duplicate",
+              "catalog.catalog_manifest_reference_invalid",
+              "catalog.catalog_source_base64_invalid",
+              "catalog.catalog_source_envelope_invalid",
+              "catalog.catalog_source_file_ignored",
+              "catalog.catalog_source_file_too_large",
+              "catalog.catalog_source_json_invalid",
+              "catalog.catalog_source_path_duplicate",
+              "catalog.catalog_source_path_invalid",
+              "catalog.catalog_source_reference_missing",
+              "catalog.catalog_source_too_many_files",
+              "catalog.catalog_source_total_too_large",
+              "catalog.catalog_source_utf8_invalid",
+              "catalog.catalog_schema_invalid",
+              "catalog.import.expired",
+              "catalog.plan.actor_mismatch",
+              "catalog.plan.validator_changed",
+              "catalog.plan.snapshot_invalid",
+              "catalog.plan.hash_mismatch",
+              "catalog.plan.token_mismatch",
+              "catalog.plan.stale",
+              "catalog.plan.publicationConflict",
+              "catalog.plan.blocking",
+              "catalog.plan.noChanges",
+              "catalog.plan.audit_unavailable"
+            ],
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "ownerModule": {
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "profileKey": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": ["ERROR", "BLOCKING", "WARNING"],
+            "type": "string"
+          },
+          "sourceFile": {
+            "type": "string"
+          },
+          "templatePhase": {
+            "enum": ["VALIDATION", "EVALUATION"],
+            "type": "string"
+          },
+          "templateReason": {
+            "type": "string"
+          },
+          "valueSummary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "sourceFile",
+          "jsonPath",
+          "valueSummary",
+          "capability",
+          "ownerModule",
+          "recommendation",
+          "internalTestingAllowed",
+          "messageKey",
+          "params"
+        ],
+        "type": "object"
+      },
+      "ModelCatalogImportPlan": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ModelCatalogPlan"
+          },
+          {
+            "properties": {
+              "expiresAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "importId": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "sourceSha256": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "validatedBundleSha256": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "validatorVersion": {
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "importId",
+              "validatorVersion",
+              "sourceSha256",
+              "validatedBundleSha256",
+              "expiresAt"
+            ],
+            "type": "object"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "ModelCatalogImportPublicationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "const": true
+          },
+          "expectedPlanToken": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": ["confirmed", "expectedPlanToken"],
+        "type": "object"
+      },
+      "ModelCatalogImportSource": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "contentBase64": {
+                  "contentEncoding": "base64",
+                  "type": "string"
+                },
+                "path": {
+                  "description": "Catalog-root-relative canonical POSIX path",
+                  "maxLength": 512,
+                  "type": "string"
+                }
+              },
+              "required": ["path", "contentBase64"],
+              "type": "object"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": 1
+          }
+        },
+        "required": ["schemaVersion", "files"],
+        "type": "object",
+        "x-max-decoded-file-bytes": 2097152,
+        "x-max-decoded-total-bytes": 12582912,
+        "x-max-http-body-bytes": 17825792
+      },
+      "ModelCatalogPlan": {
+        "properties": {
+          "action": {
+            "enum": [
+              "PUBLISH",
+              "REPLAY",
+              "RECOVER_PRICING",
+              "RECOVER_CONTINUITY",
+              "NO_CHANGES",
+              "CONFLICT"
+            ],
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "bundleId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCatalogChange"
+            },
+            "type": "array"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ModelCatalogDiagnostic"
+            },
+            "type": "array"
+          },
+          "manifestSha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "enum": [
+                    "CREATE",
+                    "REUSE",
+                    "CREATE_VERSION",
+                    "NO_OP",
+                    "CONFLICT"
+                  ],
+                  "type": "string"
+                },
+                "capability": {
+                  "enum": ["chat.generate", "image.generate", "video.generate"],
+                  "type": "string"
+                },
+                "channelId": {
+                  "type": "string"
+                },
+                "credential": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "credentialGroupName": {
+                      "type": ["string", "null"]
+                    },
+                    "credentialGroupVersionId": {
+                      "format": "uuid",
+                      "type": ["string", "null"]
+                    },
+                    "reasonCode": {
+                      "enum": [
+                        "CURRENT_BINDING",
+                        "MATCHED_PUBLISHED_BINDING",
+                        "UNBOUND_SOURCE",
+                        "PROVIDER_CHANGED",
+                        "CHANNEL_CHANGED",
+                        "CREDENTIAL_GROUP_UNAVAILABLE",
+                        "CREDENTIAL_SCHEME_MISMATCH",
+                        "BINDING_CONFLICT"
+                      ],
+                      "type": "string"
+                    },
+                    "sourceBindingId": {
+                      "format": "uuid",
+                      "type": ["string", "null"]
+                    },
+                    "sourceModelId": {
+                      "format": "uuid",
+                      "type": ["string", "null"]
+                    },
+                    "status": {
+                      "enum": ["REUSE", "NEEDS_BINDING", "BLOCKED"],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "reasonCode",
+                    "sourceBindingId",
+                    "sourceModelId",
+                    "credentialGroupVersionId",
+                    "credentialGroupName"
+                  ],
+                  "type": "object"
+                },
+                "currentVersion": {
+                  "type": ["integer", "null"]
+                },
+                "customerVisibleAfterPublish": {
+                  "type": "boolean"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "pricing": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "billingDimensions": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "billingUnit": {
+                        "enum": ["REQUEST", "SECOND", "MILLION_TOKENS", null],
+                        "type": ["string", "null"]
+                      },
+                      "combinationKey": {
+                        "type": "string"
+                      },
+                      "effectiveAt": {
+                        "format": "date-time",
+                        "type": ["string", "null"]
+                      },
+                      "label": {
+                        "type": "string"
+                      },
+                      "parameters": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "points": {
+                        "pattern": "^[0-9]+$",
+                        "type": ["string", "null"]
+                      },
+                      "priceGroupCode": {
+                        "type": "string"
+                      },
+                      "priceGroupId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "priceGroupName": {
+                        "type": "string"
+                      },
+                      "reasonCode": {
+                        "enum": [
+                          "CURRENT_PRICE",
+                          "MATCHED_PUBLISHED_PRICE",
+                          "NEW_MODEL",
+                          "PROVIDER_CHANGED",
+                          "CHANNEL_CHANGED",
+                          "NEW_SPECIFICATION",
+                          "BILLING_DIMENSIONS_CHANGED",
+                          "TOKEN_CATEGORIES_CHANGED",
+                          "BILLING_UNIT_CHANGED",
+                          "MODEL_BILLING_UNIT_CONFLICT",
+                          "UNPRICED_SOURCE",
+                          "SCHEDULED_PRICE_CONFLICT",
+                          "PROMOTION_CONFLICT",
+                          "PUBLISHED_PRICE_CONFLICT"
+                        ],
+                        "type": "string"
+                      },
+                      "sourceModelVersion": {
+                        "type": ["integer", "null"]
+                      },
+                      "sourcePriceVersionId": {
+                        "format": "uuid",
+                        "type": ["string", "null"]
+                      },
+                      "sourceProviderRateVersionId": {
+                        "format": "uuid",
+                        "type": ["string", "null"]
+                      },
+                      "status": {
+                        "enum": ["REUSE", "NEEDS_PRICING"],
+                        "type": "string"
+                      },
+                      "tokenRates": {
+                        "additionalProperties": true,
+                        "type": ["object", "null"]
+                      }
+                    },
+                    "required": [
+                      "combinationKey",
+                      "label",
+                      "parameters",
+                      "billingDimensions",
+                      "priceGroupId",
+                      "priceGroupCode",
+                      "priceGroupName",
+                      "status",
+                      "reasonCode",
+                      "billingUnit",
+                      "points",
+                      "tokenRates",
+                      "sourcePriceVersionId",
+                      "sourceProviderRateVersionId",
+                      "sourceModelVersion",
+                      "effectiveAt"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "productKey": {
+                  "type": "string"
+                },
+                "proposedVersion": {
+                  "type": ["integer", "null"]
+                },
+                "providerId": {
+                  "type": "string"
+                },
+                "publicInteraction": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "defaultParams": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "mediaConstraints": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "paramSchema": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "referenceLimits": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "defaultParams",
+                    "paramSchema",
+                    "referenceLimits"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "productKey",
+                "displayName",
+                "capability",
+                "action",
+                "currentVersion",
+                "proposedVersion",
+                "customerVisibleAfterPublish",
+                "publicInteraction",
+                "channelId",
+                "providerId",
+                "pricing",
+                "credential"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "planToken": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "pricingSummary": {
+            "additionalProperties": false,
+            "properties": {
+              "needsPricing": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reused": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": ["reused", "needsPricing"],
+            "type": "object"
+          }
+        },
+        "required": [
+          "bundleId",
+          "bundleVersion",
+          "manifestSha256",
+          "action",
+          "blocking",
+          "diagnostics",
+          "changes",
+          "models",
+          "planToken",
+          "pricingSummary"
+        ],
+        "type": "object"
+      },
+      "ModelCatalogPublication": {
+        "additionalProperties": false,
+        "properties": {
+          "bundleId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "effectiveAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resources": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "status": {
+            "const": "PUBLISHED"
+          },
+          "validatedBundleSha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "bundleId",
+          "bundleVersion",
+          "validatedBundleSha256",
+          "status",
+          "effectiveAt",
+          "resources"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "paths": {
+    "/internal/v1/model-catalog-imports/{importId}/publications": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "importId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCatalogImportPublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogPublication"
+                }
+              }
+            },
+            "description": "Frozen validated Bundle and immutable approval facts published in one transaction"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/BusinessRuleViolation"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Required publication audit service is unavailable"
+          }
+        }
+      }
+    },
+    "/internal/v1/model-catalog-imports/plan": {
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCatalogImportSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogImportPlan"
+                }
+              }
+            },
+            "description": "Frozen raw-source import and dynamic publication plan"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Catalog import source exceeds the route-specific encoded HTTP body limit"
+          },
+          "422": {
+            "$ref": "#/components/responses/BusinessRuleViolation"
+          }
+        }
+      }
+    },
+    "/v1/web/admin/model-catalog-imports/{importId}/publications": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "importId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCatalogImportPublicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogPublication"
+                }
+              }
+            },
+            "description": "Frozen validated Bundle, import state and immutable approval facts published in one transaction"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/BusinessRuleViolation"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Required publication audit service is unavailable"
+          }
+        }
+      }
+    },
+    "/v1/web/admin/model-catalog-imports/plan": {
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCatalogImportSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogImportPlan"
+                }
+              }
+            },
+            "description": "Frozen raw-source import and dynamic publication plan"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Catalog import source exceeds the route-specific encoded HTTP body limit"
+          },
+          "422": {
+            "$ref": "#/components/responses/BusinessRuleViolation"
+          }
+        }
+      }
+    }
+  },
+  "snapshotVersion": 1
+}

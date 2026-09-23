@@ -36,12 +36,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TableCell, TableRow } from '@/components/ui/table'
 
-import type { CanvasModelCatalogPlanModel } from '../types'
+import type { ModelCatalogPlan } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CatalogPricingPreview } from './CatalogPricingPreview'
 
+type CatalogPlanModel = ModelCatalogPlan['models'][number]
+
 export function CatalogModelPreview(props: {
-  models: CanvasModelCatalogPlanModel[]
+  models: CatalogPlanModel[]
   recoverPricing?: boolean
   recoverContinuity?: boolean
 }) {

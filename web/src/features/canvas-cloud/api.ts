@@ -19,6 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  ModelCatalogImportPlan,
+  ModelCatalogImportPublicationRequest,
+  ModelCatalogImportSource,
+  ModelCatalogPublication,
+} from './generated/model-catalog-import'
+import type {
   CanvasAdminWorkspace,
   CanvasAuditEventPage,
   CanvasAuditEventQuery,
@@ -42,8 +48,6 @@ import type {
   CanvasInviteCodeOptions,
   CanvasInviteCodeAvailability,
   CanvasInviteCodeExtensionPreview,
-  CanvasModelCatalogBundle,
-  CanvasModelCatalogPlan,
   CanvasAgentProfile,
   CanvasAdminAgentPage,
   CanvasAdminAgentQuery,
@@ -1150,13 +1154,13 @@ function idempotencyKey(scope: string): string {
   return `${scope}-${crypto.randomUUID()}`
 }
 
-export async function planCanvasModelCatalogBundle(
-  bundle: CanvasModelCatalogBundle
-): Promise<CanvasModelCatalogPlan> {
+export async function planCanvasModelCatalogImport(
+  source: ModelCatalogImportSource
+): Promise<ModelCatalogImportPlan> {
   return (
-    await api.post<CanvasModelCatalogPlan>(
-      `${webBase}/admin/model-catalog-bundles/plan`,
-      bundle,
+    await api.post<ModelCatalogImportPlan>(
+      `${webBase}/admin/model-catalog-imports/plan`,
+      source,
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-catalog-plan') },
         skipErrorHandler: true,
@@ -1165,14 +1169,18 @@ export async function planCanvasModelCatalogBundle(
   ).data
 }
 
-export async function publishCanvasModelCatalogBundle(input: {
-  bundle: CanvasModelCatalogBundle
+export async function publishCanvasModelCatalogImport(input: {
+  importId: string
   expectedPlanToken: string
-}) {
+}): Promise<ModelCatalogPublication> {
+  const body = {
+    confirmed: true,
+    expectedPlanToken: input.expectedPlanToken,
+  } satisfies ModelCatalogImportPublicationRequest
   return (
-    await api.post(
-      `${webBase}/admin/model-catalog-bundles/publications`,
-      { confirmed: true, ...input },
+    await api.post<ModelCatalogPublication>(
+      `${webBase}/admin/model-catalog-imports/${encodeURIComponent(input.importId)}/publications`,
+      body,
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-catalog-publish') },
         skipErrorHandler: true,

@@ -11,8 +11,10 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { toIntlLocale } from '@/i18n/languages'
 
+import type { ModelCatalogPlan } from '../generated/model-catalog-import'
 import { pricingScopeLabel } from '../pricing-scope-label'
-import type { CanvasModelCatalogPlanPrice } from '../types'
+
+type CatalogPlanPrice = ModelCatalogPlan['models'][number]['pricing'][number]
 
 const reasonKeys: Record<string, string> = {
   CURRENT_PRICE: 'Current published price',
@@ -31,9 +33,7 @@ const reasonKeys: Record<string, string> = {
   AMBIGUOUS_SOURCE: 'Published price source is ambiguous',
 }
 
-export function CatalogPricingPreview(props: {
-  pricing: CanvasModelCatalogPlanPrice[]
-}) {
+export function CatalogPricingPreview(props: { pricing: CatalogPlanPrice[] }) {
   const { t, i18n } = useTranslation()
   if (props.pricing.length === 0) {
     return (

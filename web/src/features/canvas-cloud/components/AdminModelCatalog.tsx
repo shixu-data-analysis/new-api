@@ -26,7 +26,7 @@ import {
 } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
 import { CheckCircle2, FileJson2, FolderUp, ShieldAlert } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -64,12 +64,18 @@ import {
 } from '@/lib/server-error-message'
 
 import {
-  planCanvasModelCatalogBundle,
-  publishCanvasModelCatalogBundle,
+  planCanvasModelCatalogImport,
+  publishCanvasModelCatalogImport,
 } from '../api'
-import { buildCatalogBundle } from '../catalogBundleReader'
+import {
+  CatalogSourceReadError,
+  readCatalogSource,
+} from '../catalogSourceReader'
+import type {
+  ModelCatalogDiagnostic,
+  ModelCatalogImportPlan,
+} from '../generated/model-catalog-import'
 import type { ModelManagementReturnContext } from '../model-management-navigation-state'
-import type { CanvasModelCatalogBundle, CanvasModelCatalogPlan } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
@@ -83,21 +89,34 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PublishedModelCatalog } from './PublishedModelCatalog'
 import { UnifiedModelPricing } from './UnifiedModelPricing'
 
-type CatalogDiagnostic = Partial<CanvasModelCatalogPlan['diagnostics'][number]>
-
 function diagnosticDetails(
-  diagnostic: CatalogDiagnostic,
+  diagnostic: Partial<ModelCatalogDiagnostic>,
   t: TFunction
 ): string {
+  const fallback = [diagnostic.recommendation, diagnostic.valueSummary]
+    .filter(
+      (value, index, values) =>
+        Boolean(value) && values.indexOf(value) === index
+    )
+    .join(' · ')
+  const fallbackMessage = fallback || diagnostic.code || t('Unknown')
+  const message = diagnostic.messageKey
+    ? t(diagnostic.messageKey, {
+        ...diagnostic.params,
+        defaultValue: fallbackMessage,
+      })
+    : fallbackMessage
+  const reason =
+    diagnostic.valueSummary && message !== fallbackMessage
+      ? `${message} · ${diagnostic.valueSummary}`
+      : message
   return [
     diagnostic.profileKey &&
       `${t('Adapter Profile')}: ${diagnostic.profileKey}`,
     diagnostic.operation && `${t('Operation')}: ${diagnostic.operation}`,
     diagnostic.sourceFile,
     diagnostic.jsonPath && `${t('Path')}: ${diagnostic.jsonPath}`,
-    (diagnostic.templateReason || diagnostic.code) &&
-      `${t('Reason')}: ${diagnostic.templateReason || diagnostic.code}`,
-    diagnostic.recommendation,
+    `${t('Reason')}: ${reason}`,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -113,16 +132,30 @@ function errorDetails(
       | undefined
     const details = Array.isArray(data?.diagnostics)
       ? data.diagnostics.map((item) =>
-          diagnosticDetails(item as CatalogDiagnostic, t)
+          diagnosticDetails(item as Partial<ModelCatalogDiagnostic>, t)
         )
       : []
+    if (details.length > 0) {
+      return { message: t('Catalog source validation failed.'), details }
+    }
     if (typeof data?.message === 'string') {
       return { message: data.message, details }
     }
   }
+  if (error instanceof CatalogSourceReadError) {
+    const messageKey = {
+      NO_FILES_SELECTED: 'Select a catalog source folder.',
+      FILE_READ_FAILED: 'A catalog source file could not be read.',
+      ENCODING_FAILED: 'A catalog source file could not be encoded.',
+    }[error.code]
+    const details = error.sourceFile ? [error.sourceFile] : []
+    return { message: t(messageKey), details }
+  }
   return {
     message:
-      error instanceof Error ? error.message : 'Bundle validation failed',
+      error instanceof Error
+        ? error.message
+        : t('Catalog source validation failed.'),
     details: [],
   }
 }
@@ -136,61 +169,26 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
     }
   )?.response?.data
   const message = response?.message
-  if (
-    Array.isArray(response?.diagnostics) &&
-    response.diagnostics.some((diagnostic: unknown) => {
-      if (!diagnostic || typeof diagnostic !== 'object') return false
-      const item = diagnostic as Record<string, unknown>
-      return (
-        item.code === 'TEMPLATE_INVALID' &&
-        item.templateReason === 'UNSUPPORTED_FUNCTION'
-      )
-    })
-  ) {
-    return t('Adapter Profile template uses an unsupported function.')
-  }
-  if (
-    code === 'CONFLICT' &&
-    message ===
-      'Catalog plan is stale; review the latest price sources and publish again'
-  ) {
-    return t(
-      'Catalog plan is stale because price sources or versions changed after validation.'
+  if (Array.isArray(response?.diagnostics) && response.diagnostics.length > 0) {
+    return diagnosticDetails(
+      response.diagnostics[0] as Partial<ModelCatalogDiagnostic>,
+      t
     )
   }
   if (
-    code === 'CONFLICT' &&
-    message ===
-      'Catalog plan contains conflicting price or immutable definition facts'
+    code === 'CATALOG_PLAN_VALIDATOR_CHANGED' ||
+    code === 'CATALOG_PLAN_ACTOR_MISMATCH' ||
+    code === 'CATALOG_PLAN_SNAPSHOT_INVALID'
   ) {
-    return t(
-      'Catalog price sources or immutable definitions conflict with this publication.'
-    )
+    return t('The catalog plan is stale. Select the source folder again.')
   }
-  if (
-    code === 'CONFLICT' &&
-    message ===
-      'Bundle identity already exists with different immutable content'
-  ) {
-    return t(
-      'This Bundle version already exists with different immutable content.'
-    )
-  }
-  if (code === 'CONFLICT' && typeof message === 'string') {
-    if (/^Source price \S+ changed during publication$/.test(message)) {
-      return t('The source price changed during publication.')
-    }
-    if (/^Specification \S+ changed during publication$/.test(message)) {
-      return t('A model specification changed during publication.')
-    }
-    if (/^CustomerModel \S+ changed during publication$/.test(message)) {
-      return t('A client model changed during publication.')
-    }
+  if (code === 'CATALOG_IMPORT_EXPIRED') {
+    return t('The catalog plan has expired.')
   }
   if (code === 'IDEMPOTENCY_CONFLICT') {
     return t('This publication request conflicts with an earlier request.')
   }
-  if (code === 'UNAUTHORIZED') {
+  if (status === 401 || status === 403 || code === 'UNAUTHORIZED') {
     return t('Your administrator session is no longer authorized.')
   }
   if (code === 'VALIDATION_FAILED') {
@@ -201,34 +199,37 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
       'Catalog publication conflicts with current catalog or pricing facts.'
     )
   }
+  if (typeof message === 'string') return message
   return t('Catalog publication failed. Review the validation results.')
 }
 
-export function AdminModelCatalog(
-  props: {
-    initialPricingModelId?: string
-    initialPricingPublicationId?: string
-    tab?: 'published' | 'import' | 'monitoring'
-    onTabChange?: (tab: 'published' | 'import' | 'monitoring') => void
-    onManagePricing?: (
-      modelId: string,
-      returnContext?: ModelManagementReturnContext
-    ) => void
-    onManageBindings?: (
-      modelId: string,
-      returnContext?: ModelManagementReturnContext
-    ) => void
-  } = {}
-) {
+export function AdminModelCatalog(props: {
+  principalId: string
+  initialPricingModelId?: string
+  initialPricingPublicationId?: string
+  tab?: 'published' | 'import' | 'monitoring'
+  onTabChange?: (tab: 'published' | 'import' | 'monitoring') => void
+  onManagePricing?: (
+    modelId: string,
+    returnContext?: ModelManagementReturnContext
+  ) => void
+  onManageBindings?: (
+    modelId: string,
+    returnContext?: ModelManagementReturnContext
+  ) => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [bundle, setBundle] = useState<CanvasModelCatalogBundle | null>(null)
-  const [plan, setPlan] = useState<CanvasModelCatalogPlan | null>(null)
+  const [storedPlan, setPlan] = useState<ModelCatalogImportPlan | null>(null)
+  const planActorPrincipalId = useRef<string | null>(null)
+  const plan =
+    planActorPrincipalId.current === props.principalId ? storedPlan : null
   const [failure, setFailure] = useState<{
     message: string
     details: string[]
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const selectionGeneration = useRef(0)
   const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<
     'published' | 'import' | 'monitoring'
   >('published')
@@ -245,18 +246,14 @@ export function AdminModelCatalog(
     pageIndex: 0,
     pageSize: 20,
   })
-  const planner = useMutation({
-    mutationFn: planCanvasModelCatalogBundle,
-    onSuccess: setPlan,
-    onError: (error) => setFailure(errorDetails(error, t)),
-  })
+  const planner = useMutation({ mutationFn: planCanvasModelCatalogImport })
   const publisher = useMutation({
-    mutationFn: publishCanvasModelCatalogBundle,
+    mutationFn: publishCanvasModelCatalogImport,
     onSuccess: async () => {
       const recovered = plan?.action === 'RECOVER_PRICING'
       const continuityRecovered = plan?.action === 'RECOVER_CONTINUITY'
       setPlan(null)
-      setBundle(null)
+      planActorPrincipalId.current = null
       setFailure(null)
       setConfirming(false)
       await queryClient.invalidateQueries({
@@ -273,10 +270,11 @@ export function AdminModelCatalog(
     },
     onError: (error) => {
       setPlan(null)
+      planActorPrincipalId.current = null
       setConfirming(false)
       setFailure({
         message: t(
-          'Publication failed. Validate the Bundle again before retrying.'
+          'Publication failed. Select the catalog source folder again.'
         ),
         details: [publicationErrorReason(error, t)],
       })
@@ -284,28 +282,58 @@ export function AdminModelCatalog(
   })
 
   async function selectFolder(files: FileList | null) {
+    const generation = ++selectionGeneration.current
     setPlan(null)
-    setBundle(null)
+    planActorPrincipalId.current = null
     setFailure(null)
     if (!files?.length) return
     try {
-      const next = await buildCatalogBundle([...files])
-      setBundle(next)
-      planner.mutate(next)
+      const nextPlan = await planner.mutateAsync(
+        await readCatalogSource([...files])
+      )
+      if (generation !== selectionGeneration.current) return
+      if (Date.parse(nextPlan.expiresAt) <= Date.now()) {
+        setFailure({ message: t('The catalog plan has expired.'), details: [] })
+        return
+      }
+      planActorPrincipalId.current = props.principalId
+      setPlan(nextPlan)
     } catch (error) {
+      if (generation !== selectionGeneration.current) return
       setFailure(errorDetails(error, t))
+    } finally {
+      if (generation === selectionGeneration.current) planner.reset()
     }
   }
-
-  const counts: Array<[string, number]> = bundle
-    ? [
-        [t('Providers'), bundle.providers.length],
-        [t('Channels'), bundle.channels.length],
-        [t('Models'), bundle.models.length],
-        [t('OpenAPI contracts'), bundle.openapiContracts.length],
-        [t('Adapter profiles'), bundle.adapterProfiles.length],
-      ]
-    : []
+  useEffect(() => {
+    ++selectionGeneration.current
+    planActorPrincipalId.current = null
+    setPlan(null)
+    setConfirming(false)
+    setFailure(null)
+  }, [props.principalId])
+  useEffect(() => {
+    if (!plan) return
+    let timeout: number | undefined
+    const expireWhenDue = () => {
+      const remaining = Date.parse(plan.expiresAt) - Date.now()
+      if (remaining <= 0) {
+        setPlan(null)
+        planActorPrincipalId.current = null
+        setConfirming(false)
+        setFailure({ message: t('The catalog plan has expired.'), details: [] })
+        return
+      }
+      timeout = window.setTimeout(
+        expireWhenDue,
+        Math.min(remaining, 2_147_483_647)
+      )
+    }
+    expireWhenDue()
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout)
+    }
+  }, [plan, t])
   const filteredChanges = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
     const resourceQuery = resourceType.trim().toLocaleLowerCase()
@@ -369,15 +397,22 @@ export function AdminModelCatalog(
   )
   const recoveringExisting =
     plan?.action === 'RECOVER_PRICING' || plan?.action === 'RECOVER_CONTINUITY'
+  const hasBlockingDiagnostics =
+    plan?.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
+    ) ?? false
+  const planBlocked = Boolean(plan?.blocking || hasBlockingDiagnostics)
   const canPublish =
     (plan?.action === 'PUBLISH' || recoveringExisting) &&
-    !plan.blocking &&
+    !planBlocked &&
+    Boolean(plan.importId) &&
     Boolean(plan.planToken) &&
     (publishableChanges.length > 0 || recoveringExisting)
   let planDescription = t(
     'Validation passed. Review the client model preview and every database change before publishing.'
   )
-  if (plan?.blocking) {
+  if (planBlocked) {
     planDescription = t(
       'Publication is blocked. Fix every conflict and upload the Bundle again.'
     )
@@ -561,31 +596,24 @@ export function AdminModelCatalog(
                 )}
               </CardContent>
             </Card>
-            {bundle && (
+            {plan && (
               <Card>
                 <CardHeader>
                   <CardTitle className='flex items-center gap-2'>
                     <FileJson2 className='size-5' />
-                    {bundle.bundleId}
+                    {plan.bundleId}
                   </CardTitle>
                   <CardDescription>
-                    {t('Bundle version')}: {bundle.bundleVersion}
+                    {t('Bundle version')}: {plan.bundleVersion}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className='grid gap-3 sm:grid-cols-2 lg:grid-cols-5'>
-                  {counts.map(([label, value]) => (
-                    <div
-                      key={label}
-                      className='bg-muted/40 rounded-lg border p-3'
-                    >
-                      <div className='text-muted-foreground text-xs'>
-                        {label}
-                      </div>
-                      <div className='mt-1 text-xl font-semibold tabular-nums'>
-                        {value}
-                      </div>
-                    </div>
-                  ))}
+                <CardContent className='text-muted-foreground space-y-1 text-xs'>
+                  <div className='break-all'>
+                    {t('Import ID')}: {plan.importId}
+                  </div>
+                  <div className='break-all'>
+                    {t('Source SHA-256')}: {plan.sourceSha256}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -609,7 +637,11 @@ export function AdminModelCatalog(
                   {plan.diagnostics.length > 0 && (
                     <div
                       role='alert'
-                      className='border-destructive/40 bg-destructive/5 text-destructive rounded-lg border p-3 text-sm'
+                      className={
+                        planBlocked
+                          ? 'border-destructive/40 bg-destructive/5 text-destructive rounded-lg border p-3 text-sm'
+                          : 'bg-muted/30 rounded-lg border p-3 text-sm'
+                      }
                     >
                       <ul className='list-disc space-y-1 pl-4'>
                         {plan.diagnostics.map((diagnostic) => (
@@ -843,27 +875,15 @@ export function AdminModelCatalog(
             )}
           </TabsContent>
         </Tabs>
-        {bundle && !plan && failure && (
-          <Button
-            variant='outline'
-            disabled={planner.isPending}
-            onClick={() => {
-              setFailure(null)
-              planner.mutate(bundle)
-            }}
-          >
-            {t('Validate Bundle again')}
-          </Button>
-        )}
-        {bundle && plan && (
+        {plan && (
           <PricingActionConfirmation
             open={confirming}
             onOpenChange={setConfirming}
             title={confirmationTitle}
             description={confirmationDescription}
             details={[
-              { label: t('Bundle'), value: bundle.bundleId },
-              { label: t('Bundle version'), value: bundle.bundleVersion },
+              { label: t('Bundle'), value: plan.bundleId },
+              { label: t('Bundle version'), value: plan.bundleVersion },
               ...(recoveringExisting
                 ? []
                 : [
@@ -893,7 +913,10 @@ export function AdminModelCatalog(
             confirmLabel={confirmLabel}
             pending={publisher.isPending}
             onConfirm={() =>
-              publisher.mutate({ bundle, expectedPlanToken: plan.planToken })
+              publisher.mutate({
+                importId: plan.importId,
+                expectedPlanToken: plan.planToken,
+              })
             }
           />
         )}

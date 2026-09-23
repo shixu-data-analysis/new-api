@@ -21,11 +21,12 @@ export function ModelManagementLayout() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const pathname = useLocation({ select: (location) => location.pathname })
-  const title = pathname.includes('/monitoring/')
-    ? t('Runtime monitoring')
-    : pathname.endsWith('/pricing')
-      ? t('Model pricing')
-      : t('Model management')
+  let title = t('Model management')
+  if (pathname.includes('/monitoring/')) {
+    title = t('Runtime monitoring')
+  } else if (pathname.endsWith('/pricing')) {
+    title = t('Model pricing')
+  }
   return (
     <ModelManagementNavigationProvider>
       <SectionPageLayout fluid={false}>

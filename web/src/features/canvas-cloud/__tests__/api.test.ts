@@ -61,7 +61,7 @@ import {
   isCanvasInviteRegistrationRequired,
   changeCanvasAdminInviteCodeStatus,
   normalizeCanvasRechargePurchaseLink,
-  planCanvasModelCatalogBundle,
+  planCanvasModelCatalogImport,
   publishCanvasPriceVersion,
   publishConfirmedCanvasPriceChange,
   publishConfirmedCanvasInitialPrice,
@@ -69,7 +69,7 @@ import {
   publishConfirmedCanvasPriceGroup,
   publishConfirmedCanvasTaskPolicySettings,
   publishCanvasPointIssuanceRate,
-  publishCanvasModelCatalogBundle,
+  publishCanvasModelCatalogImport,
   publishCanvasModelPresentation,
   publishCanvasExecutionTargetPresentation,
   getCanvasModelMonitoring,
@@ -109,6 +109,10 @@ import {
   previewCanvasOrderPointReturn,
   createCanvasOrderPointReturn,
 } from '../api'
+import type {
+  ModelCatalogDiagnostic,
+  ModelCatalogImportPlan,
+} from '../generated/model-catalog-import'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 
@@ -589,34 +593,68 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('uses the confirmed administrator Bundle planning and publication routes', async () => {
-    const bundle = {
-      schemaVersion: 2 as const,
+  it('uses raw source import planning and publishes only the frozen import', async () => {
+    const source = {
+      schemaVersion: 1 as const,
+      files: [{ path: 'models.json', contentBase64: 'eyJtb2RlbHMiOltdfQ==' }],
+    }
+    const diagnostic = {
+      code: 'CATALOG_SCHEMA_INVALID',
+      severity: 'BLOCKING',
+      sourceFile: 'models.json',
+      jsonPath:
+        'models[24].release.publicInteraction.mediaConstraints.video.maxFrameRate',
+      valueSummary:
+        'mediaConstraints.video.maxFrameRate must be a positive number',
+      capability: 'video.generate',
+      ownerModule: 'model-catalog',
+      recommendation:
+        'Correct the invalid model capability field before publication.',
+      internalTestingAllowed: false,
+      messageKey: 'catalog.schema.invalid',
+      params: {},
+    } satisfies ModelCatalogDiagnostic
+    const importPlan = {
+      importId: '11111111-1111-4111-8111-111111111111',
+      validatorVersion: 1,
+      sourceSha256: '1'.repeat(64),
+      validatedBundleSha256: '2'.repeat(64),
+      expiresAt: '2026-09-24T02:00:00.000Z',
       bundleId: 'catalog',
       bundleVersion: '1',
-      providers: [],
-      channels: [],
+      manifestSha256: '3'.repeat(64),
+      planToken: '4'.repeat(64),
+      pricingSummary: { reused: 0, needsPricing: 0 },
+      action: 'CONFLICT',
+      blocking: true,
+      diagnostics: [diagnostic],
+      changes: [],
       models: [],
-      openapiContracts: [],
-      adapterProfiles: [],
-    }
-    mocks.post.mockResolvedValue({ data: { blocking: false, changes: [] } })
-    await planCanvasModelCatalogBundle(bundle)
+    } satisfies ModelCatalogImportPlan
+    mocks.post.mockResolvedValue({ data: importPlan })
+    await expect(planCanvasModelCatalogImport(source)).resolves.toEqual(
+      importPlan
+    )
     expect(mocks.post).toHaveBeenNthCalledWith(
       1,
-      '/canvas-api/v1/web/admin/model-catalog-bundles/plan',
-      bundle,
+      '/canvas-api/v1/web/admin/model-catalog-imports/plan',
+      source,
       expect.objectContaining({ skipErrorHandler: true })
     )
-    await publishCanvasModelCatalogBundle({
-      bundle,
-      expectedPlanToken: 'plan-token-1',
+    await publishCanvasModelCatalogImport({
+      importId: '22222222-2222-4222-8222-222222222222',
+      expectedPlanToken: '4'.repeat(64),
     })
     expect(mocks.post).toHaveBeenNthCalledWith(
       2,
-      '/canvas-api/v1/web/admin/model-catalog-bundles/publications',
-      { confirmed: true, bundle, expectedPlanToken: 'plan-token-1' },
-      expect.objectContaining({ skipErrorHandler: true })
+      '/canvas-api/v1/web/admin/model-catalog-imports/22222222-2222-4222-8222-222222222222/publications',
+      { confirmed: true, expectedPlanToken: '4'.repeat(64) },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': expect.stringMatching(/^web-catalog-publish-/u),
+        }),
+        skipErrorHandler: true,
+      })
     )
   })
 
@@ -1391,8 +1429,7 @@ describe('Canvas Cloud API boundary', () => {
       data: {
         success: true,
         data: {
-          canvas_recharge_purchase_url:
-            'https://shop.example.com/canvas-codes',
+          canvas_recharge_purchase_url: 'https://shop.example.com/canvas-codes',
           topup_link: 'https://unrelated.example.com/new-api-wallet',
         },
       },

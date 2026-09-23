@@ -7,9 +7,9 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildCatalogBundle } from '../../catalogBundleReader'
 import { AdminModelCatalog } from '../AdminModelCatalog'
 
 const mocks = vi.hoisted(() => ({
@@ -44,8 +44,8 @@ vi.mock('../ModelMonitoringOverview', () => ({
   ModelMonitoringOverview: () => <div>Logical model monitoring overview</div>,
 }))
 vi.mock('../../api', () => ({
-  planCanvasModelCatalogBundle: mocks.plan,
-  publishCanvasModelCatalogBundle: mocks.publish,
+  planCanvasModelCatalogImport: mocks.plan,
+  publishCanvasModelCatalogImport: mocks.publish,
   getCanvasAdminTestingModels: mocks.published,
   getCanvasAdminModelTags: mocks.tags,
   getCanvasPriceGroups: mocks.priceGroups,
@@ -53,6 +53,14 @@ vi.mock('../../api', () => ({
   publishCanvasExecutionTargetPresentation: mocks.targetPresentation,
 }))
 vi.mock('sonner', () => ({ toast: { success: mocks.toastSuccess } }))
+
+const ADMIN_ONE_ID = '11111111-1111-4111-8111-111111111111'
+const ADMIN_TWO_ID = '22222222-2222-4222-8222-222222222222'
+const IMPORT_ONE_ID = '33333333-3333-4333-8333-333333333333'
+const IMPORT_TWO_ID = '44444444-4444-4444-8444-444444444444'
+const IMPORT_CURRENT_ID = '55555555-5555-4555-8555-555555555555'
+const IMPORT_OLD_ID = '66666666-6666-4666-8666-666666666666'
+const PLAN_TOKEN_ONE = 'a'.repeat(64)
 
 function catalogFile(path: string, value: unknown): File {
   const file = new File(
@@ -62,6 +70,14 @@ function catalogFile(path: string, value: unknown): File {
       type: 'application/json',
     }
   )
+  Object.defineProperty(file, 'webkitRelativePath', { value: `bundle/${path}` })
+  return file
+}
+
+function sourceFileWithBytes(path: string, bytes: Uint8Array): File {
+  const content = new Uint8Array(bytes.byteLength)
+  content.set(bytes)
+  const file = new File([content.buffer], path.split('/').at(-1) ?? path)
   Object.defineProperty(file, 'webkitRelativePath', { value: `bundle/${path}` })
   return file
 }
@@ -102,6 +118,40 @@ const unboundCredential = {
   credentialGroupName: null,
 }
 
+const importPlanFields = {
+  importId: IMPORT_ONE_ID,
+  sourceSha256: '1'.repeat(64),
+  validatedBundleSha256: '2'.repeat(64),
+  validatorVersion: 1,
+  expiresAt: '2099-09-23T00:00:00.000Z',
+}
+
+function catalogPlan(overrides: Record<string, unknown> = {}) {
+  return {
+    ...importPlanFields,
+    bundleId: 'canvas.test',
+    bundleVersion: '1',
+    manifestSha256: '3'.repeat(64),
+    planToken: PLAN_TOKEN_ONE,
+    pricingSummary: { reused: 0, needsPricing: 0 },
+    action: 'PUBLISH',
+    blocking: false,
+    diagnostics: [],
+    models: [],
+    changes: [
+      {
+        resourceType: 'CUSTOMER_MODEL',
+        key: 'canvas.image.test',
+        action: 'CREATE',
+        currentVersion: null,
+        proposedVersion: 1,
+        detail: {},
+      },
+    ],
+    ...overrides,
+  }
+}
+
 function bundleFiles(
   model: unknown,
   profile: Record<string, unknown> = { schemaVersion: 1 }
@@ -117,7 +167,20 @@ function bundleFiles(
 }
 
 describe('Canvas model catalog folder upload', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18next.changeLanguage('en')
+    i18next.addResource(
+      'en',
+      'translation',
+      'catalog.catalog_source_json_invalid',
+      'A catalog source file is not valid JSON.'
+    )
+    i18next.addResource(
+      'zh',
+      'translation',
+      'catalog.mediaConstraint.invalidFrameRate',
+      '帧率必须至少为 {{minimum}}，当前值为 {{actual}}。'
+    )
     mocks.plan.mockReset()
     mocks.publish.mockReset()
     mocks.published.mockReset()
@@ -137,7 +200,7 @@ describe('Canvas model catalog folder upload', () => {
           new QueryClient({ defaultOptions: { queries: { retry: false } } })
         }
       >
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     expect(screen.getByRole('tab', { name: 'Model list' })).toBeVisible()
@@ -188,7 +251,10 @@ describe('Canvas model catalog folder upload', () => {
     })
     const page = (modelId?: string) => (
       <QueryClientProvider client={client}>
-        <AdminModelCatalog initialPricingModelId={modelId} />
+        <AdminModelCatalog
+          principalId={ADMIN_ONE_ID}
+          initialPricingModelId={modelId}
+        />
       </QueryClientProvider>
     )
     const view = render(page())
@@ -224,122 +290,25 @@ describe('Canvas model catalog folder upload', () => {
     expect(screen.getByPlaceholderText('Model')).toHaveValue('Series')
     client.clear()
   })
-  it('assembles only the files referenced by manifest.json', async () => {
-    const bundle = await buildCatalogBundle([
-      catalogFile('manifest.json', manifest),
-      catalogFile('providers.json', {
-        schemaVersion: 2,
-        providers: [{ id: 'p' }],
-      }),
-      catalogFile('channels.json', {
-        schemaVersion: 2,
-        channels: [{ id: 'c' }],
-      }),
-      catalogFile('models.json', {
-        schemaVersion: 2,
-        models: [{ ...modelDefinition, description: 'Published default' }],
-      }),
-      catalogFile('openapi/test.openapi.json', { openapi: '3.0.0' }),
-      catalogFile('profiles/test.profile.json', {
-        schemaVersion: 1,
-        templateLanguageVersion: 1,
-      }),
-    ])
-    expect(bundle).toMatchObject({
-      bundleId: 'canvas.test',
-      bundleVersion: '1',
-    })
-    expect(bundle.openapiContracts[0]?.path).toBe('openapi/test.openapi.json')
-    expect(bundle.adapterProfiles[0]?.path).toBe('profiles/test.profile.json')
-    expect(bundle.models[0]?.description).toBe('Published default')
-  })
-
-  it('uses only the model JSON description and keeps absence distinct from Profile text', async () => {
-    const withDefault = await buildCatalogBundle(
-      bundleFiles(
-        { ...modelDefinition, description: '  Client copy  ' },
-        { schemaVersion: 1, description: 'Technical Profile text' }
-      )
-    )
-    expect(withDefault.models[0]?.description).toBe('Client copy')
-    const withoutDefault = await buildCatalogBundle(
-      bundleFiles(modelDefinition, {
-        schemaVersion: 1,
-        description: 'Technical Profile text',
-      })
-    )
-    expect(withoutDefault.models[0]).not.toHaveProperty('description')
-  })
-
-  it('preserves the Profile template language version and templates in the Bundle payload', async () => {
-    const profile = {
-      schemaVersion: 1,
-      version: 2,
-      templateLanguageVersion: 1,
-      advanced: {
-        request: {
-          body: {
-            first_image: {
-              $call: 'mediaUrlByRole',
-              args: [{ $ref: 'media' }, 'first'],
-            },
-          },
-        },
-      },
-    }
-    const bundle = await buildCatalogBundle(
-      bundleFiles(modelDefinition, profile)
-    )
-    expect(bundle.adapterProfiles).toEqual([
-      { path: 'profiles/test.profile.json', profile },
-    ])
-  })
-
-  it('rejects an oversized description and unknown model fields before upload', async () => {
-    await expect(
-      buildCatalogBundle(
-        bundleFiles({ ...modelDefinition, description: 'x'.repeat(501) })
-      )
-    ).rejects.toThrow('description')
-    await expect(
-      buildCatalogBundle(
-        bundleFiles({ ...modelDefinition, surprise: 'not allowed' })
-      )
-    ).rejects.toThrow('surprise')
-  })
-
-  it('reports a missing referenced file before calling Canvas Cloud', async () => {
-    await expect(
-      buildCatalogBundle([
-        catalogFile('manifest.json', manifest),
-        catalogFile('providers.json', { schemaVersion: 2, providers: [] }),
-        catalogFile('channels.json', { schemaVersion: 2, channels: [] }),
-        catalogFile('models.json', { schemaVersion: 2, models: [] }),
-      ])
-    ).rejects.toThrow('Missing required file: openapi/test.openapi.json')
-  })
-
-  it('shows Profile, operation, path and stable reason from a rejected plan', async () => {
+  it('submits invalid JSON to Cloud and localizes its file-level diagnostic', async () => {
     mocks.plan.mockRejectedValue({
       response: {
         data: {
-          message: 'Bundle validation failed',
+          message: 'Catalog validation failed',
           diagnostics: [
             {
-              code: 'TEMPLATE_INVALID',
-              sourceFile: 'profiles/test.profile.json',
-              jsonPath:
-                '$.adapterProfiles[0].profile.advanced.request.body.first_image',
-              profileKey: 'z5api.seedance@1.0.0',
-              operation: 'submitVideo',
-              templateReason: 'UNSUPPORTED_FUNCTION',
-              recommendation: 'Fix the template',
-            },
-            {
-              code: 'SOURCE_FIELD_REQUIRED',
-              sourceFile: 'profiles/test.profile.json',
-              jsonPath: '$.adapterProfiles[0].profile.templateLanguageVersion',
-              recommendation: 'Declare template language version',
+              code: 'CATALOG_SOURCE_JSON_INVALID',
+              severity: 'BLOCKING',
+              sourceFile: 'models.json',
+              jsonPath: '$',
+              valueSummary: 'File is not valid JSON.',
+              capability: 'catalog.import.schema-v1',
+              ownerModule: 'model-catalog',
+              recommendation:
+                'Correct the source file and create a new import plan.',
+              internalTestingAllowed: false,
+              messageKey: 'catalog.catalog_source_json_invalid',
+              params: {},
             },
           ],
         },
@@ -347,32 +316,109 @@ describe('Canvas model catalog folder upload', () => {
     })
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
     fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
       target: {
-        files: bundleFiles(modelDefinition, {
-          schemaVersion: 1,
-          templateLanguageVersion: 1,
-        }),
+        files: [sourceFileWithBytes('models.json', Uint8Array.from([0xff]))],
       },
     })
-    expect(await screen.findByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
-      'Operation: submitVideo'
+    await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
+    expect(mocks.plan).toHaveBeenCalledWith(
+      {
+        schemaVersion: 1,
+        files: [{ path: 'models.json', contentBase64: '/w==' }],
+      },
+      expect.any(Object)
     )
-    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
-      'profiles/test.profile.json'
+    expect(await screen.findByText(/models.json/)).toHaveTextContent('Path: $')
+    expect(screen.getByText(/models.json/)).toHaveTextContent(
+      'Reason: A catalog source file is not valid JSON. · File is not valid JSON.'
     )
-    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
-      'Path: $.adapterProfiles[0].profile.advanced.request.body.first_image'
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('interpolates a non-English Cloud diagnostic and disables publication', async () => {
+    await i18next.changeLanguage('zh')
+    mocks.plan.mockResolvedValue(
+      catalogPlan({
+        diagnostics: [
+          {
+            code: 'CATALOG_SCHEMA_INVALID',
+            severity: 'BLOCKING',
+            sourceFile: 'models.json',
+            jsonPath:
+              'models[24].release.publicInteraction.mediaConstraints.video.maxFrameRate',
+            valueSummary: 'Expected number to be greater than or equal to 1',
+            capability: 'video.generate',
+            ownerModule: 'model-catalog',
+            recommendation:
+              'Correct the invalid model capability field before publication.',
+            internalTestingAllowed: false,
+            messageKey: 'catalog.mediaConstraint.invalidFrameRate',
+            params: { minimum: 1, actual: 0 },
+          },
+        ],
+      })
     )
-    expect(screen.getByText(/z5api.seedance@1.0.0/)).toHaveTextContent(
-      'Reason: UNSUPPORTED_FUNCTION'
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
     )
-    expect(screen.getByText(/SOURCE_FIELD_REQUIRED/)).toHaveTextContent(
-      'Path: $.adapterProfiles[0].profile.templateLanguageVersion'
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(await screen.findByText(/models.json/)).toHaveTextContent(
+      'Path: models[24].release.publicInteraction.mediaConstraints.video.maxFrameRate'
+    )
+    expect(screen.getByText(/models.json/)).toHaveTextContent(
+      'Reason: 帧率必须至少为 1，当前值为 0。 · Expected number to be greater than or equal to 1'
+    )
+    expect(
+      screen.getByRole('button', { name: 'Review and publish' })
+    ).toBeDisabled()
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('uses the exact Cloud fallback for a truly unknown diagnostic key', async () => {
+    mocks.plan.mockRejectedValue({
+      response: {
+        data: {
+          diagnostics: [
+            {
+              code: 'CATALOG_FUTURE_RULE',
+              severity: 'BLOCKING',
+              sourceFile: 'models.json',
+              jsonPath: '$.models[0].futureField',
+              valueSummary: 'Cloud value summary',
+              capability: 'catalog.future',
+              ownerModule: 'model-catalog',
+              recommendation: 'Cloud recommendation',
+              internalTestingAllowed: false,
+              messageKey: 'catalog.future.unknown',
+              params: { ignored: 'value' },
+            },
+          ],
+        },
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(await screen.findByText(/models.json/)).toHaveTextContent(
+      'Reason: Cloud recommendation · Cloud value summary'
     )
     expect(mocks.publish).not.toHaveBeenCalled()
   })
@@ -398,10 +444,11 @@ describe('Canvas model catalog folder upload', () => {
       },
     })
     mocks.plan.mockResolvedValue({
+      ...importPlanFields,
       bundleId: 'canvas.test',
       bundleVersion: '1',
       manifestSha256: 'a'.repeat(64),
-      planToken: 'plan-token-1',
+      planToken: PLAN_TOKEN_ONE,
       pricingSummary: { reused: 1, needsPricing: 1 },
       action: 'PUBLISH',
       blocking: false,
@@ -515,7 +562,7 @@ describe('Canvas model catalog folder upload', () => {
     ]
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
@@ -523,21 +570,14 @@ describe('Canvas model catalog folder upload', () => {
       target: { files },
     })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
-    expect(mocks.plan).toHaveBeenCalledWith(
-      expect.objectContaining({
-        adapterProfiles: [
-          expect.objectContaining({
-            profile: expect.objectContaining({ templateLanguageVersion: 1 }),
-          }),
-        ],
-        models: [
-          expect.objectContaining({
-            description: 'Default customer description',
-          }),
-        ],
-      }),
-      expect.any(Object)
-    )
+    const plannedSource = mocks.plan.mock.calls[0]?.[0]
+    expect(plannedSource).toEqual({
+      schemaVersion: 1,
+      files: expect.arrayContaining([
+        expect.objectContaining({ path: 'models.json' }),
+        expect.objectContaining({ path: 'profiles/test.profile.json' }),
+      ]),
+    })
     expect(await screen.findByText('Client preview model')).toBeInTheDocument()
     screen
       .getAllByRole('tablist')
@@ -618,23 +658,22 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
     await waitFor(() =>
       expect(mocks.publish).toHaveBeenCalledWith(
-        expect.objectContaining({ expectedPlanToken: 'plan-token-1' }),
+        { importId: IMPORT_ONE_ID, expectedPlanToken: PLAN_TOKEN_ONE },
         expect.any(Object)
       )
     )
     expect(
-      await screen.findByText(
-        'Adapter Profile template uses an unsupported function.'
-      )
-    ).toBeInTheDocument()
+      await screen.findByText(/profiles\/test.profile.json/)
+    ).toHaveTextContent('Reason: Fix the template')
   })
 
   it('shows unchanged models and prevents a redundant publication', async () => {
     mocks.plan.mockResolvedValue({
+      ...importPlanFields,
       bundleId: 'canvas.test',
       bundleVersion: '2',
       manifestSha256: 'b'.repeat(64),
-      planToken: 'plan-token-2',
+      planToken: 'b'.repeat(64),
       pricingSummary: { reused: 0, needsPricing: 0 },
       action: 'NO_CHANGES',
       blocking: false,
@@ -680,7 +719,7 @@ describe('Canvas model catalog folder upload', () => {
     ]
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
@@ -700,6 +739,7 @@ describe('Canvas model catalog folder upload', () => {
 
   it('allows verified price recovery without technical catalog changes', async () => {
     mocks.plan.mockResolvedValue({
+      ...importPlanFields,
       bundleId: 'canvas.test',
       bundleVersion: '1',
       manifestSha256: 'c'.repeat(64),
@@ -761,7 +801,7 @@ describe('Canvas model catalog folder upload', () => {
     mocks.publish.mockResolvedValue({})
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
@@ -809,6 +849,7 @@ describe('Canvas model catalog folder upload', () => {
 
   it('allows verified price and API Key link recovery without technical catalog changes', async () => {
     mocks.plan.mockResolvedValue({
+      ...importPlanFields,
       bundleId: 'canvas.test',
       bundleVersion: '1',
       manifestSha256: 'd'.repeat(64),
@@ -847,7 +888,7 @@ describe('Canvas model catalog folder upload', () => {
     mocks.publish.mockResolvedValue({})
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
@@ -881,8 +922,13 @@ describe('Canvas model catalog folder upload', () => {
     )
   })
 
-  it('invalidates a stale plan after a 409 and requires validation before retry', async () => {
+  it.each([
+    'CATALOG_PLAN_VALIDATOR_CHANGED',
+    'CATALOG_PLAN_ACTOR_MISMATCH',
+    'CATALOG_PLAN_SNAPSHOT_INVALID',
+  ])('invalidates %s and requires validation before retry', async (code) => {
     const planned = {
+      ...importPlanFields,
       bundleId: 'canvas.test',
       bundleVersion: '1',
       manifestSha256: 'd'.repeat(64),
@@ -910,15 +956,14 @@ describe('Canvas model catalog folder upload', () => {
       response: {
         status: 409,
         data: {
-          code: 'CONFLICT',
-          message:
-            'Catalog plan is stale; review the latest price sources and publish again',
+          code,
+          message: 'Cloud stale fallback',
         },
       },
     })
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <AdminModelCatalog />
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
@@ -932,30 +977,198 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
     expect(
       await screen.findByText(
-        'Publication failed. Validate the Bundle again before retrying.'
+        'Publication failed. Select the catalog source folder again.'
       )
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Catalog plan is stale because price sources or versions changed after validation.'
+        'The catalog plan is stale. Select the source folder again.'
       )
     ).toBeInTheDocument()
-    expect(
-      screen.queryByText(
-        'Catalog plan is stale; review the latest price sources and publish again'
-      )
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Cloud stale fallback')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Review and publish' })
     ).not.toBeInTheDocument()
     expect(mocks.publish).toHaveBeenCalledTimes(1)
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Validate Bundle again' })
-    )
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
     expect(
       await screen.findByRole('button', { name: 'Review and publish' })
     ).toBeEnabled()
     expect(mocks.publish).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([401, 403])(
+    'clears the frozen import after a %s publication response',
+    async (status) => {
+      mocks.plan.mockResolvedValue(catalogPlan())
+      mocks.publish.mockRejectedValue({
+        response: { status, data: { code: 'UNAUTHORIZED' } },
+      })
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+        </QueryClientProvider>
+      )
+      fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+      fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+        target: { files: bundleFiles(modelDefinition) },
+      })
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Review and publish' })
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
+
+      expect(
+        await screen.findByText(
+          'Your administrator session is no longer authorized.'
+        )
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: 'Review and publish' })
+      ).not.toBeInTheDocument()
+    }
+  )
+
+  it('rejects an already expired plan and requires a new folder selection', async () => {
+    mocks.plan.mockResolvedValue(
+      catalogPlan({ expiresAt: '2020-01-01T00:00:00.000Z' })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(
+      await screen.findByText('The catalog plan has expired.')
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Review and publish' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('clears the previous import as soon as a different folder is selected', async () => {
+    let resolveReplacement: ((value: unknown) => void) | undefined
+    mocks.plan.mockResolvedValueOnce(catalogPlan()).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveReplacement = resolve
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    const input = screen.getByLabelText('Choose Bundle folder')
+    fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
+    expect(
+      await screen.findByRole('button', { name: 'Review and publish' })
+    ).toBeEnabled()
+
+    fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
+    await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
+    expect(
+      screen.queryByRole('button', { name: 'Review and publish' })
+    ).not.toBeInTheDocument()
+    resolveReplacement?.(catalogPlan({ importId: IMPORT_TWO_ID }))
+  })
+
+  it('ignores a late plan response from an older folder selection', async () => {
+    let resolveFirst: ((value: unknown) => void) | undefined
+    mocks.plan
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        })
+      )
+      .mockResolvedValueOnce(catalogPlan({ importId: IMPORT_CURRENT_ID }))
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    const input = screen.getByLabelText('Choose Bundle folder')
+    fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
+    await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
+    fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
+
+    expect(
+      await screen.findByText(new RegExp(IMPORT_CURRENT_ID, 'u'))
+    ).toBeVisible()
+    resolveFirst?.(catalogPlan({ importId: IMPORT_OLD_ID }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText(new RegExp(IMPORT_OLD_ID, 'u'))
+      ).not.toBeInTheDocument()
+    )
+    expect(screen.getByText(new RegExp(IMPORT_CURRENT_ID, 'u'))).toBeVisible()
+  })
+
+  it('clears the plan and confirmation immediately when the actor changes', async () => {
+    mocks.plan.mockResolvedValue(catalogPlan())
+    const client = new QueryClient()
+    const page = (principalId: string) => (
+      <QueryClientProvider client={client}>
+        <AdminModelCatalog principalId={principalId} />
+      </QueryClientProvider>
+    )
+    const view = render(page(ADMIN_ONE_ID))
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review and publish' })
+    )
+    expect(screen.getByRole('alertdialog')).toBeVisible()
+
+    view.rerender(page(ADMIN_TWO_ID))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Review and publish' })
+    ).not.toBeInTheDocument()
+    expect(mocks.publish).not.toHaveBeenCalled()
+    client.clear()
+  })
+
+  it('does not submit a second publication while the first is pending', async () => {
+    let resolvePublication: ((value: unknown) => void) | undefined
+    mocks.plan.mockResolvedValue(catalogPlan())
+    mocks.publish.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePublication = resolve
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Review and publish' })
+    )
+    const publish = screen.getByRole('button', { name: 'Publish Bundle' })
+    fireEvent.click(publish)
+    await waitFor(() => expect(publish).toBeDisabled())
+    fireEvent.click(publish)
+    expect(mocks.publish).toHaveBeenCalledTimes(1)
+    resolvePublication?.({})
+    await waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith('Model catalog published')
+    )
   })
 })
