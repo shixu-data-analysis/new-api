@@ -18,26 +18,23 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import {
-  isCanvasManualUatActive,
-  resolveCanvasManualUatEntryHref,
-} from '@/features/canvas-cloud/manual-uat'
-import { Home } from '@/features/home'
+import { resolvePostLoginRedirect } from '@/features/auth/lib/auth-redirect'
+import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/')({
   beforeLoad: () => {
-    if (!isCanvasManualUatActive()) return
+    const { auth } = useAuthStore.getState()
+    if (!auth.user || !auth.accessToken) {
+      throw redirect({ to: '/sign-in', replace: true })
+    }
 
-    const requestedRole = new URLSearchParams(window.location.search).get(
-      'canvas-uat-role'
-    )
     throw redirect({
-      href: resolveCanvasManualUatEntryHref(
-        window.location.hostname,
-        requestedRole
+      href: resolvePostLoginRedirect(
+        undefined,
+        window.location.origin,
+        auth.user
       ),
       replace: true,
     })
   },
-  component: Home,
 })

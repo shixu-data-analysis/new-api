@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { renderHook } from '@testing-library/react'
+import { UserCog } from 'lucide-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSidebarData } from '../use-sidebar-data'
@@ -84,9 +85,13 @@ describe('Canvas administrator primary sidebar', () => {
     ).toBe(false)
   })
 
-  it('gives a super administrator the same navigation as a platform administrator', () => {
+  it('adds user provisioning only for the canvas super administrator', () => {
     const platformAdministrator = renderHook(() => useSidebarData())
-    const platformNavigation = platformAdministrator.result.current.navGroups
+    expect(
+      platformAdministrator.result.current.navGroups.some((group) =>
+        group.items.some((item) => 'url' in item && item.url === '/users')
+      )
+    ).toBe(false)
     platformAdministrator.unmount()
 
     canvasShellState.canvasSession.data = {
@@ -94,10 +99,22 @@ describe('Canvas administrator primary sidebar', () => {
       inviterEnabled: false,
     }
     const superAdministrator = renderHook(() => useSidebarData())
-
-    expect(superAdministrator.result.current.navGroups).toEqual(
-      platformNavigation
+    const superAdministratorGroups = superAdministrator.result.current.navGroups
+    const userManagementGroup = superAdministratorGroups.find(
+      (group) => group.id === 'canvas-super-admin'
     )
+    const userManagementItem = userManagementGroup?.items.find(
+      (item) => 'url' in item && item.url === '/users'
+    )
+
+    expect(userManagementGroup?.title).toBe('Admin')
+    expect(userManagementItem?.title).toBe('Users')
+    expect(userManagementItem?.icon).toBe(UserCog)
+    expect(
+      superAdministratorGroups
+        .find((group) => group.id === 'canvas-admin-business')
+        ?.items.some((item) => 'url' in item && item.url === '/users')
+    ).toBe(false)
   })
 
   it('shows only activation and profile navigation before Canvas registration', () => {

@@ -50,6 +50,21 @@ func AllPermissions() []Permission {
 	return permissions
 }
 
+// DeniedPermissions returns a complete permission matrix with every registered
+// action denied. It is used for identities that may authenticate to New API but
+// must not inherit its legacy administrator capabilities.
+func DeniedPermissions() PermissionsMap {
+	permissions := make(PermissionsMap, len(registry))
+	for _, resource := range registry {
+		actions := make(map[string]bool, len(resource.Actions))
+		for _, action := range resource.Actions {
+			actions[action.Action] = false
+		}
+		permissions[resource.Resource] = actions
+	}
+	return permissions
+}
+
 // PermissionsForRole returns the permissions whose DefaultRoles include roleKey.
 func PermissionsForRole(roleKey string) []Permission {
 	permissions := make([]Permission, 0)

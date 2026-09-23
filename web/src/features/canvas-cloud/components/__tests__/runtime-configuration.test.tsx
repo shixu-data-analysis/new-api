@@ -38,7 +38,6 @@ import { RuntimeManagement } from '../RuntimeManagement'
 
 const apiMocks = vi.hoisted(() => ({
   bindCanvasProviderCredentials: vi.fn(),
-  checkCanvasDatabaseBackupStorage: vi.fn(),
   checkCanvasCustomerModelAccessPermission: vi.fn(),
   checkCanvasTaskMediaStorage: vi.fn(),
   getCanvasCredentialRotationPreview: vi.fn(),
@@ -49,7 +48,6 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasProviderCredentialGroupChanges: vi.fn(),
   getCanvasRuntimeConfiguration: vi.fn(),
   previewCanvasProviderCredentialBindings: vi.fn(),
-  publishCanvasDatabaseBackupStorage: vi.fn(),
   publishCanvasProviderCredentialGroup: vi.fn(),
   publishCanvasTaskMediaStorage: vi.fn(),
   publishCanvasCredentialGroupManagement: vi.fn(),
@@ -405,7 +403,7 @@ describe('Canvas runtime configuration', () => {
       screen.getByRole('tab', { name: 'Provider configuration' })
     ).toHaveAttribute('aria-selected', 'true')
     expect(
-      screen.getByRole('tab', { name: 'Storage and backups' })
+      screen.getByRole('tab', { name: 'Task media' })
     ).toBeVisible()
     expect(await screen.findByText('Provider API Key groups')).toBeVisible()
   })
@@ -424,9 +422,9 @@ describe('Canvas runtime configuration', () => {
       </QueryClientProvider>
     )
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Storage and backups' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Task media' }))
 
-    expect(onViewChange).toHaveBeenCalledWith('storage')
+    expect(onViewChange).toHaveBeenCalledWith('taskMedia')
   })
 
   it('uses the provider-only overview without exposing storage controls', async () => {
@@ -1516,7 +1514,7 @@ describe('Canvas runtime configuration', () => {
     )
   })
 
-  it('shows storage navigation without a duplicate overview card', async () => {
+  it('shows task media directly without a nested tab', async () => {
     renderRuntime()
 
     const taskMediaBucket = await screen.findByText('canvas-uat-task-media')
@@ -1539,26 +1537,28 @@ describe('Canvas runtime configuration', () => {
     expect(
       screen.queryByText('Current environment: UAT')
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('tablist')).toHaveClass(
-      'flex-nowrap',
-      'overflow-x-auto'
-    )
-    screen
-      .getAllByRole('tab')
-      .forEach((tab) => expect(tab).toHaveClass('h-8', 'flex-none', 'px-3'))
     expect(
       screen.queryByRole('combobox', { name: 'Environment' })
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Task media' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: 'Database backups' })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('form', {
         name: 'Publish task media configuration',
       })
     ).not.toBeInTheDocument()
     expect(screen.queryByText('canvas-uat-db-backups')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('form', {
+        name: 'Publish database backup configuration',
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Database backup bucket')
+    ).not.toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Update configuration' })
@@ -1566,26 +1566,7 @@ describe('Canvas runtime configuration', () => {
     expect(
       screen.getByRole('form', { name: 'Publish task media configuration' })
     ).toBeVisible()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Database backups' }))
-    const backupBucket = screen.getByText('canvas-uat-db-backups')
-    expect(backupBucket.closest('[data-slot="card"]')).toHaveAttribute(
-      'data-size',
-      'default'
-    )
-    const backupCard = backupBucket.closest('[data-slot="card"]')
-    expect(
-      within(backupCard as HTMLElement)
-        .getByText('Version 2')
-        .closest('[data-slot="badge"]')
-    ).toHaveAttribute('data-variant', 'secondary')
     expect(screen.queryByText(/^v[12]$/)).not.toBeInTheDocument()
-    expect(screen.queryByText('canvas-uat-task-media')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('form', {
-        name: 'Publish database backup configuration',
-      })
-    ).not.toBeInTheDocument()
   })
 
   it('uses a right-side credential sheet with fixed schemes and one API key', async () => {
@@ -1976,47 +1957,47 @@ describe('Canvas runtime configuration', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
 
-  it.each([
-    ['Task media', 'Publish task media configuration'],
-    ['Database backups', 'Publish database backup configuration'],
-  ])(
-    'protects dirty %s edits when cancelling from its footer',
-    async (tab, name) => {
-      renderRuntime()
-      await screen.findByText('canvas-uat-task-media')
-      fireEvent.click(screen.getByRole('tab', { name: tab }))
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Update configuration' })
-      )
-      const form = screen.getByRole('form', { name })
-      fireEvent.change(within(form).getByLabelText('Reason (optional)'), {
-        target: { value: 'Keep this draft' },
+  it('protects a dirty task media draft when cancelling from its footer', async () => {
+    renderRuntime()
+    await screen.findByText('canvas-uat-task-media')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update configuration' })
+    )
+    const form = screen.getByRole('form', {
+      name: 'Publish task media configuration',
+    })
+    fireEvent.change(within(form).getByLabelText('Reason (optional)'), {
+      target: { value: 'Keep this draft' },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(within(form).getByLabelText('Reason (optional)')).toHaveValue(
+      'Keep this draft'
+    )
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Discard changes',
       })
-      fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
-      const dialog = await screen.findByRole('dialog')
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-      expect(within(form).getByLabelText('Reason (optional)')).toHaveValue(
-        'Keep this draft'
-      )
-      fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
-      fireEvent.click(
-        within(await screen.findByRole('dialog')).getByRole('button', {
-          name: 'Discard changes',
+    )
+    expect(
+      screen.queryByRole('form', {
+        name: 'Publish task media configuration',
+      })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update configuration' })
+    )
+    expect(
+      within(
+        screen.getByRole('form', {
+          name: 'Publish task media configuration',
         })
-      )
-      expect(screen.queryByRole('form', { name })).not.toBeInTheDocument()
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Update configuration' })
-      )
-      expect(
-        within(screen.getByRole('form', { name })).getByLabelText(
-          'Reason (optional)'
-        )
-      ).toHaveValue('')
-      expect(apiMocks.publishCanvasTaskMediaStorage).not.toHaveBeenCalled()
-      expect(apiMocks.publishCanvasDatabaseBackupStorage).not.toHaveBeenCalled()
-    }
-  )
+      ).getByLabelText('Reason (optional)')
+    ).toHaveValue('')
+    expect(apiMocks.publishCanvasTaskMediaStorage).not.toHaveBeenCalled()
+  })
 
   it('disables storage footer actions while the confirmed publication is pending', async () => {
     apiMocks.publishCanvasTaskMediaStorage.mockReturnValue(

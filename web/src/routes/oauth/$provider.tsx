@@ -32,7 +32,10 @@ import {
   OAUTH_BIND_CALLBACK_MESSAGE,
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
-import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
+import {
+  resolvePostLoginRedirect,
+  sanitizeAuthRedirect,
+} from '@/features/auth/lib/auth-redirect'
 import {
   parseTelegramBindCallback,
   postTelegramBindResult,
@@ -200,7 +203,12 @@ function OAuthCallback() {
         const response = await api.get(`/api/oauth/${provider}`, config)
         if (response.data?.success && isAuthBundle(response.data?.data)) {
           applyAuthBundle(response.data.data)
-          safeNavigate(search.redirect)
+          const href = resolvePostLoginRedirect(
+            search.redirect,
+            window.location.origin,
+            response.data.data.user
+          )
+          void navigate({ href, replace: true })
           toast.success(i18next.t('Signed in successfully!'))
           return
         }

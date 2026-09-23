@@ -31,6 +31,8 @@ import {
 } from '@/components/data-table'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { getUsers, searchUsers } from '../api'
 import {
@@ -39,6 +41,7 @@ import {
   getUserRoleOptions,
   isUserDeleted,
 } from '../constants'
+import { canvasRootUserTableColumnVisibility } from '../lib/canvas-root-user-management'
 import type { User, UserSortBy } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useUsersColumns } from './users-columns'
@@ -61,7 +64,9 @@ function isDisabledUserRow(user: User) {
 
 export function UsersTable() {
   const { t } = useTranslation()
-  const columns = useUsersColumns()
+  const currentUserRole = useAuthStore((state) => state.auth.user?.role)
+  const canvasProvisioningMode = currentUserRole === ROLE.SUPER_ADMIN
+  const columns = useUsersColumns({ canvasProvisioningMode })
   const { refreshTrigger } = useUsers()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [sorting, setSorting] = useState<SortingState>([])
@@ -173,7 +178,10 @@ export function UsersTable() {
   const { table } = useDataTable({
     data: users,
     columns,
-    enableRowSelection: true,
+    enableRowSelection: !canvasProvisioningMode,
+    initialColumnVisibility: canvasProvisioningMode
+      ? canvasRootUserTableColumnVisibility
+      : {},
     columnFilters,
     globalFilter,
     pagination,
@@ -238,7 +246,11 @@ export function UsersTable() {
         if (!isDisabledUserRow(row.original)) return undefined
         return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
       }}
-      bulkActions={<DataTableBulkActions table={table} />}
+      bulkActions={
+        canvasProvisioningMode ? undefined : (
+          <DataTableBulkActions table={table} />
+        )
+      }
     />
   )
 }

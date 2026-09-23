@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
+import { getCanvasPrincipalRoleLabelKey } from '@/features/canvas-cloud/access'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import useDialogState from '@/hooks/use-dialog'
 import { useIsSidebarModuleVisible } from '@/hooks/use-sidebar-config'
@@ -92,9 +92,9 @@ export function ProfileDropdown() {
                 <span className='text-muted-foreground text-xs'>
                   {canvasIdentity
                     ? t(
-                        isCanvasAdministrator(canvasIdentity.principalType)
-                          ? 'Canvas Platform Administrator'
-                          : 'Canvas Customer'
+                        getCanvasPrincipalRoleLabelKey(
+                          canvasIdentity.principalType
+                        )
                       )
                     : roleLabel}
                 </span>

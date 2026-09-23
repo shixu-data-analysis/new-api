@@ -47,7 +47,6 @@ import {
   getCanvasContributionReport,
   getCanvasSession,
 } from './api'
-import { getCanvasProductName } from './brand'
 import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
@@ -390,10 +389,7 @@ export function AdminContent(props: {
 }
 
 export function CanvasCloud() {
-  const { t, i18n } = useTranslation()
-  const canvasName = getCanvasProductName(
-    i18n.resolvedLanguage ?? i18n.language
-  )
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const params = route.useParams()
   const search = route.useSearch()
@@ -408,7 +404,6 @@ export function CanvasCloud() {
   if (session.isPending) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <LoadingState />
         </SectionPageLayout.Content>
@@ -418,7 +413,6 @@ export function CanvasCloud() {
   if (session.isError) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
             <ErrorState
@@ -443,7 +437,6 @@ export function CanvasCloud() {
   ) {
     return (
       <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Title>{canvasName}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <ErrorState
             title={t('Access denied')}
@@ -466,7 +459,7 @@ export function CanvasCloud() {
           <ErrorState
             title={t('Invalid runtime view')}
             description={t(
-              'Choose execution, provider configuration, or storage and backups.'
+              'Choose execution, provider configuration, or task media.'
             )}
           />
         </SectionPageLayout.Content>
@@ -556,7 +549,7 @@ export function CanvasCloud() {
         runtimeView={
           search.view === 'execution' ||
           search.view === 'provider' ||
-          search.view === 'storage'
+          search.view === 'taskMedia'
             ? search.view
             : undefined
         }

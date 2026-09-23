@@ -18,18 +18,6 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_CANVAS_CLOUD_SERVER_URL ||
     env.rawPublicVars.VITE_CANVAS_CLOUD_SERVER_URL ||
     'http://localhost:10689'
-  const canvasManualUat =
-    process.env.VITE_CANVAS_MANUAL_UAT ||
-    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT ||
-    ''
-  const canvasManualUatCustomerLogin =
-    process.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
-    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN ||
-    ''
-  const canvasManualUatAdminLogin =
-    process.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
-    env.rawPublicVars.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN ||
-    ''
 
   const isProd = envMode === 'production'
   const devProxy: Record<string, object> = Object.fromEntries(
@@ -76,16 +64,6 @@ export default defineConfig(({ envMode }) => {
     source: {
       entry: {
         index: './src/main.tsx',
-      },
-      define: {
-        'import.meta.env.VITE_CANVAS_MANUAL_UAT':
-          JSON.stringify(canvasManualUat),
-        'import.meta.env.VITE_CANVAS_MANUAL_UAT_CUSTOMER_LOGIN': JSON.stringify(
-          canvasManualUatCustomerLogin
-        ),
-        'import.meta.env.VITE_CANVAS_MANUAL_UAT_ADMIN_LOGIN': JSON.stringify(
-          canvasManualUatAdminLogin
-        ),
       },
     },
     resolve: {

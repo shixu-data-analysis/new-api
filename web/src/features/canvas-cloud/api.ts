@@ -40,6 +40,9 @@ import type {
   CanvasContributionReport,
   CanvasCustomerWorkspace,
   CanvasSession,
+  CanvasAdminProvisioningPrincipals,
+  CanvasAdminProvisioningStatus,
+  CanvasProvisionedAdministrator,
   CanvasIssuedRechargeCodes,
   CanvasAdminInviteCode,
   CanvasAdminInviteCodePage,
@@ -167,7 +170,52 @@ export async function getCanvasSession(): Promise<CanvasSession> {
   return (
     await api.get<CanvasSession>(`${webBase}/session`, {
       skipErrorHandler: true,
+      skipAuthRefresh: true,
     })
+  ).data
+}
+
+export async function getCanvasAdminProvisioningStatus(
+  signal?: AbortSignal
+): Promise<CanvasAdminProvisioningStatus> {
+  return (
+    await api.get<CanvasAdminProvisioningStatus>(
+      `${webBase}/root/admin-provisioning/status`,
+      { signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasAdminProvisioningPrincipals(
+  signal?: AbortSignal
+): Promise<CanvasAdminProvisioningPrincipals> {
+  return (
+    await api.get<CanvasAdminProvisioningPrincipals>(
+      `${webBase}/root/admin-provisioning/principals`,
+      { signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function bootstrapCanvasSuperAdmin(): Promise<CanvasProvisionedAdministrator> {
+  return (
+    await api.post<CanvasProvisionedAdministrator>(
+      `${webBase}/root/admin-provisioning/bootstrap`,
+      { confirmed: true },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function grantCanvasPlatformAdmin(
+  username: string
+): Promise<CanvasProvisionedAdministrator> {
+  return (
+    await api.post<CanvasProvisionedAdministrator>(
+      `${webBase}/root/admin-provisioning/platform-admins`,
+      { username, confirmed: true },
+      { skipErrorHandler: true }
+    )
   ).data
 }
 

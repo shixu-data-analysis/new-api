@@ -650,7 +650,7 @@ describe('execution settings', () => {
     expect(
       recoveryFacts.getByText('Scan interval (milliseconds)')
     ).toBeVisible()
-    expect(recoveryFacts.getByText('Default instances')).toBeVisible()
+    expect(recoveryFacts.getByText('Deployment target instances')).toBeVisible()
     expect(recoveryFacts.getAllByText('10000')).toHaveLength(2)
     expect(recoveryFacts.getByText('60000')).toBeVisible()
     expect(recoveryFacts.getByText('4')).toBeVisible()

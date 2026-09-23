@@ -42,7 +42,7 @@ export function PricingCalculator() {
     queryFn: getCanvasPointIssuanceRates,
   })
   const publishedRate = rates.data?.find((rate) => rate.status === 'PUBLISHED')
-  const [pointsPerRmb, setPointsPerRmb] = useState('50')
+  const [pointsPerRmb, setPointsPerRmb] = useState('100')
   const [answers, setAnswers] = useState<PricingQuestionnaireAnswers>({
     targetMarginPercent: DEFAULT_TARGET_MARGIN_PERCENT,
     successProbabilityPercent: '90',

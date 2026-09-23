@@ -21,8 +21,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AppHeader } from '../app-header'
 
+const canvasShellState = {
+  isCanvasRootUserManagement: true,
+  isCanvasStandaloneShell: true,
+  isCanvasShell: true,
+}
+
 vi.mock('@/features/canvas-cloud/use-canvas-session', () => ({
-  useCanvasShellSession: () => ({ isCanvasShell: true }),
+  useCanvasShellSession: () => canvasShellState,
 }))
 vi.mock('@/hooks/use-notifications', () => ({
   useNotifications: () => ({}),
@@ -42,8 +48,13 @@ vi.mock('@/components/profile-dropdown', () => ({
 }))
 vi.mock('@/components/search', () => ({ Search: () => <div>Search</div> }))
 vi.mock('../header', () => ({
-  Header: (props: { children: React.ReactNode }) => (
-    <header>{props.children}</header>
+  Header: (props: {
+    children: React.ReactNode
+    showSidebarTrigger?: boolean
+  }) => (
+    <header data-sidebar-trigger={String(props.showSidebarTrigger)}>
+      {props.children}
+    </header>
   ),
 }))
 vi.mock('../system-brand', () => ({
@@ -62,5 +73,25 @@ describe('AppHeader Canvas shell boundary', () => {
     expect(screen.queryByText('Search')).not.toBeInTheDocument()
     expect(screen.queryByText('Notifications')).not.toBeInTheDocument()
     expect(screen.queryByText('Config drawer')).not.toBeInTheDocument()
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-sidebar-trigger',
+      'false'
+    )
+  })
+
+  it('restores the sidebar trigger after the root receives a canvas session', () => {
+    canvasShellState.isCanvasRootUserManagement = true
+    canvasShellState.isCanvasStandaloneShell = false
+    canvasShellState.isCanvasShell = true
+
+    render(<AppHeader />)
+
+    expect(screen.getByRole('banner')).toHaveAttribute(
+      'data-sidebar-trigger',
+      'true'
+    )
+    expect(screen.queryByText('Top navigation')).not.toBeInTheDocument()
+
+    canvasShellState.isCanvasStandaloneShell = true
   })
 })

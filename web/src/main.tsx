@@ -33,7 +33,6 @@ import {
   isCanvasBrandContext,
 } from '@/features/canvas-cloud/brand'
 import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
-import { initializeCanvasManualUat } from '@/features/canvas-cloud/manual-uat'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
@@ -55,7 +54,6 @@ import './styles/index.css'
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
 initializeFrontendCache()
 installBuildMetadata()
-const canvasManualUatReady = initializeCanvasManualUat().catch(() => undefined)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -190,8 +188,7 @@ const applicationRoot = rootElement
     /* empty */
   }
 })()
-async function renderApplication(): Promise<void> {
-  await canvasManualUatReady
+function renderApplication(): void {
   if (applicationRoot.innerHTML) return
 
   const root = ReactDOM.createRoot(applicationRoot)
@@ -210,4 +207,4 @@ async function renderApplication(): Promise<void> {
   )
 }
 
-void renderApplication()
+renderApplication()

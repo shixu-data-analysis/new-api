@@ -107,13 +107,13 @@ export function AppHeader({
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-  const { isCanvasShell } = useCanvasShellSession()
+  const { isCanvasShell, isCanvasStandaloneShell } = useCanvasShellSession()
 
   // Notifications hook
   const notifications = useNotifications()
 
   return (
-    <Header>
+    <Header showSidebarTrigger={!isCanvasStandaloneShell}>
       <SystemBrand variant='inline' />
 
       {leftContent ? (
