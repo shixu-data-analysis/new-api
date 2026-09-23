@@ -245,11 +245,9 @@ export function CustomerPriceEditor(props: {
               <FormItem>
                 <FormLabel>{t('Model and quality')}</FormLabel>
                 <Input
-                  value={
-                    `${props.row.modelName} · ${String(
-                      props.row.parameters.quality ?? props.row.combinationKey
-                    )}`
-                  }
+                  value={`${props.row.modelName} · ${String(
+                    props.row.parameters.quality ?? props.row.combinationKey
+                  )}`}
                   disabled
                 />
               </FormItem>
@@ -281,11 +279,9 @@ export function CustomerPriceEditor(props: {
                               `tokenRates.${category}` as FieldPath<CustomerPriceFormValues>
                             }
                             label=''
-                            ariaLabel={
-                              `${t(providerTokenCategoryLabel[category])} ${t(
-                                'Customer points per million tokens'
-                              )}`
-                            }
+                            ariaLabel={`${t(providerTokenCategoryLabel[category])} ${t(
+                              'Customer points per million tokens'
+                            )}`}
                           />
                         </TableCell>
                       </TableRow>

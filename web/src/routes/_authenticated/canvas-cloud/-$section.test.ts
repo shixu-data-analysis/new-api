@@ -46,7 +46,7 @@ async function beforeLoad(
   throw new Error('Expected the legacy route to redirect')
 }
 
-describe('Canvas Cloud legacy section search', () => {
+describe('Canvas Cloud legacy route search', () => {
   it('redirects an unavailable Cloud session boundary to service unavailable', async () => {
     const failure = new Error('upstream unavailable')
     mocks.getCanvasSession.mockRejectedValueOnce(failure)

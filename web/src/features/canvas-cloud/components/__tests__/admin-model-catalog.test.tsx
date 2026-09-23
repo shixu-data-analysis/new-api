@@ -230,7 +230,7 @@ describe('Canvas model catalog folder upload', () => {
         customerVisible: false,
         pricedTargets: 0,
         totalTargets: 1,
-        provider: { code: 'api', name: 'API provider' },
+        provider: { id: 'provider-api', code: 'api', name: 'API provider' },
         channel: {
           code: 'api',
           version: 1,

@@ -6,8 +6,8 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { Outlet, useLocation } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
+import { Outlet, useLocation } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
