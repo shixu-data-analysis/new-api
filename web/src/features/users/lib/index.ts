@@ -31,3 +31,4 @@ export {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from './user-form'
+export { validateUserPassword } from './user-password'

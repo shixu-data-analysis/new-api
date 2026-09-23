@@ -9,23 +9,46 @@ License, or (at your option) any later version.
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from '@tanstack/react-router'
 
+import {
+  isCanvasRootProfilePath,
+  isCanvasRootUserManagementPath,
+} from '@/features/users/lib/canvas-root-user-management'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { getCanvasSession } from './api'
 
-export function useCanvasSession() {
+export const canvasSessionQueryKey = ['canvas-cloud', 'session'] as const
+
+export function useCanvasSession(enabled = true) {
   return useQuery({
-    queryKey: ['canvas-cloud', 'session'],
+    queryKey: canvasSessionQueryKey,
     queryFn: getCanvasSession,
+    enabled,
     retry: false,
     staleTime: 5 * 60 * 1000,
   })
 }
 
 export function useCanvasShellSession() {
-  const canvasSession = useCanvasSession()
   const pathname = useLocation({ select: (location) => location.pathname })
+  const role = useAuthStore((state) => state.auth.user?.role)
+  const isCanvasRootUserManagement = isCanvasRootUserManagementPath(
+    pathname,
+    role
+  )
+  const isCanvasRootProfile = isCanvasRootProfilePath(pathname, role)
+  const canvasSession = useCanvasSession()
+  const isCanvasStandaloneShell =
+    (isCanvasRootUserManagement || isCanvasRootProfile) &&
+    !canvasSession.isSuccess
+
   return {
     canvasSession,
+    isCanvasRootUserManagement,
+    isCanvasStandaloneShell,
     isCanvasShell:
-      canvasSession.isSuccess || pathname.startsWith('/canvas-cloud/'),
+      isCanvasStandaloneShell ||
+      canvasSession.isSuccess ||
+      pathname.startsWith('/canvas-cloud/'),
   }
 }

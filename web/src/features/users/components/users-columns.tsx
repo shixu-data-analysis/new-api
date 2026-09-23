@@ -39,12 +39,19 @@ import {
   isUserDeleted,
 } from '../constants'
 import type { User } from '../types'
+import { CanvasRootUserAction } from './canvas-root-user-action'
 import { DataTableRowActions } from './data-table-row-actions'
 import { UserQuotaCell } from './user-quota-cell'
 
-export function useUsersColumns(): ColumnDef<User>[] {
+interface UsersColumnsOptions {
+  canvasProvisioningMode: boolean
+}
+
+export function useUsersColumns(
+  options: UsersColumnsOptions
+): ColumnDef<User>[] {
   const { t } = useTranslation()
-  return [
+  const columns: ColumnDef<User>[] = [
     {
       id: 'select',
       header: ({ table }) => (
@@ -193,7 +200,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     },
     {
       accessorKey: 'role',
-      header: t('Role'),
+      header: options.canvasProvisioningMode ? t('Account role') : t('Role'),
       cell: ({ row }) => {
         const roleValue = row.getValue('role') as number
         const roleConfig = USER_ROLES[roleValue as keyof typeof USER_ROLES]
@@ -322,9 +329,22 @@ export function useUsersColumns(): ColumnDef<User>[] {
     },
     {
       id: 'actions',
-      header: () => t('Actions'),
-      cell: ({ row }) => <DataTableRowActions row={row} />,
+      header: () =>
+        options.canvasProvisioningMode
+          ? t('Canvas administrator access')
+          : t('Actions'),
+      cell: ({ row }) =>
+        options.canvasProvisioningMode ? (
+          <CanvasRootUserAction user={row.original} />
+        ) : (
+          <DataTableRowActions row={row} />
+        ),
+      enableHiding: false,
       meta: { pinned: 'right' as const },
     },
   ]
+
+  return options.canvasProvisioningMode
+    ? columns.filter((column) => column.id !== 'select')
+    : columns
 }

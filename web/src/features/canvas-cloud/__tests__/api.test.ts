@@ -54,6 +54,10 @@ import {
   getCanvasTaskAssetDownload,
   getCanvasSessionFailureRoute,
   getCanvasSession,
+  getCanvasAdminProvisioningPrincipals,
+  getCanvasAdminProvisioningStatus,
+  bootstrapCanvasSuperAdmin,
+  grantCanvasPlatformAdmin,
   getCanvasPointIssuanceRates,
   getCanvasTaskPolicySettings,
   getCanvasRechargePurchaseLink,
@@ -118,6 +122,17 @@ describe('Canvas Cloud API boundary', () => {
   beforeEach(() => {
     mocks.get.mockReset()
     mocks.post.mockReset()
+  })
+
+  it('leaves Canvas session authorization failures to the route boundary', async () => {
+    mocks.get.mockResolvedValue({ data: { principalType: 'SUPER_ADMIN' } })
+
+    await getCanvasSession()
+
+    expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/session', {
+      skipErrorHandler: true,
+      skipAuthRefresh: true,
+    })
   })
 
   it('keeps UAT-021 invite availability and extension payloads on Cloud endpoints', async () => {
@@ -193,6 +208,7 @@ describe('Canvas Cloud API boundary', () => {
     await getCanvasSession()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/session', {
       skipErrorHandler: true,
+      skipAuthRefresh: true,
     })
 
     expect(
@@ -216,6 +232,67 @@ describe('Canvas Cloud API boundary', () => {
         },
       })
     ).toBe(false)
+  })
+
+  it('uses the root-only Canvas administrator provisioning contract', async () => {
+    const status = {
+      bootstrapStatus: 'REQUIRED' as const,
+      currentRootExternalId: '1',
+      superAdminExternalId: null,
+    }
+    const nullableSuperAdministrator = {
+      principalId: 'principal-1',
+      principalType: 'SUPER_ADMIN' as const,
+      externalId: '1',
+      displayName: null,
+      createdAt: '2026-09-19T00:00:00.000Z',
+    }
+    const nullablePlatformAdministrator = {
+      ...nullableSuperAdministrator,
+      principalId: 'principal-10',
+      principalType: 'PLATFORM_ADMIN' as const,
+      externalId: '10',
+    }
+    const principals = {
+      items: [nullableSuperAdministrator, nullablePlatformAdministrator],
+    }
+    mocks.get
+      .mockResolvedValueOnce({ data: status })
+      .mockResolvedValueOnce({ data: principals })
+    mocks.post
+      .mockResolvedValueOnce({ data: nullableSuperAdministrator })
+      .mockResolvedValueOnce({ data: nullablePlatformAdministrator })
+
+    await expect(getCanvasAdminProvisioningStatus()).resolves.toEqual(status)
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/root/admin-provisioning/status',
+      { signal: undefined, skipErrorHandler: true }
+    )
+    await expect(getCanvasAdminProvisioningPrincipals()).resolves.toEqual(
+      principals
+    )
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/root/admin-provisioning/principals',
+      { signal: undefined, skipErrorHandler: true }
+    )
+
+    await expect(bootstrapCanvasSuperAdmin()).resolves.toEqual(
+      nullableSuperAdministrator
+    )
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/root/admin-provisioning/bootstrap',
+      { confirmed: true },
+      { skipErrorHandler: true }
+    )
+
+    await expect(grantCanvasPlatformAdmin('enabled-admin')).resolves.toEqual(
+      nullablePlatformAdministrator
+    )
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/root/admin-provisioning/platform-admins',
+      { username: 'enabled-admin', confirmed: true },
+      { skipErrorHandler: true }
+    )
   })
 
   it('distinguishes session authorization failures from Cloud unavailability', () => {

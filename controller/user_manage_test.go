@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/authz"
-
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -88,50 +87,68 @@ func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T)
 	assert.Equal(t, model.UserSessionStatusRevoked, session.Status)
 }
 
-func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T) {
+func TestManageUserRejectsRoleConversionAndKeepsExistingRole(t *testing.T) {
 	db := setupManageUserTestDB(t)
-	previousMaster := common.IsMasterNode
-	common.IsMasterNode = false
-	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+
+	for _, testCase := range []struct {
+		name   string
+		action string
+		role   int
+	}{
+		{name: "customer promotion", action: "promote", role: common.RoleCommonUser},
+		{name: "administrator demotion", action: "demote", role: common.RoleAdminUser},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			user := model.User{
+				Username: "managed-role-change-" + testCase.action, Password: "password", Role: testCase.role,
+				Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "role-change-" + testCase.action,
+			}
+			require.NoError(t, db.Create(&user).Error)
+
+			recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":%q}`, user.Id, testCase.action))
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"success":false`)
+
+			var unchanged model.User
+			require.NoError(t, db.First(&unchanged, user.Id).Error)
+			assert.Equal(t, testCase.role, unchanged.Role)
+			assert.EqualValues(t, 1, unchanged.AuthVersion)
+		})
+	}
+}
+
+func TestAdminAccountUpdateForcesLegacyPermissionsDenied(t *testing.T) {
+	db := setupManageUserTestDB(t)
 	require.NoError(t, authz.Init(db))
 
-	now := time.Now().Unix()
-	user := model.User{
-		Username: "managed-demote-user", Password: "password", Role: common.RoleAdminUser,
+	admin := model.User{
+		Username: "canvas-admin", Password: "password", Role: common.RoleAdminUser,
 		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1,
 	}
-	require.NoError(t, db.Create(&user).Error)
-	for _, sid := range []string{"managed-demote-session-one", "managed-demote-session-two"} {
-		require.NoError(t, db.Create(&model.UserSession{
-			SID: sid, UserID: user.Id, Version: 1, UserAuthVersion: 1,
-			Status: model.UserSessionStatusActive, RefreshHash: "refresh-" + sid, LoginMethod: "password",
-			LastActiveAt: now, ExpiresAt: now + 3600,
-		}).Error)
-	}
+	require.NoError(t, db.Create(&admin).Error)
 
-	sessionUpdateCount := 0
-	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:count_demote_session_updates", func(tx *gorm.DB) {
-		if tx.Statement != nil && tx.Statement.Table == "user_sessions" {
-			sessionUpdateCount++
-		}
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("role", common.RoleRootUser)
+	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
+		_, err := updateAdminPermissionsForUserInTx(c, tx, admin.Id, admin.Role, authz.PermissionsMap{
+			authz.ResourceChannel: {
+				authz.ActionRead:           true,
+				authz.ActionOperate:        true,
+				authz.ActionWrite:          true,
+				authz.ActionSensitiveWrite: true,
+				authz.ActionSecretView:     true,
+			},
+		})
+		return err
 	}))
+	require.NoError(t, authz.ReloadPolicy())
 
-	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"demote"}`, user.Id))
-	assert.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"success":true`)
-
-	var updated model.User
-	require.NoError(t, db.First(&updated, user.Id).Error)
-	assert.Equal(t, common.RoleCommonUser, updated.Role)
-	assert.EqualValues(t, 2, updated.AuthVersion)
-	var sessions []model.UserSession
-	require.NoError(t, db.Where("user_id = ?", user.Id).Order("sid asc").Find(&sessions).Error)
-	require.Len(t, sessions, 2)
-	for _, session := range sessions {
-		assert.Equal(t, model.UserSessionStatusRevoked, session.Status)
-		assert.Equal(t, "admin_demote", session.RevokedReason)
-	}
-	assert.Equal(t, 1, sessionUpdateCount)
+	assert.False(t, authz.Can(admin.Id, admin.Role, authz.ChannelRead))
+	assert.False(t, authz.Can(admin.Id, admin.Role, authz.ChannelOperate))
+	assert.False(t, authz.Can(admin.Id, admin.Role, authz.ChannelWrite))
+	assert.False(t, authz.Can(admin.Id, admin.Role, authz.ChannelSensitiveWrite))
+	assert.False(t, authz.Can(admin.Id, admin.Role, authz.ChannelSecretView))
 }
 
 func TestManageUserDeleteReturnsImmediatelyAndUnknownActionFails(t *testing.T) {

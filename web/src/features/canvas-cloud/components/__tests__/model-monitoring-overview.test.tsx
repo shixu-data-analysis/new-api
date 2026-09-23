@@ -193,20 +193,20 @@ describe('logical model monitoring overview', () => {
     const matrix = screen.getByRole('table', {
       name: 'Per-model result matrix',
     })
-    const alphaRow = within(matrix)
-      .getByRole('button', { name: 'Alpha model' })
-      .closest('[role="row"]')
+    const alphaName = within(matrix).getByText('Alpha model')
+    expect(
+      within(matrix).queryByRole('button', { name: 'Alpha model' })
+    ).not.toBeInTheDocument()
+    const alphaRow = alphaName.closest('[role="row"]')
     expect(alphaRow).toHaveAttribute('aria-selected', 'true')
     expect(alphaRow).toHaveClass('bg-primary/10')
-    const betaButton = within(matrix).getByRole('button', {
-      name: 'Beta model',
-    })
-    fireEvent.click(betaButton)
-    expect(betaButton.closest('[role="row"]')).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
-    expect(betaButton.closest('[role="row"]')).toHaveClass('bg-primary/10')
+    const betaRow = within(matrix)
+      .getByText('Beta model')
+      .closest('[role="row"]')
+    if (!betaRow) throw new Error('Beta model row is missing')
+    fireEvent.click(betaRow)
+    expect(betaRow).toHaveAttribute('aria-selected', 'true')
+    expect(betaRow).toHaveClass('bg-primary/10')
     expect(alphaRow).toHaveAttribute('aria-selected', 'false')
     expect(
       within(matrix).getByRole('button', {

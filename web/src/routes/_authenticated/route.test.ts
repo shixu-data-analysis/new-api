@@ -18,29 +18,33 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Route } from './route'
+
 const mocks = vi.hoisted(() => ({
   getCanvasSession: vi.fn(),
   getCanvasSessionFailureRoute: vi.fn(),
+  isCanvasInviteRegistrationRequired: vi.fn(() => false),
   getAuthState: vi.fn(),
 }))
 
 vi.mock('@/components/layout', () => ({ AuthenticatedLayout: () => null }))
 vi.mock('@/features/canvas-cloud/access', () => ({
-  canCanvasPrincipalAccessPath: vi.fn(() => true),
+  canCanvasPrincipalAccessPath: vi.fn((pathname: string) =>
+    pathname.startsWith('/canvas-cloud/')
+  ),
   getCanvasHomeSection: vi.fn(() => 'customers'),
-  isCanvasDefaultLandingPath: vi.fn(() => false),
+  isCanvasDefaultLandingPath: vi.fn(
+    (pathname: string) => pathname === '/dashboard'
+  ),
 }))
 vi.mock('@/features/canvas-cloud/api', () => ({
   getCanvasSession: mocks.getCanvasSession,
   getCanvasSessionFailureRoute: mocks.getCanvasSessionFailureRoute,
-  isCanvasInviteRegistrationRequired: vi.fn(() => false),
+  isCanvasInviteRegistrationRequired: mocks.isCanvasInviteRegistrationRequired,
 }))
 vi.mock('@/stores/auth-store', () => ({
   useAuthStore: { getState: mocks.getAuthState },
 }))
-
-import { Route } from './route'
-
 const location = {
   href: '/canvas-cloud/runtime',
   pathname: '/canvas-cloud/runtime',
@@ -59,6 +63,8 @@ describe('authenticated Canvas session boundary', () => {
   beforeEach(() => {
     mocks.getCanvasSession.mockReset()
     mocks.getCanvasSessionFailureRoute.mockReset()
+    mocks.isCanvasInviteRegistrationRequired.mockReset()
+    mocks.isCanvasInviteRegistrationRequired.mockReturnValue(false)
     mocks.getAuthState.mockReturnValue({
       auth: { user: { role: 10 }, accessToken: 'test-access-token' },
     })
@@ -85,8 +91,83 @@ describe('authenticated Canvas session boundary', () => {
     })
   })
 
+  it('keeps an unregistered ordinary user inside Canvas activation', async () => {
+    const failure = {
+      response: {
+        status: 403,
+        data: { code: 'INVITE_REGISTRATION_REQUIRED' },
+      },
+    }
+    mocks.getAuthState.mockReturnValue({
+      auth: { user: { role: 1 }, accessToken: 'user-access-token' },
+    })
+    mocks.getCanvasSession.mockRejectedValue(failure)
+    mocks.isCanvasInviteRegistrationRequired.mockReturnValue(true)
+
+    await expect(runBeforeLoad('/canvas-cloud/points')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSessionFailureRoute).not.toHaveBeenCalled()
+  })
+
   it('does not recursively query Canvas session from the service unavailable route', async () => {
     await expect(runBeforeLoad('/503')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSession).not.toHaveBeenCalled()
+  })
+
+  it('lets the New API root reach user management before Canvas bootstrap', async () => {
+    mocks.getAuthState.mockReturnValue({
+      auth: { user: { role: 100 }, accessToken: 'root-access-token' },
+    })
+
+    await expect(runBeforeLoad('/users')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSession).not.toHaveBeenCalled()
+  })
+
+  it('lets an authenticated account reach its profile without a Canvas session', async () => {
+    mocks.getAuthState.mockReturnValue({
+      auth: { user: { role: 100 }, accessToken: 'root-access-token' },
+    })
+
+    await expect(runBeforeLoad('/profile')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSession).not.toHaveBeenCalled()
+
+    await expect(runBeforeLoad('/profile/')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps ordinary users out of New API business pages', async () => {
+    mocks.getAuthState.mockReturnValue({
+      auth: { user: { role: 1 }, accessToken: 'user-access-token' },
+    })
+
+    await expect(runBeforeLoad('/dashboard/models')).resolves.toMatchObject({
+      options: {
+        to: '/canvas-cloud/$section',
+        params: { section: 'points' },
+        replace: true,
+      },
+    })
+    expect(mocks.getCanvasSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps the New API dashboard usable when no Canvas principal exists', async () => {
+    const failure = { response: { status: 401 } }
+    mocks.getCanvasSession.mockRejectedValue(failure)
+    mocks.getCanvasSessionFailureRoute.mockReturnValue('/403')
+
+    await expect(runBeforeLoad('/dashboard')).resolves.toBeUndefined()
+    expect(mocks.getCanvasSessionFailureRoute).toHaveBeenCalledWith(failure)
+  })
+
+  it('does not let a Cloud outage block the New API dashboard', async () => {
+    const failure = new Error('upstream unavailable')
+    mocks.getCanvasSession.mockRejectedValue(failure)
+    mocks.getCanvasSessionFailureRoute.mockReturnValue('/503')
+
+    await expect(runBeforeLoad('/dashboard')).resolves.toBeUndefined()
+  })
+
+  it('does not couple New API administration pages to Canvas permissions', async () => {
+    await expect(runBeforeLoad('/users')).resolves.toBeUndefined()
     expect(mocks.getCanvasSession).not.toHaveBeenCalled()
   })
 })

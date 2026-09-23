@@ -363,7 +363,6 @@ const runtimeConfigurationKeys = [
   'Wait and next attempt',
   'Time waiting',
   'Last scheduled',
-  'Storage and backups',
   'Choose one provider and credential group. The overview keeps current status, bound models, and version history together.',
   'Add credential group',
   'Select credential group',
@@ -803,13 +802,15 @@ describe('Canvas interface localization', () => {
       const translations = resource.translation as Record<string, string>
       expect(translations['1 worker'], locale).toBeTruthy()
       expect(translations['{{count}} workers'], locale).toBeTruthy()
-      expect(translations['Default instances'], locale).toBeTruthy()
+      expect(translations['Deployment target instances'], locale).toBeTruthy()
     }
     expect(en.translation['1 worker']).toBe('1 worker')
     expect(en.translation['{{count}} workers']).toBe('{{count}} workers')
     expect(fr.translation['{{count}} workers']).not.toContain('worker')
     expect(vi.translation['{{count}} workers']).not.toContain('worker')
-    expect(vi.translation['Default instances']).toBe('Số thực thể mặc định')
+    expect(vi.translation['Deployment target instances']).toBe(
+      'Số phiên bản mục tiêu triển khai'
+    )
   })
 
   it.each([

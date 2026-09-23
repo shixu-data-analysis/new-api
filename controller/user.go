@@ -1132,6 +1132,12 @@ func CreateUser(c *gin.Context) {
 }
 
 func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, userRole int, permissions map[string]map[string]bool) (bool, error) {
+	if userRole == common.RoleAdminUser {
+		if c.GetInt("role") != common.RoleRootUser {
+			return false, fmt.Errorf("only root can update administrator accounts")
+		}
+		return true, authz.SetUserPermissionsInTx(tx, userID, authz.DeniedPermissions())
+	}
 	if permissions == nil {
 		if userRole < common.RoleAdminUser && c.GetInt("role") == common.RoleRootUser {
 			return true, authz.ClearUserAuthorizationInTx(tx, userID)
@@ -1214,25 +1220,15 @@ func ManageUser(c *gin.Context) {
 		})
 		return
 	case "promote":
-		if myRole != common.RoleRootUser {
-			common.ApiErrorI18n(c, i18n.MsgUserAdminCannotPromote)
-			return
-		}
-		if user.Role >= common.RoleAdminUser {
-			common.ApiErrorI18n(c, i18n.MsgUserAlreadyAdmin)
-			return
-		}
-		user.Role = common.RoleAdminUser
+		common.ApiErrorI18n(c, i18n.MsgUserRoleChangeRequiresSeparateAccount)
+		return
 	case "demote":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDemoteRootUser)
 			return
 		}
-		if user.Role == common.RoleCommonUser {
-			common.ApiErrorI18n(c, i18n.MsgUserAlreadyCommon)
-			return
-		}
-		user.Role = common.RoleCommonUser
+		common.ApiErrorI18n(c, i18n.MsgUserRoleChangeRequiresSeparateAccount)
+		return
 	case "add_quota":
 		switch req.Mode {
 		case "add":

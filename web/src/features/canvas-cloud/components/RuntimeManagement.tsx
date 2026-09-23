@@ -21,7 +21,7 @@ import {
   type CanvasProviderNavigationTarget,
 } from './RuntimeConfiguration'
 
-export type RuntimeManagementView = 'execution' | 'provider' | 'storage'
+export type RuntimeManagementView = 'execution' | 'provider' | 'taskMedia'
 
 export function RuntimeManagement(props: {
   initialView?: RuntimeManagementView
@@ -46,8 +46,8 @@ export function RuntimeManagement(props: {
         <CanvasManagementTabsTrigger value='provider'>
           {t('Provider configuration')}
         </CanvasManagementTabsTrigger>
-        <CanvasManagementTabsTrigger value='storage'>
-          {t('Storage and backups')}
+        <CanvasManagementTabsTrigger value='taskMedia'>
+          {t('Task media')}
         </CanvasManagementTabsTrigger>
       </CanvasManagementTabsList>
 
@@ -70,8 +70,8 @@ export function RuntimeManagement(props: {
           providerTarget={props.providerTarget}
         />
       </TabsContent>
-      <TabsContent value='storage'>
-        <RuntimeConfiguration view='storage' />
+      <TabsContent value='taskMedia'>
+        <RuntimeConfiguration view='taskMedia' />
       </TabsContent>
     </Tabs>
   )

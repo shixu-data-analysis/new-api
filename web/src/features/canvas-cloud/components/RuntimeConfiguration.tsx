@@ -73,13 +73,11 @@ import { useDebounce } from '@/hooks'
 import {
   bindCanvasProviderCredentials,
   archiveCanvasCredentialGroup,
-  checkCanvasDatabaseBackupStorage,
   checkCanvasTaskMediaStorage,
   getCanvasProviderConfiguration,
   getCanvasProviderCredentialGroupChanges,
   getCanvasRuntimeConfiguration,
   previewCanvasProviderCredentialBindings,
-  publishCanvasDatabaseBackupStorage,
   publishCanvasProviderCredentialGroup,
   publishCanvasCredentialGroupManagement,
   restoreCanvasCredentialGroup,
@@ -164,37 +162,6 @@ const taskMediaSchema = z
     path: ['secretAccessKey'],
   })
 type TaskMediaForm = z.infer<typeof taskMediaSchema>
-const databaseBackupSchema = z
-  .object({
-    endpoint: z
-      .string()
-      .trim()
-      .refine(isHttpsOrigin, 'Enter an HTTPS origin without a path'),
-    bucket: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, 'Enter a valid bucket name'),
-    accessKeyId: z.string().trim().max(255, 'Use no more than 255 characters'),
-    secretAccessKey: z
-      .string()
-      .max(65_536, 'Use no more than 65536 characters'),
-    backupRetentionHours: z
-      .number({ error: 'Enter a number' })
-      .int('Enter a whole number')
-      .min(1, 'Enter a value from 1 to 8760')
-      .max(8760, 'Enter a value from 1 to 8760'),
-    downloadUrlTtlSeconds: z
-      .number({ error: 'Enter a number' })
-      .int('Enter a whole number')
-      .min(60, 'Enter a value from 60 to 3600')
-      .max(3600, 'Enter a value from 60 to 3600'),
-    reason: z.string().trim().max(255, 'Use no more than 255 characters'),
-  })
-  .refine((value) => !value.secretAccessKey || Boolean(value.accessKeyId), {
-    message: 'Enter both credential fields or leave both blank',
-    path: ['secretAccessKey'],
-  })
-type DatabaseBackupForm = z.infer<typeof databaseBackupSchema>
 
 const credentialSchema = z.object({
   providerId: z.string().uuid({ error: 'Select provider' }),
@@ -263,24 +230,21 @@ export interface CanvasProviderNavigationTarget {
 
 export function RuntimeConfiguration(
   props: {
-    view?: 'storage' | 'provider'
+    view?: 'taskMedia' | 'provider'
     providerTarget?: CanvasProviderNavigationTarget
   } = {}
 ) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const view = props.view ?? 'storage'
+  const view = props.view ?? 'taskMedia'
   const targetProviderId = props.providerTarget?.providerId
   const targetCredentialGroupId = props.providerTarget?.credentialGroupId
   const targetCredentialGroupVersionId =
     props.providerTarget?.credentialGroupVersionId
   const targetModelId = props.providerTarget?.modelId
   const restoredProviderContext = useMemo(readProviderContext, [])
-  const [activeSection, setActiveSection] = useState<
-    'taskMedia' | 'databaseBackup'
-  >('taskMedia')
   const [openEditor, setOpenEditor] = useState<
-    'taskMedia' | 'databaseBackup' | 'credential' | 'binding' | null
+    'taskMedia' | 'credential' | 'binding' | null
   >(null)
   const [addCredentialOpen, setAddCredentialOpen] = useState(false)
   const [providerDrawer, setProviderDrawer] = useState<
@@ -316,12 +280,7 @@ export function RuntimeConfiguration(
   const [unboundTargetPending, setUnboundTargetPending] = useState(false)
   const [unboundTargetModelId, setUnboundTargetModelId] = useState('')
   const [confirmation, setConfirmation] = useState<
-    | 'taskMedia'
-    | 'databaseBackup'
-    | 'credential'
-    | 'binding'
-    | 'management'
-    | null
+    'taskMedia' | 'credential' | 'binding' | 'management' | null
   >(null)
   const modelTableState = useServerTableState<
     'publicName' | 'modelKey' | 'status' | 'credentialGroup'
@@ -336,7 +295,7 @@ export function RuntimeConfiguration(
     300
   )
   const [storageCloseRequested, setStorageCloseRequested] = useState<
-    'taskMedia' | 'databaseBackup' | null
+    'taskMedia' | null
   >(null)
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [historicalCleanupConfirmed, setHistoricalCleanupConfirmed] =
@@ -433,7 +392,7 @@ export function RuntimeConfiguration(
   const storageRuntime = useQuery({
     queryKey: ['canvas-cloud', 'runtime-configuration'],
     queryFn: getCanvasRuntimeConfiguration,
-    enabled: view === 'storage',
+    enabled: view === 'taskMedia',
   })
   const providerRuntime = useQuery({
     queryKey: ['canvas-cloud', 'provider-configuration', providerQuery],
@@ -523,18 +482,6 @@ export function RuntimeConfiguration(
       reason: '',
     },
   })
-  const databaseBackup = useForm<DatabaseBackupForm>({
-    resolver: zodResolver(databaseBackupSchema),
-    defaultValues: {
-      endpoint: '',
-      bucket: '',
-      accessKeyId: '',
-      secretAccessKey: '',
-      backupRetentionHours: 72,
-      downloadUrlTtlSeconds: 900,
-      reason: '',
-    },
-  })
   const credential = useForm<CredentialForm>({
     resolver: zodResolver(credentialSchema),
     defaultValues: {
@@ -568,18 +515,16 @@ export function RuntimeConfiguration(
       binding.formState.isDirty || selectedModels.length > 0
   }
   const hasUnsavedStorageEdit =
-    (openEditor === 'taskMedia' && taskMedia.formState.isDirty) ||
-    (openEditor === 'databaseBackup' && databaseBackup.formState.isDirty)
+    openEditor === 'taskMedia' && taskMedia.formState.isDirty
   const hasUnsavedFormEdit = hasUnsavedProviderEdit || hasUnsavedStorageEdit
   const hasUnsavedRuntimeEdit = hasUnsavedFormEdit || executionPolicyDirty
-  const closeStorageEditor = (kind: 'taskMedia' | 'databaseBackup') => {
-    if (kind === 'taskMedia') taskMedia.reset()
-    else databaseBackup.reset()
+  const closeStorageEditor = () => {
+    taskMedia.reset()
     setStorageCloseRequested(null)
     setOpenEditor(null)
   }
-  const openStorageEditor = (kind: 'taskMedia' | 'databaseBackup') => {
-    if (kind === 'taskMedia' && storageData?.taskMedia) {
+  const openStorageEditor = () => {
+    if (storageData?.taskMedia) {
       taskMedia.reset({
         endpoint: storageData.taskMedia.endpoint,
         bucket: storageData.taskMedia.bucket,
@@ -591,26 +536,11 @@ export function RuntimeConfiguration(
         reason: '',
       })
     }
-    if (kind === 'databaseBackup' && storageData?.databaseBackup) {
-      databaseBackup.reset({
-        endpoint: storageData.databaseBackup.endpoint,
-        bucket: storageData.databaseBackup.bucket,
-        accessKeyId: storageData.databaseBackup.accessKeyId ?? '',
-        secretAccessKey: '',
-        backupRetentionHours: storageData.databaseBackup.backupRetentionHours,
-        downloadUrlTtlSeconds: storageData.databaseBackup.downloadUrlTtlSeconds,
-        reason: '',
-      })
-    }
-    setOpenEditor(kind)
+    setOpenEditor('taskMedia')
   }
-  const requestStorageClose = (kind: 'taskMedia' | 'databaseBackup') => {
-    const dirty =
-      kind === 'taskMedia'
-        ? taskMedia.formState.isDirty
-        : databaseBackup.formState.isDirty
-    if (dirty) setStorageCloseRequested(kind)
-    else closeStorageEditor(kind)
+  const requestStorageClose = () => {
+    if (taskMedia.formState.isDirty) setStorageCloseRequested('taskMedia')
+    else closeStorageEditor()
   }
   const resetProviderEdit = () => {
     rotationPreviewRequestRef.current += 1
@@ -722,43 +652,6 @@ export function RuntimeConfiguration(
     },
     onError: () => {
       toast.error(t('Task media configuration failed'))
-    },
-  })
-  const databaseBackupMutation = useDirectAsync({
-    execute: (value: DatabaseBackupForm) => {
-      const current = storageData?.databaseBackup
-      const endpoint = new URL(value.endpoint.trim()).origin
-      const bucket = value.bucket.trim()
-      return publishCanvasDatabaseBackupStorage({
-        ...(current?.endpoint !== endpoint ? { endpoint } : {}),
-        ...(current?.bucket !== bucket ? { backupBucket: bucket } : {}),
-        ...(value.accessKeyId && value.secretAccessKey
-          ? {
-              backupCredentials: {
-                accessKeyId: value.accessKeyId,
-                secretAccessKey: value.secretAccessKey,
-              },
-            }
-          : {}),
-        ...(current?.backupRetentionHours !== value.backupRetentionHours
-          ? { backupRetentionHours: value.backupRetentionHours }
-          : {}),
-        ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
-          ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds }
-          : {}),
-        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
-      })
-    },
-    onSuccess: async () => {
-      setConfirmation(null)
-      setOpenEditor(null)
-      databaseBackup.resetField('accessKeyId')
-      databaseBackup.resetField('secretAccessKey')
-      toast.success(t('Database backup configuration published'))
-      await refresh()
-    },
-    onError: () => {
-      toast.error(t('Database backup configuration failed'))
     },
   })
   const credentialMutation = useDirectAsync({
@@ -985,16 +878,9 @@ export function RuntimeConfiguration(
     onSuccess: reportCheck,
     onError: () => toast.error(t('Connection check failed')),
   })
-  const checkDatabaseBackup = useMutation({
-    mutationFn: checkCanvasDatabaseBackupStorage,
-    onSuccess: reportCheck,
-    onError: () => toast.error(t('Connection check failed')),
-  })
-
   const discardAllDrafts = () => {
     resetProviderEdit()
     taskMedia.reset()
-    databaseBackup.reset()
     management.reset({ name: '', apiKey: '', reason: '' })
     setManagementInitialModels([])
     setHistoricalCleanupConfirmed(false)
@@ -1003,7 +889,6 @@ export function RuntimeConfiguration(
     setConfirmation(null)
     setExecutionPolicyDirty(false)
     taskMediaMutation.reset()
-    databaseBackupMutation.reset()
     credentialMutation.reset()
     bindingMutation.reset()
     managementMutation.reset()
@@ -1410,51 +1295,6 @@ export function RuntimeConfiguration(
       { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]
   }
-  if (confirmation === 'databaseBackup') {
-    const current = storageData?.databaseBackup
-    const value = databaseBackup.getValues()
-    confirmationDetails = [
-      ...(current?.endpoint !== value.endpoint
-        ? [
-            {
-              label: t('R2 endpoint'),
-              value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}`,
-            },
-          ]
-        : []),
-      ...(current?.bucket !== value.bucket
-        ? [
-            {
-              label: t('Database backup bucket'),
-              value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}`,
-            },
-          ]
-        : []),
-      ...(current?.backupRetentionHours !== value.backupRetentionHours
-        ? [
-            {
-              label: t('Backup retention hours'),
-              value: `${current?.backupRetentionHours ?? t('Not configured')} → ${value.backupRetentionHours}`,
-            },
-          ]
-        : []),
-      ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
-        ? [
-            {
-              label: t('Download URL seconds'),
-              value: `${current?.downloadUrlTtlSeconds ?? t('Not configured')} → ${value.downloadUrlTtlSeconds}`,
-            },
-          ]
-        : []),
-      {
-        label: t('Credentials'),
-        value: value.secretAccessKey
-          ? t('Will be replaced')
-          : t('Keep current'),
-      },
-      { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
-    ]
-  }
   if (confirmation === 'credential') {
     const provider = providerData?.providers.find(
       (item) => item.id === credential.getValues('providerId')
@@ -1556,8 +1396,6 @@ export function RuntimeConfiguration(
   let confirmationTitle = t('Confirm runtime configuration change')
   if (confirmation === 'taskMedia') {
     confirmationTitle = t('Confirm task media configuration update')
-  } else if (confirmation === 'databaseBackup') {
-    confirmationTitle = t('Confirm database backup configuration update')
   } else if (confirmation === 'management') {
     confirmationTitle = t('Confirm API Key group changes')
   }
@@ -1590,27 +1428,9 @@ export function RuntimeConfiguration(
         cancelText={t('Keep editing')}
         onDiscard={discardAllDrafts}
       />
-      <Tabs
-        value={view === 'provider' ? 'providerCredentials' : activeSection}
-        onValueChange={(value) => {
-          setActiveSection(value as 'taskMedia' | 'databaseBackup')
-          setOpenEditor(null)
-        }}
-        className='space-y-4'
-      >
-        {view === 'storage' && (
-          <CanvasManagementTabsList>
-            <CanvasManagementTabsTrigger value='taskMedia'>
-              {t('Task media')}
-            </CanvasManagementTabsTrigger>
-            <CanvasManagementTabsTrigger value='databaseBackup'>
-              {t('Database backups')}
-            </CanvasManagementTabsTrigger>
-          </CanvasManagementTabsList>
-        )}
-
-        {view === 'storage' && (
-          <TabsContent value='taskMedia'>
+      <div className='space-y-4'>
+        {view === 'taskMedia' && (
+          <div>
             <Card>
               <CardHeader>
                 <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
@@ -1652,8 +1472,8 @@ export function RuntimeConfiguration(
                     editing={openEditor === 'taskMedia'}
                     onEdit={() =>
                       openEditor === 'taskMedia'
-                        ? requestStorageClose('taskMedia')
-                        : openStorageEditor('taskMedia')
+                        ? requestStorageClose()
+                        : openStorageEditor()
                     }
                   />
                 ) : (
@@ -1664,7 +1484,7 @@ export function RuntimeConfiguration(
                 {!storageData?.taskMedia && (
                   <Button
                     variant='outline'
-                    onClick={() => openStorageEditor('taskMedia')}
+                    onClick={openStorageEditor}
                     aria-expanded={openEditor === 'taskMedia'}
                   >
                     {t('Update configuration')}
@@ -1792,7 +1612,7 @@ export function RuntimeConfiguration(
                         type='button'
                         variant='outline'
                         disabled={taskMediaMutation.isPending}
-                        onClick={() => requestStorageClose('taskMedia')}
+                        onClick={requestStorageClose}
                       >
                         {t('Cancel')}
                       </Button>
@@ -1810,202 +1630,11 @@ export function RuntimeConfiguration(
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-        )}
-
-        {view === 'storage' && (
-          <TabsContent value='databaseBackup'>
-            <Card>
-              <CardHeader>
-                <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-                  <CardTitle>{t('Database backups')}</CardTitle>
-                  {storageData?.databaseBackup && (
-                    <>
-                      <Badge variant='secondary'>
-                        <BusinessTermText
-                          kind='configStatus'
-                          value={storageData.databaseBackup.status}
-                        />
-                      </Badge>
-                      <Badge variant='secondary'>
-                        {t('Version')} {storageData.databaseBackup.version}
-                      </Badge>
-                    </>
-                  )}
-                </div>
-                <CardDescription>
-                  {t(
-                    'Stores database backups with dedicated credentials and lifecycle managed outside task media.'
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-5'>
-                {storageData?.databaseBackup ? (
-                  <StorageSummary
-                    bucketLabel={t('Database backup bucket')}
-                    item={storageData.databaseBackup}
-                    checkLabel={t('Backup check')}
-                    buttonLabel={t('Check backup')}
-                    editLabel={t('Update configuration')}
-                    onCheck={() => {
-                      const id = storageData.databaseBackup?.id
-                      if (id) checkDatabaseBackup.mutate(id)
-                    }}
-                    checking={checkDatabaseBackup.isPending}
-                    editing={openEditor === 'databaseBackup'}
-                    onEdit={() =>
-                      openEditor === 'databaseBackup'
-                        ? requestStorageClose('databaseBackup')
-                        : openStorageEditor('databaseBackup')
-                    }
-                  />
-                ) : (
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Not configured')}
-                  </p>
-                )}
-                {!storageData?.databaseBackup && (
-                  <Button
-                    variant='outline'
-                    onClick={() => openStorageEditor('databaseBackup')}
-                    aria-expanded={openEditor === 'databaseBackup'}
-                  >
-                    {t('Update configuration')}
-                  </Button>
-                )}
-                {openEditor === 'databaseBackup' && (
-                  <form
-                    aria-label={t('Publish database backup configuration')}
-                    className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
-                    onSubmit={databaseBackup.handleSubmit((value) => {
-                      const currentAccessKeyId =
-                        storageData?.databaseBackup?.accessKeyId ?? ''
-                      if (
-                        (!storageData?.databaseBackup ||
-                          value.accessKeyId !== currentAccessKeyId) &&
-                        !value.secretAccessKey
-                      ) {
-                        databaseBackup.setError('secretAccessKey', {
-                          message:
-                            'Enter both credential fields or leave both blank',
-                        })
-                        return
-                      }
-                      if (!databaseBackup.formState.isDirty) return
-                      setConfirmation('databaseBackup')
-                    })}
-                  >
-                    <Field
-                      label={t('R2 endpoint')}
-                      error={databaseBackup.formState.errors.endpoint?.message}
-                    >
-                      <Input
-                        {...databaseBackup.register('endpoint')}
-                        placeholder='https://…r2.cloudflarestorage.com'
-                      />
-                    </Field>
-                    <Field
-                      label={t('Database backup bucket')}
-                      error={databaseBackup.formState.errors.bucket?.message}
-                    >
-                      <Input {...databaseBackup.register('bucket')} />
-                    </Field>
-                    <Field
-                      label={t('Access key ID')}
-                      error={
-                        databaseBackup.formState.errors.accessKeyId?.message
-                      }
-                    >
-                      <Input
-                        autoComplete='off'
-                        {...databaseBackup.register('accessKeyId')}
-                      />
-                    </Field>
-                    <Field
-                      label={t('Secret access key')}
-                      error={
-                        databaseBackup.formState.errors.secretAccessKey?.message
-                      }
-                    >
-                      <Input
-                        type='password'
-                        autoComplete='new-password'
-                        {...databaseBackup.register('secretAccessKey')}
-                      />
-                    </Field>
-                    {storageData?.databaseBackup?.credentialsConfigured ? (
-                      <p className='text-muted-foreground text-xs sm:col-span-2'>
-                        {t(
-                          'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
-                        )}
-                      </p>
-                    ) : null}
-                    <Field
-                      label={t('Backup retention hours')}
-                      error={
-                        databaseBackup.formState.errors.backupRetentionHours
-                          ?.message
-                      }
-                    >
-                      <Input
-                        type='number'
-                        min={1}
-                        max={8760}
-                        {...databaseBackup.register('backupRetentionHours', {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <Field
-                      label={t('Download URL seconds')}
-                      error={
-                        databaseBackup.formState.errors.downloadUrlTtlSeconds
-                          ?.message
-                      }
-                    >
-                      <Input
-                        type='number'
-                        min={60}
-                        max={3600}
-                        {...databaseBackup.register('downloadUrlTtlSeconds', {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <Field
-                      label={t('Reason (optional)')}
-                      error={databaseBackup.formState.errors.reason?.message}
-                    >
-                      <Input {...databaseBackup.register('reason')} />
-                    </Field>
-                    <div className='flex flex-wrap justify-end gap-2 sm:col-span-2'>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        disabled={databaseBackupMutation.isPending}
-                        onClick={() => requestStorageClose('databaseBackup')}
-                      >
-                        {t('Cancel')}
-                      </Button>
-                      <Button
-                        type='submit'
-                        disabled={
-                          databaseBackupMutation.isPending ||
-                          !databaseBackup.formState.isDirty
-                        }
-                      >
-                        {t('Review database backup publication')}
-                      </Button>
-                    </div>
-                  </form>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+          </div>
         )}
 
         {view === 'provider' && (
-          <TabsContent value='providerCredentials' className='space-y-4'>
+          <div className='space-y-4'>
             <Card>
               <CardHeader>
                 <CardTitle>{t('Provider credential groups')}</CardTitle>
@@ -2438,7 +2067,7 @@ export function RuntimeConfiguration(
                 </TabsContent>
               </Tabs>
             )}
-          </TabsContent>
+          </div>
         )}
 
         {providerData && selectedGroup && (
@@ -2716,9 +2345,6 @@ export function RuntimeConfiguration(
             if (confirmation === 'taskMedia') {
               taskMediaMutation.mutate(taskMedia.getValues())
             }
-            if (confirmation === 'databaseBackup') {
-              databaseBackupMutation.mutate(databaseBackup.getValues())
-            }
             if (confirmation === 'credential') {
               credentialMutation.mutate(credential.getValues())
             }
@@ -2733,7 +2359,6 @@ export function RuntimeConfiguration(
           }}
           pending={
             taskMediaMutation.isPending ||
-            databaseBackupMutation.isPending ||
             credentialMutation.isPending ||
             bindingMutation.isPending ||
             managementMutation.isPending
@@ -2864,7 +2489,7 @@ export function RuntimeConfiguration(
                 variant='destructive'
                 onClick={() => {
                   if (storageCloseRequested) {
-                    closeStorageEditor(storageCloseRequested)
+                    closeStorageEditor()
                   }
                 }}
               >
@@ -3011,7 +2636,7 @@ export function RuntimeConfiguration(
             </div>
           </DialogContent>
         </Dialog>
-      </Tabs>
+      </div>
     </>
   )
 }

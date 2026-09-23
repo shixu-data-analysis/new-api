@@ -36,6 +36,7 @@ import {
   Settings,
   Ticket,
   User,
+  UserCog,
   UserPlus,
   Users,
   Wallet,
@@ -136,6 +137,21 @@ export function useSidebarData(): SidebarData {
               },
             ],
           },
+          ...(canvasSession.data.principalType === 'SUPER_ADMIN'
+            ? [
+                {
+                  id: 'canvas-super-admin',
+                  title: t('Admin'),
+                  items: [
+                    {
+                      title: t('Users'),
+                      url: '/users',
+                      icon: UserCog,
+                    },
+                  ],
+                },
+              ]
+            : []),
           {
             id: 'account',
             title: t('Account'),

@@ -27,6 +27,7 @@ import {
 } from '@/features/canvas-cloud/access'
 import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
@@ -44,16 +45,18 @@ export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
+  const currentRole = useAuthStore((s) => s.auth.user?.role)
   const canvasSession = useCanvasSession()
-  const isCanvasPrincipal = canvasSession.isSuccess
+  const isCanvasProfile =
+    canvasSession.isSuccess || currentRole === ROLE.SUPER_ADMIN
   const allowAccessToken =
-    canvasSession.isError ||
+    (!isCanvasProfile && canvasSession.isError) ||
     (canvasSession.isSuccess &&
       canCanvasPrincipalManageClientAccessToken(
         canvasSession.data.principalType
       ))
   const allowAdvancedAuthentication =
-    canvasSession.isError ||
+    (!isCanvasProfile && canvasSession.isError) ||
     (canvasSession.isSuccess &&
       canCanvasPrincipalManageAdvancedAuthentication(
         canvasSession.data.principalType
@@ -75,6 +78,7 @@ export function Profile() {
               profile={profile}
               loading={loading}
               canvasSession={canvasSession.data ?? null}
+              canvasMode={isCanvasProfile}
             />
           </CardStaggerItem>
 
@@ -99,14 +103,14 @@ export function Profile() {
               </div>
 
               <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {!isCanvasPrincipal && checkinEnabled && (
+                {!isCanvasProfile && checkinEnabled && (
                   <CheckinCalendarCard
                     checkinEnabled={checkinEnabled}
                     turnstileEnabled={turnstileEnabled}
                     turnstileSiteKey={turnstileSiteKey}
                   />
                 )}
-                {!isCanvasPrincipal && canConfigureSidebar && (
+                {!isCanvasProfile && canConfigureSidebar && (
                   <SidebarModulesCard />
                 )}
                 {allowAdvancedAuthentication && (

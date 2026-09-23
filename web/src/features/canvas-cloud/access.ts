@@ -8,6 +8,12 @@ License, or (at your option) any later version.
 */
 import type { CanvasPrincipalType } from './types'
 
+const canvasPrincipalRoleLabelKeys: Record<CanvasPrincipalType, string> = {
+  CUSTOMER: 'Canvas Customer',
+  PLATFORM_ADMIN: 'Canvas Platform Administrator',
+  SUPER_ADMIN: 'Canvas Super Administrator',
+}
+
 export const canvasCustomerSections = ['points', 'models', 'tasks'] as const
 
 export const canvasAdminSections = [
@@ -33,6 +39,12 @@ export function isCanvasAdministrator(
   principalType: CanvasPrincipalType
 ): boolean {
   return principalType === 'PLATFORM_ADMIN' || principalType === 'SUPER_ADMIN'
+}
+
+export function getCanvasPrincipalRoleLabelKey(
+  principalType: CanvasPrincipalType
+): string {
+  return canvasPrincipalRoleLabelKeys[principalType]
 }
 
 export function getCanvasHomeSection(

@@ -20,7 +20,11 @@ import { describe, expect, test } from 'vitest'
 
 import type { AuthUser } from '@/stores/auth-store'
 
-import { getSavedLanguage, sanitizeAuthRedirect } from './auth-redirect'
+import {
+  getSavedLanguage,
+  resolvePostLoginRedirect,
+  sanitizeAuthRedirect,
+} from './auth-redirect'
 
 const origin = 'https://dashboard.example.com'
 
@@ -57,6 +61,39 @@ describe('authentication redirect validation', () => {
   test('rejects invalid or non-HTTP application origins', () => {
     expect(sanitizeAuthRedirect('/dashboard', 'not-an-origin')).toBe(null)
     expect(sanitizeAuthRedirect('/dashboard', 'file:///tmp/app')).toBe(null)
+  })
+
+  test('does not carry root user management into lower-role sessions', () => {
+    expect(
+      resolvePostLoginRedirect('/users', origin, {
+        role: 1,
+      })
+    ).toBe('/canvas-cloud/points')
+    expect(
+      resolvePostLoginRedirect('/users?sort=id', origin, {
+        role: 10,
+      })
+    ).toBe('/canvas-cloud/dashboard')
+    expect(
+      resolvePostLoginRedirect('/users?sort=id', origin, {
+        role: 100,
+      })
+    ).toBe('/users?sort=id')
+  })
+
+  test('uses role-appropriate defaults without rejecting safe shared pages', () => {
+    expect(resolvePostLoginRedirect(undefined, origin, { role: 1 })).toBe(
+      '/canvas-cloud/points'
+    )
+    expect(resolvePostLoginRedirect(undefined, origin, { role: 10 })).toBe(
+      '/canvas-cloud/dashboard'
+    )
+    expect(resolvePostLoginRedirect(undefined, origin, { role: 100 })).toBe(
+      '/users'
+    )
+    expect(resolvePostLoginRedirect('/profile', origin, { role: 1 })).toBe(
+      '/profile'
+    )
   })
 })
 
