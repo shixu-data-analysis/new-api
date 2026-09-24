@@ -251,31 +251,41 @@ export function CallDetails({
           </h4>
           <dl className='grid gap-4 sm:grid-cols-2'>
             <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>{t('Content-Type')}</dt>
+              <dt className='text-muted-foreground text-sm'>
+                {t('Content-Type')}
+              </dt>
               <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                 {responseDiagnostic.contentType}
               </dd>
             </div>
             <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>{t('Schema field')}</dt>
+              <dt className='text-muted-foreground text-sm'>
+                {t('Schema field')}
+              </dt>
               <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                 {present(responseDiagnostic.schema.field)}
               </dd>
             </div>
             <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>{t('Schema rule')}</dt>
+              <dt className='text-muted-foreground text-sm'>
+                {t('Schema rule')}
+              </dt>
               <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                 {present(responseDiagnostic.schema.rule)}
               </dd>
             </div>
             <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>{t('Response summary')}</dt>
+              <dt className='text-muted-foreground text-sm'>
+                {t('Response summary')}
+              </dt>
               <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                 {responseSummary}
               </dd>
             </div>
             <div className='min-w-0 sm:col-span-2'>
-              <dt className='text-muted-foreground text-sm'>{t('Diagnostic')}</dt>
+              <dt className='text-muted-foreground text-sm'>
+                {t('Diagnostic')}
+              </dt>
               <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                 {responseDiagnostic.schema.detail}
               </dd>
