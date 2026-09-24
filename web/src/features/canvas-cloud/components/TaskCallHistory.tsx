@@ -13,7 +13,11 @@ import {
   getCanvasAdminTaskInputBlob,
   getCanvasAdminTaskInputDownload,
 } from '../api'
-import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
+import {
+  getCanvasTaskCalls,
+  type CanvasProviderResponseDiagnostic,
+  type CanvasTaskCall,
+} from '../task-call-api'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -65,6 +69,22 @@ function compactRequestSnapshot(value: unknown): unknown {
   return value
 }
 
+function responseKindLabel(
+  kind: CanvasProviderResponseDiagnostic['summary']['kind'],
+  t: (key: string) => string
+): string {
+  switch (kind) {
+    case 'object':
+      return t('Object')
+    case 'array':
+      return t('Array')
+    case 'scalar':
+      return t('Scalar')
+    case 'null':
+      return t('Null')
+  }
+}
+
 function openInNewTab(url: string, target: Window | null): void {
   if (target) {
     target.location.replace(url)
@@ -93,7 +113,7 @@ function orderedInputMedia(
     })
 }
 
-function CallDetails({
+export function CallDetails({
   call,
   inputAssets,
   openingInput,
@@ -117,6 +137,29 @@ function CallDetails({
     call.sanitizedRequest === null
       ? null
       : JSON.stringify(compactRequestSnapshot(call.sanitizedRequest), null, 2)
+  const responseDiagnostic = call.providerResponseDiagnostic
+  const responseKind = responseDiagnostic
+    ? responseKindLabel(responseDiagnostic.summary.kind, t)
+    : null
+  const responseSummary = responseDiagnostic
+    ? [
+        responseKind,
+        t('Bytes', { count: responseDiagnostic.summary.byteLength }),
+        responseDiagnostic.summary.declaredByteLength === undefined
+          ? null
+          : t('Declared bytes', {
+              count: responseDiagnostic.summary.declaredByteLength,
+            }),
+        responseDiagnostic.summary.fields?.length
+          ? `${t('Fields')}: ${responseDiagnostic.summary.fields.join(', ')}`
+          : null,
+        responseDiagnostic.summary.itemCount === undefined
+          ? null
+          : `${t('Item count')}: ${responseDiagnostic.summary.itemCount}`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null
   const fields: Array<[string, ReactNode]> = [
     ['Upstream model', present(call.upstreamModelId)],
     [
@@ -199,6 +242,45 @@ function CallDetails({
               )
             })}
           </ul>
+        </section>
+      ) : null}
+      {responseDiagnostic ? (
+        <section className='space-y-2'>
+          <h4 className='text-sm font-medium'>
+            {t('Provider response schema diagnostic')}
+          </h4>
+          <dl className='grid gap-4 sm:grid-cols-2'>
+            <div className='min-w-0'>
+              <dt className='text-muted-foreground text-sm'>{t('Content-Type')}</dt>
+              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                {responseDiagnostic.contentType}
+              </dd>
+            </div>
+            <div className='min-w-0'>
+              <dt className='text-muted-foreground text-sm'>{t('Schema field')}</dt>
+              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                {present(responseDiagnostic.schema.field)}
+              </dd>
+            </div>
+            <div className='min-w-0'>
+              <dt className='text-muted-foreground text-sm'>{t('Schema rule')}</dt>
+              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                {present(responseDiagnostic.schema.rule)}
+              </dd>
+            </div>
+            <div className='min-w-0'>
+              <dt className='text-muted-foreground text-sm'>{t('Response summary')}</dt>
+              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                {responseSummary}
+              </dd>
+            </div>
+            <div className='min-w-0 sm:col-span-2'>
+              <dt className='text-muted-foreground text-sm'>{t('Diagnostic')}</dt>
+              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                {responseDiagnostic.schema.detail}
+              </dd>
+            </div>
+          </dl>
         </section>
       ) : null}
       {request ? (

@@ -14,40 +14,39 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
-import { TaskCallHistory } from '../TaskCallHistory'
+import { CallDetails, TaskCallHistory } from '../TaskCallHistory'
+import type { CanvasTaskCall } from '../../task-call-api'
 
 const mocks = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
 vi.mock('../../task-call-api', () => mocks)
 
-const call = {
+const call: CanvasTaskCall = {
   localCallId: 'call-1',
-  taskId: 'task-1',
   outputIndices: [0, 2],
   callType: 'SUBMIT',
-  submissionId: null,
   attemptCount: 2,
-  state: 'RESPONDED',
-  executionOrigin: 'MOCK',
+  chainState: 'RESPONDED',
+  providerName: 'Mock provider',
+  channelCode: 'mock-channel',
+  channelVersion: 1,
+  upstreamModelId: 'mock-model',
+  credentialGroupName: 'Mock credentials',
+  credentialGroupVersion: 1,
   workerId: 'worker-1',
-  providerId: 'provider-1',
-  channelId: 'channel-1',
-  modelId: 'model-1',
   upstreamRequestId: 'req-1',
   upstreamTaskId: 'up-1',
-  upstreamIdentifierSources: null,
-  httpStatus: 200,
+  initialHttpStatus: 200,
+  finalHttpStatus: 200,
+  durationMs: 1000,
   errorCode: null,
   sanitizedError: null,
   errorRuleId: null,
   errorRuleVersion: null,
-  errorCategory: null,
-  policyVersions: { global: 1, channel: 1, limits: 1 },
+  providerResponseDiagnostic: null,
+  sanitizedRequest: null,
   startedAt: '2026-09-06T00:00:00Z',
-  sentAt: null,
-  completedAt: '2026-09-06T00:00:01Z',
-  deadlineAt: null,
-  asyncInFlight: false,
-  usage: null,
+  sentAt: '2026-09-06T00:00:00Z',
+  finalRespondedAt: '2026-09-06T00:00:01Z',
 }
 
 beforeAll(async () => {
@@ -75,33 +74,51 @@ function mount() {
   )
 }
 
+function mountDetails(details: typeof call) {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <CallDetails
+        call={details}
+        inputAssets={[]}
+        openingInput={null}
+        onOpenInput={() => undefined}
+      />
+    </QueryClientProvider>
+  )
+}
+
 describe('TaskCallHistory', () => {
   it('loads the safe trace page and requests the next page through the shared table', async () => {
     mount()
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenCalledWith(
         'task-1',
-        { page: 1, pageSize: 20, callType: 'SUBMIT' },
+        { page: 1, pageSize: 20 },
         expect.any(AbortSignal)
       )
     )
     expect(await screen.findByText('Page 1 of 2')).toBeVisible()
-    const headerRow = screen.getByText('Call time').closest('tr')
+    const headerRow = screen.getByText('Call started at').closest('tr')
     expect(headerRow).not.toBeNull()
     expect(
       [...(headerRow?.querySelectorAll('th') ?? [])].map(
         (header) => header.textContent
       )
-    ).toEqual(['Call time', 'Call', 'Related results', 'Response', 'Duration'])
-    expect(screen.queryByText('Attempts')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('combobox', { name: 'Call type' })
-    ).not.toBeInTheDocument()
+    ).toEqual([
+      'Call started at',
+      'Type',
+      'Related object',
+      'Provider / channel',
+      'Call status',
+      'Response',
+      'Duration',
+      'Actions',
+    ])
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
         'task-1',
-        { page: 2, pageSize: 20, callType: 'SUBMIT' },
+        { page: 2, pageSize: 20 },
         expect.any(AbortSignal)
       )
     )
@@ -113,39 +130,12 @@ describe('TaskCallHistory', () => {
       .mockResolvedValueOnce({ page: 1, pageSize: 20, total: 0, items: [] })
     mount()
     expect(
-      await screen.findByText('Unable to load task call history.')
+      await screen.findByText('Unable to load provider calls')
     ).toBeVisible()
-    expect(screen.queryByText('No task call history')).not.toBeInTheDocument()
-    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByText('No provider calls')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() =>
       expect(mocks.getCanvasTaskCalls).toHaveBeenCalledTimes(2)
-    )
-  })
-
-  it('debounces numeric filters and omits an invalid value from the call query', async () => {
-    mount()
-    await screen.findByText('Page 1 of 2')
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Output index' }), {
-      target: { value: '3' },
-    })
-    await waitFor(() =>
-      expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
-        'task-1',
-        { page: 1, pageSize: 20, callType: 'SUBMIT', outputIndex: 3 },
-        expect.any(AbortSignal)
-      )
-    )
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Output index' }), {
-      target: { value: '-1' },
-    })
-    await waitFor(() =>
-      expect(mocks.getCanvasTaskCalls).toHaveBeenLastCalledWith(
-        'task-1',
-        { page: 1, pageSize: 20, callType: 'SUBMIT' },
-        expect.any(AbortSignal)
-      )
     )
   })
 
@@ -158,33 +148,63 @@ describe('TaskCallHistory', () => {
         {
           ...call,
           callType: 'SUBMIT',
-          executionOrigin: 'REAL',
           outputIndices: [1],
           upstreamRequestId: null,
           upstreamTaskId: 'upstream-retry-1',
-          httpStatus: 429,
+          initialHttpStatus: 429,
+          finalHttpStatus: 429,
           errorCode: 'RATE_LIMIT',
           errorRuleId: 'provider.rate-limit',
           errorRuleVersion: 3,
-          errorCategory: 'PROVIDER_RATE_LIMITED',
           sanitizedError: 'Retry after 30 seconds',
         },
       ],
     })
-    mount()
-
-    expect(await screen.findByText('Provider submission')).toBeVisible()
-    expect(screen.getByText('Responded')).toBeVisible()
-    expect(screen.queryByText('Attempts')).not.toBeInTheDocument()
-    expect(screen.getByText('Result 2')).toBeVisible()
-    expect(screen.getByText('429')).toBeVisible()
-    expect(
-      screen.getByRole('cell', {
-        name: /Provider rate limited.*Retry after 30 seconds/,
-      })
-    ).toBeVisible()
-    expect(screen.queryByText(/RATE_LIMIT/)).not.toBeInTheDocument()
-    expect(screen.getByText('call-1')).toBeVisible()
+    mountDetails({
+      ...call,
+      outputIndices: [1],
+      upstreamRequestId: null,
+      upstreamTaskId: 'upstream-retry-1',
+      initialHttpStatus: 429,
+      finalHttpStatus: 429,
+      errorCode: 'RATE_LIMIT',
+      errorRuleId: 'provider.rate-limit',
+      errorRuleVersion: 3,
+      sanitizedError: 'Retry after 30 seconds',
+    })
+    expect(screen.getByText('Retry after 30 seconds')).toBeVisible()
+    expect(screen.getByText('RATE_LIMIT')).toBeVisible()
     expect(screen.getByText('upstream-retry-1')).toBeVisible()
+  })
+
+  it('shows persisted schema diagnostics after a later non-2xx response without exposing a response body', async () => {
+    mountDetails({
+      ...call,
+      finalHttpStatus: 500,
+      providerResponseDiagnostic: {
+        contentType: 'application/json; charset=utf-8',
+        schema: {
+          field: '/data/taskId',
+          rule: 'required',
+          detail: 'Provider response violated a frozen OpenAPI Schema rule',
+        },
+        summary: {
+          kind: 'object',
+          byteLength: 48,
+          declaredByteLength: 512,
+          fields: ['data'],
+        },
+      },
+    })
+    expect(screen.getByText('Provider response schema diagnostic')).toBeVisible()
+    expect(screen.getByText('application/json; charset=utf-8')).toBeVisible()
+    expect(screen.getByText('/data/taskId')).toBeVisible()
+    expect(screen.getByText('required')).toBeVisible()
+    expect(
+      screen.getByText(/Object.*48 bytes.*Declared bytes.*512.*Fields: data/)
+    ).toBeVisible()
+    expect(screen.getByText('Provider response violated a frozen OpenAPI Schema rule')).toBeVisible()
+    expect(screen.queryByText('raw-provider-body')).not.toBeInTheDocument()
+    expect(screen.queryByText('secret-value')).not.toBeInTheDocument()
   })
 })

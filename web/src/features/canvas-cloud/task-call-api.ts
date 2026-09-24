@@ -29,12 +29,29 @@ export interface CanvasTaskCall {
   durationMs: number | null
   errorCode: string | null
   sanitizedError: string | null
+  providerResponseDiagnostic: CanvasProviderResponseDiagnostic | null
   errorRuleId: string | null
   errorRuleVersion: number | null
   sanitizedRequest: unknown
   startedAt: string | null
   sentAt: string | null
   finalRespondedAt: string | null
+}
+
+export interface CanvasProviderResponseDiagnostic {
+  contentType: string
+  schema: {
+    field?: string
+    rule?: string
+    detail: string
+  }
+  summary: {
+    kind: 'object' | 'array' | 'scalar' | 'null'
+    byteLength: number
+    declaredByteLength?: number
+    fields?: string[]
+    itemCount?: number
+  }
 }
 
 export interface CanvasTaskCallPage {
