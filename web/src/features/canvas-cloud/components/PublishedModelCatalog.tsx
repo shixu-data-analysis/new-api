@@ -104,6 +104,11 @@ import { ModelTagFilterButton } from './ModelTagFilterButton'
 import { ModelTagManager } from './ModelTagManager'
 import { PublishedModelDetails } from './PublishedModelDetails'
 
+export interface ModelBindingNavigationTarget {
+  providerId: string
+  credentialGroupId?: string
+}
+
 function presentationVersion(model: CanvasAdminTestingModel) {
   return model.presentationVersion ?? 0
 }
@@ -119,7 +124,7 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
   onManageBindings?: (
-    modelId: string,
+    target: ModelBindingNavigationTarget,
     returnContext?: { nonce: string }
   ) => void
 }) {
@@ -641,7 +646,15 @@ export function PublishedModelCatalog(props: {
                   data-model-navigation-id={`${model.id}:bindings`}
                   onClick={() => {
                     props.onManageBindings?.(
-                      model.id,
+                      {
+                        providerId: model.provider.id,
+                        ...(model.binding.credentialGroupId
+                          ? {
+                              credentialGroupId:
+                                model.binding.credentialGroupId,
+                            }
+                          : {}),
+                      },
                       navigation?.captureReturnContext(`${model.id}:bindings`)
                     )
                   }}

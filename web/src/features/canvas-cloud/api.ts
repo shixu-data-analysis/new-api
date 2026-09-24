@@ -95,7 +95,6 @@ import type {
   CanvasCredentialVersionAffectedModels,
   CanvasModelCredentialBindingVersion,
   CanvasCredentialRotationPreview,
-  CanvasModelBindingPreview,
   CanvasModelPricingHistory,
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
@@ -1620,19 +1619,6 @@ export async function getCanvasCredentialRotationPreview(
   ).data
 }
 
-export async function previewCanvasProviderCredentialBindings(input: {
-  credentialGroupVersionId: string
-  customerModelIds: string[]
-}): Promise<CanvasModelBindingPreview> {
-  return (
-    await api.post<CanvasModelBindingPreview>(
-      `${webBase}/admin/provider-credential-bindings/preview`,
-      input,
-      { skipErrorHandler: true }
-    )
-  ).data
-}
-
 export async function publishCanvasTaskMediaStorage(input: {
   endpoint?: string
   mediaBucket?: string
@@ -1699,28 +1685,6 @@ export async function publishCanvasProviderCredentialGroup(input: {
         headers: {
           'Idempotency-Key': idempotencyKey('web-provider-credentials'),
         },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function bindCanvasProviderCredentials(input: {
-  credentialGroupVersionId: string
-  customerModelIds: string[]
-  expectedBindings: Array<{
-    customerModelId: string
-    bindingId: string | null
-    bindingVersion: number | null
-  }>
-  reason?: string | null
-}) {
-  return (
-    await api.post(
-      `${webBase}/admin/provider-credential-bindings/publications`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-provider-bindings') },
         skipErrorHandler: true,
       }
     )

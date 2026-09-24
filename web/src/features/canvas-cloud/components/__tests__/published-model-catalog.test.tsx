@@ -14,6 +14,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CanvasAdminTestingModel } from '../../types'
@@ -129,13 +130,20 @@ function model(
   }
 }
 
-function renderCatalog() {
+function renderCatalog(
+  onManageBindings?: ComponentProps<
+    typeof PublishedModelCatalog
+  >['onManageBindings']
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <PublishedModelCatalog onManagePricing={vi.fn()} />
+      <PublishedModelCatalog
+        onManagePricing={vi.fn()}
+        onManageBindings={onManageBindings}
+      />
     </QueryClientProvider>
   )
   return { client, ...view }
@@ -165,6 +173,55 @@ describe('Published model catalog', () => {
         t
       )
     ).toBe('一千 · 默认 · provider-alpha')
+  })
+
+  it('opens group management at the bound group or at provider selection for an unbound model', async () => {
+    const onManageBindings = vi.fn()
+    mocks.list.mockResolvedValue([
+      model(),
+      model({
+        id: 'bound-model',
+        modelKey: 'canvas.image.bound',
+        name: 'Bound model',
+        binding: {
+          status: 'BOUND',
+          credentialGroupId: 'credential-group-1',
+          credentialGroupName: 'Primary',
+          credentialGroupVersionId: 'credential-version-1',
+          credentialGroupVersion: 1,
+        },
+      }),
+    ])
+    renderCatalog(onManageBindings)
+
+    const unboundRow = (await screen.findByText('Alpha model')).closest('tr')
+    const boundRow = screen.getByText('Bound model').closest('tr')
+    if (!unboundRow || !boundRow) {
+      throw new Error('Expected both model rows')
+    }
+
+    fireEvent.click(
+      within(unboundRow).getByRole('button', {
+        name: 'Manage API Key bindings',
+      })
+    )
+    expect(onManageBindings).toHaveBeenLastCalledWith(
+      { providerId: 'provider-official' },
+      undefined
+    )
+
+    fireEvent.click(
+      within(boundRow).getByRole('button', {
+        name: 'Manage API Key bindings',
+      })
+    )
+    expect(onManageBindings).toHaveBeenLastCalledWith(
+      {
+        providerId: 'provider-official',
+        credentialGroupId: 'credential-group-1',
+      },
+      undefined
+    )
   })
 
   it('keeps the column filter when a model tag changes', async () => {

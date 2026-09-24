@@ -24,61 +24,14 @@ function runtimeErrorData(error: unknown): Record<string, unknown> | null {
     : null
 }
 
-export function isHistoricalBindingConflict(error: unknown): boolean {
-  const data = runtimeErrorData(error)
-  if (data?.code !== 'PREVIEW_STALE') return false
-  const details = data.details
-  return (
-    typeof details === 'object' &&
-    details !== null &&
-    'reason' in details &&
-    details.reason === 'historicalBinding'
-  )
-}
-
-export interface HistoricalBindingGroup {
-  id: string
-  name: string
-}
-
-export function historicalBindingGroups(
-  error: unknown
-): HistoricalBindingGroup[] {
-  if (!isHistoricalBindingConflict(error)) return []
-  const details = runtimeErrorData(error)?.details
-  if (
-    typeof details !== 'object' ||
-    details === null ||
-    !('historicalGroups' in details)
-  ) {
-    return []
-  }
-  const groups = details.historicalGroups
-  if (!Array.isArray(groups)) return []
-  return groups.filter(
-    (group): group is HistoricalBindingGroup =>
-      typeof group === 'object' &&
-      group !== null &&
-      typeof group.id === 'string' &&
-      group.id.length > 0 &&
-      typeof group.name === 'string' &&
-      group.name.length > 0
-  )
-}
-
 export function runtimeChangeError(
   error: unknown,
   translate: (key: string) => string,
-  operation: 'credential' | 'management' | 'binding' | 'preview'
+  operation: 'credential' | 'management' | 'load'
 ) {
   const data = runtimeErrorData(error)
   const code = typeof data?.code === 'string' ? data.code : null
   if (code === 'PREVIEW_STALE') {
-    if (isHistoricalBindingConflict(error)) {
-      return translate(
-        'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
-      )
-    }
     return translate('Configuration changed. Preview again before confirming.')
   }
   if (code === 'CREDENTIAL_GROUP_VERSION_STALE') {
@@ -125,8 +78,5 @@ export function runtimeChangeError(
   if (operation === 'credential' || operation === 'management') {
     return translate('API Key group publication failed. Retry.')
   }
-  if (operation === 'binding') {
-    return translate('Model binding publication failed. Retry.')
-  }
-  return translate('Preview failed. Refresh the configuration and try again.')
+  return translate('Loading failed. Refresh the configuration and try again.')
 }

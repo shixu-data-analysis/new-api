@@ -74,7 +74,22 @@ describe('Model pricing route continuity', () => {
         pricedTargets: 0,
         totalTargets: 1,
         provider: { id: 'provider-1', code: 'provider', name: 'API provider' },
-        binding: { status: 'UNBOUND' },
+        binding:
+          index === 20
+            ? {
+                status: 'BOUND',
+                credentialGroupId: 'credential-group-1',
+                credentialGroupName: 'Primary',
+                credentialGroupVersionId: 'credential-version-1',
+                credentialGroupVersion: 1,
+              }
+            : {
+                status: 'UNBOUND',
+                credentialGroupId: null,
+                credentialGroupName: null,
+                credentialGroupVersionId: null,
+                credentialGroupVersion: null,
+              },
         billingUnits: ['REQUEST'],
         modelIds: [],
         executionTargets: [],
@@ -131,17 +146,32 @@ describe('Model pricing route continuity', () => {
       getParentRoute: () => root,
       path: '/canvas-cloud/provider-configuration',
       validateSearch: (search: Record<string, unknown>) => ({
-        modelId:
-          typeof search.modelId === 'string' ? search.modelId : undefined,
+        providerId:
+          typeof search.providerId === 'string' ? search.providerId : undefined,
+        credentialGroupId:
+          typeof search.credentialGroupId === 'string'
+            ? search.credentialGroupId
+            : undefined,
       }),
       component: BindingsRoute,
     })
     function BindingsRoute() {
-      const modelId = useLocation({
-        select: (location) =>
-          new URLSearchParams(location.searchStr).get('modelId') ?? '',
+      const target = useLocation({
+        select: (location) => {
+          const search = new URLSearchParams(location.searchStr)
+          return {
+            providerId: search.get('providerId') ?? '',
+            credentialGroupId: search.get('credentialGroupId') ?? '',
+            modelId: search.get('modelId') ?? '',
+          }
+        },
       })
-      return <p>Bindings for {modelId}</p>
+      return (
+        <p>
+          Bindings for {target.providerId}/{target.credentialGroupId}; model=
+          {target.modelId || 'none'}
+        </p>
+      )
     }
     function ModelList() {
       const navigate = useNavigate()
@@ -155,10 +185,10 @@ describe('Model pricing route continuity', () => {
                 params: { modelId },
               })
             }
-            onManageBindings={(modelId) =>
+            onManageBindings={(target) =>
               void navigate({
                 to: '/canvas-cloud/provider-configuration',
-                search: { modelId },
+                search: target,
               } as never)
             }
           />
@@ -226,7 +256,11 @@ describe('Model pricing route continuity', () => {
     await user.click(
       screen.getByRole('button', { name: 'Manage API Key bindings' })
     )
-    expect(await screen.findByText('Bindings for model-20')).toBeVisible()
+    expect(
+      await screen.findByText(
+        'Bindings for provider-1/credential-group-1; model=none'
+      )
+    ).toBeVisible()
     view.unmount()
     client.clear()
   })

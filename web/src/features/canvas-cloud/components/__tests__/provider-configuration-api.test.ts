@@ -5,14 +5,12 @@ This program is free software under the GNU Affero General Public License versio
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  bindCanvasProviderCredentials,
   checkCanvasCustomerModelAccessPermission,
   getCanvasCredentialRotationPreview,
   getCanvasCredentialVersionAffectedModels,
   getCanvasModelCredentialBindingHistory,
   getCanvasProviderConfiguration,
   getCanvasProviderCredentialHistory,
-  previewCanvasProviderCredentialBindings,
   publishCanvasProviderCredentialGroup,
 } from '../../api'
 
@@ -102,31 +100,18 @@ describe('provider configuration API boundary', () => {
     )
   })
 
-  it('uses dedicated preview endpoints before publication', async () => {
+  it('uses the dedicated rotation preview endpoint before credential publication', async () => {
     mocks.get.mockResolvedValue({ data: { currentVersion: 1 } })
-    mocks.post.mockResolvedValue({ data: { models: [] } })
 
     await getCanvasCredentialRotationPreview('group/id')
-    await previewCanvasProviderCredentialBindings({
-      credentialGroupVersionId: 'version-id',
-      customerModelIds: ['model-id'],
-    })
 
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/provider-credential-groups/group%2Fid/rotation-preview',
       { signal: undefined }
     )
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/provider-credential-bindings/preview',
-      {
-        credentialGroupVersionId: 'version-id',
-        customerModelIds: ['model-id'],
-      },
-      { skipErrorHandler: true }
-    )
   })
 
-  it('publishes the exact credential version and binding snapshots confirmed by the admin', async () => {
+  it('publishes the exact credential version snapshot confirmed by the admin', async () => {
     mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
     const expectedBindings = [
       {
@@ -145,15 +130,7 @@ describe('provider configuration API boundary', () => {
       expectedBindings,
       reason: 'rotate',
     })
-    await bindCanvasProviderCredentials({
-      credentialGroupVersionId: 'version-id',
-      customerModelIds: ['model-id'],
-      expectedBindings,
-      reason: 'bind',
-    })
-
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
+    expect(mocks.post).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/provider-credential-groups/publications',
       {
         providerId: 'provider-id',
@@ -163,18 +140,6 @@ describe('provider configuration API boundary', () => {
         expectedCredentialGroupVersionId: 'version-id',
         expectedBindings,
         reason: 'rotate',
-        confirmed: true,
-      },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
-      '/canvas-api/v1/web/admin/provider-credential-bindings/publications',
-      {
-        credentialGroupVersionId: 'version-id',
-        customerModelIds: ['model-id'],
-        expectedBindings,
-        reason: 'bind',
         confirmed: true,
       },
       expect.objectContaining({ skipErrorHandler: true })

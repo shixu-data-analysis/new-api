@@ -71,13 +71,11 @@ import { FormNavigationGuard } from '@/features/system-settings/components/form-
 import { useDebounce } from '@/hooks'
 
 import {
-  bindCanvasProviderCredentials,
   archiveCanvasCredentialGroup,
   checkCanvasTaskMediaStorage,
   getCanvasProviderConfiguration,
   getCanvasProviderCredentialGroupChanges,
   getCanvasRuntimeConfiguration,
-  previewCanvasProviderCredentialBindings,
   publishCanvasProviderCredentialGroup,
   publishCanvasCredentialGroupManagement,
   restoreCanvasCredentialGroup,
@@ -86,7 +84,6 @@ import {
 import { formatCanvasDateTime } from '../formatters'
 import type {
   CanvasCredentialRotationPreview,
-  CanvasModelBindingPreview,
   CanvasProviderConfiguration,
   CanvasProviderConfigurationQuery,
   CanvasProviderCredentialGroupChange,
@@ -95,7 +92,7 @@ import type {
 } from '../types'
 import { useDirectAsync } from '../use-direct-async'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTerm, BusinessTermText } from './BusinessTerm'
+import { BusinessTermText } from './BusinessTerm'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
@@ -103,12 +100,7 @@ import {
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
-import {
-  historicalBindingGroups,
-  isHistoricalBindingConflict,
-  runtimeChangeError,
-  type HistoricalBindingGroup,
-} from './runtime-change-error'
+import { runtimeChangeError } from './runtime-change-error'
 
 function isHttpsOrigin(value: string) {
   try {
@@ -184,10 +176,6 @@ const credentialSchema = z.object({
     .max(255, { error: 'Use no more than 255 characters' }),
 })
 type CredentialForm = z.infer<typeof credentialSchema>
-const bindingSchema = z.object({
-  reason: z.string().trim().max(255),
-})
-type BindingForm = z.infer<typeof bindingSchema>
 const managementSchema = z.object({
   name: z.string().trim().min(1).max(191),
   apiKey: z.string().max(65_536),
@@ -224,8 +212,6 @@ function readProviderContext(): {
 export interface CanvasProviderNavigationTarget {
   providerId?: string
   credentialGroupId?: string
-  credentialGroupVersionId?: string
-  modelId?: string
 }
 
 export function RuntimeConfiguration(
@@ -239,12 +225,9 @@ export function RuntimeConfiguration(
   const view = props.view ?? 'taskMedia'
   const targetProviderId = props.providerTarget?.providerId
   const targetCredentialGroupId = props.providerTarget?.credentialGroupId
-  const targetCredentialGroupVersionId =
-    props.providerTarget?.credentialGroupVersionId
-  const targetModelId = props.providerTarget?.modelId
   const restoredProviderContext = useMemo(readProviderContext, [])
   const [openEditor, setOpenEditor] = useState<
-    'taskMedia' | 'credential' | 'binding' | null
+    'taskMedia' | 'credential' | null
   >(null)
   const [addCredentialOpen, setAddCredentialOpen] = useState(false)
   const [providerDrawer, setProviderDrawer] = useState<
@@ -265,9 +248,6 @@ export function RuntimeConfiguration(
   const [selectedCredentialGroupId, setSelectedCredentialGroupId] = useState(
     targetCredentialGroupId ?? restoredProviderContext?.credentialGroupId ?? ''
   )
-  const [activeProviderTarget, setActiveProviderTarget] = useState(
-    props.providerTarget
-  )
   const [providerTab, setProviderTab] = useState<'overview' | 'execution'>(
     'overview'
   )
@@ -276,24 +256,15 @@ export function RuntimeConfiguration(
     kind: 'provider' | 'group' | 'tab'
     value: string
   } | null>(null)
-  const [navigationTargetApplied, setNavigationTargetApplied] = useState(false)
-  const [unboundTargetPending, setUnboundTargetPending] = useState(false)
-  const [unboundTargetModelId, setUnboundTargetModelId] = useState('')
   const [confirmation, setConfirmation] = useState<
-    'taskMedia' | 'credential' | 'binding' | 'management' | null
+    'taskMedia' | 'credential' | 'management' | null
   >(null)
   const modelTableState = useServerTableState<
-    'publicName' | 'modelKey' | 'status' | 'credentialGroup'
+    'publicName' | 'modelKey' | 'status'
   >('publicName')
   const [modelKeyFilter, setModelKeyFilter] = useState('')
   const [modelStatusFilter, setModelStatusFilter] = useState('')
-  const [credentialGroupFilter, setCredentialGroupFilter] = useState('')
-  const [bindingStatusFilter, setBindingStatusFilter] = useState('')
   const debouncedModelKey = useDebounce(modelKeyFilter.trim(), 300)
-  const debouncedCredentialGroup = useDebounce(
-    credentialGroupFilter.trim(),
-    300
-  )
   const [storageCloseRequested, setStorageCloseRequested] = useState<
     'taskMedia' | null
   >(null)
@@ -306,35 +277,10 @@ export function RuntimeConfiguration(
   const [managementInitializedGroupId, setManagementInitializedGroupId] =
     useState('')
   const [managementModelSearch, setManagementModelSearch] = useState('')
-  const selectedModelsRef = useRef(selectedModels)
-  selectedModelsRef.current = selectedModels
-  const selectedGroupVersionRef = useRef('')
   const [rotationPreview, setRotationPreview] =
     useState<CanvasCredentialRotationPreview | null>(null)
-  const [bindingPreview, setBindingPreview] =
-    useState<CanvasModelBindingPreview | null>(null)
-  const [bindingRecovery, setBindingRecovery] = useState<{
-    groups: HistoricalBindingGroup[]
-    targetGroupVersionId: string
-    customerModelIds: string[]
-  } | null>(null)
-  const [pendingCleanupGroupId, setPendingCleanupGroupId] = useState('')
   const rotationPreviewRequestRef = useRef(0)
-  const bindingPreviewRequestRef = useRef(0)
   useEffect(() => {
-    setActiveProviderTarget(
-      targetProviderId ||
-        targetCredentialGroupId ||
-        targetCredentialGroupVersionId ||
-        targetModelId
-        ? {
-            providerId: targetProviderId,
-            credentialGroupId: targetCredentialGroupId,
-            credentialGroupVersionId: targetCredentialGroupVersionId,
-            modelId: targetModelId,
-          }
-        : undefined
-    )
     setSelectedProviderId(
       targetProviderId ?? restoredProviderContext?.providerId ?? ''
     )
@@ -343,18 +289,8 @@ export function RuntimeConfiguration(
         restoredProviderContext?.credentialGroupId ??
         ''
     )
-    setNavigationTargetApplied(false)
-    setUnboundTargetPending(false)
-    setUnboundTargetModelId('')
     rotationPreviewRequestRef.current += 1
-    bindingPreviewRequestRef.current += 1
-  }, [
-    targetCredentialGroupId,
-    targetCredentialGroupVersionId,
-    targetModelId,
-    targetProviderId,
-    restoredProviderContext,
-  ])
+  }, [targetCredentialGroupId, targetProviderId, restoredProviderContext])
   const providerQuery: CanvasProviderConfigurationQuery = {
     ...(showArchivedGroups
       ? { credentialGroupStatus: 'ARCHIVED' as const }
@@ -363,27 +299,12 @@ export function RuntimeConfiguration(
     ...(selectedCredentialGroupId
       ? { credentialGroupId: selectedCredentialGroupId }
       : {}),
-    ...(activeProviderTarget?.credentialGroupVersionId
-      ? {
-          credentialGroupVersionId:
-            activeProviderTarget.credentialGroupVersionId,
-        }
-      : {}),
-    ...(activeProviderTarget?.modelId
-      ? { modelId: activeProviderTarget.modelId }
-      : {}),
-    modelScope: openEditor === 'binding' ? 'ELIGIBLE' : 'BOUND_TO_GROUP',
+    modelScope: 'BOUND_TO_GROUP',
     ...(modelTableState.query.search
       ? { modelName: modelTableState.query.search }
       : {}),
     ...(debouncedModelKey ? { modelKey: debouncedModelKey } : {}),
     ...(modelStatusFilter ? { modelStatus: modelStatusFilter } : {}),
-    ...(debouncedCredentialGroup
-      ? { credentialGroup: debouncedCredentialGroup }
-      : {}),
-    ...(bindingStatusFilter
-      ? { bindingStatus: bindingStatusFilter as 'BOUND' | 'UNBOUND' }
-      : {}),
     page: modelTableState.query.page,
     pageSize: modelTableState.query.pageSize,
     sortBy: modelTableState.query.sortBy,
@@ -460,13 +381,10 @@ export function RuntimeConfiguration(
   useEffect(() => {
     setModelPagination((current) => ({ ...current, pageIndex: 0 }))
   }, [
-    bindingStatusFilter,
-    debouncedCredentialGroup,
     debouncedModelKey,
     modelStatusFilter,
     selectedProviderId,
     selectedCredentialGroupId,
-    openEditor,
     setModelPagination,
   ])
   const taskMedia = useForm<TaskMediaForm>({
@@ -492,10 +410,6 @@ export function RuntimeConfiguration(
       reason: '',
     },
   })
-  const binding = useForm<BindingForm>({
-    resolver: zodResolver(bindingSchema),
-    defaultValues: { reason: '' },
-  })
   const management = useForm<ManagementForm>({
     resolver: zodResolver(managementSchema),
     defaultValues: { name: '', apiKey: '', reason: '' },
@@ -510,9 +424,6 @@ export function RuntimeConfiguration(
       selectedModels.some((id) => !managementInitialModels.includes(id))
   } else if (openEditor === 'credential' || addCredentialOpen) {
     hasUnsavedProviderEdit = credential.formState.isDirty
-  } else if (openEditor === 'binding') {
-    hasUnsavedProviderEdit =
-      binding.formState.isDirty || selectedModels.length > 0
   }
   const hasUnsavedStorageEdit =
     openEditor === 'taskMedia' && taskMedia.formState.isDirty
@@ -544,14 +455,10 @@ export function RuntimeConfiguration(
   }
   const resetProviderEdit = () => {
     rotationPreviewRequestRef.current += 1
-    bindingPreviewRequestRef.current += 1
     setOpenEditor(null)
     setAddCredentialOpen(false)
     setSelectedModels([])
-    setBindingPreview(null)
-    setBindingRecovery(null)
     setRotationPreview(null)
-    binding.reset({ reason: '' })
     credential.reset({
       providerId: '',
       credentialGroupId: undefined,
@@ -569,31 +476,19 @@ export function RuntimeConfiguration(
     value: string
   }) => {
     resetProviderEdit()
-    setBindingRecovery(null)
-    setPendingCleanupGroupId('')
     setExecutionPolicyDirty(false)
     if (change.kind === 'tab') {
       setProviderTab(change.value as 'overview' | 'execution')
       return
     }
-    setActiveProviderTarget(undefined)
-    setNavigationTargetApplied(true)
     if (change.kind === 'provider') {
       setSelectedProviderId(change.value)
       setSelectedCredentialGroupId('')
-      setUnboundTargetPending(false)
-      setUnboundTargetModelId('')
     } else {
       setSelectedProviderId(
         (current) => current || providerData?.selectedProviderId || ''
       )
       setSelectedCredentialGroupId(change.value)
-      if (unboundTargetPending && unboundTargetModelId) {
-        setUnboundTargetPending(false)
-        setOpenEditor('binding')
-        setSelectedModels([unboundTargetModelId])
-        binding.reset({ reason: '' })
-      }
     }
     setProviderTab('overview')
   }
@@ -692,7 +587,6 @@ export function RuntimeConfiguration(
         apiKey: '',
         reason: '',
       })
-      setActiveProviderTarget(undefined)
       setSelectedProviderId(String(published.providerId))
       setSelectedCredentialGroupId(String(published.credentialGroupId))
       toast.success(t('Provider credential group published'))
@@ -700,46 +594,6 @@ export function RuntimeConfiguration(
     },
     onError: (error) => {
       toast.error(runtimeChangeError(error, t, 'credential'))
-    },
-  })
-  const bindingMutation = useMutation({
-    mutationFn: (value: BindingForm) => {
-      if (!selectedGroup || !bindingPreview) {
-        throw new Error('Model binding preview is required')
-      }
-      return bindCanvasProviderCredentials({
-        credentialGroupVersionId: selectedGroup.id,
-        ...(value.reason.trim() ? { reason: value.reason.trim() } : {}),
-        customerModelIds: selectedModels,
-        expectedBindings: bindingPreview.models.map((model) => ({
-          customerModelId: model.customerModelId,
-          bindingId: model.bindingId,
-          bindingVersion: model.bindingVersion,
-        })),
-      })
-    },
-    onSuccess: async () => {
-      bindingMutation.reset()
-      setConfirmation(null)
-      setOpenEditor(null)
-      setSelectedModels([])
-      setBindingPreview(null)
-      setBindingRecovery(null)
-      toast.success(t('Model credential bindings published'))
-      await refresh()
-    },
-    onError: async (error) => {
-      setConfirmation(null)
-      if (isHistoricalBindingConflict(error)) {
-        setBindingRecovery({
-          groups: historicalBindingGroups(error),
-          targetGroupVersionId: selectedGroupVersionRef.current,
-          customerModelIds: [...selectedModelsRef.current],
-        })
-      } else {
-        toast.error(runtimeChangeError(error, t, 'binding'))
-      }
-      await refresh()
     },
   })
   const managementMutation = useDirectAsync({
@@ -762,13 +616,6 @@ export function RuntimeConfiguration(
       })
     },
     onSuccess: async () => {
-      setBindingRecovery((current) => {
-        if (!current) return null
-        const groups = current.groups.filter(
-          (group) => group.id !== selectedGroup?.credentialGroupId
-        )
-        return groups.length > 0 ? { ...current, groups } : null
-      })
       setConfirmation(null)
       closeProviderDrawer()
       setSelectedModels([])
@@ -817,53 +664,6 @@ export function RuntimeConfiguration(
       toast.error(runtimeChangeError(error, t, 'credential'))
     },
   })
-  const bindingPreviewMutation = useMutation({
-    mutationFn: (input: {
-      credentialGroupVersionId: string
-      customerModelIds: string[]
-      requestId: number
-    }) =>
-      previewCanvasProviderCredentialBindings({
-        credentialGroupVersionId: input.credentialGroupVersionId,
-        customerModelIds: input.customerModelIds,
-      }),
-    onSuccess: (preview, input) => {
-      if (
-        input.requestId !== bindingPreviewRequestRef.current ||
-        input.credentialGroupVersionId !== selectedGroupVersionRef.current ||
-        input.customerModelIds.length !== selectedModelsRef.current.length ||
-        input.customerModelIds.some(
-          (modelId) => !selectedModelsRef.current.includes(modelId)
-        )
-      ) {
-        return
-      }
-      setBindingPreview(preview)
-      setBindingRecovery(null)
-      setConfirmation('binding')
-    },
-    onError: (error, input) => {
-      if (
-        input.requestId !== bindingPreviewRequestRef.current ||
-        input.credentialGroupVersionId !== selectedGroupVersionRef.current ||
-        input.customerModelIds.length !== selectedModelsRef.current.length ||
-        input.customerModelIds.some(
-          (modelId) => !selectedModelsRef.current.includes(modelId)
-        )
-      ) {
-        return
-      }
-      if (isHistoricalBindingConflict(error)) {
-        setBindingRecovery({
-          groups: historicalBindingGroups(error),
-          targetGroupVersionId: input.credentialGroupVersionId,
-          customerModelIds: [...input.customerModelIds],
-        })
-      } else {
-        toast.error(runtimeChangeError(error, t, 'preview'))
-      }
-    },
-  })
   const reportCheck = async (result: CanvasRuntimeConnectionCheck) => {
     if (result.outcome === 'PASSED') toast.success(t('Connection check passed'))
     else {
@@ -890,15 +690,19 @@ export function RuntimeConfiguration(
     setExecutionPolicyDirty(false)
     taskMediaMutation.reset()
     credentialMutation.reset()
-    bindingMutation.reset()
     managementMutation.reset()
   }
 
   const effectiveProviderId =
     selectedProviderId || providerData?.selectedProviderId || ''
+  const providerTargetNeedsGroup = Boolean(
+    targetProviderId &&
+    !targetCredentialGroupId &&
+    selectedProviderId === targetProviderId
+  )
   const effectiveCredentialGroupId =
     selectedCredentialGroupId ||
-    (unboundTargetPending ? '' : providerData?.selectedCredentialGroupId) ||
+    (providerTargetNeedsGroup ? '' : providerData?.selectedCredentialGroupId) ||
     ''
   const providerGroups = (providerData?.credentialGroups ?? []).filter(
     (item) => item.providerId === effectiveProviderId
@@ -910,57 +714,12 @@ export function RuntimeConfiguration(
     providerGroups.find(
       (item) => item.credentialGroupId === effectiveCredentialGroupId
     ) ?? null
-  selectedGroupVersionRef.current = selectedGroup?.id ?? ''
-  useEffect(() => {
-    if (
-      navigationTargetApplied ||
-      !activeProviderTarget?.modelId ||
-      !providerData?.navigationTarget
-    ) {
-      return
-    }
-    if (
-      providerData.navigationTarget.modelId !== activeProviderTarget.modelId
-    ) {
-      return
-    }
-    if (providerData.navigationTarget.bindingStatus === 'HISTORICAL_BOUND') {
-      if (!selectedGroup) return
-      setNavigationTargetApplied(true)
-      setManagementInitializedGroupId('')
-      setManagementModelSearch('')
-      management.reset({ name: selectedGroup.name, apiKey: '', reason: '' })
-      setProviderDrawer('management')
-      return
-    }
-    setNavigationTargetApplied(true)
-    if (providerData.navigationTarget.bindingStatus === 'UNBOUND') {
-      setUnboundTargetPending(true)
-      setUnboundTargetModelId(activeProviderTarget.modelId)
-      setSelectedCredentialGroupId('')
-      toast.error(
-        t(
-          'This model is not bound to a credential group. Select the intended group before managing bindings.'
-        )
-      )
-      return
-    }
-    setOpenEditor('binding')
-    binding.reset({ reason: '' })
-  }, [
-    binding,
-    management,
-    navigationTargetApplied,
-    activeProviderTarget?.modelId,
-    providerData?.navigationTarget,
-    selectedGroup,
-    t,
-  ])
   const pageModels = providerData?.models.items ?? []
   useEffect(() => {
     if (
       providerDrawer !== 'management' ||
       !managementCandidates.isSuccess ||
+      managementCandidates.isFetching ||
       !selectedGroup ||
       managementInitializedGroupId === selectedGroup.credentialGroupId
     ) {
@@ -979,6 +738,7 @@ export function RuntimeConfiguration(
   }, [
     managementInitializedGroupId,
     managementCandidates.data,
+    managementCandidates.isFetching,
     managementCandidates.isSuccess,
     providerDrawer,
     selectedGroup,
@@ -991,29 +751,6 @@ export function RuntimeConfiguration(
     management.reset({ name: selectedGroup.name, apiKey: '', reason: '' })
     setProviderDrawer('management')
   }, [management, selectedGroup])
-  useEffect(() => {
-    if (
-      !pendingCleanupGroupId ||
-      selectedGroup?.credentialGroupId !== pendingCleanupGroupId
-    ) {
-      return
-    }
-    setPendingCleanupGroupId('')
-    openManagementDrawer()
-  }, [openManagementDrawer, pendingCleanupGroupId, selectedGroup])
-  const openCleanupGroup = (groupId: string) => {
-    const recovery = bindingRecovery
-    resetProviderEdit()
-    setBindingRecovery(recovery)
-    setActiveProviderTarget(undefined)
-    setNavigationTargetApplied(true)
-    setUnboundTargetPending(false)
-    setUnboundTargetModelId('')
-    setSelectedProviderId(selectedProvider?.id ?? '')
-    setSelectedCredentialGroupId(groupId)
-    setProviderTab('overview')
-    setPendingCleanupGroupId(groupId)
-  }
   const closeProviderDrawer = () => {
     const closedDrawer = providerDrawer
     setProviderDrawer(null)
@@ -1048,61 +785,30 @@ export function RuntimeConfiguration(
         .toLocaleLowerCase()
         .includes(managementModelSearch.trim().toLocaleLowerCase())
   )
+  const selectableManagementModelIds = (managementCandidates.data ?? [])
+    .filter((model) => model.isSelectable)
+    .map((model) => model.id)
+  const allManagementModelsSelected =
+    selectableManagementModelIds.length > 0 &&
+    selectableManagementModelIds.every((id) => selectedModels.includes(id))
   const historicalGroupBindings = (managementCandidates.data ?? []).filter(
     (model) =>
       !model.isSelectable &&
       model.credentialGroupId === selectedGroup?.credentialGroupId &&
       model.credentialBindingId !== null
   )
-  const allPageSelected =
-    pageModels.length > 0 &&
-    pageModels.every((model) => selectedModels.includes(model.id))
+  const managementCandidatesReady =
+    managementCandidates.isSuccess &&
+    !managementCandidates.isFetching &&
+    managementInitializedGroupId === selectedGroup?.credentialGroupId
   const updateSelectedModels = useCallback(
     (update: (current: string[]) => string[]) => {
-      bindingPreviewRequestRef.current += 1
-      setBindingPreview(null)
-      if (openEditor === 'binding') setBindingRecovery(null)
-      setConfirmation((current) => (current === 'binding' ? null : current))
       setSelectedModels(update)
     },
-    [openEditor]
+    []
   )
-  const visibleBindingRecovery =
-    bindingRecovery &&
-    (openEditor !== 'binding' ||
-      (bindingRecovery.targetGroupVersionId === selectedGroup?.id &&
-        bindingRecovery.customerModelIds.length === selectedModels.length &&
-        bindingRecovery.customerModelIds.every((id) =>
-          selectedModels.includes(id)
-        )))
-      ? bindingRecovery
-      : null
   const modelColumns = useMemo<ColumnDef<CanvasProviderModel, unknown>[]>(
     () => [
-      ...(openEditor === 'binding'
-        ? [
-            {
-              id: 'selection',
-              size: 128,
-              header: t('Select'),
-              enableSorting: false,
-              enableHiding: false,
-              cell: ({ row }: { row: { original: CanvasProviderModel } }) => (
-                <Checkbox
-                  aria-label={`${t('Select model')} ${row.original.publicName}`}
-                  checked={selectedModels.includes(row.original.id)}
-                  onCheckedChange={(checked) =>
-                    updateSelectedModels((current) =>
-                      checked
-                        ? [...new Set([...current, row.original.id])]
-                        : current.filter((id) => id !== row.original.id)
-                    )
-                  }
-                />
-              ),
-            } satisfies ColumnDef<CanvasProviderModel, unknown>,
-          ]
-        : []),
       {
         id: 'publicName',
         accessorKey: 'publicName',
@@ -1111,13 +817,6 @@ export function RuntimeConfiguration(
         ),
         meta: { label: t('Model name') },
         cell: ({ row }) => {
-          if (openEditor === 'binding') {
-            return (
-              <span className='font-medium break-words whitespace-normal'>
-                {row.original.publicName}
-              </span>
-            )
-          }
           if (!row.original.isSelectable) {
             return (
               <div className='space-y-1'>
@@ -1162,82 +861,27 @@ export function RuntimeConfiguration(
           )
         },
       },
-      ...(openEditor === 'binding'
-        ? [
-            {
-              id: 'modelKey',
-              accessorKey: 'modelKey',
-              header: t('Model key'),
-              meta: { label: t('Model key') },
-            },
-            {
-              id: 'status',
-              accessorKey: 'status',
-              header: t('Status'),
-              meta: { label: t('Status') },
-              cell: ({ row }: { row: { original: CanvasProviderModel } }) => (
-                <BusinessTerm kind='configStatus' value={row.original.status} />
-              ),
-            },
-          ]
-        : []),
-      ...(openEditor === 'binding'
-        ? [
-            {
-              id: 'credentialGroup',
-              accessorFn: (model) => model.credentialGroupName ?? '',
-              header: ({ column }) => (
-                <DataTableColumnHeader
-                  column={column}
-                  title={t('Current credential group')}
-                />
-              ),
-              meta: { label: t('Current credential group') },
-              cell: ({ row }) =>
-                row.original.credentialGroupName ? (
-                  <span>
-                    {row.original.credentialGroupName} v
-                    {row.original.credentialGroupVersion}
-                  </span>
-                ) : (
-                  <span className='text-muted-foreground'>
-                    {t('Not configured')}
-                  </span>
-                ),
-            } satisfies ColumnDef<CanvasProviderModel, unknown>,
-          ]
-        : [
-            {
-              id: 'capability',
-              accessorKey: 'capability',
-              header: t('Capability'),
-              meta: { label: t('Capability') },
-              enableSorting: false,
-              cell: ({ row }) => t(row.original.capability),
-            } satisfies ColumnDef<CanvasProviderModel, unknown>,
-            {
-              id: 'bindingTime',
-              accessorKey: 'credentialBindingEffectiveAt',
-              header: t('Binding time'),
-              meta: { label: t('Binding time') },
-              enableSorting: false,
-              cell: ({ row }) =>
-                row.original.credentialBindingEffectiveAt
-                  ? formatCanvasDateTime(
-                      row.original.credentialBindingEffectiveAt
-                    )
-                  : '—',
-            } satisfies ColumnDef<CanvasProviderModel, unknown>,
-          ]),
+      {
+        id: 'capability',
+        accessorKey: 'capability',
+        header: t('Capability'),
+        meta: { label: t('Capability') },
+        enableSorting: false,
+        cell: ({ row }) => t(row.original.capability),
+      },
+      {
+        id: 'bindingTime',
+        accessorKey: 'credentialBindingEffectiveAt',
+        header: t('Binding time'),
+        meta: { label: t('Binding time') },
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.credentialBindingEffectiveAt
+            ? formatCanvasDateTime(row.original.credentialBindingEffectiveAt)
+            : '—',
+      },
     ],
-    [
-      openEditor,
-      openManagementDrawer,
-      selectedGroup,
-      selectedModels,
-      t,
-      updateSelectedModels,
-    ]
+    [openManagementDrawer, selectedGroup, t]
   )
   let confirmationDetails = [
     { label: t('Selected models'), value: String(selectedModels.length) },
@@ -1325,20 +969,6 @@ export function RuntimeConfiguration(
         : []),
     ]
   }
-  if (confirmation === 'binding') {
-    confirmationDetails = [
-      {
-        label: t('Credential group'),
-        value: bindingPreview
-          ? `${bindingPreview.targetCredentialGroupName} v${bindingPreview.targetCredentialGroupVersion}`
-          : '—',
-      },
-      {
-        label: t('Selected models'),
-        value: String(bindingPreview?.models.length ?? selectedModels.length),
-      },
-    ]
-  }
   if (
     confirmation === 'management' &&
     selectedGroup &&
@@ -1408,7 +1038,7 @@ export function RuntimeConfiguration(
       <div className='space-y-3'>
         {view === 'provider' && (
           <p className='text-destructive text-sm' role='alert'>
-            {runtimeChangeError(runtime.error, t, 'preview')}
+            {runtimeChangeError(runtime.error, t, 'load')}
           </p>
         )}
         <Button variant='outline' onClick={() => void runtime.refetch()}>
@@ -1714,11 +1344,7 @@ export function RuntimeConfiguration(
                   <Checkbox
                     checked={showArchivedGroups}
                     onCheckedChange={(checked) => {
-                      setActiveProviderTarget(undefined)
-                      setNavigationTargetApplied(true)
                       setSelectedCredentialGroupId('')
-                      setUnboundTargetPending(false)
-                      setUnboundTargetModelId('')
                       setModelPagination((current) => ({
                         ...current,
                         pageIndex: 0,
@@ -1829,17 +1455,10 @@ export function RuntimeConfiguration(
                               id='bound-models-title'
                               className='font-semibold'
                             >
-                              {openEditor === 'binding'
-                                ? t('Eligible models')
-                                : t('Model bindings and cleanup ({{count}})', {
-                                    count: selectedGroup.boundModelCount,
-                                  })}
+                              {t('Model bindings and cleanup ({{count}})', {
+                                count: selectedGroup.boundModelCount,
+                              })}
                             </h3>
-                            {openEditor === 'binding' && (
-                              <p className='text-muted-foreground text-sm'>
-                                {`${t('Binding target')}: ${selectedGroup.name} v${selectedGroup.version}`}
-                              </p>
-                            )}
                           </div>
                         </div>
 
@@ -1850,11 +1469,7 @@ export function RuntimeConfiguration(
                           state={modelTableState}
                           searchLabel={t('Model name')}
                           loading={providerRuntime.isFetching}
-                          emptyTitle={
-                            openEditor === 'binding'
-                              ? t('No eligible models')
-                              : t('No bound models')
-                          }
+                          emptyTitle={t('No bound models')}
                           getRowId={(model) => model.id}
                           initialColumnVisibility={{
                             modelKey: false,
@@ -1893,164 +1508,23 @@ export function RuntimeConfiguration(
                                   </NativeSelectOption>
                                 </NativeSelect>
                               </DataTableColumnFilterField>
-                              {openEditor === 'binding' && (
-                                <>
-                                  <DataTableColumnFilterField
-                                    label={t('Current credential group')}
-                                  >
-                                    <Input
-                                      value={credentialGroupFilter}
-                                      placeholder={t(
-                                        'Current credential group'
-                                      )}
-                                      onChange={(event) =>
-                                        setCredentialGroupFilter(
-                                          event.target.value
-                                        )
-                                      }
-                                    />
-                                  </DataTableColumnFilterField>
-                                  <DataTableColumnFilterField
-                                    label={t('Binding status')}
-                                  >
-                                    <NativeSelect
-                                      className='w-full'
-                                      aria-label={t('Binding status')}
-                                      value={bindingStatusFilter}
-                                      onChange={(event) =>
-                                        setBindingStatusFilter(
-                                          event.target.value
-                                        )
-                                      }
-                                    >
-                                      <NativeSelectOption value=''>
-                                        {t('All binding statuses')}
-                                      </NativeSelectOption>
-                                      <NativeSelectOption value='BOUND'>
-                                        {t('Bound')}
-                                      </NativeSelectOption>
-                                      <NativeSelectOption value='UNBOUND'>
-                                        {t('Not configured')}
-                                      </NativeSelectOption>
-                                    </NativeSelect>
-                                  </DataTableColumnFilterField>
-                                </>
-                              )}
                             </>
                           }
                           hasActiveFilters={Boolean(
-                            modelKeyFilter ||
-                            modelStatusFilter ||
-                            (openEditor === 'binding' &&
-                              (credentialGroupFilter || bindingStatusFilter))
+                            modelKeyFilter || modelStatusFilter
                           )}
                           activeFilterCount={
                             [
                               modelTableState.search,
                               modelKeyFilter,
                               modelStatusFilter,
-                              ...(openEditor === 'binding'
-                                ? [credentialGroupFilter, bindingStatusFilter]
-                                : []),
                             ].filter(Boolean).length
                           }
                           onResetFilters={() => {
                             setModelKeyFilter('')
                             setModelStatusFilter('')
-                            setCredentialGroupFilter('')
-                            setBindingStatusFilter('')
                           }}
                         />
-                        {visibleBindingRecovery && (
-                          <section
-                            className='border-destructive/40 space-y-2 rounded-lg border p-3'
-                            aria-label={t('Binding cleanup required')}
-                          >
-                            <p className='text-destructive text-sm'>
-                              {t(
-                                'An older model binding is still active. Open API Key group management and retire it before binding the current version.'
-                              )}
-                            </p>
-                            <div className='flex flex-wrap gap-2'>
-                              {visibleBindingRecovery.groups.map((group) => (
-                                <Button
-                                  key={group.id}
-                                  type='button'
-                                  variant='outline'
-                                  onClick={() => openCleanupGroup(group.id)}
-                                >
-                                  {t('Manage binding cleanup')}: {group.name}
-                                </Button>
-                              ))}
-                            </div>
-                          </section>
-                        )}
-                        {openEditor === 'binding' && (
-                          <form
-                            aria-label={t('Publish model credential bindings')}
-                            className='space-y-3 rounded-xl border p-4'
-                            onSubmit={binding.handleSubmit(() => {
-                              if (selectedModels.length === 0) return
-                              bindingPreviewMutation.mutate({
-                                credentialGroupVersionId: selectedGroup.id,
-                                customerModelIds: selectedModels,
-                                requestId: ++bindingPreviewRequestRef.current,
-                              })
-                            })}
-                          >
-                            <Field
-                              label={t('Reason (optional)')}
-                              error={binding.formState.errors.reason?.message}
-                            >
-                              <Input {...binding.register('reason')} />
-                            </Field>
-                            <label className='bg-muted/30 flex items-center gap-3 rounded-lg border p-3 text-sm font-medium'>
-                              <Checkbox
-                                checked={allPageSelected}
-                                onCheckedChange={(checked) => {
-                                  const pageIds = new Set(
-                                    pageModels.map((model) => model.id)
-                                  )
-                                  updateSelectedModels((current) =>
-                                    checked === true
-                                      ? [...new Set([...current, ...pageIds])]
-                                      : current.filter((id) => !pageIds.has(id))
-                                  )
-                                }}
-                              />
-                              {t('Select this page ({{count}})', {
-                                count: pageModels.length,
-                              })}
-                            </label>
-                            <p
-                              className='text-sm font-medium'
-                              aria-live='polite'
-                            >
-                              {t('Selected models: {{count}}', {
-                                count: selectedModels.length,
-                              })}
-                            </p>
-                            <div className='flex flex-wrap justify-end gap-2'>
-                              <Button
-                                type='button'
-                                variant='outline'
-                                onClick={resetProviderEdit}
-                              >
-                                {t('Cancel')}
-                              </Button>
-                              <Button
-                                type='submit'
-                                disabled={
-                                  selectedModels.length === 0 ||
-                                  bindingPreviewMutation.isPending
-                                }
-                              >
-                                {t('Review model bindings')} (
-                                {selectedModels.length})
-                              </Button>
-                            </div>
-                          </form>
-                        )}
                       </section>
                     </CardContent>
                   </Card>
@@ -2149,9 +1623,44 @@ export function RuntimeConfiguration(
                       className='space-y-2'
                       aria-label={t('Bound models')}
                     >
-                      <Label htmlFor='api-key-group-model-search'>
-                        {t('Filter models')}
-                      </Label>
+                      <div className='flex items-center justify-between gap-3'>
+                        <Label htmlFor='api-key-group-model-search'>
+                          {t('Filter models')}
+                        </Label>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          disabled={
+                            !managementCandidatesReady ||
+                            selectableManagementModelIds.length === 0
+                          }
+                          onClick={() =>
+                            updateSelectedModels((current) => {
+                              const selectable = new Set(
+                                selectableManagementModelIds
+                              )
+                              if (allManagementModelsSelected) {
+                                return current.filter(
+                                  (id) => !selectable.has(id)
+                                )
+                              }
+                              return [
+                                ...new Set([
+                                  ...current,
+                                  ...selectableManagementModelIds,
+                                ]),
+                              ]
+                            })
+                          }
+                        >
+                          {t(
+                            allManagementModelsSelected
+                              ? 'Clear all'
+                              : 'Select all'
+                          )}
+                        </Button>
+                      </div>
                       <Input
                         id='api-key-group-model-search'
                         value={managementModelSearch}
@@ -2161,12 +1670,14 @@ export function RuntimeConfiguration(
                         }
                       />
                       <div className='space-y-2'>
-                        {managementCandidates.isPending && (
+                        {(managementCandidates.isFetching ||
+                          (!managementCandidatesReady &&
+                            !managementCandidates.isError)) && (
                           <p className='text-muted-foreground text-sm'>
                             {t('Loading')}
                           </p>
                         )}
-                        {!managementCandidates.isPending &&
+                        {!managementCandidates.isFetching &&
                           managementCandidates.isError && (
                             <div className='space-y-2 rounded-lg border p-3'>
                               <p className='text-destructive text-sm'>
@@ -2184,8 +1695,7 @@ export function RuntimeConfiguration(
                               </Button>
                             </div>
                           )}
-                        {!managementCandidates.isPending &&
-                          !managementCandidates.isError &&
+                        {managementCandidatesReady &&
                           managementModels.map((model) => (
                             <label
                               key={model.id}
@@ -2212,7 +1722,7 @@ export function RuntimeConfiguration(
                               </span>
                             </label>
                           ))}
-                        {managementCandidates.isSuccess &&
+                        {managementCandidatesReady &&
                         managementModels.length === 0 ? (
                           <p className='text-muted-foreground text-sm'>
                             {t('No matching models')}
@@ -2220,7 +1730,7 @@ export function RuntimeConfiguration(
                         ) : null}
                       </div>
                     </section>
-                    {managementCandidates.isSuccess &&
+                    {managementCandidatesReady &&
                       historicalGroupBindings.length > 0 && (
                         <section className='space-y-2 rounded-lg border p-3'>
                           <h3 className='text-sm font-medium'>
@@ -2348,9 +1858,6 @@ export function RuntimeConfiguration(
             if (confirmation === 'credential') {
               credentialMutation.mutate(credential.getValues())
             }
-            if (confirmation === 'binding') {
-              bindingMutation.mutate(binding.getValues())
-            }
             if (confirmation === 'management') {
               void management.handleSubmit((values) => {
                 managementMutation.mutate(values)
@@ -2360,7 +1867,6 @@ export function RuntimeConfiguration(
           pending={
             taskMediaMutation.isPending ||
             credentialMutation.isPending ||
-            bindingMutation.isPending ||
             managementMutation.isPending
           }
         >
@@ -2393,42 +1899,6 @@ export function RuntimeConfiguration(
                   className: 'w-64',
                   cell: () =>
                     `v${rotationPreview.currentVersion} → v${rotationPreview.nextVersion}`,
-                },
-              ]}
-            />
-          )}
-          {confirmation === 'binding' && bindingPreview && (
-            <StaticDataTable
-              className='max-h-72'
-              tableClassName='min-w-[640px] table-fixed'
-              data={bindingPreview.models}
-              getRowKey={(model) => model.customerModelId}
-              columns={[
-                {
-                  id: 'model',
-                  header: t('Model name'),
-                  className: 'w-52',
-                  cell: (model) => (
-                    <span className='break-words whitespace-normal'>
-                      {model.publicName}
-                    </span>
-                  ),
-                },
-                {
-                  id: 'current',
-                  header: t('Current group and version'),
-                  className: 'w-52',
-                  cell: (model) =>
-                    model.currentCredentialGroupName
-                      ? `${model.currentCredentialGroupName} v${model.currentCredentialGroupVersion}`
-                      : t('Not configured'),
-                },
-                {
-                  id: 'target',
-                  header: t('Target group and version'),
-                  className: 'w-52',
-                  cell: () =>
-                    `${bindingPreview.targetCredentialGroupName} v${bindingPreview.targetCredentialGroupVersion}`,
                 },
               ]}
             />

@@ -8,7 +8,6 @@ License, or (at your option) any later version.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import {
   type CSSProperties,
@@ -35,7 +34,7 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -59,7 +58,6 @@ import {
   getModelPricingServerErrorMessageKey,
   getServerErrorMessageKey,
 } from '@/lib/server-error-message'
-import { cn } from '@/lib/utils'
 
 import {
   calculateCanvasModelPricingCny,
@@ -1154,16 +1152,6 @@ export function UnifiedModelPricing(props: {
             {t(selected.capability, { defaultValue: t('Unknown') })}
           </span>
         </div>
-        <div className='flex flex-wrap gap-2 self-start'>
-          <Link
-            className={cn(buttonVariants({ variant: 'outline' }))}
-            to='/canvas-cloud/$section'
-            params={{ section: 'provider-configuration' }}
-            search={{ modelId: selected.id }}
-          >
-            {t('Manage API Key bindings')}
-          </Link>
-        </div>
       </div>
       <Tabs
         value={tab}
@@ -1196,9 +1184,16 @@ export function UnifiedModelPricing(props: {
         </TabsContent>
         <TabsContent value='set' className='mt-4 max-w-3xl space-y-4'>
           {selected.billingUnitState === 'MIXED' ? (
-            <p role='alert' className='rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm'>
-              {t('Published pricing contains mixed billing units. Choose one unit and re-enter every scope and price plan before publishing.')}{' '}
-              {selected.publishedBillingUnits.map((unit) => billingUnitLabel(unit, t)).join(' · ')}
+            <p
+              role='alert'
+              className='rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm'
+            >
+              {t(
+                'Published pricing contains mixed billing units. Choose one unit and re-enter every scope and price plan before publishing.'
+              )}{' '}
+              {selected.publishedBillingUnits
+                .map((unit) => billingUnitLabel(unit, t))
+                .join(' · ')}
             </p>
           ) : null}
           {detail.data.pricingScopes

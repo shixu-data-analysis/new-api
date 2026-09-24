@@ -86,7 +86,10 @@ import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
 import { CatalogModelPreview } from './CatalogModelPreview'
 import { ModelMonitoringOverview } from './ModelMonitoringOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
-import { PublishedModelCatalog } from './PublishedModelCatalog'
+import {
+  PublishedModelCatalog,
+  type ModelBindingNavigationTarget,
+} from './PublishedModelCatalog'
 import { UnifiedModelPricing } from './UnifiedModelPricing'
 
 function diagnosticDetails(
@@ -214,7 +217,7 @@ export function AdminModelCatalog(props: {
     returnContext?: ModelManagementReturnContext
   ) => void
   onManageBindings?: (
-    modelId: string,
+    target: ModelBindingNavigationTarget,
     returnContext?: ModelManagementReturnContext
   ) => void
 }) {

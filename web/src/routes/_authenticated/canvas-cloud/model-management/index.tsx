@@ -77,11 +77,11 @@ function ModelManagementIndex() {
             : undefined,
         })
       }
-      onManageBindings={(modelId, returnContext) =>
+      onManageBindings={(target, returnContext) =>
         void navigate({
           to: '/canvas-cloud/$section',
           params: { section: 'provider-configuration' },
-          search: { modelId },
+          search: target,
           state: returnContext
             ? (previous) => ({
                 ...previous,

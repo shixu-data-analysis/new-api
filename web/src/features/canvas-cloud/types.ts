@@ -91,15 +91,11 @@ export interface CanvasProviderConfigurationQuery {
   credentialGroupStatus?: 'ACTIVE' | 'ARCHIVED'
   providerId?: string
   credentialGroupId?: string
-  credentialGroupVersionId?: string
-  modelId?: string
-  modelScope: 'BOUND_TO_GROUP' | 'ELIGIBLE' | 'GROUP_MANAGEMENT'
+  modelScope: 'BOUND_TO_GROUP' | 'GROUP_MANAGEMENT'
   modelName?: string
   modelKey?: string
   modelStatus?: string
-  credentialGroup?: string
-  bindingStatus?: 'BOUND' | 'UNBOUND'
-  sortBy: 'publicName' | 'modelKey' | 'status' | 'credentialGroup'
+  sortBy: 'publicName' | 'modelKey' | 'status'
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
@@ -109,10 +105,6 @@ export interface CanvasProviderConfiguration {
   environment: 'UAT' | 'STG' | 'PROD'
   selectedProviderId: string | null
   selectedCredentialGroupId: string | null
-  navigationTarget: {
-    modelId: string
-    bindingStatus: 'BOUND' | 'UNBOUND' | 'HISTORICAL_BOUND'
-  } | null
   providers: Array<{
     id: string
     code: string
@@ -252,20 +244,6 @@ export interface CanvasCredentialRotationPreview {
     publicName: string
     bindingId: string
     bindingVersion: number
-  }>
-}
-
-export interface CanvasModelBindingPreview {
-  credentialGroupVersionId: string
-  targetCredentialGroupName: string
-  targetCredentialGroupVersion: number
-  models: Array<{
-    customerModelId: string
-    publicName: string
-    currentCredentialGroupName: string | null
-    currentCredentialGroupVersion: number | null
-    bindingId: string | null
-    bindingVersion: number | null
   }>
 }
 

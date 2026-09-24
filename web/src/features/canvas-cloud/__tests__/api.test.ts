@@ -91,7 +91,6 @@ import {
   provisionCanvasAgent,
   publishCanvasProviderRate,
   publishCanvasProviderCredentialGroup,
-  bindCanvasProviderCredentials,
   publishCanvasCredentialGroupManagement,
   archiveCanvasCredentialGroup,
   restoreCanvasCredentialGroup,
@@ -1239,16 +1238,6 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.post.mock.calls.at(-1)?.[1]).not.toHaveProperty('reason')
 
     await publishCanvasProviderCredentialGroup({ ...base, reason: null })
-    expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
-      expect.objectContaining({ reason: null, confirmed: true })
-    )
-
-    await bindCanvasProviderCredentials({
-      credentialGroupVersionId: 'credential-version-v1',
-      customerModelIds: [],
-      expectedBindings: [],
-      reason: null,
-    })
     expect(mocks.post.mock.calls.at(-1)?.[1]).toEqual(
       expect.objectContaining({ reason: null, confirmed: true })
     )
