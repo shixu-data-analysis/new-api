@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 interface RechargeCodeCardProps {
   code: string
@@ -66,10 +67,10 @@ export function RechargeCodeCard(props: RechargeCodeCardProps) {
               </p>
             </div>
             <a
-              className={buttonVariants({
-                variant: 'outline',
-                className: 'shrink-0',
-              })}
+              className={cn(
+                buttonVariants({ variant: 'outline' }),
+                'w-full shrink-0 border-transparent bg-[#f3c969] text-[#27220f] hover:bg-[#f7d681] hover:text-[#27220f] sm:w-auto dark:border-transparent dark:bg-[#f3c969] dark:text-[#27220f] dark:hover:bg-[#f7d681]'
+              )}
               href={props.purchaseUrl}
               target={externalPurchase ? '_blank' : undefined}
               rel={externalPurchase ? 'noopener noreferrer' : undefined}
