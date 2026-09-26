@@ -805,6 +805,17 @@ export async function getCanvasAdminInviteCodes(
   ).data
 }
 
+export async function getCanvasAdminInviteCode(
+  id: string
+): Promise<CanvasAdminInviteCode> {
+  return (
+    await api.get<CanvasAdminInviteCode>(
+      `${webBase}/admin/invite-codes/${id}`,
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
 export async function searchCanvasAdminInviteCodes(
   input: { code: string } & Partial<CanvasAdminInviteCodeQuery>,
   signal?: AbortSignal
@@ -913,6 +924,32 @@ export async function extendCanvasAdminInviteCode(input: {
         headers: {
           'Idempotency-Key':
             input.idempotencyKey ?? idempotencyKey('web-invite-extend'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function expandCanvasAdminInviteCodeCapacity(input: {
+  id: string
+  expectedMaxRegistrations: string
+  additionalRegistrations: string
+  confirmed: true
+  idempotencyKey?: string
+}): Promise<CanvasAdminInviteCode> {
+  return (
+    await api.post<CanvasAdminInviteCode>(
+      `${webBase}/admin/invite-codes/${input.id}/expand-capacity`,
+      {
+        expectedMaxRegistrations: input.expectedMaxRegistrations,
+        additionalRegistrations: input.additionalRegistrations,
+        confirmed: true,
+      },
+      {
+        headers: {
+          'Idempotency-Key':
+            input.idempotencyKey ?? idempotencyKey('web-invite-expand'),
         },
         skipErrorHandler: true,
       }

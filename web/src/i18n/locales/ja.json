@@ -8332,6 +8332,21 @@
     "Account role": "アカウントロール",
     "Canvas Platform Administrator": "PixMiao Studio プラットフォーム管理者",
     "Canvas Customer": "PixMiao Studio 顧客",
-    "Canvas Super Administrator": "PixMiao Studio スーパー管理者"
+    "Canvas Super Administrator": "PixMiao Studio スーパー管理者",
+    "Edit invite code": "招待コードを編集",
+    "Capacity and expiration are submitted separately.": "定員と有効期限は個別に送信されます。",
+    "Current invite summary": "現在の招待情報",
+    "Current capacity": "現在の定員",
+    "Current remaining": "現在の残り枠",
+    "Increase capacity": "定員を増やす",
+    "Additional registrations": "追加登録枠",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "増枠後：定員 {{total}}、残り {{remaining}}",
+    "This invite is paused and will remain paused after expansion.": "この招待は一時停止中で、増枠後も一時停止のままです。",
+    "This invite is expired and will remain expired after expansion.": "この招待は期限切れで、増枠後も期限切れのままです。",
+    "Confirm capacity expansion": "増枠を確定",
+    "Invite capacity expanded": "招待の定員を増やしました",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "招待の定員が変更されました。最新の定員を表示しています。確認して再送信してください。",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "招待の定員が変更されましたが、最新の定員を読み込めませんでした。再送信して更新を再試行してください。",
+    "Invite capacity could not be expanded": "招待の定員を増やせませんでした"
   }
 }

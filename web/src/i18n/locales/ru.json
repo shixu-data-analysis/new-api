@@ -8332,6 +8332,21 @@
     "Account role": "Роль учетной записи",
     "Canvas Platform Administrator": "Администратор платформы PixMiao Studio",
     "Canvas Customer": "Клиент PixMiao Studio",
-    "Canvas Super Administrator": "Суперадминистратор PixMiao Studio"
+    "Canvas Super Administrator": "Суперадминистратор PixMiao Studio",
+    "Edit invite code": "Изменить код приглашения",
+    "Capacity and expiration are submitted separately.": "Вместимость и срок действия отправляются отдельно.",
+    "Current invite summary": "Текущие данные приглашения",
+    "Current capacity": "Текущая вместимость",
+    "Current remaining": "Осталось мест",
+    "Increase capacity": "Увеличить вместимость",
+    "Additional registrations": "Дополнительные регистрации",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "После увеличения: всего {{total}}, осталось {{remaining}}",
+    "This invite is paused and will remain paused after expansion.": "Приглашение приостановлено и останется приостановленным после увеличения.",
+    "This invite is expired and will remain expired after expansion.": "Срок приглашения истёк и останется истёкшим после увеличения.",
+    "Confirm capacity expansion": "Подтвердить увеличение вместимости",
+    "Invite capacity expanded": "Вместимость приглашения увеличена",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "Вместимость приглашения изменилась. Показано актуальное значение; проверьте его и отправьте форму снова.",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "Вместимость приглашения изменилась, но актуальное значение загрузить не удалось. Отправьте форму снова, чтобы повторить обновление.",
+    "Invite capacity could not be expanded": "Не удалось увеличить вместимость приглашения"
   }
 }

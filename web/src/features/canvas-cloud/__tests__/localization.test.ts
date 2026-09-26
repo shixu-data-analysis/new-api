@@ -278,6 +278,23 @@ const inviteStatusKeys = [
   'Invite status REVOKED',
   'Invite status EXPIRED',
 ] as const
+const inviteCapacityKeys = [
+  'Edit invite code',
+  'Capacity and expiration are submitted separately.',
+  'Current invite summary',
+  'Current capacity',
+  'Current remaining',
+  'Increase capacity',
+  'Additional registrations',
+  'After expansion: total capacity {{total}}, remaining {{remaining}}',
+  'This invite is paused and will remain paused after expansion.',
+  'This invite is expired and will remain expired after expansion.',
+  'Confirm capacity expansion',
+  'Invite capacity expanded',
+  'Invite capacity changed. The latest capacity is shown; review it and submit again.',
+  'Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.',
+  'Invite capacity could not be expanded',
+] as const
 const paidExpiryKeys = [
   'Decision summary (optional)',
   'Default configuration',
@@ -764,6 +781,17 @@ describe('Canvas interface localization', () => {
     (_locale, resource) => {
       const translations = resource.translation as Record<string, string>
       for (const key of inviteStatusKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'localizes every invite capacity label in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of inviteCapacityKeys) {
         expect(translations[key], key).toBeTypeOf('string')
         expect(translations[key], key).not.toBe(key)
       }

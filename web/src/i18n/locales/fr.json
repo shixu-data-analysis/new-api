@@ -8332,6 +8332,21 @@
     "Account role": "Rôle du compte",
     "Canvas Platform Administrator": "Administrateur de la plateforme PixMiao Studio",
     "Canvas Customer": "Client PixMiao Studio",
-    "Canvas Super Administrator": "Super-administrateur PixMiao Studio"
+    "Canvas Super Administrator": "Super-administrateur PixMiao Studio",
+    "Edit invite code": "Modifier le code d’invitation",
+    "Capacity and expiration are submitted separately.": "La capacité et l’expiration sont envoyées séparément.",
+    "Current invite summary": "Informations actuelles de l’invitation",
+    "Current capacity": "Capacité actuelle",
+    "Current remaining": "Places restantes",
+    "Increase capacity": "Augmenter la capacité",
+    "Additional registrations": "Inscriptions supplémentaires",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "Après extension : capacité totale {{total}}, {{remaining}} places restantes",
+    "This invite is paused and will remain paused after expansion.": "Cette invitation est suspendue et le restera après l’extension.",
+    "This invite is expired and will remain expired after expansion.": "Cette invitation a expiré et le restera après l’extension.",
+    "Confirm capacity expansion": "Confirmer l’extension de capacité",
+    "Invite capacity expanded": "Capacité de l’invitation augmentée",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "La capacité de l’invitation a changé. La capacité actuelle est affichée ; vérifiez-la puis renvoyez le formulaire.",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "La capacité de l’invitation a changé, mais la valeur actuelle n’a pas pu être chargée. Renvoyez le formulaire pour réessayer l’actualisation.",
+    "Invite capacity could not be expanded": "Impossible d’augmenter la capacité de l’invitation"
   }
 }

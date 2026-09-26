@@ -59,10 +59,9 @@ import { getCanvasBindableBonusActivities } from '../activity-api'
 import {
   changeCanvasAdminInviteCodeStatus,
   checkCanvasInviteCodeAvailability,
-  extendCanvasAdminInviteCode,
-  previewCanvasInviteCodeExtension,
   createCanvasAdminInviteCode,
   exportCanvasAdminInviteCodes,
+  getCanvasAdminInviteCode,
   getCanvasAdminInviteCodes,
   searchCanvasAdminInviteCodes,
   getCanvasInviteCodeOptions,
@@ -82,6 +81,7 @@ import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import type { InvitationNavigationGuard } from './InvitationManagement'
+import { InviteCodeEditSheet } from './InviteCodeEditSheet'
 import {
   PricingActionConfirmation,
   type ConfirmationDetail,
@@ -90,13 +90,11 @@ import {
 type PendingAction =
   | { kind: 'create' }
   | { kind: 'discard' }
-  | { kind: 'discardExtend' }
   | {
       kind: 'status'
       item: CanvasAdminInviteCode
       action: 'pause' | 'resume' | 'revoke'
     }
-  | { kind: 'extend'; item: CanvasAdminInviteCode }
   | null
 
 type InviteDraft = {
@@ -279,21 +277,10 @@ export function InviteCodeManagement(props: {
   const [issuedCode, setIssuedCode] = useState<string | null>(null)
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const [pendingReveals, setPendingReveals] = useState<Record<string, true>>({})
-  const [extendOpen, setExtendOpen] = useState(false)
-  const [extendItem, setExtendItem] = useState<CanvasAdminInviteCode | null>(
-    null
-  )
-  const [extendExpiresAt, setExtendExpiresAt] = useState('')
-  const [extendReason, setExtendReason] = useState('')
-  const [extendIdempotencyKey, setExtendIdempotencyKey] = useState('')
-  const [extendPreview, setExtendPreview] = useState<Awaited<
-    ReturnType<typeof previewCanvasInviteCodeExtension>
-  > | null>(null)
-  const [extendFieldErrors, setExtendFieldErrors] = useState<
-    Record<string, string>
-  >({})
+  const [editOpen, setEditOpen] = useState(false)
+  const [editItem, setEditItem] = useState<CanvasAdminInviteCode | null>(null)
+  const [editIsDirty, setEditIsDirty] = useState(false)
   const availabilityRequestVersion = useRef(0)
-  const extendPreviewRequestVersion = useRef(0)
   const tableState = useServerTableState('createdAt')
   const setPagination = tableState.setPagination
   const [status, setStatus] = useState('')
@@ -366,6 +353,38 @@ export function InviteCodeManagement(props: {
       ),
     placeholderData: (previous) => previous,
   })
+  const applyEditedInvite = useCallback(
+    (refreshedItem: CanvasAdminInviteCode) => {
+      setEditItem(refreshedItem)
+      setExactSearchResult((current) =>
+        current
+          ? {
+              ...current,
+              items: current.items.map((item) =>
+                item.id === refreshedItem.id ? refreshedItem : item
+              ),
+            }
+          : current
+      )
+      queryClient.setQueriesData<{ items: CanvasAdminInviteCode[] }>(
+        { queryKey: ['canvas-cloud', 'admin-invite-codes'] },
+        (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.id === refreshedItem.id ? refreshedItem : item
+                ),
+              }
+            : current
+      )
+    },
+    [queryClient]
+  )
+  const refreshEditedInvite = useCallback(
+    (id: string) => getCanvasAdminInviteCode(id),
+    []
+  )
   useEffect(() => {
     resetExactSearch()
     setExactSearchResult(null)
@@ -426,59 +445,6 @@ export function InviteCodeManagement(props: {
   const selectedPriceGroup = options.data?.priceGroups.find(
     (item) => item.id === selectedPriceGroupId
   )
-  const openExtend = (item: CanvasAdminInviteCode) => {
-    extendPreviewRequestVersion.current += 1
-    setExtendItem(item)
-    setExtendExpiresAt(localDateTime(new Date(item.expiresAt)))
-    setExtendReason('')
-    setExtendIdempotencyKey(`web-invite-extend-${crypto.randomUUID()}`)
-    setExtendPreview(null)
-    setExtendFieldErrors({})
-    setExtendOpen(true)
-  }
-  const extendIsDirty = Boolean(
-    extendItem &&
-    (extendExpiresAt !== localDateTime(new Date(extendItem.expiresAt)) ||
-      extendReason !== '')
-  )
-  const closeExtend = () => {
-    extendPreviewRequestVersion.current += 1
-    setExtendOpen(false)
-    setExtendItem(null)
-    setExtendExpiresAt('')
-    setExtendReason('')
-    setExtendPreview(null)
-    setExtendFieldErrors({})
-    setExtendIdempotencyKey('')
-  }
-  const previewExtend = async () => {
-    if (!extendItem || !extendExpiresAt) return
-    const requestVersion = ++extendPreviewRequestVersion.current
-    const proposal = {
-      id: extendItem.id,
-      expectedExpiresAt: extendItem.expiresAt,
-      newExpiresAt: new Date(extendExpiresAt).toISOString(),
-      reason: extendReason,
-    }
-    try {
-      const result = await previewCanvasInviteCodeExtension({
-        id: proposal.id,
-        expectedExpiresAt: proposal.expectedExpiresAt,
-        newExpiresAt: proposal.newExpiresAt,
-      })
-      if (requestVersion !== extendPreviewRequestVersion.current) return
-      setExtendPreview(result)
-    } catch (error) {
-      if (requestVersion !== extendPreviewRequestVersion.current) return
-      const field = inviteCodeFailureField(error)
-      if (field === 'newExpiresAt' || field === 'expectedExpiresAt') {
-        setExtendFieldErrors({
-          newExpiresAt: t('Invite expiration preview could not be loaded'),
-        })
-      }
-      toast.error(t('Invite expiration preview could not be loaded'))
-    }
-  }
   const resetCreateDraft = useCallback(() => {
     inviteForm.reset({
       codeMode: 'GENERATED',
@@ -499,15 +465,25 @@ export function InviteCodeManagement(props: {
     resetCreateDraft()
     setCreateOpen(false)
   }, [resetCreateDraft])
+  const discardEditDrawer = useCallback(() => {
+    setEditIsDirty(false)
+    setEditOpen(false)
+    setEditItem(null)
+  }, [])
   useEffect(() => {
     props.onNavigationGuardChange?.({
-      when: createOpen && (draftIsDirty || hasProtectedDelivery),
-      discard: discardCreateDrawer,
+      when:
+        (createOpen && (draftIsDirty || hasProtectedDelivery)) ||
+        (editOpen && editIsDirty),
+      discard: createOpen ? discardCreateDrawer : discardEditDrawer,
     })
   }, [
     createOpen,
     discardCreateDrawer,
+    discardEditDrawer,
     draftIsDirty,
+    editIsDirty,
+    editOpen,
     hasProtectedDelivery,
     props,
   ])
@@ -608,45 +584,6 @@ export function InviteCodeManagement(props: {
       })
     },
     onError: () => toast.error(t('Invite code status could not be updated')),
-  })
-  const extend = useMutation({
-    mutationFn: (input: {
-      id: string
-      expectedExpiresAt: string
-      newExpiresAt: string
-      reason: string
-    }) =>
-      extendCanvasAdminInviteCode({
-        ...input,
-        confirmed: true,
-        idempotencyKey: extendIdempotencyKey,
-      }),
-    onSuccess: (result) => {
-      queryClient.setQueriesData<{ items: CanvasAdminInviteCode[] }>(
-        { queryKey: ['canvas-cloud', 'admin-invite-codes'] },
-        (current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.map((item) =>
-                  item.id === result.id ? result : item
-                ),
-              }
-            : current
-      )
-      setPendingAction(null)
-      toast.success(t('Invite expiration extended'))
-      closeExtend()
-    },
-    onError: (error) => {
-      const field = inviteCodeFailureField(error)
-      if (field) {
-        setExtendFieldErrors({
-          [field]: t('Invite expiration could not be extended'),
-        })
-      }
-      toast.error(t('Invite expiration could not be extended'))
-    },
   })
   const availability = useMutation({
     mutationFn: (input: { code: string; requestVersion: number }) =>
@@ -965,7 +902,17 @@ export function InviteCodeManagement(props: {
       header: t('Actions'),
       cell: ({ row }) => {
         const item = row.original
+        const canEdit = inviteCodeAllowedActions(item).some(
+          (action) =>
+            action === 'EXTEND_EXPIRATION' || action === 'EXPAND_CAPACITY'
+        )
         const actionCandidates = [
+          canEdit
+            ? {
+                action: 'edit' as const,
+                label: t('Edit invite code'),
+              }
+            : null,
           inviteCodeAllowedActions(item).includes('PAUSE')
             ? {
                 action: 'pause' as const,
@@ -982,13 +929,6 @@ export function InviteCodeManagement(props: {
             ? {
                 action: 'revoke' as const,
                 label: t('Revoke'),
-              }
-            : null,
-          inviteCodeAllowedActions(item).includes('EXTEND_EXPIRATION')
-            ? {
-                action: 'extend' as const,
-                label: t('Extend expiration'),
-                Icon: null,
               }
             : null,
         ]
@@ -1012,14 +952,18 @@ export function InviteCodeManagement(props: {
                 type='button'
                 variant='outline'
                 disabled={
-                  action !== 'extend' &&
+                  action !== 'edit' &&
                   changeStatus.isPending &&
                   changeStatus.variables?.id === item.id &&
                   changeStatus.variables.action === action
                 }
                 onClick={() => {
-                  if (action === 'extend') openExtend(item)
-                  else setPendingAction({ kind: 'status', item, action })
+                  if (action === 'edit') {
+                    setEditItem(item)
+                    setEditOpen(true)
+                  } else {
+                    setPendingAction({ kind: 'status', item, action })
+                  }
                 }}
               >
                 {label}
@@ -1115,13 +1059,6 @@ export function InviteCodeManagement(props: {
           'The full invite code has not been marked as saved. Leaving will clear it from this page.'
         )
       : t('Leaving will discard the unpublished invite-code draft.')
-    confirmationDestructive = true
-  } else if (pendingAction?.kind === 'discardExtend') {
-    confirmationTitle = t('Discard this draft?')
-    confirmationConfirmLabel = t('Discard draft')
-    confirmationDescription = t(
-      'Leaving will discard the unpublished invite-code draft.'
-    )
     confirmationDestructive = true
   } else if (pendingAction?.kind === 'status') {
     let targetStatus = 'REVOKED'
@@ -1702,178 +1639,26 @@ export function InviteCodeManagement(props: {
         </SheetContent>
       </Sheet>
 
-      <Sheet
-        open={extendOpen}
+      <InviteCodeEditSheet
+        item={editItem}
+        open={editOpen}
         onOpenChange={(open) => {
-          if (open) setExtendOpen(true)
-          else if (extendIsDirty) setPendingAction({ kind: 'discardExtend' })
-          else closeExtend()
+          setEditOpen(open)
+          if (!open) {
+            setEditIsDirty(false)
+            setEditItem(null)
+          }
         }}
-      >
-        <SheetContent className={sideDrawerContentClassName('sm:max-w-xl')}>
-          <SheetHeader className={sideDrawerHeaderClassName()}>
-            <SheetTitle>{t('Extend expiration')}</SheetTitle>
-            <SheetDescription>
-              {t('Only the expiration time will change.')}
-            </SheetDescription>
-          </SheetHeader>
-          {extendItem ? (
-            <form
-              className={sideDrawerFormClassName()}
-              onSubmit={(event) => {
-                event.preventDefault()
-                const nextExpiry = new Date(extendExpiresAt)
-                if (
-                  !Number.isFinite(nextExpiry.getTime()) ||
-                  nextExpiry <= new Date(extendItem.expiresAt) ||
-                  nextExpiry <= new Date()
-                ) {
-                  setExtendFieldErrors({
-                    newExpiresAt: t('Expiry must be in the future'),
-                  })
-                  toast.error(t('Expiry must be in the future'))
-                  return
-                }
-                if (!extendPreview) {
-                  void previewExtend()
-                  return
-                }
-                extend.mutate({
-                  id: extendItem.id,
-                  expectedExpiresAt: extendItem.expiresAt,
-                  newExpiresAt: new Date(extendExpiresAt).toISOString(),
-                  reason: extendReason.trim(),
-                })
-              }}
-            >
-              <p className='text-sm'>
-                {t('Invite code')}: {extendItem.maskedCode}
-              </p>
-              <p className='text-sm'>
-                {t('Current status')}:{' '}
-                {extendItem.redeemable
-                  ? t('Invite status REDEEMABLE')
-                  : extendItem.unavailableReasons
-                      .map((reason) => t(`Invite status ${reason}`))
-                      .join(' · ')}{' '}
-                · {t('Used / capacity')}: {extendItem.consumedCount} /{' '}
-                {extendItem.maxRegistrations}
-              </p>
-              <p className='text-sm'>
-                {t('Expires at')}:{' '}
-                {formatDate(
-                  extendItem.expiresAt,
-                  i18n.resolvedLanguage ?? i18n.language
-                )}
-              </p>
-              <div className='space-y-2'>
-                <Label id='invite-extend-at-label'>
-                  {t('New expiration time')} *
-                </Label>
-                <div
-                  role='group'
-                  aria-labelledby='invite-extend-at-label'
-                  aria-invalid={Boolean(
-                    extendFieldErrors.expectedExpiresAt ||
-                    extendFieldErrors.newExpiresAt
-                  )}
-                  aria-describedby={
-                    extendFieldErrors.expectedExpiresAt ||
-                    extendFieldErrors.newExpiresAt
-                      ? 'invite-extend-at-error'
-                      : undefined
-                  }
-                >
-                  <DateTimePicker
-                    value={parsedLocalDateTime(extendExpiresAt)}
-                    onChange={(value) => {
-                      extendPreviewRequestVersion.current += 1
-                      setExtendExpiresAt(value ? localDateTime(value) : '')
-                      setExtendPreview(null)
-                      setExtendFieldErrors({})
-                    }}
-                    placeholder={t('New expiration time')}
-                    className='grid w-full min-w-0 grid-cols-[minmax(0,1fr)_5rem_auto] gap-1.5 [&_input[type=time]]:w-full'
-                    futureOnly
-                  />
-                </div>
-                <FieldError
-                  id='invite-extend-at-error'
-                  message={
-                    extendFieldErrors.expectedExpiresAt ??
-                    extendFieldErrors.newExpiresAt ??
-                    null
-                  }
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='invite-extend-reason'>
-                  {t('Extension reason')} ({t('Optional')})
-                </Label>
-                <Input
-                  id='invite-extend-reason'
-                  maxLength={2000}
-                  aria-invalid={Boolean(extendFieldErrors.reason)}
-                  aria-describedby={
-                    extendFieldErrors.reason
-                      ? 'invite-extend-reason-error'
-                      : undefined
-                  }
-                  value={extendReason}
-                  onChange={(event) => {
-                    extendPreviewRequestVersion.current += 1
-                    setExtendReason(event.target.value)
-                    setExtendPreview(null)
-                    setExtendFieldErrors({})
-                  }}
-                />
-                <FieldError
-                  id='invite-extend-reason-error'
-                  message={extendFieldErrors.reason ?? null}
-                />
-              </div>
-              {extendPreview ? (
-                <p role='status' className='text-sm'>
-                  {t('After extension')}:{' '}
-                  {extendPreview.redeemable
-                    ? t('Invite status REDEEMABLE')
-                    : extendPreview.unavailableReasons
-                        .map((reason) => t(`Invite status ${reason}`))
-                        .join(' · ')}
-                </p>
-              ) : null}
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'This will not change the management status, capacity, price group, inviter, or invite bonus.'
-                )}
-              </p>
-              <SheetFooter className={sideDrawerFooterClassName()}>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => {
-                    if (extendIsDirty) {
-                      setPendingAction({ kind: 'discardExtend' })
-                    } else {
-                      closeExtend()
-                    }
-                  }}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button
-                  type='submit'
-                  disabled={extend.isPending || !extendExpiresAt}
-                >
-                  {extendPreview
-                    ? t('Confirm extension')
-                    : t('Preview extension')}
-                </Button>
-              </SheetFooter>
-            </form>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+        onDirtyChange={setEditIsDirty}
+        onRefreshCapacityConflict={refreshEditedInvite}
+        onCapacityConflictRefreshed={applyEditedInvite}
+        onUpdated={async (result) => {
+          applyEditedInvite(result)
+          await queryClient.invalidateQueries({
+            queryKey: ['canvas-cloud', 'admin-invite-codes'],
+          })
+        }}
+      />
 
       <Card>
         <CardContent>
@@ -2029,7 +1814,7 @@ export function InviteCodeManagement(props: {
         }
         confirmLabel={confirmationConfirmLabel}
         destructive={confirmationDestructive}
-        pending={create.isPending || changeStatus.isPending || extend.isPending}
+        pending={create.isPending || changeStatus.isPending}
         onConfirm={() => {
           if (pendingAction?.kind === 'create') create.mutate()
           if (pendingAction?.kind === 'discard') {
@@ -2037,11 +1822,6 @@ export function InviteCodeManagement(props: {
             setIssuedCode(null)
             resetCreateDraft()
             setCreateOpen(false)
-            return
-          }
-          if (pendingAction?.kind === 'discardExtend') {
-            setPendingAction(null)
-            closeExtend()
             return
           }
           if (pendingAction?.kind === 'status') {

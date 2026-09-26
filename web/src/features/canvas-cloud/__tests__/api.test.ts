@@ -30,6 +30,7 @@ import {
   checkCanvasInviteCodeAvailability,
   previewCanvasInviteCodeExtension,
   extendCanvasAdminInviteCode,
+  expandCanvasAdminInviteCodeCapacity,
   downloadCanvasUnusedRechargeCodes,
   createCanvasPriceDraft,
   approveCanvasPriceGroup,
@@ -39,6 +40,7 @@ import {
   getCanvasAdminRechargeCodes,
   getCanvasAdminRechargeCodeBatchItems,
   searchCanvasAdminRechargeCodeBatch,
+  getCanvasAdminInviteCode,
   getCanvasAdminInviteCodes,
   searchCanvasAdminInviteCodes,
   exportCanvasAdminInviteCodes,
@@ -1349,6 +1351,30 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/admin/invite-codes/invite-v1/pause',
       { confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
+    )
+    await getCanvasAdminInviteCode('invite-v1')
+    expect(mocks.get).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/invite-v1',
+      { skipErrorHandler: true }
+    )
+    await expandCanvasAdminInviteCodeCapacity({
+      id: 'invite-v1',
+      expectedMaxRegistrations: '9007199254740980',
+      additionalRegistrations: '11',
+      confirmed: true,
+      idempotencyKey: 'expand-key',
+    })
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/invite-codes/invite-v1/expand-capacity',
+      {
+        expectedMaxRegistrations: '9007199254740980',
+        additionalRegistrations: '11',
+        confirmed: true,
+      },
+      expect.objectContaining({
+        headers: { 'Idempotency-Key': 'expand-key' },
+        skipErrorHandler: true,
+      })
     )
     await activateCanvasInvite('CANVAS-TEST')
     expect(mocks.post).toHaveBeenCalledWith(

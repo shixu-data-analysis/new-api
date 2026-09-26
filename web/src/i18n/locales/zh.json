@@ -8332,6 +8332,21 @@
     "Account role": "账号角色",
     "Canvas Platform Administrator": "画布平台管理员",
     "Canvas Customer": "画布客户",
-    "Canvas Super Administrator": "画布超级管理员"
+    "Canvas Super Administrator": "画布超级管理员",
+    "Edit invite code": "编辑邀请码",
+    "Capacity and expiration are submitted separately.": "容量与有效期分别提交。",
+    "Current invite summary": "邀请码当前信息",
+    "Current capacity": "当前总容量",
+    "Current remaining": "当前剩余",
+    "Increase capacity": "增加容量",
+    "Additional registrations": "新增名额",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "扩容后：总容量 {{total}}，剩余 {{remaining}} 个名额",
+    "This invite is paused and will remain paused after expansion.": "邀请码当前已暂停；扩容后仍保持暂停。",
+    "This invite is expired and will remain expired after expansion.": "邀请码当前已过期；扩容后仍保持过期。",
+    "Confirm capacity expansion": "确认扩容",
+    "Invite capacity expanded": "邀请码扩容成功",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "邀请码容量已发生变化，已显示最新容量；请确认后重新提交。",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "邀请码容量已发生变化，但无法加载最新容量。请重新提交以再次尝试刷新。",
+    "Invite capacity could not be expanded": "邀请码扩容失败"
   }
 }

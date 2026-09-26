@@ -29,8 +29,10 @@ const apiMocks = vi.hoisted(() => ({
   changeCanvasAdminInviteCodeStatus: vi.fn(),
   checkCanvasInviteCodeAvailability: vi.fn(),
   createCanvasAdminInviteCode: vi.fn(),
+  expandCanvasAdminInviteCodeCapacity: vi.fn(),
   extendCanvasAdminInviteCode: vi.fn(),
   exportCanvasAdminInviteCodes: vi.fn(),
+  getCanvasAdminInviteCode: vi.fn(),
   getCanvasAdminInviteCodes: vi.fn(),
   searchCanvasAdminInviteCodes: vi.fn(),
   getCanvasInviteCodeOptions: vi.fn(),
@@ -113,7 +115,7 @@ async function openChangedExtensionDrawer(item = inviteFixture()) {
   })
   renderWithClient(<InviteCodeManagement />)
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Extend expiration' })
+    await screen.findByRole('button', { name: 'Edit invite code' })
   )
   const expiryGroup = screen.getByRole('group', {
     name: /New expiration time/u,
@@ -122,6 +124,20 @@ async function openChangedExtensionDrawer(item = inviteFixture()) {
     target: { value: '11:00' },
   })
   return { item, expiryGroup }
+}
+
+async function openInviteEditor(item: CanvasAdminInviteCode) {
+  apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+    page: 1,
+    pageSize: 20,
+    total: 1,
+    items: [item],
+  })
+  renderWithClient(<InviteCodeManagement />)
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Edit invite code' })
+  )
+  return item
 }
 
 describe('Canvas invite code management', () => {
@@ -479,7 +495,7 @@ describe('Canvas invite code management', () => {
     renderWithClient(<InviteCodeManagement />)
 
     expect(await screen.findByText('已暂停 · 已过期')).toBeVisible()
-    expect(screen.getByRole('button', { name: '延长有效期' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '编辑邀请码' })).toBeVisible()
   })
 
   it('checks a normalized custom invite code without exposing it in the URL', async () => {
@@ -713,7 +729,7 @@ describe('Canvas invite code management', () => {
     }
   )
 
-  it('reuses the commit key after a field failure, consumes the response, and closes on success', async () => {
+  it('reuses the commit key after a field failure and keeps the updated summary open on success', async () => {
     const { item } = await openChangedExtensionDrawer()
     const updated = inviteFixture({
       id: item.id,
@@ -753,13 +769,14 @@ describe('Canvas invite code management', () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole('heading', { name: 'Extend expiration' })
-      ).not.toBeInTheDocument()
+        screen.getByRole('heading', { name: 'Edit invite code' })
+      ).toBeVisible()
     )
     expect(await screen.findByText('UPDATED••')).toBeVisible()
     const calls = apiMocks.extendCanvasAdminInviteCode.mock.calls
     expect(calls).toHaveLength(2)
     expect(calls[0]?.[0].idempotencyKey).toBe(calls[1]?.[0].idempotencyKey)
+    expect(apiMocks.expandCanvasAdminInviteCodeCapacity).not.toHaveBeenCalled()
   })
 
   it('blocks a duplicate extension commit while the first request is pending', async () => {
@@ -801,24 +818,525 @@ describe('Canvas invite code management', () => {
     resolveCommit?.(updated)
     await waitFor(() =>
       expect(
-        screen.queryByRole('heading', { name: 'Extend expiration' })
-      ).not.toBeInTheDocument()
+        screen.getByRole('heading', { name: 'Edit invite code' })
+      ).toBeVisible()
     )
   })
 
   it('protects a changed extension draft when the drawer is cancelled', async () => {
     await openChangedExtensionDrawer()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByText('Close'))
 
     expect(
       await screen.findByRole('alertdialog', { name: 'Discard this draft?' })
     ).toBeVisible()
     expect(
       screen.getByRole('heading', {
-        name: 'Extend expiration',
+        name: 'Edit invite code',
         hidden: true,
       })
     ).toBeVisible()
+  })
+
+  it('registers a navigation guard for a changed capacity draft', async () => {
+    const onNavigationGuardChange = vi.fn()
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        inviteFixture({
+          allowedActions: ['EXPAND_CAPACITY'],
+        }),
+      ],
+    })
+    renderWithClient(
+      <InviteCodeManagement onNavigationGuardChange={onNavigationGuardChange} />
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Edit invite code' })
+    )
+    fireEvent.change(screen.getByLabelText(/Additional registrations/u), {
+      target: { value: '5' },
+    })
+
+    await waitFor(() =>
+      expect(onNavigationGuardChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({ when: true })
+      )
+    )
+    onNavigationGuardChange.mock.lastCall?.[0].discard()
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Edit invite code' })
+      ).not.toBeInTheDocument()
+    )
+  })
+
+  it.each([
+    {
+      actions: ['EXPAND_CAPACITY'] as CanvasAdminInviteCode['allowedActions'],
+      capacity: true,
+      expiration: false,
+    },
+    {
+      actions: ['EXTEND_EXPIRATION'] as CanvasAdminInviteCode['allowedActions'],
+      capacity: false,
+      expiration: true,
+    },
+    {
+      actions: [
+        'EXPAND_CAPACITY',
+        'EXTEND_EXPIRATION',
+      ] as CanvasAdminInviteCode['allowedActions'],
+      capacity: true,
+      expiration: true,
+    },
+  ])(
+    'shows only the editable sections allowed by $actions',
+    async ({ actions, capacity, expiration }) => {
+      await openInviteEditor(inviteFixture({ allowedActions: actions }))
+
+      expect(
+        screen.queryByRole('heading', { name: 'Increase capacity' }) !== null
+      ).toBe(capacity)
+      expect(
+        screen.queryByRole('heading', { name: 'Extend expiration' }) !== null
+      ).toBe(expiration)
+    }
+  )
+
+  it('hides the edit action when neither editable action is allowed', async () => {
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [inviteFixture({ allowedActions: ['REVOKE'] })],
+    })
+    renderWithClient(<InviteCodeManagement />)
+
+    await screen.findByText('EXTEND••')
+    expect(
+      screen.queryByRole('button', { name: 'Edit invite code' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('previews large integer capacity exactly and only explains paused or expired state', async () => {
+    await openInviteEditor(
+      inviteFixture({
+        status: 'PAUSED',
+        redeemable: false,
+        unavailableReasons: ['PAUSED', 'EXPIRED', 'EXHAUSTED'],
+        allowedActions: ['EXPAND_CAPACITY'],
+        maxRegistrations: '9007199254740980',
+        consumedCount: '9007199254740970',
+        activeReservedCount: '5',
+        remainingCount: '5',
+      })
+    )
+    fireEvent.change(screen.getByLabelText(/Additional registrations/u), {
+      target: { value: '11' },
+    })
+
+    expect(
+      screen.getByText(
+        'After expansion: total capacity 9007199254740991, remaining 16'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText(/will remain paused after expansion/u)
+    ).toBeVisible()
+    expect(
+      screen.getByText(/will remain expired after expansion/u)
+    ).toBeVisible()
+    expect(screen.queryByText(/exhausted after expansion/u)).toBeNull()
+  })
+
+  it.each(['', '0', '-1', '1.5', 'abc', '9007199254740992'])(
+    'rejects invalid additional registration value %s without a request',
+    async (value) => {
+      await openInviteEditor(
+        inviteFixture({ allowedActions: ['EXPAND_CAPACITY'] })
+      )
+      const input = screen.getByLabelText(/Additional registrations/u)
+      fireEvent.change(input, { target: { value } })
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Confirm capacity expansion' })
+      )
+
+      expect(
+        await screen.findByText(
+          'Enter a positive whole number within the supported range'
+        )
+      ).toHaveAttribute('role', 'alert')
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(input).toHaveAttribute(
+        'aria-describedby',
+        expect.stringContaining('invite-additional-registrations-error')
+      )
+      expect(input).toHaveFocus()
+      expect(
+        apiMocks.expandCanvasAdminInviteCodeCapacity
+      ).not.toHaveBeenCalled()
+    }
+  )
+
+  it('submits one expansion, blocks duplicates, refreshes the list, and updates the open summary', async () => {
+    const original = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY', 'EXTEND_EXPIRATION'],
+    })
+    const updated = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY', 'EXTEND_EXPIRATION'],
+      maxRegistrations: '15',
+      remainingCount: '13',
+    })
+    let resolveExpansion: ((value: CanvasAdminInviteCode) => void) | undefined
+    apiMocks.expandCanvasAdminInviteCodeCapacity.mockImplementation(
+      () =>
+        new Promise<CanvasAdminInviteCode>((resolve) => {
+          resolveExpansion = resolve
+        })
+    )
+    await openInviteEditor(original)
+    fireEvent.change(screen.getByLabelText('Extension reason (Optional)'), {
+      target: { value: 'Keep expiration draft' },
+    })
+    fireEvent.change(screen.getByLabelText(/Additional registrations/u), {
+      target: { value: '5' },
+    })
+    const submit = screen.getByRole('button', {
+      name: 'Confirm capacity expansion',
+    })
+    fireEvent.click(submit)
+
+    await waitFor(() => expect(submit).toBeDisabled())
+    fireEvent.click(submit)
+    expect(apiMocks.expandCanvasAdminInviteCodeCapacity).toHaveBeenCalledOnce()
+    expect(
+      apiMocks.expandCanvasAdminInviteCodeCapacity.mock.calls[0]?.[0]
+    ).toEqual(
+      expect.objectContaining({
+        id: original.id,
+        expectedMaxRegistrations: '10',
+        additionalRegistrations: '5',
+        confirmed: true,
+      })
+    )
+    expect(apiMocks.extendCanvasAdminInviteCode).not.toHaveBeenCalled()
+    resolveExpansion?.(updated)
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', { name: 'Edit invite code' })
+      ).toBeVisible()
+    )
+    expect(
+      screen.getByText('Current capacity').parentElement
+    ).toHaveTextContent('15')
+    expect(screen.getByLabelText(/Additional registrations/u)).toHaveValue('')
+    expect(screen.getByLabelText('Extension reason (Optional)')).toHaveValue(
+      'Keep expiration draft'
+    )
+    await waitFor(() =>
+      expect(
+        apiMocks.getCanvasAdminInviteCodes.mock.calls.length
+      ).toBeGreaterThan(1)
+    )
+  })
+
+  it('keeps the capacity draft when the expiration section succeeds', async () => {
+    const original = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY', 'EXTEND_EXPIRATION'],
+    })
+    const updated = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY', 'EXTEND_EXPIRATION'],
+      expiresAt: new Date(
+        new Date(original.expiresAt).getTime() + 3_600_000
+      ).toISOString(),
+    })
+    apiMocks.previewCanvasInviteCodeExtension.mockResolvedValue({
+      item: original,
+      expectedExpiresAt: original.expiresAt,
+      currentExpiresAt: original.expiresAt,
+      newExpiresAt: updated.expiresAt,
+      redeemable: true,
+      unavailableReasons: [],
+    })
+    apiMocks.extendCanvasAdminInviteCode.mockResolvedValue(updated)
+    await openInviteEditor(original)
+    const capacity = screen.getByLabelText(/Additional registrations/u)
+    fireEvent.change(capacity, { target: { value: '5' } })
+    const expiryGroup = screen.getByRole('group', {
+      name: /New expiration time/u,
+    })
+    fireEvent.change(within(expiryGroup).getByDisplayValue('10:00'), {
+      target: { value: '11:00' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Confirm extension' })
+    )
+
+    await waitFor(() =>
+      expect(apiMocks.extendCanvasAdminInviteCode).toHaveBeenCalledOnce()
+    )
+    expect(capacity).toHaveValue('5')
+    expect(apiMocks.expandCanvasAdminInviteCodeCapacity).not.toHaveBeenCalled()
+  })
+
+  it('reads a stale invite by id across capacity-sorted pages and retries with the latest expected value', async () => {
+    const original = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY'],
+      maxRegistrations: '10',
+      remainingCount: '8',
+    })
+    const refreshed = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY'],
+      maxRegistrations: '12',
+      remainingCount: '10',
+    })
+    const expanded = inviteFixture({
+      allowedActions: ['EXPAND_CAPACITY'],
+      maxRegistrations: '17',
+      remainingCount: '15',
+    })
+    apiMocks.expandCanvasAdminInviteCodeCapacity
+      .mockReset()
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { details: { field: 'expectedMaxRegistrations' } },
+        },
+      })
+      .mockResolvedValueOnce(expanded)
+    await openInviteEditor(original)
+    const listRequestCount =
+      apiMocks.getCanvasAdminInviteCodes.mock.calls.length
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [
+        inviteFixture({
+          id: 'higher-capacity-invite',
+          maxRegistrations: '999',
+        }),
+      ],
+    })
+    apiMocks.getCanvasAdminInviteCode.mockResolvedValueOnce(refreshed)
+    const input = screen.getByLabelText(/Additional registrations/u)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm capacity expansion' })
+    )
+
+    expect(
+      await screen.findByText(
+        'Invite capacity changed. The latest capacity is shown; review it and submit again.'
+      )
+    ).toHaveAttribute('role', 'alert')
+    expect(apiMocks.getCanvasAdminInviteCode).toHaveBeenCalledWith(original.id)
+    expect(apiMocks.getCanvasAdminInviteCodes).toHaveBeenCalledTimes(
+      listRequestCount
+    )
+    expect(
+      screen.getByText('Current capacity').parentElement
+    ).toHaveTextContent('12')
+    expect(input).toHaveValue('5')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm capacity expansion' })
+    )
+
+    await waitFor(() =>
+      expect(
+        apiMocks.expandCanvasAdminInviteCodeCapacity
+      ).toHaveBeenCalledTimes(2)
+    )
+    expect(
+      apiMocks.expandCanvasAdminInviteCodeCapacity.mock.calls[1]?.[0]
+    ).toEqual(
+      expect.objectContaining({
+        expectedMaxRegistrations: '12',
+        additionalRegistrations: '5',
+      })
+    )
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(
+      screen.getByText('Current capacity').parentElement
+    ).toHaveTextContent('17')
+  })
+
+  it('keeps the capacity input with recoverable feedback when conflict refresh fails', async () => {
+    apiMocks.expandCanvasAdminInviteCodeCapacity
+      .mockReset()
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { details: { field: 'expectedMaxRegistrations' } },
+        },
+      })
+    await openInviteEditor(
+      inviteFixture({ allowedActions: ['EXPAND_CAPACITY'] })
+    )
+    apiMocks.getCanvasAdminInviteCode.mockRejectedValueOnce(
+      Object.assign(new Error('not found'), { response: { status: 404 } })
+    )
+    const input = screen.getByLabelText(/Additional registrations/u)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm capacity expansion' })
+    )
+
+    expect(
+      await screen.findByText(
+        'Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.'
+      )
+    ).toHaveAttribute('role', 'alert')
+    expect(input).toHaveValue('5')
+  })
+
+  it('ignores a stale conflict refresh after discarding A and opening B', async () => {
+    const inviteA = inviteFixture({
+      id: 'invite-a',
+      maskedCode: 'INVITE-A••',
+      allowedActions: ['EXPAND_CAPACITY'],
+      maxRegistrations: '10',
+    })
+    const inviteB = inviteFixture({
+      id: 'invite-b',
+      maskedCode: 'INVITE-B••',
+      allowedActions: ['EXPAND_CAPACITY'],
+      maxRegistrations: '20',
+      remainingCount: '18',
+    })
+    const refreshedA = inviteFixture({
+      ...inviteA,
+      maxRegistrations: '12',
+      remainingCount: '10',
+    })
+    let resolveRefresh: ((value: CanvasAdminInviteCode) => void) | undefined
+    apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [inviteA, inviteB],
+    })
+    apiMocks.expandCanvasAdminInviteCodeCapacity
+      .mockReset()
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { details: { field: 'expectedMaxRegistrations' } },
+        },
+      })
+    apiMocks.getCanvasAdminInviteCode.mockReset().mockImplementationOnce(
+      () =>
+        new Promise<CanvasAdminInviteCode>((resolve) => {
+          resolveRefresh = resolve
+        })
+    )
+    renderWithClient(<InviteCodeManagement />)
+    fireEvent.click(
+      (
+        await screen.findAllByRole('button', {
+          name: 'Edit invite code',
+        })
+      )[0]
+    )
+    fireEvent.change(screen.getByLabelText(/Additional registrations/u), {
+      target: { value: '5' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm capacity expansion' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminInviteCode).toHaveBeenCalledWith(inviteA.id)
+    )
+
+    fireEvent.click(screen.getByText('Close'))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Discard draft' })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Edit invite code' })
+      ).not.toBeInTheDocument()
+    )
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Edit invite code' })[1]
+    )
+    const summary = await screen.findByLabelText('Current invite summary')
+    expect(within(summary).getByText('INVITE-B••')).toBeVisible()
+    const inviteBDraft = screen.getByLabelText(/Additional registrations/u)
+    fireEvent.change(inviteBDraft, { target: { value: '7' } })
+
+    resolveRefresh?.(refreshedA)
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Confirm capacity expansion' })
+      ).toBeEnabled()
+    )
+    expect(inviteBDraft).toHaveValue('7')
+    expect(within(summary).getByText('INVITE-B••')).toBeVisible()
+    expect(
+      within(summary).getByText('Current capacity').parentElement
+    ).toHaveTextContent('20')
+    expect(
+      screen.queryByText(/latest capacity is shown/u)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/latest capacity could not be loaded/u)
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not report unrelated 409 conflicts as a stale capacity', async () => {
+    apiMocks.expandCanvasAdminInviteCodeCapacity
+      .mockReset()
+      .mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { details: { field: 'idempotencyKey' } },
+        },
+      })
+    await openInviteEditor(
+      inviteFixture({ allowedActions: ['EXPAND_CAPACITY'] })
+    )
+    const input = screen.getByLabelText(/Additional registrations/u)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Confirm capacity expansion' })
+    )
+
+    expect(
+      await screen.findByText('Invite capacity could not be expanded')
+    ).toHaveAttribute('role', 'alert')
+    expect(apiMocks.getCanvasAdminInviteCode).not.toHaveBeenCalled()
+    expect(
+      screen.queryByText(/latest capacity is shown/u)
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the responsive editor single-column, scrollable, and accessibly labelled', async () => {
+    await openInviteEditor(
+      inviteFixture({
+        allowedActions: ['EXPAND_CAPACITY', 'EXTEND_EXPIRATION'],
+      })
+    )
+
+    expect(screen.getByTestId('invite-edit-scroll-region')).toHaveClass(
+      'overflow-y-auto'
+    )
+    expect(screen.getByLabelText(/Additional registrations/u)).toHaveAttribute(
+      'inputmode',
+      'numeric'
+    )
+    const expiryGroup = screen.getByRole('group', {
+      name: /New expiration time/u,
+    })
+    expect(expiryGroup.firstElementChild).toHaveClass('grid-cols-1')
+    expect(screen.getAllByRole('form')).toHaveLength(2)
   })
 
   it('exports the complete current server result without paging through the browser', async () => {

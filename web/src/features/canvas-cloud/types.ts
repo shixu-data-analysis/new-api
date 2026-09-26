@@ -347,7 +347,13 @@ export interface CanvasAdminInviteCode {
     | 'REVOKED'
   >
   allowedActions: Array<
-    'DISPLAY' | 'COPY' | 'PAUSE' | 'RESUME' | 'EXTEND_EXPIRATION' | 'REVOKE'
+    | 'DISPLAY'
+    | 'COPY'
+    | 'PAUSE'
+    | 'RESUME'
+    | 'EXTEND_EXPIRATION'
+    | 'EXPAND_CAPACITY'
+    | 'REVOKE'
   >
   maxRegistrations: string
   reservedCount: string

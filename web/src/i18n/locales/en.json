@@ -8332,6 +8332,21 @@
     "Account role": "Account role",
     "Canvas Platform Administrator": "Canvas Platform Administrator",
     "Canvas Customer": "Canvas Customer",
-    "Canvas Super Administrator": "Canvas Super Administrator"
+    "Canvas Super Administrator": "Canvas Super Administrator",
+    "Edit invite code": "Edit invite code",
+    "Capacity and expiration are submitted separately.": "Capacity and expiration are submitted separately.",
+    "Current invite summary": "Current invite summary",
+    "Current capacity": "Current capacity",
+    "Current remaining": "Current remaining",
+    "Increase capacity": "Increase capacity",
+    "Additional registrations": "Additional registrations",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "After expansion: total capacity {{total}}, remaining {{remaining}}",
+    "This invite is paused and will remain paused after expansion.": "This invite is paused and will remain paused after expansion.",
+    "This invite is expired and will remain expired after expansion.": "This invite is expired and will remain expired after expansion.",
+    "Confirm capacity expansion": "Confirm capacity expansion",
+    "Invite capacity expanded": "Invite capacity expanded",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "Invite capacity changed. The latest capacity is shown; review it and submit again.",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.",
+    "Invite capacity could not be expanded": "Invite capacity could not be expanded"
   }
 }

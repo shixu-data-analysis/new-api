@@ -8332,6 +8332,21 @@
     "Account role": "Vai trò tài khoản",
     "Canvas Platform Administrator": "Quản trị viên nền tảng PixMiao Studio",
     "Canvas Customer": "Khách hàng PixMiao Studio",
-    "Canvas Super Administrator": "Siêu quản trị viên PixMiao Studio"
+    "Canvas Super Administrator": "Siêu quản trị viên PixMiao Studio",
+    "Edit invite code": "Chỉnh sửa mã mời",
+    "Capacity and expiration are submitted separately.": "Sức chứa và thời hạn được gửi riêng biệt.",
+    "Current invite summary": "Thông tin lời mời hiện tại",
+    "Current capacity": "Sức chứa hiện tại",
+    "Current remaining": "Số chỗ còn lại",
+    "Increase capacity": "Tăng sức chứa",
+    "Additional registrations": "Lượt đăng ký bổ sung",
+    "After expansion: total capacity {{total}}, remaining {{remaining}}": "Sau khi mở rộng: tổng sức chứa {{total}}, còn lại {{remaining}}",
+    "This invite is paused and will remain paused after expansion.": "Lời mời đang tạm dừng và vẫn sẽ tạm dừng sau khi mở rộng.",
+    "This invite is expired and will remain expired after expansion.": "Lời mời đã hết hạn và vẫn sẽ hết hạn sau khi mở rộng.",
+    "Confirm capacity expansion": "Xác nhận mở rộng sức chứa",
+    "Invite capacity expanded": "Đã mở rộng sức chứa lời mời",
+    "Invite capacity changed. The latest capacity is shown; review it and submit again.": "Sức chứa lời mời đã thay đổi. Sức chứa mới nhất đang được hiển thị; hãy kiểm tra và gửi lại.",
+    "Invite capacity changed, but the latest capacity could not be loaded. Submit again to retry the refresh.": "Sức chứa lời mời đã thay đổi nhưng không thể tải giá trị mới nhất. Hãy gửi lại để thử làm mới lần nữa.",
+    "Invite capacity could not be expanded": "Không thể mở rộng sức chứa lời mời"
   }
 }
