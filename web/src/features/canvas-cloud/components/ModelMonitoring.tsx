@@ -71,6 +71,7 @@ import { CopyableText } from './CopyableText'
 import { executionTargetLabel } from './execution-target-label'
 import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
 import { ModelControlDialog } from './ModelControlDialog'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const windowLabels: Record<CanvasModelMonitoringWindow, string> = {
@@ -694,7 +695,14 @@ export function ModelMonitoring(props: {
         {data ? (
           <div className='space-y-1'>
             <h2 className='max-w-full min-w-0 font-medium break-words'>
-              {data.customerModel.name}
+              {data.customerModel.effectiveDisplayName}
+              <ModelIdentityTooltip
+                effectiveDisplayName={data.customerModel.effectiveDisplayName}
+                catalogDefaultName={data.customerModel.catalogDefaultName}
+                modelKey={data.customerModel.modelKey}
+                upstreamModelId={data.executionTarget.upstreamModelId}
+                upstreamModelIdShown
+              />
             </h2>
             <p className='text-muted-foreground text-sm'>
               {t('Model provider')}: {data.customerModel.providerName}

@@ -229,7 +229,7 @@ export function ModelTagManager(props: {
     },
   })
   const visibleModels = props.models.filter((model) =>
-    `${model.name} ${model.provider.name} ${model.modelIds.map((entry) => entry.modelId).join(' ')}`
+    `${model.effectiveDisplayName} ${model.catalogDefaultName} ${model.modelKey} ${model.provider.name} ${model.executionTargets.map((target) => target.upstreamModelId).join(' ')}`
       .toLocaleLowerCase()
       .includes(search.trim().toLocaleLowerCase())
   )
@@ -423,7 +423,7 @@ export function ModelTagManager(props: {
                     toggle(model.modelKey, checked === true)
                   }
                 />
-                {model.name}
+                {model.effectiveDisplayName}
               </Label>
             ))}
           </div>

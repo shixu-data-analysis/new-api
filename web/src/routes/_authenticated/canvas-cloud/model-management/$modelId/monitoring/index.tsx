@@ -106,7 +106,7 @@ function LegacyModelMonitoringRoute() {
           {t('Back to model list')}
         </Button>
         <h2 className='text-sm font-medium'>
-          {targets.data.customerModel.name}
+          {targets.data.customerModel.effectiveDisplayName}
         </h2>
         <p className='text-muted-foreground text-sm'>
           {t('Select an execution target to view its monitoring.')}

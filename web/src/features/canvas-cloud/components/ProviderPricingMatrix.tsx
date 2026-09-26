@@ -76,6 +76,7 @@ import {
 import type { CanvasBillingUnit, CanvasProviderPricingRow } from '../types'
 import { BusinessTerm } from './BusinessTerm'
 import { CustomerPriceEditor } from './CustomerPriceEditor'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { PricingRecordsTable } from './PricingRecordsTable'
 
@@ -272,7 +273,7 @@ export function ProviderPricingMatrix() {
                               key={row.combinationId}
                               value={row.combinationId}
                             >
-                              {row.providerName} · {row.modelName} ·{' '}
+                              {row.providerName} · {row.effectiveDisplayName} ·{' '}
                               {String(
                                 row.parameters.quality ?? row.combinationKey
                               )}
@@ -499,7 +500,7 @@ export function ProviderPricingMatrix() {
           {
             label: t('Model and quality'),
             value: rateReview
-              ? `${rateReview.row.modelName} · ${String(
+              ? `${rateReview.row.effectiveDisplayName} · ${String(
                   rateReview.row.parameters.quality ??
                     rateReview.row.combinationKey
                 )}`
@@ -752,8 +753,19 @@ function PricingTable(props: {
       column(
         'model',
         'Model',
-        (row) => row.modelName,
-        (row) => row.modelName
+        (row) =>
+          `${row.effectiveDisplayName} ${row.catalogDefaultName} ${row.modelKey} ${row.upstreamModelId}`,
+        (row) => (
+          <span>
+            {row.effectiveDisplayName}
+            <ModelIdentityTooltip
+              effectiveDisplayName={row.effectiveDisplayName}
+              catalogDefaultName={row.catalogDefaultName}
+              modelKey={row.modelKey}
+              upstreamModelId={row.upstreamModelId}
+            />
+          </span>
+        )
       ),
       column(
         'quality',

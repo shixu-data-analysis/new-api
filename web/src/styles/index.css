@@ -83,6 +83,76 @@ For commercial licensing, please contact support@quantumnous.com
   .json-code-editor-highlight .yace-tok--com {
     color: var(--muted-foreground);
   }
+
+  .model-management-group-main > td {
+    background: var(--card);
+    border-top: 1px solid color-mix(in oklch, var(--primary) 25%, var(--border));
+  }
+
+  .model-management-group-table [data-slot='table'] {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .model-management-group-main > td:first-child,
+  .model-management-group-details > td:first-child {
+    border-left: 3px solid var(--primary);
+  }
+
+  .model-management-group-main > td:last-child,
+  .model-management-group-details > td:last-child {
+    border-right: 1px solid
+      color-mix(in oklch, var(--primary) 25%, var(--border));
+  }
+
+  .model-management-group-main > td:first-child {
+    border-top-left-radius: var(--radius);
+  }
+
+  .model-management-group-main > td:last-child {
+    border-top-right-radius: var(--radius);
+  }
+
+  .model-management-group-details > td {
+    background: var(--card);
+    border-bottom: 1px solid
+      color-mix(in oklch, var(--primary) 25%, var(--border));
+  }
+
+  .model-management-group-details > td:first-child {
+    border-bottom-left-radius: var(--radius);
+  }
+
+  .model-management-group-details > td:last-child {
+    border-bottom-right-radius: var(--radius);
+  }
+
+  .model-management-group-main:hover > td,
+  .model-management-group-main:has(+ .model-management-group-details:hover)
+    > td {
+    border-top-color: color-mix(in oklch, var(--primary) 52%, var(--border));
+  }
+
+  .model-management-group-main:hover > td:last-child,
+  .model-management-group-main:has(+ .model-management-group-details:hover)
+    > td:last-child,
+  .model-management-group-main:hover
+    + .model-management-group-details
+    > td:last-child,
+  .model-management-group-details:hover > td:last-child {
+    border-right-color: color-mix(in oklch, var(--primary) 52%, var(--border));
+  }
+
+  .model-management-group-main:hover + .model-management-group-details > td,
+  .model-management-group-details:hover > td {
+    border-bottom-color: color-mix(in oklch, var(--primary) 52%, var(--border));
+  }
+
+  .model-management-target-table
+    [data-slot='table-body']
+    > [data-slot='table-row']:hover {
+    background-color: var(--card) !important;
+  }
 }
 
 @layer base {

@@ -262,19 +262,29 @@ beforeEach(async () => {
       {
         id: '85000000-0000-7000-8000-000000000004',
         modelKey: 'canvas.image',
-        publicName: 'Canvas Image',
+        effectiveDisplayName: 'Canvas Image',
+        catalogDefaultName: 'Catalog Canvas Image',
         providerChannelId: channelId,
       },
       {
         id: '85000000-0000-7000-8000-000000000005',
         modelKey: 'canvas.video',
-        publicName: 'Canvas Video',
+        effectiveDisplayName: 'Canvas Video',
+        catalogDefaultName: 'Catalog Canvas Video',
         providerChannelId: channelId,
       },
       {
         id: '85000000-0000-7000-8000-000000000006',
         modelKey: 'canvas.audio',
-        publicName: 'Canvas Audio',
+        effectiveDisplayName: 'Canvas Audio',
+        catalogDefaultName: 'Canvas Audio',
+        providerChannelId: channelId,
+      },
+      {
+        id: '85000000-0000-7000-8000-000000000007',
+        modelKey: `canvas.${'k'.repeat(120)}`,
+        effectiveDisplayName: 'D'.repeat(120),
+        catalogDefaultName: 'Catalog long model',
         providerChannelId: channelId,
       },
     ],
@@ -428,7 +438,7 @@ describe('execution settings', () => {
     const user = userEvent.setup()
     const wait = {
       taskId: 'wait-1',
-      modelName: 'Canvas Image',
+      displayNameSnapshot: 'Canvas Image',
       credentialGroupId,
       stage: 'SUBMIT',
       blockingStatus: 'GROUP_REQUEST_CONCURRENCY_FULL',
@@ -495,7 +505,7 @@ describe('execution settings', () => {
     document.documentElement.dir = 'rtl'
     const wait = {
       taskId: '85000000-0000-7000-8000-000000000010',
-      modelName: 'Canvas Image',
+      displayNameSnapshot: 'Canvas Image',
       credentialGroupId,
       stage: 'SUBMIT',
       blockingStatus: 'ASYNC_IN_FLIGHT_FULL',
@@ -509,14 +519,14 @@ describe('execution settings', () => {
     const queryWait = {
       ...wait,
       taskId: '85000000-0000-7000-8000-000000000011',
-      modelName: 'Canvas Video',
+      displayNameSnapshot: 'Canvas Video',
       stage: 'QUERY',
       requestState: 'ACCEPTED_BY_PROVIDER',
     }
     const uncertainWait = {
       ...wait,
       taskId: '85000000-0000-7000-8000-000000000012',
-      modelName: 'Canvas Audio',
+      displayNameSnapshot: 'Canvas Audio',
       requestState: 'MAY_HAVE_BEEN_SENT',
     }
     mocks.getCanvasExecutionCapacity.mockResolvedValue({
@@ -1579,6 +1589,11 @@ describe('execution settings', () => {
     await user.click(await screen.findByText('Canvas Video'))
     expect(screen.getByText('Selected models (2)')).toBeVisible()
     expect(screen.getByText('Selected models share this limit.')).toBeVisible()
+    expect(
+      within(limitForm).getAllByRole('button', {
+        name: 'View model identity',
+      })
+    ).toHaveLength(2)
     await user.click(search)
     await user.keyboard('{Escape}')
     await waitFor(() =>
@@ -1602,6 +1617,55 @@ describe('execution settings', () => {
       })
       expect(rule).not.toHaveProperty('modelIds')
     })
+  })
+
+  it('omits model identity help when the current display and catalog names match', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add rule' }))
+    const limitForm = screen.getByRole('form', { name: 'Limit rules' })
+    fireEvent.change(within(limitForm).getByLabelText('Applicable target'), {
+      target: { value: 'MODEL' },
+    })
+    fireEvent.change(within(limitForm).getByLabelText('Model'), {
+      target: { value: 'canvas.audio' },
+    })
+
+    expect(within(limitForm).getAllByText('Canvas Audio')).toHaveLength(2)
+    expect(
+      within(limitForm).queryByRole('button', {
+        name: 'View model identity',
+      })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps an unbroken near-limit current model identity inside a narrow layout with its tooltip visible', async () => {
+    const longModelKey = `canvas.${'k'.repeat(120)}`
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add rule' }))
+    const limitForm = screen.getByRole('form', { name: 'Limit rules' })
+    fireEvent.change(within(limitForm).getByLabelText('Applicable target'), {
+      target: { value: 'MODEL' },
+    })
+    fireEvent.change(within(limitForm).getByLabelText('Model'), {
+      target: { value: longModelKey },
+    })
+
+    const identity = limitForm.querySelector(
+      '[data-model-identity="limit-model"]'
+    )
+    expect(identity).toHaveClass(
+      'max-w-full',
+      'min-w-0',
+      'grid-cols-[minmax(0,1fr)_auto]',
+      'items-end'
+    )
+    expect(identity?.firstElementChild).toHaveClass('min-w-0', 'break-all')
+    const identityButton = within(identity as HTMLElement).getByRole('button', {
+      name: 'View model identity',
+    })
+    expect(identityButton.parentElement).toHaveClass('shrink-0')
+    expect(identity).toHaveTextContent('D'.repeat(120))
+    expect(identity).toHaveTextContent(longModelKey)
   })
 
   it('localizes the shared-model required error after the field first loses focus', async () => {

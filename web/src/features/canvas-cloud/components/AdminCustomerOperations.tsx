@@ -826,12 +826,12 @@ function CustomerTasks({
       },
       {
         id: 'model',
-        accessorKey: 'modelName',
+        accessorKey: 'displayNameSnapshot',
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Model')} />
         ),
         meta: { label: t('Model') },
-        cell: ({ row }) => row.original.modelName,
+        cell: ({ row }) => row.original.displayNameSnapshot,
       },
       {
         id: 'quotedPoints',
@@ -1375,11 +1375,11 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       header: t('Task-time price group'),
     },
     {
-      id: 'modelName',
-      accessorKey: 'modelName',
+      id: 'effectiveDisplayName',
+      accessorKey: 'effectiveDisplayName',
       header: t('Model / specification'),
       cell: ({ row }) =>
-        `${row.original.modelName} / ${pricingScopeLabel({ key: row.original.combinationKey, parameters: row.original.parameters }, t)}`,
+        `${row.original.effectiveDisplayName} / ${pricingScopeLabel({ key: row.original.combinationKey, parameters: row.original.parameters }, t)}`,
     },
     {
       id: 'billingUnit',

@@ -64,7 +64,7 @@ const prices: CanvasAdminWorkspace['prices'] = [
   {
     id: 'published-price',
     modelKey: 'canvas.image',
-    modelName: 'Canvas Image',
+    displayNameSnapshot: 'Historical Canvas Image',
     priceGroupCode: 'STANDARD',
     priceGroup: 'Standard',
     combinationKey: 'default',
@@ -102,7 +102,7 @@ const pricePromotions: CanvasAdminWorkspace['pricePromotions'] = [
     status: 'STOPPED',
     sourcePriceVersionId: 'published-price',
     modelKey: 'canvas.image',
-    modelName: 'Canvas Image',
+    displayNameSnapshot: 'Historical Promotion Canvas Image',
     priceGroupCode: 'STANDARD',
     priceGroup: 'Standard',
     combinationKey: 'quality=1K',
@@ -132,12 +132,13 @@ const pricingMatrix: CanvasProviderPricingRow[] = [
     channelCode: 'primary',
     customerModelId: 'model-1',
     modelKey: 'canvas.image',
-    modelName: 'Canvas Image',
+    effectiveDisplayName: 'Canvas Image',
+    catalogDefaultName: 'Catalog Canvas Image',
     combinationId: 'combination-1',
     combinationKey: 'default',
     parameters: {},
     billingDimensions: { billingUnit: 'REQUEST' },
-    resolvedProviderModelId: 'image-v1',
+    upstreamModelId: 'image-v1',
     rateId: 'rate-1',
     rateVersion: 1,
     rateStatus: 'PUBLISHED',
@@ -316,7 +317,7 @@ describe('Canvas administrator pricing', () => {
     renderPricing()
 
     const table = screen.getByRole('table')
-    expect(within(table).getByText('Canvas Image')).toBeVisible()
+    expect(within(table).getByText('Historical Canvas Image')).toBeVisible()
     expect(within(table).getByText('canvas.image')).toBeVisible()
     expect(within(table).getByText('Standard')).toBeVisible()
     expect(within(table).getByText('STANDARD')).toBeVisible()
@@ -434,6 +435,13 @@ describe('Canvas administrator pricing', () => {
         'The current price stays active until the selected time.'
       )
     ).toBeVisible()
+    const confirmationDialog = screen.getByRole('alertdialog')
+    expect(
+      within(confirmationDialog).getByText('Historical Canvas Image')
+    ).toBeVisible()
+    expect(
+      within(confirmationDialog).queryByText('Catalog Canvas Image')
+    ).not.toBeInTheDocument()
     confirmChange()
     await waitFor(() => {
       expect(apiMocks.publishConfirmedCanvasPriceChange).toHaveBeenCalledWith(
@@ -453,7 +461,8 @@ describe('Canvas administrator pricing', () => {
         ...pricingMatrix[0],
         customerModelId: 'model-id',
         modelKey: 'canvas.testing',
-        modelName: 'Canvas Testing',
+        effectiveDisplayName: 'Canvas Testing',
+        catalogDefaultName: 'Catalog Canvas Testing',
         combinationId: 'combination-id',
         prices: [],
       },
@@ -463,7 +472,8 @@ describe('Canvas administrator pricing', () => {
         id: 'model-id',
         modelKey: 'canvas.testing',
         version: 1,
-        name: 'Canvas Testing',
+        effectiveDisplayName: 'Canvas Testing',
+        catalogDefaultName: 'Catalog Canvas Testing',
         status: 'ACTIVE',
         customerVisible: false,
         pricedTargets: 0,
@@ -690,7 +700,7 @@ describe('Canvas administrator pricing', () => {
     const history = Array.from({ length: 21 }, (_, index) => ({
       ...prices[0],
       id: `published-price-${index + 1}`,
-      modelName: `Canvas Model ${index + 1}`,
+      displayNameSnapshot: `Historical Canvas Model ${index + 1}`,
       version: index + 1,
     }))
     render(
@@ -700,15 +710,19 @@ describe('Canvas administrator pricing', () => {
     )
 
     expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalledTimes(1)
-    expect(screen.getByText('Canvas Model 1')).toBeVisible()
-    expect(screen.getByText('Canvas Model 20')).toBeVisible()
-    expect(screen.queryByText('Canvas Model 21')).not.toBeInTheDocument()
+    expect(screen.getByText('Historical Canvas Model 1')).toBeVisible()
+    expect(screen.getByText('Historical Canvas Model 20')).toBeVisible()
+    expect(
+      screen.queryByText('Historical Canvas Model 21')
+    ).not.toBeInTheDocument()
     expect(screen.getByText('21')).toBeVisible()
     expect(screen.getByText('Page 1 of 2')).toBeVisible()
     expect(screen.getByRole('button', { name: /Go to page 2/ })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
-    expect(screen.getByText('Canvas Model 21')).toBeVisible()
-    expect(screen.queryByText('Canvas Model 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Historical Canvas Model 21')).toBeVisible()
+    expect(
+      screen.queryByText('Historical Canvas Model 1')
+    ).not.toBeInTheDocument()
 
     expect(
       screen.queryByRole('tab', { name: 'Point issuance rate' })
@@ -721,7 +735,7 @@ describe('Canvas administrator pricing', () => {
       {
         ...prices[0],
         id: 'other-price',
-        modelName: 'Canvas Text',
+        displayNameSnapshot: 'Historical Canvas Text',
         points: '30',
       },
     ]
@@ -737,8 +751,8 @@ describe('Canvas administrator pricing', () => {
       name: 'Column filters',
     })
     const pointsSortButton = screen.getByRole('button', { name: 'Points' })
-    expect(within(table).getByText('Canvas Image')).toBeVisible()
-    expect(within(table).getByText('Canvas Text')).toBeVisible()
+    expect(within(table).getByText('Historical Canvas Image')).toBeVisible()
+    expect(within(table).getByText('Historical Canvas Text')).toBeVisible()
     fireEvent.click(pointsSortButton)
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Desc' }))
     await waitFor(() =>
@@ -747,14 +761,16 @@ describe('Canvas administrator pricing', () => {
       ).not.toBeInTheDocument()
     )
     expect(within(table).getAllByRole('row')[1]).toHaveTextContent(
-      'Canvas Text'
+      'Historical Canvas Text'
     )
     fireEvent.click(columnFiltersButton)
     fireEvent.change(screen.getByLabelText('Model'), {
-      target: { value: 'Canvas Text' },
+      target: { value: 'Historical Canvas Text' },
     })
-    expect(within(table).queryByText('Canvas Image')).not.toBeInTheDocument()
-    expect(within(table).getByText('Canvas Text')).toBeVisible()
+    expect(
+      within(table).queryByText('Historical Canvas Image')
+    ).not.toBeInTheDocument()
+    expect(within(table).getByText('Historical Canvas Text')).toBeVisible()
     expect(pointsSortButton).toBeVisible()
     expect(columnFiltersButton).toBeVisible()
   })
@@ -838,6 +854,13 @@ describe('Canvas administrator pricing', () => {
     expect(
       screen.getByRole('heading', { name: 'Confirm limited-time special' })
     ).toBeVisible()
+    const confirmationDialog = screen.getByRole('alertdialog')
+    expect(
+      within(confirmationDialog).getByText('Historical Canvas Image')
+    ).toBeVisible()
+    expect(
+      within(confirmationDialog).queryByText('Catalog Canvas Image')
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Schedule special' }))
 
     await waitFor(() => {
@@ -859,7 +882,15 @@ describe('Canvas administrator pricing', () => {
     expect(
       within(table).getByRole('columnheader', { name: 'Model' })
     ).toBeVisible()
-    expect(within(table).getByText('Canvas Image')).toBeVisible()
+    expect(
+      within(table).getByText('Historical Promotion Canvas Image')
+    ).toBeVisible()
+    expect(
+      within(table).queryByText('Catalog Canvas Image')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
     expect(within(table).getByText('quality=1K')).toBeVisible()
     expect(within(table).getByText('60 → 59 points')).toBeVisible()
     expect(within(table).getByText('Stopped')).toBeVisible()

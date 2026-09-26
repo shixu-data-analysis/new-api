@@ -104,7 +104,8 @@ const overview: CanvasModelMonitoringOverview = {
   rows: [
     {
       modelKey: 'image.alpha',
-      name: 'Alpha model',
+      effectiveDisplayName: 'Alpha model',
+      catalogDefaultName: 'Catalog Alpha model',
       capability: 'IMAGE',
       provider: { id: 'provider-a', name: 'Provider A' },
       tags: [{ id: 'tag-a', name: 'Photo' }],
@@ -118,7 +119,8 @@ const overview: CanvasModelMonitoringOverview = {
     },
     {
       modelKey: 'image.beta',
-      name: 'Beta model',
+      effectiveDisplayName: 'Beta model',
+      catalogDefaultName: 'Catalog Beta model',
       capability: 'IMAGE',
       provider: { id: 'provider-a', name: 'Provider A' },
       tags: [],
@@ -339,6 +341,8 @@ describe('logical model monitoring overview', () => {
       within(matrix).getByRole('button', { name: 'Disable model' })
     )
     const dialog = await screen.findByRole('dialog', { name: 'Disable model' })
+    expect(within(dialog).getByText(/Alpha model/)).toBeVisible()
+    expect(within(dialog).queryByText(/Catalog Alpha model/)).toBeNull()
     fireEvent.change(within(dialog).getByLabelText(/Reason/), {
       target: { value: 'MAINTENANCE' },
     })

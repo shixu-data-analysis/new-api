@@ -652,6 +652,7 @@ export async function getCanvasModelPricingHistory(
   query: {
     page: number
     pageSize: number
+    search?: string
     sortBy?: 'effectiveAt'
     sortDirection?: 'asc' | 'desc'
     combinationId?: string

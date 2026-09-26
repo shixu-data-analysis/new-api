@@ -224,7 +224,7 @@ describe('execution detail focus boundary', () => {
       items: [
         {
           taskId: 'task-1',
-          modelName: 'Canvas Image',
+          displayNameSnapshot: 'Canvas Image',
           credentialGroupId: 'group-1',
           stage: 'SUBMIT',
           blockingStatus: 'REQUEST_CONCURRENCY_FULL',
@@ -242,7 +242,7 @@ describe('execution detail focus boundary', () => {
     })
     mocks.getDetail.mockResolvedValue({
       taskId: 'task-1',
-      modelName: 'Canvas Image',
+      displayNameSnapshot: 'Canvas Image',
       credentialGroupId: 'group-1',
       stage: 'SUBMIT',
       blockingStatus: 'REQUEST_CONCURRENCY_FULL',

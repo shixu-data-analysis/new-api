@@ -7,7 +7,13 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
@@ -816,12 +822,15 @@ describe('ADMIN-REWORK-007 activity management', () => {
   })
 
   it('recalculates every Token category from the published risk basis and keeps zero as a price', async () => {
+    const longDisplayName = 'D'.repeat(120)
+    const longModelKey = `canvas.${'k'.repeat(120)}`
     pricingApi.getCanvasModelPricingWorkspace.mockResolvedValue({
       models: [
         {
           id: 'model-token',
-          name: 'Canvas Token Model With A Complete Long Display Name',
-          modelKey: 'canvas.token',
+          effectiveDisplayName: longDisplayName,
+          catalogDefaultName: 'Catalog Canvas Token Model',
+          modelKey: longModelKey,
           hasPublishedPricing: true,
         },
       ],
@@ -869,7 +878,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('combobox', { name: 'Source model' }))
     const modelOption = await screen.findByRole('option', {
-      name: 'Canvas Token Model With A Complete Long Display Name · canvas.token',
+      name: `${longDisplayName} · ${longModelKey}`,
     })
     expect(modelOption.closest('[data-slot="select-content"]')).toHaveClass(
       'w-max',
@@ -878,9 +887,22 @@ describe('ADMIN-REWORK-007 activity management', () => {
     await user.click(modelOption)
     expect(
       screen.getByRole('combobox', { name: 'Source model' })
-    ).toHaveTextContent(
-      'Canvas Token Model With A Complete Long Display Name · canvas.token'
+    ).toHaveTextContent(`${longDisplayName} · ${longModelKey}`)
+    const identity = document.querySelector(
+      '[data-model-identity="activity-source-model"]'
     )
+    expect(identity).toHaveClass(
+      'max-w-full',
+      'min-w-0',
+      'grid-cols-[minmax(0,1fr)_auto]',
+      'items-end'
+    )
+    expect(identity?.firstElementChild).toHaveClass('min-w-0', 'break-all')
+    const identityButton = within(identity as HTMLElement).getByRole('button', {
+      name: 'View model identity',
+    })
+    expect(identityButton.parentElement).toHaveClass('shrink-0')
+    expect(identity).toHaveTextContent(`${longDisplayName} · ${longModelKey}`)
     await user.click(
       await screen.findByRole('combobox', { name: 'Source price version' })
     )
@@ -938,7 +960,11 @@ describe('ADMIN-REWORK-007 activity management', () => {
       stoppedBy: null,
       sourcePriceVersionId: 'price-token',
       target: {
-        customerModel: { id: 'model-token', label: 'Canvas Token' },
+        customerModel: {
+          id: 'model-token',
+          modelKey: 'canvas.token',
+          displayNameSnapshot: 'Historical Canvas Token',
+        },
         priceGroup: { id: 'group-standard', label: 'Standard' },
         parameterCombination: {
           id: 'default',
@@ -1015,6 +1041,11 @@ describe('ADMIN-REWORK-007 activity management', () => {
       )
 
     expect(await screen.findByText('10 → 0')).toBeVisible()
+    expect(screen.getByText(/Historical Canvas Token · Standard/)).toBeVisible()
+    expect(screen.queryByText('Canvas Token')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
     expect(screen.getByText('¥-0.05')).toBeVisible()
     expect(screen.getByText('¥0.1')).toBeVisible()
     expect(

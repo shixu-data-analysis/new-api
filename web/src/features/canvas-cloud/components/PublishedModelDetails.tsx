@@ -30,6 +30,10 @@ export function PublishedModelDetails({
       <summary className='text-primary cursor-pointer text-xs'>
         {t('Original catalog configuration')}
       </summary>
+      <dl className='mt-2 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 text-xs'>
+        <dt className='text-muted-foreground'>{t('Catalog default name')}</dt>
+        <dd className='break-words'>{model.catalogDefaultName}</dd>
+      </dl>
       <pre className='bg-muted/50 mt-2 max-h-64 max-w-full overflow-auto rounded p-3 text-xs whitespace-pre'>
         {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
       </pre>

@@ -29,7 +29,7 @@ const task = {
   customerId: 'customer-1',
   customerName: 'UAT customer',
   customerModelId: 'model-1',
-  modelName: 'GPT Image 2 Pro',
+  displayNameSnapshot: 'GPT Image 2 Pro',
   quotedPoints: '14',
   settledPoints: '7',
   deductedPoints: '7',

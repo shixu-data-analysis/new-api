@@ -214,7 +214,11 @@ export interface CanvasLimitedPriceActivity {
   stoppedBy: { principalId: string; displayName: string | null } | null
   sourcePriceVersionId: string
   target: {
-    customerModel: { id: string; label: string | null }
+    customerModel: {
+      id: string
+      modelKey: string
+      displayNameSnapshot: string
+    }
     priceGroup: { id: string; label: string | null }
     parameterCombination: {
       id: string
@@ -300,7 +304,7 @@ export interface CanvasLimitedPriceParticipationTaskRecord {
   customerId: string
   customer: string | null
   customerModelId: string
-  modelName: string | null
+  displayNameSnapshot: string
   quoteStatus:
     | 'ACTIVE'
     | 'CONSUMED'

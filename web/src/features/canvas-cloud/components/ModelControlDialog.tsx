@@ -94,7 +94,7 @@ export function ModelControlDialog(props: {
         <DialogHeader>
           <DialogTitle>{action}</DialogTitle>
           <DialogDescription>
-            {props.monitoring.customerModel.name} ·{' '}
+            {props.monitoring.customerModel.effectiveDisplayName} ·{' '}
             {executionTargetLabel(props.monitoring.executionTarget, t)}
           </DialogDescription>
         </DialogHeader>

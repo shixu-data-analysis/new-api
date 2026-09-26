@@ -31,8 +31,9 @@ import {
 import { cn } from '@/lib/utils'
 
 export interface ConfirmationDetail {
+  key?: string
   label: string
-  value: string
+  value: React.ReactNode
 }
 
 export interface PricingComparisonRow {
@@ -102,9 +103,9 @@ export function PricingActionConfirmation(props: {
         </AlertDialogHeader>
         <div className='min-h-0 flex-1 space-y-4 overflow-y-auto text-sm'>
           <dl className='space-y-1'>
-            {props.details.map((detail) => (
+            {props.details.map((detail, index) => (
               <div
-                key={`${detail.label}:${detail.value}`}
+                key={detail.key ?? `${detail.label}:${index}`}
                 className='flex flex-wrap gap-x-2 gap-y-0.5'
               >
                 <dt className='text-muted-foreground'>{detail.label}:</dt>

@@ -99,12 +99,11 @@ function model(
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
     tags: [],
-    modelIds: [{ quality: null, modelId: 'provider-alpha' }],
     executionTargets: [executionTarget()],
     version: 2,
-    name: 'Alpha model',
+    effectiveDisplayName: 'Alpha model',
+    catalogDefaultName: 'Catalog Alpha model',
     description: 'Client description',
-    enabled: true,
     resourceEnabled: true,
     presentationVersion: 0,
     status: 'ACTIVE',
@@ -182,7 +181,8 @@ describe('Published model catalog', () => {
       model({
         id: 'bound-model',
         modelKey: 'canvas.image.bound',
-        name: 'Bound model',
+        effectiveDisplayName: 'Bound model',
+        catalogDefaultName: 'Bound model',
         binding: {
           status: 'BOUND',
           credentialGroupId: 'credential-group-1',
@@ -195,7 +195,10 @@ describe('Published model catalog', () => {
     renderCatalog(onManageBindings)
 
     const unboundRow = (await screen.findByText('Alpha model')).closest('tr')
-    const boundRow = screen.getByText('Bound model').closest('tr')
+    const boundRow = screen
+      .getAllByText('Bound model')
+      .map((element) => element.closest('tr'))
+      .find((row) => row?.dataset.modelGroupRow === 'main')
     if (!unboundRow || !boundRow) {
       throw new Error('Expected both model rows')
     }
@@ -238,8 +241,15 @@ describe('Published model catalog', () => {
       model({
         id: 'second',
         modelKey: 'second',
-        name: 'Second model',
+        effectiveDisplayName: 'Second model',
+        catalogDefaultName: 'Catalog Second model',
         tags: [],
+        executionTargets: [
+          executionTarget({
+            id: 'second-target',
+            upstreamModelId: 'provider-second',
+          }),
+        ],
       }),
     ])
     renderCatalog()
@@ -264,14 +274,16 @@ describe('Published model catalog', () => {
       model({
         id: 'video-model',
         modelKey: 'canvas.video.beta',
-        name: 'Beta video',
+        effectiveDisplayName: 'Beta video',
+        catalogDefaultName: 'Catalog Beta video',
         publicCatalogSnapshot: { capability: 'video.generate' },
         provider: { id: 'partner', code: 'partner', name: 'Partner API' },
       }),
       model({
         id: 'image-model',
         modelKey: 'canvas.image.gamma',
-        name: 'Gamma image',
+        effectiveDisplayName: 'Gamma image',
+        catalogDefaultName: 'Catalog Gamma image',
         provider: { id: 'partner', code: 'partner', name: 'Partner API' },
       }),
     ])
@@ -563,6 +575,69 @@ describe('Published model catalog', () => {
         },
         expect.any(Object)
       )
+    )
+  })
+
+  it('searches current models by names, model key, and every upstream model ID', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget(),
+          executionTarget({
+            id: '85000000-0000-7000-8000-000000000099',
+            upstreamModelId: 'provider-alpha-alternate',
+          }),
+        ],
+      }),
+    ])
+    renderCatalog()
+    await screen.findByText('Alpha model')
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    const search = screen.getByPlaceholderText('Model')
+
+    fireEvent.change(search, { target: { value: 'Catalog Alpha' } })
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    fireEvent.change(search, { target: { value: 'canvas.image.alpha' } })
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    fireEvent.change(search, {
+      target: { value: 'provider-alpha-alternate' },
+    })
+    expect(screen.getByText('Alpha model')).toBeVisible()
+    fireEvent.change(search, { target: { value: '' } })
+    fireEvent.change(screen.getByPlaceholderText('Upstream model ID'), {
+      target: { value: 'provider-alpha-alternate' },
+    })
+    expect(screen.getByText('Alpha model')).toBeVisible()
+  })
+
+  it('keeps each model in one tbody with main, detail, and 11px spacer rows', async () => {
+    const { container } = renderCatalog()
+    await screen.findByText('Alpha model')
+
+    const body = container.querySelector('tbody')
+    expect(body).not.toBeNull()
+    expect(
+      container.querySelector('.model-management-group-table')
+    ).not.toBeNull()
+    const main = body?.querySelector('[data-model-group-row="main"]')
+    const details = body?.querySelector('[data-model-group-row="details"]')
+    const spacer = body?.querySelector('[data-model-group-row="spacer"]')
+    expect(main?.nextElementSibling).toBe(details)
+    expect(details?.nextElementSibling).toBe(spacer)
+    expect(main).toHaveClass('!h-auto', 'border-b-0')
+    expect(details).toHaveClass('!h-auto', 'border-b-0')
+    expect(spacer).toHaveClass('!h-[11px]', 'border-0')
+    expect(details?.querySelector('td')).toHaveClass(
+      'before:right-4',
+      'before:left-4'
+    )
+    expect(main).toHaveClass('model-management-group-main')
+    expect(details).toHaveClass('model-management-group-details')
+    const targetTable = details?.querySelector('.model-management-target-table')
+    expect(targetTable).not.toBeNull()
+    expect(targetTable?.querySelector('tbody > tr')).toHaveClass(
+      'bg-card',
+      'hover:!bg-card'
     )
   })
 })

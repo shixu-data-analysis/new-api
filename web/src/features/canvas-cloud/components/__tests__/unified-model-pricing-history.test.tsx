@@ -35,7 +35,8 @@ const detail: CanvasModelPricingDetail = {
   model: {
     id: 'model-1',
     modelKey: 'video',
-    name: 'Video',
+    effectiveDisplayName: 'Renamed Video B',
+    catalogDefaultName: 'Catalog Video',
     capability: 'video.generate',
     status: 'ACTIVE',
     billingUnit: 'SECOND',
@@ -99,6 +100,7 @@ const providerRate = {
 const unified = {
   id: 'publication-1',
   customerModelId: 'model-1',
+  displayNameSnapshot: 'Historical Video A',
   source: 'UNIFIED',
   version: 2,
   status: 'CURRENT',
@@ -310,6 +312,30 @@ it('uses the selected French language for frozen rates and status labels', async
 })
 
 describe('UnifiedModelPricingHistory', () => {
+  it('keeps the per-publication name after a current rename and searches the snapshot without a tooltip', async () => {
+    renderHistory()
+
+    expect(await screen.findByText('Historical Video A')).toBeVisible()
+    expect(screen.queryByText('Renamed Video B')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.change(await screen.findByLabelText('Model'), {
+      target: { value: 'Historical Video A' },
+    })
+    await waitFor(() =>
+      expect(mocks.history).toHaveBeenLastCalledWith(
+        'model-1',
+        expect.objectContaining({ search: 'Historical Video A' })
+      )
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(screen.getAllByText('Historical Video A').length).toBeGreaterThan(1)
+  })
+
   it('shows frozen CNY cost, inviter price, sale price, points and rate', async () => {
     const publication: CanvasModelPricingPublication = structuredClone(unified)
     const historyPreview = publication.preview

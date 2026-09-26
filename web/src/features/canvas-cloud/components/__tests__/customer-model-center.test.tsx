@@ -23,7 +23,9 @@ import { CustomerModelCenter } from '../CustomerModelCenter'
 const models: CanvasCatalogModel[] = [
   {
     id: 'image-1',
-    name: 'Portrait',
+    modelKey: 'canvas.image.portrait',
+    effectiveDisplayName: 'Portrait',
+    catalogDefaultName: 'Catalog Portrait',
     catalog: {
       capability: 'image.generate',
       description: 'A long published description',
@@ -41,14 +43,18 @@ const models: CanvasCatalogModel[] = [
   },
   {
     id: 'image-2',
-    name: 'Sketch',
+    modelKey: 'canvas.image.sketch',
+    effectiveDisplayName: 'Sketch',
+    catalogDefaultName: 'Catalog Sketch',
     catalog: { capability: 'image.generate' },
     tags: [],
     parameterCombinations: [],
   },
   {
     id: 'video-1',
-    name: 'Clip',
+    modelKey: 'canvas.video.clip',
+    effectiveDisplayName: 'Clip',
+    catalogDefaultName: 'Catalog Clip',
     catalog: { capability: 'video.generate' },
     tags: [{ id: 'film', name: 'Film' }],
     parameterCombinations: [],
@@ -66,6 +72,9 @@ describe('customer model center', () => {
     )
     expect(screen.getByRole('button', { name: 'Photography 1' })).toBeVisible()
     expect(screen.getByText('Portrait')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('Clip')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Untagged 1' }))
     expect(screen.getByText('Sketch')).toBeVisible()
@@ -85,5 +94,18 @@ describe('customer model center', () => {
     fireEvent.click(screen.getByRole('button', { name: 'video.generate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
     expect(screen.getByText('No models available in this filter')).toBeVisible()
+  })
+
+  it('searches only the client display name without exposing internal identities', () => {
+    render(<CustomerModelCenter models={models} />)
+    const search = screen.getByLabelText('Search model name')
+
+    fireEvent.change(search, { target: { value: 'Catalog Portrait' } })
+    expect(screen.getByText('No matching models')).toBeVisible()
+    fireEvent.change(search, { target: { value: 'canvas.image.portrait' } })
+    expect(screen.getByText('No matching models')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
   })
 })

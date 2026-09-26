@@ -115,7 +115,12 @@ const model: CanvasProviderModel = {
   isLatestVersion: true,
   isSelectable: true,
   isHistoricalBinding: false,
-  publicName: 'Image A',
+  effectiveDisplayName: 'Image A',
+  catalogDefaultName: 'Catalog Image A',
+  executionTargets: [
+    { id: 'execution-target-a', upstreamModelId: 'provider-image-a' },
+    { id: 'execution-target-a-alt', upstreamModelId: 'provider-image-a-alt' },
+  ],
   capability: 'image.generate',
   status: 'PUBLISHED',
   providerId: '85000000-0000-7000-8000-000000000001',
@@ -139,7 +144,11 @@ const secondModel = {
   ...model,
   id: '85000000-0000-7000-8000-000000000009',
   modelKey: 'image-b',
-  publicName: 'Image B',
+  effectiveDisplayName: 'Image B',
+  catalogDefaultName: 'Catalog Image B',
+  executionTargets: [
+    { id: 'execution-target-b', upstreamModelId: 'provider-image-b' },
+  ],
   credentialBindingId: null,
   credentialBindingVersion: null,
   credentialGroupId: null,
@@ -248,7 +257,9 @@ describe('Canvas runtime configuration', () => {
       affectedModels: [
         {
           customerModelId: model.id,
-          publicName: model.publicName,
+          modelKey: model.modelKey,
+          effectiveDisplayName: model.effectiveDisplayName,
+          catalogDefaultName: model.catalogDefaultName,
           bindingId: model.credentialBindingId,
           bindingVersion: model.credentialBindingVersion,
         },
@@ -594,6 +605,30 @@ describe('Canvas runtime configuration', () => {
       within(drawer).getByLabelText('Select model Image B')
     ).not.toBeChecked()
 
+    for (const identityQuery of [
+      'Catalog Image B',
+      'image-b',
+      'provider-image-b',
+    ]) {
+      fireEvent.change(within(drawer).getByLabelText('Filter models'), {
+        target: { value: identityQuery },
+      })
+      expect(
+        within(drawer).getByLabelText('Select model Image B')
+      ).toBeVisible()
+      expect(
+        within(drawer).queryByLabelText('Select model Image A')
+      ).not.toBeInTheDocument()
+    }
+
+    fireEvent.change(within(drawer).getByLabelText('Filter models'), {
+      target: { value: 'provider-image-a-alt' },
+    })
+    expect(within(drawer).getByLabelText('Select model Image A')).toBeVisible()
+    expect(
+      within(drawer).queryByLabelText('Select model Image B')
+    ).not.toBeInTheDocument()
+
     fireEvent.change(within(drawer).getByLabelText('Filter models'), {
       target: { value: 'Image A' },
     })
@@ -621,7 +656,14 @@ describe('Canvas runtime configuration', () => {
       ...secondModel,
       id: `candidate-${index + 1}`,
       modelKey: `candidate-${index + 1}`,
-      publicName: `Candidate ${index + 1}`,
+      effectiveDisplayName: `Candidate ${index + 1}`,
+      catalogDefaultName: `Catalog Candidate ${index + 1}`,
+      executionTargets: [
+        {
+          id: `execution-target-candidate-${index + 1}`,
+          upstreamModelId: `provider-candidate-${index + 1}`,
+        },
+      ],
       ...(index === 100
         ? {
             credentialBindingId: 'binding-on-page-two',
@@ -729,6 +771,11 @@ describe('Canvas runtime configuration', () => {
     )
     const confirmation = await screen.findByRole('alertdialog')
     expect(confirmation).toHaveTextContent('Retire model binding')
+    expect(
+      within(confirmation).getAllByRole('button', {
+        name: 'View model identity',
+      })
+    ).toHaveLength(2)
     fireEvent.click(
       within(confirmation).getByRole('button', { name: 'Confirm publication' })
     )
@@ -826,7 +873,7 @@ describe('Canvas runtime configuration', () => {
           changes: [
             {
               type: 'MODEL_REBOUND',
-              modelName: 'Image A',
+              displayNameSnapshot: 'Image A',
               fromGroup: 'Legacy',
               toGroup: 'Primary',
             },

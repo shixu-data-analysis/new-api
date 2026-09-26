@@ -54,7 +54,7 @@ export function AgentModelPriceList(props: {
   return props.models.map((model) => (
     <div key={model.modelKey} className='space-y-2 rounded border p-3'>
       <div>
-        <strong>{model.name}</strong>{' '}
+        <strong>{model.effectiveDisplayName}</strong>{' '}
         <span className='text-muted-foreground text-sm'>
           {t(model.capability)}
         </span>

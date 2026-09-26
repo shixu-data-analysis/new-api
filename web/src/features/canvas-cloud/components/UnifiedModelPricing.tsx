@@ -89,6 +89,7 @@ import {
   CnyPricingQuestionnaire,
   type CnyPricingDraft,
 } from './CnyPricingQuestionnaire'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import { UnifiedModelPricingHistory } from './UnifiedModelPricingHistory'
 
@@ -997,7 +998,7 @@ export function UnifiedModelPricing(props: {
   }
   const previewDetails = preview.data
     ? [
-        { label: t('Model'), value: selected.name },
+        { label: t('Model'), value: selected.effectiveDisplayName },
         {
           label: t('Effective mode'),
           value:
@@ -1146,7 +1147,18 @@ export function UnifiedModelPricing(props: {
             {t('Back to model list')}
           </Button>
           <h2 className='max-w-full min-w-0 text-sm font-medium break-words'>
-            {selected.name}
+            {tab === 'history' ? (
+              t('History versions')
+            ) : (
+              <>
+                {selected.effectiveDisplayName}
+                <ModelIdentityTooltip
+                  effectiveDisplayName={selected.effectiveDisplayName}
+                  catalogDefaultName={selected.catalogDefaultName}
+                  modelKey={selected.modelKey}
+                />
+              </>
+            )}
           </h2>
           <span className='text-muted-foreground text-sm'>
             {t(selected.capability, { defaultValue: t('Unknown') })}

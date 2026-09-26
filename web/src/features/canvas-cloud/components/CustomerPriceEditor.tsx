@@ -245,7 +245,7 @@ export function CustomerPriceEditor(props: {
               <FormItem>
                 <FormLabel>{t('Model and quality')}</FormLabel>
                 <Input
-                  value={`${props.row.modelName} · ${String(
+                  value={`${props.row.effectiveDisplayName} · ${String(
                     props.row.parameters.quality ?? props.row.combinationKey
                   )}`}
                   disabled

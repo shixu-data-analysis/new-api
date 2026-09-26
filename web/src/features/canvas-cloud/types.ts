@@ -92,10 +92,10 @@ export interface CanvasProviderConfigurationQuery {
   providerId?: string
   credentialGroupId?: string
   modelScope: 'BOUND_TO_GROUP' | 'GROUP_MANAGEMENT'
-  modelName?: string
+  search?: string
   modelKey?: string
   modelStatus?: string
-  sortBy: 'publicName' | 'modelKey' | 'status'
+  sortBy: 'effectiveDisplayName' | 'modelKey' | 'status'
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
@@ -141,7 +141,9 @@ export interface CanvasProviderModel {
   isLatestVersion: boolean
   isSelectable: boolean
   isHistoricalBinding: boolean
-  publicName: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
+  executionTargets: Array<{ id: string; upstreamModelId: string }>
   capability: 'chat.generate' | 'image.generate' | 'video.generate'
   status: string
   providerId: string
@@ -205,7 +207,7 @@ export interface CanvasProviderCredentialGroupChange {
     before?: string | null
     after?: string | null
     groupName?: string
-    modelName?: string
+    displayNameSnapshot?: string
     fromGroup?: string | null
     toGroup?: string | null
   }>
@@ -213,7 +215,7 @@ export interface CanvasProviderCredentialGroupChange {
 
 export interface CanvasCredentialVersionAffectedModels extends CanvasPage<{
   id: string
-  publicName: string
+  displayNameSnapshot: string
 }> {
   factAvailable: boolean
 }
@@ -241,7 +243,9 @@ export interface CanvasCredentialRotationPreview {
   nextVersion: number
   affectedModels: Array<{
     customerModelId: string
-    publicName: string
+    modelKey: string
+    effectiveDisplayName: string
+    catalogDefaultName: string
     bindingId: string
     bindingVersion: number
   }>
@@ -468,7 +472,7 @@ export interface CanvasAgentModelUsageRow {
   priceGroupName: string
   customerModelId: string
   modelKey: string
-  modelName: string
+  effectiveDisplayName: string
   combinationKey: string
   parameters: Record<string, unknown>
   billingUnit: CanvasBillingUnit
@@ -498,7 +502,8 @@ export interface CanvasAdminAgentModelUsageRow extends CanvasAgentModelUsageRow 
 export interface CanvasAgentModelPrice {
   customerModelId: string
   modelKey: string
-  name: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
   description: string | null
   capability: string
   tags: Array<{ id: string; name: string }>
@@ -641,12 +646,13 @@ export interface CanvasProviderPricingRow {
   channelCode: string
   customerModelId: string
   modelKey: string
-  modelName: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
   combinationId: string
   combinationKey: string
   parameters: Record<string, unknown>
   billingDimensions: Record<string, unknown>
-  resolvedProviderModelId: string
+  upstreamModelId: string
   rateId: string | null
   rateVersion: number | null
   rateStatus: string | null
@@ -737,7 +743,7 @@ export interface CanvasCustomerWorkspace {
   }>
   tasks: Array<{
     id: string
-    modelName: string
+    displayNameSnapshot: string
     quotedPoints: string
     settledPoints?: string
     outstandingDebtPoints?: string
@@ -809,7 +815,7 @@ export interface CanvasCustomerTaskAsset {
 
 export interface CanvasCustomerTask {
   id: string
-  modelName: string
+  displayNameSnapshot: string
   derivedExecutionStatus: string
   executionSummary: {
     expectedResults: number
@@ -843,7 +849,9 @@ export interface CanvasTaskAssetDownload {
 
 export interface CanvasCatalogModel {
   id: string
-  name: string
+  modelKey: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
   catalog: Record<string, unknown>
   tags: CanvasModelTag[]
   parameterCombinations: Array<{
@@ -881,7 +889,7 @@ export interface CanvasAdminWorkspace {
   prices: Array<{
     id: string
     modelKey: string
-    modelName: string
+    displayNameSnapshot: string
     priceGroupCode: string
     priceGroup: string
     combinationKey: string
@@ -911,7 +919,7 @@ export interface CanvasAdminWorkspace {
     status: 'APPROVED' | 'ACTIVE' | 'STOPPED' | 'EXPIRED'
     sourcePriceVersionId: string
     modelKey: string
-    modelName: string
+    displayNameSnapshot: string
     priceGroupCode: string
     priceGroup: string
     combinationKey: string
@@ -956,7 +964,7 @@ export interface CanvasAdminWorkspace {
   }>
   reconciliationTasks: Array<{
     id: string
-    modelName: string
+    displayNameSnapshot: string
     executionStatus: string
     customerBillingStatus: string
     providerReconcileStatus: string
@@ -968,7 +976,7 @@ export interface CanvasAdminWorkspace {
     id: string
     customerId: string
     customerName: string
-    modelName: string
+    displayNameSnapshot: string
     quotedPoints: string
     settledPoints?: string
     executionStatus: string
@@ -1067,7 +1075,6 @@ export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
   tags: CanvasModelTag[]
-  modelIds: Array<{ quality: string | null; modelId: string }>
   executionTargets: Array<{
     id: string
     upstreamModelId: string
@@ -1087,9 +1094,9 @@ export interface CanvasAdminTestingModel {
     }>
   }>
   version: number
-  name: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
   description: string
-  enabled: boolean
   resourceEnabled: boolean
   presentationVersion: number | null
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
@@ -1318,7 +1325,8 @@ export type CanvasModelPricingScope = CanvasModelPricingPointsScope
 export interface CanvasModelPricingModel {
   id: string
   modelKey: string
-  name: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
   capability: string
   status: string
   billingUnit: CanvasBillingUnit | null
@@ -1497,6 +1505,7 @@ export interface CanvasModelPricingPublicationResult {
 export interface CanvasModelPricingPublication {
   id: string
   customerModelId: string
+  displayNameSnapshot: string
   version: number
   source: 'UNIFIED' | 'LEGACY_PROVIDER_RATE' | 'LEGACY_PRICE'
   status:
@@ -1678,7 +1687,7 @@ export interface CanvasOrderPointReturn extends CanvasOrderPointReturnPreview {
 
 export interface CanvasAdminCustomerTask {
   id: string
-  modelName: string
+  displayNameSnapshot: string
   quotedPoints: string
   allocatedPoints: string
   settledPoints: string
@@ -1712,8 +1721,8 @@ export interface CanvasAdminTaskLog {
   id: string
   customerId: string
   customerName: string | null
-  customerModelId: string | null
-  modelName: string | null
+  customerModelId: string
+  displayNameSnapshot: string
   outputSummaries: CanvasTaskOutputSummary[]
   derivedExecutionStatus: string
   executionSummary: CanvasTaskExecutionSummary
@@ -1810,7 +1819,8 @@ export interface CanvasModelMonitoringOverview {
   untaggedCount: number
   rows: Array<{
     modelKey: string
-    name: string
+    effectiveDisplayName: string
+    catalogDefaultName: string
     capability: string | null
     provider: { id: string; name: string }
     tags: Array<{ id: string; name: string }>
@@ -1832,7 +1842,8 @@ export interface CanvasModelMonitoringTargets {
   customerModel: {
     id: string
     modelKey: string
-    name: string
+    effectiveDisplayName: string
+    catalogDefaultName: string
     providerName: string
     version: number
     status: string
@@ -1862,7 +1873,8 @@ export interface CanvasModelMonitoring {
   customerModel: {
     id: string
     modelKey: string
-    name: string
+    effectiveDisplayName: string
+    catalogDefaultName: string
     providerName: string
     version: number
     capability: string | null
@@ -1939,7 +1951,10 @@ export interface CanvasModelMonitoringControlResult {
 }
 
 export interface CanvasTaskLogOptions {
-  models: Array<{ id: string; name: string }>
+  models: Array<{
+    customerModelId: string
+    displayNameSnapshot: string
+  }>
 }
 
 export interface CanvasTaskExecutionSummary {
@@ -1986,8 +2001,8 @@ export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
   customerName: string | null
-  customerModelId: string | null
-  modelName: string | null
+  customerModelId: string
+  displayNameSnapshot: string
   quotedPoints: string
   settledPoints: string | null
   deductedPoints: string | null

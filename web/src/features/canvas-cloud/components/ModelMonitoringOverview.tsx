@@ -476,7 +476,7 @@ export function ModelMonitoringOverview() {
         <LogicalModelControlDialog
           key={`${control.modelKey}:${control.controlVersion}`}
           modelKey={control.modelKey}
-          name={control.name}
+          name={control.effectiveDisplayName}
           manualEnabled={control.manualEnabled}
           controlVersion={control.controlVersion}
           onClose={() => setControl(null)}

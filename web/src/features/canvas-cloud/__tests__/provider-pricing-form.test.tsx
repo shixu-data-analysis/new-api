@@ -43,12 +43,13 @@ const tokenRow: CanvasProviderPricingRow = {
   channelCode: 'primary',
   customerModelId: 'model-1',
   modelKey: 'chat',
-  modelName: 'Chat',
+  effectiveDisplayName: 'Chat',
+  catalogDefaultName: 'Catalog Chat',
   combinationId: 'quality-hd',
   combinationKey: 'quality=hd',
   parameters: { quality: 'HD' },
   billingDimensions: { billingUnit: 'MILLION_TOKENS' },
-  resolvedProviderModelId: 'chat-hd',
+  upstreamModelId: 'chat-hd',
   rateId: null,
   rateVersion: null,
   rateStatus: null,
@@ -129,6 +130,17 @@ describe('provider pricing matrix form', () => {
     expect(
       within(failureCharge).queryByRole('option', { name: 'Fixed amount' })
     ).not.toBeInTheDocument()
+  })
+
+  it('filters the model column by the exact upstream model ID', async () => {
+    const user = userEvent.setup()
+    renderMatrix()
+    expect(await screen.findByText('Chat')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Column filters' }))
+    await user.type(screen.getByLabelText('Model'), 'chat-hd')
+
+    expect(screen.getByText('Chat')).toBeVisible()
   })
 
   it('publishes four independent customer token rates from the matrix', async () => {

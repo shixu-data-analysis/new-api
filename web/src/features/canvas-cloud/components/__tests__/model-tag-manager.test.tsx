@@ -38,23 +38,26 @@ const associated = { id: 'photo', name: 'Photography' }
 const models = [
   {
     modelKey: 'alpha',
-    name: 'Alpha',
+    effectiveDisplayName: 'Alpha',
+    catalogDefaultName: 'Catalog Alpha',
     provider: { name: 'Provider A' },
-    modelIds: [{ modelId: 'upstream-a' }],
+    executionTargets: [{ id: 'target-a', upstreamModelId: 'upstream-a' }],
     tags: [associated],
   },
   {
     modelKey: 'beta',
-    name: 'Beta',
+    effectiveDisplayName: 'Beta',
+    catalogDefaultName: 'Catalog Beta',
     provider: { name: 'Provider B' },
-    modelIds: [{ modelId: 'upstream-b' }],
+    executionTargets: [{ id: 'target-b', upstreamModelId: 'upstream-b' }],
     tags: [associated],
   },
   {
     modelKey: 'gamma',
-    name: 'Gamma',
+    effectiveDisplayName: 'Gamma',
+    catalogDefaultName: 'Catalog Gamma',
     provider: { name: 'Provider C' },
-    modelIds: [{ modelId: 'upstream-c' }],
+    executionTargets: [{ id: 'target-c', upstreamModelId: 'upstream-c' }],
     tags: [],
   },
 ] as CanvasAdminTestingModel[]

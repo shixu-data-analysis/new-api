@@ -56,6 +56,7 @@ import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 const executorModeLabelKeys: Record<string, string> = {
@@ -1040,9 +1041,39 @@ type EditableLimitRule = Omit<LimitRule, 'scope'> & {
   scope: 'CREDENTIAL_GROUP' | 'MODEL' | 'MODEL_GROUP'
 }
 
+type LimitModel = {
+  modelKey: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
+}
+
+function LimitModelIdentity({ model }: { model: LimitModel }) {
+  return (
+    <span
+      data-model-identity='limit-model'
+      className='inline-grid max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1'
+    >
+      <span className='min-w-0 break-all'>
+        <span className='break-all'>{model.effectiveDisplayName}</span> ·{' '}
+        <span className='text-muted-foreground font-mono text-xs break-all'>
+          {model.modelKey}
+        </span>
+      </span>
+      <span className='shrink-0'>
+        <ModelIdentityTooltip
+          effectiveDisplayName={model.effectiveDisplayName}
+          catalogDefaultName={model.catalogDefaultName}
+          modelKey={model.modelKey}
+          modelKeyShown
+        />
+      </span>
+    </span>
+  )
+}
+
 function LimitSection(props: {
   rules: EditableLimitRule[]
-  models: Array<{ modelKey: string; publicName: string }>
+  models: LimitModel[]
   pending: boolean
   onReview: (value: Confirmation) => void
   onPublish: (rules: LimitRule[]) => void
@@ -1095,7 +1126,7 @@ function LimitSection(props: {
       (rule.modelKeys ?? []).map(
         (modelKey) =>
           props.models.find((model) => model.modelKey === modelKey)
-            ?.publicName ?? modelKey
+            ?.effectiveDisplayName ?? modelKey
       )
     const formatTarget = (rule: EditableLimitRule) => {
       if (rule.scope === 'CREDENTIAL_GROUP') {
@@ -1223,10 +1254,8 @@ function LimitSection(props: {
                 if (rule.scope === 'CREDENTIAL_GROUP') {
                   return t('Entire API Key group')
                 }
-                const modelNames = (rule.modelKeys ?? []).map(
-                  (modelKey) =>
-                    props.models.find((model) => model.modelKey === modelKey)
-                      ?.publicName ?? modelKey
+                const models = (rule.modelKeys ?? []).map((modelKey) =>
+                  props.models.find((model) => model.modelKey === modelKey)
                 )
                 const label =
                   rule.scope === 'MODEL_GROUP'
@@ -1235,8 +1264,15 @@ function LimitSection(props: {
                 return (
                   <span className='block min-w-0'>
                     <span className='block'>{label}</span>
-                    <span className='text-muted-foreground block text-xs break-words'>
-                      {modelNames.join(', ')}
+                    <span className='mt-1 flex flex-wrap gap-x-3 gap-y-1'>
+                      {(rule.modelKeys ?? []).map((modelKey, index) => {
+                        const model = models[index]
+                        return model ? (
+                          <LimitModelIdentity key={modelKey} model={model} />
+                        ) : (
+                          <span key={modelKey}>{modelKey}</span>
+                        )
+                      })}
                     </span>
                   </span>
                 )
@@ -1489,7 +1525,7 @@ function LimitSection(props: {
                         id={`limit-models-${index}`}
                         options={props.models.map((model) => ({
                           value: model.modelKey,
-                          label: model.publicName,
+                          label: model.effectiveDisplayName,
                         }))}
                         selected={item.value}
                         onChange={(value) => item.onChange(value)}
@@ -1506,6 +1542,16 @@ function LimitSection(props: {
                       <p className='text-muted-foreground text-sm'>
                         {t('Selected models share this limit.')}
                       </p>
+                      <div className='flex flex-wrap gap-x-3 gap-y-1'>
+                        {item.value.map((modelKey) => {
+                          const model = props.models.find(
+                            (candidate) => candidate.modelKey === modelKey
+                          )
+                          return model ? (
+                            <LimitModelIdentity key={modelKey} model={model} />
+                          ) : null
+                        })}
+                      </div>
                       {ruleErrors?.modelKeys?.message &&
                         fieldError(
                           t(ruleErrors.modelKeys.message),
@@ -1527,20 +1573,32 @@ function LimitSection(props: {
                   control={form.control}
                   name={`rules.${index}.modelKeys`}
                   render={({ field: item }) => (
-                    <SelectField
-                      id={`limit-model-${index}`}
-                      label={t('Model')}
-                      value={item.value[0] ?? ''}
-                      onChange={(value) => item.onChange(value ? [value] : [])}
-                      onBlur={item.onBlur}
-                      options={props.models.map((model) => ({
-                        value: model.modelKey,
-                        label: model.publicName,
-                      }))}
-                      includeBlank
-                      blankLabel={t('Select a bound model')}
-                      error={localizeError(ruleErrors?.modelKeys?.message)}
-                    />
+                    <div className='space-y-2'>
+                      <SelectField
+                        id={`limit-model-${index}`}
+                        label={t('Model')}
+                        value={item.value[0] ?? ''}
+                        onChange={(value) =>
+                          item.onChange(value ? [value] : [])
+                        }
+                        onBlur={item.onBlur}
+                        options={props.models.map((model) => ({
+                          value: model.modelKey,
+                          label: model.effectiveDisplayName,
+                        }))}
+                        includeBlank
+                        blankLabel={t('Select a bound model')}
+                        error={localizeError(ruleErrors?.modelKeys?.message)}
+                      />
+                      {(() => {
+                        const model = props.models.find(
+                          (candidate) => candidate.modelKey === item.value[0]
+                        )
+                        return model ? (
+                          <LimitModelIdentity model={model} />
+                        ) : null
+                      })()}
+                    </div>
                   )}
                 />
               ))}

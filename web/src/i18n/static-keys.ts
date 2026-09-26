@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Canvas model identity
+  'Catalog default name',
+  'Model key',
+  'View model identity',
+
   // Canvas activity management dynamic states
   'Activity status PENDING',
   'Activity status RUNNING',

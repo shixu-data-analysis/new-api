@@ -99,7 +99,11 @@ import {
 } from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
-import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
+import {
+  PricingActionConfirmation,
+  type ConfirmationDetail,
+} from './PricingActionConfirmation'
 import { runtimeChangeError } from './runtime-change-error'
 
 function isHttpsOrigin(value: string) {
@@ -260,8 +264,8 @@ export function RuntimeConfiguration(
     'taskMedia' | 'credential' | 'management' | null
   >(null)
   const modelTableState = useServerTableState<
-    'publicName' | 'modelKey' | 'status'
-  >('publicName')
+    'effectiveDisplayName' | 'modelKey' | 'status'
+  >('effectiveDisplayName')
   const [modelKeyFilter, setModelKeyFilter] = useState('')
   const [modelStatusFilter, setModelStatusFilter] = useState('')
   const debouncedModelKey = useDebounce(modelKeyFilter.trim(), 300)
@@ -301,7 +305,7 @@ export function RuntimeConfiguration(
       : {}),
     modelScope: 'BOUND_TO_GROUP',
     ...(modelTableState.query.search
-      ? { modelName: modelTableState.query.search }
+      ? { search: modelTableState.query.search }
       : {}),
     ...(debouncedModelKey ? { modelKey: debouncedModelKey } : {}),
     ...(modelStatusFilter ? { modelStatus: modelStatusFilter } : {}),
@@ -357,7 +361,7 @@ export function RuntimeConfiguration(
             providerId,
             credentialGroupId,
             modelScope: 'GROUP_MANAGEMENT',
-            sortBy: 'publicName',
+            sortBy: 'effectiveDisplayName',
             sortOrder: 'asc',
             page,
             pageSize: 100,
@@ -778,13 +782,15 @@ export function RuntimeConfiguration(
     }
     return t('Currently unbound')
   }
-  const managementModels = (managementCandidates.data ?? []).filter(
-    (model) =>
+  const managementModels = (managementCandidates.data ?? []).filter((model) => {
+    const query = managementModelSearch.trim().toLocaleLowerCase()
+    return (
       model.isSelectable &&
-      model.publicName
+      `${model.effectiveDisplayName} ${model.catalogDefaultName} ${model.modelKey} ${model.executionTargets.map((target) => target.upstreamModelId).join(' ')}`
         .toLocaleLowerCase()
-        .includes(managementModelSearch.trim().toLocaleLowerCase())
-  )
+        .includes(query)
+    )
+  })
   const selectableManagementModelIds = (managementCandidates.data ?? [])
     .filter((model) => model.isSelectable)
     .map((model) => model.id)
@@ -810,8 +816,8 @@ export function RuntimeConfiguration(
   const modelColumns = useMemo<ColumnDef<CanvasProviderModel, unknown>[]>(
     () => [
       {
-        id: 'publicName',
-        accessorKey: 'publicName',
+        id: 'effectiveDisplayName',
+        accessorKey: 'effectiveDisplayName',
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Model name')} />
         ),
@@ -821,7 +827,16 @@ export function RuntimeConfiguration(
             return (
               <div className='space-y-1'>
                 <span className='block font-medium break-words'>
-                  {row.original.publicName}
+                  {row.original.effectiveDisplayName}
+                  <ModelIdentityTooltip
+                    effectiveDisplayName={row.original.effectiveDisplayName}
+                    catalogDefaultName={row.original.catalogDefaultName}
+                    modelKey={row.original.modelKey}
+                    upstreamModelIds={row.original.executionTargets.map(
+                      (target) => target.upstreamModelId
+                    )}
+                    modelKeyShown
+                  />
                 </span>
                 <span className='text-muted-foreground block text-xs break-words'>
                   {row.original.modelKey} · {t('Technical version')} v
@@ -842,22 +857,32 @@ export function RuntimeConfiguration(
             )
           }
           return (
-            <a
-              className='text-primary max-w-full font-medium break-words whitespace-normal underline-offset-4 hover:underline'
-              href={`/canvas-cloud/model-management/${encodeURIComponent(row.original.id)}/pricing`}
-              onClick={() => {
-                if (!selectedGroup) return
-                window.sessionStorage.setItem(
-                  providerContextStorageKey,
-                  JSON.stringify({
-                    providerId: selectedGroup.providerId,
-                    credentialGroupId: selectedGroup.credentialGroupId,
-                  })
-                )
-              }}
-            >
-              {row.original.publicName}
-            </a>
+            <span className='inline-flex max-w-full items-center'>
+              <a
+                className='text-primary max-w-full font-medium break-words whitespace-normal underline-offset-4 hover:underline'
+                href={`/canvas-cloud/model-management/${encodeURIComponent(row.original.id)}/pricing`}
+                onClick={() => {
+                  if (!selectedGroup) return
+                  window.sessionStorage.setItem(
+                    providerContextStorageKey,
+                    JSON.stringify({
+                      providerId: selectedGroup.providerId,
+                      credentialGroupId: selectedGroup.credentialGroupId,
+                    })
+                  )
+                }}
+              >
+                {row.original.effectiveDisplayName}
+              </a>
+              <ModelIdentityTooltip
+                effectiveDisplayName={row.original.effectiveDisplayName}
+                catalogDefaultName={row.original.catalogDefaultName}
+                modelKey={row.original.modelKey}
+                upstreamModelIds={row.original.executionTargets.map(
+                  (target) => target.upstreamModelId
+                )}
+              />
+            </span>
           )
         },
       },
@@ -883,7 +908,7 @@ export function RuntimeConfiguration(
     ],
     [openManagementDrawer, selectedGroup, t]
   )
-  let confirmationDetails = [
+  let confirmationDetails: ConfirmationDetail[] = [
     { label: t('Selected models'), value: String(selectedModels.length) },
   ]
   if (confirmation === 'taskMedia') {
@@ -961,9 +986,22 @@ export function RuntimeConfiguration(
             {
               label: t('Affected models'),
               value:
-                rotationPreview.affectedModels
-                  .map((model) => model.publicName)
-                  .join(', ') || t('None'),
+                rotationPreview.affectedModels.length > 0 ? (
+                  <span className='inline-flex flex-wrap gap-x-2 gap-y-1'>
+                    {rotationPreview.affectedModels.map((model) => (
+                      <span key={model.customerModelId}>
+                        {model.effectiveDisplayName}
+                        <ModelIdentityTooltip
+                          effectiveDisplayName={model.effectiveDisplayName}
+                          catalogDefaultName={model.catalogDefaultName}
+                          modelKey={model.modelKey}
+                        />
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  t('None')
+                ),
             },
           ]
         : []),
@@ -1004,18 +1042,59 @@ export function RuntimeConfiguration(
         ? [{ label: t('API Key'), value: t('Will be replaced') }]
         : []),
       ...added.map((model) => ({
+        key: `added:${model.id}`,
         label: model.credentialGroupName ? t('Move binding') : t('Add binding'),
-        value: model.credentialGroupName
-          ? `${model.publicName}: ${model.credentialGroupName} → ${selectedGroup.name}`
-          : model.publicName,
+        value: (
+          <span>
+            {model.credentialGroupName
+              ? `${model.effectiveDisplayName}: ${model.credentialGroupName} → ${selectedGroup.name}`
+              : model.effectiveDisplayName}
+            <ModelIdentityTooltip
+              effectiveDisplayName={model.effectiveDisplayName}
+              catalogDefaultName={model.catalogDefaultName}
+              modelKey={model.modelKey}
+              upstreamModelIds={model.executionTargets.map(
+                (target) => target.upstreamModelId
+              )}
+            />
+          </span>
+        ),
       })),
       ...removed.map((model) => ({
+        key: `removed:${model.id}`,
         label: t('Remove binding'),
-        value: model.publicName,
+        value: (
+          <span>
+            {model.effectiveDisplayName}
+            <ModelIdentityTooltip
+              effectiveDisplayName={model.effectiveDisplayName}
+              catalogDefaultName={model.catalogDefaultName}
+              modelKey={model.modelKey}
+              upstreamModelIds={model.executionTargets.map(
+                (target) => target.upstreamModelId
+              )}
+            />
+          </span>
+        ),
       })),
       ...historicalGroupBindings.map((model) => ({
+        key: `historical:${model.id}`,
         label: t('Retire model binding'),
-        value: `${model.publicName} · ${model.modelKey} v${model.modelVersion}`,
+        value: (
+          <span>
+            {model.effectiveDisplayName} · {model.modelKey} v
+            {model.modelVersion}
+            <ModelIdentityTooltip
+              effectiveDisplayName={model.effectiveDisplayName}
+              catalogDefaultName={model.catalogDefaultName}
+              modelKey={model.modelKey}
+              upstreamModelIds={model.executionTargets.map(
+                (target) => target.upstreamModelId
+              )}
+              modelKeyShown
+            />
+          </span>
+        ),
       })),
       {
         label: t('Reason'),
@@ -1702,7 +1781,7 @@ export function RuntimeConfiguration(
                               className='bg-muted/30 flex items-start gap-3 rounded-lg border p-3'
                             >
                               <Checkbox
-                                aria-label={`${t('Select model')} ${model.publicName}`}
+                                aria-label={`${t('Select model')} ${model.effectiveDisplayName}`}
                                 checked={selectedModels.includes(model.id)}
                                 onCheckedChange={(checked) =>
                                   updateSelectedModels((current) =>
@@ -1714,7 +1793,19 @@ export function RuntimeConfiguration(
                               />
                               <span className='min-w-0 text-sm'>
                                 <span className='block font-medium break-words'>
-                                  {model.publicName}
+                                  {model.effectiveDisplayName}
+                                  <ModelIdentityTooltip
+                                    effectiveDisplayName={
+                                      model.effectiveDisplayName
+                                    }
+                                    catalogDefaultName={
+                                      model.catalogDefaultName
+                                    }
+                                    modelKey={model.modelKey}
+                                    upstreamModelIds={model.executionTargets.map(
+                                      (target) => target.upstreamModelId
+                                    )}
+                                  />
                                 </span>
                                 <span className='text-muted-foreground block'>
                                   {modelBindingDescription(model)}
@@ -1744,8 +1835,8 @@ export function RuntimeConfiguration(
                           <ul className='space-y-1 text-sm'>
                             {historicalGroupBindings.map((model) => (
                               <li key={model.id} className='break-words'>
-                                {model.publicName} · {model.modelKey} v
-                                {model.modelVersion}
+                                {model.effectiveDisplayName} · {model.modelKey}{' '}
+                                v{model.modelVersion}
                               </li>
                             ))}
                           </ul>
@@ -1891,7 +1982,7 @@ export function RuntimeConfiguration(
                   id: 'model',
                   header: t('Affected model'),
                   className: 'w-64',
-                  cell: (model) => model.publicName,
+                  cell: (model) => model.effectiveDisplayName,
                 },
                 {
                   id: 'change',
@@ -2351,8 +2442,8 @@ function formatCredentialGroupChange(
   if (change.type === 'GROUP_RENAMED') {
     return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
   }
-  if (change.modelName) {
-    return `${change.modelName}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
+  if (change.displayNameSnapshot) {
+    return `${change.displayNameSnapshot}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
   }
   return t(change.type ?? 'GROUP_UPDATED')
 }

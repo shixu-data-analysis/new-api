@@ -755,10 +755,10 @@ export function AdminPricing(props: {
       pricingColumn(
         'model',
         'MODEL',
-        (price) => `${price.modelName} ${price.modelKey}`,
+        (price) => `${price.displayNameSnapshot} ${price.modelKey}`,
         (price) => (
           <div className='min-w-48'>
-            <div className='font-medium'>{price.modelName}</div>
+            <div className='font-medium'>{price.displayNameSnapshot}</div>
             <div className='text-muted-foreground text-xs'>
               {price.modelKey}
             </div>
@@ -948,10 +948,10 @@ export function AdminPricing(props: {
       recordColumn(
         'model',
         t('Model'),
-        (promotion) => `${promotion.modelName} ${promotion.modelKey}`,
+        (promotion) => `${promotion.displayNameSnapshot} ${promotion.modelKey}`,
         (promotion) => (
           <div>
-            <div className='font-medium'>{promotion.modelName}</div>
+            <div className='font-medium'>{promotion.displayNameSnapshot}</div>
             <div className='text-muted-foreground text-xs'>
               {promotion.modelKey}
             </div>
@@ -1065,7 +1065,7 @@ export function AdminPricing(props: {
         (entry) => entry.id === confirmation.promotionVersionId
       )
       return [
-        { label: t('Model'), value: promotion?.modelName ?? '—' },
+        { label: t('Model'), value: promotion?.displayNameSnapshot ?? '—' },
         {
           label: t('Limited-time range'),
           value: promotion
@@ -1076,7 +1076,10 @@ export function AdminPricing(props: {
     }
     if (confirmation.kind === 'create-special') {
       return [
-        { label: t('Model'), value: specialSource?.modelName ?? '—' },
+        {
+          label: t('Model'),
+          value: specialSource?.displayNameSnapshot ?? '—',
+        },
         {
           label: t('Original price'),
           value: `${specialSource?.points ?? '—'} ${t('points')}`,
@@ -1117,7 +1120,7 @@ export function AdminPricing(props: {
         (entry) => entry.id === confirmation.priceVersionId
       )
       return [
-        { label: t('Model'), value: price?.modelName ?? '—' },
+        { label: t('Model'), value: price?.displayNameSnapshot ?? '—' },
         { label: t('Effective'), value: dateTime(price?.effectiveAt ?? null) },
       ]
     }
@@ -1125,7 +1128,10 @@ export function AdminPricing(props: {
       return [
         {
           label: t('Published price source'),
-          value: selectedInitial?.model.name ?? selected?.modelName ?? '—',
+          value:
+            selectedInitial?.model.effectiveDisplayName ??
+            selected?.displayNameSnapshot ??
+            '—',
         },
         { label: t('Points'), value: `${priceValues.points} ${t('points')}` },
         {
@@ -1323,7 +1329,7 @@ export function AdminPricing(props: {
                     >
                       {published.map((price) => (
                         <option key={price.id} value={price.id}>
-                          {price.modelName} · {price.priceGroup} ·{' '}
+                          {price.displayNameSnapshot} · {price.priceGroup} ·{' '}
                           {price.combinationKey} · v{price.version}
                         </option>
                       ))}
@@ -1331,8 +1337,9 @@ export function AdminPricing(props: {
                         const value = `initial:${model.id}:${target.priceGroupId}:${target.parameterCombinationId}`
                         return (
                           <option key={value} value={value}>
-                            {model.name} · {target.priceGroupName} ·{' '}
-                            {target.combinationKey} · {t('Not priced')}
+                            {model.effectiveDisplayName} ·{' '}
+                            {target.priceGroupName} · {target.combinationKey} ·{' '}
+                            {t('Not priced')}
                           </option>
                         )
                       })}
@@ -1586,7 +1593,7 @@ export function AdminPricing(props: {
                       >
                         {published.map((price) => (
                           <option key={price.id} value={price.id}>
-                            {price.modelName} · {price.priceGroup} ·{' '}
+                            {price.displayNameSnapshot} · {price.priceGroup} ·{' '}
                             {price.combinationKey} · {price.points}{' '}
                             {t('points')}
                           </option>
@@ -1888,7 +1895,7 @@ export function AdminPricing(props: {
                         >
                           <div className='text-sm'>
                             <div className='font-medium'>
-                              {price.modelName} · {price.priceGroup} ·{' '}
+                              {price.displayNameSnapshot} · {price.priceGroup} ·{' '}
                               {price.combinationKey}
                             </div>
                             <div className='text-muted-foreground mt-1'>

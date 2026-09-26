@@ -170,12 +170,12 @@ function ModelUsage({ customerId }: { customerId: string }) {
       header: t('Task-time price group'),
     },
     {
-      id: 'modelName',
-      accessorKey: 'modelName',
+      id: 'effectiveDisplayName',
+      accessorKey: 'effectiveDisplayName',
       header: t('Model / specification'),
       cell: ({ row }) => (
         <span>
-          {row.original.modelName} /{' '}
+          {row.original.effectiveDisplayName} /{' '}
           {pricingScopeLabel(
             {
               key: row.original.combinationKey,

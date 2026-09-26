@@ -40,7 +40,8 @@ vi.mock('@tanstack/react-router', () => ({
 const model = {
   id: 'model-1',
   modelKey: 'video.alpha',
-  name: 'Video Alpha',
+  effectiveDisplayName: 'Video Alpha',
+  catalogDefaultName: 'Catalog Video Alpha',
   capability: 'video.generate',
   status: 'ACTIVE',
   billingUnit: 'REQUEST',
@@ -194,7 +195,7 @@ const preview = {
 }
 
 function renderPricing(
-  tab: 'set' | 'current' = 'set',
+  tab: 'set' | 'current' | 'history' = 'set',
   onTabChange?: (tab: 'current' | 'set' | 'history') => void
 ) {
   const client = new QueryClient({
@@ -212,7 +213,7 @@ function renderPricing(
   )
   return {
     ...view,
-    rerenderTab: (next: 'set' | 'current') =>
+    rerenderTab: (next: 'set' | 'current' | 'history') =>
       view.rerender(
         <QueryClientProvider client={client}>
           <UnifiedModelPricing
@@ -261,6 +262,18 @@ beforeEach(() => {
 })
 
 describe('UnifiedModelPricing UAT-028', () => {
+  it('does not present the current model identity as a historical record', async () => {
+    renderPricing('history')
+
+    expect(
+      (await screen.findAllByText('History versions')).length
+    ).toBeGreaterThan(0)
+    expect(screen.queryByText('Video Alpha')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
+  })
+
   it('keeps a mixed-unit model editable but requires an explicit unit and fresh complete prices', async () => {
     const mixedModel = {
       ...model,
@@ -284,7 +297,9 @@ describe('UnifiedModelPricing UAT-028', () => {
       name: 'Preview and publish',
     })
     expect(previewButton).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'Schedule for later' })).toBeDisabled()
+    expect(
+      screen.getByRole('radio', { name: 'Schedule for later' })
+    ).toBeDisabled()
     expect(mocks.preview).not.toHaveBeenCalled()
     await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
     await user.click(screen.getByRole('option', { name: 'per request' }))

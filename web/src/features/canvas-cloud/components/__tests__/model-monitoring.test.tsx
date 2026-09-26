@@ -49,7 +49,8 @@ const monitoring: CanvasModelMonitoring = {
   customerModel: {
     id: modelId,
     modelKey: 'canvas-image',
-    name: 'Canvas Image',
+    effectiveDisplayName: 'Canvas Image',
+    catalogDefaultName: 'Catalog Canvas Image',
     providerName: 'Canvas Provider',
     version: 1,
     capability: 'IMAGE',

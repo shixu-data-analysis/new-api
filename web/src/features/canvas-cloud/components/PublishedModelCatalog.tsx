@@ -100,6 +100,7 @@ import {
   executionTargetSpecifications,
 } from './execution-target-label'
 import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 import { ModelTagManager } from './ModelTagManager'
 import { PublishedModelDetails } from './PublishedModelDetails'
@@ -355,7 +356,7 @@ export function PublishedModelCatalog(props: {
           originalPresentation &&
           draft.displayName.trim() !== originalPresentation.displayName.trim()
             ? draft.displayName
-            : current.name,
+            : current.effectiveDisplayName,
         description:
           originalPresentation &&
           draft.description.trim() !== originalPresentation.description.trim()
@@ -364,7 +365,7 @@ export function PublishedModelCatalog(props: {
       })
       setEditing(current)
       setOriginalPresentation({
-        displayName: current.name,
+        displayName: current.effectiveDisplayName,
         description: current.description,
       })
       setOriginalTagIds(current.tags.map((tag) => tag.id))
@@ -433,8 +434,8 @@ export function PublishedModelCatalog(props: {
     const query = search.trim().toLocaleLowerCase()
     const idQuery = modelId.trim().toLocaleLowerCase()
     const matches = (models.data ?? []).filter((model) => {
-      const providerModelIds = model.modelIds
-        .map((entry) => entry.modelId)
+      const upstreamModelIds = model.executionTargets
+        .map((target) => target.upstreamModelId)
         .join('\n')
         .toLocaleLowerCase()
       const visible =
@@ -444,11 +445,15 @@ export function PublishedModelCatalog(props: {
           : model.executionTargets.some((target) => !target.customerVisible))
       return (
         visible &&
-        (!query || model.name.toLocaleLowerCase().includes(query)) &&
+        (!query ||
+          model.effectiveDisplayName.toLocaleLowerCase().includes(query) ||
+          model.catalogDefaultName.toLocaleLowerCase().includes(query) ||
+          model.modelKey.toLocaleLowerCase().includes(query) ||
+          upstreamModelIds.includes(query)) &&
         (!selectedProvider || model.provider.id === selectedProvider) &&
         (!selectedCapability ||
           model.publicCatalogSnapshot.capability === selectedCapability) &&
-        (!idQuery || providerModelIds.includes(idQuery))
+        (!idQuery || upstreamModelIds.includes(idQuery))
       )
     })
     return matches
@@ -491,7 +496,7 @@ export function PublishedModelCatalog(props: {
   const startEdit = useCallback(
     (model: CanvasAdminTestingModel) => {
       const values = {
-        displayName: model.name,
+        displayName: model.effectiveDisplayName,
         description: model.description,
       }
       displayForm.reset(values)
@@ -529,7 +534,7 @@ export function PublishedModelCatalog(props: {
     () => [
       {
         id: 'name',
-        accessorFn: (model) => model.name,
+        accessorFn: (model) => model.effectiveDisplayName,
         size: 256,
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Model')} />
@@ -540,7 +545,12 @@ export function PublishedModelCatalog(props: {
           return (
             <div className='min-w-0 whitespace-normal'>
               <div className='font-medium [overflow-wrap:anywhere]'>
-                {model.name}
+                {model.effectiveDisplayName}
+                <ModelIdentityTooltip
+                  effectiveDisplayName={model.effectiveDisplayName}
+                  catalogDefaultName={model.catalogDefaultName}
+                  modelKey={model.modelKey}
+                />
               </div>
               {model.tags.length > 0 && (
                 <p className='text-muted-foreground text-xs break-words'>
@@ -709,7 +719,7 @@ export function PublishedModelCatalog(props: {
         checked={target.enabled}
         disabled={presentationBusy}
         aria-label={t('Customer display for {{model}}', {
-          model: `${model.name} · ${executionTargetLabel(target, t)}`,
+          model: `${model.effectiveDisplayName} · ${executionTargetLabel(target, t)}`,
         })}
         onCheckedChange={() => {
           if (presentationBusy) return
@@ -753,8 +763,10 @@ export function PublishedModelCatalog(props: {
     }
     return (
       <StaticDataTable
+        className='model-management-target-table'
         data={model.executionTargets}
         getRowKey={(target) => target.id}
+        getRowClassName={() => 'bg-card hover:!bg-card'}
         columns={[
           {
             id: 'specification',
@@ -903,6 +915,7 @@ export function PublishedModelCatalog(props: {
           fixedHeight={false}
           paginationInFooter={false}
           applyHeaderSize
+          tableClassName='model-management-group-table [&_tbody>tr]:h-auto [&_tbody>tr]:border-b-0'
           emptyTitle={t('No matching models')}
           emptyDescription={t('No records found. Try adjusting your filters.')}
           getColumnClassName={(_, section) => {
@@ -913,7 +926,10 @@ export function PublishedModelCatalog(props: {
           }}
           renderRow={(row, helpers) => (
             <Fragment key={row.id}>
-              <TableRow className='bg-card'>
+              <TableRow
+                data-model-group-row='main'
+                className='model-management-group-main !h-auto border-b-0 hover:bg-transparent'
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
@@ -923,10 +939,13 @@ export function PublishedModelCatalog(props: {
                   </TableCell>
                 ))}
               </TableRow>
-              <TableRow className='border-background border-b-8'>
+              <TableRow
+                data-model-group-row='details'
+                className='model-management-group-details !h-auto border-b-0 hover:bg-transparent'
+              >
                 <TableCell
                   colSpan={row.getVisibleCells().length}
-                  className='bg-muted/40 px-3 py-3 [&_table]:bg-transparent [&_tbody_tr]:bg-transparent'
+                  className='bg-card before:bg-border [&_thead]:bg-muted/40 relative px-3 py-3 before:absolute before:top-0 before:right-4 before:left-4 before:h-px [&_table]:bg-transparent [&_tbody_tr]:bg-transparent'
                 >
                   <div className='space-y-2'>
                     <p className='text-sm font-medium'>
@@ -935,6 +954,16 @@ export function PublishedModelCatalog(props: {
                     {renderTargetDetails(row.original)}
                   </div>
                 </TableCell>
+              </TableRow>
+              <TableRow
+                data-model-group-row='spacer'
+                aria-hidden='true'
+                className='pointer-events-none !h-[11px] border-0 hover:bg-transparent'
+              >
+                <TableCell
+                  colSpan={row.getVisibleCells().length}
+                  className='bg-card h-[11px] border-0 p-0'
+                />
               </TableRow>
             </Fragment>
           )}
@@ -1207,7 +1236,7 @@ export function PublishedModelCatalog(props: {
             </AlertDialogHeader>
             <dl className='grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm'>
               <dt className='text-muted-foreground'>{t('Model')}</dt>
-              <dd>{toggling.model.name}</dd>
+              <dd>{toggling.model.effectiveDisplayName}</dd>
               <dt className='text-muted-foreground'>{t('Execution target')}</dt>
               <dd>{executionTargetLabel(toggling.target, t)}</dd>
               <dt className='text-muted-foreground'>

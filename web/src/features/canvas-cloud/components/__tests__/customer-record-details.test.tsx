@@ -65,7 +65,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-a',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -122,7 +122,7 @@ describe('Customer record details', () => {
         items: [
           {
             id: `task-${language}`,
-            modelName: 'GPT Image 2',
+            displayNameSnapshot: 'GPT Image 2',
             quotedPoints: '1000',
             allocatedPoints: '1000',
             settledPoints: '1000',
@@ -155,7 +155,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-zh',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -211,7 +211,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-no-message',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -252,7 +252,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-frozen',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -290,7 +290,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-mixed',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -339,7 +339,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-processing',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '0',
@@ -378,7 +378,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-review',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '100',
@@ -426,7 +426,7 @@ describe('Customer record details', () => {
       items: [
         {
           id: 'task-released',
-          modelName: 'GPT Image 2',
+          displayNameSnapshot: 'GPT Image 2',
           quotedPoints: '100',
           allocatedPoints: '100',
           settledPoints: '99',
@@ -474,7 +474,7 @@ describe('Customer record details', () => {
         items: [
           {
             id: 'task-retry',
-            modelName: 'GPT Image 2',
+            displayNameSnapshot: 'GPT Image 2',
             quotedPoints: '100',
             allocatedPoints: '100',
             settledPoints: '100',

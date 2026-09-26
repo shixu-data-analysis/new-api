@@ -73,7 +73,9 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
     )
   })
   const tagCountModels = typeModels.filter((model) =>
-    model.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())
+    model.effectiveDisplayName
+      .toLocaleLowerCase()
+      .includes(search.trim().toLocaleLowerCase())
   )
   const tagCountById = new Map<string, number>()
   let untaggedCount = 0
@@ -178,7 +180,7 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
           {visible.map((model) => (
             <Card key={model.id}>
               <CardHeader>
-                <CardTitle>{model.name}</CardTitle>
+                <CardTitle>{model.effectiveDisplayName}</CardTitle>
                 <CardDescription>
                   {model.catalog.capability
                     ? t(String(model.catalog.capability))

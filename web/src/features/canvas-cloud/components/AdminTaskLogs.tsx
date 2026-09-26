@@ -257,7 +257,7 @@ export function AdminTaskLogs() {
               <CopyableText value={row.original.id} hideValue />
             </div>
             <div className='text-muted-foreground text-sm break-words'>
-              {row.original.modelName ?? t('Unknown model')}
+              {row.original.displayNameSnapshot}
             </div>
           </div>
         ),
@@ -348,7 +348,9 @@ export function AdminTaskLogs() {
             <CanvasLocalizedSelectValue
               value={model}
               displayValue={
-                options.data?.models.find((option) => option.id === model)?.name
+                options.data?.models.find(
+                  (option) => option.customerModelId === model
+                )?.displayNameSnapshot
               }
               emptyLabelKey='All models'
             />
@@ -356,8 +358,11 @@ export function AdminTaskLogs() {
           <SelectContent>
             <SelectItem value='ALL'>{t('All models')}</SelectItem>
             {(options.data?.models ?? []).map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.name}
+              <SelectItem
+                key={option.customerModelId}
+                value={option.customerModelId}
+              >
+                {option.displayNameSnapshot}
               </SelectItem>
             ))}
           </SelectContent>

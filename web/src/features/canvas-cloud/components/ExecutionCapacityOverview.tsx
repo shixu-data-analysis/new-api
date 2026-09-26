@@ -358,7 +358,7 @@ export function ExecutionCapacityOverview() {
   const waitColumns: ColumnDef<ExecutionWaitItem, unknown>[] = [
     {
       id: 'task',
-      accessorKey: 'modelName',
+      accessorKey: 'displayNameSnapshot',
       header: t('Task'),
       enableSorting: false,
     },
@@ -584,7 +584,7 @@ export function ExecutionCapacityOverview() {
             {detail.data ? (
               <dl className='grid grid-cols-[auto_1fr] gap-3 text-sm'>
                 <dt>{t('Task')}</dt>
-                <dd>{detail.data.modelName}</dd>
+                <dd>{detail.data.displayNameSnapshot}</dd>
                 <dt>{t('Waiting stage')}</dt>
                 <dd>{stageLabel(detail.data.stage, t)}</dd>
                 <dt>{t('Blocking reason')}</dt>

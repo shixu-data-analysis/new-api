@@ -213,7 +213,7 @@ export type ExecutionWaitRequestState =
 
 export interface ExecutionWaitItem {
   taskId: string
-  modelName: string
+  displayNameSnapshot: string
   credentialGroupId: string
   stage: ExecutionWaitStage
   blockingStatus: ExecutionCapacityStatus
@@ -242,7 +242,8 @@ export interface CredentialGroupExecutionOverview {
   models: Array<{
     id: string
     modelKey: string
-    publicName: string
+    effectiveDisplayName: string
+    catalogDefaultName: string
     providerChannelId: string
   }>
 }

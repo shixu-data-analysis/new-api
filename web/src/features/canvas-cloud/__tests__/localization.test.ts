@@ -130,6 +130,7 @@ const adminRework006Sources = [
   'ExecutionTargetCoverage.tsx',
   'ModelManagementLayout.tsx',
   'ModelMonitoring.tsx',
+  'ModelIdentityTooltip.tsx',
   'PublishedModelCatalog.tsx',
   'TaskRecordDetailsSheet.tsx',
   'UnifiedModelPricing.tsx',
@@ -204,6 +205,22 @@ it.each(Object.entries(localizedResources))(
       'Model unavailable',
       'Provider unavailable',
       'Internal routing unavailable',
+    ]) {
+      expect(translations[key]).toBeTruthy()
+      expect(translations[key]).not.toBe(english[key])
+    }
+  }
+)
+
+it.each(Object.entries(localizedResources))(
+  'does not fall back to English for model identity labels in %s',
+  (_locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    const english = en.translation as Record<string, string>
+    for (const key of [
+      'Catalog default name',
+      'Model key',
+      'View model identity',
     ]) {
       expect(translations[key]).toBeTruthy()
       expect(translations[key]).not.toBe(english[key])

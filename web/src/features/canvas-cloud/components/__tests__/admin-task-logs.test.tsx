@@ -37,7 +37,7 @@ const task = {
   customerId: '85000000-0000-7000-8000-000000000002',
   customerName: 'uatcustomer',
   customerModelId: 'model-1',
-  modelName: 'Canvas Image',
+  displayNameSnapshot: 'Canvas Image',
   derivedExecutionStatus: 'SUCCEEDED',
   executionSummary: {
     expectedResults: 2,
@@ -94,7 +94,12 @@ describe('Canvas administrator task records', () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
     apiMocks.getCanvasTaskLogOptions.mockResolvedValue({
-      models: [{ id: 'model-1', name: 'Canvas Image' }],
+      models: [
+        {
+          customerModelId: 'model-1',
+          displayNameSnapshot: 'Historical Canvas Image',
+        },
+      ],
     })
     apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
       page: 1,
@@ -191,7 +196,7 @@ describe('Canvas administrator task records', () => {
     )
     await user.click(screen.getByRole('combobox', { name: 'Model' }))
     await user.click(
-      await screen.findByRole('option', { name: 'Canvas Image' })
+      await screen.findByRole('option', { name: 'Historical Canvas Image' })
     )
     await waitFor(() =>
       expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
@@ -199,6 +204,9 @@ describe('Canvas administrator task records', () => {
         expect.any(AbortSignal)
       )
     )
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Outstanding debt: 3')).toBeVisible()
   })
 

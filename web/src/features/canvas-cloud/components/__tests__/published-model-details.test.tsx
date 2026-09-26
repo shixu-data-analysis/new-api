@@ -11,12 +11,11 @@ function model(
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
     tags: [],
-    modelIds: [{ quality: null, modelId: 'provider-alpha' }],
     executionTargets: [],
     version: 2,
-    name: 'Alpha model',
+    effectiveDisplayName: 'Client Alpha model',
+    catalogDefaultName: 'Catalog Alpha model',
     description: '',
-    enabled: true,
     resourceEnabled: true,
     presentationVersion: null,
     status: 'ACTIVE',
@@ -57,6 +56,11 @@ describe('Published model details', () => {
     const before = JSON.stringify(selected)
     const { container } = render(<PublishedModelDetails model={selected} />)
     fireEvent.click(screen.getByText('Original catalog configuration'))
+    expect(screen.getByText('Catalog default name')).toBeVisible()
+    expect(screen.getByText('Catalog Alpha model')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'View model identity' })
+    ).not.toBeInTheDocument()
     const pre = container.querySelector('pre')
     if (!pre) throw new Error('Original catalog configuration is missing')
     expect(pre.textContent).toBe(JSON.stringify(snapshot, null, 2))

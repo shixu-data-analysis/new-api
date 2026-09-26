@@ -110,6 +110,7 @@ import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CustomerRecordDetails } from './CustomerRecordDetails'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 type CreateType =
@@ -1491,6 +1492,9 @@ function LimitedPriceActivityForm(props: {
     )
   }, [model.data, t])
   const source = sources.find((item) => item.id === sourcePriceVersionId)
+  const selectedModel = workspace.data?.models.find(
+    (item) => item.id === modelId
+  )
   const tokenPriced = source?.billingUnit === 'MILLION_TOKENS'
   const requiredTokenCategories = tokenRateKeys.filter(
     (category) => source?.tokenRates?.[category] !== undefined
@@ -1623,14 +1627,11 @@ function LimitedPriceActivityForm(props: {
               >
                 <CanvasLocalizedSelectValue
                   value={modelId}
-                  displayValue={(() => {
-                    const selected = workspace.data?.models.find(
-                      (item) => item.id === modelId
-                    )
-                    return selected
-                      ? `${selected.name} · ${selected.modelKey}`
+                  displayValue={
+                    selectedModel
+                      ? `${selectedModel.effectiveDisplayName} · ${selectedModel.modelKey}`
                       : undefined
-                  })()}
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
@@ -1638,11 +1639,32 @@ function LimitedPriceActivityForm(props: {
                   .filter((item) => item.hasPublishedPricing)
                   .map((item) => (
                     <SelectItem key={item.id} value={item.id}>
-                      {item.name} · {item.modelKey}
+                      {item.effectiveDisplayName} · {item.modelKey}
                     </SelectItem>
                   ))}
               </SelectContent>
             </Select>
+            {selectedModel ? (
+              <div
+                data-model-identity='activity-source-model'
+                className='mt-2 grid max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1 text-sm'
+              >
+                <span className='min-w-0 break-all'>
+                  {selectedModel.effectiveDisplayName} ·{' '}
+                  <span className='text-muted-foreground font-mono text-xs break-all'>
+                    {selectedModel.modelKey}
+                  </span>
+                </span>
+                <span className='shrink-0'>
+                  <ModelIdentityTooltip
+                    effectiveDisplayName={selectedModel.effectiveDisplayName}
+                    catalogDefaultName={selectedModel.catalogDefaultName}
+                    modelKey={selectedModel.modelKey}
+                    modelKeyShown
+                  />
+                </span>
+              </div>
+            ) : null}
           </div>
           <div>
             <Label>{t('Source price version')}</Label>
@@ -3900,8 +3922,8 @@ function LimitedPriceStopDialog(props: {
             {t('Activity name')}: {props.activity.name}
           </p>
           <p>
-            {t('Applicable price')}:{' '}
-            {target.customerModel.label ?? target.customerModel.id} ·{' '}
+            {t('Applicable price')}: {target.customerModel.displayNameSnapshot}{' '}
+            ·{' '}
             {target.parameterCombination.label ??
               target.parameterCombination.id}{' '}
             · {target.priceGroup.label ?? target.priceGroup.id}
@@ -3940,8 +3962,7 @@ function LimitedPriceSnapshot(props: {
   const facts = (
     <>
       <p>
-        {t('Applicable price')}:{' '}
-        {target.customerModel.label ?? target.customerModel.id} ·{' '}
+        {t('Applicable price')}: {target.customerModel.displayNameSnapshot} ·{' '}
         {target.priceGroup.label ?? target.priceGroup.id} ·{' '}
         {target.parameterCombination.label ?? target.parameterCombination.id}
       </p>

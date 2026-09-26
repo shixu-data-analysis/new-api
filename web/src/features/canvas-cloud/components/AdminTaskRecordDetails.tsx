@@ -615,9 +615,7 @@ export function AdminTaskRecordDetails({
             t('Unknown customer')
           )}
         </DetailValue>
-        <DetailValue label='Model'>
-          {task.modelName ?? t('Unknown model')}
-        </DetailValue>
+        <DetailValue label='Model'>{task.displayNameSnapshot}</DetailValue>
         <DetailValue label='Task accepted at'>
           {formatTime(locale, task.acceptedAt)}
         </DetailValue>

@@ -86,7 +86,7 @@ describe('Canvas customer tasks', () => {
       items: [
         {
           id: '01a09f34-complete-task-id',
-          modelName: 'GPT Image 2 Pro',
+          displayNameSnapshot: 'GPT Image 2 Pro',
           derivedExecutionStatus: 'SUCCEEDED',
           executionSummary: {
             expectedResults: 1,
@@ -151,7 +151,7 @@ describe('Canvas customer tasks', () => {
       items: [
         {
           id: '81000000-0000-7000-8000-000000000001',
-          modelName: 'Video model',
+          displayNameSnapshot: 'Video model',
           derivedExecutionStatus: 'PARTIAL_SUCCESS',
           executionSummary: {
             expectedResults: 2,
@@ -238,7 +238,7 @@ describe('Canvas customer tasks', () => {
       items: [
         {
           id: taskId,
-          modelName: 'Image model',
+          displayNameSnapshot: 'Image model',
           derivedExecutionStatus: 'SUCCEEDED',
           executionSummary: {
             expectedResults: 1,
@@ -354,7 +354,7 @@ describe('Canvas customer tasks', () => {
         items: [
           {
             id: `task-${locale}`,
-            modelName: 'GPT Image 2 Pro',
+            displayNameSnapshot: 'GPT Image 2 Pro',
             derivedExecutionStatus: 'CONFIRMED_FAILED',
             executionSummary: {
               expectedResults: 4,

@@ -323,7 +323,7 @@ function TaskDetails(props: { customerId: string; taskId: string }) {
         <FactRow label='Task number'>
           <CopyableText value={task.id} />
         </FactRow>
-        <FactRow label='Model'>{task.modelName}</FactRow>
+        <FactRow label='Model'>{task.displayNameSnapshot}</FactRow>
         <FactRow label='Task accepted at'>
           {formatCanvasDateTime(task.acceptedAt)}
         </FactRow>

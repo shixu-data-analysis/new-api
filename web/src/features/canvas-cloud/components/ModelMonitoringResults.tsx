@@ -23,6 +23,7 @@ import {
   formatMonitoringDateTime,
   formatMonitoringPercent,
 } from './model-monitoring-utils'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 
 type ModelRow = CanvasModelMonitoringOverview['rows'][number]
 
@@ -39,7 +40,7 @@ function bucketDescription(
   language: string,
   t: (key: string) => string
 ): string {
-  return `${model.name} · ${formatMonitoringDateTime(bucket.from, language)} — ${formatMonitoringDateTime(bucket.to, language)} · ${t('Success rate')} ${formatMonitoringPercent(bucket.successRate, language, t)} · ${t('Successful results')} ${bucket.succeeded} · ${t('Confirmed failures')} ${bucket.failed} · ${t('Unknown outcomes')} ${bucket.unknown} · ${t('Processing')} ${bucket.processing}`
+  return `${model.effectiveDisplayName} · ${formatMonitoringDateTime(bucket.from, language)} — ${formatMonitoringDateTime(bucket.to, language)} · ${t('Success rate')} ${formatMonitoringPercent(bucket.successRate, language, t)} · ${t('Successful results')} ${bucket.succeeded} · ${t('Confirmed failures')} ${bucket.failed} · ${t('Unknown outcomes')} ${bucket.unknown} · ${t('Processing')} ${bucket.processing}`
 }
 
 export function ModelMonitoringMatrix(props: {
@@ -151,7 +152,12 @@ export function ModelMonitoringMatrix(props: {
                 >
                   <div role='cell' className='min-w-0'>
                     <span className='min-w-0 font-medium break-words'>
-                      {model.name}
+                      {model.effectiveDisplayName}
+                      <ModelIdentityTooltip
+                        effectiveDisplayName={model.effectiveDisplayName}
+                        catalogDefaultName={model.catalogDefaultName}
+                        modelKey={model.modelKey}
+                      />
                     </span>
                     {!model.manualEnabled ? (
                       <span className='text-muted-foreground block text-xs'>
@@ -272,7 +278,13 @@ export function ModelMonitoringChart(props: {
       <CardHeader>
         <CardTitle>
           <h2>
-            {model.name} · {t('Runtime results')}
+            {model.effectiveDisplayName}
+            <ModelIdentityTooltip
+              effectiveDisplayName={model.effectiveDisplayName}
+              catalogDefaultName={model.catalogDefaultName}
+              modelKey={model.modelKey}
+            />{' '}
+            · {t('Runtime results')}
           </h2>
         </CardTitle>
         <p className='text-muted-foreground text-sm'>

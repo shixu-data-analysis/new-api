@@ -30,9 +30,9 @@ describe('provider configuration API boundary', () => {
     }
     const query = {
       providerId: '85000000-0000-7000-8000-000000000001',
-      modelName: 'image',
+      search: 'image',
       modelScope: 'BOUND_TO_GROUP' as const,
-      sortBy: 'publicName' as const,
+      sortBy: 'effectiveDisplayName' as const,
       sortOrder: 'asc' as const,
       page: 2,
       pageSize: 20 as const,

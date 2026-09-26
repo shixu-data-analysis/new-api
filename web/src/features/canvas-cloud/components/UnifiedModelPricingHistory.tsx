@@ -93,6 +93,7 @@ export function UnifiedModelPricingHistory(props: {
       'history',
       state.query.page,
       state.query.pageSize,
+      state.query.search,
       combinationId,
       priceGroupId,
       change,
@@ -106,6 +107,7 @@ export function UnifiedModelPricingHistory(props: {
       getCanvasModelPricingHistory(props.modelId, {
         page: state.query.page,
         pageSize: state.query.pageSize,
+        ...(state.query.search ? { search: state.query.search } : {}),
         ...(combinationId ? { combinationId } : {}),
         ...(priceGroupId ? { priceGroupId } : {}),
         ...(change === 'ALL' ? {} : { change }),
@@ -165,6 +167,13 @@ export function UnifiedModelPricingHistory(props: {
       : (props.detail?.priceGroups.find((value) => value.id === id)
           ?.internalName ?? t('Not recorded'))
   const columns: ColumnDef<CanvasModelPricingPublication, unknown>[] = [
+    {
+      id: 'model',
+      accessorFn: (item) => item.displayNameSnapshot,
+      meta: { label: t('Model') },
+      header: t('Model'),
+      cell: ({ row }) => row.original.displayNameSnapshot,
+    },
     {
       id: 'effectiveAt',
       accessorFn: (item) => item.effectiveAt,
@@ -285,6 +294,8 @@ export function UnifiedModelPricingHistory(props: {
         columns={columns}
         total={validRange ? (history.data?.total ?? 0) : 0}
         state={state}
+        searchLabel={t('Model')}
+        searchPlaceholder={t('Search model name')}
         loading={validRange && (history.isPending || history.isFetching)}
         emptyTitle={t('No model pricing history')}
         getRowId={(item) => item.id}
@@ -435,6 +446,10 @@ export function UnifiedModelPricingHistory(props: {
         )}
         details={[
           {
+            label: t('Model'),
+            value: pendingCancellation?.displayNameSnapshot ?? '—',
+          },
+          {
             label: t('Effective at'),
             value: formatCanvasDateTime(
               pendingCancellation?.effectiveAt ?? null
@@ -511,6 +526,10 @@ function HistoryDetails(props: {
   const hasReason = Boolean(props.item.decisionSummary?.trim())
   return (
     <div className='space-y-3 text-sm'>
+      <p>
+        <span className='text-muted-foreground'>{t('Model')}: </span>
+        {props.item.displayNameSnapshot}
+      </p>
       {hasActor || hasReason ? (
         <div className='space-y-1'>
           {hasActor ? (
