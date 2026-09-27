@@ -9,7 +9,7 @@ License, or (at your option) any later version.
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 
 import { AuthLayout } from './auth-layout'
 
@@ -36,7 +36,7 @@ describe('Canvas authentication brand', () => {
 
     expect(screen.getByRole('img', { name: '像素喵片场' })).toHaveAttribute(
       'src',
-      lingCatStudioIcon
+      pixMiaoStudioIcon
     )
     expect(screen.getByText('像素喵片场')).toBeVisible()
   })

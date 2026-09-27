@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useCallback } from 'react'
 
 import { isCanvasBrandContext } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import {
@@ -190,7 +190,7 @@ export function useSystemConfig(options: UseSystemConfigOptions = {}) {
             window.location.pathname,
             new URLSearchParams(window.location.search).get('redirect')
           )
-            ? lingCatStudioIcon
+            ? pixMiaoStudioIcon
             : logo
         )
       },

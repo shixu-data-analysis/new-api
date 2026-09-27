@@ -19,11 +19,11 @@ const localizedNames: Record<string, string> = {
 
 export const canvasCompactName = 'PixMiao'
 
+const retiredCanvasProductNames = ['灵猫工坊', '靈貓工坊', 'LingCat Studio']
+
 const canvasProductNames = new Set([
   ...Object.values(localizedNames),
-  '灵猫工坊',
-  '靈貓工坊',
-  'LingCat Studio',
+  ...retiredCanvasProductNames,
 ])
 
 export function getCanvasProductName(language: string): string {

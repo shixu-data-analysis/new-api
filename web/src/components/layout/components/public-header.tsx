@@ -31,7 +31,7 @@ import {
   getCanvasProductName,
   isCanvasBrandContext,
 } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
@@ -113,7 +113,7 @@ export function PublicHeader(props: PublicHeaderProps) {
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
   const logoContent = customLogo || (
     <HeaderLogo
-      src={isCanvasProduct ? lingCatStudioIcon : systemLogo}
+      src={isCanvasProduct ? pixMiaoStudioIcon : systemLogo}
       alt={isCanvasProduct ? displaySiteName : undefined}
       loading={loading}
       logoLoaded={isCanvasProduct || logoLoaded}

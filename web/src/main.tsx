@@ -32,7 +32,7 @@ import {
   getCanvasProductName,
   isCanvasBrandContext,
 } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
@@ -150,7 +150,7 @@ const applicationRoot = rootElement
               window.location.pathname,
               new URLSearchParams(window.location.search).get('redirect')
             )
-              ? lingCatStudioIcon
+              ? pixMiaoStudioIcon
               : s.logo
           )
         }
@@ -176,7 +176,7 @@ const applicationRoot = rootElement
               window.location.pathname,
               new URLSearchParams(window.location.search).get('redirect')
             )
-              ? lingCatStudioIcon
+              ? pixMiaoStudioIcon
               : (s.logo as string)
           )
         }

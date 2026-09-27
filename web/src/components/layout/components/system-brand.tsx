@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/sidebar'
 import { getCanvasHomeSection } from '@/features/canvas-cloud/access'
 import { getCanvasProductName } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -65,7 +65,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const homeSection = canvasSession.data
     ? getCanvasHomeSection(canvasSession.data.principalType)
     : 'overview'
-  const displayedLogo = isCanvasShell ? lingCatStudioIcon : logo
+  const displayedLogo = isCanvasShell ? pixMiaoStudioIcon : logo
   const version =
     status?.version || props.defaultVersion || t('Unknown version')
 

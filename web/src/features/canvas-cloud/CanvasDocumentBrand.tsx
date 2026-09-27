@@ -14,7 +14,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 
 import { getCanvasProductName, isCanvasBrandContext } from './brand'
-import { lingCatStudioIcon } from './lingcat-icon'
+import { pixMiaoStudioIcon } from './pixmiao-icon'
 
 function updateMeta(
   selector: string,
@@ -87,7 +87,7 @@ export function CanvasDocumentBrand() {
         productName
       ),
     ]
-    applyFaviconToDom(lingCatStudioIcon)
+    applyFaviconToDom(pixMiaoStudioIcon)
     return () => {
       document.title = previousTitle
       restoreMeta.forEach((restore) => restore())

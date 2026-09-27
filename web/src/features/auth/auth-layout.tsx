@@ -24,7 +24,7 @@ import {
   getCanvasProductName,
   isCanvasBrandContext,
 } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { useSystemConfig } from '@/hooks/use-system-config'
 
 type AuthLayoutProps = {
@@ -42,7 +42,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const displayedName = isCanvasProduct
     ? getCanvasProductName(i18n.resolvedLanguage ?? i18n.language)
     : systemName
-  const displayedLogo = isCanvasProduct ? lingCatStudioIcon : logo
+  const displayedLogo = isCanvasProduct ? pixMiaoStudioIcon : logo
 
   return (
     <div className='relative grid h-svh max-w-none'>

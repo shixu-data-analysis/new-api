@@ -24,7 +24,7 @@ import {
   getCanvasProductName,
   isCanvasBrandContext,
 } from '@/features/canvas-cloud/brand'
-import { lingCatStudioIcon } from '@/features/canvas-cloud/lingcat-icon'
+import { pixMiaoStudioIcon } from '@/features/canvas-cloud/pixmiao-icon'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
@@ -169,7 +169,7 @@ export function Footer(props: FooterProps) {
     new URLSearchParams(window.location.search).get('redirect')
   )
   const displayLogo = isCanvasProduct
-    ? lingCatStudioIcon
+    ? pixMiaoStudioIcon
     : systemLogo || props.logo || '/logo.png'
   const displayName = isCanvasProduct
     ? getCanvasProductName(i18n.resolvedLanguage ?? i18n.language)

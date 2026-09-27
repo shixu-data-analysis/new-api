@@ -26,7 +26,7 @@ import {
   isCanvasBrandContext,
   isCanvasProductName,
 } from '../brand'
-import { lingCatStudioIcon } from '../lingcat-icon'
+import { pixMiaoStudioIcon } from '../pixmiao-icon'
 
 describe('Canvas role-scoped information architecture', () => {
   it('keeps customer usage pages separate from administration pages', () => {
@@ -120,7 +120,7 @@ describe('Canvas role-scoped information architecture', () => {
     ).toBe(true)
     expect(isCanvasBrandContext('Customer Gateway', '/sign-in')).toBe(false)
     const iconBytes = Buffer.from(
-      lingCatStudioIcon.split(',')[1] ?? '',
+      pixMiaoStudioIcon.split(',')[1] ?? '',
       'base64'
     )
     expect(createHash('sha256').update(iconBytes).digest('hex')).toBe(

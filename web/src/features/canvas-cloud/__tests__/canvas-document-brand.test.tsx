@@ -10,7 +10,7 @@ import { render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CanvasDocumentBrand } from '../CanvasDocumentBrand'
-import { lingCatStudioIcon } from '../lingcat-icon'
+import { pixMiaoStudioIcon } from '../pixmiao-icon'
 
 const state = vi.hoisted(() => ({
   pathname: '/canvas-cloud/points',
@@ -59,7 +59,7 @@ describe('Canvas document brand', () => {
     )
     expect(document.querySelector('link[rel="icon"]')).toHaveAttribute(
       'href',
-      lingCatStudioIcon
+      pixMiaoStudioIcon
     )
     view.unmount()
     expect(document.title).toBe('New API')
@@ -72,6 +72,7 @@ describe('Canvas document brand', () => {
 
   it('preserves upstream identity outside Canvas context', () => {
     state.pathname = '/sign-in'
+    state.systemName = 'QuantumNous'
     render(<CanvasDocumentBrand />)
     expect(document.title).toBe('New API')
     expect(document.querySelector('link[rel="icon"]')).toHaveAttribute(
