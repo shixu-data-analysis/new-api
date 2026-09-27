@@ -137,6 +137,30 @@ describe('Canvas customer point center', () => {
     )
   })
 
+  it('uses the full-width compact management tab track', () => {
+    renderCenter()
+
+    const tabs = screen.getByRole('tablist', {
+      name: 'Point center sections',
+    })
+    expect(tabs).toHaveClass(
+      'w-full',
+      'max-w-full',
+      'justify-start',
+      'overflow-x-auto',
+      'overflow-y-hidden'
+    )
+    expect(screen.getByRole('tab', { name: 'Redeem points' })).toHaveClass(
+      'flex-none'
+    )
+    expect(screen.getByRole('tab', { name: 'Point lots' })).toHaveClass(
+      'flex-none'
+    )
+    expect(screen.getByRole('tab', { name: 'Point changes' })).toHaveClass(
+      'flex-none'
+    )
+  })
+
   it('keeps a loaded redemption table visible when the summary fails', async () => {
     apiMocks.getCanvasCustomerPointSummary.mockRejectedValueOnce(
       new Error('summary unavailable')

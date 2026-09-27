@@ -10,7 +10,7 @@ import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
@@ -23,6 +23,10 @@ import {
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
 import type { CanvasCustomerRechargeRedemption } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import {
+  CanvasManagementTabsList,
+  CanvasManagementTabsTrigger,
+} from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CustomerPointHistory } from './CustomerPointHistory'
 import { CustomerRechargeCodeCard } from './CustomerRechargeCodeCard'
@@ -249,14 +253,17 @@ export function CustomerPointsCenter(props: {
           props.onViewChange(value as CustomerPointsView)
         }
       >
-        <TabsList
-          className='max-w-full overflow-x-auto'
-          aria-label={t('Point center sections')}
-        >
-          <TabsTrigger value='redeem'>{t('Redeem points')}</TabsTrigger>
-          <TabsTrigger value='lots'>{t('Point lots')}</TabsTrigger>
-          <TabsTrigger value='ledger'>{t('Point changes')}</TabsTrigger>
-        </TabsList>
+        <CanvasManagementTabsList aria-label={t('Point center sections')}>
+          <CanvasManagementTabsTrigger value='redeem'>
+            {t('Redeem points')}
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='lots'>
+            {t('Point lots')}
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='ledger'>
+            {t('Point changes')}
+          </CanvasManagementTabsTrigger>
+        </CanvasManagementTabsList>
         <TabsContent value='redeem' className='space-y-4'>
           <CustomerRechargeCodeCard
             code={code}
