@@ -25,6 +25,10 @@ import {
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
+import {
+  errorRuleJsonFieldReference,
+  errorRuleJsonKeys,
+} from '../../error-rule-json-reference'
 import { executionWaitDurationParts } from '../ExecutionCapacityOverview'
 import { ExecutionSettings } from '../ExecutionSettings'
 
@@ -234,6 +238,7 @@ beforeEach(async () => {
         streamIdleTimeoutMs: 300000,
         pollIntervalMs: 15000,
         deadlineMs: 86400000,
+        unknownReleaseMs: 14400000,
         requestConcurrency: 16,
         asyncInFlightLimit: 30,
       },
@@ -296,6 +301,12 @@ beforeEach(async () => {
     upstreamRequestIdSource: null,
     upstreamTaskId: null,
     upstreamTaskIdSource: null,
+    canvasErrorCode: null,
+    upstreamErrorCode: 'RATE_LIMIT',
+    errorCategory: 'PROVIDER_RATE_LIMITED',
+    sanitizedResponse: { error: { code: 'RATE_LIMIT' } },
+    customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+    adminNote: null,
     match: {
       ruleId: systemRule.id,
       ruleVersion: 1,
@@ -303,6 +314,8 @@ beforeEach(async () => {
       clientMessage: 'Please retry later.',
       messageSource: 'SYSTEM_DEFAULT',
       clientHttpStatus: 429,
+      executionDisposition: 'UNKNOWN',
+      executionDispositionSource: 'SYSTEM',
     },
   })
 })
@@ -783,12 +796,12 @@ describe('execution settings', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
-    fireEvent.click(await screen.findByRole('button', { name: 'Run preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
     await waitFor(() =>
       expect(mocks.previewCanvasExecutionError).toHaveBeenCalledWith(
         expect.objectContaining({
           providerId,
-          httpStatus: 429,
+          httpStatus: 200,
           locale: 'en',
           rules: [
             expect.objectContaining({
@@ -800,8 +813,278 @@ describe('execution settings', () => {
         })
       )
     )
-    expect(await screen.findByText('Please retry later.')).toBeVisible()
+    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(
+      screen.getByText('Calculated without an upstream task ID')
+    ).toBeVisible()
     expect(mocks.publishCanvasExecutionPolicy).not.toHaveBeenCalled()
+  })
+
+  it('runs a sample response immediately and shows both result panes', async () => {
+    mocks.previewCanvasExecutionError.mockResolvedValueOnce({
+      facts: { httpStatus: 500, upstreamCode: 'server_error' },
+      upstreamRequestId: 'req-preview',
+      upstreamRequestIdSource: 'body.request_id',
+      upstreamTaskId: null,
+      upstreamTaskIdSource: null,
+      canvasErrorCode: null,
+      upstreamErrorCode: 'server_error',
+      errorCategory: 'PROVIDER_INTERNAL_ERROR',
+      sanitizedResponse: { error: { code: 'server_error' } },
+      customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+      adminNote: null,
+      match: {
+        ruleId: systemRule.id,
+        ruleVersion: 1,
+        category: 'PROVIDER_INTERNAL_ERROR',
+        clientMessage: 'Generation service is unavailable.',
+        messageSource: 'SYSTEM_DEFAULT',
+        clientHttpStatus: 500,
+        executionDisposition: 'CONFIRMED_FAILED',
+        executionDispositionSource: 'RULE',
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Test error mappings' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: '502 server_error' }))
+    await waitFor(() =>
+      expect(mocks.previewCanvasExecutionError).toHaveBeenCalledWith(
+        expect.objectContaining({ httpStatus: 502 })
+      )
+    )
+    expect(
+      await screen.findByText('Cloud generation failed. Points released')
+    ).toBeVisible()
+    expect(screen.getByText('Set by this mapping')).toBeVisible()
+    expect(screen.getByText('Released immediately')).toBeVisible()
+    expect(screen.getByText('server_error')).toBeVisible()
+    expect(screen.getByText(/"code": "server_error"/)).toBeVisible()
+    expect(
+      screen.getByText('The upstream service returned an error code.')
+    ).toBeVisible()
+    expect(
+      screen.queryByText('Generation service is unavailable.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses the mapped failure message when an upstream 401 hides safe details', async () => {
+    mocks.previewCanvasExecutionError.mockResolvedValueOnce({
+      facts: { httpStatus: 401, upstreamCode: 'invalid_key' },
+      upstreamRequestId: null,
+      upstreamRequestIdSource: null,
+      upstreamTaskId: null,
+      upstreamTaskIdSource: null,
+      canvasErrorCode: null,
+      upstreamErrorCode: 'invalid_key',
+      errorCategory: 'PROVIDER_AUTH_FAILED',
+      sanitizedResponse: { error: { code: 'invalid_key' } },
+      customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+      adminNote: null,
+      match: {
+        ruleId: systemRule.id,
+        ruleVersion: 1,
+        category: 'PROVIDER_AUTH_FAILED',
+        clientMessage: 'Generation service is unavailable.',
+        messageSource: 'SYSTEM_DEFAULT',
+        clientHttpStatus: 401,
+        executionDisposition: 'CONFIRMED_FAILED',
+        executionDispositionSource: 'SYSTEM',
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Test error mappings' })
+    )
+    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+      target: { value: '401' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+
+    expect(
+      await screen.findByText('Generation service is unavailable.')
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        'System rule: a 4xx response means the provider rejected the request'
+      )
+    ).toBeVisible()
+    expect(
+      screen.queryByText('The upstream service returned an error code.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('turns a system disposition edit into an override and keeps invalid JSON out of the form', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View / modify' })
+    )
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'HTTP 429' })).getByRole(
+        'button',
+        { name: 'Edit' }
+      )
+    )
+    fireEvent.change(screen.getByLabelText('Task result'), {
+      target: { value: 'CONFIRMED_FAILED' },
+    })
+    expect(
+      screen.getByText(/This marks every HTTP 429 response as failed/)
+    ).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: '{ } View / edit JSON' })
+    )
+    const json = screen.getByRole('textbox', { name: 'Error mapping JSON' })
+    const parsed = JSON.parse((json as HTMLTextAreaElement).value)
+    expect(parsed).not.toHaveProperty('id')
+    expect(screen.getByText(systemRule.id)).toBeVisible()
+    fireEvent.change(json, {
+      target: { value: JSON.stringify({ ...parsed, ruleType: 'JSON' }) },
+    })
+    expect(screen.getByText('JSON not applied')).toBeVisible()
+    expect(screen.getByLabelText('Task result')).toHaveValue('CONFIRMED_FAILED')
+    fireEvent.change(json, {
+      target: {
+        value: JSON.stringify({
+          ...parsed,
+          category: 'PROVIDER_INTERNAL_ERROR',
+          executionDisposition: 'CONFIRMED_FAILED',
+        }),
+      },
+    })
+    expect(
+      screen.getByText('✓ Validation passed and synced with the form.')
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(
+      within(screen.getByRole('form', { name: 'Error mappings' })).getByRole(
+        'button',
+        { name: 'Publish' }
+      )
+    )
+    const confirm = await screen.findByRole('alertdialog')
+    expect(confirm).toHaveTextContent(
+      '1 mappings will mark tasks failed and release frozen points immediately.'
+    )
+    fireEvent.click(
+      within(confirm).getByText(
+        'I confirm the rationale comes from the provider contract or verified evidence.'
+      )
+    )
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Publish' }))
+    await waitFor(() =>
+      expect(mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            rules: [
+              expect.objectContaining({
+                id: systemRule.id,
+                source: 'OVERRIDE',
+                category: 'PROVIDER_INTERNAL_ERROR',
+                executionDisposition: 'CONFIRMED_FAILED',
+                httpStatus: 429,
+              }),
+            ],
+          }),
+        })
+      )
+    )
+  })
+
+  it('validates administrator notes at the 2048-byte boundary', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View / modify' })
+    )
+    const editRow = () =>
+      fireEvent.click(
+        within(screen.getByRole('group', { name: 'HTTP 429' })).getByRole(
+          'button',
+          { name: 'Edit' }
+        )
+      )
+    editRow()
+    expect(screen.queryByLabelText(/^Rationale/)).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Task result'), {
+      target: { value: 'UNKNOWN' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Rationale/), {
+      target: { value: 'a'.repeat(2048) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    editRow()
+    fireEvent.change(screen.getByLabelText(/^Rationale/), {
+      target: { value: '界'.repeat(683) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(
+      await screen.findByText('Administrator note must not exceed 2048 bytes')
+    ).toBeVisible()
+    expect(screen.getByRole('dialog')).toBeVisible()
+  })
+
+  it('documents every editable ErrorRule field in the JSON field reference', () => {
+    const topLevel = errorRuleJsonFieldReference
+      .map(([field]) => field)
+      .filter((field) => !field.includes('['))
+    expect(topLevel).toEqual([...errorRuleJsonKeys])
+  })
+
+  it('keeps JSON that fails a business rule out of the form', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add mapping' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: '{ } View / edit JSON' })
+    )
+    const json = screen.getByRole('textbox', { name: 'Error mapping JSON' })
+    const parsed = JSON.parse((json as HTMLTextAreaElement).value)
+    fireEvent.change(json, {
+      target: {
+        value: JSON.stringify({
+          ...parsed,
+          ruleType: 'HTTP_STATUS',
+          httpStatus: 429,
+          conditions: [],
+          category: 'PROVIDER_RATE_LIMITED',
+        }),
+      },
+    })
+    expect(screen.getByText('Validation failed')).toBeVisible()
+    expect(screen.getByLabelText(/^HTTP status/)).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('dialog')).toBeVisible()
+  })
+
+  it('returns focus to the row action after saving a mapping', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View / modify' })
+    )
+    const edit = within(
+      screen.getByRole('group', { name: 'HTTP 429' })
+    ).getByRole('button', { name: 'Edit' })
+    edit.focus()
+    fireEvent.click(edit)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(edit).toHaveFocus())
+  })
+
+  it('asks before discarding unsaved mapping edits', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add mapping' }))
+    fireEvent.change(screen.getByLabelText('JSON field path'), {
+      target: { value: 'error.code' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    const confirm = await screen.findByRole('alertdialog')
+    expect(confirm).toHaveTextContent('Discard unsaved changes?')
+    fireEvent.click(
+      within(confirm).getByRole('button', { name: 'Keep editing' })
+    )
+    expect(screen.getByLabelText('JSON field path')).toHaveValue('error.code')
   })
 
   it('shows the execution-policy field explanations beside their inputs', async () => {
@@ -827,8 +1110,12 @@ describe('execution settings', () => {
         'How often an asynchronous task checks the upstream result; this does not control client refresh.',
       ],
       [
-        'deadlineMs',
-        'The asynchronous result deadline measured from task acceptance, not a per-request timeout.',
+        'Execution deadline (milliseconds)',
+        'Measured from task acceptance; after it the system stops submitting or querying upstream and releases still-frozen points as a timeout. Currently 24 hours.',
+      ],
+      [
+        'Unknown result release wait (milliseconds)',
+        'When the result cannot be confirmed and there is no upstream task ID, frozen points are released after this wait. Currently 4 hours.',
       ],
       [
         'requestConcurrency',
@@ -862,53 +1149,50 @@ describe('execution settings', () => {
       '单次非流式上游请求及结果下载的最长等待时间。'
     )
     expect(
-      screen.getByLabelText('流空闲超时（毫秒）')
-    ).toHaveAccessibleDescription('流式响应连续没有新数据时的最长等待时间。')
-    expect(
-      screen.getByLabelText('轮询间隔（毫秒）')
+      screen.getByLabelText('执行截止时间（毫秒）')
     ).toHaveAccessibleDescription(
-      '异步任务向上游查询结果的间隔，不控制客户端刷新。'
+      '从任务受理起计算；超过后不再提交或查询上游，仍冻结的积分按超时释放。 当前 24 小时。'
     )
     expect(
-      screen.getByLabelText('截止时间（毫秒）')
+      screen.getByLabelText('结果不明释放等待（毫秒）')
     ).toHaveAccessibleDescription(
-      '从任务受理起计算的异步结果期限，不是单次请求超时。'
+      '结果无法确认且没有上游任务编号时，等待这段时间后释放冻结积分。 当前 4 小时。'
     )
   })
 
-  it('marks a preview stale after its language or inputs change', async () => {
+  it('marks a test result stale after the mappings or inputs change', async () => {
     mount({ view: 'credentialGroup', credentialGroupId })
     fireEvent.click(
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Run preview' }))
-    expect(await screen.findByText('Please retry later.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(
+      screen.queryByText(
+        'Mappings changed; the result may be out of date. Test again.'
+      )
+    ).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Client response language'), {
-      target: { value: 'zhCN' },
+    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+      target: { value: '503' },
     })
     expect(
-      screen.getByText('Test result is out of date. Run preview again.')
+      screen.getByText(
+        'Mappings changed; the result may be out of date. Test again.'
+      )
     ).toBeVisible()
-    const output = screen.getByText('Client output').parentElement
-    expect(output).not.toBeNull()
-    expect(within(output as HTMLElement).getByText('English')).toBeVisible()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Run preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
     await waitFor(() =>
       expect(mocks.previewCanvasExecutionError).toHaveBeenLastCalledWith(
-        expect.objectContaining({ locale: 'zhCN' })
+        expect.objectContaining({ httpStatus: 503 })
       )
     )
-    expect(
-      screen.queryByText('Test result is out of date. Run preview again.')
-    ).not.toBeInTheDocument()
     await waitFor(() =>
       expect(
-        within(
-          screen.getByText('Client output').parentElement as HTMLElement
-        ).getByText('简体中文')
-      ).toBeVisible()
+        screen.queryByText(
+          'Mappings changed; the result may be out of date. Test again.'
+        )
+      ).not.toBeInTheDocument()
     )
   })
 
@@ -924,7 +1208,7 @@ describe('execution settings', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
-    const run = screen.getByRole('button', { name: 'Run preview' })
+    const run = screen.getByRole('button', { name: 'Test' })
     expect(run).toBeEnabled()
     fireEvent.click(run)
     await waitFor(() =>
@@ -941,6 +1225,9 @@ describe('execution settings', () => {
       name: 'Show safe error details to customers',
     })
     expect(toggle).toBeChecked()
+    expect(
+      screen.queryByRole('button', { name: 'Publish' })
+    ).not.toBeInTheDocument()
     fireEvent.click(toggle)
     expect(toggle).not.toBeChecked()
     expect(screen.getByTestId('navigation-guard')).toHaveAttribute(
@@ -949,9 +1236,8 @@ describe('execution settings', () => {
     )
 
     const errorForm = screen.getByRole('form', { name: 'Error mappings' })
-    fireEvent.click(
-      within(errorForm).getByRole('button', { name: 'Review publication' })
-    )
+    expect(within(errorForm).getByText('1 unpublished changes')).toBeVisible()
+    fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(
       'Show safe error details to customers: Disabled'
@@ -963,6 +1249,94 @@ describe('execution settings', () => {
         kind: 'ERROR_MAPPING',
         scopeKey: providerId,
         config: { rules: [], showSafeErrorDetailsToCustomer: false },
+      })
+    )
+  })
+
+  it('prefills the HTTP 200 example inside the add dialog with a condition that matches the reported response', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add mapping' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'HTTP 200 without task ID' })
+    )
+    expect(within(dialog).getByLabelText('JSON field path')).toHaveValue(
+      'success'
+    )
+    expect(within(dialog).getByLabelText('Match value')).toHaveValue('false')
+    expect(within(dialog).getByText('What happened')).toBeVisible()
+    expect(within(dialog).getByText('Caution')).toBeVisible()
+  })
+
+  it('lists conditional mappings before the collapsed system defaults and counts unpublished changes', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const toggle = await screen.findByRole('button', { name: 'View / modify' })
+    expect(screen.getByText('System defaults handle HTTP 429')).toBeVisible()
+    expect(screen.getByText('No custom mappings yet.')).toBeVisible()
+    expect(screen.queryByText(/unpublished changes/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add mapping' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'HTTP 502 + server_error' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const form = screen.getByRole('form', { name: 'Error mappings' })
+    const conditional = within(form).getByRole('group', {
+      name: 'HTTP 502 and error.code = "server_error"',
+    })
+    expect(
+      conditional.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      within(conditional).getByText('Takes priority over system HTTP 502')
+    ).toBeVisible()
+    expect(within(conditional).getByText('Mark failed')).toBeVisible()
+    expect(within(form).getByText('1 unpublished changes')).toBeVisible()
+    expect(
+      within(form).getAllByRole('img', { name: 'Unpublished' })
+    ).toHaveLength(1)
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Discard' }))
+    expect(
+      within(form).queryByRole('group', { name: /HTTP 502 and error.code/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(form).queryByText(/unpublished changes/)
+    ).not.toBeInTheDocument()
+  })
+
+  it('restores an overridden system rule so publishing removes the override', async () => {
+    const data = await mocks.getCanvasCredentialGroupExecution()
+    mocks.getCanvasCredentialGroupExecution.mockClear()
+    const override = {
+      ...systemRule,
+      source: 'OVERRIDE',
+      executionDisposition: 'UNKNOWN',
+      adminNote: 'Provider asked us to wait',
+    }
+    mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+      ...data,
+      errors: {
+        ...data.errors,
+        configured: { rules: [override] },
+        effective: { ...data.errors.effective, rules: [override] },
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const form = await screen.findByRole('form', { name: 'Error mappings' })
+    const row = await within(form).findByRole('group', { name: 'HTTP 429' })
+    expect(within(row).getByText('Keep pending confirmation')).toBeVisible()
+    fireEvent.click(within(row).getByRole('button', { name: 'Restore' }))
+    expect(within(form).getByText('1 unpublished changes')).toBeVisible()
+    fireEvent.click(within(form).getByRole('button', { name: 'Publish' }))
+    const confirm = await screen.findByRole('alertdialog')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Publish' }))
+    await waitFor(() =>
+      expect(mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0]).toEqual({
+        kind: 'ERROR_MAPPING',
+        scopeKey: providerId,
+        config: { rules: [], showSafeErrorDetailsToCustomer: true },
       })
     )
   })
@@ -995,43 +1369,44 @@ describe('execution settings', () => {
     )
   })
 
-  it('keeps internal rule IDs in expandable details and reviews readable mapping changes', async () => {
+  it('keeps internal rule IDs out of the form and reviews readable mapping changes', async () => {
     mount({ view: 'credentialGroup', credentialGroupId })
 
     expect(screen.queryByText(systemRule.id)).not.toBeInTheDocument()
-    expect(await screen.findByText('System built-in')).toBeVisible()
-    fireEvent.click(screen.getByText('Rule details'))
-    expect(screen.getByText(systemRule.id)).toBeVisible()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View / modify' })
+    )
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'HTTP 429' })).getByRole(
+        'button',
+        { name: 'Edit' }
+      )
+    )
+    expect(screen.queryByText(systemRule.id)).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Mapping type')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add custom mapping' }))
-    expect(screen.getByText('New custom mapping')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Add mapping' }))
+    expect(
+      within(screen.getByRole('dialog')).getByRole('heading', {
+        name: 'Add mapping',
+      })
+    ).toBeVisible()
     fireEvent.change(screen.getByLabelText('JSON field path'), {
       target: { value: 'error.code' },
     })
     fireEvent.change(screen.getByLabelText('Match value'), {
       target: { value: 'RATE_LIMIT' },
     })
-    const customMessageToggles = screen.getAllByText(
-      'Use custom client messages'
-    )
-    const customMessageToggle = customMessageToggles.at(-1)
-    expect(customMessageToggle).toBeDefined()
-    fireEvent.click(customMessageToggle as HTMLElement)
-    fireEvent.change(screen.getByLabelText('Client message · English'), {
+    fireEvent.change(screen.getByLabelText(/^Customer message/), {
       target: { value: 'Please wait and retry.' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     const errorForm = screen.getByRole('form', { name: 'Error mappings' })
-    fireEvent.click(
-      within(errorForm).getByRole('button', { name: 'Review publication' })
-    )
+    fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent('Added: Unknown provider error')
-    expect(dialog).toHaveTextContent('error.code EQUALS RATE_LIMIT')
-    expect(dialog).toHaveTextContent('en: Please wait and retry.')
-    expect(dialog).toHaveTextContent('Previous custom JSON order')
-    expect(dialog).toHaveTextContent('New custom JSON order')
+    expect(dialog).toHaveTextContent('error.code = "RATE_LIMIT"')
     expect(dialog).not.toHaveTextContent('custom.error.')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
 
@@ -1063,7 +1438,19 @@ describe('execution settings', () => {
     })
   })
 
-  it('reviews the readable custom JSON order before and after reordering', async () => {
+  it('explains the match order in the card description', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const errorForm = await screen.findByRole('form', {
+      name: 'Error mappings',
+    })
+    expect(
+      within(errorForm).getByText(
+        'More specific conditions match first, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.'
+      )
+    ).toBeVisible()
+  })
+
+  it('reviews an edited custom mapping by its readable condition', async () => {
     const data = await mocks.getCanvasCredentialGroupExecution()
     mocks.getCanvasCredentialGroupExecution.mockClear()
     const firstRule = {
@@ -1101,48 +1488,25 @@ describe('execution settings', () => {
     })
     mount({ view: 'credentialGroup', credentialGroupId })
 
-    const authValue = (await screen.findAllByLabelText('Match value')).find(
-      (input) => (input as HTMLInputElement).value === 'AUTH'
+    fireEvent.click(
+      within(
+        await screen.findByRole('group', { name: 'error.code = "AUTH"' })
+      ).getByRole('button', { name: 'Edit' })
     )
-    const authMessage = screen
-      .getAllByLabelText('Client message · English')
-      .find(
-        (input) =>
-          (input as HTMLTextAreaElement).value === 'Old authentication message.'
-      )
-    expect(authValue).toBeDefined()
-    expect(authMessage).toBeDefined()
-    if (!authValue || !authMessage) {
-      throw new Error('Authentication mapping fields are missing')
-    }
-    fireEvent.change(authValue, { target: { value: 'DENIED' } })
-    fireEvent.change(authMessage, {
+    expect(screen.getByLabelText(/^Customer message/)).toHaveValue(
+      'Old authentication message.'
+    )
+    fireEvent.change(screen.getByLabelText('Match value'), {
+      target: { value: 'DENIED' },
+    })
+    fireEvent.change(screen.getByLabelText(/^Customer message/), {
       target: { value: 'New authentication message.' },
     })
-    const moveDown = await screen.findAllByRole('button', {
-      name: 'Move mapping down',
-    })
-    fireEvent.click(moveDown[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     const errorForm = screen.getByRole('form', { name: 'Error mappings' })
-    fireEvent.click(
-      within(errorForm).getByRole('button', { name: 'Review publication' })
-    )
+    fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
     const dialog = await screen.findByRole('alertdialog')
-    const previous = within(dialog).getByText(
-      'Previous custom JSON order:'
-    ).parentElement
-    const next = within(dialog).getByText(
-      'New custom JSON order:'
-    ).parentElement
-    expect(dialog).toHaveTextContent(
-      /Updated: From: Provider authentication failed.*AUTH.*Old authentication message.*To: Provider authentication failed.*DENIED.*New authentication message/
-    )
-    expect(previous).toHaveTextContent(
-      /Provider authentication failed.*Provider rate limited/
-    )
-    expect(next).toHaveTextContent(
-      /Provider rate limited.*Provider authentication failed/
-    )
+    expect(dialog).toHaveTextContent(/Updated\s+error\.code = "DENIED"/)
     expect(dialog).not.toHaveTextContent(/custom\.(first|second)/)
   })
 

@@ -1,23 +1,27 @@
 /* Copyright (C) 2023-2026 QuantumNous; licensed under GNU AGPL v3 or later. */
 import { useQuery } from '@tanstack/react-query'
 import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
   getCanvasAdminTaskInputBlob,
   getCanvasAdminTaskInputDownload,
 } from '../api'
-import {
-  getCanvasTaskCalls,
-  type CanvasProviderResponseDiagnostic,
-  type CanvasTaskCall,
-} from '../task-call-api'
+import { formatErrorRuleMatch } from '../error-rule-format'
+import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -32,6 +36,51 @@ const chainStates: Record<string, string> = {
   AWAITING_RESPONSE: 'Awaiting response',
   RESPONDED: 'Responded',
   OUTCOME_UNKNOWN: 'Outcome pending confirmation',
+}
+const errorCategories: Record<string, string> = {
+  INVALID_REQUEST: 'Invalid request',
+  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
+  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
+  PROVIDER_ACCESS_DENIED: 'Provider access denied',
+  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
+  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
+  PROVIDER_RATE_LIMITED: 'Provider rate limited',
+  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
+  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
+  PROVIDER_UNAVAILABLE: 'Provider unavailable',
+  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
+  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
+}
+const judgementStatuses: Record<string, string> = {
+  SUCCEEDED: 'Succeeded',
+  CONFIRMED_FAILED: 'Confirmed failed',
+  UNKNOWN: 'Result pending confirmation',
+}
+// Tooltip text for overview labels whose meaning is not obvious.
+const overviewHints: Record<string, string> = {
+  'Provider / channel':
+    'The provider and channel used by this call, and the channel configuration version frozen when the task was accepted.',
+  'API key group':
+    'The API key group used by this call and its execution policy version.',
+  'Upstream model': 'The model ID actually sent to the provider.',
+  Executor:
+    'The Canvas executor instance that ran this call, for matching logs.',
+  'Upstream request ID':
+    'The request ID returned by the provider; give it to the provider when asking about this call.',
+  'Upstream task ID':
+    'The task ID returned after the provider accepted the request; with an ID the system keeps querying the result.',
+  'Canvas error code':
+    'A problem Canvas detected itself, such as a response that does not match the interface contract (PROVIDER_SCHEMA). It is not returned by the provider.',
+  'Upstream error code':
+    'The error code read from the provider response, recorded as is.',
+  'Error category':
+    'The Canvas error category given by the matched mapping; it selects the default customer message.',
+  'Matched mapping':
+    'The error mapping this call matched, with its rule ID and version.',
+  'Execution judgement':
+    'Whether this call made the result confirmed failed or pending confirmation, and whether a mapping or the system decided it.',
+  'Administrator rationale':
+    'The rationale entered with the mapping; visible only to administrators and audit records.',
 }
 const present = (input: string | number | null | undefined) =>
   input === null || input === undefined || input === '' ? '—' : input
@@ -69,20 +118,116 @@ function compactRequestSnapshot(value: unknown): unknown {
   return value
 }
 
-function responseKindLabel(
-  kind: CanvasProviderResponseDiagnostic['summary']['kind'],
-  t: (key: string) => string
-): string {
-  switch (kind) {
-    case 'object':
-      return t('Object')
-    case 'array':
-      return t('Array')
-    case 'scalar':
-      return t('Scalar')
-    case 'null':
-      return t('Null')
+function collapseLongStrings(
+  value: unknown,
+  suffix: (count: number) => string
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => collapseLongStrings(entry, suffix))
   }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        collapseLongStrings(entry, suffix),
+      ])
+    )
+  }
+  if (typeof value === 'string' && value.length > 200) {
+    return `${value.slice(0, 200)}${suffix(value.length)}`
+  }
+  return value
+}
+
+export function JsonSnapshot(props: { value: unknown; description: string }) {
+  const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const full = JSON.stringify(props.value, null, 2)
+  const collapsed = JSON.stringify(
+    collapseLongStrings(props.value, (count) =>
+      t('Collapsed text length', { count })
+    ),
+    null,
+    2
+  )
+  return (
+    <div className='space-y-2'>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        <p className='text-muted-foreground text-xs'>{props.description}</p>
+        <div className='flex gap-2'>
+          {collapsed !== full ? (
+            <Button
+              type='button'
+              size='sm'
+              variant='ghost'
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {t(expanded ? 'Collapse' : 'Show full content')}
+            </Button>
+          ) : null}
+          <Button
+            type='button'
+            size='sm'
+            variant='ghost'
+            onClick={() => void navigator.clipboard?.writeText(full)}
+          >
+            {t('Copy')}
+          </Button>
+        </div>
+      </div>
+      <pre className='bg-muted max-h-60 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
+        {expanded ? full : collapsed}
+      </pre>
+    </div>
+  )
+}
+
+function executionJudgementText(
+  judgement: CanvasTaskCall['executionJudgement'],
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (!judgement) return '—'
+  if (judgement.source === 'PROVIDER_STATE') {
+    const status = t(
+      judgement.status === 'UNKNOWN'
+        ? 'Processing, still querying'
+        : judgementStatuses[judgement.status]
+    )
+    return judgement.providerStatus
+      ? t('{{status}} (provider status {{providerStatus}})', {
+          status,
+          providerStatus: judgement.providerStatus,
+          interpolation: { escapeValue: false },
+        })
+      : status
+  }
+  return t(
+    judgement.source === 'RULE'
+      ? '{{status}} (set by mapping)'
+      : '{{status}} (system judgement)',
+    { status: t(judgementStatuses[judgement.status]) }
+  )
+}
+
+/** A chain is settled when every result it produced succeeded. */
+function callIsSettled(
+  call: CanvasTaskCall,
+  outputs: Array<{ outputIndex: number; executionStatus: string }>,
+  taskSucceeded: boolean
+): boolean {
+  if (call.callType === 'PREPARE_ASSET') {
+    return (
+      call.finalHttpStatus !== null &&
+      call.finalHttpStatus >= 200 &&
+      call.finalHttpStatus < 300
+    )
+  }
+  if (outputs.length === 0) return taskSucceeded
+  return call.outputIndices.every(
+    (index) =>
+      outputs.find((output) => output.outputIndex === index)
+        ?.executionStatus === 'SUCCEEDED'
+  )
 }
 
 function openInNewTab(url: string, target: Window | null): void {
@@ -124,54 +269,49 @@ export function CallDetails({
   openingInput: string | null
   onOpenInput: (asset: CanvasAdminTaskInputAsset) => void
 }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const time = (input: string | null) =>
-    input
-      ? new Intl.DateTimeFormat(locale, {
-          dateStyle: 'medium',
-          timeStyle: 'medium',
-        }).format(new Date(input))
-      : '—'
+  const { t } = useTranslation()
   const request =
     call.sanitizedRequest === null
       ? null
-      : JSON.stringify(compactRequestSnapshot(call.sanitizedRequest), null, 2)
+      : compactRequestSnapshot(call.sanitizedRequest)
   const responseDiagnostic = call.providerResponseDiagnostic
-  const responseKind = responseDiagnostic
-    ? responseKindLabel(responseDiagnostic.summary.kind, t)
-    : null
-  const responseSummary = responseDiagnostic
-    ? [
-        responseKind,
-        t('Bytes', { count: responseDiagnostic.summary.byteLength }),
-        responseDiagnostic.summary.declaredByteLength === undefined
+  let schemaNote: string | null = null
+  if (
+    responseDiagnostic?.schema?.rule === 'required' &&
+    responseDiagnostic.schema.field
+  ) {
+    schemaNote = t(
+      'Response does not match the interface contract: missing required field {{field}}',
+      {
+        field: responseDiagnostic.schema.field,
+        interpolation: { escapeValue: false },
+      }
+    )
+  } else if (responseDiagnostic?.schema?.rule === 'maxBodyBytes') {
+    schemaNote = t('The response exceeded the read limit.')
+  } else if (responseDiagnostic?.schema) {
+    schemaNote = t('Response does not match the interface contract.')
+  }
+  const fields: Array<[string, ReactNode, boolean?]> = [
+    [
+      'Provider / channel',
+      [
+        call.providerName,
+        call.channelCode,
+        call.channelVersion === null
           ? null
-          : t('Declared bytes', {
-              count: responseDiagnostic.summary.declaredByteLength,
-            }),
-        responseDiagnostic.summary.fields?.length
-          ? `${t('Fields')}: ${responseDiagnostic.summary.fields.join(', ')}`
-          : null,
-        responseDiagnostic.summary.itemCount === undefined
-          ? null
-          : `${t('Item count')}: ${responseDiagnostic.summary.itemCount}`,
+          : `${t('Version')} ${call.channelVersion}`,
       ]
-        .filter(Boolean)
-        .join(' · ')
-    : null
-  const fields: Array<[string, ReactNode]> = [
-    ['Upstream model', present(call.upstreamModelId)],
+        .filter((value) => value !== null && value !== '')
+        .join(' · ') || '—',
+    ],
     [
       'API key group',
       call.credentialGroupName
         ? `${call.credentialGroupName}${call.credentialGroupVersion === null ? '' : ` · ${t('Version')} ${call.credentialGroupVersion}`}`
         : '—',
     ],
-    [
-      'Call ID',
-      <CopyableText key='call' value={call.localCallId} noTruncate />,
-    ],
+    ['Upstream model', present(call.upstreamModelId)],
     ['Executor', present(call.workerId)],
     [
       'Upstream request ID',
@@ -189,124 +329,227 @@ export function CallDetails({
         '—'
       ),
     ],
-    ['Request sent at', time(call.sentAt)],
-    ['Final provider response at', time(call.finalRespondedAt)],
-    ['Provider error code', present(call.errorCode)],
     [
-      'Error mapping rule',
-      call.errorRuleId
-        ? `${call.errorRuleId}${call.errorRuleVersion === null ? '' : ` · ${t('Version')} ${call.errorRuleVersion}`}`
+      'Canvas error code',
+      <div key='canvas-error-code'>
+        <div>{present(call.canvasErrorCode)}</div>
+        {schemaNote ? (
+          <p className='text-muted-foreground mt-1 text-xs'>{schemaNote}</p>
+        ) : null}
+      </div>,
+    ],
+    ['Upstream error code', present(call.upstreamErrorCode)],
+    [
+      'Error category',
+      call.errorCategory
+        ? t(errorCategories[call.errorCategory] ?? 'Unknown error category')
         : '—',
     ],
-    ['Safe error details', present(call.sanitizedError)],
+    [
+      'Matched mapping',
+      call.errorRuleId ? (
+        <div key='matched-mapping'>
+          <div>
+            {call.matchedRule ? formatErrorRuleMatch(call.matchedRule, t) : '—'}
+          </div>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {call.errorRuleId}
+            {call.errorRuleVersion === null
+              ? ''
+              : ` · ${t('Version')} ${call.errorRuleVersion}`}
+          </p>
+        </div>
+      ) : (
+        '—'
+      ),
+    ],
+    ['Execution judgement', executionJudgementText(call.executionJudgement, t)],
+    ...(call.matchedRule?.adminNote.trim()
+      ? ([
+          ['Administrator rationale', call.matchedRule.adminNote, true],
+        ] as Array<[string, ReactNode, boolean?]>)
+      : []),
   ]
+  const defaultTab =
+    call.canvasErrorCode ||
+    (call.finalHttpStatus !== null &&
+      (call.finalHttpStatus < 200 || call.finalHttpStatus >= 300))
+      ? 'response'
+      : 'overview'
+  const requestSnapshot =
+    request && typeof request === 'object' && !Array.isArray(request)
+      ? (request as Record<string, unknown>)
+      : null
+  const requestRest = requestSnapshot
+    ? Object.fromEntries(
+        Object.entries({
+          query: requestSnapshot.query,
+          contentType: requestSnapshot.contentType,
+          body: requestSnapshot.body,
+        }).filter(
+          ([, value]) =>
+            value !== null &&
+            value !== undefined &&
+            !(
+              typeof value === 'object' &&
+              !Array.isArray(value) &&
+              Object.keys(value).length === 0
+            )
+        )
+      )
+    : null
+  let missingBodyText = t('No response was received.')
+  if (call.finalHttpStatus !== null) {
+    missingBodyText = call.responseBodyRecorded
+      ? t(
+          'The body was empty, binary, or over the read limit and was not saved.'
+        )
+      : t('This call predates the change; the response body was not saved.')
+  }
   return (
     <div className='space-y-4 py-2'>
-      <dl className='grid gap-4 sm:grid-cols-2'>
-        {fields.map(([label, content]) => (
-          <div className='min-w-0' key={label}>
-            <dt className='text-muted-foreground text-sm'>{t(label)}</dt>
-            <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-              {content}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {inputAssets.length ? (
-        <section className='space-y-2'>
-          <h4 className='text-sm font-medium'>{t('Input media')}</h4>
-          <ul className='grid gap-2 sm:grid-cols-2'>
-            {orderedInputMedia(inputAssets, t).map(({ asset, label }) => {
-              return (
-                <li
-                  key={asset.assetId}
-                  className='bg-muted/50 flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2'
-                >
-                  <span className='min-w-0'>
-                    <span className='block text-sm font-medium'>{label}</span>
-                    <span className='text-muted-foreground block truncate text-xs'>
-                      {asset.mimeType}
-                    </span>
-                  </span>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    disabled={openingInput === asset.assetId}
-                    aria-label={`${t('Open')} ${label}`}
-                    onClick={() => onOpenInput(asset)}
-                  >
-                    {t('Open')}
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      ) : null}
-      {responseDiagnostic ? (
-        <section className='space-y-2'>
-          <h4 className='text-sm font-medium'>
-            {t('Provider response schema diagnostic')}
-          </h4>
-          <dl className='grid gap-4 sm:grid-cols-2'>
-            <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>
-                {t('Content-Type')}
-              </dt>
-              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-                {responseDiagnostic.contentType}
-              </dd>
-            </div>
-            <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>
-                {t('Schema field')}
-              </dt>
-              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-                {present(responseDiagnostic.schema.field)}
-              </dd>
-            </div>
-            <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>
-                {t('Schema rule')}
-              </dt>
-              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-                {present(responseDiagnostic.schema.rule)}
-              </dd>
-            </div>
-            <div className='min-w-0'>
-              <dt className='text-muted-foreground text-sm'>
-                {t('Response summary')}
-              </dt>
-              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-                {responseSummary}
-              </dd>
-            </div>
-            <div className='min-w-0 sm:col-span-2'>
-              <dt className='text-muted-foreground text-sm'>
-                {t('Diagnostic')}
-              </dt>
-              <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
-                {responseDiagnostic.schema.detail}
-              </dd>
-            </div>
+      <Tabs defaultValue={defaultTab}>
+        <TabsList>
+          <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
+          <TabsTrigger value='response'>
+            {t('Received upstream response')}
+          </TabsTrigger>
+          <TabsTrigger value='request'>
+            {t('Sent upstream request')}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value='overview' className='mt-4 space-y-4'>
+          <dl className='grid grid-cols-2 gap-4 lg:grid-cols-3'>
+            {fields.map(([label, content, fullWidth]) => (
+              <div
+                className={fullWidth ? 'col-span-full min-w-0' : 'min-w-0'}
+                key={label}
+              >
+                <dt className='text-muted-foreground text-sm'>
+                  <TooltipProvider delay={200}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span
+                            className='focus-visible:ring-ring/50 cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
+                            aria-label={`${t(label)}. ${t(overviewHints[label] ?? '')}`}
+                            tabIndex={0}
+                          />
+                        }
+                      >
+                        {t(label)}
+                      </TooltipTrigger>
+                      <TooltipContent className='max-w-72 leading-relaxed'>
+                        {t(overviewHints[label] ?? '')}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </dt>
+                <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
+                  {content}
+                </dd>
+              </div>
+            ))}
           </dl>
-        </section>
-      ) : null}
-      {request ? (
-        <details>
-          <summary className='cursor-pointer text-sm font-medium'>
-            {t(
-              call.sentAt
-                ? 'Sent upstream request (sanitized)'
-                : 'Prepared upstream request (sanitized)'
-            )}
-          </summary>
-          <pre className='bg-muted mt-2 max-h-80 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
-            {request}
-          </pre>
-        </details>
-      ) : null}
+          {call.callType === 'SUBMIT' && inputAssets.length ? (
+            <section className='space-y-2'>
+              <h4 className='text-sm font-medium'>{t('Input media')}</h4>
+              <ul className='grid gap-2 sm:grid-cols-2'>
+                {orderedInputMedia(inputAssets, t).map(({ asset, label }) => {
+                  return (
+                    <li
+                      key={asset.assetId}
+                      className='bg-muted/50 flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2'
+                    >
+                      <span className='min-w-0'>
+                        <span className='block text-sm font-medium'>
+                          {label}
+                        </span>
+                        <span className='text-muted-foreground block truncate text-xs'>
+                          {asset.mimeType}
+                        </span>
+                      </span>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        disabled={openingInput === asset.assetId}
+                        aria-label={`${t('Open')} ${label}`}
+                        onClick={() => onOpenInput(asset)}
+                      >
+                        {t('Open')}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ) : null}
+        </TabsContent>
+        <TabsContent value='response' className='mt-4'>
+          {call.sanitizedResponse !== null ? (
+            <JsonSnapshot
+              value={call.sanitizedResponse}
+              description={t(
+                call.responseFromQuery
+                  ? 'The last query response returned by the provider.'
+                  : 'The content returned by the provider.'
+              )}
+            />
+          ) : (
+            <p className='text-muted-foreground text-sm'>
+              {missingBodyText}
+              {responseDiagnostic ? (
+                <span className='text-xs'>
+                  {t('({{contentType}} · {{count}} bytes)', {
+                    contentType: responseDiagnostic.contentType,
+                    count: responseDiagnostic.summary.byteLength,
+                    interpolation: { escapeValue: false },
+                  })}
+                </span>
+              ) : null}
+            </p>
+          )}
+        </TabsContent>
+        <TabsContent value='request' className='mt-4 space-y-2'>
+          {requestSnapshot ? (
+            <>
+              <div className='flex flex-wrap items-center justify-between gap-2'>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'The request Canvas sent after converting it with the provider interface template.'
+                  )}
+                </p>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='ghost'
+                  onClick={() =>
+                    void navigator.clipboard?.writeText(
+                      JSON.stringify(requestSnapshot, null, 2)
+                    )
+                  }
+                >
+                  {t('Copy')}
+                </Button>
+              </div>
+              <p className='font-mono text-sm'>
+                {String(requestSnapshot.method ?? '')}{' '}
+                {String(requestSnapshot.path ?? '')}
+              </p>
+              {requestRest && Object.keys(requestRest).length ? (
+                <JsonSnapshot value={requestRest} description='' />
+              ) : (
+                <p className='text-muted-foreground text-sm'>
+                  {t('No query parameters or request body.')}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className='text-muted-foreground text-sm'>—</p>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -314,14 +557,19 @@ export function CallDetails({
 export function TaskCallHistory({
   taskId,
   inputAssets = [],
+  outputs = [],
+  taskSucceeded = false,
 }: {
   taskId: string
   inputAssets?: CanvasAdminTaskInputAsset[]
+  outputs?: Array<{ outputIndex: number; executionStatus: string }>
+  taskSucceeded?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const state = useServerTableState('startedAt')
-  const [expanded, setExpanded] = useState<string>()
+  // Explicit toggles override the default: open unsettled calls, or the last call when all succeeded.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({})
   const [openingInput, setOpeningInput] = useState<string | null>(null)
   const openInput = async (asset: CanvasAdminTaskInputAsset) => {
     const target = window.open('about:blank', '_blank')
@@ -368,104 +616,108 @@ export function TaskCallHistory({
       ),
     retry: false,
   })
-  const columns = useMemo<ColumnDef<CanvasTaskCall, unknown>[]>(
-    () => [
-      {
-        id: 'startedAt',
-        header: t('Call started at'),
-        cell: ({ row }) =>
-          row.original.startedAt
-            ? new Intl.DateTimeFormat(locale, {
-                dateStyle: 'short',
-                timeStyle: 'medium',
-              }).format(new Date(row.original.startedAt))
-            : '—',
-      },
-      {
-        id: 'callType',
-        header: t('Type'),
-        cell: ({ row }) => (
-          <>
-            {t(callTypes[row.original.callType] ?? 'Unknown call type')}
-            {row.original.attemptCount > 1
-              ? ` · ${t('Attempt count', { count: row.original.attemptCount })}`
-              : ''}
-          </>
-        ),
-      },
-      {
-        id: 'related',
-        header: t('Related object'),
-        cell: ({ row }) =>
-          row.original.outputIndices.length
-            ? row.original.outputIndices
-                .map(
-                  (index) =>
-                    `${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`
-                )
-                .join(' · ')
-            : '—',
-      },
-      {
-        id: 'provider',
-        header: t('Provider / channel'),
-        cell: ({ row }) =>
-          [
-            row.original.providerName,
-            row.original.channelCode,
-            row.original.channelVersion === null
-              ? null
-              : `${t('Version')} ${row.original.channelVersion}`,
-          ]
-            .filter(Boolean)
-            .join(' / ') || '—',
-      },
-      {
-        id: 'state',
-        header: t('Call status'),
-        cell: ({ row }) =>
-          t(chainStates[row.original.chainState] ?? 'Unknown call state'),
-      },
-      {
-        id: 'response',
-        header: t('Response'),
-        cell: ({ row }) => callResponse(row.original),
-      },
-      {
-        id: 'duration',
-        header: t('Duration'),
-        cell: ({ row }) =>
-          row.original.durationMs === null
-            ? '—'
-            : t('Duration seconds', { count: row.original.durationMs / 1000 }),
-      },
-      {
-        id: 'actions',
-        header: t('Actions'),
-        enableHiding: false,
-        cell: ({ row }) => (
-          <Button
-            type='button'
-            variant='link'
-            className='h-auto p-0'
-            aria-expanded={expanded === row.original.localCallId}
-            onClick={() =>
-              setExpanded((current) =>
-                current === row.original.localCallId
-                  ? undefined
-                  : row.original.localCallId
-              )
-            }
-          >
-            {t(
-              expanded === row.original.localCallId ? 'Hide details' : 'Details'
-            )}
-          </Button>
-        ),
-      },
-    ],
-    [expanded, locale, t]
+  const items = query.data?.items ?? []
+  const anyUnsettled = items.some(
+    (item) => !callIsSettled(item, outputs, taskSucceeded)
   )
+  const isOpen = (call: CanvasTaskCall) => {
+    const explicit = toggled[call.localCallId]
+    if (explicit !== undefined) return explicit
+    if (anyUnsettled) return !callIsSettled(call, outputs, taskSucceeded)
+    return items.at(-1)?.localCallId === call.localCallId
+  }
+  const columns: ColumnDef<CanvasTaskCall, unknown>[] = [
+    {
+      id: 'startedAt',
+      header: t('Call started at'),
+      cell: ({ row }) =>
+        row.original.startedAt
+          ? new Intl.DateTimeFormat(locale, {
+              dateStyle: 'short',
+              timeStyle: 'medium',
+            }).format(new Date(row.original.startedAt))
+          : '—',
+    },
+    {
+      id: 'callType',
+      header: t('Type'),
+      cell: ({ row }) => (
+        <>
+          {t(callTypes[row.original.callType] ?? 'Unknown call type')}
+          {row.original.attemptCount > 1
+            ? ` · ${t('Attempt count', { count: row.original.attemptCount })}`
+            : ''}
+        </>
+      ),
+    },
+    {
+      id: 'related',
+      header: t('Related object'),
+      cell: ({ row }) =>
+        row.original.outputIndices.length
+          ? row.original.outputIndices
+              .map(
+                (index) =>
+                  `${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`
+              )
+              .join(' · ')
+          : '—',
+    },
+    {
+      id: 'provider',
+      header: t('Provider / channel'),
+      cell: ({ row }) =>
+        [
+          row.original.providerName,
+          row.original.channelCode,
+          row.original.channelVersion === null
+            ? null
+            : `${t('Version')} ${row.original.channelVersion}`,
+        ]
+          .filter(Boolean)
+          .join(' / ') || '—',
+    },
+    {
+      id: 'state',
+      header: t('Call status'),
+      cell: ({ row }) =>
+        t(chainStates[row.original.chainState] ?? 'Unknown call state'),
+    },
+    {
+      id: 'response',
+      header: t('Response'),
+      cell: ({ row }) => callResponse(row.original),
+    },
+    {
+      id: 'duration',
+      header: t('Duration'),
+      cell: ({ row }) =>
+        row.original.durationMs === null
+          ? '—'
+          : t('Duration seconds', { count: row.original.durationMs / 1000 }),
+    },
+    {
+      id: 'actions',
+      header: t('Actions'),
+      enableHiding: false,
+      cell: ({ row }) => (
+        <Button
+          type='button'
+          variant='link'
+          className='h-auto p-0'
+          aria-expanded={isOpen(row.original)}
+          onClick={() =>
+            setToggled((current) => ({
+              ...current,
+              [row.original.localCallId]: !isOpen(row.original),
+            }))
+          }
+        >
+          {t(isOpen(row.original) ? 'Hide details' : 'Details')}
+        </Button>
+      ),
+    },
+  ]
   const rowRenderer = (row: Row<CanvasTaskCall>) => (
     <Fragment key={row.id}>
       <TableRow>
@@ -475,7 +727,7 @@ export function TaskCallHistory({
           </TableCell>
         ))}
       </TableRow>
-      {expanded === row.original.localCallId ? (
+      {isOpen(row.original) ? (
         <TableRow>
           <TableCell colSpan={row.getVisibleCells().length}>
             <CallDetails
@@ -491,7 +743,7 @@ export function TaskCallHistory({
   )
   return (
     <CanvasServerTable
-      data={query.data?.items ?? []}
+      data={items}
       columns={columns}
       total={query.data?.total ?? 0}
       state={state}
@@ -503,7 +755,7 @@ export function TaskCallHistory({
       getRowId={(row) => row.localCallId}
       renderRow={rowRenderer}
       renderExpandedContent={(row) =>
-        expanded === row.original.localCallId ? (
+        isOpen(row.original) ? (
           <CallDetails
             call={row.original}
             inputAssets={inputAssets}

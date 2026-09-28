@@ -59,7 +59,7 @@ const executionLabels: Record<string, string> = {
   SUCCEEDED: 'Succeeded',
   PARTIAL_SUCCESS: 'Partial success',
   CONFIRMED_FAILED: 'Confirmed failed',
-  UNKNOWN: 'Unknown',
+  UNKNOWN: 'Result pending confirmation',
 }
 const settlementLabels: Record<string, string> = {
   PENDING: 'Pending',
@@ -91,7 +91,7 @@ function executionSummary(
       ? t('Failed count', { count: summary.failedResults })
       : null,
     summary.unknownResults
-      ? t('Unknown count', { count: summary.unknownResults })
+      ? t('Pending confirmation count', { count: summary.unknownResults })
       : null,
   ].filter((part): part is string => Boolean(part))
   if (summary.resultsIncomplete) parts.push(t('Results are incomplete'))

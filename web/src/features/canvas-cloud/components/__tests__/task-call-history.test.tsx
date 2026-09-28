@@ -14,8 +14,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
-import { CallDetails, TaskCallHistory } from '../TaskCallHistory'
 import type { CanvasTaskCall } from '../../task-call-api'
+import { CallDetails, TaskCallHistory } from '../TaskCallHistory'
 
 const mocks = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
 vi.mock('../../task-call-api', () => mocks)
@@ -38,8 +38,15 @@ const call: CanvasTaskCall = {
   initialHttpStatus: 200,
   finalHttpStatus: 200,
   durationMs: 1000,
-  errorCode: null,
+  canvasErrorCode: null,
+  upstreamErrorCode: null,
+  errorCategory: null,
   sanitizedError: null,
+  sanitizedResponse: null,
+  responseBodyRecorded: true,
+  responseFromQuery: false,
+  matchedRule: null,
+  executionJudgement: null,
   errorRuleId: null,
   errorRuleVersion: null,
   providerResponseDiagnostic: null,
@@ -153,7 +160,7 @@ describe('TaskCallHistory', () => {
           upstreamTaskId: 'upstream-retry-1',
           initialHttpStatus: 429,
           finalHttpStatus: 429,
-          errorCode: 'RATE_LIMIT',
+          upstreamErrorCode: 'RATE_LIMIT',
           errorRuleId: 'provider.rate-limit',
           errorRuleVersion: 3,
           sanitizedError: 'Retry after 30 seconds',
@@ -167,14 +174,115 @@ describe('TaskCallHistory', () => {
       upstreamTaskId: 'upstream-retry-1',
       initialHttpStatus: 429,
       finalHttpStatus: 429,
-      errorCode: 'RATE_LIMIT',
+      upstreamErrorCode: 'RATE_LIMIT',
+      errorCategory: 'PROVIDER_RATE_LIMITED',
+      executionJudgement: {
+        status: 'CONFIRMED_FAILED',
+        source: 'RULE',
+      },
       errorRuleId: 'provider.rate-limit',
       errorRuleVersion: 3,
       sanitizedError: 'Retry after 30 seconds',
     })
-    expect(screen.getByText('Retry after 30 seconds')).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(screen.getByText('RATE_LIMIT')).toBeVisible()
+    expect(screen.getByText('Provider rate limited')).toBeVisible()
+    expect(screen.getByText('Confirmed failed (set by mapping)')).toBeVisible()
+    expect(screen.queryByText('PROVIDER_RATE_LIMITED')).not.toBeInTheDocument()
     expect(screen.getByText('upstream-retry-1')).toBeVisible()
+  })
+
+  it('localizes the matched mapping and shows the provider status that decided the result', () => {
+    mountDetails({
+      ...call,
+      errorRuleId: 'provider.502.server',
+      errorRuleVersion: 2,
+      matchedRule: {
+        ruleType: 'HTTP_STATUS',
+        httpStatus: 502,
+        conditions: [
+          {
+            path: 'error.code',
+            operator: 'EQUALS',
+            valueType: 'STRING',
+            value: 'server_error',
+          },
+        ],
+        adminNote: '',
+      },
+      executionJudgement: {
+        status: 'SUCCEEDED',
+        source: 'PROVIDER_STATE',
+        providerStatus: 'succeeded',
+      },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    expect(
+      screen.getByText('HTTP 502 and error.code = "server_error"')
+    ).toBeVisible()
+    expect(
+      screen.getByText('Succeeded (provider status succeeded)')
+    ).toBeVisible()
+    expect(screen.queryByText(/EQUALS/)).not.toBeInTheDocument()
+  })
+
+  it('shows the request line and only non-empty request parts', () => {
+    mountDetails({
+      ...call,
+      sanitizedRequest: {
+        method: 'GET',
+        path: '/v1/video/task-1',
+        query: {},
+        contentType: null,
+        body: null,
+      },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    expect(screen.getByText('GET /v1/video/task-1')).toBeVisible()
+    expect(
+      screen.getByText('No query parameters or request body.')
+    ).toBeVisible()
+  })
+
+  it.each([
+    [false, 'This call predates the change; the response body was not saved.'],
+    [
+      true,
+      'The body was empty, binary, or over the read limit and was not saved.',
+    ],
+  ])(
+    'explains a missing failure body (recorded=%s)',
+    (responseBodyRecorded, text) => {
+      mountDetails({
+        ...call,
+        finalHttpStatus: 502,
+        sanitizedResponse: null,
+        responseBodyRecorded,
+        providerResponseDiagnostic: {
+          contentType: 'application/octet-stream',
+          summary: { kind: 'scalar', byteLength: 20 },
+        },
+      })
+      expect(screen.getByText(text, { exact: false })).toBeVisible()
+      expect(
+        screen.getByText('(application/octet-stream · 20 bytes)')
+      ).toBeVisible()
+    }
+  )
+
+  it('collapses long response strings with a localized length and copies the full value', () => {
+    const writeText = vi.fn()
+    Object.assign(navigator, { clipboard: { writeText } })
+    const long = 'x'.repeat(250)
+    mountDetails({ ...call, sanitizedResponse: { message: long } })
+    fireEvent.click(
+      screen.getByRole('tab', { name: 'Received upstream response' })
+    )
+    expect(screen.getByText(/… \(250 characters in total\)/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    expect(writeText).toHaveBeenCalledWith(
+      JSON.stringify({ message: long }, null, 2)
+    )
   })
 
   it('shows persisted schema diagnostics after a later non-2xx response without exposing a response body', async () => {
@@ -196,14 +304,15 @@ describe('TaskCallHistory', () => {
         },
       },
     })
-    expect(screen.getByText('Provider response schema diagnostic')).toBeVisible()
-    expect(screen.getByText('application/json; charset=utf-8')).toBeVisible()
-    expect(screen.getByText('/data/taskId')).toBeVisible()
-    expect(screen.getByText('required')).toBeVisible()
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(
-      screen.getByText(/Object.*48 bytes.*Declared bytes.*512.*Fields: data/)
-    ).toBeVisible()
-    expect(screen.getByText('Provider response violated a frozen OpenAPI Schema rule')).toBeVisible()
+      screen.getByText('Canvas error code').closest('div')
+    ).toHaveTextContent('missing required field /data/taskId')
+    expect(
+      screen.queryByText(
+        'Provider response violated a frozen OpenAPI Schema rule'
+      )
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('raw-provider-body')).not.toBeInTheDocument()
     expect(screen.queryByText('secret-value')).not.toBeInTheDocument()
   })

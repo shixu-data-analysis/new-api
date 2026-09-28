@@ -1989,6 +1989,7 @@ export interface CanvasAdminTaskRecordOutput {
   usageSnapshot: Record<string, string | number | boolean | null> | null
   completedAt: string | null
   billingFinalizedAt: string | null
+  customerSafeErrorDetail: string | null
 }
 
 export interface CanvasAdminTaskInputAsset {
@@ -2021,6 +2022,13 @@ export interface CanvasAdminTaskRecordDetail {
   customerBillingStatus: string
   billingUnit: string | null
   billingFinalizedAt: string | null
+  unknownDeadlineAt: string | null
+  earlyReleaseAllowed: boolean
+  earlyReleaseBlockedReason:
+    | 'TASK_NOT_ELIGIBLE'
+    | 'ACTIVE_EXECUTOR_CLAIM'
+    | 'ACTIVE_REQUEST_LEASE'
+    | null
   parameters: Record<string, string | number | boolean | null> | null
   multiResultMode: 'NATIVE' | 'FANOUT'
   failureLocation:

@@ -27,8 +27,29 @@ export interface CanvasTaskCall {
   initialHttpStatus: number | null
   finalHttpStatus: number | null
   durationMs: number | null
-  errorCode: string | null
+  canvasErrorCode: string | null
+  upstreamErrorCode: string | null
+  errorCategory: string | null
   sanitizedError: string | null
+  matchedRule: {
+    ruleType: 'HTTP_STATUS' | 'JSON'
+    httpStatus: number | null
+    conditions: Array<{
+      path: string
+      operator: 'EQUALS' | 'CONTAINS'
+      valueType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'NULL'
+      value: string | number | boolean | null
+    }>
+    adminNote: string
+  } | null
+  executionJudgement: {
+    status: 'SUCCEEDED' | 'CONFIRMED_FAILED' | 'UNKNOWN'
+    source: 'RULE' | 'SYSTEM' | 'PROVIDER_STATE'
+    providerStatus?: string
+  } | null
+  sanitizedResponse: unknown
+  responseBodyRecorded: boolean
+  responseFromQuery: boolean
   providerResponseDiagnostic: CanvasProviderResponseDiagnostic | null
   errorRuleId: string | null
   errorRuleVersion: number | null
@@ -40,7 +61,7 @@ export interface CanvasTaskCall {
 
 export interface CanvasProviderResponseDiagnostic {
   contentType: string
-  schema: {
+  schema?: {
     field?: string
     rule?: string
     detail: string

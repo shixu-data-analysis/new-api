@@ -30,6 +30,7 @@ import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
 import { canvasBusinessTermConfig } from '../business-terms'
+import { errorRuleJsonFieldReference } from '../error-rule-json-reference'
 
 const localizedResources = { fr, ja, ru, vi, 'zh-TW': zhTW, zh }
 const unifiedPricingSources = [
@@ -521,7 +522,7 @@ const executionPolicyKeys = [
   'Credential group scope',
   'Credential scope',
   'Custom JSON mapping',
-  'Custom JSON mappings run in list order, followed by the HTTP status mapping and the system default message.',
+  'More specific conditions match first, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.',
   'Custom JSON order',
   'Custom mapping',
   'Custom message',
@@ -950,3 +951,27 @@ it.each([
     )
   }
 )
+
+describe('provider error handling localization', () => {
+  const english = en.translation as Record<string, string>
+  const customerViewKeys = Object.keys(english).filter((key) =>
+    key.startsWith('Customer task view ')
+  )
+  const referenceMeanings = errorRuleJsonFieldReference.map(
+    ([, meaning]) => meaning
+  )
+  it.each(Object.entries(localizedResources))(
+    'translates the customer view and JSON field reference in %s',
+    (_locale, resource) => {
+      const translation = resource.translation as Record<string, string>
+      expect(customerViewKeys.length).toBeGreaterThan(10)
+      for (const key of [...customerViewKeys, ...referenceMeanings]) {
+        expect(translation[key], key).toBeTypeOf('string')
+        expect(translation[key]?.trim(), key).not.toBe('')
+        // French shares the word “Points” with English, as in Canvas Web.
+        if (_locale === 'fr' && key === 'Customer task view points') continue
+        expect(translation[key], key).not.toBe(english[key])
+      }
+    }
+  )
+})

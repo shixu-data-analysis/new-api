@@ -559,6 +559,23 @@ export async function getCanvasTaskPointLedger(
   ).data
 }
 
+export async function releaseCanvasTaskFrozenPoints(
+  taskId: string,
+  input: { upstreamFailureConfirmed: boolean; reason: string },
+  requestKey = idempotencyKey('web-task-early-release')
+): Promise<CanvasAdminTaskRecordDetail> {
+  return (
+    await api.post<CanvasAdminTaskRecordDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/release-frozen-points`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': requestKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 /** @deprecated Kept for callers outside the UAT-018 task-details slice. */
 export async function getCanvasTaskPointLedgerDetail(
   taskId: string,

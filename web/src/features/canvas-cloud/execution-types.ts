@@ -34,6 +34,7 @@ export interface ChannelExecutionConfig {
   streamIdleTimeoutMs: number
   pollIntervalMs: number
   deadlineMs: number
+  unknownReleaseMs: number
   requestConcurrency: number
   asyncInFlightLimit: number
 }
@@ -55,6 +56,7 @@ export type ErrorCategory =
 export type ErrorRuleType = 'HTTP_STATUS' | 'JSON'
 export type ErrorConditionOperator = 'EQUALS' | 'CONTAINS'
 export type ErrorConditionValueType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'NULL'
+export type ExecutionDisposition = 'CONFIRMED_FAILED' | 'UNKNOWN'
 
 export interface ErrorJsonCondition {
   path: string
@@ -73,6 +75,7 @@ export interface ErrorRule {
   category: ErrorCategory
   clientMessages: Partial<Record<ExecutionLocale, string>>
   adminNote: string
+  executionDisposition?: ExecutionDisposition
   source: 'SYSTEM' | 'OVERRIDE' | 'CUSTOM'
 }
 
@@ -258,6 +261,17 @@ export interface ErrorPreviewResult {
   upstreamRequestIdSource: string | null
   upstreamTaskId: string | null
   upstreamTaskIdSource: string | null
+  canvasErrorCode: string | null
+  upstreamErrorCode: string | null
+  errorCategory: ErrorCategory
+  sanitizedResponse: unknown
+  adminNote: string | null
+  customerSafeErrorDetail:
+    | 'UPSTREAM_ERROR_CODE_PRESENT'
+    | 'UPSTREAM_ERROR_MESSAGE_PRESENT'
+    | 'UPSTREAM_ERROR_BODY_UNREADABLE'
+    | 'UPSTREAM_ERROR_FIELDS_UNRECOGNIZED'
+    | 'UPSTREAM_ERROR_DETAIL_UNRECOGNIZED'
   match: {
     ruleId: string
     ruleVersion: number
@@ -265,6 +279,8 @@ export interface ErrorPreviewResult {
     clientMessage: string
     messageSource: 'CUSTOM' | 'SYSTEM_DEFAULT'
     clientHttpStatus: number
+    executionDisposition: ExecutionDisposition
+    executionDispositionSource: 'RULE' | 'SYSTEM'
   }
 }
 

@@ -104,6 +104,7 @@ import {
   getCanvasAdminCustomerTasks,
   getCanvasAdminTaskLogs,
   getCanvasAdminTaskRecord,
+  releaseCanvasTaskFrozenPoints,
   getCanvasAdminRechargeOrders,
   getCanvasOrderPointReturns,
   getCanvasTaskLogOptions,
@@ -504,6 +505,24 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.get).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/admin/tasks/task-id',
       { signal: undefined, skipErrorHandler: true }
+    )
+    mocks.post.mockResolvedValueOnce({ data: {} })
+    await releaseCanvasTaskFrozenPoints(
+      'task-id',
+      { reason: 'Verified with provider', upstreamFailureConfirmed: true },
+      'release-key'
+    )
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      '/canvas-api/v1/web/admin/tasks/task-id/release-frozen-points',
+      {
+        reason: 'Verified with provider',
+        upstreamFailureConfirmed: true,
+        confirmed: true,
+      },
+      {
+        headers: { 'Idempotency-Key': 'release-key' },
+        skipErrorHandler: true,
+      }
     )
     await getCanvasTaskPointLedger('task-id', {
       page: 1,

@@ -19,6 +19,7 @@ const api = vi.hoisted(() => ({
   getCanvasAdminTaskInputDownload: vi.fn(),
   getCanvasAdminTaskInputBlob: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
+  releaseCanvasTaskFrozenPoints: vi.fn(),
 }))
 const calls = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
 vi.mock('../../api', () => api)
@@ -51,6 +52,9 @@ const task = {
   customerBillingStatus: 'SETTLED',
   billingUnit: null,
   billingFinalizedAt: null,
+  unknownDeadlineAt: null,
+  earlyReleaseAllowed: false,
+  earlyReleaseBlockedReason: null,
   parameters: {
     quality: '2K',
     aspectRatio: '9:16',
@@ -90,11 +94,23 @@ const providerCall = {
   initialHttpStatus: 202,
   finalHttpStatus: 200,
   durationMs: 8000,
-  errorCode: null,
+  canvasErrorCode: null,
+  upstreamErrorCode: null,
+  errorCategory: null,
   errorRuleId: null,
   errorRuleVersion: null,
   sanitizedError: null,
-  sanitizedRequest: { model: 'gpt-image-2-pro' },
+  sanitizedResponse: null,
+  responseFromQuery: false,
+  matchedRule: null,
+  executionJudgement: null,
+  sanitizedRequest: {
+    method: 'POST',
+    path: '/v1/images/generations',
+    query: {},
+    contentType: 'application/json',
+    body: { model: 'gpt-image-2-pro' },
+  },
 }
 const pointRecord = {
   id: 'point-row-1',
@@ -174,9 +190,10 @@ describe('AdminTaskRecordDetails UAT-018', () => {
 
   it('shows only authoritative main facts and opens failed execution details by default', async () => {
     mount()
-    expect(await screen.findByText(task.id)).toHaveClass('break-all')
+    expect((await screen.findAllByText(task.id))[0]).toHaveClass('break-all')
     expect(screen.getByText('Customer').closest('dl')).toHaveClass(
-      'sm:grid-cols-2'
+      'grid-cols-2',
+      'lg:grid-cols-3'
     )
     expect(
       screen.getByText('Provider response · Provider authentication failed')
@@ -191,9 +208,10 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       screen.getByRole('button', { name: 'Execution details' })
     ).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('Fanout generation (fanout)')).toBeVisible()
-    expect(screen.getByText('9:16')).toBeVisible()
-    expect(screen.queryByText('hiddenSecret')).not.toBeInTheDocument()
+    const parameters = screen.getByText(/"multiResultMode": "fanout"/)
+    expect(parameters).toHaveTextContent('"aspectRatio": "9:16"')
+    expect(parameters).toHaveTextContent('"quality": "2K"')
+    expect(parameters).not.toHaveTextContent('hiddenSecret')
     await waitFor(() =>
       expect(calls.getCanvasTaskCalls).toHaveBeenCalledWith(
         task.id,
@@ -203,15 +221,15 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
   })
 
-  it('renders one expandable provider-call table with merged response facts', async () => {
+  it('opens the call of an unfinished result by default and can collapse it', async () => {
     mount()
-    const details = await screen.findByRole('button', { name: 'Details' })
+    const hide = await screen.findByRole('button', { name: 'Hide details' })
     expect(screen.getByText('202 → 200')).toBeVisible()
-    fireEvent.click(details)
-    expect(screen.getByRole('button', { name: 'Hide details' })).toBeVisible()
-    expect(await screen.findByText('call-long-id')).toHaveClass('break-all')
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(screen.getByText('executor-01')).toBeVisible()
-    fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
+    fireEvent.click(hide)
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
     expect(screen.getAllByText(/gpt-image-2-pro/).length).toBeGreaterThan(0)
   })
 
@@ -315,13 +333,14 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     })
 
     mount()
-    fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
+    await screen.findByRole('button', { name: 'Hide details' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(screen.getByText('Input media')).toBeVisible()
     expect(screen.getByText('Image 1')).toBeVisible()
     expect(screen.getByText('Audio 1')).toBeVisible()
     expect(screen.getByText('Image 2')).toBeVisible()
     expect(screen.getByText('Video 1')).toBeVisible()
-    fireEvent.click(screen.getByText('Sent upstream request (sanitized)'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
     const requestSnapshot = screen.getByText(/\[provider-url-hidden\]/)
     expect(
       requestSnapshot.textContent?.match(/\[provider-url-hidden\]/g)
@@ -341,6 +360,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       screen.queryByText(/X-Amz-Signature=REDACTED/)
     ).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open Image 1' }))
     await waitFor(() =>
       expect(api.getCanvasAdminTaskInputDownload).toHaveBeenCalledWith(
@@ -439,7 +459,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('keeps unknown failure location hidden and non-failed details collapsed', async () => {
+  it('keeps unknown failure location hidden and opens details of an unfinished task', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,
       derivedExecutionStatus: 'PROCESSING',
@@ -457,8 +477,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Execution details' })
-    ).toHaveAttribute('aria-expanded', 'false')
-    expect(calls.getCanvasTaskCalls).not.toHaveBeenCalled()
+    ).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('localizes the confirmed-not-sent target DTO without exposing its code or English message', async () => {
@@ -482,7 +501,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     })
     mount()
 
-    expect(await screen.findByText('确认失败')).toBeVisible()
+    expect((await screen.findAllByText('确认失败')).length).toBeGreaterThan(0)
     expect(
       screen.getByText('Executor 预检 · Executor 请求确认未发送')
     ).toBeVisible()
@@ -591,6 +610,285 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       await screen.findByRole('button', { name: 'Execution details' })
     ).toBeVisible()
     expect(screen.queryByText('Failure diagnosis')).not.toBeInTheDocument()
+  })
+
+  it('mirrors Canvas Web after an administrator confirms the remaining result failed', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'PARTIAL_SUCCESS',
+      executionStatus: 'SUCCEEDED',
+      customerBillingStatus: 'SETTLED',
+      releasedPoints: '7',
+      billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+      taskError: null,
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '7',
+          settledPoints: '7',
+          executionStatus: 'SUCCEEDED',
+          billingStatus: 'SETTLED',
+          error: null,
+          usageSnapshot: null,
+          completedAt: '2026-09-14T09:16:50.000Z',
+          billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+          customerSafeErrorDetail: null,
+        },
+        {
+          outputIndex: 1,
+          quotedPoints: '7',
+          settledPoints: '0',
+          executionStatus: 'CONFIRMED_FAILED',
+          billingStatus: 'RELEASED_FAILED',
+          error: { code: 'ADMIN_CONFIRMED_UPSTREAM_FAILED', messages: null },
+          usageSnapshot: null,
+          completedAt: '2026-09-14T09:17:00.000Z',
+          billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+          customerSafeErrorDetail: null,
+        },
+      ],
+    })
+    mount()
+
+    expect(
+      await screen.findByText('云端生成部分完成，已保留可用结果，积分已结算')
+    ).toBeVisible()
+    expect(screen.getByText('结果 2 · 确认失败')).toBeVisible()
+    expect(screen.getByText(/^已扣除；已释放 7 积分（/)).toBeVisible()
+    expect(
+      screen.queryByText('上游已确认失败，冻结积分已释放。')
+    ).not.toBeInTheDocument()
+    expect(screen.getAllByText(task.id).length).toBeGreaterThan(1)
+  })
+
+  it('uses the Canvas Web fallback instead of an English-only message after a timeout release', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'RELEASED_TIMEOUT',
+      releasedPoints: '14',
+      billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+      taskError: {
+        code: 'PROVIDER_BAD_GATEWAY',
+        messages: { en: 'English must stay hidden' },
+      },
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'RELEASED_TIMEOUT',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+          customerSafeErrorDetail: null,
+        },
+      ],
+    })
+    mount()
+
+    expect(await screen.findByText('云端生成失败，积分已释放')).toBeVisible()
+    expect(screen.getByText(/^已释放 14 积分（/)).toBeVisible()
+    expect(screen.getByText('生成服务暂不可用。')).toBeVisible()
+    expect(
+      screen.queryByText('English must stay hidden')
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not show a failure explanation for an unknown frozen output', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: false,
+      earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
+          error: { messages: { en: 'Must remain hidden while pending' } },
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+        },
+      ],
+    })
+    mount()
+
+    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(
+      screen.getByText(
+        'If the result is still unconfirmed at the deadline, frozen points will be released automatically.'
+      )
+    ).toBeVisible()
+    expect(screen.getByText('Frozen')).toBeVisible()
+    expect(
+      screen.queryByText('Must remain hidden while pending')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('The upstream service returned an error code.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('submits early release and keeps the confirmation state on a 409 refresh', async () => {
+    const pendingTask = {
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+        },
+      ],
+    }
+    api.getCanvasAdminTaskRecord.mockResolvedValue(pendingTask)
+    api.releaseCanvasTaskFrozenPoints.mockRejectedValueOnce({
+      response: { status: 409 },
+    })
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Release frozen points early' })
+    )
+    expect(
+      screen.getByText(
+        'Release 14 frozen points for this task. This does not send a cancellation request to the provider.'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        /If the provider already charged, the platform bears the cost\./
+      )
+    ).toBeVisible()
+    fireEvent.change(screen.getByLabelText('Administrator reason'), {
+      target: { value: 'Verified with provider' },
+    })
+    fireEvent.click(screen.getByText('Provider failure was confirmed'))
+    fireEvent.click(
+      screen.getByText('I understand the impact of this operation')
+    )
+    const actions = screen.getAllByRole('button', {
+      name: 'Release frozen points early',
+    })
+    fireEvent.click(actions.at(-1) as HTMLElement)
+
+    await waitFor(() =>
+      expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledWith(task.id, {
+        reason: 'Verified with provider',
+        upstreamFailureConfirmed: true,
+      })
+    )
+    expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledTimes(1)
+    expect(
+      await screen.findByText(
+        'Task status changed and details were refreshed. Your input was kept and the request was not retried.'
+      )
+    ).toBeVisible()
+    expect(screen.getByLabelText('Administrator reason')).toHaveValue(
+      'Verified with provider'
+    )
+    await waitFor(() =>
+      expect(api.getCanvasAdminTaskRecord.mock.calls.length).toBeGreaterThan(1)
+    )
+  })
+
+  it('offers early release for a legacy frozen task without output rows', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      quotedPoints: '5',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
+      outputs: [],
+    })
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Release frozen points early' })
+    )
+    expect(
+      screen.getByText(
+        'Release 5 frozen points for this task. This does not send a cancellation request to the provider.'
+      )
+    ).toBeVisible()
+  })
+
+  it('keeps the entered early-release confirmation after a request failure', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+        },
+      ],
+    })
+    api.releaseCanvasTaskFrozenPoints.mockRejectedValueOnce(new Error('boom'))
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Release frozen points early' })
+    )
+    fireEvent.change(screen.getByLabelText('Administrator reason'), {
+      target: { value: 'Checked upstream result' },
+    })
+    fireEvent.click(screen.getByText('Provider failure was confirmed'))
+    fireEvent.click(
+      screen.getByText('I understand the impact of this operation')
+    )
+    const actions = screen.getAllByRole('button', {
+      name: 'Release frozen points early',
+    })
+    fireEvent.click(actions.at(-1) as HTMLElement)
+
+    expect(
+      await screen.findByText('Unable to release frozen points')
+    ).toBeVisible()
+    expect(screen.getByLabelText('Administrator reason')).toHaveValue(
+      'Checked upstream result'
+    )
+    expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledTimes(1)
   })
 
   it('has non-empty UAT-018 terminology in all seven locales', () => {
