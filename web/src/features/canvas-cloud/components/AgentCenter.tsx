@@ -409,6 +409,7 @@ export function AgentCenter() {
     {
       id: 'code',
       accessorKey: 'maskedCode',
+      meta: { label: t('Invite code') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Invite code')} />
       ),
@@ -454,6 +455,7 @@ export function AgentCenter() {
     {
       id: 'status',
       accessorKey: 'status',
+      meta: { label: t('Status') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
@@ -467,6 +469,7 @@ export function AgentCenter() {
     {
       id: 'capacity',
       accessorKey: 'maxRegistrations',
+      meta: { label: t('Used / Capacity') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Used / Capacity')} />
       ),
@@ -476,6 +479,7 @@ export function AgentCenter() {
     {
       id: 'activatedCustomers',
       accessorKey: 'activatedCustomers',
+      meta: { label: t('Activated customers') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -486,6 +490,7 @@ export function AgentCenter() {
     {
       id: 'expiresAt',
       accessorKey: 'expiresAt',
+      meta: { label: t('Expires') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Expires')} />
       ),
@@ -494,6 +499,7 @@ export function AgentCenter() {
     {
       id: 'createdAt',
       accessorKey: 'createdAt',
+      meta: { label: t('Created At') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created At')} />
       ),
@@ -504,6 +510,7 @@ export function AgentCenter() {
     {
       id: 'customer',
       accessorKey: 'username',
+      meta: { label: t('Username') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Username')} />
       ),
@@ -524,6 +531,7 @@ export function AgentCenter() {
     {
       id: 'status',
       accessorKey: 'status',
+      meta: { label: t('Status') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
@@ -534,6 +542,7 @@ export function AgentCenter() {
     {
       id: 'activatedAt',
       accessorKey: 'activatedAt',
+      meta: { label: t('Activated at') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Activated at')} />
       ),

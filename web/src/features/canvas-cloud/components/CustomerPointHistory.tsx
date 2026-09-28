@@ -466,6 +466,9 @@ export function CustomerPointHistory({
         id: 'eventPoints',
         accessorKey: 'eventPoints',
         enableSorting: false,
+        meta: {
+          label: customerId ? t('Points in this change') : t('Affected points'),
+        },
         header: () =>
           customerId ? (
             <ExplainedHeader
@@ -513,6 +516,7 @@ export function CustomerPointHistory({
           id: 'availableDelta',
           accessorKey: 'availableDelta',
           enableSorting: false,
+          meta: { label: t('Available points change') },
           header: () => (
             <ExplainedHeader
               label={t('Available points change')}
@@ -540,6 +544,7 @@ export function CustomerPointHistory({
           id: 'reservedDelta',
           accessorKey: 'reservedDelta',
           enableSorting: false,
+          meta: { label: t('Reserved points change') },
           header: () => (
             <ExplainedHeader
               label={t('Reserved points change')}

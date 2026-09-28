@@ -560,6 +560,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     {
       id: 'remark',
       accessorKey: 'remark',
+      meta: { label: t('Created time / Note') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -618,6 +619,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     {
       id: 'status',
       enableSorting: false,
+      meta: { label: t('Status') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
@@ -633,6 +635,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     {
       id: 'amount',
       accessorKey: 'amountMinor',
+      meta: { label: t('Amount') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Amount')} />
       ),
@@ -645,6 +648,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     {
       id: 'points',
       accessorKey: 'points',
+      meta: { label: t('Points') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Points')} />
       ),
@@ -658,6 +662,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     {
       id: 'expiresAt',
       accessorKey: 'expiresAt',
+      meta: { label: t('Expiry time') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Expiry time')} />
       ),

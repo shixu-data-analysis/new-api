@@ -233,6 +233,7 @@ export function CustomerTasks() {
       {
         id: 'taskId',
         accessorKey: 'id',
+        meta: { label: t('Task ID') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Task ID')} />
         ),
@@ -259,6 +260,7 @@ export function CustomerTasks() {
       {
         id: 'model',
         accessorKey: 'displayNameSnapshot',
+        meta: { label: t('Model') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Model')} />
         ),
@@ -266,6 +268,7 @@ export function CustomerTasks() {
       {
         id: 'derivedExecutionStatus',
         accessorKey: 'derivedExecutionStatus',
+        meta: { label: t('Task result') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Task result')} />
         ),
@@ -397,6 +400,7 @@ export function CustomerTasks() {
       {
         id: 'acceptedAt',
         accessorKey: 'acceptedAt',
+        meta: { label: t('Accepted at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Accepted at')} />
         ),

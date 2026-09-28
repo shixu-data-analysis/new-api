@@ -392,6 +392,7 @@ function FactPage({
       {
         id: 'at',
         accessorKey: 'at',
+        meta: { label: t('Time') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Time')} />
         ),

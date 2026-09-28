@@ -113,12 +113,14 @@ export function CanvasCustomerPointBalances() {
         id: 'paidAvailablePoints',
         accessorKey: 'paidAvailablePoints',
         enableSorting: false,
+        meta: { label: t('Paid points') },
         header: () => <BusinessTerm kind='pointBalance' value='PAID' />,
       },
       {
         id: 'bonusAvailablePoints',
         accessorKey: 'bonusAvailablePoints',
         enableSorting: false,
+        meta: { label: t('Bonus points') },
         header: () => <BusinessTerm kind='pointBalance' value='BONUS' />,
       },
       {

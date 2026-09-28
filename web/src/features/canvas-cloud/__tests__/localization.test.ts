@@ -690,6 +690,8 @@ describe('Canvas interface localization', () => {
     expect(zh.translation.Points).toBe('积分')
     expect(zh.translation['Bonus points']).toBe('赠送积分')
     expect(zh.translation.Issued).toBe('发放')
+    expect(zh.translation['Reservation released']).toBe('冻结释放')
+    expect(zh.translation['Released from reservation']).toBe('已释放')
     expect(zh.translation['Invite registration']).toBe('邀请注册')
     expect(zh.translation['Provider channel']).toBe('服务商渠道')
     expect(

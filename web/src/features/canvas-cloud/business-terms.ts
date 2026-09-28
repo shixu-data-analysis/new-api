@@ -234,7 +234,7 @@ export const canvasBusinessTermConfig = {
       ISSUE: 'Issued',
       FREEZE: 'Reserved for a task',
       SETTLE: 'Settled',
-      RELEASE: 'Released',
+      RELEASE: 'Reservation released',
       EXPIRE: 'Expired',
       CLAWBACK: 'Clawed back',
       ADJUSTMENT_DEBIT: 'Manually deducted',

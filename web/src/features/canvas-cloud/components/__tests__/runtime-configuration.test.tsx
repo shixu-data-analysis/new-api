@@ -26,6 +26,7 @@ import vietnamese from '@/i18n/locales/vi.json'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
+import { AdminContent } from '../../index'
 import type {
   CanvasProviderConfiguration,
   CanvasProviderModel,
@@ -55,7 +56,10 @@ const apiMocks = vi.hoisted(() => ({
 }))
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
-vi.mock('../../api', () => apiMocks)
+vi.mock('../../api', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...apiMocks,
+}))
 vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
   FormNavigationGuard: (props: { when: boolean }) => (
     <div data-testid='navigation-guard' data-active={String(props.when)} />
@@ -388,6 +392,34 @@ describe('Canvas runtime configuration', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Task media' }))
 
     expect(onViewChange).toHaveBeenCalledWith('taskMedia')
+  })
+
+  it('switches sibling tabs after entering provider configuration from a model', () => {
+    const onRuntimeViewChange = vi.fn()
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <AdminContent
+          principalId='admin-1'
+          section='provider-configuration'
+          providerTarget={{}}
+          onRuntimeViewChange={onRuntimeViewChange}
+        />
+      </QueryClientProvider>
+    )
+
+    expect(
+      screen.getByRole('tab', { name: 'Provider configuration' })
+    ).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Task media' }))
+    fireEvent.click(
+      screen.getByRole('tab', { name: 'Task execution status and limits' })
+    )
+
+    expect(onRuntimeViewChange).toHaveBeenNthCalledWith(1, 'taskMedia')
+    expect(onRuntimeViewChange).toHaveBeenNthCalledWith(2, 'execution')
   })
 
   it('uses the provider-only overview without exposing storage controls', async () => {
@@ -1413,7 +1445,9 @@ describe('Canvas runtime configuration', () => {
       providerId: providerRuntime.providers[0].id,
     })
 
-    const group = await screen.findByRole('combobox', { name: 'API Key group' })
+    const group = await screen.findByRole('combobox', {
+      name: 'API Key group',
+    })
     expect(group).toHaveValue('')
     fireEvent.change(group, {
       target: { value: providerRuntime.credentialGroups[0].credentialGroupId },

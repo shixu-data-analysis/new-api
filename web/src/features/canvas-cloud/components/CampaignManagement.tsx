@@ -630,6 +630,7 @@ function CampaignDetail(props: {
       {
         id: 'acceptedAt',
         accessorKey: 'acceptedAt',
+        meta: { label: t('Issued at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Issued at')} />
         ),

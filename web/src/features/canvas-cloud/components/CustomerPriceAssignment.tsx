@@ -177,6 +177,7 @@ export function CustomerPriceAssignment(props: {
       },
       {
         accessorKey: 'effectiveAt',
+        meta: { label: t('Effective at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Effective at')} />
         ),

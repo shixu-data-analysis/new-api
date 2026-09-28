@@ -285,6 +285,7 @@ export function AdminTaskLogs() {
       {
         id: 'settledPoints',
         accessorKey: 'settledPoints',
+        meta: { label: t('Settled points') },
         header: ({ column }) => (
           <DataTableColumnHeader
             column={column}

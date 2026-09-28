@@ -40,7 +40,7 @@ export const factValueLabels: Record<string, string> = {
   REPLACED_HIGHER_PRICE: 'Replaced at a higher price',
   FROZEN: 'Frozen',
   SETTLED: 'Settled',
-  RELEASED: 'Released',
+  RELEASED: 'Released from reservation',
   TRANSFERRED: 'Transferred',
   PENDING: 'Pending',
   POSTED: 'Posted',

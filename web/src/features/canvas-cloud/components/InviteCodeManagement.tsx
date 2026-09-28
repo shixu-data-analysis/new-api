@@ -698,6 +698,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'code',
       accessorKey: 'maskedCode',
+      meta: { label: t('Invite code') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Invite code')} />
       ),
@@ -761,6 +762,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'status',
       accessorKey: 'redeemable',
+      meta: { label: t('Status') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Status')} />
       ),
@@ -792,6 +794,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'priceGroup',
       accessorKey: 'priceGroupName',
+      meta: { label: t('Price plan') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Price plan')} />
       ),
@@ -799,6 +802,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'inviter',
       accessorFn: (item) => item.agent?.username ?? '',
+      meta: { label: t('Inviter') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Inviter')} />
       ),
@@ -839,6 +843,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'capacity',
       accessorKey: 'maxRegistrations',
+      meta: { label: t('Used / capacity') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Used / capacity')} />
       ),
@@ -866,6 +871,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'validFrom',
       accessorKey: 'validFrom',
+      meta: { label: t('Validity') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Validity')} />
       ),
@@ -887,6 +893,7 @@ export function InviteCodeManagement(props: {
     {
       id: 'createdAt',
       accessorKey: 'createdAt',
+      meta: { label: t('Created At') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created At')} />
       ),

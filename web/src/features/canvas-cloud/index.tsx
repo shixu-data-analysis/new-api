@@ -235,8 +235,15 @@ export function AdminContent(props: {
       />
     )
   }
+  // Direct entries (such as "Manage API Key bindings") render a fixed tab; switching to a
+  // sibling tab continues in the regular runtime section like the normal entry does.
   if (props.section === 'execution') {
-    return <RuntimeManagement initialView='execution' />
+    return (
+      <RuntimeManagement
+        initialView='execution'
+        onViewChange={props.onRuntimeViewChange}
+      />
+    )
   }
   if (props.section === 'provider-configuration') {
     return (
@@ -244,6 +251,7 @@ export function AdminContent(props: {
         initialView='provider'
         providerTarget={props.providerTarget}
         onReturnToModelList={props.onReturnToModelList}
+        onViewChange={props.onRuntimeViewChange}
       />
     )
   }

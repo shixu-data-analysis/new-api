@@ -171,6 +171,7 @@ export function CustomerPointsCenter(props: {
       {
         id: 'redeemedAt',
         accessorKey: 'redeemedAt',
+        meta: { label: t('Redeemed at') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Redeemed at')} />
         ),

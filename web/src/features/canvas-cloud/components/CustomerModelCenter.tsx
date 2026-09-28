@@ -14,9 +14,11 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Box, Image as ImageIcon, Video } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -25,6 +27,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -93,7 +96,10 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
   })
   return (
     <div className='space-y-4'>
-      <section className='space-y-3' aria-label={t('Filter models')}>
+      <section
+        className='space-y-3 border-b pb-4'
+        aria-label={t('Filter models')}
+      >
         <div
           className='flex flex-wrap gap-2'
           role='group'
@@ -178,33 +184,51 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
       ) : (
         <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
           {visible.map((model) => (
-            <Card key={model.id}>
-              <CardHeader>
-                <CardTitle>{model.effectiveDisplayName}</CardTitle>
-                <CardDescription>
-                  {model.catalog.capability
-                    ? t(String(model.catalog.capability))
-                    : t('Canvas model')}
+            <Card
+              key={model.id}
+              className='ring-foreground/15 hover:ring-primary/55 shadow-xs transition-shadow motion-reduce:transition-none'
+            >
+              <CardHeader className='grid-cols-[auto_minmax(0,1fr)] gap-x-3'>
+                <CapabilityIcon capability={model.catalog.capability} />
+                <CardTitle className='min-w-0 break-words'>
+                  {model.effectiveDisplayName}
+                </CardTitle>
+                <CardDescription className='flex min-w-0 flex-wrap items-center gap-1.5'>
+                  <span>
+                    {model.catalog.capability
+                      ? t(String(model.catalog.capability))
+                      : t('Canvas model')}
+                  </span>
+                  {model.tags.map((tag) => (
+                    <Badge key={tag.id} variant='secondary'>
+                      {tag.name}
+                    </Badge>
+                  ))}
                 </CardDescription>
               </CardHeader>
               <CardContent className='space-y-2'>
                 {model.parameterCombinations.map((combination) => (
                   <div
                     key={combination.id}
-                    className='bg-muted/50 flex items-center justify-between rounded-lg px-3 py-2'
+                    className='bg-muted flex items-center justify-between gap-2 rounded-lg border px-3 py-2'
                   >
-                    <span className='truncate'>
+                    <span className='truncate font-medium'>
                       {Object.values(combination.parameters).join(' · ') ||
                         t('Default')}
                     </span>
-                    <span className='font-medium tabular-nums'>
-                      {combination.points} {t('points')}
+                    <span className='shrink-0 tabular-nums'>
+                      <span className='text-[15px] font-bold'>
+                        {combination.points}
+                      </span>
+                      <span className='text-muted-foreground ms-1 text-xs'>
+                        {t('points')}
+                      </span>
                     </span>
                   </div>
                 ))}
                 {typeof model.catalog.description === 'string' &&
                   model.catalog.description.trim() && (
-                    <p className='text-muted-foreground text-sm break-words whitespace-pre-wrap'>
+                    <p className='text-muted-foreground text-[13px] break-words whitespace-pre-wrap'>
                       {model.catalog.description}
                     </p>
                   )}
@@ -214,5 +238,29 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
         </div>
       )}
     </div>
+  )
+}
+
+// Leading visual anchor for each card; the capability text beside the title stays the
+// accessible label, so the icon is decorative.
+function CapabilityIcon(props: { capability: unknown }) {
+  if (props.capability === 'video.generate') {
+    return (
+      <IconBadge tone='chart-3' size='title' className='row-span-2'>
+        <Video />
+      </IconBadge>
+    )
+  }
+  if (props.capability === 'image.generate') {
+    return (
+      <IconBadge tone='chart-1' size='title' className='row-span-2'>
+        <ImageIcon />
+      </IconBadge>
+    )
+  }
+  return (
+    <IconBadge tone='neutral' size='title' className='row-span-2'>
+      <Box />
+    </IconBadge>
   )
 }

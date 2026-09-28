@@ -271,6 +271,7 @@ export function AgentManagement(props: {
       {
         id: 'username',
         accessorKey: 'username',
+        meta: { label: t('Username') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Username')} />
         ),
@@ -281,6 +282,7 @@ export function AgentManagement(props: {
       {
         id: 'status',
         accessorKey: 'status',
+        meta: { label: t('Status') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
@@ -294,6 +296,7 @@ export function AgentManagement(props: {
       {
         id: 'createdAt',
         accessorKey: 'createdAt',
+        meta: { label: t('Created At') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Created At')} />
         ),

@@ -14,7 +14,7 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import type { CanvasCatalogModel } from '../../types'
@@ -94,6 +94,26 @@ describe('customer model center', () => {
     fireEvent.click(screen.getByRole('button', { name: 'video.generate' }))
     fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
     expect(screen.getByText('No models available in this filter')).toBeVisible()
+  })
+
+  it('anchors each card with its capability icon, tags and emphasized points', () => {
+    const { container } = render(<CustomerModelCenter models={models} />)
+
+    const cards = container.querySelectorAll('[data-slot="card"]')
+    expect(cards).toHaveLength(3)
+    expect(
+      cards[0].querySelector('[data-slot="card-header"] svg')
+    ).not.toBeNull()
+    expect(
+      within(cards[0] as HTMLElement).getByText('Photography')
+    ).toHaveAttribute('data-slot', 'badge')
+    expect(within(cards[2] as HTMLElement).getByText('Film')).toHaveAttribute(
+      'data-slot',
+      'badge'
+    )
+    expect(
+      within(cards[1] as HTMLElement).queryByText('Photography')
+    ).toBeNull()
   })
 
   it('searches only the client display name without exposing internal identities', () => {
