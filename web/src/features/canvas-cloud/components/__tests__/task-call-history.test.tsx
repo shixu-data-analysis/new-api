@@ -244,6 +244,32 @@ describe('TaskCallHistory', () => {
     ).toBeVisible()
   })
 
+  it('shows the request body directly under the request line with one copy action', () => {
+    mountDetails({
+      ...call,
+      sanitizedRequest: {
+        method: 'POST',
+        path: '/v1/images/generations',
+        query: {},
+        contentType: 'application/json',
+        body: { n: 1, prompt: 'a girl' },
+      },
+    })
+    const panel = screen.getByRole('tabpanel', { hidden: false })
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    const requestPanel = screen.getByRole('tabpanel')
+    expect(requestPanel).not.toBe(panel)
+    expect(screen.getByText('POST /v1/images/generations')).toBeVisible()
+    expect(requestPanel.querySelector('pre')?.textContent).toContain(
+      '"prompt": "a girl"'
+    )
+    expect(
+      Array.from(requestPanel.querySelectorAll('button')).filter(
+        (button) => button.textContent === 'Copy'
+      )
+    ).toHaveLength(1)
+  })
+
   it.each([
     [false, 'This call predates the change; the response body was not saved.'],
     [

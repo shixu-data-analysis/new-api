@@ -1264,26 +1264,31 @@ function CredentialGroupSection(props: {
               'How often an asynchronous task checks the upstream result; this does not control client refresh.'
             )
           } else if (name === 'deadlineMs') {
-            help = `${t(
-              'Measured from task acceptance; after it the system stops submitting or querying upstream and releases still-frozen points as a timeout.'
-            )} ${t('Currently {{duration}}.', {
-              duration: humanDuration(form.watch('deadlineMs'), t),
-            })}`
+            help = t('{{description}} {{current}}', {
+              description: t(
+                'Measured from task acceptance; after it the system stops submitting or querying upstream and releases still-frozen points as a timeout.'
+              ),
+              current: t('Currently {{duration}}.', {
+                duration: humanDuration(form.watch('deadlineMs'), t),
+              }),
+            })
           } else if (name === 'unknownReleaseMs') {
             const deadline = form.watch('deadlineMs')
             const wait = form.watch('unknownReleaseMs')
-            help = `${t(
-              'When the result cannot be confirmed and there is no upstream task ID, frozen points are released after this wait.'
-            )} ${
-              wait >= deadline
-                ? t(
-                    'Currently within {{duration}} after acceptance (limited by the execution deadline).',
-                    { duration: humanDuration(deadline, t) }
-                  )
-                : t('Currently {{duration}}.', {
-                    duration: humanDuration(wait, t),
-                  })
-            }`
+            help = t('{{description}} {{current}}', {
+              description: t(
+                'When the result cannot be confirmed and there is no upstream task ID, frozen points are released after this wait.'
+              ),
+              current:
+                wait >= deadline
+                  ? t(
+                      'Currently within {{duration}} after acceptance (limited by the execution deadline).',
+                      { duration: humanDuration(deadline, t) }
+                    )
+                  : t('Currently {{duration}}.', {
+                      duration: humanDuration(wait, t),
+                    }),
+            })
           } else if (name === 'requestConcurrency') {
             help = t(
               'Concurrent upstream requests across all instances for this API Key group; full capacity queues admitted tasks.'

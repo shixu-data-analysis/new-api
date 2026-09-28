@@ -139,7 +139,12 @@ function collapseLongStrings(
   return value
 }
 
-export function JsonSnapshot(props: { value: unknown; description: string }) {
+export function JsonSnapshot(props: {
+  value: unknown
+  description?: string
+  // Set to false when the surrounding section already offers a copy action.
+  copyable?: boolean
+}) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const full = JSON.stringify(props.value, null, 2)
@@ -150,31 +155,42 @@ export function JsonSnapshot(props: { value: unknown; description: string }) {
     null,
     2
   )
+  const copyable = props.copyable ?? true
+  const showHeader =
+    Boolean(props.description) || copyable || collapsed !== full
   return (
     <div className='space-y-2'>
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <p className='text-muted-foreground text-xs'>{props.description}</p>
-        <div className='flex gap-2'>
-          {collapsed !== full ? (
-            <Button
-              type='button'
-              size='sm'
-              variant='ghost'
-              onClick={() => setExpanded((value) => !value)}
-            >
-              {t(expanded ? 'Collapse' : 'Show full content')}
-            </Button>
-          ) : null}
-          <Button
-            type='button'
-            size='sm'
-            variant='ghost'
-            onClick={() => void navigator.clipboard?.writeText(full)}
-          >
-            {t('Copy')}
-          </Button>
+      {showHeader ? (
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          {props.description ? (
+            <p className='text-muted-foreground text-xs'>{props.description}</p>
+          ) : (
+            <span />
+          )}
+          <div className='flex gap-2'>
+            {collapsed !== full ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='ghost'
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {t(expanded ? 'Collapse' : 'Show full content')}
+              </Button>
+            ) : null}
+            {copyable ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='ghost'
+                onClick={() => void navigator.clipboard?.writeText(full)}
+              >
+                {t('Copy')}
+              </Button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
       <pre className='bg-muted max-h-60 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
         {expanded ? full : collapsed}
       </pre>
@@ -538,7 +554,7 @@ export function CallDetails({
                 {String(requestSnapshot.path ?? '')}
               </p>
               {requestRest && Object.keys(requestRest).length ? (
-                <JsonSnapshot value={requestRest} description='' />
+                <JsonSnapshot value={requestRest} copyable={false} />
               ) : (
                 <p className='text-muted-foreground text-sm'>
                   {t('No query parameters or request body.')}

@@ -955,6 +955,25 @@ it.each([
 )
 
 describe('provider error handling localization', () => {
+  it.each([
+    ['zh', zh],
+    ['zh-TW', zhTW],
+    ['ja', ja],
+  ] as const)(
+    'joins execution-setting help sentences without spaces in %s',
+    (_locale, resource) => {
+      const translation = resource.translation as Record<string, string>
+      expect(translation['{{description}} {{current}}']).toBe(
+        '{{description}}{{current}}'
+      )
+      for (const key of [
+        'Currently {{duration}}.',
+        'Currently within {{duration}} after acceptance (limited by the execution deadline).',
+      ]) {
+        expect(translation[key], key).not.toMatch(/\{\{duration\}\}\s/)
+      }
+    }
+  )
   const english = en.translation as Record<string, string>
   const customerViewKeys = Object.keys(english).filter((key) =>
     key.startsWith('Customer task view ')

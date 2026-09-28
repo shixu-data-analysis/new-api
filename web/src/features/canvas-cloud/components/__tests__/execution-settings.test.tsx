@@ -1151,12 +1151,12 @@ describe('execution settings', () => {
     expect(
       screen.getByLabelText('执行截止时间（毫秒）')
     ).toHaveAccessibleDescription(
-      '从任务受理起计算；超过后不再提交或查询上游，仍冻结的积分按超时释放。 当前 24 小时。'
+      '从任务受理起计算；超过后不再提交或查询上游，仍冻结的积分按超时释放。当前为 24 小时。'
     )
     expect(
       screen.getByLabelText('结果不明释放等待（毫秒）')
     ).toHaveAccessibleDescription(
-      '结果无法确认且没有上游任务编号时，等待这段时间后释放冻结积分。 当前 4 小时。'
+      '结果无法确认且没有上游任务编号时，等待这段时间后释放冻结积分。当前为 4 小时。'
     )
   })
 
