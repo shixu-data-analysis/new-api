@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "RMB par million de tokens",
     "RMB per successful million tokens": "RMB par million de tokens réussis",
     "points per million tokens": "points par million de tokens",
+    "points per second": "points par seconde",
+    "points per request": "points par requête",
     "Customer price per million tokens": "Prix client par million de tokens",
     "Keep current rates": "Conserver les tarifs actuels",
     "Enter a non-negative RMB amount with up to 2 decimals": "Saisissez un montant RMB positif ou nul, avec au plus 2 décimales",

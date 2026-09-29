@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "元／100万トークン",
     "RMB per successful million tokens": "元／成功した100万トークン",
     "points per million tokens": "ポイント／100万トークン",
+    "points per second": "ポイント／秒",
+    "points per request": "ポイント／回",
     "Customer price per million tokens": "100万トークンあたりの顧客価格",
     "Keep current rates": "現在の料金を維持",
     "Enter a non-negative RMB amount with up to 2 decimals": "0以上の人民元額を小数点以下2桁以内で入力してください",

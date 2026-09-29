@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "Юаней за миллион токенов",
     "RMB per successful million tokens": "Юаней за миллион успешных токенов",
     "points per million tokens": "баллов за миллион токенов",
+    "points per second": "баллов в секунду",
+    "points per request": "баллов за запрос",
     "Customer price per million tokens": "Цена клиента за миллион токенов",
     "Keep current rates": "Сохранить текущие тарифы",
     "Enter a non-negative RMB amount with up to 2 decimals": "Введите неотрицательную сумму в юанях, до 2 знаков после запятой",

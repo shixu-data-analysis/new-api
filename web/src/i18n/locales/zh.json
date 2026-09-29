@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "人民币元／百万 Token",
     "RMB per successful million tokens": "人民币元／百万成功 Token",
     "points per million tokens": "积分／百万 Token",
+    "points per second": "积分／秒",
+    "points per request": "积分／次",
     "Customer price per million tokens": "每百万 Token 客户售价",
     "Keep current rates": "保留原费率",
     "Enter a non-negative RMB amount with up to 2 decimals": "请输入非负人民币金额，最多两位小数",

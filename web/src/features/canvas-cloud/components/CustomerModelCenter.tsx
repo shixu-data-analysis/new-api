@@ -31,7 +31,12 @@ import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import type { CanvasCatalogModel } from '../types'
+import type {
+  CanvasBillingUnit,
+  CanvasCatalogModel,
+  CanvasTokenCategory,
+  CanvasTokenRateVector,
+} from '../types'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 
 export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
@@ -218,10 +223,13 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
                     </span>
                     <span className='shrink-0 tabular-nums'>
                       <span className='text-[15px] font-bold'>
-                        {combination.points}
+                        {combination.billingUnit === 'MILLION_TOKENS' &&
+                        combination.tokenRates
+                          ? tokenRateSummary(combination.tokenRates, t)
+                          : combination.points}
                       </span>
                       <span className='text-muted-foreground ms-1 text-xs'>
-                        {t('points')}
+                        {t(pointsUnitKey(combination.billingUnit))}
                       </span>
                     </span>
                   </div>
@@ -239,6 +247,31 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
       )}
     </div>
   )
+}
+
+// Customer price unit mirrors Canvas Web; unknown units stay plain points.
+function pointsUnitKey(billingUnit: CanvasBillingUnit) {
+  if (billingUnit === 'SECOND') return 'points per second'
+  if (billingUnit === 'MILLION_TOKENS') return 'points per million tokens'
+  if (billingUnit === 'REQUEST') return 'points per request'
+  return 'points'
+}
+
+const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
+  input: 'Input',
+  output: 'Output',
+  cacheRead: 'Cache read',
+  cacheWrite: 'Cache write',
+}
+
+function tokenRateSummary(
+  rates: Partial<CanvasTokenRateVector>,
+  t: (key: string) => string
+) {
+  return (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
+    .filter((category) => typeof rates[category] === 'string')
+    .map((category) => `${t(tokenCategoryLabel[category])} ${rates[category]}`)
+    .join(' · ')
 }
 
 // Leading visual anchor for each card; the capability text beside the title stays the

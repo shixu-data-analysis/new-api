@@ -24,6 +24,15 @@ export const STATIC_I18N_KEYS = [
   'Model key',
   'View model identity',
 
+  // Canvas customer model center price units
+  'points per second',
+  'points per request',
+  'points per million tokens',
+  'Input',
+  'Output',
+  'Cache read',
+  'Cache write',
+
   // Canvas activity management dynamic states
   'Activity status PENDING',
   'Activity status RUNNING',

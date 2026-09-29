@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "Nhân dân tệ trên một triệu token",
     "RMB per successful million tokens": "Nhân dân tệ trên một triệu token thành công",
     "points per million tokens": "điểm trên một triệu token",
+    "points per second": "điểm mỗi giây",
+    "points per request": "điểm mỗi yêu cầu",
     "Customer price per million tokens": "Giá khách hàng trên một triệu token",
     "Keep current rates": "Giữ mức giá hiện tại",
     "Enter a non-negative RMB amount with up to 2 decimals": "Nhập số tiền nhân dân tệ không âm, tối đa 2 chữ số thập phân",

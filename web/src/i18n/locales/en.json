@@ -7540,6 +7540,8 @@
     "RMB per million tokens": "RMB per million tokens",
     "RMB per successful million tokens": "RMB per successful million tokens",
     "points per million tokens": "points per million tokens",
+    "points per second": "points per second",
+    "points per request": "points per request",
     "Customer price per million tokens": "Customer price per million tokens",
     "Keep current rates": "Keep current rates",
     "Enter a non-negative RMB amount with up to 2 decimals": "Enter a non-negative RMB amount with up to 2 decimals",

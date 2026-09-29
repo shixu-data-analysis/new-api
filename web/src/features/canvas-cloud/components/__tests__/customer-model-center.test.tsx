@@ -37,6 +37,8 @@ const models: CanvasCatalogModel[] = [
         executionTargetId: 'target-1',
         parameters: { quality: '2K' },
         billingDimensions: {},
+        billingUnit: 'REQUEST',
+        tokenRates: null,
         points: '20',
       },
     ],
@@ -57,7 +59,26 @@ const models: CanvasCatalogModel[] = [
     catalogDefaultName: 'Catalog Clip',
     catalog: { capability: 'video.generate' },
     tags: [{ id: 'film', name: 'Film' }],
-    parameterCombinations: [],
+    parameterCombinations: [
+      {
+        id: 'duration-1',
+        executionTargetId: 'target-2',
+        parameters: { resolution: '480P' },
+        billingDimensions: {},
+        billingUnit: 'SECOND',
+        tokenRates: null,
+        points: '22',
+      },
+      {
+        id: 'clip-1',
+        executionTargetId: 'target-3',
+        parameters: { resolution: '720P' },
+        billingDimensions: {},
+        billingUnit: 'REQUEST',
+        tokenRates: null,
+        points: '150',
+      },
+    ],
   },
 ]
 
@@ -127,5 +148,38 @@ describe('customer model center', () => {
     expect(
       screen.queryByRole('button', { name: 'View model identity' })
     ).not.toBeInTheDocument()
+  })
+
+  it('shows each combination price with its billing unit', () => {
+    const tokenModel: CanvasCatalogModel = {
+      id: 'text-1',
+      modelKey: 'canvas.text.chat',
+      effectiveDisplayName: 'Chat',
+      catalogDefaultName: 'Catalog Chat',
+      catalog: { capability: 'text.generate' },
+      tags: [],
+      parameterCombinations: [
+        {
+          id: 'token-1',
+          executionTargetId: 'target-4',
+          parameters: {},
+          billingDimensions: {},
+          billingUnit: 'MILLION_TOKENS',
+          tokenRates: { input: '12', output: '48' },
+          points: '0',
+        },
+      ],
+    }
+    const { container } = render(
+      <CustomerModelCenter models={[...models, tokenModel]} />
+    )
+    const cards = container.querySelectorAll('[data-slot="card"]')
+    expect(cards[0]).toHaveTextContent('20points per request')
+    expect(cards[2]).toHaveTextContent('22points per second')
+    expect(cards[2]).toHaveTextContent('150points per request')
+    expect(cards[3]).toHaveTextContent(
+      'Input 12 · Output 48points per million tokens'
+    )
+    expect(cards[3]).not.toHaveTextContent('0points')
   })
 })

@@ -865,6 +865,8 @@ export interface CanvasCatalogModel {
     executionTargetId: string
     parameters: Record<string, unknown>
     billingDimensions: Record<string, unknown>
+    billingUnit: CanvasBillingUnit
+    tokenRates: Partial<CanvasTokenRateVector> | null
     points: string
   }>
 }
