@@ -70,6 +70,13 @@ async function chooseCreateType(value: string) {
   await user.click(await screen.findByRole('option', { name: value }))
 }
 
+// Editing requires a future schedule, so derive it from the real clock instead of a date that expires.
+function futureScheduledAt() {
+  const date = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  date.setUTCSeconds(0, 0)
+  return date.toISOString()
+}
+
 describe('ADMIN-REWORK-007 activity management', () => {
   beforeAll(() =>
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
@@ -306,7 +313,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       status: 'WAITING' as const,
       schedule: {
         mode: 'SCHEDULED' as const,
-        scheduledAt: '2026-09-13T00:00:00.000Z',
+        scheduledAt: futureScheduledAt(),
       },
       memberCount: 1,
       successCount: 0,

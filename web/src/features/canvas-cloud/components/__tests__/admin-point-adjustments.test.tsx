@@ -284,7 +284,8 @@ describe('ADMIN-REWORK-004 customer management', () => {
         {
           customerModelId: 'model-v3',
           modelKey: 'image.model',
-          name: 'Latest Image Model',
+          effectiveDisplayName: 'Latest Image Model',
+          catalogDefaultName: 'Catalog Image Model',
           description: null,
           capability: 'IMAGE',
           tags: [],
