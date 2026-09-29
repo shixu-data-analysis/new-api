@@ -6763,6 +6763,7 @@
     "Activated customers": "Khách hàng đã kích hoạt",
     "Activated at": "Thời gian kích hoạt",
     "Billing unit": "Đơn vị tính phí",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "Mô hình này luôn trả về {{count}} hình ảnh cho mỗi yêu cầu. Hãy nhập giá cho cả yêu cầu ({{count}} hình ảnh), không phải giá của một hình ảnh.",
     "No inviter": "Không có đại lý",
     "Attribution does not restrict which models the customer can use.": "Thông tin giới thiệu không giới hạn mô hình khách hàng có thể dùng.",
     "Show recharge code": "Hiển thị mã nạp",

@@ -6763,6 +6763,7 @@
     "Activated customers": "有効化済み顧客",
     "Activated at": "有効化日時",
     "Billing unit": "課金単位",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "このモデルは1回のリクエストで常に {{count}} 枚の画像を返します。1枚あたりではなく、1回のリクエスト（{{count}} 枚）分の価格を入力してください。",
     "No inviter": "代理店なし",
     "Attribution does not restrict which models the customer can use.": "招待の帰属によって顧客が使用できるモデルは制限されません。",
     "Show recharge code": "チャージコードを表示",

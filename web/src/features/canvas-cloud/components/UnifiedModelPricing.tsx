@@ -1232,6 +1232,14 @@ export function UnifiedModelPricing(props: {
               {t('points')} / {billingUnitLabel(billingUnit, t)}
             </p>
           ) : null}
+          {billingUnit === 'REQUEST' && selected.fixedRequestBatchSize ? (
+            <p role='note' className='text-muted-foreground text-sm'>
+              {t(
+                'This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.',
+                { count: selected.fixedRequestBatchSize }
+              )}
+            </p>
+          ) : null}
           <div
             className={
               selected.allowedBillingUnits.length === 1 &&

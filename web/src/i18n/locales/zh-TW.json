@@ -6763,6 +6763,7 @@
     "Activated customers": "已啟用客戶",
     "Activated at": "啟用時間",
     "Billing unit": "計費單位",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "此模型每次固定回傳 {{count}} 張圖片。請填寫整次請求（{{count}} 張）的價格，不是單張價格。",
     "No inviter": "無代理商",
     "Attribution does not restrict which models the customer can use.": "邀請歸屬不會限制客戶可使用的模型。",
     "Show recharge code": "顯示儲值碼",

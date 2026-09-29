@@ -1341,6 +1341,9 @@ export interface CanvasModelPricingModel {
   billingUnitState: 'UNPRICED' | 'CONSISTENT' | 'MIXED'
   publishedBillingUnits: CanvasBillingUnit[]
   allowedBillingUnits: CanvasBillingUnit[]
+  // Set when one Provider call always returns this many results; a REQUEST
+  // price then covers the whole batch.
+  fixedRequestBatchSize?: number | null
   tokenCategories: CanvasTokenCategory[]
   combinations: Array<{
     id: string

@@ -6763,6 +6763,7 @@
     "Activated customers": "Активированные клиенты",
     "Activated at": "Активирован",
     "Billing unit": "Единица тарификации",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "Эта модель всегда возвращает {{count}} изображения за один запрос. Укажите цену всего запроса ({{count}} изображения), а не одного изображения.",
     "No inviter": "Без агента",
     "Attribution does not restrict which models the customer can use.": "Привязка не ограничивает модели, доступные клиенту.",
     "Show recharge code": "Показать код пополнения",

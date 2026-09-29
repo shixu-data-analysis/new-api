@@ -6763,6 +6763,7 @@
     "Activated customers": "已激活客户",
     "Activated at": "激活时间",
     "Billing unit": "计费单位",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "该模型每次固定返回 {{count}} 张图片。请填写整次请求（{{count}} 张）的价格，不是单张价格。",
     "No inviter": "无代理商",
     "Attribution does not restrict which models the customer can use.": "代理商归属仅用于记录，不限制客户可使用的模型",
     "Show recharge code": "显示充值码",

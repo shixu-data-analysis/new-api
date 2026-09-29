@@ -6763,6 +6763,7 @@
     "Activated customers": "Clients activés",
     "Activated at": "Activé le",
     "Billing unit": "Unité de facturation",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "Ce modèle renvoie toujours {{count}} images par requête. Saisissez le prix d'une requête complète ({{count}} images), et non celui d'une seule image.",
     "No inviter": "Aucun agent",
     "Attribution does not restrict which models the customer can use.": "L’attribution ne limite pas les modèles utilisables par le client.",
     "Show recharge code": "Afficher le code de recharge",

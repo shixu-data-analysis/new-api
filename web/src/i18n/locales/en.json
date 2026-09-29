@@ -6763,6 +6763,7 @@
     "Activated customers": "Activated customers",
     "Activated at": "Activated at",
     "Billing unit": "Billing unit",
+    "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.": "This model always returns {{count}} images per request. Enter the price of one whole request ({{count}} images), not the price of one image.",
     "No inviter": "No agent",
     "Attribution does not restrict which models the customer can use.": "Attribution does not restrict which models the customer can use.",
     "Show recharge code": "Show recharge code",

@@ -352,6 +352,32 @@ describe('UnifiedModelPricing UAT-028', () => {
     expect(await screen.findByText('124 points / per request')).toBeVisible()
   })
 
+  it('shows no whole-request hint for a model without a fixed batch', async () => {
+    renderPricing()
+    await fields()
+    expect(
+      screen.queryByText(/always returns \d+ images per request/)
+    ).not.toBeInTheDocument()
+  })
+
+  it('tells the admin to enter the whole-request price for a fixed four-image batch', async () => {
+    const batchModel = { ...model, fixedRequestBatchSize: 4 }
+    const batchDetail = structuredClone(detail)
+    batchDetail.model = batchModel as never
+    mocks.workspace.mockResolvedValue({
+      models: [batchModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue(batchDetail)
+    renderPricing()
+    await fields()
+    expect(
+      screen.getByText(
+        'This model always returns 4 images per request. Enter the price of one whole request (4 images), not the price of one image.'
+      )
+    ).toBeVisible()
+  })
+
   it('leaves missing original RMB fields blank for a legacy POINTS version while showing old points read-only', async () => {
     const old = structuredClone(detail)
     old.pricingScopes[0].originalProviderSuccessPriceCny = null as never
