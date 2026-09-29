@@ -266,7 +266,7 @@ function CustomerOrders({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Recharge amount')} />
         ),
-        meta: { label: t('Recharge amount') },
+        meta: { label: t('Recharge amount'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {formatMoneyMinor(
@@ -285,7 +285,7 @@ function CustomerOrders({
             title={t('Purchased points')}
           />
         ),
-        meta: { label: t('Purchased points') },
+        meta: { label: t('Purchased points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(
@@ -303,7 +303,7 @@ function CustomerOrders({
             title={t('Recharge bonus points')}
           />
         ),
-        meta: { label: t('Recharge bonus points') },
+        meta: { label: t('Recharge bonus points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.issuedBonusPoints ?? '0')}
@@ -319,7 +319,7 @@ function CustomerOrders({
             title={t('Available recharge points')}
           />
         ),
-        meta: { label: t('Available recharge points') },
+        meta: { label: t('Available recharge points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.availablePaidPoints)}
@@ -335,7 +335,7 @@ function CustomerOrders({
             title={t('Available bonus points')}
           />
         ),
-        meta: { label: t('Available bonus points') },
+        meta: { label: t('Available bonus points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.availableBonusPoints)}
@@ -637,7 +637,7 @@ function OrderPointReturnHistory({
         accessorKey: 'points',
         enableSorting: false,
         header: t('Returned points'),
-        meta: { label: t('Returned points') },
+        meta: { label: t('Returned points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.points)}
@@ -649,7 +649,7 @@ function OrderPointReturnHistory({
         accessorKey: 'referenceAmountMinor',
         enableSorting: false,
         header: t('Refund reference amount'),
-        meta: { label: t('Refund reference amount') },
+        meta: { label: t('Refund reference amount'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {formatMoneyMinor(
@@ -839,7 +839,7 @@ function CustomerTasks({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Quoted points')} />
         ),
-        meta: { label: t('Quoted points') },
+        meta: { label: t('Quoted points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.quotedPoints)}
@@ -852,7 +852,7 @@ function CustomerTasks({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Settled points')} />
         ),
-        meta: { label: t('Settled points') },
+        meta: { label: t('Settled points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {number(row.original.settledPoints)}

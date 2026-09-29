@@ -1,5 +1,8 @@
 import type { ColumnDef } from '@tanstack/react-table'
 
+import type { DataTableColumnClassName } from '@/components/data-table'
+import { cn } from '@/lib/utils'
+
 export const canvasStaticColumnWidth = {
   compact: 'w-32 min-w-32',
   standard: 'w-40 min-w-40',
@@ -33,4 +36,31 @@ export function withCanvasTableColumnSizes<TData>(
     const identifier = identity.id ?? identity.accessorKey ?? ''
     return { ...column, size: canvasTableColumnSize(identifier) }
   })
+}
+
+// Same header treatment the pricing tables use: sortable and plain headers both move right.
+const END_ALIGNED_HEADER =
+  'text-right [&>div]:justify-end [&_button]:justify-end'
+const END_ALIGNED_CELL = 'text-right tabular-nums'
+
+// Columns with meta.align 'end' get matching header and cell alignment, so numeric headers sit
+// over their values; page-specific column classes are kept.
+export function withCanvasColumnAlignment<TData>(
+  columns: ColumnDef<TData, unknown>[],
+  getColumnClassName?: DataTableColumnClassName
+): DataTableColumnClassName {
+  const endAligned = new Set(
+    columns
+      .filter((column) => column.meta?.align === 'end')
+      .map((column) => {
+        const identity = column as { id?: string; accessorKey?: string }
+        return identity.id ?? identity.accessorKey ?? ''
+      })
+  )
+  return (columnId, kind) =>
+    cn(
+      getColumnClassName?.(columnId, kind),
+      endAligned.has(columnId) &&
+        (kind === 'header' ? END_ALIGNED_HEADER : END_ALIGNED_CELL)
+    ) || undefined
 }

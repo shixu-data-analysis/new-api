@@ -296,6 +296,17 @@ describe('Customer point history', () => {
     expect(lastQuery).not.toHaveProperty('refundId')
   })
 
+  it('aligns numeric ledger headers with their right-aligned values', async () => {
+    renderHistory('ledger')
+
+    expect(await screen.findByText('+500')).toBeVisible()
+    for (const header of ['涉及积分', '可用积分变化', '冻结积分变化']) {
+      expect(screen.getByText(header).closest('th')).toHaveClass('text-right')
+    }
+    expect(screen.getByText('+500').closest('td')).toHaveClass('text-right')
+    expect(screen.getByText('时间').closest('th')).not.toHaveClass('text-right')
+  })
+
   it('shows customer-readable point fields without internal identifiers', async () => {
     renderHistory()
 

@@ -588,7 +588,7 @@ export function AdminPointAdjustments({
             title={t('Available points')}
           />
         ),
-        meta: { label: t('Available points') },
+        meta: { label: t('Available points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(

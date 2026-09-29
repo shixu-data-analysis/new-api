@@ -442,7 +442,8 @@ function LotDetails(props: {
     {
       id: 'points',
       header: t('Change amount'),
-      cellClassName: 'text-right',
+      className: 'text-right',
+      cellClassName: 'text-right tabular-nums',
       cell: (row) => {
         if (row.query?.isError) {
           return (

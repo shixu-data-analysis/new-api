@@ -23,6 +23,8 @@ declare module '@tanstack/react-table' {
     label?: string
     description?: string
     className?: string
+    // Aligns the header and cells together (numeric columns use 'end').
+    align?: 'end'
     pinned?: 'left' | 'right'
     // Mobile card list layout hints (used by MobileCardList)
     mobileTitle?: boolean // card title area (left, larger text)

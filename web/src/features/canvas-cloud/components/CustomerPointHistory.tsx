@@ -350,7 +350,7 @@ export function CustomerPointHistory({
         accessorKey: 'initialPoints',
         enableSorting: false,
         header: t('Issued points'),
-        meta: { label: t('Issued points') },
+        meta: { label: t('Issued points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {formatPoints(row.original.initialPoints)}
@@ -363,7 +363,7 @@ export function CustomerPointHistory({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Available')} />
         ),
-        meta: { label: t('Available') },
+        meta: { label: t('Available'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {formatPoints(row.original.availablePoints)}
@@ -379,7 +379,7 @@ export function CustomerPointHistory({
             title={t('Task-reserved points')}
           />
         ),
-        meta: { label: t('Task-reserved points') },
+        meta: { label: t('Task-reserved points'), align: 'end' },
         cell: ({ row }) => (
           <div className='text-right tabular-nums'>
             {formatPoints(row.original.reservedPoints)}
@@ -467,6 +467,7 @@ export function CustomerPointHistory({
         accessorKey: 'eventPoints',
         enableSorting: false,
         meta: {
+          align: 'end',
           label: customerId ? t('Points in this change') : t('Affected points'),
         },
         header: () =>
@@ -516,7 +517,7 @@ export function CustomerPointHistory({
           id: 'availableDelta',
           accessorKey: 'availableDelta',
           enableSorting: false,
-          meta: { label: t('Available points change') },
+          meta: { label: t('Available points change'), align: 'end' },
           header: () => (
             <ExplainedHeader
               label={t('Available points change')}
@@ -544,7 +545,7 @@ export function CustomerPointHistory({
           id: 'reservedDelta',
           accessorKey: 'reservedDelta',
           enableSorting: false,
-          meta: { label: t('Reserved points change') },
+          meta: { label: t('Reserved points change'), align: 'end' },
           header: () => (
             <ExplainedHeader
               label={t('Reserved points change')}

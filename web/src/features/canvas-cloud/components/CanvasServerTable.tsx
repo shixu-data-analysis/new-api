@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef, Row, VisibilityState } from '@tanstack/react-table'
-import { useId, type ReactNode } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 
 import {
   type DataTableColumnClassName,
@@ -33,7 +33,10 @@ import { ErrorState } from '@/components/error-state'
 import { Input } from '@/components/ui/input'
 
 import type { CanvasServerTableState } from '../use-server-table-state'
-import { withCanvasTableColumnSizes } from './canvas-table-layout'
+import {
+  withCanvasColumnAlignment,
+  withCanvasTableColumnSizes,
+} from './canvas-table-layout'
 
 export function CanvasServerTable<TData>({
   data,
@@ -92,6 +95,11 @@ export function CanvasServerTable<TData>({
   const searchId = useId()
   const pageCount = Math.max(1, Math.ceil(total / pagination.pageSize))
   const sizedColumns = withCanvasTableColumnSizes(columns)
+  // Stable per columns so memoized rows are not re-rendered by a new class callback.
+  const columnClassName = useMemo(
+    () => withCanvasColumnAlignment(columns, getColumnClassName),
+    [columns, getColumnClassName]
+  )
   const visibleActiveFilterCount =
     (search.trim() ? 1 : 0) + (activeFilterCount ?? (hasActiveFilters ? 1 : 0))
   const { table } = useDataTable({
@@ -132,7 +140,7 @@ export function CanvasServerTable<TData>({
         fixedHeight={false}
         paginationInFooter={false}
         getRowClassName={getRowClassName}
-        getColumnClassName={getColumnClassName}
+        getColumnClassName={columnClassName}
         renderRow={renderRow ? (row) => renderRow(row) : undefined}
         mobileProps={{ renderExpandedContent }}
         applyHeaderSize
