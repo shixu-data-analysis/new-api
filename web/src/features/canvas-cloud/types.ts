@@ -1742,6 +1742,7 @@ export interface CanvasAdminTaskLog {
   settledPoints: string | null
   outstandingDebtPoints: string | null
   acceptedAt: string
+  completedAt: string | null
 }
 
 export interface CanvasTaskOutputSummary {
@@ -1777,6 +1778,7 @@ export interface CanvasAdminTaskLogQuery {
     | 'derivedExecutionStatus'
     | 'settledPoints'
     | 'acceptedAt'
+    | 'completedAt'
   sortOrder: 'asc' | 'desc'
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100

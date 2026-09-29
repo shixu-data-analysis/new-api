@@ -30,6 +30,7 @@ import { toIntlLocale } from '@/i18n/languages'
 
 import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
+import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
@@ -316,6 +317,24 @@ export function AdminTaskLogs() {
             ) : null}
           </div>
         ),
+      },
+      {
+        id: 'acceptedAt',
+        accessorKey: 'acceptedAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Accepted at')} />
+        ),
+        meta: { label: t('Accepted at') },
+        cell: ({ row }) => formatCanvasDateTime(row.original.acceptedAt),
+      },
+      {
+        id: 'completedAt',
+        accessorKey: 'completedAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Completed at')} />
+        ),
+        meta: { label: t('Completed at') },
+        cell: ({ row }) => formatCanvasDateTime(row.original.completedAt),
       },
     ],
     [i18n.language, i18n.resolvedLanguage, selectedTaskId, t]

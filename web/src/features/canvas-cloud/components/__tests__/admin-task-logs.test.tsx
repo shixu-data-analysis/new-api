@@ -54,6 +54,7 @@ const task = {
   settledPoints: '12',
   outstandingDebtPoints: '3',
   acceptedAt: '2026-09-03T00:00:00.000Z',
+  completedAt: '2026-09-03T00:02:00.000Z',
 }
 
 const taskDetail = {
@@ -208,6 +209,34 @@ describe('Canvas administrator task records', () => {
       screen.queryByRole('button', { name: 'View model identity' })
     ).not.toBeInTheDocument()
     expect(screen.getByText('Outstanding debt: 3')).toBeVisible()
+  })
+
+  it('shows sortable accepted and completed times, with a dash while a task is unfinished', async () => {
+    apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [
+        task,
+        {
+          ...task,
+          id: '85000000-0000-7000-8000-000000000009',
+          completedAt: null,
+        },
+      ],
+    })
+    mount()
+
+    await screen.findByRole('button', { name: task.id })
+    expect(screen.getByRole('button', { name: /Accepted at/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Completed at/ })).toBeVisible()
+    expect(
+      screen.getAllByText(new Date(task.acceptedAt).toLocaleString())
+    ).toHaveLength(2)
+    expect(
+      screen.getByText(new Date(task.completedAt).toLocaleString())
+    ).toBeVisible()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('opens the task record sheet from its task identifier', async () => {
