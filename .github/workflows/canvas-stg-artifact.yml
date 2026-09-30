@@ -77,6 +77,11 @@ jobs:
           printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
           printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
           printf 'tagged-image=%s\n' "$tagged_image" >> "$GITHUB_OUTPUT"
+      - name: Resolve the weekly layer-cache scope
+        id: cache
+        shell: bash
+        # A new scope every ISO week forces a full rebuild, so cached apt-get and base layers never age more than a week.
+        run: printf 'scope=new-api-canvas-stg-%s\n' "$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
       - name: Build and publish the immutable candidate
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -92,6 +97,8 @@ jobs:
             org.opencontainers.image.version=${{ steps.image.outputs.tag }}
           provenance: mode=max
           sbom: true
+          cache-from: type=gha,scope=${{ steps.cache.outputs.scope }}
+          cache-to: type=gha,mode=max,scope=${{ steps.cache.outputs.scope }}
       - name: Verify the registry digest
         id: digest
         shell: bash
