@@ -317,6 +317,7 @@ beforeEach(async () => {
       executionDisposition: 'UNKNOWN',
       executionDispositionSource: 'SYSTEM',
     },
+    customerView: { message: 'Please retry later.', upstreamReason: null },
   })
 })
 afterEach(() => vi.useRealTimers())
@@ -843,6 +844,10 @@ describe('execution settings', () => {
         executionDisposition: 'CONFIRMED_FAILED',
         executionDispositionSource: 'RULE',
       },
+      customerView: {
+        message: 'Generation service is unavailable.',
+        upstreamReason: 'Server is overloaded',
+      },
     })
     mount({ view: 'credentialGroup', credentialGroupId })
     fireEvent.click(
@@ -851,7 +856,10 @@ describe('execution settings', () => {
     fireEvent.click(screen.getByRole('button', { name: '502 server_error' }))
     await waitFor(() =>
       expect(mocks.previewCanvasExecutionError).toHaveBeenCalledWith(
-        expect.objectContaining({ httpStatus: 502 })
+        expect.objectContaining({
+          httpStatus: 502,
+          showSafeErrorDetailsToCustomer: true,
+        })
       )
     )
     expect(
@@ -861,11 +869,12 @@ describe('execution settings', () => {
     expect(screen.getByText('Released immediately')).toBeVisible()
     expect(screen.getByText('server_error')).toBeVisible()
     expect(screen.getByText(/"code": "server_error"/)).toBeVisible()
+    expect(screen.getByText('Generation service is unavailable.')).toBeVisible()
     expect(
-      screen.getByText('The upstream service returned an error code.')
+      screen.getByText('Upstream reason: Server is overloaded')
     ).toBeVisible()
     expect(
-      screen.queryByText('Generation service is unavailable.')
+      screen.queryByText('The upstream service returned an error code.')
     ).not.toBeInTheDocument()
   })
 
@@ -892,6 +901,10 @@ describe('execution settings', () => {
         executionDisposition: 'CONFIRMED_FAILED',
         executionDispositionSource: 'SYSTEM',
       },
+      customerView: {
+        message: 'Generation service is unavailable.',
+        upstreamReason: null,
+      },
     })
     mount({ view: 'credentialGroup', credentialGroupId })
     fireEvent.click(
@@ -910,8 +923,43 @@ describe('execution settings', () => {
         'System rule: a 4xx response means the provider rejected the request'
       )
     ).toBeVisible()
+    expect(screen.queryByText(/^Upstream reason:/)).not.toBeInTheDocument()
+  })
+
+  it('previews a 2xx response as a failed task by default and as a contract mismatch on request', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Test error mappings' })
+    )
+    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+      target: { value: '200' },
+    })
+    const kind = screen.getByLabelText('This 2xx response is')
+    expect(kind).toHaveValue('FAILED_TASK')
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    await waitFor(() =>
+      expect(mocks.previewCanvasExecutionError).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          httpStatus: 200,
+          responseKind: 'FAILED_TASK',
+        })
+      )
+    )
+    fireEvent.change(kind, { target: { value: 'SCHEMA_MISMATCH' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    await waitFor(() =>
+      expect(mocks.previewCanvasExecutionError).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          httpStatus: 200,
+          responseKind: 'SCHEMA_MISMATCH',
+        })
+      )
+    )
+    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+      target: { value: '400' },
+    })
     expect(
-      screen.queryByText('The upstream service returned an error code.')
+      screen.queryByLabelText('This 2xx response is')
     ).not.toBeInTheDocument()
   })
 
@@ -1222,7 +1270,7 @@ describe('execution settings', () => {
     mount({ view: 'credentialGroup', credentialGroupId })
 
     const toggle = await screen.findByRole('checkbox', {
-      name: 'Show safe error details to customers',
+      name: 'Show the upstream reason to customers',
     })
     expect(toggle).toBeChecked()
     expect(
@@ -1240,7 +1288,7 @@ describe('execution settings', () => {
     fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(
-      'Show safe error details to customers: Disabled'
+      'Show the upstream reason to customers: Disabled'
     )
     fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
 
@@ -1360,7 +1408,7 @@ describe('execution settings', () => {
 
     expect(
       await screen.findByRole('checkbox', {
-        name: 'Show safe error details to customers',
+        name: 'Show the upstream reason to customers',
       })
     ).not.toBeChecked()
     expect(screen.getByTestId('navigation-guard')).toHaveAttribute(
@@ -1508,6 +1556,68 @@ describe('execution settings', () => {
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(/Updated\s+error\.code = "DENIED"/)
     expect(dialog).not.toHaveTextContent(/custom\.(first|second)/)
+  })
+
+  it('publishes a mapping that hides the upstream reason from customers', async () => {
+    const data = await mocks.getCanvasCredentialGroupExecution()
+    mocks.getCanvasCredentialGroupExecution.mockClear()
+    const customRule = {
+      ...systemRule,
+      id: 'custom.portrait',
+      ruleType: 'JSON' as const,
+      httpStatus: null,
+      conditions: [
+        {
+          path: 'error.message',
+          operator: 'CONTAINS' as const,
+          valueType: 'STRING' as const,
+          value: 'portrait',
+        },
+      ],
+      category: 'INVALID_REQUEST' as const,
+      clientMessages: { en: 'Replace the reference image.' },
+      source: 'CUSTOM' as const,
+    }
+    mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+      ...data,
+      errors: {
+        ...data.errors,
+        effective: {
+          rules: [systemRule, customRule],
+          showSafeErrorDetailsToCustomer: true,
+        },
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+
+    fireEvent.click(
+      within(
+        await screen.findByRole('group', {
+          name: 'error.message contains "portrait"',
+        })
+      ).getByRole('button', { name: 'Edit' })
+    )
+    const hide = screen.getByRole('checkbox', {
+      name: 'Hide the upstream reason from customers',
+    })
+    expect(hide).not.toBeChecked()
+    fireEvent.click(hide)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const errorForm = screen.getByRole('form', { name: 'Error mappings' })
+    fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+
+    await waitFor(() =>
+      expect(
+        mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0].config.rules
+      ).toEqual([
+        expect.objectContaining({
+          id: 'custom.portrait',
+          hideUpstreamReason: true,
+        }),
+      ])
+    )
   })
 
   it('publishes an administrator-added limit rule only after confirmation', async () => {

@@ -76,6 +76,7 @@ export interface ErrorRule {
   clientMessages: Partial<Record<ExecutionLocale, string>>
   adminNote: string
   executionDisposition?: ExecutionDisposition
+  hideUpstreamReason?: boolean
   source: 'SYSTEM' | 'OVERRIDE' | 'CUSTOM'
 }
 
@@ -281,6 +282,11 @@ export interface ErrorPreviewResult {
     clientHttpStatus: number
     executionDisposition: ExecutionDisposition
     executionDispositionSource: 'RULE' | 'SYSTEM'
+    hideUpstreamReason?: boolean
+  }
+  customerView: {
+    message: string
+    upstreamReason: string | null
   }
 }
 

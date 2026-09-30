@@ -30,6 +30,7 @@ export const errorRuleJsonKeys = [
   'executionDisposition',
   'category',
   'clientMessages',
+  'hideUpstreamReason',
   'adminNote',
 ] as const satisfies readonly EditableErrorRuleField[]
 // Fails to compile when ErrorRule gains an editable field that the JSON editor does not document.
@@ -104,6 +105,11 @@ export const errorRuleJsonFieldReference: Array<[string, string, string]> = [
     'clientMessages',
     'Customer messages by language; languages left out use the category default.',
     'Keys zhCN, zhTW, en, ja, fr, ru, vi; each up to 1024 bytes',
+  ],
+  [
+    'hideUpstreamReason',
+    'Whether customers are kept from seeing the upstream reason when this rule matches, shown as “Hide the upstream reason from customers” in the form.',
+    'Omitted or false: show it when the provider shows the upstream reason to customers; true: never show it',
   ],
   [
     'adminNote',

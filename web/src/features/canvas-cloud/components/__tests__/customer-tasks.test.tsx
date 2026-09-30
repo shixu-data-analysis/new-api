@@ -376,6 +376,7 @@ describe('Canvas customer tasks', () => {
                     en: 'english-snapshot',
                     [messageLocale]: `localized-${locale}`,
                   },
+                  upstreamReason: 'provider-reason-text',
                 },
               },
               {
@@ -412,6 +413,13 @@ describe('Canvas customer tasks', () => {
         await screen.findByText(new RegExp(`localized-${locale}`))
       ).toBeVisible()
       expect(screen.getByText(/english-fallback/)).toBeVisible()
+      expect(
+        screen.getByText(
+          i18next.t('Customer task view upstream reason', {
+            reason: 'provider-reason-text',
+          })
+        )
+      ).toBeVisible()
       expect(
         screen.getByText((content) =>
           content.includes(

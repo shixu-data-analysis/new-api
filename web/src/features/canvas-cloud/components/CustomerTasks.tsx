@@ -327,6 +327,13 @@ export function CustomerTasks() {
                     t(
                       'The task failed. Please retry later or contact an administrator.'
                     )}
+                  {output.error?.upstreamReason ? (
+                    <span className='block'>
+                      {t('Customer task view upstream reason', {
+                        reason: output.error.upstreamReason,
+                      })}
+                    </span>
+                  ) : null}
                 </p>
               ))}
               {assets.length ? (

@@ -59,6 +59,7 @@ import {
   ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE,
   customerDeadline,
   customerErrorMessage,
+  customerUpstreamReason,
   customerNodeStatus,
   customerOutputLabelKey,
   customerPoints,
@@ -133,6 +134,18 @@ const earlyReleaseBlockedReasons: Record<string, string> = {
     'An executor is still handling this task. Try again after its claim ends.',
   ACTIVE_REQUEST_LEASE:
     'A provider request is still active. Try again after the request lease ends.',
+}
+
+// Which provider address check stopped a task before it was sent; Cloud records the check, never the host.
+const providerUrlRejectionKeys: Record<string, string> = {
+  URL_NOT_HTTPS: 'The provider address is not credential-free HTTPS',
+  URL_LOCALHOST: 'The provider address points to this machine',
+  URL_FORBIDDEN_NETWORK:
+    'The provider host resolves to a private or reserved network',
+  URL_DNS_CHANGED: 'The provider host resolved differently during the task',
+  URL_DNS_NOT_FOUND: 'The provider host does not exist',
+  URL_DNS_UNAVAILABLE:
+    'The provider host could not be resolved at that moment; retrying usually works',
 }
 
 function DetailValue({
@@ -256,10 +269,19 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
                 </span>
               </DetailValue>
               {task.preflightDiagnostic.detail ? (
-                <DetailValue label='Template error'>
+                <DetailValue
+                  label={
+                    task.preflightDiagnostic.reason === 'PROVIDER_URL_REJECTED'
+                      ? 'Provider address check'
+                      : 'Template error'
+                  }
+                >
                   {task.preflightDiagnostic.detail ===
                   'INTEGER_CONVERSION_FAILED'
                     ? `${t('Integer conversion failed')} · `
+                    : null}
+                  {providerUrlRejectionKeys[task.preflightDiagnostic.detail]
+                    ? `${t(providerUrlRejectionKeys[task.preflightDiagnostic.detail])} · `
                     : null}
                   <span className='font-mono select-text'>
                     {task.preflightDiagnostic.detail}
@@ -697,6 +719,7 @@ export function AdminTaskRecordDetails({
     task,
     i18n.resolvedLanguage || i18n.language
   )
+  const upstreamReason = customerUpstreamReason(task)
   const showCustomerError = nodeStatus.failed
   const separateSubmissions =
     task.multiResultMode === 'FANOUT' && task.outputs.length > 1
@@ -849,6 +872,13 @@ export function AdminTaskRecordDetails({
                         {errorMessage.kind === 'key'
                           ? t(errorMessage.key)
                           : errorMessage.text}
+                        {upstreamReason ? (
+                          <span className='text-muted-foreground block text-xs [overflow-wrap:anywhere]'>
+                            {t('Customer task view upstream reason', {
+                              reason: upstreamReason,
+                            })}
+                          </span>
+                        ) : null}
                       </DetailValue>
                     ) : null}
                   </dl>

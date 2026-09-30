@@ -762,6 +762,7 @@ export interface CanvasCustomerWorkspace {
       error?: {
         code: string | null
         messages: Record<string, string> | null
+        upstreamReason?: string | null
       } | null
     }>
     executionStatus: string
@@ -806,6 +807,7 @@ export interface CanvasCustomerTaskOutputSummary {
   error: {
     code: string | null
     messages: Record<string, string> | null
+    upstreamReason?: string | null
   } | null
 }
 
@@ -1721,6 +1723,7 @@ export interface CanvasAdminCustomerTask {
     error?: {
       code?: string | null
       messages?: Record<string, string> | null
+      upstreamReason?: string | null
     } | null
   }>
   upstreamTaskId: string | null
@@ -1755,6 +1758,7 @@ export interface CanvasTaskOutputSummary {
   error: {
     code?: string | null
     messages?: Record<string, string> | null
+    upstreamReason?: string | null
   } | null
   completedAt: string | null
   billingFinalizedAt: string | null
@@ -1991,6 +1995,7 @@ export interface CanvasAdminTaskRecordOutput {
   error: {
     code?: string | null
     messages?: Record<string, string> | null
+    upstreamReason?: string | null
     sanitizedMessage?: string | null
   } | null
   usageSnapshot: Record<string, string | number | boolean | null> | null
@@ -2058,6 +2063,7 @@ export interface CanvasAdminTaskRecordDetail {
   taskError: {
     code?: string | null
     messages?: Record<string, string> | null
+    upstreamReason?: string | null
   } | null
   acceptedAt: string
   completedAt: string | null

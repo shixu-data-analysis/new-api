@@ -33,15 +33,6 @@ import type {
 export const ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE =
   'ADMIN_CONFIRMED_UPSTREAM_FAILED'
 
-export const CUSTOMER_SAFE_ERROR_DETAIL_CODES = new Set([
-  'UPSTREAM_ERROR_CODE_PRESENT',
-  'UPSTREAM_ERROR_MESSAGE_PRESENT',
-  'UPSTREAM_ERROR_BODY_UNREADABLE',
-  'UPSTREAM_ERROR_FIELDS_UNRECOGNIZED',
-  'UPSTREAM_ERROR_DETAIL_UNRECOGNIZED',
-  'PROVIDER_RESPONSE_SCHEMA_INVALID',
-])
-
 export const CUSTOMER_FALLBACK_ERROR_KEY = 'Customer task view fallback error'
 
 type CustomerTask = Pick<
@@ -57,11 +48,7 @@ type CustomerTask = Pick<
   outputs: Array<
     Pick<
       CanvasAdminTaskRecordOutput,
-      | 'outputIndex'
-      | 'executionStatus'
-      | 'billingStatus'
-      | 'error'
-      | 'customerSafeErrorDetail'
+      'outputIndex' | 'executionStatus' | 'billingStatus' | 'error'
     >
   >
 }
@@ -198,38 +185,15 @@ export type CustomerErrorMessage =
   | { kind: 'key'; key: string }
   | { kind: 'text'; text: string }
 
-function customerSafeErrorDetail(task: CustomerTask): string | null {
-  if (task.executionStatus !== 'CONFIRMED_FAILED') return null
-  const failed = task.outputs.filter(
-    (output) => output.executionStatus === 'CONFIRMED_FAILED'
-  )
-  if (failed.length === 0) return null
-  const details = failed.map(
-    (output) => output.customerSafeErrorDetail?.trim() || null
-  )
-  return details[0] && details.every((detail) => detail === details[0])
-    ? details[0]
-    : null
-}
-
 /**
- * Canvas Web order: localized safe error detail, then the administrator
- * confirmation message, then the frozen localized client message, then the
- * client fallback. Unknown safe-detail codes use the fallback, never raw text.
+ * Canvas Web order: the administrator confirmation message, then the frozen
+ * localized customer message (a mapping's text or the category default), then
+ * the client fallback. Upstream text only appears as the separate reason.
  */
 export function customerErrorMessage(
   task: CustomerTask,
   language: string
 ): CustomerErrorMessage {
-  const detail = customerSafeErrorDetail(task)
-  if (detail) {
-    return {
-      kind: 'key',
-      key: CUSTOMER_SAFE_ERROR_DETAIL_CODES.has(detail)
-        ? detail
-        : CUSTOMER_FALLBACK_ERROR_KEY,
-    }
-  }
   const locale = normalizeInterfaceLanguage(language)
   const errors = task.taskError
     ? [task.taskError]
@@ -244,4 +208,20 @@ export function customerErrorMessage(
     if (task.taskError) break
   }
   return { kind: 'key', key: CUSTOMER_FALLBACK_ERROR_KEY }
+}
+
+/**
+ * The upstream reason Cloud attached for customers, shown under the error
+ * message; across several failed results it is kept only when all agree.
+ */
+export function customerUpstreamReason(task: CustomerTask): string | null {
+  const errors = task.taskError
+    ? [task.taskError]
+    : task.outputs
+        .filter((output) => output.executionStatus === 'CONFIRMED_FAILED')
+        .map((output) => output.error)
+  const reasons = errors.map((error) => error?.upstreamReason?.trim() || null)
+  return reasons[0] && reasons.every((reason) => reason === reasons[0])
+    ? reasons[0]
+    : null
 }

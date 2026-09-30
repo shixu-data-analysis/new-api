@@ -53,7 +53,6 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 
-import { CUSTOMER_SAFE_ERROR_DETAIL_CODES } from '../customer-task-view'
 import { formatErrorRuleMatch } from '../error-rule-format'
 import {
   errorRuleJsonFieldReference,
@@ -163,6 +162,7 @@ const errorRuleSchema = z.object({
   }),
   adminNote: adminNoteSchema,
   executionDisposition: z.enum(['', 'CONFIRMED_FAILED', 'UNKNOWN']),
+  hideUpstreamReason: z.boolean(),
   source: z.enum(['SYSTEM', 'OVERRIDE', 'CUSTOM']),
 })
 const editableErrorRuleJsonSchema = z
@@ -225,6 +225,7 @@ const editableErrorRuleJsonSchema = z
       .strict(),
     adminNote: adminNoteSchema,
     executionDisposition: z.enum(['CONFIRMED_FAILED', 'UNKNOWN']).optional(),
+    hideUpstreamReason: z.boolean().optional(),
   })
   .strict()
   .superRefine((rule, context) => {
@@ -573,6 +574,7 @@ const emptyErrorRule = (): ErrorForm['rules'][number] => ({
   ) as Record<ExecutionLocale, string>,
   adminNote: '',
   executionDisposition: '',
+  hideUpstreamReason: false,
   source: 'CUSTOM',
 })
 
@@ -2159,7 +2161,10 @@ function ruleDraftFromJson(
     }
   }
   const missing = errorRuleJsonKeys.filter(
-    (key) => key !== 'executionDisposition' && !keys.includes(key)
+    (key) =>
+      key !== 'executionDisposition' &&
+      key !== 'hideUpstreamReason' &&
+      !keys.includes(key)
   )
   if (missing.length) {
     return {
@@ -2200,6 +2205,7 @@ function ruleDraftFromJson(
     ),
     adminNote: structure.data.adminNote,
     executionDisposition: structure.data.executionDisposition ?? '',
+    hideUpstreamReason: structure.data.hideUpstreamReason ?? false,
   }
   if (
     base.source !== 'CUSTOM' &&
@@ -2284,6 +2290,7 @@ function ErrorSection(props: {
           (rule): ErrorRuleDraft => ({
             ...rule,
             executionDisposition: rule.executionDisposition ?? '',
+            hideUpstreamReason: rule.hideUpstreamReason ?? false,
             httpStatus: rule.httpStatus ?? '',
             conditions: rule.conditions.map((condition) => ({
               ...condition,
@@ -2323,6 +2330,11 @@ function ErrorSection(props: {
   const [previewJson, setPreviewJson] = useState(
     JSON.stringify(firstErrorPreviewSample.response)
   )
+  // A 2xx response is either a task the provider reported failed or a response that breaks the contract.
+  const [previewResponseKind, setPreviewResponseKind] = useState<
+    'FAILED_TASK' | 'SCHEMA_MISMATCH'
+  >('FAILED_TASK')
+  const previewIsSuccessStatus = /^2\d\d$/.test(previewStatus)
   const [previewError, setPreviewError] = useState('')
   const [previewFingerprint, setPreviewFingerprint] = useState<string | null>(
     null
@@ -2365,6 +2377,7 @@ function ErrorSection(props: {
           rule.category,
         adminNote: '',
         executionDisposition: '',
+        hideUpstreamReason: false,
         customMessagesEnabled: false,
         clientMessages: Object.fromEntries(
           locales.map((locale) => [locale, ''])
@@ -2381,6 +2394,8 @@ function ErrorSection(props: {
       httpStatus: number
       response: Record<string, unknown>
       rules: ErrorRule[]
+      showSafeErrorDetailsToCustomer: boolean
+      responseKind?: 'FAILED_TASK' | 'SCHEMA_MISMATCH'
     }) =>
       previewCanvasExecutionError({
         providerId: props.providerId,
@@ -2388,6 +2403,8 @@ function ErrorSection(props: {
         response: input.response,
         locale: currentLocale,
         rules: input.rules,
+        showSafeErrorDetailsToCustomer: input.showSafeErrorDetailsToCustomer,
+        responseKind: input.responseKind,
       }),
     onSuccess: (_result, input) => {
       setPreviewError('')
@@ -2404,6 +2421,8 @@ function ErrorSection(props: {
     previewStatus,
     previewJson,
     stableJson(draftRules),
+    watchedShowSafeDetails,
+    previewIsSuccessStatus ? previewResponseKind : null,
   ])
   const runPreview = (status: string, json: string) => {
     setPreviewError('')
@@ -2429,10 +2448,18 @@ function ErrorSection(props: {
       return
     }
     preview.mutate({
-      fingerprint: JSON.stringify([status, json, stableJson(draftRules)]),
+      fingerprint: JSON.stringify([
+        status,
+        json,
+        stableJson(draftRules),
+        watchedShowSafeDetails,
+        /^2\d\d$/.test(status) ? previewResponseKind : null,
+      ]),
       httpStatus: Number(status),
       response,
       rules: draftRules,
+      showSafeErrorDetailsToCustomer: watchedShowSafeDetails,
+      ...(/^2\d\d$/.test(status) ? { responseKind: previewResponseKind } : {}),
     })
   }
   const review = form.handleSubmit((values) => {
@@ -2471,7 +2498,7 @@ function ErrorSection(props: {
       props.showSafeErrorDetailsToCustomer
         ? []
         : [
-            `${t('Show safe error details to customers')}: ${t(
+            `${t('Show the upstream reason to customers')}: ${t(
               values.showSafeErrorDetailsToCustomer ? 'Enabled' : 'Disabled'
             )}`,
           ]),
@@ -2734,12 +2761,20 @@ function ErrorSection(props: {
   const matchedFacts = matchedDraft ? formRuleMatchFacts(matchedDraft) : null
   const previewFailed =
     preview.data?.match.executionDisposition === 'CONFIRMED_FAILED'
-  const previewStatusNumber = Number(previewStatus)
   let previewReason = t('Set by this mapping')
+  const previewStatusCode = preview.data?.facts.httpStatus
   if (preview.data?.match.executionDispositionSource === 'SYSTEM') {
-    previewReason = previewFailed
-      ? t('System rule: a 4xx response means the provider rejected the request')
-      : t('System rule: no clear failure evidence')
+    if (!previewFailed) {
+      previewReason = t('System rule: no clear failure evidence')
+    } else if (previewStatusCode !== undefined && previewStatusCode >= 400) {
+      previewReason = t(
+        'System rule: a 4xx response means the provider rejected the request'
+      )
+    } else {
+      previewReason = t(
+        'System rule: the provider reported that the task failed'
+      )
+    }
   }
   const releaseAt = formatCanvasDateTime(
     new Date(Date.now() + props.releaseWaitMs).toISOString(),
@@ -2787,13 +2822,13 @@ function ErrorSection(props: {
                 checked={field.value}
                 onCheckedChange={(checked) => field.onChange(checked === true)}
               />
-              {t('Show safe error details to customers')}
+              {t('Show the upstream reason to customers')}
             </label>
           )}
         />
         <p className='text-muted-foreground ml-6 text-xs'>
           {t(
-            'When enabled, failed tasks show a sanitized technical reason under “Error” in the customer task information; HTTP 401 and 402 are never shown. Preview it in “Test error mappings”.'
+            'When enabled, failures the customer can act on (an HTTP 400/422 rejection or a failed task) show the provider’s own reason under the customer message, in its original language with links and request IDs removed. A mapping can hide it for its matches. Preview it in “Test error mappings”.'
           )}
         </p>
       </div>
@@ -2844,6 +2879,29 @@ function ErrorSection(props: {
               {t('Test')}
             </Button>
           </div>
+          {previewIsSuccessStatus ? (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Label htmlFor='error-preview-response-kind' className='text-xs'>
+                {t('This 2xx response is')}
+              </Label>
+              <NativeSelect
+                id='error-preview-response-kind'
+                value={previewResponseKind}
+                onChange={(event) =>
+                  setPreviewResponseKind(
+                    event.target.value as 'FAILED_TASK' | 'SCHEMA_MISMATCH'
+                  )
+                }
+              >
+                <NativeSelectOption value='FAILED_TASK'>
+                  {t('A task the provider reported failed')}
+                </NativeSelectOption>
+                <NativeSelectOption value='SCHEMA_MISMATCH'>
+                  {t('A response that does not match the interface contract')}
+                </NativeSelectOption>
+              </NativeSelect>
+            </div>
+          ) : null}
           {previewError ? fieldError(previewError) : null}
           {preview.data ? (
             <div className='space-y-3'>
@@ -3025,15 +3083,14 @@ function ErrorSection(props: {
                         <dt className='text-muted-foreground'>
                           {t('Customer task view error')}
                         </dt>
-                        <dd>
-                          {watchedShowSafeDetails &&
-                          ![401, 402].includes(previewStatusNumber) &&
-                          CUSTOMER_SAFE_ERROR_DETAIL_CODES.has(
-                            preview.data.customerSafeErrorDetail
-                          )
-                            ? t(preview.data.customerSafeErrorDetail)
-                            : preview.data.match.clientMessage}
-                        </dd>
+                        <dd>{preview.data.customerView.message}</dd>
+                        {preview.data.customerView.upstreamReason ? (
+                          <dd className='text-muted-foreground text-xs [overflow-wrap:anywhere]'>
+                            {t('Customer task view upstream reason', {
+                              reason: preview.data.customerView.upstreamReason,
+                            })}
+                          </dd>
+                        ) : null}
                       </div>
                     ) : null}
                   </dl>
@@ -3497,6 +3554,25 @@ function ErrorSection(props: {
                 />
                 {issueText('clientMessages')}
               </div>
+              <div className='space-y-1'>
+                <label className='flex items-center gap-2 text-sm font-medium'>
+                  <Checkbox
+                    checked={draft.hideUpstreamReason}
+                    onCheckedChange={(checked) =>
+                      updateDraft({
+                        ...draft,
+                        hideUpstreamReason: checked === true,
+                      })
+                    }
+                  />
+                  {t('Hide the upstream reason from customers')}
+                </label>
+                <p className='text-muted-foreground ml-6 text-xs'>
+                  {t(
+                    'Use it when the provider’s wording is not suitable for customers, for example when it names a supplier; customers then only see the message above.'
+                  )}
+                </p>
+              </div>
             </section>
             <section className='space-y-3 border-t py-5'>
               <Button
@@ -3690,6 +3766,7 @@ function editableRuleJson(rule: ErrorForm['rules'][number]): string {
       ...(rule.executionDisposition
         ? { executionDisposition: rule.executionDisposition }
         : {}),
+      ...(rule.hideUpstreamReason ? { hideUpstreamReason: true } : {}),
     },
     null,
     2
@@ -3841,6 +3918,7 @@ function normalizeErrorDraft(
         ...(rule.executionDisposition
           ? { executionDisposition: rule.executionDisposition }
           : {}),
+        ...(rule.hideUpstreamReason ? { hideUpstreamReason: true } : {}),
         source: rule.source,
       }
       if (rule.source !== 'SYSTEM') {
@@ -3859,12 +3937,14 @@ function normalizeErrorDraft(
                 rule.category,
               adminNote: '',
               executionDisposition: undefined,
+              hideUpstreamReason: undefined,
             }
       const changed =
         rule.enabled !== baseline.enabled ||
         rule.category !== baseline.category ||
         rule.adminNote !== baseline.adminNote ||
         rule.executionDisposition !== (baseline.executionDisposition ?? '') ||
+        rule.hideUpstreamReason !== (baseline.hideUpstreamReason ?? false) ||
         Object.keys(clientMessages).length > 0
       return {
         ...(changed

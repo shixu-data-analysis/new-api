@@ -700,6 +700,67 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('mirrors Canvas Web with the customer message first and the upstream reason below it', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      executionStatus: 'CONFIRMED_FAILED',
+      customerBillingStatus: 'RELEASED_FAILED',
+      releasedPoints: '14',
+      billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+      taskError: null,
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'CONFIRMED_FAILED',
+          billingStatus: 'RELEASED_FAILED',
+          error: {
+            code: 'PROVIDER_UNKNOWN_ERROR',
+            messages: { zhCN: '生成失败，请稍后重试或联系管理员。' },
+            upstreamReason: '参考图涉及肖像限制',
+          },
+          usageSnapshot: null,
+          completedAt: '2026-09-14T09:17:00.000Z',
+          billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+          customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+        },
+      ],
+    })
+    mount()
+
+    expect(
+      await screen.findByText('生成失败，请稍后重试或联系管理员。')
+    ).toBeVisible()
+    expect(screen.getByText('上游原因：参考图涉及肖像限制')).toBeVisible()
+    expect(screen.queryByText('上游返回了错误码。')).not.toBeInTheDocument()
+  })
+
+  it('explains which provider address check stopped a task before it was sent', async () => {
+    await i18next.changeLanguage('zhCN')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      executionStatus: 'CONFIRMED_FAILED',
+      customerBillingStatus: 'RELEASED_FAILED',
+      failureLocation: 'EXECUTOR_PREFLIGHT',
+      preflightDiagnostic: {
+        stage: 'SUBMIT_REQUEST',
+        reason: 'PROVIDER_URL_REJECTED',
+        detail: 'URL_DNS_UNAVAILABLE',
+      },
+    })
+    mount()
+
+    expect(await screen.findByText('上游地址检查')).toBeVisible()
+    expect(
+      screen.getByText(/上游域名当时无法解析，重新提交通常即可/)
+    ).toBeVisible()
+    expect(screen.getByText('URL_DNS_UNAVAILABLE')).toBeVisible()
+  })
+
   it('does not show a failure explanation for an unknown frozen output', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,

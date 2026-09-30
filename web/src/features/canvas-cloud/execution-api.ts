@@ -120,6 +120,8 @@ export async function previewCanvasExecutionError(input: {
   response: Record<string, unknown>
   locale: ExecutionLocale
   rules?: unknown[]
+  showSafeErrorDetailsToCustomer?: boolean
+  responseKind?: 'FAILED_TASK' | 'SCHEMA_MISMATCH'
 }): Promise<ErrorPreviewResult> {
   return (
     await api.post<ErrorPreviewResult>(
@@ -131,6 +133,15 @@ export async function previewCanvasExecutionError(input: {
         response: input.response,
         locale: input.locale,
         ...(input.rules === undefined ? {} : { rules: input.rules }),
+        ...(input.showSafeErrorDetailsToCustomer === undefined
+          ? {}
+          : {
+              showSafeErrorDetailsToCustomer:
+                input.showSafeErrorDetailsToCustomer,
+            }),
+        ...(input.responseKind === undefined
+          ? {}
+          : { responseKind: input.responseKind }),
       },
       { skipErrorHandler: true }
     )
