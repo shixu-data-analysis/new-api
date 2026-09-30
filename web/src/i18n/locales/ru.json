@@ -4333,6 +4333,7 @@
     "Revenue": "Доход",
     "Review & initialize": "Проверить и инициализировать",
     "Review and sign out devices currently using your account.": "Просмотрите устройства, использующие вашу учётную запись, и завершите их сеансы.",
+    "PixMiao Studio apps are not listed here. Changing your password signs out all of them.": "Приложения PixMiao Studio здесь не отображаются. После смены пароля во всех них будет выполнен выход.",
     "Review model rates before scaling traffic": "Проверьте тарифы моделей перед масштабированием трафика",
     "Review your payment details": "Проверьте свои платежные данные",
     "Review your purchase details before proceeding.": "Просмотрите детали покупки перед продолжением.",

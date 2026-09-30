@@ -398,3 +398,56 @@ func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 	err = ResetUserPasswordByEmail("missing@example.com", "NewPassword123")
 	require.True(t, errors.Is(err, ErrEmailNotFound))
 }
+
+func TestPasswordChangesInvalidateTheCanvasAccessKey(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	reset := User{Username: "key-reset", Password: "old", Email: "key-reset@example.com", AffCode: "keyreset", Status: common.UserStatusEnabled}
+	changed := User{Username: "key-change", Password: "old", AffCode: "keychange", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&reset).Error)
+	require.NoError(t, DB.Create(&changed).Error)
+	resetKey, err := EnsureUserAccessToken(reset.Id)
+	require.NoError(t, err)
+	changedKey, err := EnsureUserAccessToken(changed.Id)
+	require.NoError(t, err)
+
+	require.NoError(t, ResetUserPasswordByEmail("key-reset@example.com", "NewPassword123"))
+	changed.Password = "NewPassword456"
+	require.NoError(t, changed.Update(true))
+
+	for _, key := range []string{resetKey, changedKey} {
+		stale, err := ValidateAccessToken(key)
+		require.NoError(t, err)
+		assert.Nil(t, stale)
+	}
+	edited := User{Username: "key-edit", Password: "old", AffCode: "keyedit", Group: "default", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&edited).Error)
+	editedKey, err := EnsureUserAccessToken(edited.Id)
+	require.NoError(t, err)
+	edited.Password = "NewPassword789"
+	require.NoError(t, edited.Edit(true))
+	stale, err := ValidateAccessToken(editedKey)
+	require.NoError(t, err)
+	assert.Nil(t, stale)
+
+	// Enabling 2FA or adding a passkey advances AuthVersion but must keep Canvas signed in,
+	// because Canvas password sign-in cannot complete a second factor.
+	secured := User{Username: "key-2fa", Password: "old", AffCode: "key2fa", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&secured).Error)
+	securedKey, err := EnsureUserAccessToken(secured.Id)
+	require.NoError(t, err)
+	_, err = BumpUserAuthVersion(secured.Id)
+	require.NoError(t, err)
+	kept, err := ValidateAccessToken(securedKey)
+	require.NoError(t, err)
+	require.NotNil(t, kept)
+	assert.Equal(t, secured.Id, kept.Id)
+
+	reissued, err := EnsureUserAccessToken(reset.Id)
+	require.NoError(t, err)
+	assert.NotEqual(t, resetKey, reissued)
+	owner, err := ValidateAccessToken(reissued)
+	require.NoError(t, err)
+	require.NotNil(t, owner)
+	assert.Equal(t, reset.Id, owner.Id)
+}

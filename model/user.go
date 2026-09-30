@@ -139,6 +139,14 @@ func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
+// clearUserAccessTokenWithTx revokes the dashboard personal access token, which
+// is also the Canvas client Key, so a password change signs out every Canvas
+// device; the next Canvas sign-in issues a fresh key. NULL keeps the unique
+// index valid for many users without a token.
+func clearUserAccessTokenWithTx(tx *gorm.DB, userId int) error {
+	return tx.Model(&User{}).Where("id = ?", userId).Update("access_token", nil).Error
+}
+
 // UpdateUserAccessToken rotates a dashboard personal access token without
 // writing a stale user snapshot back over concurrently updated fields.
 func UpdateUserAccessToken(id int, token string) error {
@@ -813,7 +821,8 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 	// Updates(struct) ignores zero values. Match that behavior when deciding
 	// whether this request actually changes authentication-sensitive state;
 	// partial self-profile updates intentionally leave role/status/group empty.
-	authChanged := (updatePassword && current.Password != newUser.Password) ||
+	passwordChanged := updatePassword && current.Password != newUser.Password
+	authChanged := passwordChanged ||
 		(newUser.Role != 0 && current.Role != newUser.Role) ||
 		(newUser.Status != 0 && current.Status != newUser.Status) ||
 		(newUser.Group != "" && current.Group != newUser.Group)
@@ -834,6 +843,11 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"auth_version",
 	).Updates(newUser).Error; err != nil {
 		return err
+	}
+	if passwordChanged {
+		if err = clearUserAccessTokenWithTx(tx, user.Id); err != nil {
+			return err
+		}
 	}
 	return tx.First(user, user.Id).Error
 }
@@ -882,7 +896,8 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	if err = tx.First(&current, user.Id).Error; err != nil {
 		return err
 	}
-	authChanged := (updatePassword && current.Password != newUser.Password) || current.Group != newUser.Group
+	passwordChanged := updatePassword && current.Password != newUser.Password
+	authChanged := passwordChanged || current.Group != newUser.Group
 	if authChanged {
 		newUser.AuthVersion, err = IncrementUserAuthVersionWithTx(tx, user.Id)
 		if err != nil {
@@ -891,6 +906,11 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 	if err = tx.Model(&current).Updates(updates).Error; err != nil {
 		return err
+	}
+	if passwordChanged {
+		if err = clearUserAccessTokenWithTx(tx, user.Id); err != nil {
+			return err
+		}
 	}
 	return tx.First(user, user.Id).Error
 }
@@ -1169,7 +1189,10 @@ func ResetUserPasswordByEmail(email string, password string) error {
 		if _, err := IncrementUserAuthVersionWithTx(tx, user.Id); err != nil {
 			return err
 		}
-		return tx.Model(&User{}).Where("id = ?", user.Id).Update("password", hashedPassword).Error
+		if err := tx.Model(&User{}).Where("id = ?", user.Id).Update("password", hashedPassword).Error; err != nil {
+			return err
+		}
+		return clearUserAccessTokenWithTx(tx, user.Id)
 	}); err != nil {
 		return err
 	}

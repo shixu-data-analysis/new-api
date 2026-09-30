@@ -194,8 +194,15 @@ export function LoginSessionsCard() {
       <Card data-card-hover='false'>
         <CardHeader>
           <CardTitle>{t('Login sessions')}</CardTitle>
-          <CardDescription>
-            {t('Review and sign out devices currently using your account.')}
+          <CardDescription className='flex flex-col gap-1'>
+            <p>
+              {t('Review and sign out devices currently using your account.')}
+            </p>
+            <p>
+              {t(
+                'PixMiao Studio apps are not listed here. Changing your password signs out all of them.'
+              )}
+            </p>
           </CardDescription>
           <CardAction>
             <Button

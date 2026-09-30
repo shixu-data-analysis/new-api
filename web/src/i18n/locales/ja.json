@@ -4333,6 +4333,7 @@
     "Revenue": "収益",
     "Review & initialize": "確認して初期化",
     "Review and sign out devices currently using your account.": "現在アカウントを使用しているデバイスを確認し、サインアウトできます。",
+    "PixMiao Studio apps are not listed here. Changing your password signs out all of them.": "PixMiao Studio アプリはここに表示されません。パスワードを変更すると、すべてのアプリからサインアウトされます。",
     "Review model rates before scaling traffic": "トラフィック拡大前にモデル料金を確認",
     "Review your payment details": "支払い詳細を確認",
     "Review your purchase details before proceeding.": "続行前に購入詳細を確認してください。",
