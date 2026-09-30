@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  cleanup,
   act,
   fireEvent,
   render,
@@ -420,6 +421,37 @@ describe('Canvas runtime configuration', () => {
 
     expect(onRuntimeViewChange).toHaveBeenNthCalledWith(1, 'taskMedia')
     expect(onRuntimeViewChange).toHaveBeenNthCalledWith(2, 'execution')
+  })
+
+  it('does not carry a remembered API Key group into another provider target', async () => {
+    const providerA = '11111111-1111-4111-8111-111111111111'
+    const providerB = '22222222-2222-4222-8222-222222222222'
+    const groupOfA = '33333333-3333-4333-8333-333333333333'
+    window.sessionStorage.setItem(
+      'canvas.provider-api-key-group.context',
+      JSON.stringify({ providerId: providerA, credentialGroupId: groupOfA })
+    )
+    try {
+      renderProviderConfiguration({ providerId: providerB })
+      await waitFor(() =>
+        expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalled()
+      )
+      const query = apiMocks.getCanvasProviderConfiguration.mock.calls[0]![0]
+      expect(query).toMatchObject({ providerId: providerB })
+      expect(query).not.toHaveProperty('credentialGroupId')
+      cleanup()
+      apiMocks.getCanvasProviderConfiguration.mockClear()
+
+      renderProviderConfiguration({ providerId: providerA })
+      await waitFor(() =>
+        expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalled()
+      )
+      expect(
+        apiMocks.getCanvasProviderConfiguration.mock.calls[0]![0]
+      ).toMatchObject({ providerId: providerA, credentialGroupId: groupOfA })
+    } finally {
+      window.sessionStorage.removeItem('canvas.provider-api-key-group.context')
+    }
   })
 
   it('uses the provider-only overview without exposing storage controls', async () => {

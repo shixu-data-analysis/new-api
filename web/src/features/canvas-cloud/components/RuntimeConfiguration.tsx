@@ -213,6 +213,23 @@ function readProviderContext(): {
   }
 }
 
+// A remembered API Key group only applies to its own provider; a navigation target that names another
+// provider (for example a newly imported model without a binding) must not inherit it.
+function initialProviderContext(
+  target: CanvasProviderNavigationTarget | undefined,
+  restored: { providerId: string; credentialGroupId: string } | null
+) {
+  const providerId = target?.providerId ?? restored?.providerId ?? ''
+  const restoredGroup =
+    restored && restored.providerId === providerId
+      ? restored.credentialGroupId
+      : ''
+  return {
+    providerId,
+    credentialGroupId: target?.credentialGroupId ?? restoredGroup,
+  }
+}
+
 export interface CanvasProviderNavigationTarget {
   providerId?: string
   credentialGroupId?: string
@@ -247,10 +264,14 @@ export function RuntimeConfiguration(
   const [credentialCloseRequested, setCredentialCloseRequested] =
     useState(false)
   const [selectedProviderId, setSelectedProviderId] = useState(
-    targetProviderId ?? restoredProviderContext?.providerId ?? ''
+    () =>
+      initialProviderContext(props.providerTarget, restoredProviderContext)
+        .providerId
   )
   const [selectedCredentialGroupId, setSelectedCredentialGroupId] = useState(
-    targetCredentialGroupId ?? restoredProviderContext?.credentialGroupId ?? ''
+    () =>
+      initialProviderContext(props.providerTarget, restoredProviderContext)
+        .credentialGroupId
   )
   const [providerTab, setProviderTab] = useState<'overview' | 'execution'>(
     'overview'
@@ -285,14 +306,17 @@ export function RuntimeConfiguration(
     useState<CanvasCredentialRotationPreview | null>(null)
   const rotationPreviewRequestRef = useRef(0)
   useEffect(() => {
-    setSelectedProviderId(
-      targetProviderId ?? restoredProviderContext?.providerId ?? ''
+    const initial = initialProviderContext(
+      {
+        ...(targetProviderId ? { providerId: targetProviderId } : {}),
+        ...(targetCredentialGroupId
+          ? { credentialGroupId: targetCredentialGroupId }
+          : {}),
+      },
+      restoredProviderContext
     )
-    setSelectedCredentialGroupId(
-      targetCredentialGroupId ??
-        restoredProviderContext?.credentialGroupId ??
-        ''
-    )
+    setSelectedProviderId(initial.providerId)
+    setSelectedCredentialGroupId(initial.credentialGroupId)
     rotationPreviewRequestRef.current += 1
   }, [targetCredentialGroupId, targetProviderId, restoredProviderContext])
   const providerQuery: CanvasProviderConfigurationQuery = {
