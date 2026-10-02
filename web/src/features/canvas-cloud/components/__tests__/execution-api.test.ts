@@ -156,8 +156,8 @@ describe('execution policy API boundary', () => {
     expect(keys.every((key) => key.startsWith('web-executor-drain-'))).toBe(
       true
     )
-    expect(mocks.post.mock.calls.every((call) => call[2].skipErrorHandler)).toBe(
-      true
-    )
+    expect(
+      mocks.post.mock.calls.every((call) => call[2].skipErrorHandler)
+    ).toBe(true)
   })
 })

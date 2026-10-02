@@ -518,10 +518,26 @@ describe('AdminTaskRecordDetails UAT-018', () => {
 
   it.each([
     ['PROVIDER_OUTPUT_TOO_LARGE', 'OUTPUT_DOWNLOAD', '结果下载 · 结果文件过大'],
-    ['PROVIDER_OUTPUT_LOCATION_REJECTED', 'OUTPUT_DOWNLOAD', '结果下载 · 结果地址被拒绝'],
-    ['PROVIDER_OUTPUT_DOWNLOAD_FAILED', 'OUTPUT_DOWNLOAD', '结果下载 · 结果下载失败'],
-    ['PROVIDER_OUTPUT_UNSUPPORTED_MEDIA', 'RESPONSE_PROCESSING', '响应处理 · 结果不是可用的媒体'],
-    ['PROVIDER_OUTPUT_INVALID', 'RESPONSE_PROCESSING', '响应处理 · 结果文件无效'],
+    [
+      'PROVIDER_OUTPUT_LOCATION_REJECTED',
+      'OUTPUT_DOWNLOAD',
+      '结果下载 · 结果地址被拒绝',
+    ],
+    [
+      'PROVIDER_OUTPUT_DOWNLOAD_FAILED',
+      'OUTPUT_DOWNLOAD',
+      '结果下载 · 结果下载失败',
+    ],
+    [
+      'PROVIDER_OUTPUT_UNSUPPORTED_MEDIA',
+      'RESPONSE_PROCESSING',
+      '响应处理 · 结果不是可用的媒体',
+    ],
+    [
+      'PROVIDER_OUTPUT_INVALID',
+      'RESPONSE_PROCESSING',
+      '响应处理 · 结果文件无效',
+    ],
     ['OUTPUT_STORAGE_FAILED', 'STORAGE', '存储 · 结果保存失败'],
   ] as const)(
     'names the output retrieval failure %s and its location instead of showing the code',

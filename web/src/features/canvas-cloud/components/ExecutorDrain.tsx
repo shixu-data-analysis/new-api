@@ -171,9 +171,7 @@ export function ExecutorDrain() {
             ) : (
               <div className='flex-1' />
             )}
-            <div className='flex flex-wrap gap-2 lg:justify-end'>
-              {actions}
-            </div>
+            <div className='flex flex-wrap gap-2 lg:justify-end'>{actions}</div>
           </section>
         </CardContent>
       </Card>

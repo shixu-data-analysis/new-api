@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
+import { useExecutorDrain } from '../use-executor-drain'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
@@ -21,7 +22,6 @@ import {
   RuntimeConfiguration,
   type CanvasProviderNavigationTarget,
 } from './RuntimeConfiguration'
-import { useExecutorDrain } from '../use-executor-drain'
 
 export type RuntimeManagementView = 'execution' | 'provider' | 'taskMedia'
 
