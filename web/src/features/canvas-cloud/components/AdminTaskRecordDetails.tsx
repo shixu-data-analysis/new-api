@@ -85,6 +85,7 @@ const failureLocations: Record<string, string> = {
   EXECUTOR_PREFLIGHT: 'Executor preflight',
   PROVIDER_NETWORK: 'Provider network',
   PROVIDER_RESPONSE: 'Provider response',
+  OUTPUT_DOWNLOAD: 'Output download',
   RESPONSE_PROCESSING: 'Response processing',
   STORAGE: 'Storage',
 }
@@ -102,6 +103,12 @@ const errorCategories: Record<string, string> = {
   PROVIDER_UNAVAILABLE: 'Provider unavailable',
   PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
   PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
+  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
+  PROVIDER_OUTPUT_LOCATION_REJECTED: 'Result address rejected',
+  PROVIDER_OUTPUT_DOWNLOAD_FAILED: 'Result download failed',
+  PROVIDER_OUTPUT_UNSUPPORTED_MEDIA: 'Result is not usable media',
+  PROVIDER_OUTPUT_INVALID: 'Result file invalid',
+  OUTPUT_STORAGE_FAILED: 'Result storage failed',
 }
 // Mirrors Cloud SAFE_TASK_PARAMETER_KEYS; the prompt and input media are never shown.
 const taskParameterKeys = new Set([

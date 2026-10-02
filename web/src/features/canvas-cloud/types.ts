@@ -2047,6 +2047,7 @@ export interface CanvasAdminTaskRecordDetail {
     | 'EXECUTOR_PREFLIGHT'
     | 'PROVIDER_NETWORK'
     | 'PROVIDER_RESPONSE'
+    | 'OUTPUT_DOWNLOAD'
     | 'RESPONSE_PROCESSING'
     | 'STORAGE'
     | null

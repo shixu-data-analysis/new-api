@@ -516,6 +516,55 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['PROVIDER_OUTPUT_TOO_LARGE', 'OUTPUT_DOWNLOAD', '结果下载 · 结果文件过大'],
+    ['PROVIDER_OUTPUT_LOCATION_REJECTED', 'OUTPUT_DOWNLOAD', '结果下载 · 结果地址被拒绝'],
+    ['PROVIDER_OUTPUT_DOWNLOAD_FAILED', 'OUTPUT_DOWNLOAD', '结果下载 · 结果下载失败'],
+    ['PROVIDER_OUTPUT_UNSUPPORTED_MEDIA', 'RESPONSE_PROCESSING', '响应处理 · 结果不是可用的媒体'],
+    ['PROVIDER_OUTPUT_INVALID', 'RESPONSE_PROCESSING', '响应处理 · 结果文件无效'],
+    ['OUTPUT_STORAGE_FAILED', 'STORAGE', '存储 · 结果保存失败'],
+  ] as const)(
+    'names the output retrieval failure %s and its location instead of showing the code',
+    async (code, location, expected) => {
+      await i18next.changeLanguage('zhCN')
+      api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+        ...task,
+        derivedExecutionStatus: 'CONFIRMED_FAILED',
+        executionSummary: {
+          ...task.executionSummary,
+          succeededResults: 0,
+          failedResults: 1,
+        },
+        deductedPoints: '0',
+        releasedPoints: '14',
+        customerBillingStatus: 'RELEASED_FAILED',
+        failureLocation: location,
+        taskError: { code, messages: { en: 'English message' } },
+      })
+      mount()
+
+      expect(await screen.findByText(expected)).toBeVisible()
+      expect(screen.queryByText(code)).not.toBeInTheDocument()
+    }
+  )
+
+  it('shows the output download location in a non-default language', async () => {
+    await i18next.changeLanguage('fr')
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'CONFIRMED_FAILED',
+      failureLocation: 'OUTPUT_DOWNLOAD',
+      taskError: { code: 'PROVIDER_OUTPUT_DOWNLOAD_FAILED', messages: null },
+    })
+    mount()
+
+    expect(
+      await screen.findByText(
+        'Téléchargement du résultat · Échec du téléchargement du résultat'
+      )
+    ).toBeVisible()
+  })
+
   it('uses a localized safe fallback for an unknown error code', async () => {
     await i18next.changeLanguage('zhCN')
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
