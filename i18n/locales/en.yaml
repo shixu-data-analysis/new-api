@@ -82,6 +82,7 @@ user.registration_identity_unavailable: "Registration information is unavailable
 user.password_unset: "This account has no password set. Please use password reset or contact an administrator to reset it."
 user.password_reset_link_invalid: "Password reset link is invalid or has expired"
 user.input_invalid: "Invalid input {{.Error}}"
+user.username_at_not_allowed: "Username cannot contain @"
 user.no_permission_same_level: "No permission to access users of same or higher level"
 user.no_permission_higher_level: "No permission to update users of same or higher permission level"
 user.cannot_create_higher_level: "Cannot create users with permission level equal to or higher than yourself"

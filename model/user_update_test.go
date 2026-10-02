@@ -354,6 +354,26 @@ func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 	assert.Empty(t, stored.Password)
 }
 
+func TestValidateAndFillMatchesEmailCaseInsensitively(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	passwordHash, err := common.Password2Hash("StoredPassword123")
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&User{
+		Username: "email-login-user",
+		Password: passwordHash,
+		Email:    "owner@example.test",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	loginUser := User{
+		Username: "Owner@Example.Test",
+		Password: "StoredPassword123",
+	}
+	require.NoError(t, loginUser.ValidateAndFill())
+	assert.Equal(t, "email-login-user", loginUser.Username)
+}
+
 func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 	setupUserUpdateTestState(t)
 

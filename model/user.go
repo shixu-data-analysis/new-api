@@ -344,6 +344,13 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// IsUsernameAllowed rejects usernames containing "@". Login matches its input
+// against both username and email, so an email-shaped username could shadow
+// the account that owns that email address.
+func IsUsernameAllowed(username string) bool {
+	return !strings.Contains(username, "@")
+}
+
 func emailQuery(tx *gorm.DB, email string) *gorm.DB {
 	if tx == nil {
 		tx = DB
@@ -1044,8 +1051,9 @@ func (user *User) ValidateAndFill() (err error) {
 	if username == "" || password == "" {
 		return ErrUserEmptyCredentials
 	}
-	// find by username or email
-	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	// find by username or email; emails are stored normalized, so match the
+	// normalized input too without wrapping the indexed column in LOWER()
+	err = DB.Where("username = ? OR email IN ?", username, []string{username, NormalizeEmail(username)}).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrInvalidCredentials

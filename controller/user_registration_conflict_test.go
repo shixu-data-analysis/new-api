@@ -54,6 +54,16 @@ func TestRegisterReturnsStableConflictCodes(t *testing.T) {
 		require.Equal(t, "REGISTRATION_IDENTITY_UNAVAILABLE", response.Code)
 		require.Equal(t, "注册信息不可用，请更换后重试或直接登录。", response.Message)
 	})
+
+	t.Run("username containing at sign", func(t *testing.T) {
+		common.EmailVerificationEnabled = false
+		response := registerRequest(t, `{"username":"new@example.test","password":"another-password"}`)
+		require.Equal(t, "用户名不能包含 @", response.Message)
+
+		var count int64
+		require.NoError(t, database.Model(&model.User{}).Where("username = ?", "new@example.test").Count(&count).Error)
+		require.Zero(t, count)
+	})
 }
 
 func registerRequest(t *testing.T, body string) struct {

@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { CopyableText } from '@/features/canvas-cloud/components/CopyableText'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 
 import {
@@ -127,6 +128,33 @@ export function useUsersColumns(
       enableHiding: false,
       size: 220,
       meta: { mobileTitle: true },
+    },
+    {
+      accessorKey: 'email',
+      header: t('Email'),
+      cell: ({ row }) => {
+        const email = row.original.email
+
+        if (!email) {
+          return <span className='text-muted-foreground text-sm'>-</span>
+        }
+
+        return (
+          // Table cells truncate; card views have no hover, so wrap instead.
+          <div className='flex max-w-[240px] min-w-0 items-center gap-1 text-sm in-data-[slot=card-field-value]:max-w-none in-data-[slot=card-field-value]:items-start in-data-[slot=card-field-value]:text-xs'>
+            <span
+              className='truncate in-data-[slot=card-field-value]:break-all in-data-[slot=card-field-value]:whitespace-normal'
+              title={email}
+            >
+              {email}
+            </span>
+            <CopyableText value={email} hideValue />
+          </div>
+        )
+      },
+      enableSorting: false,
+      size: 260,
+      meta: { mobileOrder: 15 },
     },
     {
       accessorKey: 'status',

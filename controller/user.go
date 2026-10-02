@@ -224,6 +224,10 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	if !model.IsUsernameAllowed(user.Username) {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameAtNotAllowed)
+		return
+	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
@@ -759,6 +763,10 @@ func UpdateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if updatedUser.Username != originUser.Username && !model.IsUsernameAllowed(updatedUser.Username) {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameAtNotAllowed)
+		return
+	}
 	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -931,6 +939,10 @@ func UpdateSelf(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidInput)
 		return
 	}
+	if user.Username != c.GetString("username") && !model.IsUsernameAllowed(user.Username) {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameAtNotAllowed)
+		return
+	}
 
 	cleanUser := model.User{
 		Id:          c.GetInt("id"),
@@ -1083,6 +1095,10 @@ func CreateUser(c *gin.Context) {
 	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+		return
+	}
+	if !model.IsUsernameAllowed(user.Username) {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameAtNotAllowed)
 		return
 	}
 	if user.DisplayName == "" {
