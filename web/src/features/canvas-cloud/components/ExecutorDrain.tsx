@@ -76,10 +76,15 @@ export function ExecutorDrain() {
         ? cancelCanvasExecutorDrain()
         : startCanvasExecutorDrain(),
     onSuccess: (state: ExecutorDrainState, action) => {
+      // The row may be a few seconds old: extending a drain that has just expired starts a new one, and says so.
+      const previous = queryClient.getQueryData<ExecutorDrainState>(
+        executorDrainQueryKey
+      )
+      const startedAnew = action === 'extend' && previous?.drainId !== state.drainId
       queryClient.setQueryData(executorDrainQueryKey, state)
       setConfirming(false)
       toast.success(
-        action === 'start'
+        action === 'start' || startedAnew
           ? t('Draining started')
           : action === 'extend'
             ? t('Draining extended by 60 minutes')

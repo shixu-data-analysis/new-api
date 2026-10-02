@@ -141,6 +141,23 @@ describe('executor drain row', () => {
     expect(mocks.success).toHaveBeenCalledWith('Draining cancelled')
   })
 
+  it('says a new drain started when the one being extended had already expired', async () => {
+    const user = userEvent.setup()
+    mocks.get.mockResolvedValue(draining)
+    mocks.start.mockResolvedValue({
+      ...draining,
+      drainId: '70000000-0000-7000-8000-000000000002',
+      startedAt: '2026-10-03T15:03:00.000Z',
+      expiresAt: '2026-10-03T16:03:00.000Z',
+    })
+    mount()
+    await user.click(
+      await screen.findByRole('button', { name: 'Extend by 60 minutes' })
+    )
+    await waitFor(() => expect(mocks.success).toHaveBeenCalledWith('Draining started'))
+    expect(mocks.success).not.toHaveBeenCalledWith('Draining extended by 60 minutes')
+  })
+
   it('refreshes every 5 seconds only while draining', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     mocks.get.mockResolvedValue(normal)
