@@ -79,6 +79,7 @@ import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
+import { ExecutorDrain } from './ExecutorDrain'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
@@ -698,6 +699,7 @@ export function ExecutionSettings(
       <>
         <FormNavigationGuard when={anyDirty} />
         <div className='space-y-6'>
+          <ExecutorDrain />
           {overview.isPending && (
             <Card size='sm'>
               <CardContent className='text-muted-foreground text-sm'>

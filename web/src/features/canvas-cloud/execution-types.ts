@@ -295,3 +295,17 @@ export type PublishedExecutionPolicy =
   | ChannelPolicy
   | ErrorPolicy
   | LimitPolicy
+
+export interface ExecutorDrainState {
+  queueName: string
+  draining: boolean
+  drainId: string | null
+  startedAt: string | null
+  expiresAt: string | null
+  startedByPrincipalId: string | null
+  inFlight: {
+    harmedByRestart: number
+    continuingAfterRestart: number
+  }
+  serverTime: string
+}

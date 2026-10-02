@@ -12,6 +12,9 @@ import {
   getCanvasExecutionWaitDetail,
   previewCanvasExecutionError,
   publishCanvasExecutionPolicy,
+  cancelCanvasExecutorDrain,
+  getCanvasExecutorDrain,
+  startCanvasExecutorDrain,
 } from '../../execution-api'
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
@@ -125,6 +128,36 @@ describe('execution policy API boundary', () => {
         locale: 'en',
       },
       { skipErrorHandler: true }
+    )
+  })
+
+  it('reads, starts and cancels draining with a fresh idempotency key and without a request body', async () => {
+    await getCanvasExecutorDrain()
+    await startCanvasExecutorDrain()
+    await startCanvasExecutorDrain()
+    await cancelCanvasExecutorDrain()
+    expect(mocks.get.mock.calls[0]?.[0]).toBe(
+      '/canvas-api/v1/web/admin/execution/drain'
+    )
+    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual([
+      '/canvas-api/v1/web/admin/execution/drain',
+      '/canvas-api/v1/web/admin/execution/drain',
+      '/canvas-api/v1/web/admin/execution/drain/cancel',
+    ])
+    expect(mocks.post.mock.calls.map((call) => call[1])).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ])
+    const keys = mocks.post.mock.calls.map(
+      (call) => call[2].headers['Idempotency-Key'] as string
+    )
+    expect(new Set(keys).size).toBe(3)
+    expect(keys.every((key) => key.startsWith('web-executor-drain-'))).toBe(
+      true
+    )
+    expect(mocks.post.mock.calls.every((call) => call[2].skipErrorHandler)).toBe(
+      true
     )
   })
 })

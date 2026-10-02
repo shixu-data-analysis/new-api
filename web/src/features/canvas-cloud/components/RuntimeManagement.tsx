@@ -8,6 +8,7 @@ the Free Software Foundation, either version 3 of the License, or
 */
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
@@ -16,6 +17,7 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { ExecutionSettings } from './ExecutionSettings'
+import { useExecutorDrain } from './ExecutorDrain'
 import {
   RuntimeConfiguration,
   type CanvasProviderNavigationTarget,
@@ -31,6 +33,7 @@ export function RuntimeManagement(props: {
 }) {
   const { t } = useTranslation()
   const view = props.initialView ?? 'execution'
+  const drain = useExecutorDrain()
   return (
     <Tabs
       className='space-y-4'
@@ -42,6 +45,11 @@ export function RuntimeManagement(props: {
       <CanvasManagementTabsList>
         <CanvasManagementTabsTrigger value='execution'>
           {t('Task execution status and limits')}
+          {drain.data?.draining ? (
+            <Badge variant='secondary' className='ml-2'>
+              {t('Draining')}
+            </Badge>
+          ) : null}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='provider'>
           {t('Provider configuration')}

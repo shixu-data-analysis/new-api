@@ -67,6 +67,19 @@ vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
   ),
 }))
 vi.mock('sonner', () => ({ toast: toastMocks }))
+vi.mock('../../execution-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../execution-api')>()),
+  getCanvasExecutorDrain: vi.fn().mockResolvedValue({
+    queueName: 'canvas-tasks',
+    draining: false,
+    drainId: null,
+    startedAt: null,
+    expiresAt: null,
+    startedByPrincipalId: null,
+    inFlight: { harmedByRestart: 0, continuingAfterRestart: 0 },
+    serverTime: '2026-10-03T00:00:00.000Z',
+  }),
+}))
 
 const runtime = {
   environment: 'UAT',

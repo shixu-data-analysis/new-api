@@ -40,6 +40,9 @@ const mocks = vi.hoisted(() => ({
   getCanvasCredentialGroupExecution: vi.fn(),
   publishCanvasExecutionPolicy: vi.fn(),
   previewCanvasExecutionError: vi.fn(),
+  getCanvasExecutorDrain: vi.fn(),
+  startCanvasExecutorDrain: vi.fn(),
+  cancelCanvasExecutorDrain: vi.fn(),
 }))
 vi.mock('../../execution-api', () => ({
   getCanvasExecutionOverview: mocks.getCanvasExecutionOverview,
@@ -49,6 +52,9 @@ vi.mock('../../execution-api', () => ({
   getCanvasCredentialGroupExecution: mocks.getCanvasCredentialGroupExecution,
   publishCanvasExecutionPolicy: mocks.publishCanvasExecutionPolicy,
   previewCanvasExecutionError: mocks.previewCanvasExecutionError,
+  getCanvasExecutorDrain: mocks.getCanvasExecutorDrain,
+  startCanvasExecutorDrain: mocks.startCanvasExecutorDrain,
+  cancelCanvasExecutorDrain: mocks.cancelCanvasExecutorDrain,
 }))
 vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
   FormNavigationGuard: (props: { when: boolean }) => (
@@ -112,6 +118,16 @@ beforeAll(async () => {
 beforeEach(async () => {
   await i18next.changeLanguage('en')
   vi.clearAllMocks()
+  mocks.getCanvasExecutorDrain.mockResolvedValue({
+    queueName: 'canvas-tasks',
+    draining: false,
+    drainId: null,
+    startedAt: null,
+    expiresAt: null,
+    startedByPrincipalId: null,
+    inFlight: { harmedByRestart: 0, continuingAfterRestart: 3 },
+    serverTime: '2026-10-03T00:00:00.000Z',
+  })
   mocks.getCanvasExecutionOverview.mockResolvedValue({
     global: {
       kind: 'GLOBAL_LIMITS',
@@ -617,6 +633,10 @@ describe('execution settings', () => {
     const workers = await screen.findByText('Running workers')
     const recovery = screen.getByText('System recovery')
     const limits = screen.getByText('Task submission and execution limits')
+    const drain = await screen.findByText('Drain')
+    expect(
+      drain.compareDocumentPosition(limits) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     for (const title of [limits, capacity, workers, recovery]) {
       expect(title.closest('[data-slot="card"]')).toHaveAttribute(
         'data-size',

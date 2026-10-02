@@ -18,6 +18,7 @@ import type {
   ExecutionOverview,
   ExecutionWaitItem,
   ExecutionWaitPage,
+  ExecutorDrainState,
   PublishableExecutionPolicyKind,
   PublishedExecutionPolicy,
 } from './execution-types'
@@ -26,6 +27,47 @@ const webBase = '/canvas-api/v1/web'
 
 function executionIdempotencyKey(): string {
   return `web-execution-policy-${crypto.randomUUID()}`
+}
+
+function drainIdempotencyKey(): string {
+  return `web-executor-drain-${crypto.randomUUID()}`
+}
+
+export async function getCanvasExecutorDrain(
+  signal?: AbortSignal
+): Promise<ExecutorDrainState> {
+  return (
+    await api.get<ExecutorDrainState>(`${webBase}/admin/execution/drain`, {
+      signal,
+    })
+  ).data
+}
+
+/** Starts draining, or extends the active drain by 60 minutes. */
+export async function startCanvasExecutorDrain(): Promise<ExecutorDrainState> {
+  return (
+    await api.post<ExecutorDrainState>(
+      `${webBase}/admin/execution/drain`,
+      undefined,
+      {
+        headers: { 'Idempotency-Key': drainIdempotencyKey() },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function cancelCanvasExecutorDrain(): Promise<ExecutorDrainState> {
+  return (
+    await api.post<ExecutorDrainState>(
+      `${webBase}/admin/execution/drain/cancel`,
+      undefined,
+      {
+        headers: { 'Idempotency-Key': drainIdempotencyKey() },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
 }
 
 export async function getCanvasExecutionOverview(
