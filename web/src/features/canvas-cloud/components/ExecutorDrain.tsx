@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -17,47 +17,31 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 
 import {
   cancelCanvasExecutorDrain,
-  getCanvasExecutorDrain,
   startCanvasExecutorDrain,
 } from '../execution-api'
 import type { ExecutorDrainState } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
+import { executorDrainQueryKey, useExecutorDrain } from '../use-executor-drain'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
-// Under the execution key so the page's own refresh also refreshes the drain row.
-export const executorDrainQueryKey = [
-  'canvas-cloud',
-  'execution',
-  'drain',
-] as const
+type DrainAction = 'start' | 'extend' | 'cancel'
 
-/** Shared by the drain row and the tab marker; refreshes every 5 seconds only while draining. */
-export function useExecutorDrain() {
-  return useQuery({
-    queryKey: executorDrainQueryKey,
-    queryFn: ({ signal }) => getCanvasExecutorDrain(signal),
-    refetchInterval: (query) => (query.state.data?.draining ? 5_000 : false),
-  })
-}
+const factValueClass = {
+  warning: 'text-lg font-semibold tabular-nums text-destructive',
+  good: 'text-lg font-semibold tabular-nums text-green-600 dark:text-green-400',
+  plain: 'text-lg font-semibold tabular-nums',
+} as const
 
 function Fact(props: {
   label: string
   value: number
   hint: string
-  emphasis?: 'warning' | 'good'
+  emphasis?: keyof typeof factValueClass
 }) {
   return (
     <div className='min-w-0'>
       <dt className='text-muted-foreground text-sm'>{props.label}</dt>
-      <dd
-        className={
-          props.emphasis === 'warning'
-            ? 'text-lg font-semibold tabular-nums text-destructive'
-            : props.emphasis === 'good'
-              ? 'text-lg font-semibold tabular-nums text-green-600 dark:text-green-400'
-              : 'text-lg font-semibold tabular-nums'
-        }
-      >
+      <dd className={factValueClass[props.emphasis ?? 'plain']}>
         {props.value}
       </dd>
       <p className='text-muted-foreground text-xs'>{props.hint}</p>
@@ -71,7 +55,7 @@ export function ExecutorDrain() {
   const drain = useExecutorDrain()
   const [confirming, setConfirming] = useState(false)
   const update = useMutation({
-    mutationFn: (action: 'start' | 'extend' | 'cancel') =>
+    mutationFn: (action: DrainAction) =>
       action === 'cancel'
         ? cancelCanvasExecutorDrain()
         : startCanvasExecutorDrain(),
@@ -80,21 +64,73 @@ export function ExecutorDrain() {
       const previous = queryClient.getQueryData<ExecutorDrainState>(
         executorDrainQueryKey
       )
-      const startedAnew = action === 'extend' && previous?.drainId !== state.drainId
+      const startedAnew =
+        action === 'extend' && previous?.drainId !== state.drainId
       queryClient.setQueryData(executorDrainQueryKey, state)
       setConfirming(false)
-      toast.success(
-        action === 'start' || startedAnew
-          ? t('Draining started')
-          : action === 'extend'
-            ? t('Draining extended by 60 minutes')
-            : t('Draining cancelled')
-      )
+      if (action === 'cancel') {
+        toast.success(t('Draining cancelled'))
+      } else if (action === 'start' || startedAnew) {
+        toast.success(t('Draining started'))
+      } else {
+        toast.success(t('Draining extended by 60 minutes'))
+      }
     },
     onError: () => toast.error(t('Draining update failed')),
   })
   const state = drain.data
   const draining = state?.draining === true
+  let summary: string
+  if (drain.isPending) {
+    summary = t('Loading')
+  } else if (drain.isError) {
+    summary = t('Draining state could not be loaded')
+  } else if (draining) {
+    summary = t('Started {{started}} · Resumes automatically {{expires}}', {
+      started: formatCanvasDateTime(state.startedAt),
+      expires: formatCanvasDateTime(state.expiresAt),
+    })
+  } else {
+    summary = t(
+      'Use before a restart or maintenance. Only stops claiming new tasks.'
+    )
+  }
+  let actions: React.ReactNode
+  if (drain.isError) {
+    actions = (
+      <Button variant='outline' onClick={() => void drain.refetch()}>
+        {t('Retry')}
+      </Button>
+    )
+  } else if (draining) {
+    actions = (
+      <>
+        <Button
+          variant='outline'
+          disabled={update.isPending}
+          onClick={() => update.mutate('extend')}
+        >
+          {t('Extend by 60 minutes')}
+        </Button>
+        <Button
+          variant='outline'
+          disabled={update.isPending}
+          onClick={() => update.mutate('cancel')}
+        >
+          {t('Cancel draining')}
+        </Button>
+      </>
+    )
+  } else {
+    actions = (
+      <Button
+        disabled={!state || update.isPending}
+        onClick={() => setConfirming(true)}
+      >
+        {t('Start draining')}
+      </Button>
+    )
+  }
   return (
     <>
       <Card size='sm'>
@@ -112,26 +148,7 @@ export function ExecutorDrain() {
                   </Badge>
                 ) : null}
               </div>
-              {drain.isPending ? (
-                <p className='text-muted-foreground text-sm'>{t('Loading')}</p>
-              ) : drain.isError ? (
-                <p className='text-muted-foreground text-sm'>
-                  {t('Draining state could not be loaded')}
-                </p>
-              ) : draining ? (
-                <p className='text-muted-foreground text-sm'>
-                  {t('Started {{started}} · Resumes automatically {{expires}}', {
-                    started: formatCanvasDateTime(state.startedAt),
-                    expires: formatCanvasDateTime(state.expiresAt),
-                  })}
-                </p>
-              ) : (
-                <p className='text-muted-foreground text-sm'>
-                  {t(
-                    'Use before a restart or maintenance. Only stops claiming new tasks.'
-                  )}
-                </p>
-              )}
+              <p className='text-muted-foreground text-sm'>{summary}</p>
             </div>
             {state ? (
               <dl className='grid flex-1 gap-4 sm:grid-cols-2 lg:max-w-xl'>
@@ -155,35 +172,7 @@ export function ExecutorDrain() {
               <div className='flex-1' />
             )}
             <div className='flex flex-wrap gap-2 lg:justify-end'>
-              {drain.isError ? (
-                <Button variant='outline' onClick={() => void drain.refetch()}>
-                  {t('Retry')}
-                </Button>
-              ) : draining ? (
-                <>
-                  <Button
-                    variant='outline'
-                    disabled={update.isPending}
-                    onClick={() => update.mutate('extend')}
-                  >
-                    {t('Extend by 60 minutes')}
-                  </Button>
-                  <Button
-                    variant='outline'
-                    disabled={update.isPending}
-                    onClick={() => update.mutate('cancel')}
-                  >
-                    {t('Cancel draining')}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  disabled={!state || update.isPending}
-                  onClick={() => setConfirming(true)}
-                >
-                  {t('Start draining')}
-                </Button>
-              )}
+              {actions}
             </div>
           </section>
         </CardContent>

@@ -17,11 +17,11 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { ExecutionSettings } from './ExecutionSettings'
-import { useExecutorDrain } from './ExecutorDrain'
 import {
   RuntimeConfiguration,
   type CanvasProviderNavigationTarget,
 } from './RuntimeConfiguration'
+import { useExecutorDrain } from '../use-executor-drain'
 
 export type RuntimeManagementView = 'execution' | 'provider' | 'taskMedia'
 
