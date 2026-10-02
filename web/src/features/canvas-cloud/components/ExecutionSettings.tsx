@@ -968,7 +968,7 @@ function GlobalSection(props: {
           </div>
           <CardDescription>
             {t(
-              'Instance concurrency is per executor instance; result-query reservation uses slots within that limit. The unfinished-result limit applies per user at task admission.'
+              'Instance concurrency is the number of tasks each executor instance works on at once; tasks waiting for the API provider to produce a result do not count. The same number limits simultaneous upstream requests, and the result-query reservation takes part of it. The unfinished-result limit applies per user at task admission.'
             )}
           </CardDescription>
         </CardHeader>
@@ -987,7 +987,7 @@ function GlobalSection(props: {
                 })}
                 error={form.formState.errors.instanceConcurrency?.message}
                 help={t(
-                  'Concurrent upstream requests per executor instance; all API Key groups share these slots.'
+                  'Tasks each executor instance works on at once; tasks waiting for the API provider to produce a result do not count. The same number limits simultaneous upstream requests, shared by all API Key groups.'
                 )}
               />
               <NumberField

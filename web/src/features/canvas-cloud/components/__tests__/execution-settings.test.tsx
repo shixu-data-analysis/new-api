@@ -4,6 +4,7 @@ This program is free software under the GNU Affero General Public License versio
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -625,6 +626,28 @@ describe('execution settings', () => {
     expect(await screen.findByText('May have been sent')).toBeVisible()
     document.documentElement.removeAttribute('dir')
     vi.useRealTimers()
+  })
+
+  it('explains instance concurrency as tasks being worked on, not tasks waiting for the API provider', async () => {
+    mount()
+    expect(
+      await screen.findByText(
+        /Tasks each executor instance works on at once; tasks waiting for the API provider to produce a result do not count/
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        /Instance concurrency is the number of tasks each executor instance works on at once/
+      )
+    ).toBeVisible()
+    cleanup()
+    await i18next.changeLanguage('zhCN')
+    mount()
+    expect(
+      await screen.findByText(
+        '每个执行实例同时在处理的任务数；在等 API 服务商出结果的任务不占用。同一数值也限制同时进行的上游请求数，所有 API Key 组共用。'
+      )
+    ).toBeVisible()
   })
 
   it('shows effective global policy, recovery facts, and executor ownership', async () => {
