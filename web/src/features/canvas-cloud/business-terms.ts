@@ -256,6 +256,8 @@ export const canvasBusinessTermConfig = {
       'Crossed-expiry task release': 'Expired bonus task release',
       'Seven-day failure grace': 'Seven-day failure grace',
       'Bonus failure grace': 'Bonus failure grace',
+      'Task debt repayment': 'Debt repayment',
+      'Point lot expired': 'Expired',
     },
     presentation: 'text',
   },

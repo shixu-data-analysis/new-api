@@ -276,7 +276,7 @@ function tokenRateSummary(
 
 // Leading visual anchor for each card; the capability text beside the title stays the
 // accessible label, so the icon is decorative.
-function CapabilityIcon(props: { capability: unknown }) {
+export function CapabilityIcon(props: { capability: unknown }) {
   if (props.capability === 'video.generate') {
     return (
       <IconBadge tone='chart-3' size='title' className='row-span-2'>

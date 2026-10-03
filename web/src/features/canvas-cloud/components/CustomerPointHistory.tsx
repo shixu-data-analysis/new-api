@@ -499,12 +499,9 @@ export function CustomerPointHistory({
               <BusinessTerm kind='ledgerReason' value={row.original.reason} />
             )
           }
+          // Unregistered values are reasons an administrator typed; show them as written.
           return (
-            <BusinessTermText
-              kind='ledgerReason'
-              value={row.original.reason}
-              fallback={t('Other')}
-            />
+            <BusinessTermText kind='ledgerReason' value={row.original.reason} />
           )
         },
       },

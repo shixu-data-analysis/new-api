@@ -264,7 +264,7 @@ describe('TaskCallHistory', () => {
       '"prompt": "a girl"'
     )
     expect(
-      Array.from(requestPanel.querySelectorAll('button')).filter(
+      [...requestPanel.querySelectorAll('button')].filter(
         (button) => button.textContent === 'Copy'
       )
     ).toHaveLength(1)

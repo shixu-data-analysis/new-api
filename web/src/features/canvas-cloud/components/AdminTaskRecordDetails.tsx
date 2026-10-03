@@ -1025,7 +1025,9 @@ export function AdminTaskRecordDetails({
                 event.preventDefault()
                 setReasonTried(true)
                 if (releaseReason.trim() === '') {
-                  document.getElementById('release-reason')?.focus()
+                  document
+                    .querySelector<HTMLElement>('#release-reason')
+                    ?.focus()
                   return
                 }
                 release.mutate()

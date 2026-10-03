@@ -87,7 +87,7 @@ import type {
   CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { AgentModelPriceList } from './AgentModelPriceList'
+import { AgentModelPricePanel } from './AgentModelPricePanel'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
@@ -1028,39 +1028,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
     queryKey: ['canvas-cloud', 'admin-agent-statistics', customerId],
     queryFn: ({ signal }) => getCanvasAdminAgentStatistics(customerId, signal),
   })
-  const [priceCapability, setPriceCapability] = useState('')
-  const [priceTag, setPriceTag] = useState('')
-  const [priceSearch, setPriceSearch] = useState('')
-  const [pricePage, setPricePage] = useState(1)
-  const debouncedPriceSearch = useDebounce(priceSearch.trim(), 300)
-  useEffect(
-    () => setPricePage(1),
-    [priceCapability, priceTag, debouncedPriceSearch, customerId]
-  )
-  const prices = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin-agent-model-prices',
-      customerId,
-      priceCapability,
-      priceTag,
-      debouncedPriceSearch,
-      pricePage,
-    ],
-    enabled: Boolean(statistics.data),
-    queryFn: ({ signal }) =>
-      getCanvasAdminAgentModelPrices(
-        customerId,
-        {
-          page: pricePage,
-          pageSize: 10,
-          ...(priceCapability ? { capability: priceCapability } : {}),
-          ...(priceTag ? { tagId: priceTag } : {}),
-          ...(debouncedPriceSearch ? { search: debouncedPriceSearch } : {}),
-        },
-        signal
-      ),
-  })
   const inviteState =
     useServerTableState<CanvasAdminInviteCodeQuery['sortBy']>('createdAt')
   const customerState = useServerTableState<'activatedAt'>('activatedAt')
@@ -1504,12 +1471,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       </DataTableColumnFilterField>
     </>
   )
-  let pricesContent = <AgentModelPriceList models={prices.data?.items ?? []} />
-  if (prices.isError) {
-    pricesContent = <ErrorState onRetry={() => void prices.refetch()} />
-  } else if (prices.isPending) {
-    pricesContent = <LoadingState />
-  }
   return (
     <div className='space-y-5'>
       <section className='space-y-2'>
@@ -1541,91 +1502,15 @@ function AgentStatistics({ customerId }: { customerId: string }) {
           </span>
         </div>
       </section>
-      <section className='space-y-3'>
-        <h3 className='font-semibold'>{t('Current model prices')}</h3>
-        <p className='text-muted-foreground text-sm'>
-          {t('Prices for the price groups of your current customers.')}
-        </p>
-        <div className='flex flex-wrap gap-2'>
-          <Input
-            className='w-56'
-            value={priceSearch}
-            onChange={(event) => setPriceSearch(event.target.value)}
-            placeholder={t('Model name')}
-            aria-label={t('Model name')}
-          />
-          <Select
-            value={priceCapability || 'ALL'}
-            onValueChange={(value) =>
-              setPriceCapability(value === 'ALL' ? '' : (value ?? ''))
-            }
-          >
-            <SelectTrigger className='w-48' aria-label={t('Generation type')}>
-              <CanvasLocalizedSelectValue
-                value={priceCapability}
-                emptyLabelKey='All types'
-                displayValue={priceCapability ? t(priceCapability) : undefined}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='ALL'>{t('All types')}</SelectItem>
-              {prices.data?.filters.capabilities.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(value)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={priceTag || 'ALL'}
-            onValueChange={(value) =>
-              setPriceTag(value === 'ALL' ? '' : (value ?? ''))
-            }
-          >
-            <SelectTrigger className='w-48' aria-label={t('Tag')}>
-              <CanvasLocalizedSelectValue
-                value={priceTag}
-                emptyLabelKey='All tags'
-                displayValue={
-                  prices.data?.filters.tags.find((tag) => tag.id === priceTag)
-                    ?.name
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='ALL'>{t('All tags')}</SelectItem>
-              {prices.data?.filters.tags.map((tag) => (
-                <SelectItem key={tag.id} value={tag.id}>
-                  {tag.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {pricesContent}
-        <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={pricePage <= 1}
-            onClick={() => setPricePage((value) => value - 1)}
-          >
-            {t('Previous')}
-          </Button>
-          <span>
-            {pricePage} /{' '}
-            {Math.max(1, Math.ceil((prices.data?.total ?? 0) / 10))}
-          </span>
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={pricePage * 10 >= (prices.data?.total ?? 0)}
-            onClick={() => setPricePage((value) => value + 1)}
-          >
-            {t('Next')}
-          </Button>
-        </div>
-      </section>
+      <AgentModelPricePanel
+        key={customerId}
+        variant='section'
+        queryKey={['canvas-cloud', 'admin-agent-model-prices', customerId]}
+        fetchPrices={(query, signal) =>
+          getCanvasAdminAgentModelPrices(customerId, query, signal)
+        }
+        enabled={Boolean(statistics.data)}
+      />
       <section className='space-y-2'>
         <h3 className='font-semibold'>{t('Invite codes')}</h3>
         <CanvasServerTable

@@ -449,7 +449,7 @@ describe('Canvas runtime configuration', () => {
       await waitFor(() =>
         expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalled()
       )
-      const query = apiMocks.getCanvasProviderConfiguration.mock.calls[0]![0]
+      const query = apiMocks.getCanvasProviderConfiguration.mock.calls[0]?.[0]
       expect(query).toMatchObject({ providerId: providerB })
       expect(query).not.toHaveProperty('credentialGroupId')
       cleanup()
@@ -460,7 +460,7 @@ describe('Canvas runtime configuration', () => {
         expect(apiMocks.getCanvasProviderConfiguration).toHaveBeenCalled()
       )
       expect(
-        apiMocks.getCanvasProviderConfiguration.mock.calls[0]![0]
+        apiMocks.getCanvasProviderConfiguration.mock.calls[0]?.[0]
       ).toMatchObject({ providerId: providerA, credentialGroupId: groupOfA })
     } finally {
       window.sessionStorage.removeItem('canvas.provider-api-key-group.context')

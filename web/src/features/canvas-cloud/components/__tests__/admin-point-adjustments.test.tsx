@@ -338,10 +338,15 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(await screen.findByText('Agent: Disabled')).toBeVisible()
     fireEvent.click(screen.getByRole('tab', { name: 'Agent statistics' }))
     expect(await screen.findByText('Cumulative overview')).toBeVisible()
+    // The price section starts collapsed and only queries once opened.
+    expect(apiMocks.getCanvasAdminAgentModelPrices).not.toHaveBeenCalled()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Expand', expanded: false })
+    )
     expect(await screen.findByText('Latest Image Model')).toBeVisible()
     expect(apiMocks.getCanvasAdminAgentModelPrices).toHaveBeenCalledWith(
       customer.customerId,
-      expect.objectContaining({ page: 1, pageSize: 10 }),
+      expect.objectContaining({ page: 1, pageSize: 20 }),
       expect.anything()
     )
     expect(apiMocks.getCanvasAdminInviteCodes).toHaveBeenCalledWith(

@@ -307,6 +307,39 @@ describe('Customer point history', () => {
     expect(screen.getByText('时间').closest('th')).not.toHaveClass('text-right')
   })
 
+  it('shows a customer the free-text reason an administrator typed, and localizes system reasons', async () => {
+    const entry = (id: string, reason: string) => ({
+      id,
+      pointLotId: '85000000-0000-7000-8000-000000000003',
+      eventType: 'ISSUE',
+      eventPoints: '10',
+      remainingDelta: '10',
+      reservedDelta: '0',
+      taskId: null,
+      refundLinkId: null,
+      reason,
+      occurredAt: '2026-09-03T00:55:45.000Z',
+    })
+    apiMocks.getCanvasCustomerPointLedger.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 3,
+      items: [
+        entry('85000000-0000-7000-8000-000000000011', '内测补偿'),
+        entry('85000000-0000-7000-8000-000000000012', 'Point lot expired'),
+        entry('85000000-0000-7000-8000-000000000013', 'Task debt repayment'),
+      ],
+    })
+    renderHistory('ledger')
+
+    expect(await screen.findByText('内测补偿')).toBeVisible()
+    expect(screen.getByText('欠额偿还')).toBeVisible()
+    expect(screen.getAllByText('已过期').length).toBeGreaterThan(0)
+    expect(screen.queryByText('其他')).not.toBeInTheDocument()
+    expect(screen.queryByText('Point lot expired')).not.toBeInTheDocument()
+    expect(screen.queryByText('Task debt repayment')).not.toBeInTheDocument()
+  })
+
   it('shows customer-readable point fields without internal identifiers', async () => {
     renderHistory()
 

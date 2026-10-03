@@ -182,7 +182,7 @@ describe('executor drain row', () => {
     expect(
       screen.getByText(
         new RegExp(
-          `Started ${new Date(draining.startedAt!).toLocaleString().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+          `Started ${new Date(draining.startedAt as string).toLocaleString().replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
         )
       )
     ).toBeVisible()
