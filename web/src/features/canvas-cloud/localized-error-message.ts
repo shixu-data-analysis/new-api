@@ -7,10 +7,13 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 
-type LocalizedError = {
-  sanitizedMessage?: string | null
-  messages?: Record<string, string> | null
-} | null | undefined
+type LocalizedError =
+  | {
+      sanitizedMessage?: string | null
+      messages?: Record<string, string> | null
+    }
+  | null
+  | undefined
 
 /**
  * Select a server-sanitized failure reason without exposing an upstream error.

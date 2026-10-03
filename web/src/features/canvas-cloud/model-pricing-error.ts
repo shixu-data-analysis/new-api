@@ -19,12 +19,16 @@ export function pricingLoadErrorTitle(
   if (status === 401 || status === 403) {
     return t('You are not allowed to view this model pricing.')
   }
-  if (status === 404) return t('The requested model was not found or is unavailable.')
+  if (status === 404) {
+    return t('The requested model was not found or is unavailable.')
+  }
   if (status === 409 && getServerErrorCode(error) === 'CONFLICT') {
     return t('This pricing publication does not belong to the selected model.')
   }
   if (status !== null && status >= 500) {
-    return t('The pricing service is temporarily unavailable. Please try again.')
+    return t(
+      'The pricing service is temporarily unavailable. Please try again.'
+    )
   }
   return t('Model pricing could not be loaded')
 }

@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Zod schemas for common logs
  * This file should only contain Zod schemas and types inferred from them
  */
-import { z } from 'zod'
+import * as z from 'zod'
 
 // Usage log schema
 export const usageLogSchema = z.object({

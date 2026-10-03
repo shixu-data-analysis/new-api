@@ -7,17 +7,24 @@ type DirectAsyncOptions<TValue, TResult> = {
 }
 
 /** Runs secret-bearing writes outside TanStack's mutation cache. */
-export function useDirectAsync<TValue, TResult>(options: DirectAsyncOptions<TValue, TResult>) {
+export function useDirectAsync<TValue, TResult>(
+  options: DirectAsyncOptions<TValue, TResult>
+) {
   const optionsRef = useRef(options)
   optionsRef.current = options
   const mountedRef = useRef(true)
   const sequenceRef = useRef(0)
   const generationRef = useRef(0)
-  const requestsRef = useRef(new Map<number, {
-    value: TValue | undefined
-    controller: AbortController
-    generation: number
-  }>())
+  const requestsRef = useRef(
+    new Map<
+      number,
+      {
+        value: TValue | undefined
+        controller: AbortController
+        generation: number
+      }
+    >()
+  )
   const [activeCount, setActiveCount] = useState(0)
 
   const clearRequests = useCallback(() => {
@@ -96,12 +103,21 @@ export function useDirectAsync<TValue, TResult>(options: DirectAsyncOptions<TVal
     if (mountedRef.current) setActiveCount(0)
   }, [clearRequests])
 
-  const inspectRetainedRequests = useCallback(() => ({
-    requestCount: requestsRef.current.size,
-    valueCount: [...requestsRef.current.values()].filter(
-      (envelope) => envelope.value !== undefined
-    ).length,
-  }), [])
+  const inspectRetainedRequests = useCallback(
+    () => ({
+      requestCount: requestsRef.current.size,
+      valueCount: [...requestsRef.current.values()].filter(
+        (envelope) => envelope.value !== undefined
+      ).length,
+    }),
+    []
+  )
 
-  return { activeCount, isPending: activeCount > 0, mutate, reset, inspectRetainedRequests }
+  return {
+    activeCount,
+    isPending: activeCount > 0,
+    mutate,
+    reset,
+    inspectRetainedRequests,
+  }
 }

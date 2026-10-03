@@ -26,9 +26,9 @@ describe('model pricing direct-link errors', () => {
   })
 
   it('distinguishes missing publications from ownership conflicts', () => {
-    expect(
-      pricingPublicationErrorTitle({ response: { status: 404 } }, t)
-    ).toBe('The requested pricing publication is unavailable for this model.')
+    expect(pricingPublicationErrorTitle({ response: { status: 404 } }, t)).toBe(
+      'The requested pricing publication is unavailable for this model.'
+    )
     expect(
       pricingPublicationErrorTitle(
         { response: { status: 409, data: { code: 'CONFLICT' } } },

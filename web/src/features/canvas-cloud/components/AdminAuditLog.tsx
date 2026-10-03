@@ -215,7 +215,10 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
                 className='text-primary underline underline-offset-4'
                 to='/canvas-cloud/model-management/$modelId/pricing'
                 params={{ modelId }}
-                search={{ tab: 'history', publicationId: row.original.resourceId }}
+                search={{
+                  tab: 'history',
+                  publicationId: row.original.resourceId,
+                }}
               >
                 {resourceLabel}
               </Link>

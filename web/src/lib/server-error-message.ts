@@ -42,12 +42,18 @@ const serverErrorMessageKeys = {
 const modelPricingErrorMessageKeys = {
   TOKEN_CATEGORY_ASSUMPTIONS_REQUIRED:
     'Enter the additional cost and risk buffer for this Token category.',
-  STALE_PREVIEW: 'Pricing changed after this preview. Create a new preview and review it again.',
-  IDEMPOTENCY_CONFLICT: 'This publication request conflicts with an earlier request. Create a new preview and try again.',
-  INVALID_STATE_TRANSITION: 'The pricing state changed. Refresh the model pricing and review the current state.',
-  NOT_FOUND: 'The pricing record no longer exists. Refresh the model pricing and try again.',
-  VALIDATION_FAILED: 'The pricing request is no longer valid. Review the fields and create a new preview.',
-  UNAUTHORIZED: 'Your administrator session is no longer authorized. Refresh the page and sign in again.',
+  STALE_PREVIEW:
+    'Pricing changed after this preview. Create a new preview and review it again.',
+  IDEMPOTENCY_CONFLICT:
+    'This publication request conflicts with an earlier request. Create a new preview and try again.',
+  INVALID_STATE_TRANSITION:
+    'The pricing state changed. Refresh the model pricing and review the current state.',
+  NOT_FOUND:
+    'The pricing record no longer exists. Refresh the model pricing and try again.',
+  VALIDATION_FAILED:
+    'The pricing request is no longer valid. Review the fields and create a new preview.',
+  UNAUTHORIZED:
+    'Your administrator session is no longer authorized. Refresh the page and sign in again.',
 } as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,16 +86,18 @@ export function getServerErrorMessageKey(value: unknown): string | null {
   if (!code) return null
 
   return (
-    serverErrorMessageKeys[
-      code as keyof typeof serverErrorMessageKeys
-    ] ?? null
+    serverErrorMessageKeys[code as keyof typeof serverErrorMessageKeys] ?? null
   )
 }
 
-export function getModelPricingServerErrorMessageKey(value: unknown): string | null {
+export function getModelPricingServerErrorMessageKey(
+  value: unknown
+): string | null {
   const code = getServerErrorCode(value)
   if (!code) return null
-  return modelPricingErrorMessageKeys[
-    code as keyof typeof modelPricingErrorMessageKeys
-  ] ?? null
+  return (
+    modelPricingErrorMessageKeys[
+      code as keyof typeof modelPricingErrorMessageKeys
+    ] ?? null
+  )
 }

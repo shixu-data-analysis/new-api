@@ -575,11 +575,14 @@ describe('Canvas recharge-code creation form', () => {
     expect(window.location.href).not.toContain(
       'CANVAS-Y1234567890123456789FA2E'
     )
-    expect(
-      screen.getAllByRole('button', {
-        name: /Collapse recharge-code batch.*Support batch/u,
-      })[0]
-    ).toHaveFocus()
+    // The matched batch is focused in an effect after the search result renders, not when the request starts.
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole('button', {
+          name: /Collapse recharge-code batch.*Support batch/u,
+        })[0]
+      ).toHaveFocus()
+    })
     expect(screen.getAllByText('CANVAS-Y••••FA2E')).not.toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))

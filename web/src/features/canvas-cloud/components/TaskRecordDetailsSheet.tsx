@@ -14,7 +14,12 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 
 import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
 
@@ -38,9 +43,7 @@ export function TaskRecordDetailsSheet(props: {
       >
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
-            {selectedLedgerId
-              ? t('Point ledger details')
-              : t('Task details')}
+            {selectedLedgerId ? t('Point ledger details') : t('Task details')}
           </SheetTitle>
         </SheetHeader>
         <div ref={drawerScroll} className={sideDrawerFormClassName()}>
