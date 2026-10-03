@@ -25,6 +25,9 @@ import type { TFunction } from 'i18next'
 type BaseNavItem = {
   title: string
   badge?: string
+  /** `alert` renders the badge as a solid warning dot; `badgeLabel` is its accessible name. */
+  badgeTone?: 'alert'
+  badgeLabel?: string
   icon?: React.ElementType
   activeUrls?: (LinkProps['to'] | (string & {}))[]
   configUrls?: (LinkProps['to'] | (string & {}))[]

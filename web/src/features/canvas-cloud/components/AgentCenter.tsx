@@ -56,7 +56,7 @@ import {
   searchCanvasAgentInviteCodes,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasAgentCustomer,

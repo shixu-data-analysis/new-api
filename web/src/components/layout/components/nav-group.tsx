@@ -113,7 +113,28 @@ export function NavGroup({ title, items }: NavGroupProps) {
 /**
  * Navigation badge component
  */
-function NavBadge({ children }: { children: ReactNode }) {
+function NavBadge({
+  children,
+  tone,
+  label,
+}: {
+  children: ReactNode
+  tone?: 'alert'
+  label?: string
+}) {
+  if (tone === 'alert') {
+    return (
+      <>
+        <Badge
+          aria-hidden='true'
+          className='bg-destructive min-w-5 shrink-0 justify-center px-1.5 py-0 text-xs font-semibold text-white tabular-nums'
+        >
+          {children}
+        </Badge>
+        {label ? <span className='sr-only'>{label}</span> : null}
+      </>
+    )
+  }
   return <Badge className='shrink-0 px-1 py-0 text-xs'>{children}</Badge>
 }
 
@@ -140,7 +161,11 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         <span className='min-w-0 flex-1 leading-5 break-words'>
           {item.title}
         </span>
-        {item.badge && <NavBadge>{item.badge}</NavBadge>}
+        {item.badge && (
+          <NavBadge tone={item.badgeTone} label={item.badgeLabel}>
+            {item.badge}
+          </NavBadge>
+        )}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )

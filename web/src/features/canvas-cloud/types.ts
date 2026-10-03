@@ -2016,6 +2016,26 @@ export interface CanvasAdminTaskInputAsset {
   downloadPath: string
 }
 
+/** Provider cost completeness of one Task; incomplete calls can be settled by an administrator. */
+export interface CanvasAdminTaskProviderCost {
+  completeness: 'NOT_REQUIRED' | 'COMPLETE' | 'INCOMPLETE'
+  incompleteCalls: Array<{
+    callId: string | null
+    reason: 'MISSING_USAGE' | 'MISSING_RATE' | 'UNKNOWN_RESULT' | 'UNCLASSIFIED'
+    canSettle: boolean
+  }>
+  manualSettlements: Array<{
+    providerCostId: string
+    callId: string | null
+    status: 'CONFIRMED' | 'VOID'
+    amountRmb: string
+    settledAt: string
+    settledBy: string | null
+    reason: string | null
+    canRevoke: boolean
+  }>
+}
+
 export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
@@ -2041,6 +2061,7 @@ export interface CanvasAdminTaskRecordDetail {
     | 'ACTIVE_EXECUTOR_CLAIM'
     | 'ACTIVE_REQUEST_LEASE'
     | null
+  providerCost?: CanvasAdminTaskProviderCost
   parameters: Record<string, string | number | boolean | null> | null
   multiResultMode: 'NATIVE' | 'FANOUT'
   failureLocation:
@@ -2130,14 +2151,6 @@ export interface CanvasAdminPointLot {
   availablePoints: string
   expiresAt: string | null
   issuedAt: string
-}
-
-export interface CanvasContributionReport {
-  originalBatchContributionMinor: string
-  refundAndChargebackAdjustmentsMinor: string
-  adjustedContributionMinor: string
-  reconciliationTimeoutLossMinor: string
-  disclaimer: string
 }
 
 export interface CanvasCustomerPriceAssignment {

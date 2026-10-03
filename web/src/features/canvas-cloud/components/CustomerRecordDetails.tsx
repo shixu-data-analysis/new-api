@@ -502,6 +502,33 @@ function LotDetails(props: {
             )
           )}
         </FactRow>
+        {field('inviteCode') ? (
+          <FactRow label='Invite code'>{field('inviteCode')}</FactRow>
+        ) : null}
+        {field('inviteRegisteredAt') ? (
+          <FactRow label='Registered at'>
+            {formatCanvasDateTime(field('inviteRegisteredAt'))}
+          </FactRow>
+        ) : null}
+        {field('activityName') ? (
+          <FactRow label='Activity name'>{field('activityName')}</FactRow>
+        ) : null}
+        {field('issueReason') ? (
+          <FactRow label='Reason'>
+            <BusinessTermText
+              kind='ledgerReason'
+              value={field('issueReason') ?? ''}
+            />
+          </FactRow>
+        ) : null}
+        {field('issuedBy') ? (
+          <FactRow label='Operator'>{field('issuedBy')}</FactRow>
+        ) : null}
+        {field('originalLotId') ? (
+          <FactRow label='Source lot'>
+            <CopyableText value={field('originalLotId') ?? ''} />
+          </FactRow>
+        ) : null}
         <FactRow label='Point lot number'>
           <CopyableText value={fact.id} />
         </FactRow>

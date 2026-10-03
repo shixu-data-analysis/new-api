@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
   BarChart3,
@@ -45,6 +46,10 @@ import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
 import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
+import {
+  getProviderBalanceAlerts,
+  providerBalanceAlertsQueryKey,
+} from '@/features/canvas-cloud/operating-dashboard-api'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
 import { ROLE } from '@/lib/roles'
 
@@ -57,6 +62,17 @@ import { ROLE } from '@/lib/roles'
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const { canvasSession, isCanvasShell } = useCanvasShellSession()
+  const isAdministrator =
+    canvasSession.isSuccess &&
+    isCanvasAdministrator(canvasSession.data.principalType)
+  // API provider balance alerts mark the operating dashboard entry wherever the administrator is.
+  const balanceAlerts = useQuery({
+    queryKey: providerBalanceAlertsQueryKey,
+    queryFn: ({ signal }) => getProviderBalanceAlerts(signal),
+    enabled: isAdministrator,
+    refetchInterval: 5 * 60_000,
+  })
+  const alertCount = balanceAlerts.data?.alertCount ?? 0
 
   if (canvasSession.isPending) return { navGroups: [] }
 
@@ -72,6 +88,16 @@ export function useSidebarData(): SidebarData {
                 title: t('Canvas Dashboard'),
                 url: '/canvas-cloud/dashboard',
                 icon: BarChart3,
+                ...(alertCount > 0
+                  ? {
+                      badge: String(alertCount),
+                      badgeTone: 'alert' as const,
+                      badgeLabel: t(
+                        '{{count}} API providers are below their balance alert threshold',
+                        { count: alertCount }
+                      ),
+                    }
+                  : {}),
               },
               {
                 title: t('Task Records'),

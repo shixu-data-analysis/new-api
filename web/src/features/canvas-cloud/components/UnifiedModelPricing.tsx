@@ -67,7 +67,7 @@ import {
   publishCanvasModelPricing,
 } from '../api'
 import { pricingLoadErrorTitle } from '../model-pricing-error'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel as scopeLabel } from '../pricing-scope-label'
 import type {
   CanvasBillingUnit,

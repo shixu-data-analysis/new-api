@@ -37,7 +37,6 @@ import type {
   CanvasAdminRechargeCodeExactSearchPage,
   CanvasAdminRechargeCodeQuery,
   CanvasCatalogModel,
-  CanvasContributionReport,
   CanvasCustomerWorkspace,
   CanvasSession,
   CanvasAdminProvisioningPrincipals,
@@ -568,6 +567,41 @@ export async function releaseCanvasTaskFrozenPoints(
     await api.post<CanvasAdminTaskRecordDetail>(
       `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/release-frozen-points`,
       { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': requestKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function settleCanvasTaskProviderCost(
+  taskId: string,
+  input: { callId: string | null; amountRmb: string; reason?: string },
+  requestKey = idempotencyKey('web-task-cost-settlement')
+): Promise<CanvasAdminTaskRecordDetail> {
+  return (
+    await api.post<CanvasAdminTaskRecordDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/provider-cost-settlements`,
+      input,
+      {
+        headers: { 'Idempotency-Key': requestKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function revokeCanvasTaskProviderCostSettlement(
+  taskId: string,
+  providerCostId: string,
+  input: { reason?: string },
+  requestKey = idempotencyKey('web-task-cost-settlement-revoke')
+): Promise<CanvasAdminTaskRecordDetail> {
+  return (
+    await api.post<CanvasAdminTaskRecordDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/provider-cost-settlements/${encodeURIComponent(providerCostId)}/revoke`,
+      input,
       {
         headers: { 'Idempotency-Key': requestKey },
         skipErrorHandler: true,
@@ -1236,18 +1270,6 @@ export async function changeCanvasAdminInviteCodeStatus(
         },
         skipErrorHandler: true,
       }
-    )
-  ).data
-}
-
-export async function getCanvasContributionReport(
-  from: string,
-  to: string
-): Promise<CanvasContributionReport> {
-  return (
-    await api.get<CanvasContributionReport>(
-      `${webBase}/admin/reports/contribution`,
-      { params: { from, to } }
     )
   ).data
 }

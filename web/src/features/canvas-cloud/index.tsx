@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useLocation } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -27,13 +27,6 @@ import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 
 import {
   isCanvasAdministrator,
@@ -44,7 +37,6 @@ import {
 import {
   getCanvasAdminWorkspace,
   getCanvasCatalog,
-  getCanvasContributionReport,
   getCanvasSession,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
@@ -60,6 +52,7 @@ import {
 } from './components/CustomerPointsCenter'
 import { CustomerTasks } from './components/CustomerTasks'
 import { InviteActivation } from './components/InviteActivation'
+import { OperatingDashboard } from './components/OperatingDashboard'
 import { PricingCalculator } from './components/PricingCalculator'
 import { PricingPointRules } from './components/PricingPointRules'
 import type { CanvasProviderNavigationTarget } from './components/RuntimeConfiguration'
@@ -103,39 +96,6 @@ const sectionTitles: Record<CanvasSection, string> = {
 }
 
 const invalidCanvasCloudRuntimeView = '__invalid_canvas_cloud_runtime_view__'
-
-function sumPoints(values: string[]): string {
-  return values.reduce((total, value) => total + BigInt(value), 0n).toString()
-}
-
-function formatCnyMinor(value: string): string {
-  const minor = BigInt(value)
-  const absolute = minor < 0n ? -minor : minor
-  const grouped = (absolute / 100n)
-    .toString()
-    .replaceAll(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${minor < 0n ? '-' : ''}¥${grouped}.${(absolute % 100n).toString().padStart(2, '0')}`
-}
-
-function MetricCard(props: {
-  title: string
-  value: string
-  description?: string
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{props.title}</CardDescription>
-        <CardTitle className='text-2xl tabular-nums'>{props.value}</CardTitle>
-      </CardHeader>
-      {props.description && (
-        <CardContent className='text-muted-foreground'>
-          {props.description}
-        </CardContent>
-      )}
-    </Card>
-  )
-}
 
 function CustomerContent(props: {
   section: CustomerSection
@@ -186,11 +146,11 @@ export function AdminContent(props: {
   runtimeView?: RuntimeManagementView
   onRuntimeViewChange?: (view: RuntimeManagementView) => void
 }) {
-  const { t } = useTranslation()
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
     queryFn: getCanvasAdminWorkspace,
     enabled: ![
+      'dashboard',
       'customers',
       'audit',
       'task-logs',
@@ -202,18 +162,6 @@ export function AdminContent(props: {
       'pricing',
       'point-campaigns',
     ].includes(props.section),
-  })
-  const dates = useMemo(
-    () => ({
-      from: new Date(Date.now() - 30 * 86_400_000).toISOString(),
-      to: new Date().toISOString(),
-    }),
-    []
-  )
-  const report = useQuery({
-    queryKey: ['canvas-cloud', 'report', dates],
-    queryFn: () => getCanvasContributionReport(dates.from, dates.to),
-    enabled: props.section === 'dashboard',
   })
   if (props.section === 'customers') {
     return (
@@ -266,126 +214,10 @@ export function AdminContent(props: {
     )
   }
   if (props.section === 'point-campaigns') return <ActivityManagement />
+  if (props.section === 'dashboard') return <OperatingDashboard />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
-  }
-  const data = workspace.data
-  if (props.section === 'dashboard') {
-    const totalAvailablePoints = sumPoints(
-      data.customers.map((customer) => customer.availablePoints)
-    )
-    const settledPoints = sumPoints(
-      data.recentTasks
-        .filter((task) => task.customerBillingStatus === 'SETTLED')
-        .map((task) => task.settledPoints ?? task.quotedPoints)
-    )
-    const successfulTasks = data.recentTasks.filter(
-      (task) => task.executionStatus === 'SUCCEEDED'
-    ).length
-    const activeWorkers = data.executorWorkers.filter(
-      (worker) => worker.status === 'RUNNING'
-    ).length
-    return (
-      <div className='space-y-4'>
-        <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-          <MetricCard
-            title={t('Active customers')}
-            value={String(
-              data.customers.filter((customer) => customer.status === 'ACTIVE')
-                .length
-            )}
-          />
-          <MetricCard
-            title={t('Customer available points')}
-            value={totalAvailablePoints}
-          />
-          <MetricCard
-            title={t('Points used')}
-            value={settledPoints}
-            description={t('Latest 100 platform Canvas tasks')}
-          />
-          <MetricCard
-            title={t('Executor health')}
-            value={`${activeWorkers}/${data.executorWorkers.length}`}
-            description={t('Running workers')}
-          />
-        </div>
-        <div className='grid gap-4 lg:grid-cols-2'>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Task health')}</CardTitle>
-              <CardDescription>
-                {t('Latest 100 platform Canvas tasks')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='grid grid-cols-2 gap-3'>
-              <MetricCard
-                title={t('Tasks')}
-                value={String(data.recentTasks.length)}
-              />
-              <MetricCard
-                title={t('Successful tasks')}
-                value={String(successfulTasks)}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Attention required')}</CardTitle>
-              <CardDescription>
-                {t('Operational items that need administrator review')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className='grid grid-cols-2 gap-3'>
-              <MetricCard
-                title={t('Reconciliation tasks')}
-                value={String(data.reconciliationTasks.length)}
-              />
-              <MetricCard
-                title={t('Refunds')}
-                value={String(
-                  data.refunds.filter((item) => item.status !== 'COMPLETED')
-                    .length
-                )}
-              />
-            </CardContent>
-          </Card>
-        </div>
-        {report.isSuccess && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('Contribution overview')}</CardTitle>
-              <CardDescription>{t(report.data.disclaimer)}</CardDescription>
-            </CardHeader>
-            <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
-              <MetricCard
-                title={t('Original contribution')}
-                value={formatCnyMinor(
-                  report.data.originalBatchContributionMinor
-                )}
-              />
-              <MetricCard
-                title={t('Refund adjustments')}
-                value={formatCnyMinor(
-                  report.data.refundAndChargebackAdjustmentsMinor
-                )}
-              />
-              <MetricCard
-                title={t('Adjusted contribution')}
-                value={formatCnyMinor(report.data.adjustedContributionMinor)}
-              />
-              <MetricCard
-                title={t('Reconciliation timeout loss')}
-                value={formatCnyMinor(
-                  report.data.reconciliationTimeoutLossMinor
-                )}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    )
   }
   if (props.section === 'recharge-codes') {
     return <CanvasRechargeCodes embedded />

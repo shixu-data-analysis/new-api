@@ -649,6 +649,47 @@ describe('Customer record details', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows where an invitation lot came from and hides source fields it does not have', async () => {
+    apiMocks.getCanvasCustomerBusinessFacts.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+      fact: {
+        id: 'lot-invite',
+        kind: 'lot',
+        name: '',
+        status: 'BONUS',
+        at: '2026-09-19T17:36:48Z',
+        fields: {
+          lotType: 'BONUS',
+          sourceType: 'INVITE_BONUS',
+          initialPoints: '500',
+          availablePoints: '165',
+          reservedPoints: '0',
+          expiresAt: null,
+          inviteCode: 'CANVAS-••••••••',
+          inviteRegisteredAt: '2026-09-19T17:36:48Z',
+          issueReason: 'INVITE_REGISTRATION',
+          issuedBy: 'UAT Platform Admin',
+          activityName: null,
+          originalLotId: null,
+        },
+      },
+    })
+    mount({
+      customerId: 'customer-a',
+      target: { kind: 'lot', id: 'lot-invite' },
+      onOpenOrder: vi.fn(),
+    })
+    expect(await screen.findByText('CANVAS-••••••••')).toBeVisible()
+    expect(screen.getByText('Registered at')).toBeVisible()
+    expect(screen.getByText('Invite registration')).toBeVisible()
+    expect(screen.getByText('UAT Platform Admin')).toBeVisible()
+    expect(screen.queryByText('Activity name')).not.toBeInTheDocument()
+    expect(screen.queryByText('Source lot')).not.toBeInTheDocument()
+  })
+
   it('shows accessible Loading for pending point-lot and ledger detail requests', async () => {
     apiMocks.getCanvasCustomerBusinessFacts.mockReturnValue(
       new Promise(() => {})

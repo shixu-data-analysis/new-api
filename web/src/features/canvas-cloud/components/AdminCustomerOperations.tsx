@@ -74,7 +74,7 @@ import {
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasAdminAgentCustomer,

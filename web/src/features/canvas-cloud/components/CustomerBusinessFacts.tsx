@@ -20,7 +20,7 @@ import {
 } from '../business-facts'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatMoneyMinor } from '../formatters'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasAdminPointLot,
   CanvasBusinessFact,
@@ -90,8 +90,20 @@ function FactFields({
     if (key === 'eventType') {
       return <BusinessTermText kind='ledgerEvent' value={value} />
     }
-    if (key === 'reason') {
+    if (key === 'reason' || key === 'issueReason') {
       return <BusinessTermText kind='ledgerReason' value={value} />
+    }
+    if (key === 'originalLotId') {
+      return (
+        <Button
+          type='button'
+          variant='link'
+          className='h-auto max-w-full justify-start p-0 text-start [overflow-wrap:anywhere]'
+          onClick={() => onOpen({ kind: 'lot', id: value })}
+        >
+          {value}
+        </Button>
+      )
     }
     if (key === 'cashEffect') return t(value === 'true' ? 'Yes' : 'No')
     if (
@@ -219,8 +231,15 @@ function FactFields({
                   'allocations',
                 ].includes(key) &&
                 !(
-                  key === 'rechargeOrderNumber' &&
-                  fact.fields.rechargeOrderNumber === null
+                  [
+                    'rechargeOrderNumber',
+                    'issueReason',
+                    'issuedBy',
+                    'activityName',
+                    'inviteCode',
+                    'inviteRegisteredAt',
+                    'originalLotId',
+                  ].includes(key) && fact.fields[key] === null
                 )
             ),
           },

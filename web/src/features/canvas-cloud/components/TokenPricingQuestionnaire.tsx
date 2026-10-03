@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import { calculateTokenCategoryPricing } from '../pricing-simulation'
 import type {
   CanvasTokenCategory,

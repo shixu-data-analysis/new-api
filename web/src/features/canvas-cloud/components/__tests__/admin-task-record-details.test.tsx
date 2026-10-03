@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   getCanvasAdminTaskInputBlob: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
   releaseCanvasTaskFrozenPoints: vi.fn(),
+  settleCanvasTaskProviderCost: vi.fn(),
+  revokeCanvasTaskProviderCostSettlement: vi.fn(),
 }))
 const calls = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
 vi.mock('../../api', () => api)
@@ -196,7 +198,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'lg:grid-cols-3'
     )
     expect(
-      screen.getByText('Provider response · Provider authentication failed')
+      screen.getByText(
+        'API provider response · API provider authentication failed'
+      )
     ).toBeVisible()
     expect(
       screen.queryByText('Customer-safe text must not be the diagnosis')
@@ -903,18 +907,20 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
     expect(
       screen.getByText(
-        'Release 14 frozen points for this task. This does not send a cancellation request to the provider.'
+        'Release 14 frozen points for this task. This does not send a cancellation request to the API provider.'
       )
     ).toBeVisible()
     expect(
       screen.getByText(
-        /If the provider already charged, the platform bears the cost\./
+        /If the API provider already charged, the platform bears the cost\./
       )
     ).toBeVisible()
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Verified with provider' },
     })
-    fireEvent.click(screen.getByText('Provider failure was confirmed'))
+    fireEvent.click(
+      screen.getByText('Upstream failure confirmed with the API provider')
+    )
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
@@ -962,7 +968,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
     expect(
       screen.getByText(
-        'Release 5 frozen points for this task. This does not send a cancellation request to the provider.'
+        'Release 5 frozen points for this task. This does not send a cancellation request to the API provider.'
       )
     ).toBeVisible()
   })
@@ -999,7 +1005,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Checked upstream result' },
     })
-    fireEvent.click(screen.getByText('Provider failure was confirmed'))
+    fireEvent.click(
+      screen.getByText('Upstream failure confirmed with the API provider')
+    )
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
@@ -1055,5 +1063,89 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         ).toBeTruthy()
       }
     }
+  })
+
+  it('settles an incomplete call cost beside the call and keeps the input on a conflict', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      providerCost: {
+        completeness: 'INCOMPLETE',
+        incompleteCalls: [
+          {
+            callId: providerCall.localCallId,
+            reason: 'UNKNOWN_RESULT',
+            canSettle: true,
+          },
+        ],
+        manualSettlements: [],
+      },
+    })
+    api.settleCanvasTaskProviderCost.mockRejectedValueOnce({
+      response: { status: 409 },
+    })
+    mount()
+    expect(
+      await screen.findByText(
+        'Provider cost: Incomplete cost data · Call result unknown'
+      )
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Settle cost' }))
+    const amount = await screen.findByLabelText(
+      'Amount the API provider actually charged (RMB)'
+    )
+    fireEvent.change(amount, { target: { value: '0.12345' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm settlement' }))
+    expect(
+      await screen.findByText(
+        'Enter an amount of at least 0 with at most 4 decimal places.'
+      )
+    ).toBeInTheDocument()
+    expect(api.settleCanvasTaskProviderCost).not.toHaveBeenCalled()
+    fireEvent.change(amount, { target: { value: '0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm settlement' }))
+    expect(
+      await screen.findByText('The cost status of this call has changed.')
+    ).toBeInTheDocument()
+    expect(api.settleCanvasTaskProviderCost).toHaveBeenCalledWith(task.id, {
+      callId: providerCall.localCallId,
+      amountRmb: '0',
+    })
+    expect(
+      screen.getByLabelText('Amount the API provider actually charged (RMB)')
+    ).toHaveValue('0')
+  })
+
+  it('shows an active manual settlement and offers to revoke it', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      providerCost: {
+        completeness: 'COMPLETE',
+        incompleteCalls: [],
+        manualSettlements: [
+          {
+            providerCostId: 'cost-1',
+            callId: providerCall.localCallId,
+            status: 'CONFIRMED',
+            amountRmb: '0',
+            settledAt: '2026-09-26T01:31:00.000Z',
+            settledBy: 'Platform admin',
+            reason: null,
+            canRevoke: true,
+          },
+        ],
+      },
+    })
+    mount()
+    expect(
+      await screen.findByText(
+        /Settled manually · API provider did not charge · Platform admin/u
+      )
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke settlement' }))
+    expect(
+      await screen.findByText(
+        'The call returns to incomplete cost data. The manual cost is kept as voided and no longer counts as recorded cost.'
+      )
+    ).toBeInTheDocument()
   })
 })

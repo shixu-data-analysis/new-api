@@ -575,11 +575,14 @@ export function TaskCallHistory({
   inputAssets = [],
   outputs = [],
   taskSucceeded = false,
+  renderCallCost,
 }: {
   taskId: string
   inputAssets?: CanvasAdminTaskInputAsset[]
   outputs?: Array<{ outputIndex: number; executionStatus: string }>
   taskSucceeded?: boolean
+  /** Provider cost line of a submit call (its completeness and settlement), shown under the call. */
+  renderCallCost?: (call: CanvasTaskCall) => ReactNode
 }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
@@ -734,29 +737,37 @@ export function TaskCallHistory({
       ),
     },
   ]
-  const rowRenderer = (row: Row<CanvasTaskCall>) => (
-    <Fragment key={row.id}>
-      <TableRow>
-        {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id}>
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
-        ))}
-      </TableRow>
-      {isOpen(row.original) ? (
+  const rowRenderer = (row: Row<CanvasTaskCall>) => {
+    const cost = renderCallCost?.(row.original)
+    return (
+      <Fragment key={row.id}>
         <TableRow>
-          <TableCell colSpan={row.getVisibleCells().length}>
-            <CallDetails
-              call={row.original}
-              inputAssets={inputAssets}
-              openingInput={openingInput}
-              onOpenInput={(asset) => void openInput(asset)}
-            />
-          </TableCell>
+          {row.getVisibleCells().map((cell) => (
+            <TableCell key={cell.id}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
         </TableRow>
-      ) : null}
-    </Fragment>
-  )
+        {cost ? (
+          <TableRow>
+            <TableCell colSpan={row.getVisibleCells().length}>{cost}</TableCell>
+          </TableRow>
+        ) : null}
+        {isOpen(row.original) ? (
+          <TableRow>
+            <TableCell colSpan={row.getVisibleCells().length}>
+              <CallDetails
+                call={row.original}
+                inputAssets={inputAssets}
+                openingInput={openingInput}
+                onOpenInput={(asset) => void openInput(asset)}
+              />
+            </TableCell>
+          </TableRow>
+        ) : null}
+      </Fragment>
+    )
+  }
   return (
     <CanvasServerTable
       data={items}
@@ -770,16 +781,19 @@ export function TaskCallHistory({
       emptyTitle={t('No provider calls')}
       getRowId={(row) => row.localCallId}
       renderRow={rowRenderer}
-      renderExpandedContent={(row) =>
-        isOpen(row.original) ? (
-          <CallDetails
-            call={row.original}
-            inputAssets={inputAssets}
-            openingInput={openingInput}
-            onOpenInput={(asset) => void openInput(asset)}
-          />
-        ) : null
-      }
+      renderExpandedContent={(row) => (
+        <>
+          {renderCallCost?.(row.original)}
+          {isOpen(row.original) ? (
+            <CallDetails
+              call={row.original}
+              inputAssets={inputAssets}
+              openingInput={openingInput}
+              onOpenInput={(asset) => void openInput(asset)}
+            />
+          ) : null}
+        </>
+      )}
     />
   )
 }

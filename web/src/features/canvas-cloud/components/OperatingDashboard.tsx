@@ -13,48 +13,42 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
 */
-import type { ComponentProps } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
-import { AdminPricing } from './AdminPricing'
-import { CampaignManagement } from './CampaignManagement'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
-import { PointConversionDashboard } from './PointConversionDashboard'
+import { PointsContributionPanel } from './PointsContributionPanel'
+import { ProviderBalanceAlertBadge } from './ProviderBalanceAlertBadge'
+import { ProviderBalancesPanel } from './ProviderBalancesPanel'
 
-type PointCampaignWorkspaceProps = Omit<
-  ComponentProps<typeof AdminPricing>,
-  'mode'
->
-
-export function PointCampaignWorkspace(props: PointCampaignWorkspaceProps) {
+/** "Operating dashboard": the administrator home page. Each tab keeps its own filters; the tab is not written to the URL. */
+export function OperatingDashboard() {
   const { t } = useTranslation()
+  const [tab, setTab] = useState<'points' | 'provider-balances'>('points')
   return (
-    <Tabs defaultValue='conversion' className='space-y-4'>
+    <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
       <CanvasManagementTabsList>
-        <CanvasManagementTabsTrigger value='conversion'>
-          {t('Point conversion')}
+        <CanvasManagementTabsTrigger value='points'>
+          {t('Points and contribution')}
         </CanvasManagementTabsTrigger>
-        <CanvasManagementTabsTrigger value='campaigns'>
-          {t('Point campaigns')}
-        </CanvasManagementTabsTrigger>
-        <CanvasManagementTabsTrigger value='specials'>
-          {t('Limited-time special')}
+        <CanvasManagementTabsTrigger value='provider-balances'>
+          {t('API provider balances')}
+          <ProviderBalanceAlertBadge />
         </CanvasManagementTabsTrigger>
       </CanvasManagementTabsList>
-      <TabsContent value='conversion' className='mt-0'>
-        <PointConversionDashboard />
+      <TabsContent value='points' keepMounted className='pt-4'>
+        <PointsContributionPanel />
       </TabsContent>
-      <TabsContent value='campaigns' className='mt-0'>
-        <CampaignManagement />
-      </TabsContent>
-      <TabsContent value='specials' className='mt-0'>
-        <AdminPricing mode='campaigns' {...props} />
+      <TabsContent value='provider-balances' className='pt-4'>
+        <ProviderBalancesPanel />
       </TabsContent>
     </Tabs>
   )

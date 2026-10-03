@@ -617,7 +617,7 @@ describe('execution settings', () => {
     expect(screen.getAllByText('Canvas Image')[0]).toBeVisible()
     const queryDetails = screen.getAllByRole('button', { name: 'Details' })[1]
     await user.click(queryDetails)
-    expect(await screen.findByText('Accepted by provider')).toBeVisible()
+    expect(await screen.findByText('Accepted by API provider')).toBeVisible()
     await user.keyboard('{Escape}')
     const uncertainDetails = screen.getAllByRole('button', {
       name: 'Details',
@@ -963,7 +963,7 @@ describe('execution settings', () => {
     ).toBeVisible()
     expect(
       screen.getByText(
-        'System rule: a 4xx response means the provider rejected the request'
+        'System rule: a 4xx response means the API provider rejected the request'
       )
     ).toBeVisible()
     expect(screen.queryByText(/^Upstream reason:/)).not.toBeInTheDocument()
@@ -1060,7 +1060,7 @@ describe('execution settings', () => {
     )
     fireEvent.click(
       within(confirm).getByText(
-        'I confirm the rationale comes from the provider contract or verified evidence.'
+        'I confirm the rationale comes from the API provider contract or verified evidence.'
       )
     )
     fireEvent.click(within(confirm).getByRole('button', { name: 'Publish' }))
@@ -1183,7 +1183,7 @@ describe('execution settings', () => {
     await screen.findByText('API Key group execution policy')
     expect(
       screen.getByText(
-        'Set timeouts and base capacity for this group. Additional limits below apply by target. Error mappings are shared by the provider.'
+        'Set timeouts and base capacity for this group. Additional limits below apply by target. Error mappings are shared by the API provider.'
       )
     ).toBeVisible()
 
@@ -1231,7 +1231,7 @@ describe('execution settings', () => {
     await screen.findByText('API Key 组执行策略')
     expect(
       screen.getByText(
-        '设置本组超时与基础容量；下方附加限额按对象叠加生效。错误映射由服务商共用。'
+        '设置本组超时与基础容量；下方附加限额按对象叠加生效。错误映射由 API 服务商共用。'
       )
     ).toBeVisible()
     expect(

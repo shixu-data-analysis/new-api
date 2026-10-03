@@ -6,8 +6,10 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { renderHook } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderHook, waitFor } from '@testing-library/react'
 import { UserCog } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSidebarData } from '../use-sidebar-data'
@@ -33,6 +35,27 @@ vi.mock('@/features/canvas-cloud/use-canvas-session', () => ({
   useCanvasShellSession: () => canvasShellState,
 }))
 
+const balanceAlerts = vi.hoisted(() => ({ alertCount: 0 }))
+vi.mock('@/features/canvas-cloud/operating-dashboard-api', () => ({
+  providerBalanceAlertsQueryKey: ['canvas-cloud', 'provider-balance-alerts'],
+  getProviderBalanceAlerts: async () => ({
+    asOf: '2026-10-03T00:00:00.000Z',
+    alertCount: balanceAlerts.alertCount,
+  }),
+}))
+
+function wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  )
+}
+
 describe('Canvas administrator primary sidebar', () => {
   beforeEach(() => {
     canvasShellState.isCanvasShell = true
@@ -42,10 +65,25 @@ describe('Canvas administrator primary sidebar', () => {
       principalType: 'PLATFORM_ADMIN',
       inviterEnabled: false,
     }
+    balanceAlerts.alertCount = 0
+  })
+
+  it('marks the operating dashboard entry with the API provider balance alert count', async () => {
+    balanceAlerts.alertCount = 2
+    const { result } = renderHook(() => useSidebarData(), { wrapper })
+    const dashboardItem = () =>
+      result.current.navGroups[0]?.items.find(
+        (item) => 'url' in item && item.url === '/canvas-cloud/dashboard'
+      )
+    await waitFor(() => expect(dashboardItem()?.badge).toBe('2'))
+    expect(dashboardItem()).toMatchObject({
+      badgeTone: 'alert',
+      badgeLabel: '2 API providers are below their balance alert threshold',
+    })
   })
 
   it('places every administration destination in grouped primary navigation', () => {
-    const { result } = renderHook(() => useSidebarData())
+    const { result } = renderHook(() => useSidebarData(), { wrapper })
 
     expect(result.current.navGroups.map((group) => group.id)).toEqual([
       'canvas-admin-operations',
@@ -86,7 +124,9 @@ describe('Canvas administrator primary sidebar', () => {
   })
 
   it('adds user provisioning only for the canvas super administrator', () => {
-    const platformAdministrator = renderHook(() => useSidebarData())
+    const platformAdministrator = renderHook(() => useSidebarData(), {
+      wrapper,
+    })
     expect(
       platformAdministrator.result.current.navGroups.some((group) =>
         group.items.some((item) => 'url' in item && item.url === '/users')
@@ -98,7 +138,7 @@ describe('Canvas administrator primary sidebar', () => {
       principalType: 'SUPER_ADMIN',
       inviterEnabled: false,
     }
-    const superAdministrator = renderHook(() => useSidebarData())
+    const superAdministrator = renderHook(() => useSidebarData(), { wrapper })
     const superAdministratorGroups = superAdministrator.result.current.navGroups
     const userManagementGroup = superAdministratorGroups.find(
       (group) => group.id === 'canvas-super-admin'
@@ -120,7 +160,7 @@ describe('Canvas administrator primary sidebar', () => {
   it('shows only activation and profile navigation before Canvas registration', () => {
     canvasShellState.canvasSession.isSuccess = false
 
-    const { result } = renderHook(() => useSidebarData())
+    const { result } = renderHook(() => useSidebarData(), { wrapper })
 
     expect(result.current.navGroups.map((group) => group.id)).toEqual([
       'canvas-activation',
@@ -138,7 +178,7 @@ describe('Canvas administrator primary sidebar', () => {
       principalType: 'CUSTOMER',
       inviterEnabled: false,
     }
-    const ordinary = renderHook(() => useSidebarData())
+    const ordinary = renderHook(() => useSidebarData(), { wrapper })
     expect(
       ordinary.result.current.navGroups
         .flatMap((group) => group.items)
@@ -152,7 +192,7 @@ describe('Canvas administrator primary sidebar', () => {
       principalType: 'CUSTOMER',
       inviterEnabled: true,
     }
-    const inviter = renderHook(() => useSidebarData())
+    const inviter = renderHook(() => useSidebarData(), { wrapper })
     expect(
       inviter.result.current.navGroups
         .flatMap((group) => group.items)

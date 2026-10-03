@@ -163,7 +163,7 @@ it('keeps Real and Mock monitoring queries separate, then submits one validated 
   const { client } = mount()
   const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
   await screen.findByText(/Canvas Image/)
-  expect(screen.getByText('Model provider: Canvas Provider')).toBeVisible()
+  expect(screen.getByText('API provider: Canvas Provider')).toBeVisible()
   expect(screen.queryByText(/85000000-0000-7000-8000-000000000004/)).toBeNull()
   await waitFor(() =>
     expect(mocks.getCanvasModelMonitoring).toHaveBeenCalledWith(

@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/popover'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type { CanvasAgentModelPrice, CanvasBillingUnit } from '../types'
 import { CapabilityIcon } from './CustomerModelCenter'

@@ -24,8 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { formatBusinessNumber } from '../number-format'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatBusinessNumber, formatExactRmbReference } from '../number-format'
 import {
   type PricingSimulationResult,
   calculateQuestionnairePricing,

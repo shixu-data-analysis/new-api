@@ -383,7 +383,7 @@ describe('Canvas runtime configuration', () => {
       screen.getByRole('tab', { name: 'Task execution status and limits' })
     ).toBeVisible()
     expect(
-      screen.getByRole('tab', { name: 'Provider configuration' })
+      screen.getByRole('tab', { name: 'API provider configuration' })
     ).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'Task media' })).toBeVisible()
     expect(await screen.findByText('Provider API Key groups')).toBeVisible()
@@ -425,7 +425,7 @@ describe('Canvas runtime configuration', () => {
     )
 
     expect(
-      screen.getByRole('tab', { name: 'Provider configuration' })
+      screen.getByRole('tab', { name: 'API provider configuration' })
     ).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('tab', { name: 'Task media' }))
     fireEvent.click(

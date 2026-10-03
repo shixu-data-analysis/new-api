@@ -20,6 +20,7 @@ export type CanvasBusinessTermKind =
   | 'billingStatus'
   | 'configStatus'
   | 'customerStatus'
+  | 'dashboardMetric'
   | 'executorStatus'
   | 'ledgerEvent'
   | 'ledgerReason'
@@ -52,6 +53,76 @@ export const canvasBusinessTermConfig = {
       CLOSED: 'Closed',
     },
     presentation: 'badge',
+  },
+  dashboardMetric: {
+    helpKey: '{{term}} is an operating dashboard figure.',
+    helpKeys: {
+      OPENING:
+        'Points customers held at the start of the period that were neither used nor voided, including points reserved by tasks.',
+      ISSUED:
+        'Points actually credited in this period: recharge redemptions, recharge bonuses, manual or campaign grants, invitation bonuses and reissues. Grants not yet executed or failed are excluded.',
+      CONSUMED:
+        'Points actually deducted in this period: task settlements plus repaid task debts. Points only reserved by tasks and not yet deducted are excluded.',
+      EXPIRED:
+        'Points voided by expiry in this period. Points reserved by a task at expiry are counted once the task has a result.',
+      OTHER_DECREASE:
+        'Decreases that are neither consumption nor expiry: point returns and manual deductions.',
+      CLOSING:
+        'Points customers held at the end of the period that were neither used nor voided. Part of it is reserved by tasks, so it is more than customers can spend now.',
+      CLOSING_BREAKDOWN:
+        'Available for new tasks: can be spent now. Reserved by tasks: held by running tasks and still valid. Expired awaiting settlement: expired but reserved by a task before expiry; consumed if the task succeeds, otherwise converted to grace points or voided.',
+      OUTSTANDING_DEBT:
+        'The part of a task settlement the customer could not cover and that is not yet repaid. It is repaid first when points are next credited and then counts as consumption of that period. It is not deducted from the closing balance.',
+      PER_POINT:
+        'The average recharge amount per point. The more bonus points, the lower it is; a consumed value below the closing value means more bonus points were spent in this period.',
+      LIST_AMOUNT:
+        'What this consumption is worth at model prices: consumed points ÷ the issuance rate at pricing time. It does not depend on whether customers paid with purchased or bonus points. It is not revenue.',
+      GIFT: 'The part of the list amount without a corresponding recharge amount, mainly because customers used bonus points.',
+      CONSUMED_CASH:
+        'The recharge amount these points carried, from the amount recorded when each deducted point was credited, not recalculated with the current issuance rate.',
+      RECORDED_COST:
+        'Calculated from the purchase rate locked when the task was accepted and the actual usage, including charged failed calls and retries. It is not reconciled with API provider bills.',
+      CONTRIBUTION:
+        'Recharge amount of consumption minus recorded call cost; the contribution rate is its share of the recharge amount of consumption. For operating reference only, not profit. Marked provisional while some task cost is incomplete.',
+      LIST_CONTRIBUTION:
+        'List amount minus recorded call cost. It reflects only model prices against cost, regardless of which points customers used.',
+      PURCHASED:
+        "Points from recharge redemptions, including reissues. The amount follows the mapping recorded at redemption; reissued points keep the original recharge order's mapping.",
+      RECHARGE_BONUS:
+        'Points given with a recharge. They share the order amount with purchased points; it does not mean bonus points are charged separately. After purchased points are returned, the bonus points of the same order keep their amount.',
+      INDEPENDENT_BONUS:
+        'Manual, campaign and invitation grants without a recharge amount. Their amount is zero, but using them still incurs call cost, so the contribution can be negative.',
+      GRACE:
+        'Bonus points that expire while reserved by a task become grace points when the task fails. This is the consumed part of grace points; it is already included above and not counted twice.',
+      PROVIDER_LAST_BALANCE:
+        "The balance found and recorded from the API provider's back office.",
+      PROVIDER_ESTIMATE:
+        'Call cost is the amount recorded by the system and may differ from what the API provider actually deducted. When you notice a difference, add a new back-office balance.',
+    },
+    labels: {
+      OPENING: 'Opening balance',
+      ISSUED: 'Issued in period',
+      CONSUMED: 'Consumed in period',
+      EXPIRED: 'Expired in period',
+      OTHER_DECREASE: 'Other decreases',
+      CLOSING: 'Closing balance',
+      CLOSING_BREAKDOWN: 'Closing breakdown',
+      OUTSTANDING_DEBT: 'Outstanding task debt',
+      PER_POINT: 'Recharge amount per point',
+      LIST_AMOUNT: 'List amount',
+      GIFT: 'Gift portion',
+      CONSUMED_CASH: 'Recharge amount of consumption',
+      RECORDED_COST: 'Recorded call cost',
+      CONTRIBUTION: 'Contribution',
+      LIST_CONTRIBUTION: 'List contribution',
+      PURCHASED: 'Purchased points',
+      RECHARGE_BONUS: 'Recharge bonus',
+      INDEPENDENT_BONUS: 'Independent bonus',
+      GRACE: 'Of which grace conversion',
+      PROVIDER_LAST_BALANCE: 'Last back-office balance',
+      PROVIDER_ESTIMATE: 'Current estimated balance',
+    },
+    presentation: 'text',
   },
   executorStatus: {
     helpKey:

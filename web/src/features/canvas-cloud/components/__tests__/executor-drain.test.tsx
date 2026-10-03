@@ -320,7 +320,7 @@ describe('tab marker', () => {
     })
     await waitFor(() => expect(within(tab).getByText('Draining')).toBeVisible())
     expect(
-      screen.getByRole('tab', { name: 'Provider configuration' })
+      screen.getByRole('tab', { name: 'API provider configuration' })
     ).not.toHaveTextContent('Draining')
   })
 

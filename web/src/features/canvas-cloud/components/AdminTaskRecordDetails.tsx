@@ -64,6 +64,7 @@ import {
   customerOutputLabelKey,
   customerPoints,
 } from '../customer-task-view'
+import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
@@ -71,6 +72,10 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import {
+  ProviderCostRevocationDialog,
+  ProviderCostSettlementDialog,
+} from './ProviderCostSettlementDialogs'
 import { JsonSnapshot, TaskCallHistory } from './TaskCallHistory'
 
 const executionLabels: Record<string, string> = {
@@ -242,6 +247,107 @@ function settlementSummary(
   if (released) return t('Points released')
   return t('Settlement complete')
 }
+const incompleteCostReasons: Record<string, string> = {
+  MISSING_USAGE: 'Missing complete usage',
+  MISSING_RATE: 'Missing purchase rate',
+  UNKNOWN_RESULT: 'Call result unknown',
+  UNCLASSIFIED: 'Unclassified',
+}
+
+/**
+ * Cost line of one submit call (or of a legacy Task whose cost is recorded at Task level when callId is null): incomplete
+ * cost can be settled, an active manual settlement can be revoked. Nothing is shown when the cost is system-recorded.
+ */
+function ProviderCallCost(props: {
+  task: CanvasAdminTaskRecordDetail
+  callId: string | null
+  upstreamTaskId?: string | null
+  upstreamRequestId?: string | null
+}) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const [settleOpen, setSettleOpen] = useState(false)
+  const [revokeId, setRevokeId] = useState<string>()
+  const cost = props.task.providerCost
+  if (!cost) return null
+  const incomplete = cost.incompleteCalls.find(
+    (entry) => entry.callId === props.callId
+  )
+  const settlement = cost.manualSettlements.find(
+    (entry) => entry.callId === props.callId && entry.status === 'CONFIRMED'
+  )
+  if (!incomplete && !settlement) return null
+  let status: ReactNode = null
+  if (incomplete) {
+    status = (
+      <span>
+        {t('Provider cost')}: {t('Incomplete cost data')} ·{' '}
+        {t(incompleteCostReasons[incomplete.reason] ?? 'Unclassified')}
+      </span>
+    )
+  } else if (settlement) {
+    const charged =
+      Number(settlement.amountRmb) === 0
+        ? t('API provider did not charge')
+        : t('Manually recorded {{amount}}', {
+            amount: `¥${formatExactRmbReference(settlement.amountRmb, locale, 2)}`,
+          })
+    status = (
+      <span>
+        {t('Provider cost')}: {t('Settled manually')} · {charged}
+        {settlement.settledBy ? ` · ${settlement.settledBy}` : ''} ·{' '}
+        {formatTime(locale, settlement.settledAt)}
+      </span>
+    )
+  }
+  return (
+    <div className='flex flex-wrap items-center justify-between gap-2 text-sm'>
+      {status}
+      {incomplete?.canSettle ? (
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={() => setSettleOpen(true)}
+        >
+          {t('Settle cost')}
+        </Button>
+      ) : null}
+      {settlement?.canRevoke ? (
+        <Button
+          type='button'
+          size='sm'
+          variant='outline'
+          onClick={() => setRevokeId(settlement.providerCostId)}
+        >
+          {t('Revoke settlement')}
+        </Button>
+      ) : null}
+      <ProviderCostSettlementDialog
+        open={settleOpen}
+        onOpenChange={setSettleOpen}
+        taskId={props.task.id}
+        callId={props.callId}
+        upstreamTaskId={
+          props.upstreamTaskId ??
+          (props.callId === null ? props.task.upstreamTaskId : null)
+        }
+        upstreamRequestId={props.upstreamRequestId}
+      />
+      {revokeId ? (
+        <ProviderCostRevocationDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setRevokeId(undefined)
+          }}
+          taskId={props.task.id}
+          providerCostId={revokeId}
+        />
+      ) : null}
+    </div>
+  )
+}
+
 function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
   const { t } = useTranslation()
   const showPreflightDiagnosis =
@@ -331,11 +437,22 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
       </section>
       <section className='space-y-3'>
         <h3 className='text-sm font-medium'>{t('Provider calls')}</h3>
+        <ProviderCallCost task={task} callId={null} />
         <TaskCallHistory
           taskId={task.id}
           inputAssets={task.inputAssets}
           outputs={task.outputs}
           taskSucceeded={task.derivedExecutionStatus === 'SUCCEEDED'}
+          renderCallCost={(call) =>
+            call.callType === 'SUBMIT' ? (
+              <ProviderCallCost
+                task={task}
+                callId={call.localCallId}
+                upstreamTaskId={call.upstreamTaskId}
+                upstreamRequestId={call.upstreamRequestId}
+              />
+            ) : null
+          }
         />
       </section>
     </div>

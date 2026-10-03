@@ -61,7 +61,7 @@ import {
   publishCanvasProviderRate,
   resolveCanvasProviderRateRisk,
 } from '../api'
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 import {
   providerBillingUnit,
   providerRiskFormSchema,

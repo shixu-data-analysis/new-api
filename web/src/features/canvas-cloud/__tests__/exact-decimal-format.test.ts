@@ -2,7 +2,7 @@
 This program is free software under the GNU Affero General Public License version 3 or later. */
 import { describe, expect, it } from 'vitest'
 
-import { formatExactRmbReference } from '../point-conversion-types'
+import { formatExactRmbReference } from '../number-format'
 
 describe('exact decimal display', () => {
   it.each(['en-US', 'zh-CN', 'zh-TW', 'fr', 'ru', 'ja', 'vi'])(

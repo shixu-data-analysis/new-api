@@ -115,7 +115,7 @@ describe('TaskCallHistory', () => {
       'Call started at',
       'Type',
       'Related object',
-      'Provider / channel',
+      'API provider / channel',
       'Call status',
       'Response',
       'Duration',
@@ -186,7 +186,7 @@ describe('TaskCallHistory', () => {
     })
     fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     expect(screen.getByText('RATE_LIMIT')).toBeVisible()
-    expect(screen.getByText('Provider rate limited')).toBeVisible()
+    expect(screen.getByText('API provider rate limited')).toBeVisible()
     expect(screen.getByText('Confirmed failed (set by mapping)')).toBeVisible()
     expect(screen.queryByText('PROVIDER_RATE_LIMITED')).not.toBeInTheDocument()
     expect(screen.getByText('upstream-retry-1')).toBeVisible()
