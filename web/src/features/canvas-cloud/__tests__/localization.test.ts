@@ -127,10 +127,8 @@ const adminRework005Keys = [
   ...taskParameterLabelKeys,
 ]
 const adminRework006Sources = [
-  'ModelControlDialog.tsx',
   'ExecutionTargetCoverage.tsx',
   'ModelManagementLayout.tsx',
-  'ModelMonitoring.tsx',
   'ModelIdentityTooltip.tsx',
   'PublishedModelCatalog.tsx',
   'TaskRecordDetailsSheet.tsx',
@@ -140,8 +138,6 @@ const adminRework006Sources = [
 const adminRework006RouteSources = [
   'src/routes/_authenticated/canvas-cloud/model-management/index.tsx',
   'src/routes/_authenticated/canvas-cloud/model-management/$modelId/pricing.tsx',
-  'src/routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/$executionTargetId.tsx',
-  'src/routes/_authenticated/canvas-cloud/model-management/$modelId/monitoring/index.tsx',
   'src/features/canvas-cloud/model-pricing-error.ts',
 ]
 const adminRework006Keys = [

@@ -103,12 +103,7 @@ import type {
   CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyCalculationIdentity,
   CanvasModelPricingWorkspace,
-  CanvasModelMonitoring,
-  CanvasModelMonitoringTargets,
-  CanvasModelMonitoringControlQuery,
-  CanvasModelMonitoringControlRecord,
   CanvasModelMonitoringControlResult,
-  CanvasModelMonitoringQuery,
   CanvasModelMonitoringOverview,
   CanvasModelMonitoringOverviewQuery,
 } from './types'
@@ -375,20 +370,6 @@ export async function getCanvasAdminTaskLogs(
   ).data
 }
 
-export async function getCanvasModelMonitoring(
-  customerModelId: string,
-  executionTargetId: string,
-  query: CanvasModelMonitoringQuery,
-  signal?: AbortSignal
-): Promise<CanvasModelMonitoring> {
-  return (
-    await api.get<CanvasModelMonitoring>(
-      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}`,
-      { params: query, signal, skipErrorHandler: true }
-    )
-  ).data
-}
-
 export async function getCanvasModelMonitoringOverview(
   query: CanvasModelMonitoringOverviewQuery,
   signal?: AbortSignal
@@ -414,55 +395,6 @@ export async function controlCanvasLogicalModel(
   return (
     await api.post<CanvasModelMonitoringControlResult>(
       `${webBase}/admin/model-monitoring/models/${encodeURIComponent(modelKey)}/control`,
-      input,
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-model-control') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function getCanvasModelMonitoringTargets(
-  customerModelId: string,
-  signal?: AbortSignal
-): Promise<CanvasModelMonitoringTargets> {
-  return (
-    await api.get<CanvasModelMonitoringTargets>(
-      `${webBase}/admin/model-monitoring/models/${encodeURIComponent(customerModelId)}/targets`,
-      { signal, skipErrorHandler: true }
-    )
-  ).data
-}
-
-export async function getCanvasModelMonitoringControls(
-  customerModelId: string,
-  executionTargetId: string,
-  query: CanvasModelMonitoringControlQuery,
-  signal?: AbortSignal
-): Promise<CanvasPage<CanvasModelMonitoringControlRecord>> {
-  return (
-    await api.get<CanvasPage<CanvasModelMonitoringControlRecord>>(
-      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}/controls`,
-      { params: query, signal, skipErrorHandler: true }
-    )
-  ).data
-}
-
-export async function controlCanvasModelMonitoring(
-  customerModelId: string,
-  executionTargetId: string,
-  input: {
-    enabled: boolean
-    expectedVersion: number
-    reasonCode: string
-    note: string
-    confirmed: true
-  }
-): Promise<CanvasModelMonitoringControlResult> {
-  return (
-    await api.post<CanvasModelMonitoringControlResult>(
-      `${webBase}/admin/models/${encodeURIComponent(customerModelId)}/monitoring/targets/${encodeURIComponent(executionTargetId)}/control`,
       input,
       {
         headers: { 'Idempotency-Key': idempotencyKey('web-model-control') },

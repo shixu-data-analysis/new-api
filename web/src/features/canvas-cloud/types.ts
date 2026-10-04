@@ -1768,7 +1768,6 @@ export interface CanvasAdminTaskLogQuery {
   taskId?: string
   customer?: string
   modelId?: string
-  executionTargetId?: string
   derivedExecutionStatus?: string
   settlementProgress?: string
   upstreamTaskId?: string
@@ -1846,118 +1845,6 @@ export interface CanvasModelMonitoringOverview {
     summary: CanvasModelMonitoringStats
     trend: Array<CanvasModelMonitoringStats & { from: string; to: string }>
   }>
-}
-
-export interface CanvasModelMonitoringQuery {
-  window: CanvasModelMonitoringWindow
-  origin: 'REAL' | 'MOCK'
-  from?: string
-  to?: string
-}
-
-export interface CanvasModelMonitoringTargets {
-  customerModel: {
-    id: string
-    modelKey: string
-    effectiveDisplayName: string
-    catalogDefaultName: string
-    providerName: string
-    version: number
-    status: string
-  }
-  targets: Array<{
-    id: string
-    upstreamModelId: string
-    manualEnabled: boolean
-    controlVersion: number
-    effectiveEnabled: boolean
-    blockingReasons: string[]
-    presentationEnabled: boolean
-    presentationVersion: number | null
-    pricingComplete: boolean
-    customerVisible: boolean
-    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
-    parameterCombinations: Array<{
-      id: string
-      key: string
-      label: string
-      normalizedParameters: Record<string, unknown>
-    }>
-  }>
-}
-
-export interface CanvasModelMonitoring {
-  customerModel: {
-    id: string
-    modelKey: string
-    effectiveDisplayName: string
-    catalogDefaultName: string
-    providerName: string
-    version: number
-    capability: string | null
-    status: string
-  }
-  executionTarget: {
-    id: string
-    upstreamModelId: string
-    presentationEnabled: boolean
-    presentationVersion: number | null
-    customerVisible: boolean
-    pricingCoverage: CanvasExecutionTargetPricingCoverage[]
-    parameterCombinations: Array<{
-      id: string
-      key: string
-      label: string
-      normalizedParameters: Record<string, unknown>
-    }>
-  }
-  manualEnabled: boolean
-  controlVersion: number
-  effectiveEnabled: boolean
-  blockingReasons: string[]
-  roundStartedAt: string
-  window: CanvasModelMonitoringWindow
-  origin: 'REAL' | 'MOCK'
-  from: string
-  to: string
-  bucketSeconds: number
-  summary: CanvasModelMonitoringStats
-  trend: Array<
-    CanvasModelMonitoringStats & {
-      from: string
-      to: string
-    }
-  >
-  failures: Array<{ category: string; count: number }>
-}
-
-export interface CanvasModelMonitoringControlQuery {
-  page: number
-  pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  action?: 'DISABLE' | 'ENABLE'
-  actor?: string
-  from?: string
-  to?: string
-  reasonCode?: string
-  sortBy: 'occurredAt' | 'version' | 'action' | 'reason' | 'actor'
-  sortOrder: 'asc' | 'desc'
-}
-
-export interface CanvasModelMonitoringControlRecord {
-  id: string
-  version: number
-  occurredAt: string
-  action: 'DISABLE' | 'ENABLE'
-  enabled: boolean
-  previousEnabled: boolean | null
-  actor: {
-    principalId: string
-    userId: string | null
-    name: string | null
-  }
-  reasonCode: string | null
-  note: string | null
-  legacyReason: string | null
 }
 
 export interface CanvasModelMonitoringControlResult {

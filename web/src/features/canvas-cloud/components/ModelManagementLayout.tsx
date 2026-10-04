@@ -22,9 +22,7 @@ export function ModelManagementLayout() {
   const queryClient = useQueryClient()
   const pathname = useLocation({ select: (location) => location.pathname })
   let title = t('Model management')
-  if (pathname.includes('/monitoring/')) {
-    title = t('Runtime monitoring')
-  } else if (pathname.endsWith('/pricing')) {
+  if (pathname.endsWith('/pricing')) {
     title = t('Model pricing')
   }
   return (
