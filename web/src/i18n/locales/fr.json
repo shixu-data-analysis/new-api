@@ -6406,6 +6406,7 @@
     "Billing unit changed": "L’unité de facturation a changé",
     "Previous specification was not priced": "La configuration précédente n’était pas tarifée",
     "Scheduled price cannot be carried forward safely": "Le prix programmé ne peut pas être repris en toute sécurité",
+    "Scheduled cost change cannot be carried forward safely": "Le changement de coût programmé ne peut pas être repris en toute sécurité",
     "Limited-time promotion cannot be carried forward safely": "La promotion temporaire ne peut pas être reprise en toute sécurité",
     "Published price source is ambiguous": "La source du prix publié est ambiguë",
     "Source model version": "Version du modèle source",

@@ -6406,6 +6406,7 @@
     "Billing unit changed": "Единица тарификации изменилась",
     "Previous specification was not priced": "Для прежней конфигурации цена не была назначена",
     "Scheduled price cannot be carried forward safely": "Запланированную цену нельзя безопасно перенести",
+    "Scheduled cost change cannot be carried forward safely": "Запланированное изменение себестоимости нельзя безопасно перенести",
     "Limited-time promotion cannot be carried forward safely": "Временную акцию нельзя безопасно перенести",
     "Published price source is ambiguous": "Источник опубликованной цены неоднозначен",
     "Source model version": "Версия исходной модели",

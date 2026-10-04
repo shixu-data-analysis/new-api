@@ -6406,6 +6406,7 @@
     "Billing unit changed": "Đơn vị tính phí đã thay đổi",
     "Previous specification was not priced": "Cấu hình trước chưa được định giá",
     "Scheduled price cannot be carried forward safely": "Không thể giữ giá hẹn lịch một cách an toàn",
+    "Scheduled cost change cannot be carried forward safely": "Không thể giữ thay đổi chi phí hẹn lịch một cách an toàn",
     "Limited-time promotion cannot be carried forward safely": "Không thể giữ khuyến mãi có thời hạn một cách an toàn",
     "Published price source is ambiguous": "Nguồn giá đã công bố không rõ ràng",
     "Source model version": "Phiên bản mô hình nguồn",

@@ -6406,6 +6406,7 @@
     "Billing unit changed": "課金単位が変更されました",
     "Previous specification was not priced": "以前の仕様には価格が設定されていません",
     "Scheduled price cannot be carried forward safely": "予約価格を安全に引き継げません",
+    "Scheduled cost change cannot be carried forward safely": "予約中の原価変更を安全に引き継げません",
     "Limited-time promotion cannot be carried forward safely": "期間限定価格を安全に引き継げません",
     "Published price source is ambiguous": "公開価格の参照元を特定できません",
     "Source model version": "参照元モデルの技術バージョン",

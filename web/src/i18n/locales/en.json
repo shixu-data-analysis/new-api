@@ -6406,6 +6406,7 @@
     "Billing unit changed": "Billing unit changed",
     "Previous specification was not priced": "Previous specification was not priced",
     "Scheduled price cannot be carried forward safely": "Scheduled price cannot be carried forward safely",
+    "Scheduled cost change cannot be carried forward safely": "Scheduled cost change cannot be carried forward safely",
     "Limited-time promotion cannot be carried forward safely": "Limited-time promotion cannot be carried forward safely",
     "Published price source is ambiguous": "Published price source is ambiguous",
     "Source model version": "Source model version",

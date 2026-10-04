@@ -55,6 +55,73 @@
       }
     },
     "schemas": {
+      "CatalogRequestValidationIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "actual": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "allowed": {
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "assetId": {
+            "type": "string"
+          },
+          "assetIndex": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "maximum": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "mediaKind": {
+            "enum": ["image", "video", "audio"],
+            "type": "string"
+          },
+          "minimum": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
+        },
+        "required": ["code", "field"],
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "properties": {
@@ -75,6 +142,8 @@
               "PROMOTION_GATE_CLOSED",
               "VALIDATION_FAILED",
               "PAYLOAD_TOO_LARGE",
+              "INTERNAL_ERROR",
+              "SERVICE_UNAVAILABLE",
               "AUDIT_UNAVAILABLE",
               "CATALOG_IMPORT_EXPIRED",
               "CATALOG_PLAN_ACTOR_MISMATCH",
@@ -114,7 +183,7 @@
           },
           "details": {
             "additionalProperties": true,
-            "description": "Administrator form failures expose a stable details.field and may expose details.reason or details.scope; UI must map code and details rather than message.",
+            "description": "Structured business details. Catalog request failures expose validationIssues and validatorVersion; clients map stable codes and fields rather than parsing message.",
             "properties": {
               "historicalGroups": {
                 "description": "For historicalBinding only: all actual old-binding credential groups, deduplicated and sorted by id; contains no secret data.",
@@ -133,6 +202,15 @@
                   "type": "object"
                 },
                 "type": "array"
+              },
+              "validationIssues": {
+                "items": {
+                  "$ref": "#/components/schemas/CatalogRequestValidationIssue"
+                },
+                "type": "array"
+              },
+              "validatorVersion": {
+                "type": "string"
               }
             },
             "type": "object"
@@ -596,6 +674,7 @@
                           "MODEL_BILLING_UNIT_CONFLICT",
                           "UNPRICED_SOURCE",
                           "SCHEDULED_PRICE_CONFLICT",
+                          "SCHEDULED_COST_CONFLICT",
                           "PROMOTION_CONFLICT",
                           "PUBLISHED_PRICE_CONFLICT"
                         ],

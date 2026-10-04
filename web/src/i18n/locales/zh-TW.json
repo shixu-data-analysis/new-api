@@ -6406,6 +6406,7 @@
     "Billing unit changed": "計費單位已變更",
     "Previous specification was not priced": "原規格尚未定價",
     "Scheduled price cannot be carried forward safely": "預約價格無法安全沿用",
+    "Scheduled cost change cannot be carried forward safely": "預約成本調整無法安全沿用",
     "Limited-time promotion cannot be carried forward safely": "限時特價無法安全沿用",
     "Published price source is ambiguous": "已發布價格來源不明確",
     "Source model version": "來源模型技術版本",

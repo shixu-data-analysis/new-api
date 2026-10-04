@@ -29,6 +29,8 @@ const reasonKeys: Record<string, string> = {
   BILLING_UNIT_CHANGED: 'Billing unit changed',
   UNPRICED_SOURCE: 'Previous specification was not priced',
   SCHEDULED_PRICE_CONFLICT: 'Scheduled price cannot be carried forward safely',
+  SCHEDULED_COST_CONFLICT:
+    'Scheduled cost change cannot be carried forward safely',
   PROMOTION_CONFLICT: 'Limited-time promotion cannot be carried forward safely',
   AMBIGUOUS_SOURCE: 'Published price source is ambiguous',
 }
