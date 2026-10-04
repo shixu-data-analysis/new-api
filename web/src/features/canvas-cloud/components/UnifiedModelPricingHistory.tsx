@@ -61,6 +61,7 @@ import { CanvasServerTable } from './CanvasServerTable'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 type HistoryStatus = 'ALL' | CanvasModelPricingPublication['status']
+type HistoryScope = CanvasModelPricingPublication['scopeSummary'][number]
 type HistoryChange =
   | 'ALL'
   | NonNullable<CanvasModelPricingPublication['change']>
@@ -144,23 +145,16 @@ export function UnifiedModelPricingHistory(props: {
   })
   const resetPage = () =>
     state.setPagination((value) => ({ ...value, pageIndex: 0 }))
-  const combinationName = (id: string) => {
-    const combination = props.detail?.model.combinations.find(
-      (value) => value.id === id
-    )
-    if (combination) {
-      return pricingScopeLabel(combination, t)
-    }
-    const scope = props.detail?.pricingScopes.find(
-      (value) => value.parameterCombinationId === id
-    )
-    return pricingScopeLabel(
-      scope
-        ? { key: scope.combinationKey, parameters: scope.parameters }
-        : undefined,
+  // History spans every technical version, so a scope is labelled by its own key instead of the current version's IDs.
+  const scopeName = (scope: HistoryScope) =>
+    pricingScopeLabel(
+      { key: scope.combinationKey, parameters: scope.parameters },
       t
     )
-  }
+  const focusedBelongs =
+    focused.data !== undefined &&
+    (focused.data.customerModelId === props.modelId ||
+      focused.data.modelKey === props.detail?.model.modelKey)
   const groupName = (id: string | null) =>
     id === null
       ? t('Provider cost')
@@ -184,10 +178,16 @@ export function UnifiedModelPricingHistory(props: {
       cell: ({ row }) => formatCanvasDateTime(row.original.effectiveAt),
     },
     {
+      id: 'technicalVersion',
+      meta: { label: t('Technical version') },
+      header: t('Technical version'),
+      cell: ({ row }) => `v${row.original.customerModelVersion}`,
+    },
+    {
       id: 'combination',
       header: t('Combination'),
       cell: ({ row }) =>
-        scopes(row.original, (scope) => combinationName(scope.combinationId)),
+        scopes(row.original, scopeName),
     },
     {
       id: 'priceGroup',
@@ -250,7 +250,7 @@ export function UnifiedModelPricingHistory(props: {
     expandedId === row.original.id ? (
       <HistoryDetails
         item={row.original}
-        combinationName={combinationName}
+        scopeName={scopeName}
         groupName={groupName}
       />
     ) : null
@@ -264,15 +264,12 @@ export function UnifiedModelPricingHistory(props: {
           missing={
             !focused.isPending &&
             !focused.isError &&
-            focused.data?.customerModelId !== props.modelId
+            !focusedBelongs &&
+            props.detail !== undefined
           }
-          item={
-            focused.data?.customerModelId === props.modelId
-              ? focused.data
-              : undefined
-          }
+          item={focusedBelongs ? focused.data : undefined}
           onRetry={() => void focused.refetch()}
-          combinationName={combinationName}
+          scopeName={scopeName}
           groupName={groupName}
         />
       ) : null}
@@ -329,7 +326,7 @@ export function UnifiedModelPricingHistory(props: {
                 </NativeSelectOption>
                 {props.detail?.model.combinations.map((item) => (
                   <NativeSelectOption key={item.id} value={item.id}>
-                    {combinationName(item.id)}
+                    {pricingScopeLabel(item, t)}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
@@ -474,7 +471,7 @@ function FocusedRecord(props: {
   missing: boolean
   item: CanvasModelPricingPublication | undefined
   onRetry: () => void
-  combinationName: (id: string) => string
+  scopeName: (scope: HistoryScope) => string
   groupName: (id: string | null) => string
 }) {
   const { t } = useTranslation()
@@ -506,7 +503,7 @@ function FocusedRecord(props: {
     >
       <HistoryDetails
         item={props.item}
-        combinationName={props.combinationName}
+        scopeName={props.scopeName}
         groupName={props.groupName}
       />
     </section>
@@ -514,14 +511,17 @@ function FocusedRecord(props: {
 }
 function HistoryDetails(props: {
   item: CanvasModelPricingPublication
-  combinationName: (id: string) => string
+  scopeName: (scope: HistoryScope) => string
   groupName: (id: string | null) => string
 }) {
   const { t } = useTranslation()
   const scopeSummary = props.item.scopeSummary ?? []
-  const combinationIds = [
-    ...new Set(scopeSummary.map((scope) => scope.combinationId)),
-  ]
+  const combinationScopes = scopeSummary.filter(
+    (scope, index) =>
+      scopeSummary.findIndex(
+        (other) => other.combinationId === scope.combinationId
+      ) === index
+  )
   const hasActor = Boolean(props.item.actor.displayName)
   const hasReason = Boolean(props.item.decisionSummary?.trim())
   return (
@@ -553,7 +553,8 @@ function HistoryDetails(props: {
         </p>
       ) : null}
       {props.item.source === 'UNIFIED' && props.item.preview
-        ? combinationIds.map((combinationId) => {
+        ? combinationScopes.map((combinationScope) => {
+            const combinationId = combinationScope.combinationId
             const entries = scopeSummary.filter(
               (scope) => scope.combinationId === combinationId
             )
@@ -570,9 +571,9 @@ function HistoryDetails(props: {
             const multiplePlans = prices.length > 1
             return (
               <div className='space-y-3' key={combinationId}>
-                {combinationIds.length > 1 || multiplePlans ? (
+                {combinationScopes.length > 1 || multiplePlans ? (
                   <p className='font-medium'>
-                    {props.combinationName(combinationId)}
+                    {props.scopeName(combinationScope)}
                   </p>
                 ) : null}
                 {!previewScope ? (
@@ -603,7 +604,7 @@ function HistoryDetails(props: {
                         key={entry.priceGroupId ?? 'cost'}
                         className='space-y-3'
                       >
-                        {combinationIds.length > 1 || multiplePlans ? (
+                        {combinationScopes.length > 1 || multiplePlans ? (
                           <p className='font-medium'>
                             {props.groupName(entry.priceGroupId)}
                           </p>

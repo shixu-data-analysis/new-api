@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "Không thể tải giám sát mô hình",
     "Disable model": "Vô hiệu hóa mô hình",
     "Restore model": "Khôi phục mô hình",
+    "Select a disable reason": "Chọn lý do tạm dừng",
+    "Select a restore reason": "Chọn lý do khôi phục",
     "Successful results": "Kết quả thành công",
     "Model state updated": "Đã cập nhật trạng thái mô hình",
     "Model change failed. Refresh the model state before retrying.": "Không thể thay đổi mô hình. Hãy làm mới trạng thái mô hình trước khi thử lại.",

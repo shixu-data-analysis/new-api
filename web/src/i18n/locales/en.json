@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "Model monitoring could not be loaded",
     "Disable model": "Disable model",
     "Restore model": "Restore model",
+    "Select a disable reason": "Select a disable reason",
+    "Select a restore reason": "Select a restore reason",
     "Successful results": "Successful results",
     "Model state updated": "Model state updated",
     "Model change failed. Refresh the model state before retrying.": "Model change failed. Refresh the model state before retrying.",

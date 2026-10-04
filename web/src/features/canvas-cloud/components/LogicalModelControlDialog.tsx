@@ -104,11 +104,9 @@ export function LogicalModelControlDialog(props: {
               aria-describedby='logical-model-control-reason-error'
             >
               <NativeSelectOption value=''>
-                {t(
-                  enabled
-                    ? 'Select a restore reason'
-                    : 'Select a disable reason'
-                )}
+                {enabled
+                  ? t('Select a restore reason')
+                  : t('Select a disable reason')}
               </NativeSelectOption>
               {(enabled ? modelEnableReasons : modelDisableReasons).map(
                 (reason) => (

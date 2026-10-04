@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "Не удалось загрузить мониторинг модели",
     "Disable model": "Отключить модель",
     "Restore model": "Восстановить модель",
+    "Select a disable reason": "Выберите причину отключения",
+    "Select a restore reason": "Выберите причину восстановления",
     "Successful results": "Успешные результаты",
     "Model state updated": "Состояние модели обновлено",
     "Model change failed. Refresh the model state before retrying.": "Не удалось изменить модель. Обновите её состояние перед повторной попыткой.",

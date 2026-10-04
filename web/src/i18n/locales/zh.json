@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "无法加载模型监控",
     "Disable model": "停用模型",
     "Restore model": "恢复模型",
+    "Select a disable reason": "请选择停用原因",
+    "Select a restore reason": "请选择恢复原因",
     "Successful results": "成功结果",
     "Model state updated": "模型状态已更新",
     "Model change failed. Refresh the model state before retrying.": "模型变更失败，请刷新模型状态后重试。",

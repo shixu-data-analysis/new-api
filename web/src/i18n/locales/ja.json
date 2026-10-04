@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "モデル監視を読み込めません",
     "Disable model": "モデルを無効化",
     "Restore model": "モデルを復元",
+    "Select a disable reason": "停止理由を選択してください",
+    "Select a restore reason": "再開理由を選択してください",
     "Successful results": "成功した結果",
     "Model state updated": "モデルの状態を更新しました",
     "Model change failed. Refresh the model state before retrying.": "モデルの変更に失敗しました。再試行前にモデル状態を更新してください。",

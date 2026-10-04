@@ -1518,6 +1518,8 @@ export interface CanvasModelPricingPublicationResult {
 export interface CanvasModelPricingPublication {
   id: string
   customerModelId: string
+  customerModelVersion: number
+  modelKey: string
   displayNameSnapshot: string
   version: number
   source: 'UNIFIED' | 'LEGACY_PROVIDER_RATE' | 'LEGACY_PRICE'
@@ -1534,6 +1536,8 @@ export interface CanvasModelPricingPublication {
   decisionSummary: string
   scopeSummary: Array<{
     combinationId: string
+    combinationKey: string
+    parameters: Record<string, unknown>
     priceGroupId: string | null
     changeKind: string
     providerRateVersionId: string | null

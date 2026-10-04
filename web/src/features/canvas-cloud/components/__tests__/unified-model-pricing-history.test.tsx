@@ -100,6 +100,8 @@ const providerRate = {
 const unified = {
   id: 'publication-1',
   customerModelId: 'model-1',
+  customerModelVersion: 1,
+  modelKey: 'video',
   displayNameSnapshot: 'Historical Video A',
   source: 'UNIFIED',
   version: 2,
@@ -117,6 +119,8 @@ const unified = {
   scopeSummary: [
     {
       combinationId: 'combination-1',
+      combinationKey: 'HD',
+      parameters: { quality: 'HD' },
       priceGroupId: 'group-1',
       changeKind: 'PRICE',
       providerRateVersionId: 'rate-2',
@@ -231,6 +235,8 @@ function publicationForScopes(): CanvasModelPricingPublication {
     scopeSummary: scopeVariants.map((scope) => ({
       ...unified.scopeSummary[0],
       combinationId: scope.id,
+      combinationKey: scope.key,
+      parameters: scope.parameters,
     })),
     preview: {
       ...unified.preview,
@@ -394,7 +400,12 @@ describe('UnifiedModelPricingHistory', () => {
         {
           ...unified,
           scopeSummary: [
-            { ...unified.scopeSummary[0], combinationId: 'default-scope' },
+            {
+              ...unified.scopeSummary[0],
+              combinationId: 'default-scope',
+              combinationKey: 'default',
+              parameters: {},
+            },
           ],
           preview: {
             ...unified.preview,
@@ -418,7 +429,7 @@ describe('UnifiedModelPricingHistory', () => {
     expect(await screen.findByText('Default scope')).toBeVisible()
   })
 
-  it('uses factual fallback labels in the list and its expanded scope details', async () => {
+  it('labels each scope by its own key in the list and its expanded scope details', async () => {
     mocks.history.mockResolvedValue({
       items: [publicationForScopes()],
       total: 1,
@@ -429,7 +440,7 @@ describe('UnifiedModelPricingHistory', () => {
 
     expect(
       await screen.findByText(
-        /Default scope, Quality: HD, legacy-mode, duration: 10, Not recorded/
+        /Default scope, Quality: HD, legacy-mode, duration: 10, missing/
       )
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
@@ -1232,14 +1243,64 @@ describe('UnifiedModelPricingHistory', () => {
     mocks.publication.mockResolvedValue({
       ...unified,
       customerModelId: 'other-model',
+      modelKey: 'other',
     })
     renderHistory('publication-1')
-    await waitFor(() =>
-      expect(mocks.publication).toHaveBeenCalledWith('publication-1')
-    )
+    expect(
+      await screen.findByText(
+        'This pricing publication does not belong to the selected model.'
+      )
+    ).toBeVisible()
     expect(
       screen.queryByLabelText('Model pricing history details')
     ).not.toBeInTheDocument()
+  })
+  it('renders a focused publication from an earlier technical version of the same model', async () => {
+    mocks.publication.mockResolvedValue({
+      ...unified,
+      customerModelId: 'model-0',
+      customerModelVersion: 1,
+      scopeSummary: [
+        {
+          ...unified.scopeSummary[0],
+          combinationId: 'old-combination',
+          combinationKey: 'SD',
+          parameters: { quality: 'SD' },
+        },
+      ],
+    })
+    renderHistory('publication-1')
+    expect(
+      await screen.findByLabelText('Model pricing history details')
+    ).toBeVisible()
+  })
+  it('shows the technical version of each history entry', async () => {
+    mocks.history.mockResolvedValue({
+      items: [
+        unified,
+        {
+          ...unified,
+          id: 'publication-0',
+          customerModelId: 'model-0',
+          customerModelVersion: 2,
+          scopeSummary: [
+            {
+              ...unified.scopeSummary[0],
+              combinationId: 'old-combination',
+              combinationKey: 'SD',
+              parameters: { quality: 'SD' },
+            },
+          ],
+        },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 20,
+    })
+    renderHistory()
+    expect(await screen.findByText('v2')).toBeVisible()
+    expect(screen.getByText('v1')).toBeVisible()
+    expect(screen.getByText('Quality: SD')).toBeVisible()
   })
   it('does not fetch an exact publication or offer cancel for cancelled and legacy history', async () => {
     mocks.history.mockResolvedValue({

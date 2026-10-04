@@ -7663,6 +7663,8 @@
     "Model monitoring could not be loaded": "Impossible de charger la surveillance du modèle",
     "Disable model": "Désactiver le modèle",
     "Restore model": "Restaurer le modèle",
+    "Select a disable reason": "Sélectionnez un motif de désactivation",
+    "Select a restore reason": "Sélectionnez un motif de réactivation",
     "Successful results": "Résultats réussis",
     "Model state updated": "État du modèle mis à jour",
     "Model change failed. Refresh the model state before retrying.": "La modification du modèle a échoué. Actualisez son état avant de réessayer.",

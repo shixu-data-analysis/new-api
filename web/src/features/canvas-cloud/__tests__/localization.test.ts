@@ -128,6 +128,7 @@ const adminRework005Keys = [
 ]
 const adminRework006Sources = [
   'ExecutionTargetCoverage.tsx',
+  'LogicalModelControlDialog.tsx',
   'ModelManagementLayout.tsx',
   'ModelIdentityTooltip.tsx',
   'PublishedModelCatalog.tsx',
