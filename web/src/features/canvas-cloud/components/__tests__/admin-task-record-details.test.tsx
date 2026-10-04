@@ -949,6 +949,81 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
   })
 
+  it('force-ends a processing task with the early-release dialog, counting only its unfinished frozen result', async () => {
+    const output = {
+      settledPoints: null,
+      error: null,
+      usageSnapshot: null,
+      completedAt: null,
+      billingFinalizedAt: null,
+      customerSafeErrorDetail: null,
+    }
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      derivedExecutionStatus: 'PROCESSING',
+      executionStatus: 'PROCESSING',
+      customerBillingStatus: 'FROZEN',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
+      outputs: [
+        {
+          ...output,
+          outputIndex: 0,
+          quotedPoints: '6',
+          executionStatus: 'PROCESSING',
+          billingStatus: 'FROZEN',
+        },
+        {
+          ...output,
+          outputIndex: 1,
+          quotedPoints: '6',
+          settledPoints: '6',
+          executionStatus: 'SUCCEEDED',
+          billingStatus: 'SETTLED',
+        },
+      ],
+    })
+    mount()
+    expect(
+      screen.queryByRole('button', { name: 'Release frozen points early' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Force-end and release points',
+      })
+    )
+    expect(
+      screen.getByText(
+        'End this task and release 6 frozen points for 1 unfinished results. The current execution stops; no cancellation request is sent to the API provider.'
+      )
+    ).toBeVisible()
+    fireEvent.change(screen.getByLabelText('Administrator reason'), {
+      target: { value: 'Upstream returned 401 and the task kept processing' },
+    })
+    fireEvent.click(
+      screen.getByText('I understand the impact of this operation')
+    )
+    const actions = screen.getAllByRole('button', {
+      name: 'Force-end and release points',
+    })
+    api.releaseCanvasTaskFrozenPoints.mockResolvedValueOnce(task)
+    fireEvent.click(actions.at(-1) as HTMLElement)
+
+    await waitFor(() =>
+      expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledWith(task.id, {
+        reason: 'Upstream returned 401 and the task kept processing',
+        upstreamFailureConfirmed: false,
+      })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText('Administrator reason')
+      ).not.toBeInTheDocument()
+    )
+  })
+
   it('offers early release for a legacy frozen task without output rows', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,

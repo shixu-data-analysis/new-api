@@ -750,12 +750,13 @@ export function AdminTaskRecordDetails({
     retry: false,
   })
   const release = useMutation({
-    mutationFn: () =>
+    // The variable says whether this release force-ends a processing task.
+    mutationFn: (_forceEnd: boolean) =>
       releaseCanvasTaskFrozenPoints(taskId, {
         upstreamFailureConfirmed,
         reason: releaseReason.trim(),
       }),
-    onSuccess: async () => {
+    onSuccess: async (_task, forceEnd) => {
       setReleaseOpen(false)
       setReleaseReason('')
       setImpactConfirmed(false)
@@ -774,7 +775,13 @@ export function AdminTaskRecordDetails({
           queryKey: ['canvas-cloud', 'customer', 'point-summary'],
         }),
       ])
-      toast.success(t('Frozen points released'))
+      toast.success(
+        t(
+          forceEnd
+            ? 'Task ended and frozen points released'
+            : 'Frozen points released'
+        )
+      )
     },
     onError: async (error) => {
       const status = (error as { response?: { status?: number } }).response
@@ -828,14 +835,60 @@ export function AdminTaskRecordDetails({
     task.customerBillingStatus === 'FROZEN'
   const hasPendingFrozenOutput =
     pendingFrozenOutputs.length > 0 || legacyPendingTask
-  const releasableResultCount = legacyPendingTask
-    ? 1
-    : pendingFrozenOutputs.length
-  const releasablePoints = legacyPendingTask
-    ? task.quotedPoints
+  // A processing task is force-ended: Canvas Cloud ends the current execution, and its frozen results still executing
+  // or already UNKNOWN are released with the same dialog.
+  const forceEnd =
+    task.executionStatus === 'PROCESSING' &&
+    task.customerBillingStatus === 'FROZEN'
+  const releasableOutputs = forceEnd
+    ? task.outputs.filter(
+        (output) =>
+          output.billingStatus === 'FROZEN' &&
+          ['ACCEPTED', 'PROCESSING', 'UNKNOWN'].includes(output.executionStatus)
+      )
     : pendingFrozenOutputs
+  const legacyReleasableTask =
+    legacyPendingTask || (forceEnd && task.outputs.length === 0)
+  const releaseActionShown =
+    releasableOutputs.length > 0 || legacyReleasableTask
+  const releaseActionLabel = forceEnd
+    ? 'Force-end and release points'
+    : 'Release frozen points early'
+  const releasableResultCount = legacyReleasableTask
+    ? 1
+    : releasableOutputs.length
+  const releasablePoints = legacyReleasableTask
+    ? task.quotedPoints
+    : releasableOutputs
         .reduce((sum, output) => sum + BigInt(output.quotedPoints), 0n)
         .toString()
+  const multipleResults = task.outputs.length > 1
+  const releaseValues = {
+    points: releasablePoints,
+    count: releasableResultCount,
+  }
+  let releaseDescription: string
+  if (forceEnd) {
+    releaseDescription = multipleResults
+      ? t(
+          'End this task and release {{points}} frozen points for {{count}} unfinished results. The current execution stops; no cancellation request is sent to the provider.',
+          releaseValues
+        )
+      : t(
+          'End this task and release {{points}} frozen points. The current execution stops; no cancellation request is sent to the provider.',
+          releaseValues
+        )
+  } else {
+    releaseDescription = multipleResults
+      ? t(
+          'Release {{points}} frozen points for {{count}} pending results. This does not send a cancellation request to the provider.',
+          releaseValues
+        )
+      : t(
+          'Release {{points}} frozen points for this task. This does not send a cancellation request to the provider.',
+          releaseValues
+        )
+  }
   const nodeStatus = customerNodeStatus(task)
   const deadline = customerDeadline(task)
   const points = customerPoints(task)
@@ -1024,7 +1077,7 @@ export function AdminTaskRecordDetails({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-      {hasPendingFrozenOutput ? (
+      {releaseActionShown ? (
         <div className='bg-background/95 sticky bottom-0 flex flex-col items-end gap-2 border-t py-4 backdrop-blur'>
           {!task.earlyReleaseAllowed && task.earlyReleaseBlockedReason ? (
             <p className='text-muted-foreground text-sm'>
@@ -1040,26 +1093,16 @@ export function AdminTaskRecordDetails({
             disabled={!task.earlyReleaseAllowed}
             onClick={() => setReleaseOpen(true)}
           >
-            {t('Release frozen points early')}
+            {t(releaseActionLabel)}
           </Button>
         </div>
       ) : null}
       <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('Release frozen points early')}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t(releaseActionLabel)}</AlertDialogTitle>
             <AlertDialogDescription>
-              {task.outputs.length > 1
-                ? t(
-                    'Release {{points}} frozen points for {{count}} pending results. This does not send a cancellation request to the provider.',
-                    { points: releasablePoints, count: releasableResultCount }
-                  )
-                : t(
-                    'Release {{points}} frozen points for this task. This does not send a cancellation request to the provider.',
-                    { points: releasablePoints }
-                  )}
+              {releaseDescription}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className='space-y-4'>
@@ -1147,14 +1190,10 @@ export function AdminTaskRecordDetails({
                     ?.focus()
                   return
                 }
-                release.mutate()
+                release.mutate(forceEnd)
               }}
             >
-              {t(
-                release.isPending
-                  ? 'Submitting…'
-                  : 'Release frozen points early'
-              )}
+              {t(release.isPending ? 'Submitting…' : releaseActionLabel)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
