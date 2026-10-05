@@ -186,8 +186,7 @@ export function UnifiedModelPricingHistory(props: {
     {
       id: 'combination',
       header: t('Combination'),
-      cell: ({ row }) =>
-        scopes(row.original, scopeName),
+      cell: ({ row }) => scopes(row.original, scopeName),
     },
     {
       id: 'priceGroup',
