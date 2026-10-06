@@ -39,7 +39,7 @@ export function TaskRecordDetailsSheet(props: {
       }}
     >
       <SheetContent
-        className={sideDrawerContentClassName('max-w-none sm:!max-w-[720px]')}
+        className={sideDrawerContentClassName('max-w-none sm:!max-w-[880px]')}
       >
         <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>

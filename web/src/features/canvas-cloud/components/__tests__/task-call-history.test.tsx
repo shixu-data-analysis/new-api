@@ -8,7 +8,13 @@ the Free Software Foundation, either version 3 of the License, or
 */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -268,6 +274,32 @@ describe('TaskCallHistory', () => {
         (button) => button.textContent === 'Copy'
       )
     ).toHaveLength(1)
+  })
+
+  it('puts "Show full content" of a long request body in the explanation row, not a row of its own', () => {
+    mountDetails({
+      ...call,
+      sanitizedRequest: {
+        method: 'POST',
+        path: '/v1/video/generations',
+        query: {},
+        contentType: 'application/json',
+        body: { prompt: 'x'.repeat(2000) },
+      },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
+
+    const toggle = screen.getByRole('button', { name: 'Show full content' })
+    const headerRow = toggle.closest('div.justify-between')
+    expect(headerRow).toHaveTextContent(
+      'The request Canvas sent after converting it with the provider interface template.'
+    )
+    expect(
+      within(headerRow as HTMLElement).getByRole('button', { name: 'Copy' })
+    ).toBeVisible()
+    expect(headerRow?.nextElementSibling).toHaveTextContent(
+      'POST /v1/video/generations'
+    )
   })
 
   it.each([

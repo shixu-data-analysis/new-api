@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { useRef } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -769,42 +775,117 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('mirrors Canvas Web with the customer message first and the upstream reason below it', async () => {
-    await i18next.changeLanguage('zhCN')
-    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
-      ...task,
-      derivedExecutionStatus: 'CONFIRMED_FAILED',
-      executionStatus: 'CONFIRMED_FAILED',
-      customerBillingStatus: 'RELEASED_FAILED',
-      releasedPoints: '14',
-      billingFinalizedAt: '2026-09-14T09:17:00.000Z',
-      taskError: null,
-      outputs: [
-        {
-          outputIndex: 0,
-          quotedPoints: '14',
-          settledPoints: null,
-          executionStatus: 'CONFIRMED_FAILED',
-          billingStatus: 'RELEASED_FAILED',
-          error: {
-            code: 'PROVIDER_UNKNOWN_ERROR',
-            messages: { zhCN: '生成失败，请稍后重试或联系管理员。' },
-            upstreamReason: '参考图涉及肖像限制',
+  // Cloud fills the administrator task error from the failure code alone; the customer still
+  // sees the failed result's own message, so the mirror reads the results first.
+  it.each([
+    ['no task-level error', null],
+    ['a code-only task-level error', { code: 'PROVIDER_UNKNOWN_ERROR' }],
+  ])(
+    'mirrors Canvas Web with the customer message first and the upstream reason below it (%s)',
+    async (_name, taskError) => {
+      await i18next.changeLanguage('zhCN')
+      api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+        ...task,
+        derivedExecutionStatus: 'CONFIRMED_FAILED',
+        executionStatus: 'CONFIRMED_FAILED',
+        customerBillingStatus: 'RELEASED_FAILED',
+        releasedPoints: '14',
+        billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+        taskError,
+        outputs: [
+          {
+            outputIndex: 0,
+            quotedPoints: '14',
+            settledPoints: null,
+            executionStatus: 'CONFIRMED_FAILED',
+            billingStatus: 'RELEASED_FAILED',
+            error: {
+              code: 'PROVIDER_UNKNOWN_ERROR',
+              messages: { zhCN: '生成失败，请稍后重试或联系管理员。' },
+              upstreamReason: '参考图涉及肖像限制',
+            },
+            usageSnapshot: null,
+            completedAt: '2026-09-14T09:17:00.000Z',
+            billingFinalizedAt: '2026-09-14T09:17:00.000Z',
+            customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
           },
+        ],
+      })
+      mount()
+
+      expect(
+        await screen.findByText('生成失败，请稍后重试或联系管理员。')
+      ).toBeVisible()
+      expect(screen.getByText('服务商原因：参考图涉及肖像限制')).toBeVisible()
+      expect(screen.queryByText('服务商返回了错误码。')).not.toBeInTheDocument()
+    }
+  )
+
+  it.each([
+    [
+      'one result generating and one queued',
+      [false, true],
+      'Generating in the cloud',
+      ['Result 1 · Generating', 'Result 2 · Queued'],
+    ],
+    [
+      'every unfinished result queued',
+      [true, true],
+      'Queued',
+      ['Result 1 · Queued', 'Result 2 · Queued'],
+    ],
+  ])(
+    'mirrors Canvas Web for %s',
+    async (_name, queued, nodeLabel, resultLabels) => {
+      api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+        ...task,
+        derivedExecutionStatus: 'PROCESSING',
+        executionStatus: 'PROCESSING',
+        customerBillingStatus: 'FROZEN',
+        taskError: null,
+        outputs: queued.map((isQueued, outputIndex) => ({
+          outputIndex,
+          quotedPoints: '7',
+          settledPoints: null,
+          executionStatus: isQueued ? 'ACCEPTED' : 'PROCESSING',
+          billingStatus: 'FROZEN',
+          queued: isQueued,
+          error: null,
           usageSnapshot: null,
-          completedAt: '2026-09-14T09:17:00.000Z',
-          billingFinalizedAt: '2026-09-14T09:17:00.000Z',
-          customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
-        },
-      ],
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+        })),
+      })
+      mount()
+
+      const customerView = (
+        await screen.findAllByText('Task information')
+      )[0].closest('div.space-y-4')
+      if (!customerView) throw new Error('No customer view')
+      expect(
+        within(customerView as HTMLElement).getAllByText(nodeLabel)[0]
+      ).toBeVisible()
+      expect(
+        [...customerView.querySelectorAll('li')].map((item) => item.textContent)
+      ).toEqual(resultLabels)
+    }
+  )
+
+  it('leaves no blank row under a submit call that has no cost to show', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      providerCost: null,
     })
     mount()
 
-    expect(
-      await screen.findByText('生成失败，请稍后重试或联系管理员。')
-    ).toBeVisible()
-    expect(screen.getByText('服务商原因：参考图涉及肖像限制')).toBeVisible()
-    expect(screen.queryByText('服务商返回了错误码。')).not.toBeInTheDocument()
+    const callRow = (await screen.findByText('Submit task')).closest('tr')
+    const body = callRow?.closest('tbody')
+    if (!body) throw new Error('No call table')
+    const blankRows = [...body.querySelectorAll('tr')].filter(
+      (row) => row.textContent?.trim() === ''
+    )
+    expect(blankRows).toHaveLength(0)
   })
 
   it('explains which provider address check stopped a task before it was sent', async () => {

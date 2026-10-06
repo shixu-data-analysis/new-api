@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "Partiellement actuel",
     "SUPERSEDED": "Remplacé",
     "CANCELLED": "Annulé",
-    "Provider cost and customer price": "Coût fournisseur et prix client",
     "Initial": "Initial",
-    "Customer price retained": "Prix client conservé",
     "Cancel the scheduled customer price before publishing a new change.": "Annulez le prix client planifié avant de publier une nouvelle modification.",
     "Cancel the scheduled provider rate before publishing a new change.": "Annulez le tarif fournisseur planifié avant de publier une nouvelle modification.",
     "Resolve the limited-price special conflict before publishing.": "Résolvez le conflit de prix spécial à durée limitée avant de publier.",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "Sélectionné : {{bundle}} ({{version}})",
     "Choose folder again": "Choisir un autre dossier",
     "Ignored {{count}} files not referenced by manifest.json": "{{count}} fichiers non référencés par manifest.json ignorés",
-    "Details: {{text}}": "Détails : {{text}}"
+    "Details: {{text}}": "Détails : {{text}}",
+    "Pricing status current": "En vigueur",
+    "Customer task view queued": "En file d’attente",
+    "Customer task view generating": "Génération en cours",
+    "Agent display price and customer sale price": "Prix affiché par l’agent et prix de vente client",
+    "Provider cost, agent display price and customer sale price": "Coût du fournisseur, prix affiché par l’agent et prix de vente client",
+    "Provider cost and customer sale price": "Coût du fournisseur et prix de vente client",
+    "Customer sale price retained": "Prix de vente client conservé"
   }
 }

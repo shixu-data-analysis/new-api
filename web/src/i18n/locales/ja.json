@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "一部現在",
     "SUPERSEDED": "置き換え済み",
     "CANCELLED": "キャンセル済み",
-    "Provider cost and customer price": "プロバイダーコストと顧客価格",
     "Initial": "初期",
-    "Customer price retained": "顧客価格を維持",
     "Cancel the scheduled customer price before publishing a new change.": "新しい変更を公開する前に、予定済みの顧客価格をキャンセルしてください。",
     "Cancel the scheduled provider rate before publishing a new change.": "新しい変更を公開する前に、予定済みのプロバイダー料金をキャンセルしてください。",
     "Resolve the limited-price special conflict before publishing.": "公開前に期間限定特価の競合を解決してください。",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "選択中：{{bundle}}（{{version}}）",
     "Choose folder again": "フォルダーを選び直す",
     "Ignored {{count}} files not referenced by manifest.json": "manifest.json に参照されていない {{count}} 件のファイルを無視しました",
-    "Details: {{text}}": "詳細：{{text}}"
+    "Details: {{text}}": "詳細：{{text}}",
+    "Pricing status current": "有効",
+    "Customer task view queued": "待機中",
+    "Customer task view generating": "生成中",
+    "Agent display price and customer sale price": "代理店表示価格と顧客販売価格",
+    "Provider cost, agent display price and customer sale price": "プロバイダー原価、代理店表示価格、顧客販売価格",
+    "Provider cost and customer sale price": "プロバイダー原価と顧客販売価格",
+    "Customer sale price retained": "顧客販売価格を維持"
   }
 }

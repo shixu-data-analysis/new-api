@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "Частично текущий",
     "SUPERSEDED": "Заменено",
     "CANCELLED": "Отменено",
-    "Provider cost and customer price": "Стоимость поставщика и цена клиента",
     "Initial": "Начальный",
-    "Customer price retained": "Цена клиента сохранена",
     "Cancel the scheduled customer price before publishing a new change.": "Отмените запланированную цену клиента перед публикацией нового изменения.",
     "Cancel the scheduled provider rate before publishing a new change.": "Отмените запланированный тариф поставщика перед публикацией нового изменения.",
     "Resolve the limited-price special conflict before publishing.": "Разрешите конфликт специальной ограниченной цены перед публикацией.",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "Выбрано: {{bundle}} ({{version}})",
     "Choose folder again": "Выбрать папку заново",
     "Ignored {{count}} files not referenced by manifest.json": "Пропущено файлов, не указанных в manifest.json: {{count}}",
-    "Details: {{text}}": "Подробности: {{text}}"
+    "Details: {{text}}": "Подробности: {{text}}",
+    "Pricing status current": "Действует",
+    "Customer task view queued": "В очереди",
+    "Customer task view generating": "Генерируется",
+    "Agent display price and customer sale price": "Отображаемая цена агента и цена продажи клиенту",
+    "Provider cost, agent display price and customer sale price": "Себестоимость поставщика, отображаемая цена агента и цена продажи клиенту",
+    "Provider cost and customer sale price": "Себестоимость поставщика и цена продажи клиенту",
+    "Customer sale price retained": "Цена продажи клиенту сохранена"
   }
 }

@@ -1566,9 +1566,9 @@
     "K pricing": "定价成本基数",
     "Currency": "货币",
     "Currency & Display": "货币与展示",
-    "Current": "当前生效",
+    "Current": "当前",
     "Scheduled": "待生效",
-    "Partially current": "部分生效",
+    "Partially current": "部分有效",
     "Superseded": "已被替代",
     "Current Balance": "当前余额",
     "Current Billing": "当前计费",
@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "部分生效",
     "SUPERSEDED": "已被替代",
     "CANCELLED": "已取消",
-    "Provider cost and customer price": "服务商成本和客户价格",
     "Initial": "初始",
-    "Customer price retained": "保留客户价格",
     "Cancel the scheduled customer price before publishing a new change.": "请先取消已排程的客户价格，再发布新变更。",
     "Cancel the scheduled provider rate before publishing a new change.": "请先取消已排程的服务商费率，再发布新变更。",
     "Resolve the limited-price special conflict before publishing.": "请先解决限时特价冲突，再发布。",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "已选择：{{bundle}}（{{version}}）",
     "Choose folder again": "重新选择文件夹",
     "Ignored {{count}} files not referenced by manifest.json": "已忽略 {{count}} 个未被 manifest 引用的文件",
-    "Details: {{text}}": "详情：{{text}}"
+    "Details: {{text}}": "详情：{{text}}",
+    "Pricing status current": "当前有效",
+    "Customer task view queued": "排队中",
+    "Customer task view generating": "生成中",
+    "Agent display price and customer sale price": "代理商展示价格和客户售价",
+    "Provider cost, agent display price and customer sale price": "服务商成本、代理商展示价格和客户售价",
+    "Provider cost and customer sale price": "服务商成本和客户售价",
+    "Customer sale price retained": "保留客户售价"
   }
 }

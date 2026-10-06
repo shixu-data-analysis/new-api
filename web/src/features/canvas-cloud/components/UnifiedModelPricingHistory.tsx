@@ -186,13 +186,24 @@ export function UnifiedModelPricingHistory(props: {
     {
       id: 'combination',
       header: t('Combination'),
-      cell: ({ row }) => scopes(row.original, scopeName),
+      // Cost and price scopes of one specification repeat its combination; show it once.
+      cell: ({ row }) =>
+        distinctScopes(
+          row.original,
+          (scope) => scope.combinationKey,
+          scopeName
+        ),
     },
     {
       id: 'priceGroup',
       header: t('Price plan'),
+      // The provider-cost scope has no price plan; the Changes column already names the cost.
       cell: ({ row }) =>
-        scopes(row.original, (scope) => groupName(scope.priceGroupId)),
+        distinctScopes(
+          row.original,
+          (scope) => scope.priceGroupId,
+          (scope) => groupName(scope.priceGroupId)
+        ),
     },
     {
       id: 'change',
@@ -792,7 +803,9 @@ function ScopeChanges(props: {
         ) : null}
         {priceChanged ? (
           <div>
-            <dt className='text-muted-foreground'>{t('Customer price')}</dt>
+            <dt className='text-muted-foreground'>
+              {t('Customer sale price')}
+            </dt>
             <dd>{priceSummary(price?.proposed, t)}</dd>
           </div>
         ) : null}
@@ -809,7 +822,7 @@ function ScopeChanges(props: {
   }
   if (priceChanged) {
     rows.push({
-      label: t('Customer price'),
+      label: t('Customer sale price'),
       before: priceSummary(price?.current, t),
       after: priceSummary(price?.proposed, t),
     })
@@ -984,7 +997,7 @@ function TokenCategoryCalculationFacts(props: {
   const { t } = useTranslation()
   const values: Array<[string, string | undefined, 'cny' | 'points']> = [
     [t('Provider rate'), props.risk.providerRateRmb, 'cny'],
-    [t('Customer price'), props.risk.customerRatePoints, 'points'],
+    [t('Customer sale price'), props.risk.customerRatePoints, 'points'],
     [
       t('Provider-cost break-even points'),
       props.risk.breakEvenPointsCeil,
@@ -1028,7 +1041,7 @@ function LegacyFacts(props: {
 }) {
   const { t } = useTranslation()
   const isPrice = props.source === 'LEGACY_PRICE'
-  const label = isPrice ? t('Customer price') : t('Provider cost')
+  const label = isPrice ? t('Customer sale price') : t('Provider cost')
   const summary = isPrice ? legacyPriceSummary : legacyProviderSummary
   return (
     <div className='space-y-3'>
@@ -1200,32 +1213,51 @@ function LegacyProviderRateFacts(props: {
     </>
   )
 }
-function scopes(
+/** Each distinct scope once, in order; scopes without an identity (null) are left out. */
+function distinctScopes(
   item: CanvasModelPricingPublication,
-  fn: (
-    value: NonNullable<CanvasModelPricingPublication['scopeSummary']>[number]
-  ) => string
+  identity: (value: HistoryScope) => string | null,
+  fn: (value: HistoryScope) => string
 ) {
-  return (item.scopeSummary ?? []).map(fn).join(', ') || '—'
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const scope of item.scopeSummary ?? []) {
+    const key = identity(scope)
+    if (key === null || seen.has(key)) continue
+    seen.add(key)
+    labels.push(fn(scope))
+  }
+  return labels.join(', ') || '—'
 }
 function changeLabel(
   item: CanvasModelPricingPublication,
   t: (value: string) => string
 ) {
-  if (item.change) return changeLabelFromCode(item.change, t)
+  // A price version freezes the agent display price and the customer sale price together; only
+  // CNY pricing has an agent display price, so the label names it only then.
+  const cny = item.preview?.inputMode === 'CNY'
+  if (item.change) return changeLabelFromCode(item.change, cny, t)
   const values = (item.scopeSummary ?? []).map((scope) =>
-    changeLabelFromCode(scope.changeKind, t)
+    changeLabelFromCode(scope.changeKind, cny, t)
   )
   return values.join(', ') || '—'
 }
-function changeLabelFromCode(value: string, t: (value: string) => string) {
+function changeLabelFromCode(
+  value: string,
+  cny: boolean,
+  t: (value: string) => string
+) {
   const keys: Record<string, string> = {
     INITIAL: 'Initial pricing',
     COST: 'Provider cost',
-    PRICE: 'Customer price',
-    COST_AND_PRICE: 'Provider cost and customer price',
+    PRICE: cny
+      ? 'Agent display price and customer sale price'
+      : 'Customer sale price',
+    COST_AND_PRICE: cny
+      ? 'Provider cost, agent display price and customer sale price'
+      : 'Provider cost and customer sale price',
     UNIT: 'Billing unit',
-    KEEP: 'Customer price retained',
+    KEEP: 'Customer sale price retained',
   }
   return keys[value] ? t(keys[value]) : t('Unknown')
 }
@@ -1233,7 +1265,8 @@ function statusLabel(value: string, t: (value: string) => string) {
   const keys: Record<string, string> = {
     SCHEDULED: 'Scheduled',
     CANCELLED: 'Cancelled',
-    CURRENT: 'Current',
+    // A status reads "in effect" (有效); "Current" is a shared New API key for login sessions.
+    CURRENT: 'Pricing status current',
   }
   return keys[value] ? t(keys[value]) : ''
 }

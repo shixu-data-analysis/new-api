@@ -144,6 +144,10 @@ export function JsonSnapshot(props: {
   description?: string
   // Set to false when the surrounding section already offers a copy action.
   copyable?: boolean
+  /** More buttons for the header row, after "Show full content" and "Copy". */
+  actions?: ReactNode
+  /** Shown between the header row and the JSON, such as the request line. */
+  lead?: ReactNode
 }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
@@ -157,7 +161,10 @@ export function JsonSnapshot(props: {
   )
   const copyable = props.copyable ?? true
   const showHeader =
-    Boolean(props.description) || copyable || collapsed !== full
+    Boolean(props.description) ||
+    copyable ||
+    collapsed !== full ||
+    Boolean(props.actions)
   return (
     <div className='space-y-2'>
       {showHeader ? (
@@ -188,9 +195,11 @@ export function JsonSnapshot(props: {
                 {t('Copy')}
               </Button>
             ) : null}
+            {props.actions}
           </div>
         </div>
       ) : null}
+      {props.lead}
       <pre className='bg-muted max-h-60 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
         {expanded ? full : collapsed}
       </pre>
@@ -414,6 +423,57 @@ export function CallDetails({
         )
       )
     : null
+  const requestExplanation = t(
+    'The request Canvas sent after converting it with the provider interface template.'
+  )
+  const copyRequest = (
+    <Button
+      type='button'
+      size='sm'
+      variant='ghost'
+      onClick={() =>
+        void navigator.clipboard?.writeText(
+          JSON.stringify(requestSnapshot, null, 2)
+        )
+      }
+    >
+      {t('Copy')}
+    </Button>
+  )
+  const requestLine = (
+    <p className='font-mono text-sm'>
+      {String(requestSnapshot?.method ?? '')}{' '}
+      {String(requestSnapshot?.path ?? '')}
+    </p>
+  )
+  let requestContent: ReactNode = (
+    <p className='text-muted-foreground text-sm'>—</p>
+  )
+  if (requestSnapshot && requestRest && Object.keys(requestRest).length) {
+    // "Show full content" joins the explanation and Copy in one row instead of a row of its own.
+    requestContent = (
+      <JsonSnapshot
+        value={requestRest}
+        description={requestExplanation}
+        copyable={false}
+        actions={copyRequest}
+        lead={requestLine}
+      />
+    )
+  } else if (requestSnapshot) {
+    requestContent = (
+      <>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <p className='text-muted-foreground text-xs'>{requestExplanation}</p>
+          {copyRequest}
+        </div>
+        {requestLine}
+        <p className='text-muted-foreground text-sm'>
+          {t('No query parameters or request body.')}
+        </p>
+      </>
+    )
+  }
   let missingBodyText = t('No response was received.')
   if (call.finalHttpStatus !== null) {
     missingBodyText = call.responseBodyRecorded
@@ -528,42 +588,7 @@ export function CallDetails({
           )}
         </TabsContent>
         <TabsContent value='request' className='mt-4 space-y-2'>
-          {requestSnapshot ? (
-            <>
-              <div className='flex flex-wrap items-center justify-between gap-2'>
-                <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'The request Canvas sent after converting it with the provider interface template.'
-                  )}
-                </p>
-                <Button
-                  type='button'
-                  size='sm'
-                  variant='ghost'
-                  onClick={() =>
-                    void navigator.clipboard?.writeText(
-                      JSON.stringify(requestSnapshot, null, 2)
-                    )
-                  }
-                >
-                  {t('Copy')}
-                </Button>
-              </div>
-              <p className='font-mono text-sm'>
-                {String(requestSnapshot.method ?? '')}{' '}
-                {String(requestSnapshot.path ?? '')}
-              </p>
-              {requestRest && Object.keys(requestRest).length ? (
-                <JsonSnapshot value={requestRest} copyable={false} />
-              ) : (
-                <p className='text-muted-foreground text-sm'>
-                  {t('No query parameters or request body.')}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className='text-muted-foreground text-sm'>—</p>
-          )}
+          {requestContent}
         </TabsContent>
       </Tabs>
     </div>

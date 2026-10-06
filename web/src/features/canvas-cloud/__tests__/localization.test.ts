@@ -44,8 +44,8 @@ const unifiedPricingKeys = [
   'Resolve the limited-price special conflict before publishing.',
   'Resolve the price validation issue before publishing.',
   'Initial',
-  'Provider cost and customer price',
-  'Customer price retained',
+  'Provider cost and customer sale price',
+  'Customer sale price retained',
   'Scheduled',
   'Current',
   'Partially current',
@@ -956,6 +956,12 @@ describe('Canvas interface localization', () => {
       expect(resource.translation['Replace API Key']).toBeTruthy()
     }
   )
+})
+
+it('keeps the shared New API "Current" label for login sessions', () => {
+  // Canvas pricing uses its own status key; "Current" belongs to the core session list.
+  expect(zh.translation.Current).toBe('当前')
+  expect(zhTW.translation.Current).toBe('目前')
 })
 
 it('localizes customer price assignment labels in every supported language', () => {

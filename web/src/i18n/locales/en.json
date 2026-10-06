@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "Partially current",
     "SUPERSEDED": "Superseded",
     "CANCELLED": "Cancelled",
-    "Provider cost and customer price": "Provider cost and customer price",
     "Initial": "Initial",
-    "Customer price retained": "Customer price retained",
     "Cancel the scheduled customer price before publishing a new change.": "Cancel the scheduled customer price before publishing a new change.",
     "Cancel the scheduled provider rate before publishing a new change.": "Cancel the scheduled provider rate before publishing a new change.",
     "Resolve the limited-price special conflict before publishing.": "Resolve the limited-price special conflict before publishing.",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "Selected: {{bundle}} ({{version}})",
     "Choose folder again": "Choose folder again",
     "Ignored {{count}} files not referenced by manifest.json": "Ignored {{count}} files not referenced by manifest.json",
-    "Details: {{text}}": "Details: {{text}}"
+    "Details: {{text}}": "Details: {{text}}",
+    "Pricing status current": "Current",
+    "Customer task view queued": "Queued",
+    "Customer task view generating": "Generating",
+    "Agent display price and customer sale price": "Agent display price and customer sale price",
+    "Provider cost, agent display price and customer sale price": "Provider cost, agent display price and customer sale price",
+    "Provider cost and customer sale price": "Provider cost and customer sale price",
+    "Customer sale price retained": "Customer sale price retained"
   }
 }

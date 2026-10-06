@@ -258,6 +258,22 @@ const incompleteCostReasons: Record<string, string> = {
  * Cost line of one submit call (or of a legacy Task whose cost is recorded at Task level when callId is null): incomplete
  * cost can be settled, an active manual settlement can be revoked. Nothing is shown when the cost is system-recorded.
  */
+/** The cost entries one submit call shows: incomplete cost to settle, or a confirmed manual settlement. */
+function providerCallCostEntries(
+  task: CanvasAdminTaskRecordDetail,
+  callId: string | null
+) {
+  const cost = task.providerCost
+  if (!cost) return null
+  const incomplete = cost.incompleteCalls.find(
+    (entry) => entry.callId === callId
+  )
+  const settlement = cost.manualSettlements.find(
+    (entry) => entry.callId === callId && entry.status === 'CONFIRMED'
+  )
+  return incomplete || settlement ? { incomplete, settlement } : null
+}
+
 function ProviderCallCost(props: {
   task: CanvasAdminTaskRecordDetail
   callId: string | null
@@ -268,15 +284,9 @@ function ProviderCallCost(props: {
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [settleOpen, setSettleOpen] = useState(false)
   const [revokeId, setRevokeId] = useState<string>()
-  const cost = props.task.providerCost
-  if (!cost) return null
-  const incomplete = cost.incompleteCalls.find(
-    (entry) => entry.callId === props.callId
-  )
-  const settlement = cost.manualSettlements.find(
-    (entry) => entry.callId === props.callId && entry.status === 'CONFIRMED'
-  )
-  if (!incomplete && !settlement) return null
+  const entries = providerCallCostEntries(props.task, props.callId)
+  if (!entries) return null
+  const { incomplete, settlement } = entries
   let status: ReactNode = null
   if (incomplete) {
     status = (
@@ -444,7 +454,9 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
           outputs={task.outputs}
           taskSucceeded={task.derivedExecutionStatus === 'SUCCEEDED'}
           renderCallCost={(call) =>
-            call.callType === 'SUBMIT' ? (
+            // No row at all when the call has nothing to show; an empty cost row is a blank strip.
+            call.callType === 'SUBMIT' &&
+            providerCallCostEntries(task, call.localCallId) ? (
               <ProviderCallCost
                 task={task}
                 callId={call.localCallId}

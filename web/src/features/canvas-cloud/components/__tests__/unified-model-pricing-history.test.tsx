@@ -7,7 +7,13 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -311,7 +317,9 @@ it('uses the selected French language for frozen rates and status labels', async
   fireEvent.click(
     await screen.findByRole('button', { name: fr.translation.Details })
   )
-  expect(screen.getByText(fr.translation.Current)).toBeVisible()
+  expect(
+    screen.getByText(fr.translation['Pricing status current'])
+  ).toBeVisible()
   expect(screen.getAllByText(/0,02/).length).toBeGreaterThan(0)
   expect(screen.queryByText('CURRENT')).not.toBeInTheDocument()
   expect(screen.queryByText(/SECOND/)).not.toBeInTheDocument()
@@ -429,6 +437,67 @@ describe('UnifiedModelPricingHistory', () => {
     expect(await screen.findByText('Default scope')).toBeVisible()
   })
 
+  it('shows a cost-and-price change once per specification and lists only real price plans', async () => {
+    mocks.history.mockResolvedValue({
+      items: [
+        {
+          ...unified,
+          change: 'COST_AND_PRICE',
+          scopeSummary: [
+            {
+              ...unified.scopeSummary[0],
+              priceGroupId: null,
+              changeKind: 'COST',
+            },
+            { ...unified.scopeSummary[0], changeKind: 'PRICE' },
+          ],
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    renderHistory()
+
+    const row = (await screen.findByText('Historical Video A')).closest('tr')
+    if (!row) throw new Error('No history row')
+    const cells = within(row)
+      .getAllByRole('cell')
+      .map((cell) => cell.textContent)
+    expect(cells).toContain('Quality: HD')
+    expect(cells).toContain('Standard')
+    expect(cells).not.toContain('Standard, Provider cost')
+    expect(within(row).getByText('Pricing status current')).toBeVisible()
+  })
+
+  it.each([
+    ['CNY', 'PRICE', 'Agent display price and customer sale price'],
+    [
+      'CNY',
+      'COST_AND_PRICE',
+      'Provider cost, agent display price and customer sale price',
+    ],
+    ['POINTS', 'PRICE', 'Customer sale price'],
+    ['POINTS', 'COST_AND_PRICE', 'Provider cost and customer sale price'],
+  ])(
+    'names a %s %s change with the pricing form wording',
+    async (inputMode, change, label) => {
+      mocks.history.mockResolvedValue({
+        items: [
+          { ...unified, change, preview: { ...unified.preview, inputMode } },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+      })
+      renderHistory()
+
+      const row = (await screen.findByText('Historical Video A')).closest('tr')
+      if (!row) throw new Error('No history row')
+      expect(within(row).getByText(label)).toBeVisible()
+    }
+  )
+
   it('labels each scope by its own key in the list and its expanded scope details', async () => {
     mocks.history.mockResolvedValue({
       items: [publicationForScopes()],
@@ -495,7 +564,7 @@ describe('UnifiedModelPricingHistory', () => {
   it('shows only actual frozen changes and folds their basis', async () => {
     renderHistory()
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
-    expect((await screen.findAllByText('Customer price'))[0]).toBeVisible()
+    expect((await screen.findAllByText('Customer sale price'))[0]).toBeVisible()
     expect(screen.getByText('12 Points / per second')).toBeVisible()
     expect(screen.getByText('Frozen decision')).toBeVisible()
     expect(screen.queryByText('rate-2')).not.toBeInTheDocument()
@@ -707,7 +776,7 @@ describe('UnifiedModelPricingHistory', () => {
       screen.getByText('Provider rate: 0.05 RMB / per million tokens')
     ).toBeVisible()
     expect(
-      screen.getByText('Customer price: 11 points / per million tokens')
+      screen.getByText('Customer sale price: 11 points / per million tokens')
     ).toBeVisible()
     expect(
       screen.getByText(

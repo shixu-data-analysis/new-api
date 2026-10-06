@@ -7322,9 +7322,7 @@
     "PARTIALLY_CURRENT": "Hiện tại một phần",
     "SUPERSEDED": "Đã thay thế",
     "CANCELLED": "Đã hủy",
-    "Provider cost and customer price": "Chi phí nhà cung cấp và giá khách hàng",
     "Initial": "Ban đầu",
-    "Customer price retained": "Giữ nguyên giá khách hàng",
     "Cancel the scheduled customer price before publishing a new change.": "Hãy hủy giá khách hàng đã lên lịch trước khi công bố thay đổi mới.",
     "Cancel the scheduled provider rate before publishing a new change.": "Hãy hủy mức giá nhà cung cấp đã lên lịch trước khi công bố thay đổi mới.",
     "Resolve the limited-price special conflict before publishing.": "Hãy xử lý xung đột giá đặc biệt có thời hạn trước khi công bố.",
@@ -8834,6 +8832,13 @@
     "Selected: {{bundle}} ({{version}})": "Đã chọn: {{bundle}} ({{version}})",
     "Choose folder again": "Chọn lại thư mục",
     "Ignored {{count}} files not referenced by manifest.json": "Đã bỏ qua {{count}} tệp không được manifest.json tham chiếu",
-    "Details: {{text}}": "Chi tiết: {{text}}"
+    "Details: {{text}}": "Chi tiết: {{text}}",
+    "Pricing status current": "Đang hiệu lực",
+    "Customer task view queued": "Đang xếp hàng",
+    "Customer task view generating": "Đang tạo",
+    "Agent display price and customer sale price": "Giá hiển thị của đại lý và giá bán cho khách hàng",
+    "Provider cost, agent display price and customer sale price": "Chi phí nhà cung cấp, giá hiển thị của đại lý và giá bán cho khách hàng",
+    "Provider cost and customer sale price": "Chi phí nhà cung cấp và giá bán cho khách hàng",
+    "Customer sale price retained": "Giữ nguyên giá bán cho khách hàng"
   }
 }

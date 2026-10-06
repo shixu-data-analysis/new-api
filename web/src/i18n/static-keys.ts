@@ -709,6 +709,7 @@ export const STATIC_I18N_KEYS = [
   'TEMPORARY_LOSS',
   'Scheduled',
   'Current',
+  'Pricing status current',
   'Partially current',
   'Superseded',
   'Cancelled',

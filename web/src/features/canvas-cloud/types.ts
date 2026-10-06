@@ -1893,6 +1893,8 @@ export interface CanvasAdminTaskRecordOutput {
   settledPoints: string | null
   executionStatus: string
   billingStatus: string
+  /** Unfinished and not handed to the Provider yet; the customer sees it as queued. */
+  queued?: boolean
   error: {
     code?: string | null
     messages?: Record<string, string> | null

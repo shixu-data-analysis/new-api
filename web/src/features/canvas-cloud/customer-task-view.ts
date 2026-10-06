@@ -48,7 +48,7 @@ type CustomerTask = Pick<
   outputs: Array<
     Pick<
       CanvasAdminTaskRecordOutput,
-      'outputIndex' | 'executionStatus' | 'billingStatus' | 'error'
+      'outputIndex' | 'executionStatus' | 'billingStatus' | 'error' | 'queued'
     >
   >
 }
@@ -107,12 +107,31 @@ export function customerNodeStatus(task: CustomerTask): CustomerNodeStatus {
   if (task.executionStatus === 'UNKNOWN') {
     return { key: 'Customer task view verifying', failed: false }
   }
+  // Every result still to come waits for its turn at the Provider.
+  const unfinished = outputs.filter(
+    (output) =>
+      output.executionStatus !== 'SUCCEEDED' &&
+      output.executionStatus !== 'CONFIRMED_FAILED'
+  )
+  if (
+    unfinished.length > 0 &&
+    unfinished.every((output) => output.queued === true)
+  ) {
+    return { key: 'Customer task view queued', failed: false }
+  }
   return { key: 'Customer task view running', failed: false }
 }
 
-/** Result picker label; Canvas Web only shows the picker for multiple results. */
+/**
+ * Result picker label, as `cloudOutputPhase()`: an unfinished position reads like a single-result
+ * node: not handed to the Provider yet is queued, UNKNOWN is being confirmed, anything else is
+ * still generating. Canvas Web only shows the picker for multiple results.
+ */
 export function customerOutputLabelKey(
-  output: Pick<CanvasAdminTaskRecordOutput, 'executionStatus' | 'billingStatus'>
+  output: Pick<
+    CanvasAdminTaskRecordOutput,
+    'executionStatus' | 'billingStatus' | 'queued'
+  >
 ): string {
   if (output.executionStatus === 'SUCCEEDED') {
     return 'Customer task view succeeded'
@@ -121,7 +140,11 @@ export function customerOutputLabelKey(
     return 'Customer task view confirmed failed'
   }
   if (isReleased(output.billingStatus)) return 'Customer task view released'
-  return 'Customer task view confirming'
+  if (output.queued === true) return 'Customer task view queued'
+  if (output.executionStatus === 'UNKNOWN') {
+    return 'Customer task view confirming'
+  }
+  return 'Customer task view generating'
 }
 
 export type CustomerDeadline =
@@ -185,43 +208,60 @@ export type CustomerErrorMessage =
   | { kind: 'key'; key: string }
   | { kind: 'text'; text: string }
 
+type CustomerTaskError = NonNullable<CustomerTask['taskError']>
+
 /**
- * Canvas Web order: the administrator confirmation message, then the frozen
- * localized customer message (a mapping's text or the category default), then
- * the client fallback. Upstream text only appears as the separate reason.
+ * As `cloudTaskFailureDetails()`: the errors of the confirmed failed results come first; the
+ * task-level error is read only when no result has one. (Cloud fills the administrator task error
+ * from the failure code alone, which carries no customer message.)
+ */
+function customerFailureErrors(task: CustomerTask): CustomerTaskError[] {
+  const fromOutputs = task.outputs
+    .filter((output) => output.executionStatus === 'CONFIRMED_FAILED')
+    .map((output) => output.error)
+    .filter((error): error is CustomerTaskError => Boolean(error))
+  if (fromOutputs.length) return fromOutputs
+  return task.taskError ? [task.taskError] : []
+}
+
+/** A value shown for several failed results only when they all agree. */
+function agreed(values: Array<string | undefined>): string | undefined {
+  return values.length && values.every((value) => value === values[0])
+    ? values[0]
+    : undefined
+}
+
+/**
+ * The administrator confirmation message, else the frozen localized customer message (a
+ * mapping's text or the category default) when every failed result agrees, else the client
+ * fallback. Upstream text only appears as the separate reason.
  */
 export function customerErrorMessage(
   task: CustomerTask,
   language: string
 ): CustomerErrorMessage {
   const locale = normalizeInterfaceLanguage(language)
-  const errors = task.taskError
-    ? [task.taskError]
-    : task.outputs.map((output) => output.error)
-  for (const error of errors) {
-    if (!error) continue
-    if (error.code === ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE) {
-      return { kind: 'key', key: ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE }
-    }
-    const localized = error.messages?.[locale]?.trim()
-    if (localized) return { kind: 'text', text: localized }
-    if (task.taskError) break
+  const errors = customerFailureErrors(task)
+  if (
+    errors.some((error) => error.code === ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE)
+  ) {
+    return { kind: 'key', key: ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE }
   }
-  return { kind: 'key', key: CUSTOMER_FALLBACK_ERROR_KEY }
+  const localized = agreed(
+    errors.map((error) => error.messages?.[locale]?.trim() || undefined)
+  )
+  return localized
+    ? { kind: 'text', text: localized }
+    : { kind: 'key', key: CUSTOMER_FALLBACK_ERROR_KEY }
 }
 
-/**
- * The upstream reason Cloud attached for customers, shown under the error
- * message; across several failed results it is kept only when all agree.
- */
+/** The upstream reason Cloud attached for customers, kept only when every failed result agrees. */
 export function customerUpstreamReason(task: CustomerTask): string | null {
-  const errors = task.taskError
-    ? [task.taskError]
-    : task.outputs
-        .filter((output) => output.executionStatus === 'CONFIRMED_FAILED')
-        .map((output) => output.error)
-  const reasons = errors.map((error) => error?.upstreamReason?.trim() || null)
-  return reasons[0] && reasons.every((reason) => reason === reasons[0])
-    ? reasons[0]
-    : null
+  return (
+    agreed(
+      customerFailureErrors(task).map(
+        (error) => error.upstreamReason?.trim() || undefined
+      )
+    ) ?? null
+  )
 }
