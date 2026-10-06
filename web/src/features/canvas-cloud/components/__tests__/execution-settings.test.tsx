@@ -1234,7 +1234,7 @@ describe('execution settings', () => {
 
     const explanations = [
       [
-        'requestTimeoutMs',
+        'Request timeout (milliseconds)',
         'The maximum wait for one non-streaming provider request or result download.',
       ],
       [
@@ -1242,7 +1242,7 @@ describe('execution settings', () => {
         'The maximum time a streaming response may go without new data.',
       ],
       [
-        'pollIntervalMs',
+        'Poll interval (milliseconds)',
         'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default.',
       ],
       [
@@ -2270,7 +2270,7 @@ describe('execution settings', () => {
           })),
       })
       mount({ view: 'credentialGroup', credentialGroupId })
-      return screen.findByLabelText('pollIntervalMs')
+      return screen.findByLabelText('Poll interval (milliseconds)')
     }
 
     it('stays empty and shows the global default when the group sets none', async () => {
