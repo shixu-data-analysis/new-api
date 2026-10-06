@@ -93,7 +93,7 @@ describe('customer business facts', () => {
       screen.getByRole('heading', { name: 'Customer billing' })
     ).toBeTruthy()
     expect(
-      screen.getByRole('heading', { name: 'Provider reconciliation' })
+      screen.getByRole('heading', { name: 'Provider cost reconciliation' })
     ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Original quote' }))
     await waitFor(() =>

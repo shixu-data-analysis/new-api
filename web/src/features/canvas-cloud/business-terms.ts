@@ -432,7 +432,7 @@ export const canvasBusinessTermConfig = {
   releaseResource: {
     helpKey: '{{term}} is the configuration resource affected by this release.',
     labels: {
-      PROVIDER: 'Provider',
+      PROVIDER: 'Service provider',
       PROVIDER_CHANNEL: 'Provider channel',
       CUSTOMER_MODEL: 'Customer model',
       PARAMETER_COMBINATION: 'Parameter combination',

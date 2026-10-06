@@ -222,7 +222,7 @@ export function CatalogModelPreview(props: {
                     {model.productKey}
                   </div>
                   <div className='text-muted-foreground mt-1 text-xs break-all'>
-                    {t('Channel')}: {model.channelId} · {t('Provider')}:{' '}
+                    {t('Channel')}: {model.channelId} · {t('Service provider')}:{' '}
                     {model.providerId}
                   </div>
                   <Button

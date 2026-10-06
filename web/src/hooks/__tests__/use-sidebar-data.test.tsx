@@ -44,6 +44,17 @@ vi.mock('@/features/canvas-cloud/operating-dashboard-api', () => ({
   }),
 }))
 
+const executionAttention = vi.hoisted(() => ({ count: 0 }))
+vi.mock('@/features/canvas-cloud/execution-api', () => ({
+  getCanvasExecutionOverview: async () => ({
+    attention: Array.from({ length: executionAttention.count }, () => ({
+      type: 'OUTPUT_TOO_LARGE',
+      count: 1,
+      latestAt: null,
+    })),
+  }),
+}))
+
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider
@@ -66,6 +77,21 @@ describe('Canvas administrator primary sidebar', () => {
       inviterEnabled: false,
     }
     balanceAlerts.alertCount = 0
+    executionAttention.count = 0
+  })
+
+  it('marks the runtime management entry with the number of attention hints', async () => {
+    executionAttention.count = 3
+    const { result } = renderHook(() => useSidebarData(), { wrapper })
+    const runtimeItem = () =>
+      result.current.navGroups
+        .flatMap((group) => group.items)
+        .find((item) => 'url' in item && item.url === '/canvas-cloud/runtime')
+    await waitFor(() => expect(runtimeItem()?.badge).toBe('3'))
+    expect(runtimeItem()).toMatchObject({
+      badgeTone: 'alert',
+      badgeLabel: '3 items need attention',
+    })
   })
 
   it('marks the operating dashboard entry with the API provider balance alert count', async () => {

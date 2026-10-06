@@ -746,7 +746,7 @@ function PricingTable(props: {
     return [
       column(
         'provider',
-        'Provider',
+        'Service provider',
         (row) => row.providerName,
         (row) => row.providerName
       ),
@@ -906,7 +906,7 @@ function PricingTable(props: {
       columns={columns}
       data={props.rows}
       filters={[
-        { columnId: 'provider', label: t('Provider') },
+        { columnId: 'provider', label: t('Service provider') },
         { columnId: 'model', label: t('Model') },
         { columnId: 'quality', label: t('Quality') },
       ]}

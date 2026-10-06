@@ -55,7 +55,29 @@ const canvasViewSearch = z
     return invalidCanvasCloudRuntimeView
   })
 
+// Task-log filters other pages carry into the task log; the other task-log filters stay out of the address.
+const taskLogSearch = {
+  derivedExecutionStatus: z
+    .enum([
+      'ACCEPTED',
+      'PROCESSING',
+      'SUCCEEDED',
+      'PARTIAL_SUCCESS',
+      'CONFIRMED_FAILED',
+      'UNKNOWN',
+    ])
+    .optional()
+    .catch(undefined),
+  upstreamTask: z.enum(['present', 'absent']).optional().catch(undefined),
+  failureReason: z
+    .enum(['PROVIDER_OUTPUT_TOO_LARGE', 'RETRY_EXHAUSTED'])
+    .optional()
+    .catch(undefined),
+  from: z.string().datetime({ offset: true }).optional().catch(undefined),
+}
+
 export const canvasCloudSearchSchema = z.object({
+  ...taskLogSearch,
   customerId: optionalUuidSearch,
   customerName: z.string().trim().min(1).max(191).optional().catch(undefined),
   orderId: optionalUuidSearch,

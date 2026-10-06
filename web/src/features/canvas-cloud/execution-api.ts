@@ -16,7 +16,7 @@ import type {
   ExecutionCapacityOverview,
   ExecutionCapacityFilterStatus,
   ExecutionOverview,
-  ExecutionWaitItem,
+  ExecutionWaitDetail,
   ExecutionWaitPage,
   ExecutorDrainState,
   PublishableExecutionPolicyKind,
@@ -118,9 +118,9 @@ export async function getCanvasExecutionWaits(
 export async function getCanvasExecutionWaitDetail(
   taskId: string,
   signal?: AbortSignal
-): Promise<ExecutionWaitItem> {
+): Promise<ExecutionWaitDetail> {
   return (
-    await api.get<ExecutionWaitItem>(
+    await api.get<ExecutionWaitDetail>(
       `${webBase}/admin/execution/waits/${encodeURIComponent(taskId)}`,
       { signal }
     )

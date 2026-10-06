@@ -41,6 +41,11 @@ import {
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -52,6 +57,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { formatErrorRuleMatch } from '../error-rule-format'
 import {
@@ -70,6 +76,7 @@ import type {
   ErrorCategory,
   ErrorConditionValueType,
   ErrorRule,
+  ExecutionInstance,
   ExecutionLocale,
   GlobalExecutionConfig,
   LimitRule,
@@ -78,10 +85,22 @@ import { formatCanvasDateTime } from '../formatters'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
+import { ExecutionAttentionCard } from './ExecutionAttention'
 import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
 import { ExecutorDrain } from './ExecutorDrain'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
+
+// Cloud's defaults of an API Key group, shown in the form by "Restore defaults"; the poll interval is left empty.
+const credentialGroupDefaults: Omit<ChannelExecutionConfig, 'pollIntervalMs'> =
+  {
+    requestTimeoutMs: 120_000,
+    streamIdleTimeoutMs: 300_000,
+    deadlineMs: 86_400_000,
+    unknownReleaseMs: 14_400_000,
+    requestConcurrency: 16,
+    asyncInFlightLimit: 30,
+  }
 
 const executorModeLabelKeys: Record<string, string> = {
   MOCK: 'Mock mode',
@@ -101,6 +120,7 @@ const globalSchema = z
     instanceConcurrency: integer(1, 10_000),
     queryReservedConcurrency: integer(0, 10_000),
     userOutputLimit: integer(1, 10_000),
+    defaultPollIntervalMs: integer(1_000, 3_600_000),
   })
   .refine(
     (value) => value.queryReservedConcurrency <= value.instanceConcurrency,
@@ -109,7 +129,8 @@ const globalSchema = z
 const channelSchema = z.object({
   requestTimeoutMs: integer(0, 604_800_000),
   streamIdleTimeoutMs: integer(1_000, 604_800_000),
-  pollIntervalMs: integer(1_000, 3_600_000),
+  // Empty: the group follows the global default and the field is not saved.
+  pollIntervalMs: integer(1_000, 3_600_000).optional(),
   deadlineMs: integer(1_000, 2_592_000_000),
   unknownReleaseMs: integer(1_000, 86_400_000),
   requestConcurrency: integer(1, 10_000),
@@ -700,6 +721,9 @@ export function ExecutionSettings(
         <FormNavigationGuard when={anyDirty} />
         <div className='space-y-6'>
           <ExecutorDrain />
+          {overview.data && (
+            <ExecutionAttentionCard attention={overview.data.attention} />
+          )}
           {overview.isPending && (
             <Card size='sm'>
               <CardContent className='text-muted-foreground text-sm'>
@@ -817,6 +841,11 @@ export function ExecutionSettings(
           <CardContent className='space-y-4'>
             <CredentialGroupSection
               data={group.data.group.effective}
+              configured={group.data.group.configured}
+              globalDefaultPollIntervalMs={
+                group.data.global.effective.defaultPollIntervalMs
+              }
+              models={group.data.models}
               version={group.data.group.version}
               providerName={props.providerName ?? group.data.providerId}
               credentialGroupName={
@@ -1012,6 +1041,17 @@ function GlobalSection(props: {
                   'Maximum unfinished results per user; a task that would exceed it is not admitted.'
                 )}
               />
+              <NumberField
+                id='default-poll-interval'
+                label={t('Default poll interval (milliseconds)')}
+                registration={form.register('defaultPollIntervalMs', {
+                  valueAsNumber: true,
+                })}
+                error={form.formState.errors.defaultPollIntervalMs?.message}
+                help={t(
+                  'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel.'
+                )}
+              />
             </div>
             <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
               <Button
@@ -1055,15 +1095,7 @@ function ExecutionRuntimeFacts(props: {
     scanMs: number
     defaultInstances: number
   }
-  instances: Array<{
-    queueName: string
-    mode: string
-    workerId: string
-    status: string
-    credentialsConfigured: boolean
-    heartbeatAt: string | null
-    leaseExpiresAt: string | null
-  }>
+  instances: ExecutionInstance[]
 }) {
   const { t } = useTranslation()
   const visibleInstances = props.instances.filter(
@@ -1075,6 +1107,13 @@ function ExecutionRuntimeFacts(props: {
   const workerColumns: StaticDataTableColumn<
     (typeof visibleInstances)[number]
   >[] = [
+    {
+      id: 'worker',
+      header: t('Executor instance'),
+      cell: (instance) => (
+        <span className='font-mono text-xs break-all'>{instance.workerId}</span>
+      ),
+    },
     {
       id: 'queue',
       header: t('Queue'),
@@ -1102,6 +1141,25 @@ function ExecutionRuntimeFacts(props: {
       id: 'heartbeat',
       header: t('Latest heartbeat'),
       cell: (instance) => formatCanvasDateTime(instance.heartbeatAt),
+    },
+    {
+      id: 'waitingArea',
+      header: t('Tasks waiting for results'),
+      cell: (instance) => <WaitingAreaUsage area={instance.waitingArea} />,
+    },
+    {
+      id: 'database',
+      header: t('Database communication'),
+      cell: (instance) =>
+        instance.databaseCommunication.status === 'RECENT_FAILURES' ? (
+          <span className='text-destructive font-medium'>
+            {t('{{count}} failures in a row in the last 10 minutes', {
+              count: instance.databaseCommunication.failureStreak,
+            })}
+          </span>
+        ) : (
+          t('Database communication normal')
+        ),
     },
   ]
   return (
@@ -1131,7 +1189,7 @@ function ExecutionRuntimeFacts(props: {
                 `${instance.queueName}-${instance.workerId}`
               }
               emptyContent={t('No running executor instances')}
-              tableClassName='min-w-[800px]'
+              tableClassName='min-w-[1100px]'
               containerProps={{
                 tabIndex: 0,
                 role: 'region',
@@ -1186,8 +1244,54 @@ function ExecutionRuntimeFacts(props: {
     </div>
   )
 }
+type PollIntervalModel = {
+  id: string
+  modelKey: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
+  channelPollIntervalMs: number | null
+  upstreamModelIds: string[]
+}
+
+/** Tasks in an instance's waiting area against its limit; at 80% of the limit it is shown as a warning. */
+function WaitingAreaUsage(props: { area: ExecutionInstance['waitingArea'] }) {
+  const { t } = useTranslation()
+  const { count, limit, nearlyFull } = props.area
+  if (limit === null) return <span className='tabular-nums'>{count} / —</span>
+  const percent = Math.min(100, Math.round((count / limit) * 100))
+  return (
+    <div className='min-w-28 space-y-1'>
+      <span
+        className={
+          nearlyFull
+            ? 'text-destructive font-medium tabular-nums'
+            : 'tabular-nums'
+        }
+      >
+        {count} / {limit}
+      </span>
+      <div
+        role='progressbar'
+        aria-label={t('Tasks waiting for results')}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={count}
+        className='bg-muted h-1.5 overflow-hidden rounded-full'
+      >
+        <div
+          className={nearlyFull ? 'bg-destructive h-full' : 'bg-primary h-full'}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function CredentialGroupSection(props: {
   data: ChannelExecutionConfig
+  configured: Partial<ChannelExecutionConfig>
+  globalDefaultPollIntervalMs: number
+  models: PollIntervalModel[]
   version: number | null
   providerName: string
   credentialGroupName: string
@@ -1196,15 +1300,30 @@ function CredentialGroupSection(props: {
   onPublish: (config: Record<string, unknown>) => void
   onDirtyChange: (dirty: boolean) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const onDirtyChange = props.onDirtyChange
+  // The poll interval shows what this group configured; empty follows the global default.
+  const initial: ChannelForm = {
+    ...props.data,
+    pollIntervalMs: props.configured.pollIntervalMs,
+  }
   const form = useForm<ChannelForm>({
     resolver: zodResolver(channelSchema),
-    values: props.data,
+    values: initial,
   })
+  // After "Restore defaults", a field still equal to the default is left out of the publication and follows the default again.
+  const [restored, setRestored] = useState(false)
+  useEffect(() => setRestored(false), [props.version])
+  const followsDefault = (name: keyof ChannelForm, value: unknown) =>
+    restored &&
+    (name === 'pollIntervalMs'
+      ? value === undefined
+      : value === credentialGroupDefaults[name])
   useEffect(() => {
     onDirtyChange(form.formState.isDirty)
   }, [form.formState.isDirty, onDirtyChange])
+  const shown = (value: number | undefined) =>
+    value === undefined ? t('Default') : String(value)
   const review = form.handleSubmit((values) =>
     props.onReview({
       title: t('Publish credential group execution policy'),
@@ -1212,7 +1331,7 @@ function CredentialGroupSection(props: {
         'This creates a new policy version for the selected credential group.'
       ),
       details: [
-        { label: t('Provider'), value: props.providerName },
+        { label: t('Service provider'), value: props.providerName },
         {
           label: t('Credential group'),
           value: props.credentialGroupName,
@@ -1221,20 +1340,74 @@ function CredentialGroupSection(props: {
           label: t('Current version'),
           value: props.version == null ? t('Default') : `v${props.version}`,
         },
-        ...Object.entries(values)
-          .filter(
-            ([name, value]) =>
-              value !== props.data[name as keyof ChannelExecutionConfig]
-          )
-          .map(([label, value]) => ({
-            label: t(label),
-            value: `${props.data[label as keyof ChannelExecutionConfig]} → ${value}`,
-          })),
+        ...Object.entries(values).flatMap(([label, value]) => {
+          const name = label as keyof ChannelForm
+          // After a restore the dialog compares what the group stores; otherwise the form values, as before.
+          const before = restored ? props.configured[name] : initial[name]
+          const after = followsDefault(name, value)
+            ? undefined
+            : (value as number | undefined)
+          if (after === before) return []
+          return [
+            { label: t(label), value: `${shown(before)} → ${shown(after)}` },
+          ]
+        }),
       ],
       confirmLabel: t('Publish'),
-      run: () => props.onPublish(values),
+      run: () =>
+        props.onPublish(
+          Object.fromEntries(
+            Object.entries(values).filter(
+              ([name, value]) =>
+                value !== undefined &&
+                !followsDefault(name as keyof ChannelForm, value)
+            )
+          )
+        ),
     })
   )
+  const seconds = (milliseconds: number) =>
+    new Intl.NumberFormat(
+      toIntlLocale(i18n.resolvedLanguage || i18n.language),
+      {
+        maximumFractionDigits: 3,
+      }
+    ).format(milliseconds / 1000)
+  // Judged on the group's current models: a field no model uses cannot be edited.
+  const fixed = props.models.flatMap((model) =>
+    typeof model.channelPollIntervalMs === 'number'
+      ? [{ ...model, channelPollIntervalMs: model.channelPollIntervalMs }]
+      : []
+  )
+  const allFixed =
+    props.models.length > 0 && fixed.length === props.models.length
+  const fixedSeconds = new Intl.ListFormat(
+    toIntlLocale(i18n.resolvedLanguage || i18n.language),
+    { type: 'conjunction' }
+  ).format([
+    ...new Set(fixed.map((model) => seconds(model.channelPollIntervalMs))),
+  ])
+  const groupPollIntervalMs = form.watch('pollIntervalMs')
+  const pollHelp = [
+    t(
+      'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default.'
+    ),
+  ]
+  if (allFixed) {
+    pollHelp.push(
+      t(
+        'Every model of this group has its interval fixed by its channel at {{seconds}} seconds; this setting has no effect.',
+        { seconds: fixedSeconds }
+      )
+    )
+  } else if (fixed.length > 0) {
+    pollHelp.push(
+      t(
+        '{{count}} of the models have their interval fixed by their channel at {{seconds}} seconds.',
+        { count: fixed.length, seconds: fixedSeconds }
+      )
+    )
+  }
   return (
     <form
       aria-label={t('Timeouts and concurrency')}
@@ -1254,6 +1427,27 @@ function CredentialGroupSection(props: {
             'asyncInFlightLimit',
           ] as const
         ).map((name) => {
+          if (name === 'pollIntervalMs') {
+            return (
+              <NumberField
+                key={name}
+                id={`credential-group-${name}`}
+                label={t(name)}
+                registration={form.register(name, {
+                  setValueAs: (value: unknown) =>
+                    value === '' || value === null || value === undefined
+                      ? undefined
+                      : Number(value),
+                })}
+                placeholder={t('Default {{value}}', {
+                  value: props.globalDefaultPollIntervalMs,
+                })}
+                disabled={allFixed}
+                error={form.formState.errors[name]?.message}
+                help={pollHelp.join(' ')}
+              />
+            )
+          }
           let help: string | undefined
           if (name === 'requestTimeoutMs') {
             help = t(
@@ -1262,10 +1456,6 @@ function CredentialGroupSection(props: {
           } else if (name === 'streamIdleTimeoutMs') {
             help = t(
               'The maximum time a streaming response may go without new data.'
-            )
-          } else if (name === 'pollIntervalMs') {
-            help = t(
-              'How often an asynchronous task checks the upstream result; this does not control client refresh.'
             )
           } else if (name === 'deadlineMs') {
             help = t('{{description}} {{current}}', {
@@ -1322,24 +1512,74 @@ function CredentialGroupSection(props: {
           )
         })}
       </div>
+      {props.models.length > 0 ? (
+        <Collapsible>
+          <CollapsibleTrigger className='text-primary text-sm underline underline-offset-4'>
+            {t('View each model ({{count}})', { count: props.models.length })}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul
+              className='divide-y pt-2 text-sm'
+              aria-label={t('Poll interval of each model')}
+            >
+              {props.models.map((model) => {
+                let source = t('Poll interval source default')
+                let value = props.globalDefaultPollIntervalMs
+                if (typeof model.channelPollIntervalMs === 'number') {
+                  source = t('Poll interval source channel')
+                  value = model.channelPollIntervalMs
+                } else if (groupPollIntervalMs !== undefined) {
+                  source = t('Poll interval source group')
+                  value = groupPollIntervalMs
+                }
+                return (
+                  <li
+                    key={model.id}
+                    className='flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2'
+                  >
+                    <span className='min-w-0 break-words'>
+                      {model.effectiveDisplayName}
+                      <ModelIdentityTooltip
+                        effectiveDisplayName={model.effectiveDisplayName}
+                        catalogDefaultName={model.catalogDefaultName}
+                        modelKey={model.modelKey}
+                        upstreamModelIds={model.upstreamModelIds}
+                      />
+                    </span>
+                    <span className='text-muted-foreground tabular-nums'>
+                      {t('{{seconds}} seconds · {{source}}', {
+                        seconds: Number.isFinite(value) ? seconds(value) : '—',
+                        source,
+                      })}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
       <div className='flex flex-wrap justify-end gap-2 border-t pt-4'>
         <Button
           type='button'
           variant='outline'
           disabled={props.pending}
-          onClick={() =>
-            props.onReview({
-              title: t('Restore credential group defaults'),
-              description: t(
-                'The next version will inherit every credential group default.'
-              ),
-              details: [
-                { label: t('Scope'), value: t('Selected credential group') },
-              ],
-              confirmLabel: t('Restore defaults'),
-              run: () => props.onPublish({}),
+          onClick={() => {
+            // Only the form changes; the defaults take effect when the reviewed publication is confirmed.
+            for (const [name, value] of Object.entries(
+              credentialGroupDefaults
+            )) {
+              form.setValue(name as keyof ChannelForm, value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+            form.setValue('pollIntervalMs', undefined, {
+              shouldDirty: true,
+              shouldValidate: true,
             })
-          }
+            setRestored(true)
+          }}
         >
           {t('Restore defaults')}
         </Button>
@@ -1475,7 +1715,7 @@ function LimitSection(props: {
         'This replaces the configured limit-rule list for the selected credential group.'
       ),
       details: [
-        { label: t('Provider'), value: props.providerName },
+        { label: t('Service provider'), value: props.providerName },
         { label: t('Credential group'), value: props.credentialGroupName },
         { label: t('Change'), value: t(change) },
         { label: t('Rules'), value: String(rules.length) },
@@ -2528,7 +2768,7 @@ function ErrorSection(props: {
               },
             ]
           : []),
-        { label: t('Provider'), value: props.providerName },
+        { label: t('Service provider'), value: props.providerName },
         {
           label: t('Changes'),
           value: changes.join(' · ') || t('No changes'),
@@ -4007,6 +4247,8 @@ function NumberField(props: {
   registration: Record<string, unknown>
   error?: string
   help?: string
+  placeholder?: string
+  disabled?: boolean
 }) {
   return (
     <div className='space-y-1'>
@@ -4015,6 +4257,14 @@ function NumberField(props: {
         id={props.id}
         type='number'
         aria-describedby={props.help ? `${props.id}-help` : undefined}
+        placeholder={props.placeholder}
+        readOnly={props.disabled}
+        aria-disabled={props.disabled || undefined}
+        className={
+          props.disabled
+            ? 'bg-muted text-muted-foreground cursor-not-allowed'
+            : undefined
+        }
         {...props.registration}
       />
       {props.help && (

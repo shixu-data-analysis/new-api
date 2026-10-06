@@ -9,7 +9,9 @@ License, or (at your option) any later version.
 import { render, screen } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, expect, it } from 'vitest'
+
 import zh from '@/i18n/locales/zh.json'
+
 import { CatalogPricingPreview } from '../CatalogPricingPreview'
 
 afterEach(async () => {

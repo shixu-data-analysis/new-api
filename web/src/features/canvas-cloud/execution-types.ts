@@ -27,6 +27,7 @@ export interface GlobalExecutionConfig {
   instanceConcurrency: number
   queryReservedConcurrency: number
   userOutputLimit: number
+  defaultPollIntervalMs: number
 }
 
 export interface ChannelExecutionConfig {
@@ -142,6 +143,28 @@ export interface ExecutionInstance {
   leaseExpiresAt: string | null
   stoppedAt: string | null
   updatedAt: string | null
+  waitingArea: { count: number; limit: number | null; nearlyFull: boolean }
+  databaseCommunication: {
+    status: 'NORMAL' | 'RECENT_FAILURES'
+    failureStreak: number
+    lastFailedAt: string | null
+  }
+}
+
+export type ExecutionAttentionType =
+  | 'OUTPUT_TOO_LARGE'
+  | 'RETRY_EXHAUSTED'
+  | 'WAITING_AREA_NEARLY_FULL'
+  | 'DATABASE_UNSTABLE'
+
+export interface ExecutionAttention {
+  type: ExecutionAttentionType
+  count: number
+  latestAt: string | null
+  taskLogFilters?: {
+    failureReason: 'PROVIDER_OUTPUT_TOO_LARGE' | 'RETRY_EXHAUSTED'
+    from: string
+  }
 }
 
 export interface ExecutionOverview {
@@ -150,8 +173,10 @@ export interface ExecutionOverview {
     id: string
     name: string
     providerId: string
+    providerName: string | null
   }>
   instances: ExecutionInstance[]
+  attention: ExecutionAttention[]
   systemRecovery: {
     heartbeatMs: number
     leaseMs: number
@@ -190,6 +215,7 @@ export interface ExecutionCapacityItem {
   requestConcurrency: ExecutionCapacityCounter
   asyncInFlight: ExecutionCapacityCounter
   waitingTasks: number
+  unqueryableUnconfirmedTasks: number
   status: ExecutionCapacityStatus
   reasons: ExecutionCapacityReason[]
 }
@@ -199,6 +225,8 @@ export interface ExecutionCapacityOverview {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   total: number
   providers: Array<{ id: string; name: string }>
+  /** Tasks with a result waiting for confirmation that can or cannot be queried at the provider. */
+  unconfirmed: { queryableTasks: number; unqueryableTasks: number }
   items: ExecutionCapacityItem[]
 }
 
@@ -218,6 +246,12 @@ export type ExecutionWaitRequestState =
 export interface ExecutionWaitItem {
   taskId: string
   displayNameSnapshot: string
+  effectiveDisplayName: string
+  catalogDefaultName: string
+  modelKey: string
+  upstreamModelId: string | null
+  waitingOutputs: number
+  totalOutputs: number
   credentialGroupId: string
   stage: ExecutionWaitStage
   blockingStatus: ExecutionCapacityStatus
@@ -227,6 +261,19 @@ export interface ExecutionWaitItem {
   startedAt: string
   nextAttemptAt: string
   updatedAt: string
+}
+
+export type ExecutionResultPositionState =
+  | 'WAITING'
+  | 'RUNNING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+
+export interface ExecutionWaitDetail extends ExecutionWaitItem {
+  positions: Array<{
+    outputIndex: number
+    state: ExecutionResultPositionState
+  }>
 }
 
 export interface ExecutionWaitPage {
@@ -249,6 +296,9 @@ export interface CredentialGroupExecutionOverview {
     effectiveDisplayName: string
     catalogDefaultName: string
     providerChannelId: string
+    /** The poll interval the model's current channel Profile fixes, or null when the group's interval applies. */
+    channelPollIntervalMs: number | null
+    upstreamModelIds: string[]
   }>
 }
 

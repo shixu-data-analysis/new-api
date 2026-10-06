@@ -233,7 +233,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.getByText('executor-01')).toBeVisible()
     fireEvent.click(hide)
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
     expect(screen.getAllByText(/gpt-image-2-pro/).length).toBeGreaterThan(0)
   })
 
@@ -344,7 +344,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.getByText('Audio 1')).toBeVisible()
     expect(screen.getByText('Image 2')).toBeVisible()
     expect(screen.getByText('Video 1')).toBeVisible()
-    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
     const requestSnapshot = screen.getByText(/\[provider-url-hidden\]/)
     expect(
       requestSnapshot.textContent?.match(/\[provider-url-hidden\]/g)
@@ -726,7 +726,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.getByText('结果 2 · 确认失败')).toBeVisible()
     expect(screen.getByText(/^已扣除；已释放 7 积分（/)).toBeVisible()
     expect(
-      screen.queryByText('上游已确认失败，冻结积分已释放。')
+      screen.queryByText('服务商已确认失败，冻结积分已释放。')
     ).not.toBeInTheDocument()
     expect(screen.getAllByText(task.id).length).toBeGreaterThan(1)
   })
@@ -803,8 +803,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       await screen.findByText('生成失败，请稍后重试或联系管理员。')
     ).toBeVisible()
-    expect(screen.getByText('上游原因：参考图涉及肖像限制')).toBeVisible()
-    expect(screen.queryByText('上游返回了错误码。')).not.toBeInTheDocument()
+    expect(screen.getByText('服务商原因：参考图涉及肖像限制')).toBeVisible()
+    expect(screen.queryByText('服务商返回了错误码。')).not.toBeInTheDocument()
   })
 
   it('explains which provider address check stopped a task before it was sent', async () => {
@@ -823,9 +823,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     })
     mount()
 
-    expect(await screen.findByText('上游地址检查')).toBeVisible()
+    expect(await screen.findByText('服务商地址检查')).toBeVisible()
     expect(
-      screen.getByText(/上游域名当时无法解析，重新提交通常即可/)
+      screen.getByText(/服务商域名当时无法解析，重新提交通常即可/)
     ).toBeVisible()
     expect(screen.getByText('URL_DNS_UNAVAILABLE')).toBeVisible()
   })
@@ -918,9 +918,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Verified with provider' },
     })
-    fireEvent.click(
-      screen.getByText('Upstream failure confirmed with the API provider')
-    )
+    fireEvent.click(screen.getByText('Failure confirmed with the API provider'))
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
@@ -1080,9 +1078,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Checked upstream result' },
     })
-    fireEvent.click(
-      screen.getByText('Upstream failure confirmed with the API provider')
-    )
+    fireEvent.click(screen.getByText('Failure confirmed with the API provider'))
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )

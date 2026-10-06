@@ -57,6 +57,21 @@ vi.mock('../../execution-api', () => ({
   startCanvasExecutorDrain: mocks.startCanvasExecutorDrain,
   cancelCanvasExecutorDrain: mocks.cancelCanvasExecutorDrain,
 }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    search,
+    children,
+  }: {
+    search: Record<string, string>
+    children: React.ReactNode
+  }) => (
+    <a
+      href={`/canvas-cloud/task-logs?${new URLSearchParams(search).toString()}`}
+    >
+      {children}
+    </a>
+  ),
+}))
 vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
   FormNavigationGuard: (props: { when: boolean }) => (
     <div data-testid='navigation-guard' data-active={String(props.when)} />
@@ -139,6 +154,7 @@ beforeEach(async () => {
         instanceConcurrency: 16,
         queryReservedConcurrency: 4,
         userOutputLimit: 12,
+        defaultPollIntervalMs: 20000,
       },
       inherited: [],
     },
@@ -161,6 +177,12 @@ beforeEach(async () => {
         leaseExpiresAt: '2999-09-06T00:01:00Z',
         stoppedAt: null,
         updatedAt: null,
+        waitingArea: { count: 0, limit: 1000, nearlyFull: false },
+        databaseCommunication: {
+          status: 'NORMAL',
+          failureStreak: 0,
+          lastFailedAt: null,
+        },
       },
       {
         queueName: 'canvas-tasks',
@@ -173,6 +195,12 @@ beforeEach(async () => {
         leaseExpiresAt: '2999-09-06T00:01:00Z',
         stoppedAt: null,
         updatedAt: null,
+        waitingArea: { count: 0, limit: 1000, nearlyFull: false },
+        databaseCommunication: {
+          status: 'NORMAL',
+          failureStreak: 0,
+          lastFailedAt: null,
+        },
       },
       {
         queueName: 'canvas-tasks-priority',
@@ -185,6 +213,12 @@ beforeEach(async () => {
         leaseExpiresAt: '2999-09-06T00:01:00Z',
         stoppedAt: null,
         updatedAt: null,
+        waitingArea: { count: 0, limit: 1000, nearlyFull: false },
+        databaseCommunication: {
+          status: 'NORMAL',
+          failureStreak: 0,
+          lastFailedAt: null,
+        },
       },
       {
         queueName: 'tasks',
@@ -197,6 +231,12 @@ beforeEach(async () => {
         leaseExpiresAt: '2026-09-05T00:01:00Z',
         stoppedAt: null,
         updatedAt: null,
+        waitingArea: { count: 0, limit: 1000, nearlyFull: false },
+        databaseCommunication: {
+          status: 'NORMAL',
+          failureStreak: 0,
+          lastFailedAt: null,
+        },
       },
       {
         queueName: 'tasks',
@@ -209,8 +249,15 @@ beforeEach(async () => {
         leaseExpiresAt: null,
         stoppedAt: '2026-09-05T00:01:00Z',
         updatedAt: null,
+        waitingArea: { count: 0, limit: 1000, nearlyFull: false },
+        databaseCommunication: {
+          status: 'NORMAL',
+          failureStreak: 0,
+          lastFailedAt: null,
+        },
       },
     ],
+    attention: [],
     systemRecovery: {
       heartbeatMs: 10000,
       leaseMs: 60000,
@@ -240,6 +287,7 @@ beforeEach(async () => {
         instanceConcurrency: 16,
         queryReservedConcurrency: 4,
         userOutputLimit: 12,
+        defaultPollIntervalMs: 20000,
       },
       inherited: [],
     },
@@ -441,17 +489,15 @@ describe('execution settings', () => {
     mount()
     await waitFor(() =>
       expect(
-        screen.getByText('Executor instance concurrency full')
+        screen.getByText('Simultaneous tasks per instance full')
       ).toBeVisible()
     )
-    expect(
-      screen.getByText('Upstream unfinished asynchronous tasks full')
-    ).toBeVisible()
+    expect(screen.getByText('In progress at provider full')).toBeVisible()
     expect(
       screen.queryByText('Multiple capacity limits reached')
     ).not.toBeInTheDocument()
     expect(
-      screen.queryByText('API Key group request concurrency full')
+      screen.queryByText('API Key group simultaneous requests full')
     ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'View waiting tasks' })
@@ -470,6 +516,12 @@ describe('execution settings', () => {
     const wait = {
       taskId: 'wait-1',
       displayNameSnapshot: 'Canvas Image',
+      effectiveDisplayName: 'Canvas Image',
+      catalogDefaultName: 'Canvas Image',
+      modelKey: 'canvas.image',
+      upstreamModelId: null,
+      waitingOutputs: 1,
+      totalOutputs: 1,
       credentialGroupId,
       stage: 'SUBMIT',
       blockingStatus: 'GROUP_REQUEST_CONCURRENCY_FULL',
@@ -490,6 +542,7 @@ describe('execution settings', () => {
           requestConcurrency: { used: 16, limit: 16 },
           asyncInFlight: { used: 30, limit: 30 },
           waitingTasks: 1,
+          unqueryableUnconfirmedTasks: 0,
           status: 'MULTIPLE_LIMITS',
           reasons: ['GROUP_REQUEST_CONCURRENCY_FULL', 'ASYNC_IN_FLIGHT_FULL'],
         },
@@ -501,31 +554,19 @@ describe('execution settings', () => {
       total: 1,
       items: [wait],
     })
-    mocks.getCanvasExecutionWaitDetail.mockResolvedValue(wait)
     mount()
     await waitFor(() => expect(screen.getByText('Primary')).toBeVisible())
     await user.click(screen.getByRole('button', { name: 'View waiting tasks' }))
-    await waitFor(() =>
-      expect(mocks.getCanvasExecutionWaits).toHaveBeenCalled()
-    )
-    const waitingCard = screen
-      .getAllByText('Waiting tasks')[0]
-      .closest('[data-slot="card"]')
-    expect(waitingCard).not.toBeNull()
+    const drawer = await screen.findByRole('dialog')
     expect(
-      within(waitingCard as HTMLElement).getByText(
-        /API Key group request concurrency full/
+      await within(drawer).findByText(
+        'API Key group simultaneous requests full (16 / 16)'
       )
     ).toBeVisible()
-    await user.click(await screen.findByRole('button', { name: 'Details' }))
-    const drawer = await screen.findByRole('dialog')
-    expect(drawer).toHaveTextContent('API Key group request concurrency full')
-    expect(drawer).not.toHaveTextContent(
-      'Upstream unfinished asynchronous tasks full'
-    )
+    expect(drawer).not.toHaveTextContent('In progress at provider full')
   })
 
-  it('shows safe capacity and wait facts, then restores detail focus', async () => {
+  it('shows safe wait facts in the drawer and closes it with Escape', async () => {
     const user = userEvent.setup()
     expect(
       executionWaitDurationParts(
@@ -533,10 +574,15 @@ describe('execution settings', () => {
         new Date('2026-09-13T08:12:00Z')
       )
     ).toEqual({ hours: 0, minutes: 12 })
-    document.documentElement.dir = 'rtl'
     const wait = {
       taskId: '85000000-0000-7000-8000-000000000010',
       displayNameSnapshot: 'Canvas Image',
+      effectiveDisplayName: 'Canvas Image',
+      catalogDefaultName: 'Canvas Image',
+      modelKey: 'canvas.image',
+      upstreamModelId: null,
+      waitingOutputs: 2,
+      totalOutputs: 4,
       credentialGroupId,
       stage: 'SUBMIT',
       blockingStatus: 'ASYNC_IN_FLIGHT_FULL',
@@ -547,17 +593,12 @@ describe('execution settings', () => {
       nextAttemptAt: '2026-09-14T08:05:00Z',
       updatedAt: '2026-09-13T08:01:00Z',
     }
-    const queryWait = {
-      ...wait,
-      taskId: '85000000-0000-7000-8000-000000000011',
-      displayNameSnapshot: 'Canvas Video',
-      stage: 'QUERY',
-      requestState: 'ACCEPTED_BY_PROVIDER',
-    }
     const uncertainWait = {
       ...wait,
       taskId: '85000000-0000-7000-8000-000000000012',
       displayNameSnapshot: 'Canvas Audio',
+      effectiveDisplayName: 'Canvas Audio',
+      catalogDefaultName: 'Canvas Audio',
       requestState: 'MAY_HAVE_BEEN_SENT',
     }
     mocks.getCanvasExecutionCapacity.mockResolvedValue({
@@ -569,7 +610,8 @@ describe('execution settings', () => {
           credentialGroupName: 'Primary',
           requestConcurrency: { used: 0, limit: 16 },
           asyncInFlight: { used: 30, limit: 30 },
-          waitingTasks: 3,
+          waitingTasks: 2,
+          unqueryableUnconfirmedTasks: 0,
           status: 'ASYNC_IN_FLIGHT_FULL',
         },
       ],
@@ -577,55 +619,42 @@ describe('execution settings', () => {
     mocks.getCanvasExecutionWaits.mockResolvedValue({
       page: 1,
       pageSize: 20,
-      total: 3,
-      items: [wait, queryWait, uncertainWait],
+      total: 2,
+      items: [wait, uncertainWait],
     })
-    mocks.getCanvasExecutionWaitDetail.mockImplementation(async (taskId) => {
-      if (taskId === queryWait.taskId) return queryWait
-      if (taskId === uncertainWait.taskId) return uncertainWait
-      return wait
-    })
+    mocks.getCanvasExecutionWaitDetail.mockImplementation(async (taskId) => ({
+      ...(taskId === uncertainWait.taskId ? uncertainWait : wait),
+      positions: [
+        { outputIndex: 0, state: 'RUNNING' },
+        { outputIndex: 1, state: 'RUNNING' },
+        { outputIndex: 2, state: 'WAITING' },
+        { outputIndex: 3, state: 'WAITING' },
+      ],
+    }))
     mount()
     expect(await screen.findAllByText('HFSY API')).not.toHaveLength(0)
     expect(screen.queryByText('hfsyapi')).not.toBeInTheDocument()
-    expect(
-      screen
-        .getByRole('region', { name: 'API Key group live capacity' })
-        .querySelector('[data-slot="table-container"]')
-    ).toHaveClass('overflow-x-auto')
-    await user.click(
-      screen.getAllByRole('button', { name: 'View waiting tasks' })[0]
-    )
-    expect((await screen.findAllByText('Submit'))[0]).toBeVisible()
-    expect(screen.getAllByText('Query')[0]).toBeVisible()
-    expect(screen.queryByText('Not sent')).not.toBeInTheDocument()
-    const details = screen.getAllByRole('button', { name: 'Details' })[0]
-    details.focus()
-    await user.keyboard('{Enter}')
+    const trigger = screen.getAllByRole('button', {
+      name: 'View waiting tasks',
+    })[0]
+    await user.click(trigger)
     const drawer = await screen.findByRole('dialog')
-    expect(within(drawer).getByText('Waiting task details')).toBeVisible()
-    expect(drawer).toHaveTextContent('30 / 30')
-    expect(drawer).toHaveTextContent('Not sent')
-    expect(drawer).toHaveTextContent('2026')
+    expect(within(drawer).getByText('Waiting tasks · Primary')).toBeVisible()
+    expect(await within(drawer).findAllByText('2 / 4')).toHaveLength(2)
+    expect(drawer).not.toHaveTextContent('Not sent')
+    await user.click(within(drawer).getByText('Canvas Image'))
+    expect(await within(drawer).findByText('Not sent')).toBeVisible()
     expect(drawer).not.toHaveTextContent(
       /attempt count|policy version|worker id|credential id|reason code/i
     )
+    await user.click(
+      within(drawer).getAllByRole('button', { name: 'Details' })[0]
+    )
+    expect(await within(drawer).findByText('May have been sent')).toBeVisible()
     await user.keyboard('{Escape}')
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     )
-    expect(screen.getAllByText('Canvas Image')[0]).toBeVisible()
-    const queryDetails = screen.getAllByRole('button', { name: 'Details' })[1]
-    await user.click(queryDetails)
-    expect(await screen.findByText('Accepted by API provider')).toBeVisible()
-    await user.keyboard('{Escape}')
-    const uncertainDetails = screen.getAllByRole('button', {
-      name: 'Details',
-    })[2]
-    await user.click(uncertainDetails)
-    expect(await screen.findByText('May have been sent')).toBeVisible()
-    document.documentElement.removeAttribute('dir')
-    vi.useRealTimers()
   })
 
   it('explains instance concurrency as tasks being worked on, not tasks waiting for the API provider', async () => {
@@ -637,7 +666,7 @@ describe('execution settings', () => {
     ).toBeVisible()
     expect(
       screen.getByText(
-        /Instance concurrency is the number of tasks each executor instance works on at once/
+        /Simultaneous tasks per instance is the number of tasks each executor instance works on at once/
       )
     ).toBeVisible()
     cleanup()
@@ -645,7 +674,7 @@ describe('execution settings', () => {
     mount()
     expect(
       await screen.findByText(
-        '每个执行实例同时在处理的任务数；在等 API 服务商出结果的任务不占用。同一数值也限制同时进行的上游请求数，所有 API Key 组共用。'
+        '每个执行实例同时在处理的任务数；在等 API 服务商出结果的任务不占用。同一数值也限制同时进行的服务商请求数，所有 API Key 组共用。'
       )
     ).toBeVisible()
   })
@@ -656,7 +685,7 @@ describe('execution settings', () => {
     const workers = await screen.findByText('Running workers')
     const recovery = screen.getByText('System recovery')
     const limits = screen.getByText('Task submission and execution limits')
-    const drain = await screen.findByText('Drain')
+    const drain = await screen.findByText('Pause intake')
     expect(
       drain.compareDocumentPosition(limits) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
@@ -684,12 +713,12 @@ describe('execution settings', () => {
     const workerSection = workers.closest('section')
     expect(workerSection).not.toBeNull()
     const workerTable = within(workerSection as HTMLElement)
-    expect(workerTable.getAllByRole('columnheader')).toHaveLength(5)
+    expect(workerTable.getAllByRole('columnheader')).toHaveLength(8)
     expect(
       workerTable.getByRole('columnheader', { name: 'Queue' })
     ).toBeVisible()
     expect(
-      workerTable.getByRole('columnheader', { name: 'Latest heartbeat' })
+      workerTable.getByRole('columnheader', { name: 'Latest check-in' })
     ).toBeVisible()
     expect(screen.getByText('3 workers')).toBeVisible()
     expect(i18next.t('1 worker')).toBe('1 worker')
@@ -702,20 +731,30 @@ describe('execution settings', () => {
     expect(screen.queryByText('LEASE_ACTIVE_INTERNAL')).not.toBeInTheDocument()
     expect(screen.queryByText('worker-expired')).not.toBeInTheDocument()
     expect(screen.queryByText('worker-stopped')).not.toBeInTheDocument()
-    expect(screen.queryByText('worker-1')).not.toBeInTheDocument()
-    expect(screen.queryByText('worker-2')).not.toBeInTheDocument()
-    expect(screen.queryByText('worker-unknown-status')).not.toBeInTheDocument()
+    // Running instances are identified by their worker ID, with their waiting area and database communication.
+    expect(screen.getByText('worker-1')).toBeVisible()
+    expect(screen.getByText('worker-2')).toBeVisible()
+    expect(screen.getByText('worker-unknown-status')).toBeVisible()
+    for (const name of [
+      'Executor instance',
+      'Tasks waiting for results',
+      'Database communication',
+    ]) {
+      expect(workerTable.getByRole('columnheader', { name })).toBeVisible()
+    }
+    expect(workerTable.getAllByText('0 / 1000')).toHaveLength(3)
+    expect(workerTable.getAllByText('Normal')).toHaveLength(3)
     const recoverySection = recovery.closest('section')
     expect(recoverySection).not.toBeNull()
     const recoveryFacts = within(recoverySection as HTMLElement)
     expect(
-      recoveryFacts.getByText('Heartbeat interval (milliseconds)')
+      recoveryFacts.getByText('Check-in interval (milliseconds)')
     ).toBeVisible()
     expect(
-      recoveryFacts.getByText('Lease duration (milliseconds)')
+      recoveryFacts.getByText('Task hold validity (milliseconds)')
     ).toBeVisible()
     expect(
-      recoveryFacts.getByText('Scan interval (milliseconds)')
+      recoveryFacts.getByText('New-task check interval (milliseconds)')
     ).toBeVisible()
     expect(recoveryFacts.getByText('Deployment target instances')).toBeVisible()
     expect(recoveryFacts.getAllByText('10000')).toHaveLength(2)
@@ -748,11 +787,13 @@ describe('execution settings', () => {
     expect(
       workerScroll?.querySelector('[data-slot="table-container"]')
     ).toHaveClass('overflow-x-auto')
-    expect(screen.getByLabelText('Instance concurrency')).toHaveValue(16)
+    expect(
+      screen.getByLabelText('Simultaneous tasks per instance')
+    ).toHaveValue(16)
     expect(screen.queryByText(/^v2$/)).not.toBeInTheDocument()
   })
 
-  it('uses the running-worker table empty state without exposing worker IDs', async () => {
+  it('uses the running-worker table empty state', async () => {
     const overview = await mocks.getCanvasExecutionOverview()
     mocks.getCanvasExecutionOverview.mockResolvedValueOnce({
       ...overview,
@@ -810,9 +851,12 @@ describe('execution settings', () => {
       'data-active',
       'false'
     )
-    fireEvent.change(await screen.findByLabelText('Instance concurrency'), {
-      target: { value: '20' },
-    })
+    fireEvent.change(
+      await screen.findByLabelText('Simultaneous tasks per instance'),
+      {
+        target: { value: '20' },
+      }
+    )
     expect(screen.getByTestId('navigation-guard')).toHaveAttribute(
       'data-active',
       'true'
@@ -830,6 +874,7 @@ describe('execution settings', () => {
           instanceConcurrency: 20,
           queryReservedConcurrency: 4,
           userOutputLimit: 12,
+          defaultPollIntervalMs: 20000,
         },
       })
     )
@@ -859,7 +904,7 @@ describe('execution settings', () => {
     )
     expect(await screen.findByText('Confirming cloud result')).toBeVisible()
     expect(
-      screen.getByText('Calculated without an upstream task ID')
+      screen.getByText('Calculated without a provider task ID')
     ).toBeVisible()
     expect(mocks.publishCanvasExecutionPolicy).not.toHaveBeenCalled()
   })
@@ -914,7 +959,7 @@ describe('execution settings', () => {
     expect(screen.getByText(/"code": "server_error"/)).toBeVisible()
     expect(screen.getByText('Generation service is unavailable.')).toBeVisible()
     expect(
-      screen.getByText('Upstream reason: Server is overloaded')
+      screen.getByText('Provider reason: Server is overloaded')
     ).toBeVisible()
     expect(
       screen.queryByText('The upstream service returned an error code.')
@@ -953,7 +998,7 @@ describe('execution settings', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
-    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+    fireEvent.change(screen.getByLabelText('Provider HTTP status'), {
       target: { value: '401' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
@@ -974,7 +1019,7 @@ describe('execution settings', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
-    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+    fireEvent.change(screen.getByLabelText('Provider HTTP status'), {
       target: { value: '200' },
     })
     const kind = screen.getByLabelText('This 2xx response is')
@@ -998,7 +1043,7 @@ describe('execution settings', () => {
         })
       )
     )
-    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+    fireEvent.change(screen.getByLabelText('Provider HTTP status'), {
       target: { value: '400' },
     })
     expect(
@@ -1190,31 +1235,31 @@ describe('execution settings', () => {
     const explanations = [
       [
         'requestTimeoutMs',
-        'The maximum wait for one non-streaming upstream request or result download.',
+        'The maximum wait for one non-streaming provider request or result download.',
       ],
       [
-        'streamIdleTimeoutMs',
+        'Stream no-data timeout (milliseconds)',
         'The maximum time a streaming response may go without new data.',
       ],
       [
         'pollIntervalMs',
-        'How often an asynchronous task checks the upstream result; this does not control client refresh.',
+        'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default.',
       ],
       [
-        'Execution deadline (milliseconds)',
-        'Measured from task acceptance; after it the system stops submitting or querying upstream and releases still-frozen points as a timeout. Currently 24 hours.',
+        'Maximum processing time (milliseconds)',
+        'Measured from task acceptance; after it the system stops submitting to or querying the provider and releases still-frozen points as a timeout. Currently 24 hours.',
       ],
       [
-        'Unknown result release wait (milliseconds)',
-        'When the result cannot be confirmed and there is no upstream task ID, frozen points are released after this wait. Currently 4 hours.',
+        'Refund wait when the result cannot be queried (milliseconds)',
+        'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait. Currently 4 hours.',
       ],
       [
-        'requestConcurrency',
-        'Concurrent upstream requests across all instances for this API Key group; full capacity queues admitted tasks.',
+        'Simultaneous requests',
+        'Simultaneous provider requests across all instances for this API Key group; full capacity queues admitted tasks.',
       ],
       [
-        'Upstream unfinished asynchronous task limit',
-        'Unfinished upstream asynchronous tasks for this group; full capacity queues new asynchronous submissions. Result queries do not use this allowance.',
+        'In progress at provider limit',
+        'Tasks of this group in progress at the provider; full capacity queues new asynchronous submissions. Result queries do not use this allowance.',
       ],
     ]
     for (const [label, description] of explanations) {
@@ -1237,17 +1282,17 @@ describe('execution settings', () => {
     expect(
       screen.getByLabelText('请求超时（毫秒）')
     ).toHaveAccessibleDescription(
-      '单次非流式上游请求及结果下载的最长等待时间。'
+      '单次非流式服务商请求及结果下载的最长等待时间。'
     )
     expect(
-      screen.getByLabelText('执行截止时间（毫秒）')
+      screen.getByLabelText('最长处理时间（毫秒）')
     ).toHaveAccessibleDescription(
-      '从任务受理起计算；超过后不再提交或查询上游，仍冻结的积分按超时释放。当前为 24 小时。'
+      '从任务受理起计算；超过后不再提交或查询服务商，仍冻结的积分按超时释放。当前为 24 小时。'
     )
     expect(
-      screen.getByLabelText('结果不明释放等待（毫秒）')
+      screen.getByLabelText('无法查询时的退积分等待（毫秒）')
     ).toHaveAccessibleDescription(
-      '结果无法确认且没有上游任务编号时，等待这段时间后释放冻结积分。当前为 4 小时。'
+      '结果无法确认且没有服务商任务编号时，等待这段时间后释放冻结积分。当前为 4 小时。'
     )
   })
 
@@ -1264,7 +1309,7 @@ describe('execution settings', () => {
       )
     ).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Upstream HTTP status'), {
+    fireEvent.change(screen.getByLabelText('Provider HTTP status'), {
       target: { value: '503' },
     })
     expect(
@@ -1313,7 +1358,7 @@ describe('execution settings', () => {
     mount({ view: 'credentialGroup', credentialGroupId })
 
     const toggle = await screen.findByRole('checkbox', {
-      name: 'Show the upstream reason to customers',
+      name: 'Show the provider reason to customers',
     })
     expect(toggle).toBeChecked()
     expect(
@@ -1331,7 +1376,7 @@ describe('execution settings', () => {
     fireEvent.click(within(errorForm).getByRole('button', { name: 'Publish' }))
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent(
-      'Show the upstream reason to customers: Disabled'
+      'Show the provider reason to customers: Disabled'
     )
     fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
 
@@ -1451,7 +1496,7 @@ describe('execution settings', () => {
 
     expect(
       await screen.findByRole('checkbox', {
-        name: 'Show the upstream reason to customers',
+        name: 'Show the provider reason to customers',
       })
     ).not.toBeChecked()
     expect(screen.getByTestId('navigation-guard')).toHaveAttribute(
@@ -1641,7 +1686,7 @@ describe('execution settings', () => {
       ).getByRole('button', { name: 'Edit' })
     )
     const hide = screen.getByRole('checkbox', {
-      name: 'Hide the upstream reason from customers',
+      name: 'Hide the provider reason from customers',
     })
     expect(hide).not.toBeChecked()
     fireEvent.click(hide)
@@ -2195,5 +2240,202 @@ describe('execution settings', () => {
     fireEvent.blur(screen.getByLabelText('搜索已绑定模型'))
 
     expect(await screen.findByText('请至少选择一个模型')).toBeVisible()
+  })
+
+  describe('poll interval of an API Key group', () => {
+    async function groupWith(
+      configuredPollIntervalMs: number | undefined,
+      channelIntervals: Array<number | null>
+    ) {
+      const base = await mocks.getCanvasCredentialGroupExecution()
+      mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+        ...base,
+        group: {
+          ...base.group,
+          configured:
+            configuredPollIntervalMs === undefined
+              ? {}
+              : { pollIntervalMs: configuredPollIntervalMs },
+          effective: {
+            ...base.group.effective,
+            pollIntervalMs: configuredPollIntervalMs ?? 20000,
+          },
+        },
+        models: base.models
+          .slice(0, channelIntervals.length)
+          .map((model: Record<string, unknown>, index: number) => ({
+            ...model,
+            channelPollIntervalMs: channelIntervals[index],
+            upstreamModelIds: [`upstream-${index}`],
+          })),
+      })
+      mount({ view: 'credentialGroup', credentialGroupId })
+      return screen.findByLabelText('pollIntervalMs')
+    }
+
+    it('stays empty and shows the global default when the group sets none', async () => {
+      const field = await groupWith(undefined, [null, null])
+      expect(field).toHaveValue(null)
+      expect(field).toHaveAttribute('placeholder', 'Default 20000')
+      expect(field).not.toHaveAttribute('readonly')
+      expect(field).toHaveAccessibleDescription(
+        'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default.'
+      )
+    })
+
+    it('cannot be edited when every model of the group has its interval fixed by its channel', async () => {
+      const field = await groupWith(15000, [60000, 60000])
+      expect(field).toHaveValue(15000)
+      expect(field).toHaveAttribute('readonly')
+      expect(field).toHaveAttribute('aria-disabled', 'true')
+      expect(field).toHaveAccessibleDescription(
+        'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default. Every model of this group has its interval fixed by its channel at 60 seconds; this setting has no effect.'
+      )
+    })
+
+    it('names the models fixed by their channel and lists where each interval comes from', async () => {
+      const user = userEvent.setup()
+      const field = await groupWith(undefined, [60000, null])
+      expect(field).not.toHaveAttribute('readonly')
+      expect(field).toHaveAccessibleDescription(
+        /1 of the models have their interval fixed by their channel at 60 seconds\./
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'View each model (2)' })
+      )
+      const list = screen.getByRole('list', {
+        name: 'Poll interval of each model',
+      })
+      expect(within(list).getByText('60 seconds · channel')).toBeVisible()
+      expect(within(list).getByText('20 seconds · default')).toBeVisible()
+      fireEvent.change(field, { target: { value: '30000' } })
+      expect(within(list).getByText('30 seconds · this group')).toBeVisible()
+    })
+
+    it('restores defaults in the form only and, after review, publishes a group that follows every default', async () => {
+      const field = await groupWith(15000, [null, null])
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Restore defaults' })[0]
+      )
+      expect(mocks.publishCanvasExecutionPolicy).not.toHaveBeenCalled()
+      expect(field).toHaveValue(null)
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Review publication' })[0]
+      )
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent('15000 → Default')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+      await waitFor(() =>
+        expect(mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0]).toEqual({
+          kind: 'CREDENTIAL_GROUP_POLICY',
+          scopeKey: credentialGroupId,
+          config: {},
+        })
+      )
+    })
+
+    it('lists the stored values a restore clears and keeps a value changed after the restore', async () => {
+      const base = await mocks.getCanvasCredentialGroupExecution()
+      mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+        ...base,
+        group: {
+          ...base.group,
+          configured: { requestConcurrency: 8, asyncInFlightLimit: 30 },
+          effective: {
+            ...base.group.effective,
+            requestConcurrency: 8,
+            asyncInFlightLimit: 30,
+          },
+        },
+      })
+      mount({ view: 'credentialGroup', credentialGroupId })
+      const concurrency = await screen.findByLabelText(/^Simultaneous requests/)
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Restore defaults' })[0]
+      )
+      expect(concurrency).toHaveValue(16)
+      const inFlight = screen.getByLabelText(/^In progress at provider limit/)
+      fireEvent.change(inFlight, { target: { value: '10' } })
+      fireEvent.click(
+        screen.getAllByRole('button', { name: 'Review publication' })[0]
+      )
+      const dialog = await screen.findByRole('alertdialog')
+      expect(dialog).toHaveTextContent('8 → Default')
+      expect(dialog).toHaveTextContent('30 → 10')
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }))
+      await waitFor(() =>
+        expect(
+          mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0].config
+        ).toEqual({ asyncInFlightLimit: 10 })
+      )
+    })
+  })
+
+  it('publishes the global default poll interval', async () => {
+    mount()
+    const field = await screen.findByLabelText(
+      'Default poll interval (milliseconds)'
+    )
+    expect(field).toHaveValue(20000)
+    expect(field).toHaveAccessibleDescription(
+      'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel.'
+    )
+    fireEvent.change(field, { target: { value: '45000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Review publication' }))
+    fireEvent.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Publish',
+      })
+    )
+    await waitFor(() =>
+      expect(
+        mocks.publishCanvasExecutionPolicy.mock.calls[0]?.[0].config
+      ).toMatchObject({ defaultPollIntervalMs: 45000 })
+    )
+  })
+
+  it('shows the attention hints after the drain row and links the task-record ones', async () => {
+    const overview = await mocks.getCanvasExecutionOverview()
+    mocks.getCanvasExecutionOverview.mockResolvedValueOnce({
+      ...overview,
+      attention: [
+        {
+          type: 'OUTPUT_TOO_LARGE',
+          count: 3,
+          latestAt: '2026-10-05T05:52:00.000Z',
+          taskLogFilters: {
+            failureReason: 'PROVIDER_OUTPUT_TOO_LARGE',
+            from: '2026-10-04T06:00:00.000Z',
+          },
+        },
+        { type: 'WAITING_AREA_NEARLY_FULL', count: 1, latestAt: null },
+      ],
+    })
+    mount()
+    const card = (await screen.findByText('Needs attention')).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement
+    expect(
+      within(card).getByText(
+        '3 tasks in the last 24 hours failed because the result file was too large'
+      )
+    ).toBeVisible()
+    expect(
+      within(card).getByRole('link', {
+        name: 'View these 3 tasks in task records',
+      })
+    ).toHaveAttribute(
+      'href',
+      '/canvas-cloud/task-logs?failureReason=PROVIDER_OUTPUT_TOO_LARGE&from=2026-10-04T06%3A00%3A00.000Z'
+    )
+    expect(
+      within(card).getByText(
+        'When it is full, the instance stops taking new tasks. Add executor instances or raise the poll interval.'
+      )
+    ).toBeVisible()
+    const drain = screen.getByText('Pause intake')
+    expect(
+      drain.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 })

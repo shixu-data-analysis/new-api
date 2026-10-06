@@ -7,12 +7,15 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
+import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
+import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
+import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,11 +30,17 @@ import {
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
+import { cn } from '@/lib/utils'
 
 import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
-import type { CanvasAdminTaskLog, CanvasAdminTaskLogQuery } from '../types'
+import type {
+  CanvasAdminTaskFailureReason,
+  CanvasAdminTaskLog,
+  CanvasAdminTaskLogQuery,
+  CanvasAdminTaskUpstreamFilter,
+} from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -54,6 +63,26 @@ const billingStatuses = [
   'RELEASED_FAILED',
   'RELEASED_TIMEOUT',
 ] as const
+const route = getRouteApi('/_authenticated/canvas-cloud/$section')
+const failureReasons: CanvasAdminTaskFailureReason[] = [
+  'PROVIDER_OUTPUT_TOO_LARGE',
+  'RETRY_EXHAUSTED',
+]
+const failureReasonLabels: Record<CanvasAdminTaskFailureReason, string> = {
+  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
+  RETRY_EXHAUSTED: 'Failed after repeated result fetches',
+}
+const upstreamTaskLabels: Record<
+  CanvasAdminTaskUpstreamFilter | 'specific',
+  string
+> = {
+  present: 'Present (can be queried)',
+  absent: 'Absent (cannot be queried)',
+  specific: 'Specific ID',
+}
+// A filter control that holds a value stands out, so a filter carried in from another page is easy to see.
+const activeControl = (active: boolean) =>
+  cn('w-full', active && 'border-primary ring-primary/30 ring-1')
 const executionLabels: Record<string, string> = {
   ACCEPTED: 'Accepted',
   PROCESSING: 'Processing',
@@ -135,12 +164,35 @@ export function AdminTaskLogs() {
   const [taskId, setTaskId] = useState('')
   const [customer, setCustomer] = useState('')
   const [model, setModel] = useState('')
-  const [derivedExecutionStatus, setDerivedExecutionStatus] = useState('')
   const [settlementProgress, setSettlementProgress] = useState('')
+  const [specificUpstreamTask, setSpecificUpstreamTask] = useState(false)
   const [upstreamTaskId, setUpstreamTaskId] = useState('')
   const [billingStatus, setBillingStatus] = useState('')
-  const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
+  // Filters other pages carry in live in the address; editing them keeps the address in step.
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+  const derivedExecutionStatus = search.derivedExecutionStatus ?? ''
+  const upstreamTask = search.upstreamTask
+  const credentialGroupId = search.credentialGroupId ?? ''
+  const failureReason = search.failureReason
+  const from = useMemo(
+    () => (search.from ? new Date(search.from) : undefined),
+    [search.from]
+  )
+  const setSearch = (values: Partial<typeof search>) =>
+    void navigate({
+      search: (previous) => ({ ...previous, ...values }),
+      replace: true,
+    })
+  const setDerivedExecutionStatus = (value: string) =>
+    setSearch({
+      derivedExecutionStatus: (value ||
+        undefined) as typeof search.derivedExecutionStatus,
+    })
+  const setFrom = (value: Date | undefined) =>
+    setSearch({ from: value?.toISOString() })
+  const upstreamMode = upstreamTask ?? (specificUpstreamTask ? 'specific' : '')
   const debouncedTaskId = useDebounce(taskId.trim(), 300)
   const debouncedCustomer = useDebounce(customer.trim(), 300)
   const debouncedUpstreamTaskId = useDebounce(upstreamTaskId.trim(), 300)
@@ -156,15 +208,18 @@ export function AdminTaskLogs() {
     )
   }, [
     billingStatus,
+    credentialGroupId,
     debouncedCustomer,
     debouncedTaskId,
     debouncedUpstreamTaskId,
     derivedExecutionStatus,
+    failureReason,
     from,
     model,
     settlementProgress,
     setPagination,
     to,
+    upstreamTask,
   ])
 
   const query = useQuery({
@@ -177,7 +232,10 @@ export function AdminTaskLogs() {
       model,
       derivedExecutionStatus,
       settlementProgress,
-      debouncedUpstreamTaskId,
+      upstreamTask,
+      specificUpstreamTask ? debouncedUpstreamTaskId : '',
+      credentialGroupId,
+      failureReason,
       billingStatus,
       from?.toISOString(),
       to?.toISOString(),
@@ -194,9 +252,12 @@ export function AdminTaskLogs() {
           ...(model ? { modelId: model } : {}),
           ...(derivedExecutionStatus ? { derivedExecutionStatus } : {}),
           ...(settlementProgress ? { settlementProgress } : {}),
-          ...(debouncedUpstreamTaskId
+          ...(upstreamTask ? { upstreamTask } : {}),
+          ...(specificUpstreamTask && debouncedUpstreamTaskId
             ? { upstreamTaskId: debouncedUpstreamTaskId }
             : {}),
+          ...(credentialGroupId ? { credentialGroupId } : {}),
+          ...(failureReason ? { failureReason } : {}),
           ...(billingStatus ? { billingStatus } : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
@@ -339,6 +400,103 @@ export function AdminTaskLogs() {
     ],
     [i18n.language, i18n.resolvedLanguage, selectedTaskId, t]
   )
+  const groupOptionLabel = (group: { name: string; providerName: string }) =>
+    t('{{provider}} · {{group}}', {
+      provider: group.providerName,
+      group: group.name,
+    })
+  const selectedGroup = options.data?.credentialGroups.find(
+    (group) => group.id === credentialGroupId
+  )
+  // A group carried in by ID shows its name once the options have loaded, never the bare ID.
+  let credentialGroupLabel: string | undefined
+  if (credentialGroupId) {
+    if (selectedGroup) credentialGroupLabel = groupOptionLabel(selectedGroup)
+    else if (options.isPending) credentialGroupLabel = t('Loading')
+    else credentialGroupLabel = t('Unknown API Key group')
+  }
+  const modelLabel = options.data?.models.find(
+    (option) => option.customerModelId === model
+  )?.displayNameSnapshot
+  const tag = (field: string, value: string) =>
+    t('{{field}}: {{value}}', { field, value })
+  const tags = [
+    taskId && {
+      key: 'taskId',
+      label: tag(t('Task number'), taskId),
+      remove: () => setTaskId(''),
+    },
+    customer && {
+      key: 'customer',
+      label: tag(t('Customer'), customer),
+      remove: () => setCustomer(''),
+    },
+    model && {
+      key: 'model',
+      label: tag(t('Model'), modelLabel ?? t('Loading')),
+      remove: () => setModel(''),
+    },
+    derivedExecutionStatus && {
+      key: 'derivedExecutionStatus',
+      label: tag(
+        t('Execution status'),
+        t(executionLabels[derivedExecutionStatus] ?? 'Unknown')
+      ),
+      remove: () => setDerivedExecutionStatus(''),
+    },
+    settlementProgress && {
+      key: 'settlementProgress',
+      label: tag(
+        t('Settlement progress'),
+        t(settlementLabels[settlementProgress] ?? 'Unknown')
+      ),
+      remove: () => setSettlementProgress(''),
+    },
+    from && {
+      key: 'from',
+      label: tag(t('Start time'), formatCanvasDateTime(from.toISOString())),
+      remove: () => setFrom(undefined),
+    },
+    to && {
+      key: 'to',
+      label: tag(t('End time'), formatCanvasDateTime(to.toISOString())),
+      remove: () => setTo(undefined),
+    },
+    upstreamMode && {
+      key: 'upstreamTask',
+      label: tag(
+        t('Upstream task ID'),
+        upstreamMode === 'specific' && upstreamTaskId
+          ? upstreamTaskId
+          : t(upstreamTaskLabels[upstreamMode])
+      ),
+      remove: () => {
+        setSpecificUpstreamTask(false)
+        setUpstreamTaskId('')
+        setSearch({ upstreamTask: undefined })
+      },
+    },
+    billingStatus && {
+      key: 'billingStatus',
+      label: tag(
+        t('Raw billing status'),
+        t(billingLabels[billingStatus] ?? 'Unknown')
+      ),
+      remove: () => setBillingStatus(''),
+    },
+    credentialGroupId && {
+      key: 'credentialGroupId',
+      label: tag(t('API Key group'), credentialGroupLabel ?? ''),
+      remove: () => setSearch({ credentialGroupId: undefined }),
+    },
+    failureReason && {
+      key: 'failureReason',
+      label: tag(t('Failure reason'), t(failureReasonLabels[failureReason])),
+      remove: () => setSearch({ failureReason: undefined }),
+    },
+  ].filter((item): item is { key: string; label: string; remove: () => void } =>
+    Boolean(item)
+  )
   const filters = (
     <>
       <DataTableColumnFilterField label={t('Task number')}>
@@ -364,7 +522,10 @@ export function AdminTaskLogs() {
             setModel(value === 'ALL' ? '' : (value ?? ''))
           }
         >
-          <SelectTrigger className='w-full' aria-label={t('Model')}>
+          <SelectTrigger
+            className={activeControl(Boolean(model))}
+            aria-label={t('Model')}
+          >
             <CanvasLocalizedSelectValue
               value={model}
               displayValue={
@@ -395,7 +556,10 @@ export function AdminTaskLogs() {
             setDerivedExecutionStatus(value === 'ALL' ? '' : (value ?? ''))
           }
         >
-          <SelectTrigger className='w-full' aria-label={t('Execution status')}>
+          <SelectTrigger
+            className={activeControl(Boolean(derivedExecutionStatus))}
+            aria-label={t('Execution status')}
+          >
             <CanvasLocalizedSelectValue
               value={derivedExecutionStatus}
               emptyLabelKey='All execution statuses'
@@ -419,7 +583,7 @@ export function AdminTaskLogs() {
           }
         >
           <SelectTrigger
-            className='w-full'
+            className={activeControl(Boolean(settlementProgress))}
             aria-label={t('Settlement progress')}
           >
             <CanvasLocalizedSelectValue
@@ -448,18 +612,65 @@ export function AdminTaskLogs() {
         />
       </div>
       <div className='sm:col-span-3'>
-        <Collapsible>
+        <Collapsible
+          defaultOpen={Boolean(
+            upstreamMode || credentialGroupId || failureReason || billingStatus
+          )}
+        >
           <CollapsibleTrigger className='text-primary text-sm underline underline-offset-4'>
             {t('More conditions')}
           </CollapsibleTrigger>
           <CollapsibleContent className='grid gap-3 pt-3 sm:grid-cols-2'>
             <DataTableColumnFilterField label={t('Upstream task ID')}>
-              <Input
-                aria-label={t('Upstream task ID')}
-                value={upstreamTaskId}
-                placeholder={t('Upstream task ID')}
-                onChange={(event) => setUpstreamTaskId(event.target.value)}
-              />
+              <div className='space-y-2'>
+                <Select
+                  value={upstreamMode || 'ALL'}
+                  onValueChange={(value) => {
+                    const next = value === 'ALL' ? '' : (value ?? '')
+                    setSpecificUpstreamTask(next === 'specific')
+                    if (next !== 'specific') setUpstreamTaskId('')
+                    setSearch({
+                      upstreamTask:
+                        next === 'present' || next === 'absent'
+                          ? next
+                          : undefined,
+                    })
+                  }}
+                >
+                  <SelectTrigger
+                    className={activeControl(Boolean(upstreamMode))}
+                    aria-label={t('Upstream task ID')}
+                  >
+                    <CanvasLocalizedSelectValue
+                      value={upstreamMode}
+                      displayValue={
+                        upstreamMode
+                          ? t(upstreamTaskLabels[upstreamMode])
+                          : undefined
+                      }
+                      emptyLabelKey='All'
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All')}</SelectItem>
+                    {(['present', 'absent', 'specific'] as const).map(
+                      (value) => (
+                        <SelectItem key={value} value={value}>
+                          {t(upstreamTaskLabels[value])}
+                        </SelectItem>
+                      )
+                    )}
+                  </SelectContent>
+                </Select>
+                {specificUpstreamTask ? (
+                  <Input
+                    aria-label={t('Specific ID')}
+                    value={upstreamTaskId}
+                    placeholder={t('Upstream task ID')}
+                    onChange={(event) => setUpstreamTaskId(event.target.value)}
+                  />
+                ) : null}
+              </div>
             </DataTableColumnFilterField>
             <DataTableColumnFilterField label={t('Raw billing status')}>
               <Select
@@ -469,7 +680,7 @@ export function AdminTaskLogs() {
                 }
               >
                 <SelectTrigger
-                  className='w-full'
+                  className={activeControl(Boolean(billingStatus))}
                   aria-label={t('Raw billing status')}
                 >
                   <CanvasLocalizedSelectValue
@@ -484,6 +695,74 @@ export function AdminTaskLogs() {
                   {billingStatuses.map((value) => (
                     <SelectItem key={value} value={value}>
                       {t(billingLabels[value])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('API Key group')}>
+              <Select
+                value={credentialGroupId || 'ALL'}
+                onValueChange={(value) =>
+                  setSearch({
+                    credentialGroupId:
+                      value === 'ALL' ? undefined : (value ?? undefined),
+                  })
+                }
+              >
+                <SelectTrigger
+                  className={activeControl(Boolean(credentialGroupId))}
+                  aria-label={t('API Key group')}
+                >
+                  <CanvasLocalizedSelectValue
+                    value={credentialGroupId}
+                    displayValue={credentialGroupLabel}
+                    emptyLabelKey='All API Key groups'
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All API Key groups')}</SelectItem>
+                  {(options.data?.credentialGroups ?? []).map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {groupOptionLabel(group)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Failure reason')}>
+              <Select
+                value={failureReason ?? 'ALL'}
+                onValueChange={(value) =>
+                  setSearch({
+                    failureReason:
+                      value === 'ALL'
+                        ? undefined
+                        : (value as CanvasAdminTaskFailureReason),
+                  })
+                }
+              >
+                <SelectTrigger
+                  className={activeControl(Boolean(failureReason))}
+                  aria-label={t('Failure reason')}
+                >
+                  <CanvasLocalizedSelectValue
+                    value={failureReason}
+                    displayValue={
+                      failureReason
+                        ? t(failureReasonLabels[failureReason])
+                        : undefined
+                    }
+                    emptyLabelKey='All failure reasons'
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>
+                    {t('All failure reasons')}
+                  </SelectItem>
+                  {failureReasons.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(failureReasonLabels[value])}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -508,27 +787,51 @@ export function AdminTaskLogs() {
         emptyTitle={t('No task records')}
         filteredEmptyTitle={t('No matching results')}
         additionalFilters={filters}
-        hasActiveFilters={Boolean(
-          taskId ||
-          customer ||
-          model ||
-          derivedExecutionStatus ||
-          settlementProgress ||
-          upstreamTaskId ||
-          billingStatus ||
-          from ||
-          to
-        )}
+        filterTags={
+          tags.length > 0 ? (
+            <ul
+              className='flex flex-wrap items-center gap-1'
+              aria-label={t('Active filters')}
+            >
+              {tags.map((tag) => (
+                <li key={tag.key}>
+                  <span className='bg-muted inline-flex items-center gap-1 rounded-md py-0.5 ps-2 pe-0.5 text-xs'>
+                    {tag.label}
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon-xs'
+                      aria-label={t('Remove filter {{filter}}', {
+                        filter: tag.label,
+                      })}
+                      onClick={tag.remove}
+                    >
+                      <X aria-hidden='true' />
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null
+        }
+        hasActiveFilters={tags.length > 0}
+        activeFilterCount={tags.length}
         onResetFilters={() => {
           setTaskId('')
           setCustomer('')
           setModel('')
-          setDerivedExecutionStatus('')
           setSettlementProgress('')
+          setSpecificUpstreamTask(false)
           setUpstreamTaskId('')
           setBillingStatus('')
-          setFrom(undefined)
           setTo(undefined)
+          setSearch({
+            derivedExecutionStatus: undefined,
+            upstreamTask: undefined,
+            credentialGroupId: undefined,
+            failureReason: undefined,
+            from: undefined,
+          })
         }}
         getRowId={(row) => row.id}
         getColumnClassName={(columnId) =>

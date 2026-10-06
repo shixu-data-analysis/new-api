@@ -51,6 +51,7 @@ import {
   providerBalanceAlertsQueryKey,
 } from '@/features/canvas-cloud/operating-dashboard-api'
 import { useCanvasShellSession } from '@/features/canvas-cloud/use-canvas-session'
+import { useExecutionAttentionCount } from '@/features/canvas-cloud/use-execution-attention'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -73,6 +74,8 @@ export function useSidebarData(): SidebarData {
     refetchInterval: 5 * 60_000,
   })
   const alertCount = balanceAlerts.data?.alertCount ?? 0
+  // Executor attention hints mark the runtime management entry the same way.
+  const attentionCount = useExecutionAttentionCount(isAdministrator)
 
   if (canvasSession.isPending) return { navGroups: [] }
 
@@ -160,6 +163,15 @@ export function useSidebarData(): SidebarData {
                   '/canvas-cloud/provider-configuration',
                 ],
                 icon: ServerCog,
+                ...(attentionCount > 0
+                  ? {
+                      badge: String(attentionCount),
+                      badgeTone: 'alert' as const,
+                      badgeLabel: t('{{count}} items need attention', {
+                        count: attentionCount,
+                      }),
+                    }
+                  : {}),
               },
             ],
           },

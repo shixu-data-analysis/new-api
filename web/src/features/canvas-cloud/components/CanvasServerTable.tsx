@@ -52,6 +52,7 @@ export function CanvasServerTable<TData>({
   emptyTitle,
   filteredEmptyTitle,
   additionalFilters,
+  filterTags,
   hasActiveFilters = false,
   activeFilterCount,
   onResetFilters,
@@ -76,6 +77,8 @@ export function CanvasServerTable<TData>({
   emptyTitle: string
   filteredEmptyTitle?: string
   additionalFilters?: React.ReactNode
+  /** Removable tags of the active filters, shown beside the column-filter button. */
+  filterTags?: ReactNode
   hasActiveFilters?: boolean
   activeFilterCount?: number
   onResetFilters?: () => void
@@ -149,25 +152,28 @@ export function CanvasServerTable<TData>({
           <DataTableToolbar
             table={table}
             filterPanel={
-              <DataTableColumnFilterPanel
-                activeCount={visibleActiveFilterCount}
-              >
-                {searchLabel ? (
-                  <DataTableColumnFilterField
-                    label={searchLabel}
-                    htmlFor={searchId}
-                  >
-                    <Input
-                      id={searchId}
-                      className='min-w-0'
-                      value={search}
-                      placeholder={searchPlaceholder ?? searchLabel}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </DataTableColumnFilterField>
-                ) : null}
-                {additionalFilters}
-              </DataTableColumnFilterPanel>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                <DataTableColumnFilterPanel
+                  activeCount={visibleActiveFilterCount}
+                >
+                  {searchLabel ? (
+                    <DataTableColumnFilterField
+                      label={searchLabel}
+                      htmlFor={searchId}
+                    >
+                      <Input
+                        id={searchId}
+                        className='min-w-0'
+                        value={search}
+                        placeholder={searchPlaceholder ?? searchLabel}
+                        onChange={(event) => setSearch(event.target.value)}
+                      />
+                    </DataTableColumnFilterField>
+                  ) : null}
+                  {additionalFilters}
+                </DataTableColumnFilterPanel>
+                {filterTags}
+              </div>
             }
             onReset={() => {
               setSearch('')

@@ -428,7 +428,7 @@ const runtimeConfigurationKeys = [
   'Set timeouts and base capacity for this group. Additional limits below apply by target. Error mappings are shared by the provider.',
   'The maximum wait for one non-streaming upstream request or result download.',
   'The maximum time a streaming response may go without new data.',
-  'How often an asynchronous task checks the upstream result; this does not control client refresh.',
+  'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default.',
   'The asynchronous result deadline measured from task acceptance, not a per-request timeout.',
   'Selected credential group',
   'Publish credential group execution policy',
@@ -992,4 +992,114 @@ describe('provider error handling localization', () => {
       }
     }
   )
+})
+
+// EXECUTOR-CAPACITY-002: the execution pages and the task-log filters they link to.
+const executorCapacitySources = [
+  'ExecutionCapacityOverview.tsx',
+  'ExecutionAttention.tsx',
+  'ExecutionSettings.tsx',
+  'ExecutorDrain.tsx',
+  'RuntimeManagement.tsx',
+  'AdminTaskLogs.tsx',
+]
+const executorCapacityKeys = [
+  ...new Set(
+    executorCapacitySources.flatMap((file) => {
+      const source = readFileSync(
+        resolve('src/features/canvas-cloud/components', file),
+        'utf8'
+      )
+      return [
+        ...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs),
+        ...source.matchAll(/i18nKey=(['"])(.*?)\1/gs),
+      ].map((match) => match[2])
+    })
+  ),
+  'Result position waiting',
+  'Result position generating',
+  'Result position completed',
+  'Result position failed',
+  'Result file too large',
+  'Failed after repeated result fetches',
+  'Present (can be queried)',
+  'Absent (cannot be queried)',
+  'Specific ID',
+  '{{count}} tasks in the last 24 hours failed because the result file was too large',
+  '{{count}} tasks in the last 24 hours failed after repeated attempts to fetch the result',
+  '{{count}} executor instances are nearly full of tasks waiting for results',
+  '{{count}} executor instances failed to reach the database repeatedly in the last 10 minutes',
+  'defaultPollIntervalMs',
+  'unknownReleaseMs',
+  'deadlineMs',
+  'streamIdleTimeoutMs',
+  'requestConcurrency',
+  'asyncInFlightLimit',
+  'instanceConcurrency',
+  'queryReservedConcurrency',
+]
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every executor capacity message in %s',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of executorCapacityKeys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
+
+it('uses the plain execution wording in Chinese', () => {
+  const translations = zh.translation as Record<string, string>
+  expect(
+    Object.fromEntries(
+      [
+        'Upstream task ID',
+        'Group request concurrency',
+        'Upstream unfinished asynchronous tasks',
+        'Upstream unfinished asynchronous task limit',
+        'Instance concurrency',
+        'Query reserved concurrency',
+        'Unknown result release wait (milliseconds)',
+        'Execution deadline (milliseconds)',
+        'streamIdleTimeoutMs',
+        'Drain',
+        'Draining',
+        'Start draining',
+        'Cancel draining',
+        'Heartbeat interval (milliseconds)',
+        'Lease duration (milliseconds)',
+        'Scan interval (milliseconds)',
+        'Latest heartbeat',
+        'Service provider',
+      ].map((key) => [key, translations[key]])
+    )
+  ).toEqual({
+    'Upstream task ID': '服务商任务编号',
+    'Group request concurrency': '同时请求数',
+    'Upstream unfinished asynchronous tasks': '服务商处理中',
+    'Upstream unfinished asynchronous task limit': '服务商处理中上限',
+    'Instance concurrency': '实例同时处理数',
+    'Query reserved concurrency': '查询结果预留数',
+    'Unknown result release wait (milliseconds)':
+      '无法查询时的退积分等待（毫秒）',
+    'Execution deadline (milliseconds)': '最长处理时间（毫秒）',
+    streamIdleTimeoutMs: '流式无数据超时（毫秒）',
+    Drain: '暂停接单',
+    Draining: '暂停接单中',
+    'Start draining': '开始暂停接单',
+    'Cancel draining': '恢复接单',
+    'Heartbeat interval (milliseconds)': '报到间隔（毫秒）',
+    'Lease duration (milliseconds)': '任务占用有效期（毫秒）',
+    'Scan interval (milliseconds)': '检查新任务间隔（毫秒）',
+    'Latest heartbeat': '最近报到',
+    'Service provider': 'API 服务商',
+  })
+  // No message of the execution pages keeps an old term.
+  for (const key of executorCapacityKeys) {
+    expect(translations[key], key).not.toMatch(
+      /上游|异步在途|请求并发|实例并发|查询预留并发|结果不明释放|执行截止时间|流空闲|排空|心跳|租约|提供商/
+    )
+  }
 })

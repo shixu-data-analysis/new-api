@@ -768,13 +768,13 @@ describe('Canvas Agent and provider pricing governance', () => {
     renderWithClient(<ProviderPricingMatrix />)
 
     expect(
-      await screen.findByRole('columnheader', { name: '提供商' })
+      await screen.findByRole('columnheader', { name: 'API 服务商' })
     ).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '模型' })).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '质量' })).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '计费单位' })).toBeVisible()
     expect(
-      screen.getByRole('columnheader', { name: '提供商费率版本' })
+      screen.getByRole('columnheader', { name: '服务商费率版本' })
     ).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '当前成本' })).toBeVisible()
     expect(screen.getByRole('columnheader', { name: '定价风险' })).toBeVisible()

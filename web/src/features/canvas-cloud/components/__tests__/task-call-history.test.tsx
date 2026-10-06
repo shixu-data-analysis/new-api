@@ -237,7 +237,7 @@ describe('TaskCallHistory', () => {
         body: null,
       },
     })
-    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
     expect(screen.getByText('GET /v1/video/task-1')).toBeVisible()
     expect(
       screen.getByText('No query parameters or request body.')
@@ -256,7 +256,7 @@ describe('TaskCallHistory', () => {
       },
     })
     const panel = screen.getByRole('tabpanel', { hidden: false })
-    fireEvent.click(screen.getByRole('tab', { name: 'Sent upstream request' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
     const requestPanel = screen.getByRole('tabpanel')
     expect(requestPanel).not.toBe(panel)
     expect(screen.getByText('POST /v1/images/generations')).toBeVisible()
@@ -302,7 +302,7 @@ describe('TaskCallHistory', () => {
     const long = 'x'.repeat(250)
     mountDetails({ ...call, sanitizedResponse: { message: long } })
     fireEvent.click(
-      screen.getByRole('tab', { name: 'Received upstream response' })
+      screen.getByRole('tab', { name: 'Received provider response' })
     )
     expect(screen.getByText(/… \(250 characters in total\)/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))

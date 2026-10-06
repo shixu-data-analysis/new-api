@@ -1768,6 +1768,11 @@ export interface CanvasTaskOutputSummary {
   billingFinalizedAt: string | null
 }
 
+export type CanvasAdminTaskUpstreamFilter = 'present' | 'absent'
+export type CanvasAdminTaskFailureReason =
+  | 'PROVIDER_OUTPUT_TOO_LARGE'
+  | 'RETRY_EXHAUSTED'
+
 export interface CanvasAdminTaskLogQuery {
   taskId?: string
   customer?: string
@@ -1775,6 +1780,10 @@ export interface CanvasAdminTaskLogQuery {
   derivedExecutionStatus?: string
   settlementProgress?: string
   upstreamTaskId?: string
+  /** A result still running or of unknown outcome was submitted with (present) or without (absent) a provider task ID. */
+  upstreamTask?: CanvasAdminTaskUpstreamFilter
+  credentialGroupId?: string
+  failureReason?: CanvasAdminTaskFailureReason
   billingStatus?: string
   executionOrigin?: 'REAL' | 'MOCK'
   from?: string
@@ -1863,6 +1872,7 @@ export interface CanvasTaskLogOptions {
     customerModelId: string
     displayNameSnapshot: string
   }>
+  credentialGroups: Array<{ id: string; name: string; providerName: string }>
 }
 
 export interface CanvasTaskExecutionSummary {

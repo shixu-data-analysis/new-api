@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
+import { useExecutionAttentionCount } from '../use-execution-attention'
 import { useExecutorDrain } from '../use-executor-drain'
 import {
   CanvasManagementTabsList,
@@ -34,6 +35,7 @@ export function RuntimeManagement(props: {
   const { t } = useTranslation()
   const view = props.initialView ?? 'execution'
   const drain = useExecutorDrain()
+  const attentionCount = useExecutionAttentionCount()
   return (
     <Tabs
       className='space-y-4'
@@ -49,6 +51,19 @@ export function RuntimeManagement(props: {
             <Badge variant='secondary' className='ml-2'>
               {t('Draining')}
             </Badge>
+          ) : null}
+          {attentionCount > 0 ? (
+            <>
+              <span
+                aria-hidden='true'
+                className='bg-destructive ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white tabular-nums'
+              >
+                {attentionCount}
+              </span>
+              <span className='sr-only'>
+                {t('{{count}} items need attention', { count: attentionCount })}
+              </span>
+            </>
           ) : null}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='provider'>

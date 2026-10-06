@@ -1265,9 +1265,9 @@ describe('Canvas runtime configuration', () => {
       screen.getByRole('dialog', { name: 'Add API Key group' })
     ).toBeVisible()
 
-    expect(within(editor).getByLabelText('Provider')).toHaveValue('')
+    expect(within(editor).getByLabelText('API provider')).toHaveValue('')
     expect(within(editor).queryByText('bearerAuth')).not.toBeInTheDocument()
-    fireEvent.change(within(editor).getByLabelText('Provider'), {
+    fireEvent.change(within(editor).getByLabelText('API provider'), {
       target: { value: providerRuntime.providers[0].id },
     })
     expect(within(editor).getByText('bearerAuth')).toBeVisible()
@@ -1276,7 +1276,7 @@ describe('Canvas runtime configuration', () => {
     fireEvent.change(within(editor).getByLabelText('API Key'), {
       target: { value: 'must-not-cross-providers' },
     })
-    fireEvent.change(within(editor).getByLabelText('Provider'), {
+    fireEvent.change(within(editor).getByLabelText('API provider'), {
       target: { value: '' },
     })
     expect(within(editor).getByLabelText('API Key')).toHaveValue('')
@@ -1308,7 +1308,7 @@ describe('Canvas runtime configuration', () => {
         screen.queryByRole('dialog', { name: 'Add API Key group' })
       ).not.toBeInTheDocument()
     )
-    expect(screen.getByRole('combobox', { name: 'Provider' })).toHaveValue(
+    expect(screen.getByRole('combobox', { name: 'API provider' })).toHaveValue(
       providerRuntime.providers[0].id
     )
   })
@@ -1355,7 +1355,7 @@ describe('Canvas runtime configuration', () => {
       within(editor).getByRole('option', { name: 'Provider A' })
     ).toBeVisible()
     expect(within(editor).queryByText('hfsyapi')).not.toBeInTheDocument()
-    fireEvent.change(within(editor).getByLabelText('Provider'), {
+    fireEvent.change(within(editor).getByLabelText('API provider'), {
       target: { value: providerRuntime.providers[0].id },
     })
     fireEvent.change(within(editor).getByLabelText('API Key group'), {
@@ -1422,7 +1422,7 @@ describe('Canvas runtime configuration', () => {
     const editor = await screen.findByRole('form', {
       name: 'Publish provider API Key group',
     })
-    fireEvent.change(within(editor).getByLabelText('Provider'), {
+    fireEvent.change(within(editor).getByLabelText('API provider'), {
       target: { value: secondProviderId },
     })
     fireEvent.change(within(editor).getByLabelText('API Key group'), {
@@ -1446,9 +1446,9 @@ describe('Canvas runtime configuration', () => {
     )
 
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Provider' })).toHaveValue(
-        secondProviderId
-      )
+      expect(
+        screen.getByRole('combobox', { name: 'API provider' })
+      ).toHaveValue(secondProviderId)
     )
     expect(screen.getByRole('combobox', { name: 'API Key group' })).toHaveValue(
       newGroupId
@@ -1462,7 +1462,7 @@ describe('Canvas runtime configuration', () => {
     })
 
     await screen.findByText('Provider API Key groups')
-    expect(screen.getByRole('combobox', { name: 'Provider' })).toHaveValue(
+    expect(screen.getByRole('combobox', { name: 'API provider' })).toHaveValue(
       providerRuntime.providers[0].id
     )
     expect(screen.getByRole('combobox', { name: 'API Key group' })).toHaveValue(
@@ -1674,7 +1674,9 @@ describe('Canvas runtime configuration', () => {
       )
       await waitFor(() =>
         expect(
-          within(editor).getByLabelText(resource.translation.Provider)
+          within(editor).getByLabelText(
+            resource.translation['Service provider']
+          )
         ).toHaveAccessibleDescription(resource.translation['Select provider'])
       )
       const keyInput = within(editor).getByLabelText('API Key')

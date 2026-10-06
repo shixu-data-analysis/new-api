@@ -994,7 +994,7 @@ export function RuntimeConfiguration(
     )
     confirmationDetails = [
       {
-        label: t('Provider'),
+        label: t('Service provider'),
         value: provider?.name ?? '—',
       },
       {
@@ -1051,7 +1051,7 @@ export function RuntimeConfiguration(
     )
     confirmationDetails = [
       {
-        label: t('Provider'),
+        label: t('Service provider'),
         value: selectedProvider?.name ?? '—',
       },
       ...(value.name.trim() !== selectedGroup.name
@@ -1397,7 +1397,7 @@ export function RuntimeConfiguration(
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div className='grid items-end gap-3 md:grid-cols-2'>
-                  <Field label={t('Provider')}>
+                  <Field label={t('Service provider')}>
                     <NativeSelect
                       className='w-full'
                       value={effectiveProviderId}
@@ -1690,7 +1690,9 @@ export function RuntimeConfiguration(
                 >
                   <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'>
                     <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm'>
-                      <dt className='text-muted-foreground'>{t('Provider')}</dt>
+                      <dt className='text-muted-foreground'>
+                        {t('Service provider')}
+                      </dt>
                       <dd>{selectedProvider?.name ?? '—'}</dd>
                       <dt className='text-muted-foreground'>
                         {t('Authentication method')}
@@ -2251,7 +2253,7 @@ function CredentialEditor(props: {
     >
       <div className={props.drawer ? sideDrawerFormClassName() : 'contents'}>
         <Field
-          label={t('Provider')}
+          label={t('Service provider')}
           error={props.form.formState.errors.providerId?.message}
         >
           <NativeSelect

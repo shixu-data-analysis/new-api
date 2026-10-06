@@ -25,6 +25,7 @@ import { ExecutorDrain } from '../ExecutorDrain'
 import { RuntimeManagement } from '../RuntimeManagement'
 
 const mocks = vi.hoisted(() => ({
+  overview: vi.fn(),
   get: vi.fn(),
   start: vi.fn(),
   cancel: vi.fn(),
@@ -32,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
 }))
 vi.mock('../../execution-api', () => ({
+  getCanvasExecutionOverview: mocks.overview,
   getCanvasExecutorDrain: mocks.get,
   startCanvasExecutorDrain: mocks.start,
   cancelCanvasExecutorDrain: mocks.cancel,
@@ -93,6 +95,7 @@ beforeEach(async () => {
   await i18next.changeLanguage('en')
   vi.clearAllMocks()
   mocks.get.mockResolvedValue(normal)
+  mocks.overview.mockResolvedValue({ attention: [] })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -114,14 +117,16 @@ describe('executor drain row', () => {
       screen.getByText('Continues after restart').nextElementSibling
     ).toHaveTextContent('157')
     expect(
-      screen.getByText('Being submitted, no upstream task ID yet')
+      screen.getByText('Being submitted, no provider task ID yet')
     ).toBeVisible()
     expect(
       screen.getByText(
         'Submitted to the API provider, waiting for the result or retrieving it'
       )
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Start draining' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Start pausing intake' })
+    ).toBeEnabled()
     expect(
       screen.queryByRole('button', { name: 'Extend by 60 minutes' })
     ).not.toBeInTheDocument()
@@ -133,7 +138,7 @@ describe('executor drain row', () => {
     mocks.start.mockResolvedValue(draining)
     mount()
     await user.click(
-      await screen.findByRole('button', { name: 'Start draining' })
+      await screen.findByRole('button', { name: 'Start pausing intake' })
     )
     const dialog = await screen.findByRole('alertdialog')
     expect(
@@ -142,7 +147,7 @@ describe('executor drain row', () => {
     expect(within(dialog).getByText('After 60 minutes')).toBeVisible()
     expect(
       within(dialog).getByText(
-        'Draining is cancelled, an executor instance restarts, or it expires'
+        'Intake is resumed, an executor instance restarts, or the pause expires'
       )
     ).toBeVisible()
     expect(
@@ -152,21 +157,21 @@ describe('executor drain row', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(mocks.start).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Start draining' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Start pausing intake' })
+    )
     await user.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', {
-        name: 'Start draining',
+        name: 'Start pausing intake',
       })
     )
     await waitFor(() => expect(mocks.start).toHaveBeenCalledOnce())
-    expect(await screen.findByText('Draining')).toBeVisible()
+    expect(await screen.findByText('Intake paused')).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Extend by 60 minutes' })
     ).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Cancel draining' })
-    ).toBeVisible()
-    expect(mocks.success).toHaveBeenCalledWith('Draining started')
+    expect(screen.getByRole('button', { name: 'Resume intake' })).toBeVisible()
+    expect(mocks.success).toHaveBeenCalledWith('Intake paused')
   })
 
   it('shows start and automatic resume times while draining and lets the administrator extend or cancel', async () => {
@@ -178,7 +183,7 @@ describe('executor drain row', () => {
     })
     mocks.cancel.mockResolvedValue(normal)
     mount()
-    expect(await screen.findByText('Draining')).toBeVisible()
+    expect(await screen.findByText('Intake paused')).toBeVisible()
     expect(
       screen.getByText(
         new RegExp(
@@ -190,7 +195,7 @@ describe('executor drain row', () => {
       screen.getByText('Restart would harm').nextElementSibling
     ).toHaveTextContent('0')
     expect(
-      screen.queryByRole('button', { name: 'Start draining' })
+      screen.queryByRole('button', { name: 'Start pausing intake' })
     ).not.toBeInTheDocument()
 
     await user.click(
@@ -198,13 +203,13 @@ describe('executor drain row', () => {
     )
     await waitFor(() => expect(mocks.start).toHaveBeenCalledOnce())
     expect(mocks.success).toHaveBeenCalledWith(
-      'Draining extended by 60 minutes'
+      'Intake pause extended by 60 minutes'
     )
 
-    await user.click(screen.getByRole('button', { name: 'Cancel draining' }))
+    await user.click(screen.getByRole('button', { name: 'Resume intake' }))
     await waitFor(() => expect(mocks.cancel).toHaveBeenCalledOnce())
     expect(await screen.findByText('Accepting tasks')).toBeVisible()
-    expect(mocks.success).toHaveBeenCalledWith('Draining cancelled')
+    expect(mocks.success).toHaveBeenCalledWith('Intake resumed')
   })
 
   it('says a new drain started when the one being extended had already expired', async () => {
@@ -221,10 +226,10 @@ describe('executor drain row', () => {
       await screen.findByRole('button', { name: 'Extend by 60 minutes' })
     )
     await waitFor(() =>
-      expect(mocks.success).toHaveBeenCalledWith('Draining started')
+      expect(mocks.success).toHaveBeenCalledWith('Intake paused')
     )
     expect(mocks.success).not.toHaveBeenCalledWith(
-      'Draining extended by 60 minutes'
+      'Intake pause extended by 60 minutes'
     )
   })
 
@@ -241,7 +246,7 @@ describe('executor drain row', () => {
 
     mocks.get.mockClear().mockResolvedValue(draining)
     mount()
-    await screen.findByText('Draining')
+    await screen.findByText('Intake paused')
     expect(mocks.get).toHaveBeenCalledTimes(1)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000)
@@ -258,7 +263,7 @@ describe('executor drain row', () => {
     mocks.get.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(normal)
     mount()
     expect(
-      await screen.findByText('Draining state could not be loaded')
+      await screen.findByText('Intake pause state could not be loaded')
     ).toBeVisible()
     expect(screen.queryByText('Restart would harm')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Retry' }))
@@ -271,33 +276,33 @@ describe('executor drain row', () => {
     mocks.cancel.mockRejectedValue(new Error('denied'))
     mount()
     await user.click(
-      await screen.findByRole('button', { name: 'Cancel draining' })
+      await screen.findByRole('button', { name: 'Resume intake' })
     )
     await waitFor(() =>
-      expect(mocks.error).toHaveBeenCalledWith('Draining update failed')
+      expect(mocks.error).toHaveBeenCalledWith('Intake pause update failed')
     )
-    expect(screen.getByText('Draining')).toBeVisible()
+    expect(screen.getByText('Intake paused')).toBeVisible()
   })
 
   it.each([
     [
       'zhCN',
       {
-        title: '排空',
+        title: '暂停接单',
         badge: '正常接单',
         harmed: '重启会受损',
         continuing: '重启后自动继续',
-        start: '开始排空',
+        start: '开始暂停接单',
       },
     ],
     [
       'fr',
       {
-        title: 'Drainage',
+        title: 'Suspendre la prise de tâches',
         badge: 'Prend les tâches',
         harmed: 'Un redémarrage nuirait à',
         continuing: 'Se poursuit après le redémarrage',
-        start: 'Démarrer le drainage',
+        start: 'Commencer la suspension de la prise de tâches',
       },
     ],
   ])('is fully translated in %s', async (language, words) => {
@@ -318,10 +323,12 @@ describe('tab marker', () => {
     const tab = await screen.findByRole('tab', {
       name: /Task execution status and limits/,
     })
-    await waitFor(() => expect(within(tab).getByText('Draining')).toBeVisible())
+    await waitFor(() =>
+      expect(within(tab).getByText('Intake paused')).toBeVisible()
+    )
     expect(
       screen.getByRole('tab', { name: 'API provider configuration' })
-    ).not.toHaveTextContent('Draining')
+    ).not.toHaveTextContent('Intake paused')
   })
 
   it('shows no marker when nothing is draining', async () => {
@@ -331,6 +338,25 @@ describe('tab marker', () => {
       name: /Task execution status and limits/,
     })
     await waitFor(() => expect(mocks.get).toHaveBeenCalled())
-    expect(within(tab).queryByText('Draining')).not.toBeInTheDocument()
+    expect(within(tab).queryByText('Intake paused')).not.toBeInTheDocument()
+  })
+
+  it('shows the number of attention hints in force, with a screen-reader label', async () => {
+    mocks.overview.mockResolvedValue({
+      attention: [
+        { type: 'OUTPUT_TOO_LARGE', count: 3, latestAt: null },
+        { type: 'DATABASE_UNSTABLE', count: 1, latestAt: null },
+      ],
+    })
+    mount(<RuntimeManagement initialView='provider' />)
+    const tab = await screen.findByRole('tab', {
+      name: /Task execution status and limits/,
+    })
+    await waitFor(() =>
+      expect(
+        within(tab).getByText('2 items need attention')
+      ).toBeInTheDocument()
+    )
+    expect(within(tab).getByText('2')).toHaveAttribute('aria-hidden', 'true')
   })
 })

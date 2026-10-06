@@ -32,6 +32,51 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock('../../api', () => apiMocks)
 
+// The task-log filters carried in the address, kept in a small store so a navigation re-renders the page.
+const routeState = vi.hoisted(() => {
+  let search: Record<string, unknown> = {}
+  const listeners = new Set<() => void>()
+  return {
+    get: () => search,
+    set: (next: Record<string, unknown>) => {
+      search = next
+      for (const listener of listeners) listener()
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+})
+vi.mock('@tanstack/react-router', async () => {
+  const React = await import('react')
+  return {
+    getRouteApi: () => ({
+      useSearch: () =>
+        React.useSyncExternalStore(routeState.subscribe, routeState.get),
+      useNavigate:
+        () =>
+        (options: {
+          search: (previous: Record<string, unknown>) => Record<string, unknown>
+        }) => {
+          routeState.set(
+            Object.fromEntries(
+              Object.entries(options.search(routeState.get())).filter(
+                ([, value]) => value !== undefined
+              )
+            )
+          )
+          return Promise.resolve()
+        },
+    }),
+  }
+})
+
+const groupId = '86000000-0000-7000-8000-000000000001'
+const otherGroupId = '86000000-0000-7000-8000-000000000002'
+
 const task = {
   id: '85000000-0000-7000-8000-000000000001',
   customerId: '85000000-0000-7000-8000-000000000002',
@@ -93,6 +138,7 @@ describe('Canvas administrator task records', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    routeState.set({})
     await i18next.changeLanguage('en')
     apiMocks.getCanvasTaskLogOptions.mockResolvedValue({
       models: [
@@ -100,6 +146,10 @@ describe('Canvas administrator task records', () => {
           customerModelId: 'model-1',
           displayNameSnapshot: 'Historical Canvas Image',
         },
+      ],
+      credentialGroups: [
+        { id: groupId, name: 'Default', providerName: 'HFSY API' },
+        { id: otherGroupId, name: 'Default', providerName: 'DKL-image' },
       ],
     })
     apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
@@ -270,5 +320,113 @@ describe('Canvas administrator task records', () => {
     expect(
       await within(sheet).findByRole('button', { name: 'Copy' })
     ).toBeVisible()
+  })
+
+  it('applies filters carried in the address and shows them as removable tags', async () => {
+    const user = userEvent.setup()
+    let releaseOptions!: () => void
+    apiMocks.getCanvasTaskLogOptions.mockReturnValue(
+      new Promise((resolve) => {
+        releaseOptions = () =>
+          resolve({
+            models: [],
+            credentialGroups: [
+              { id: groupId, name: 'Default', providerName: 'HFSY API' },
+              { id: otherGroupId, name: 'Default', providerName: 'DKL-image' },
+            ],
+          })
+      })
+    )
+    routeState.set({
+      derivedExecutionStatus: 'UNKNOWN',
+      upstreamTask: 'absent',
+      credentialGroupId: groupId,
+    })
+    mount()
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          derivedExecutionStatus: 'UNKNOWN',
+          upstreamTask: 'absent',
+          credentialGroupId: groupId,
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    // The group is named only once its options are there, never by its ID.
+    expect(within(tags).getByText('API Key group: Loading')).toBeVisible()
+    expect(tags).not.toHaveTextContent(groupId)
+    releaseOptions()
+    expect(
+      await within(tags).findByText('API Key group: HFSY API · Default')
+    ).toBeVisible()
+    expect(
+      within(tags).getByText('Execution status: Result pending confirmation')
+    ).toBeVisible()
+    expect(
+      within(tags).getByText('Provider task ID: Absent (cannot be queried)')
+    ).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    // A carried value inside "More conditions" opens it.
+    expect(
+      screen.getByRole('combobox', { name: 'API Key group' })
+    ).toHaveTextContent('HFSY API · Default')
+    expect(
+      screen.getByRole('combobox', { name: 'Provider task ID' })
+    ).toHaveTextContent('Absent (cannot be queried)')
+    expect(
+      screen.getByRole('combobox', { name: 'Failure reason' })
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(tags).getByRole('button', {
+        name: 'Remove filter API Key group: HFSY API · Default',
+      })
+    )
+    expect(routeState.get()).toEqual({
+      derivedExecutionStatus: 'UNKNOWN',
+      upstreamTask: 'absent',
+    })
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ credentialGroupId: groupId }),
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
+  it('sends a failure reason and acceptance start from the address, and a typed provider task ID only for a specific ID', async () => {
+    const user = userEvent.setup()
+    routeState.set({
+      failureReason: 'RETRY_EXHAUSTED',
+      from: '2026-10-04T12:00:00.000Z',
+    })
+    mount()
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          failureReason: 'RETRY_EXHAUSTED',
+          from: '2026-10-04T12:00:00.000Z',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    await user.click(screen.getByRole('combobox', { name: 'Provider task ID' }))
+    await user.click(await screen.findByRole('option', { name: 'Specific ID' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Specific ID' }), {
+      target: { value: 'up-1' },
+    })
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ upstreamTaskId: 'up-1' }),
+        expect.any(AbortSignal)
+      )
+    )
+    expect(routeState.get()).not.toHaveProperty('upstreamTask')
   })
 })

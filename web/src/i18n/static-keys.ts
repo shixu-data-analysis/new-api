@@ -19,6 +19,23 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Canvas executor capacity: result-position badges, task-log filter values and attention hints
+  'Result position waiting',
+  'Result position generating',
+  'Result position completed',
+  'Result position failed',
+  'Result file too large',
+  'Failed after repeated result fetches',
+  'Present (can be queried)',
+  'Absent (cannot be queried)',
+  'Specific ID',
+  '{{count}} tasks in the last 24 hours failed because the result file was too large',
+  '{{count}} tasks in the last 24 hours failed after repeated attempts to fetch the result',
+  '{{count}} executor instances are nearly full of tasks waiting for results',
+  '{{count}} executor instances failed to reach the database repeatedly in the last 10 minutes',
+  'defaultPollIntervalMs',
+  'unknownReleaseMs',
+
   // Canvas model identity
   'Catalog default name',
   'Model key',
