@@ -415,21 +415,25 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
     fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
       target: {
-        files: [sourceFileWithBytes('models.json', Uint8Array.from([0xff]))],
+        files: [
+          ...bundleFiles(modelDefinition).filter(
+            (file) => file.webkitRelativePath !== 'bundle/models.json'
+          ),
+          sourceFileWithBytes('models.json', Uint8Array.from([0xff])),
+        ],
       },
     })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
-    expect(mocks.plan).toHaveBeenCalledWith(
-      {
-        schemaVersion: 1,
-        files: [{ path: 'models.json', contentBase64: '/w==' }],
-      },
-      expect.any(Object)
+    expect(mocks.plan.mock.calls[0]?.[0].files).toContainEqual({
+      path: 'models.json',
+      contentBase64: '/w==',
+    })
+    const detail = await screen.findByText(/models.json/)
+    expect(detail).toHaveTextContent(
+      'Reason: A catalog source file is not valid JSON.'
     )
-    expect(await screen.findByText(/models.json/)).toHaveTextContent('Path: $')
-    expect(screen.getByText(/models.json/)).toHaveTextContent(
-      'Reason: A catalog source file is not valid JSON. · File is not valid JSON.'
-    )
+    expect(detail).not.toHaveTextContent('File is not valid JSON.')
+    expect(detail).not.toHaveTextContent('Path:')
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
@@ -470,12 +474,100 @@ describe('Canvas model catalog folder upload', () => {
       'Path: models[24].release.publicInteraction.mediaConstraints.video.maxFrameRate'
     )
     expect(screen.getByText(/models.json/)).toHaveTextContent(
-      'Reason: 帧率必须至少为 1，当前值为 0。 · Expected number to be greater than or equal to 1'
+      'Reason: 帧率必须至少为 1，当前值为 0。'
+    )
+    expect(screen.getByText(/models.json/)).not.toHaveTextContent(
+      'Expected number to be greater than or equal to 1'
     )
     expect(
       screen.getByRole('button', { name: 'Review publication content' })
     ).toBeDisabled()
     expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('shows the missing manifest file paths without sending a plan request', async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: {
+        files: bundleFiles(modelDefinition).filter(
+          (file) => file.webkitRelativePath !== 'bundle/profiles/test.profile.json'
+        ),
+      },
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(
+      'Files listed in manifest.json are missing from the selected folder.'
+    )
+    expect(alert).toHaveTextContent('profiles/test.profile.json')
+    expect(mocks.plan).not.toHaveBeenCalled()
+  })
+
+  it('collapses the upload area into one line after a plan and can choose again', async () => {
+    mocks.plan.mockResolvedValue(catalogPlan({ bundleVersion: '7' }))
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(await screen.findByText('Selected: canvas.test (7)')).toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'The folder must contain manifest.json and every file referenced by it.'
+      )
+    ).not.toBeInTheDocument()
+    const input = screen.getByLabelText('Choose Bundle folder')
+    const click = vi.spyOn(input, 'click')
+    fireEvent.click(screen.getByRole('button', { name: 'Choose folder again' }))
+    expect(click).toHaveBeenCalled()
+  })
+
+  it('merges ignored-file warnings into one expandable line', async () => {
+    const ignored = (sourceFile: string) => ({
+      code: 'CATALOG_SOURCE_FILE_IGNORED',
+      severity: 'WARNING',
+      sourceFile,
+      jsonPath: '$',
+      valueSummary: 'File is not referenced by manifest.json.',
+      capability: 'catalog.import.schema-v1',
+      ownerModule: 'model-catalog',
+      recommendation: 'Remove the unreferenced file.',
+      internalTestingAllowed: false,
+      messageKey: 'catalog.catalog_source_file_ignored',
+      params: {},
+    })
+    mocks.plan.mockResolvedValue(
+      catalogPlan({ diagnostics: [ignored('docs/a.json'), ignored('tests/b.json')] })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    const summary = await screen.findByText(
+      'Ignored 2 files not referenced by manifest.json'
+    )
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+    expect(summary.closest('details')).toHaveTextContent('docs/a.json')
+    expect(summary.closest('details')).toHaveTextContent('tests/b.json')
+    expect(
+      screen.queryByText(/File is not referenced by manifest.json/)
+    ).not.toBeInTheDocument()
   })
 
   it('uses the exact Cloud fallback for a truly unknown diagnostic key', async () => {
@@ -1143,7 +1235,10 @@ describe('Canvas model catalog folder upload', () => {
       await screen.findByRole('button', { name: 'Review publication content' })
     ).toBeEnabled()
 
-    fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
+    // After a plan the picker lives in the collapsed upload line.
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
     expect(
       screen.queryByRole('button', { name: 'Review publication content' })

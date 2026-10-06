@@ -57,7 +57,7 @@ import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
 import {
-  catalogChangeBadgeVariant,
+  catalogChangeBadgeClass,
   catalogListText,
   catalogPlanDiagnosticText,
   catalogResourceTypeLabel,
@@ -76,6 +76,21 @@ type SharedFilters = {
 }
 
 const emptySharedFilters: SharedFilters = { resourceType: 'ALL', change: 'ALL' }
+
+function matchesSharedFilters(
+  change: CatalogSharedChange,
+  filters: SharedFilters
+): boolean {
+  const kind = catalogSharedChangeKind(change)
+  return (
+    (filters.resourceType === 'ALL' ||
+      change.resourceType === filters.resourceType) &&
+    (filters.change === 'ALL' ||
+      (filters.change === 'CHANGED'
+        ? kind !== 'UNCHANGED'
+        : kind === filters.change))
+  )
+}
 
 function sharedRowKey(change: { resourceType: string; key: string }): string {
   return `${change.resourceType}:${change.key}`
@@ -193,24 +208,20 @@ export function CatalogSharedResources(props: {
     pageSize: 20,
   })
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  // A located row stays visible even when it does not match the filters; filters stay unchanged.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null)
   const sorted = useMemo(
     () => sortCatalogSharedChanges(props.changes),
     [props.changes]
   )
   const filtered = useMemo(
     () =>
-      sorted.filter((change) => {
-        const kind = catalogSharedChangeKind(change)
-        return (
-          (filters.resourceType === 'ALL' ||
-            change.resourceType === filters.resourceType) &&
-          (filters.change === 'ALL' ||
-            (filters.change === 'CHANGED'
-              ? kind !== 'UNCHANGED'
-              : kind === filters.change))
-        )
-      }),
-    [filters, sorted]
+      sorted.filter(
+        (change) =>
+          sharedRowKey(change) === pinnedKey ||
+          matchesSharedFilters(change, filters)
+      ),
+    [filters, pinnedKey, sorted]
   )
   const pageCount = Math.max(1, Math.ceil(filtered.length / pagination.pageSize))
   const effectivePagination = {
@@ -236,12 +247,20 @@ export function CatalogSharedResources(props: {
   const visible = table.getRowModel().rows.map((row) => row.original)
   const focus = props.focus
   const focusedRow = useRef<HTMLTableRowElement>(null)
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
   useEffect(() => {
     if (!focus) return
     const rowKey = sharedRowKey(focus)
-    const index = sorted.findIndex((change) => sharedRowKey(change) === rowKey)
+    const index = sorted
+      .filter(
+        (change) =>
+          sharedRowKey(change) === rowKey ||
+          matchesSharedFilters(change, filtersRef.current)
+      )
+      .findIndex((change) => sharedRowKey(change) === rowKey)
     if (index < 0) return
-    setFilters(emptySharedFilters)
+    setPinnedKey(rowKey)
     setPagination((value) => ({
       ...value,
       pageIndex: Math.floor(index / value.pageSize),
@@ -256,6 +275,7 @@ export function CatalogSharedResources(props: {
     setFilters((value) => ({ ...value, ...next }))
     setPagination((value) => ({ ...value, pageIndex: 0 }))
     setExpandedKey(null)
+    setPinnedKey(null)
   }
   const changeOptions = [
     ['CHANGED', t('Changed')],
@@ -342,6 +362,7 @@ export function CatalogSharedResources(props: {
           tabIndex: 0,
         }}
         tableClassName='min-w-[880px] table-fixed'
+        emptyContent={t('No resources match the filters.')}
         columns={[
           {
             id: 'resource-type',
@@ -393,7 +414,7 @@ export function CatalogSharedResources(props: {
                 </TableCell>
                 <TableCell className='align-top'>
                   <div className='space-y-1'>
-                    <Badge variant={catalogChangeBadgeVariant(kind)}>
+                    <Badge className={catalogChangeBadgeClass(kind)}>
                       {catalogSharedChangeLabel(t, kind)}
                     </Badge>
                     {kind === 'NEW_VERSION' && (

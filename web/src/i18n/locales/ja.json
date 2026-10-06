@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "{{model}} の API Key 紐付けは引き継げません：{{reason}}。",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "必要な認証方式：{{required}}。API Key グループ {{group}} の対応方式：{{supported}}。",
     "Price source conflict for {{model}}: {{reason}}.": "{{model}} の価格ソースが競合しています：{{reason}}。",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "先に競合している公開済み価格、予定価格、または期間限定特価を解決してください。"
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "先に競合している公開済み価格、予定価格、または期間限定特価を解決してください。",
+    "Model (name customers see)": "モデル（顧客に表示される名前）",
+    "Moved to a new channel of the same API provider; the binding is kept": "同じ API プロバイダーの新しいチャネルに移行し、紐付けを引き継ぎます",
+    "New models have no binding to keep; bind an API Key group after publication": "新規モデルには引き継ぐ紐付けがありません。公開後に API Key グループで紐付けてください",
+    "Binding does not depend on this publication and can be done at any time.": "紐付けは今回の公開に依存せず、いつでも対応できます。",
+    "API Key group {{name}}": "API Key グループ {{name}}",
+    "No models match the filters.": "フィルター条件に一致するモデルはありません。",
+    "No resources match the filters.": "フィルター条件に一致するリソースはありません。",
+    "manifest.json was not found in the selected folder.": "選択したフォルダーに manifest.json がありません。",
+    "Files listed in manifest.json are missing from the selected folder.": "選択したフォルダーに manifest.json に記載されたファイルがありません：",
+    "Selected: {{bundle}} ({{version}})": "選択中：{{bundle}}（{{version}}）",
+    "Choose folder again": "フォルダーを選び直す",
+    "Ignored {{count}} files not referenced by manifest.json": "manifest.json に参照されていない {{count}} 件のファイルを無視しました"
   }
 }

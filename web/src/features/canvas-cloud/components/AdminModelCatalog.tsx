@@ -101,17 +101,16 @@ function diagnosticDetails(
         defaultValue: fallbackMessage,
       })
     : fallbackMessage
-  const reason =
-    diagnostic.valueSummary && message !== fallbackMessage
-      ? `${message} · ${diagnostic.valueSummary}`
-      : message
+  // A localized message replaces Cloud's English text; without one the Cloud text is the reason.
   return [
     diagnostic.profileKey &&
       `${t('Adapter Profile')}: ${diagnostic.profileKey}`,
     diagnostic.operation && `${t('Operation')}: ${diagnostic.operation}`,
     diagnostic.sourceFile,
-    diagnostic.jsonPath && `${t('Path')}: ${diagnostic.jsonPath}`,
-    `${t('Reason')}: ${reason}`,
+    diagnostic.jsonPath &&
+      diagnostic.jsonPath !== '$' &&
+      `${t('Path')}: ${diagnostic.jsonPath}`,
+    `${t('Reason')}: ${message}`,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -138,13 +137,21 @@ function errorDetails(
     }
   }
   if (error instanceof CatalogSourceReadError) {
-    const messageKey = {
-      NO_FILES_SELECTED: 'Select a catalog source folder.',
-      FILE_READ_FAILED: 'A catalog source file could not be read.',
-      ENCODING_FAILED: 'A catalog source file could not be encoded.',
+    const message = {
+      NO_FILES_SELECTED: t('Select a catalog source folder.'),
+      MANIFEST_MISSING: t('manifest.json was not found in the selected folder.'),
+      REFERENCED_FILES_MISSING: t(
+        'Files listed in manifest.json are missing from the selected folder.'
+      ),
+      FILE_READ_FAILED: t('A catalog source file could not be read.'),
+      ENCODING_FAILED: t('A catalog source file could not be encoded.'),
     }[error.code]
+    if (error.code === 'MANIFEST_MISSING') return { message, details: [] }
+    if (error.code === 'REFERENCED_FILES_MISSING') {
+      return { message, details: error.missingPaths }
+    }
     const details = error.sourceFile ? [error.sourceFile] : []
-    return { message: t(messageKey), details }
+    return { message, details }
   }
   return {
     message:
@@ -245,6 +252,7 @@ export function AdminModelCatalog(props: {
     null
   )
   const focusNonce = useRef(0)
+  const folderInput = useRef<HTMLInputElement | null>(null)
   const planner = useMutation({ mutationFn: planCanvasModelCatalogImport })
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogImport,
@@ -430,6 +438,30 @@ export function AdminModelCatalog(props: {
       nonce,
     })
   }
+  // One folder picker serves the large upload area and the collapsed line after a plan.
+  const folderPicker = (
+    <Input
+                    className='sr-only'
+                    type='file'
+                    multiple
+                    disabled={publisher.isPending}
+                    aria-label={t('Choose Bundle folder')}
+                    ref={(node) => {
+                      folderInput.current = node
+                      if (node) node.setAttribute('webkitdirectory', '')
+                    }}
+                    onChange={(event) => {
+                      void selectFolder(event.target.files)
+                      event.target.value = ''
+                    }}
+                  />
+  )
+  const ignoredFiles = warningDiagnostics.filter(
+    (diagnostic) => diagnostic.code === 'CATALOG_SOURCE_FILE_IGNORED'
+  )
+  const otherWarnings = warningDiagnostics.filter(
+    (diagnostic) => diagnostic.code !== 'CATALOG_SOURCE_FILE_IGNORED'
+  )
   const countByType = (resourceType: string) =>
     sharedChanges.filter((change) => change.resourceType === resourceType)
       .length
@@ -494,16 +526,39 @@ export function AdminModelCatalog(props: {
             <ModelMonitoringOverview />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>
-            <Card>
-              <CardHeader>
-                <CardTitle>{t('Model catalog Bundle')}</CardTitle>
-                <CardDescription>
-                  {t(
-                    'Upload the complete Bundle folder. Canvas Cloud validates every referenced JSON file before showing a publication plan.'
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-4'>
+            {plan ? (
+              <Card size='sm'>
+                <CardContent className='flex flex-wrap items-center gap-x-4 gap-y-2 text-sm'>
+                  <span className='font-medium'>{t('Model catalog Bundle')}</span>
+                  <span className='text-muted-foreground [overflow-wrap:anywhere]'>
+                    {t('Selected: {{bundle}} ({{version}})', {
+                      bundle: plan.bundleId,
+                      version: plan.bundleVersion,
+                    })}
+                  </span>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    disabled={publisher.isPending}
+                    onClick={() => folderInput.current?.click()}
+                  >
+                    {t('Choose folder again')}
+                  </Button>
+                  {folderPicker}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('Model catalog Bundle')}</CardTitle>
+                  <CardDescription>
+                    {t(
+                      'Upload the complete Bundle folder. Canvas Cloud validates every referenced JSON file before showing a publication plan.'
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='space-y-4'>
                 <label className='hover:bg-muted/40 focus-within:ring-ring flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors focus-within:ring-2 sm:p-8'>
                   <FolderUp
                     className='text-muted-foreground size-8'
@@ -517,20 +572,7 @@ export function AdminModelCatalog(props: {
                       'The folder must contain manifest.json and every file referenced by it.'
                     )}
                   </span>
-                  <Input
-                    className='sr-only'
-                    type='file'
-                    multiple
-                    disabled={publisher.isPending}
-                    aria-label={t('Choose Bundle folder')}
-                    ref={(node) => {
-                      if (node) node.setAttribute('webkitdirectory', '')
-                    }}
-                    onChange={(event) => {
-                      void selectFolder(event.target.files)
-                      event.target.value = ''
-                    }}
-                  />
+                  {folderPicker}
                 </label>
                 {failure && (
                   <div
@@ -550,8 +592,9 @@ export function AdminModelCatalog(props: {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
             {planner.isPending && (
               <Card size='sm'>
                 <CardContent className='text-muted-foreground text-sm'>
@@ -635,13 +678,32 @@ export function AdminModelCatalog(props: {
                   )}
                   {warningDiagnostics.length > 0 && (
                     <ul className='bg-muted/30 list-disc space-y-1 rounded-lg border p-3 pl-7 text-sm'>
-                      {warningDiagnostics.map((diagnostic) => (
+                      {otherWarnings.map((diagnostic) => (
                         <li
                           key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
                         >
                           {diagnosticDetails(diagnostic, t)}
                         </li>
                       ))}
+                      {ignoredFiles.length > 0 && (
+                        <li>
+                          <details>
+                            <summary className='cursor-pointer'>
+                              {t(
+                                'Ignored {{count}} files not referenced by manifest.json',
+                                { count: ignoredFiles.length }
+                              )}
+                            </summary>
+                            <ul className='text-muted-foreground mt-1 space-y-0.5 font-mono text-xs'>
+                              {ignoredFiles.map((diagnostic) => (
+                                <li key={diagnostic.sourceFile}>
+                                  {diagnostic.sourceFile}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        </li>
+                      )}
                     </ul>
                   )}
                   <p className='text-muted-foreground text-sm tabular-nums'>

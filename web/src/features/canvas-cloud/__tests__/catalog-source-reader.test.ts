@@ -19,166 +19,165 @@ function decoded(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
 }
 
+const manifest = {
+  schemaVersion: 2,
+  bundleId: 'canvas.test',
+  bundleVersion: '1',
+  providers: 'providers.json',
+  channels: 'channels.json',
+  models: 'models.json',
+  openapiContracts: ['openapi/test.openapi.json'],
+  adapterProfiles: ['profiles/video/test.profile.json'],
+}
+
+function jsonFile(path: string, value: unknown): File {
+  return sourceFile(path, new TextEncoder().encode(JSON.stringify(value)))
+}
+
+function bundleFiles(): File[] {
+  return [
+    jsonFile('manifest.json', manifest),
+    jsonFile('providers.json', { providers: [] }),
+    jsonFile('channels.json', { channels: [] }),
+    jsonFile('models.json', { models: [] }),
+    jsonFile('openapi/test.openapi.json', { openapi: '3.1.0' }),
+    jsonFile('profiles/video/test.profile.json', { id: 'test' }),
+  ]
+}
+
 describe('catalog source reader', () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it('preserves media constraints, unknown fields, and invalid JSON bytes exactly', async () => {
-    const models = new TextEncoder().encode(
-      JSON.stringify({
-        models: [
-          {
-            release: {
-              publicInteraction: {
-                mediaConstraints: { video: { maxFrameRate: 60 } },
-                futureCapability: { mode: 'new' },
-              },
-            },
-          },
-        ],
-      })
-    )
-    const invalidJson = Uint8Array.from([0x7b, 0x22, 0xff, 0x00, 0x7d])
+  it('sends only manifest.json and the files it lists, skipping the rest of the folder', async () => {
+    const unrelated = [
+      jsonFile('package.json', { name: 'catalog' }),
+      jsonFile('docs/notes.json', {}),
+      jsonFile('tests/fixtures/bundle.json', {}),
+      sourceFile('README.md', new Uint8Array([1])),
+      sourceFile('.git/config', new Uint8Array([2])),
+    ]
+    const unrelatedReaders = unrelated.map((file) => vi.spyOn(file, 'arrayBuffer'))
 
-    const source = await readCatalogSource([
-      sourceFile('models.json', models),
-      sourceFile('invalid.json', invalidJson),
-    ])
+    const source = await readCatalogSource([...unrelated, ...bundleFiles()])
 
     expect(source.schemaVersion).toBe(1)
-    expect(source.files.map((file) => file.path)).toEqual([
+    expect(source.files.map((file) => file.path).sort()).toEqual([
+      'channels.json',
+      'manifest.json',
       'models.json',
-      'invalid.json',
+      'openapi/test.openapi.json',
+      'profiles/video/test.profile.json',
+      'providers.json',
     ])
-    expect([...decoded(source.files[0]?.contentBase64 ?? '')]).toEqual([
-      ...models,
-    ])
-    expect([...decoded(source.files[1]?.contentBase64 ?? '')]).toEqual([
-      ...invalidJson,
-    ])
+    unrelatedReaders.forEach((reader) => expect(reader).not.toHaveBeenCalled())
   })
 
-  it('passes path and capacity edge cases through without business validation', async () => {
-    const files = Array.from({ length: 1_101 }, (_, index) =>
-      sourceFile(
-        index === 0 ? '../escape.json' : `file-${index}.json`,
-        new Uint8Array()
-      )
+  it('preserves the bytes of listed files exactly, including invalid JSON', async () => {
+    const invalidJson = Uint8Array.from([0x7b, 0x22, 0xff, 0x00, 0x7d])
+    const files = bundleFiles().map((file) =>
+      file.webkitRelativePath === 'catalog/models.json'
+        ? sourceFile('models.json', invalidJson)
+        : file
     )
-    files.push(sourceFile('/absolute.json', new Uint8Array([1])))
-    files.push(sourceFile('duplicate.json', new Uint8Array([2])))
-    files.push(sourceFile('duplicate.json', new Uint8Array([3])))
-    const oversizedOne = sourceFile('oversized-one.json', new Uint8Array([4]))
-    const oversizedTwo = sourceFile('oversized-two.json', new Uint8Array([5]))
-    Object.defineProperty(oversizedOne, 'size', {
-      value: Number.MAX_SAFE_INTEGER,
-    })
-    Object.defineProperty(oversizedTwo, 'size', {
-      value: Number.MAX_SAFE_INTEGER,
-    })
-    files.push(oversizedOne, oversizedTwo)
+
+    const source = await readCatalogSource(files)
+    const models = source.files.find((file) => file.path === 'models.json')
+
+    expect([...decoded(models?.contentBase64 ?? '')]).toEqual([...invalidJson])
+  })
+
+  it('accepts backslash separators in manifest paths, as Cloud does', async () => {
+    const files = bundleFiles().map((file) =>
+      file.webkitRelativePath === 'catalog/manifest.json'
+        ? jsonFile('manifest.json', {
+            ...manifest,
+            adapterProfiles: ['profiles\\video\\test.profile.json'],
+          })
+        : file
+    )
 
     const source = await readCatalogSource(files)
 
-    expect(source.files).toHaveLength(1_106)
-    expect(source.files[0]?.path).toBe('../escape.json')
-    expect(source.files.at(-5)?.path).toBe('/absolute.json')
-    expect(source.files.slice(-4).map((file) => file.path)).toEqual([
-      'duplicate.json',
-      'duplicate.json',
-      'oversized-one.json',
-      'oversized-two.json',
-    ])
+    expect(source.files.map((file) => file.path)).toContain(
+      'profiles/video/test.profile.json'
+    )
+  })
+
+  it('reports a missing manifest.json without reading other files', async () => {
+    const files = bundleFiles().filter(
+      (file) => file.webkitRelativePath !== 'catalog/manifest.json'
+    )
+    const readers = files.map((file) => vi.spyOn(file, 'arrayBuffer'))
+
+    await expect(readCatalogSource(files)).rejects.toMatchObject({
+      code: 'MANIFEST_MISSING',
+    })
+    readers.forEach((reader) => expect(reader).not.toHaveBeenCalled())
+  })
+
+  it('lists every referenced file that is missing from the folder', async () => {
+    const files = bundleFiles().filter(
+      (file) =>
+        !['catalog/models.json', 'catalog/profiles/video/test.profile.json'].includes(
+          file.webkitRelativePath
+        )
+    )
+
+    await expect(readCatalogSource(files)).rejects.toMatchObject({
+      code: 'REFERENCED_FILES_MISSING',
+      missingPaths: ['models.json', 'profiles/video/test.profile.json'],
+    })
+  })
+
+  it('sends only manifest.json when it cannot be read as a manifest, so Cloud reports the exact error', async () => {
+    const files = [
+      sourceFile('manifest.json', Uint8Array.from([0x7b, 0xff])),
+      jsonFile('models.json', {}),
+    ]
+
+    const source = await readCatalogSource(files)
+
+    expect(source.files.map((file) => file.path)).toEqual(['manifest.json'])
   })
 
   it('removes one selected root segment and falls back to the file name', async () => {
-    const nested = sourceFile(
-      'profiles/video/profile.json',
-      new Uint8Array([1])
+    const standalone = new File(
+      [JSON.stringify({ ...manifest, providers: 'providers.json', channels: 'providers.json', models: 'providers.json', openapiContracts: [], adapterProfiles: [] })],
+      'manifest.json'
     )
-    const standalone = new File([new Uint8Array([2])], 'standalone.json')
-
-    const source = await readCatalogSource([nested, standalone])
-
-    expect(source.files.map((file) => file.path)).toEqual([
-      'profiles/video/profile.json',
-      'standalone.json',
-    ])
-  })
-
-  it('reads only JSON files outside .git and .github directories', async () => {
-    const ignoredFiles = [
-      sourceFile('.git/config.json', new Uint8Array([1])),
-      sourceFile('nested/.git/objects/entry.json', new Uint8Array([2])),
-      sourceFile('.github/catalog.json', new Uint8Array([3])),
-      sourceFile('nested/.github/settings.JSON', new Uint8Array([4])),
-      sourceFile('.DS_Store', new Uint8Array([5])),
-      sourceFile('README.md', new Uint8Array([6])),
-      sourceFile('catalog.yml', new Uint8Array([7])),
-      sourceFile('LICENSE', new Uint8Array([8])),
-    ]
-    const ignoredReaders = ignoredFiles.map((file) =>
-      vi.spyOn(file, 'arrayBuffer')
-    )
-    const hiddenDirectoryBytes = Uint8Array.from([0x00, 0xff, 0x7f])
-    const packageBytes = new TextEncoder().encode('{invalid package json')
 
     const source = await readCatalogSource([
-      ...ignoredFiles,
-      sourceFile('.catalog/catalog.JSON', hiddenDirectoryBytes),
-      sourceFile('package.json', packageBytes),
+      standalone,
+      jsonFile('providers.json', {}),
     ])
 
-    ignoredReaders.forEach((reader) => expect(reader).not.toHaveBeenCalled())
     expect(source.files.map((file) => file.path)).toEqual([
-      '.catalog/catalog.JSON',
-      'package.json',
-    ])
-    expect([...decoded(source.files[0]?.contentBase64 ?? '')]).toEqual([
-      ...hiddenDirectoryBytes,
-    ])
-    expect([...decoded(source.files[1]?.contentBase64 ?? '')]).toEqual([
-      ...packageBytes,
+      'manifest.json',
+      'providers.json',
     ])
   })
 
-  it('reports no files selected when the selection has no eligible JSON', async () => {
-    const ignoredFiles = [
-      sourceFile('.git/index.json', new Uint8Array([1])),
-      sourceFile('.github/catalog.json', new Uint8Array([2])),
-      sourceFile('.DS_Store', new Uint8Array([3])),
-      sourceFile('README.md', new Uint8Array([4])),
-      sourceFile('catalog.yaml', new Uint8Array([5])),
-      sourceFile('NOTICE', new Uint8Array([6])),
-    ]
-    const ignoredReaders = ignoredFiles.map((file) =>
-      vi.spyOn(file, 'arrayBuffer')
-    )
-
-    await expect(readCatalogSource(ignoredFiles)).rejects.toMatchObject({
-      code: 'NO_FILES_SELECTED',
-    })
-    ignoredReaders.forEach((reader) => expect(reader).not.toHaveBeenCalled())
-  })
-
-  it('reports only selection, file read, and byte encoding failures', async () => {
+  it('reports no selection, unreadable files and encoding failures', async () => {
     await expect(readCatalogSource([])).rejects.toMatchObject({
       code: 'NO_FILES_SELECTED',
     })
 
-    const unreadable = sourceFile('unreadable.json', new Uint8Array())
-    vi.spyOn(unreadable, 'arrayBuffer').mockRejectedValue(new Error('denied'))
-    await expect(readCatalogSource([unreadable])).rejects.toMatchObject({
+    const unreadable = bundleFiles()
+    const models = unreadable.find(
+      (file) => file.webkitRelativePath === 'catalog/models.json'
+    )
+    if (!models) throw new Error('models.json fixture missing')
+    vi.spyOn(models, 'arrayBuffer').mockRejectedValue(new Error('denied'))
+    await expect(readCatalogSource(unreadable)).rejects.toMatchObject({
       code: 'FILE_READ_FAILED',
-      sourceFile: 'unreadable.json',
+      sourceFile: 'models.json',
     })
 
     vi.spyOn(globalThis, 'btoa').mockImplementation(() => {
       throw new Error('encoding unavailable')
     })
-    await expect(
-      readCatalogSource([sourceFile('source.json', new Uint8Array([1]))])
-    ).rejects.toEqual(
-      new CatalogSourceReadError('ENCODING_FAILED', 'source.json')
+    await expect(readCatalogSource(bundleFiles())).rejects.toEqual(
+      new CatalogSourceReadError('ENCODING_FAILED', 'manifest.json')
     )
   })
 })

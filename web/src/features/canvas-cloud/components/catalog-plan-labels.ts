@@ -111,21 +111,27 @@ export function catalogResourceTypeLabel(
   }[resourceType]
 }
 
-const changeBadgeVariant = {
-  CREATE: 'default',
-  NEW_VERSION: 'secondary',
-  DESCRIPTION: 'outline',
-  CONFLICT: 'destructive',
-  UNCHANGED: 'ghost',
+// New blue, new version purple, description light blue-grey, conflict red, unchanged grey.
+const changeBadgeTone = {
+  CREATE: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200',
+  NEW_VERSION:
+    'bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200',
+  DESCRIPTION:
+    'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200',
+  CONFLICT: 'bg-destructive/10 text-destructive dark:bg-destructive/20',
+  UNCHANGED: 'bg-muted text-muted-foreground',
 } as const
 
-export function catalogChangeBadgeVariant(
+export function catalogChangeBadgeClass(
   kind: CatalogModelChangeKind | CatalogSharedChangeKind
 ) {
-  return changeBadgeVariant[kind]
+  return changeBadgeTone[kind]
 }
 
-function credentialRemedy(t: TFunction, reasonCode: unknown): string {
+export function catalogCredentialRemedy(
+  t: TFunction,
+  reasonCode: unknown
+): string {
   if (reasonCode === 'PROVIDER_CHANGED') {
     return t(
       'The same model key cannot change its API provider. Use a new model key in the Catalog.'
@@ -202,7 +208,7 @@ export function catalogPlanDiagnosticText(
           : ''
       return {
         message: `${message}${schemes}`,
-        remedy: credentialRemedy(t, params.reasonCode),
+        remedy: catalogCredentialRemedy(t, params.reasonCode),
       }
     }
     case 'PRICING_SOURCE_CONFLICT':

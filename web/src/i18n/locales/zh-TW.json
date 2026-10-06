@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "{{model}} 的 API Key 綁定不能沿用：{{reason}}。",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "所需認證方式：{{required}}。API Key 組 {{group}} 支援：{{supported}}。",
     "Price source conflict for {{model}}: {{reason}}.": "{{model}} 的價格來源衝突：{{reason}}。",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "請先處理衝突的已發布價格、待生效價格或限時特價"
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "請先處理衝突的已發布價格、待生效價格或限時特價",
+    "Model (name customers see)": "模型（客戶看到的名稱）",
+    "Moved to a new channel of the same API provider; the binding is kept": "換到同一 API 服務商的新渠道，沿用原綁定",
+    "New models have no binding to keep; bind an API Key group after publication": "新模型沒有可沿用的綁定，發布後到 API Key 組綁定",
+    "Binding does not depend on this publication and can be done at any time.": "綁定不依賴本次發布，可隨時處理",
+    "API Key group {{name}}": "API Key 組 {{name}}",
+    "No models match the filters.": "沒有符合篩選條件的模型。",
+    "No resources match the filters.": "沒有符合篩選條件的資源。",
+    "manifest.json was not found in the selected folder.": "所選資料夾中沒有 manifest.json。",
+    "Files listed in manifest.json are missing from the selected folder.": "所選資料夾缺少 manifest.json 列出的檔案：",
+    "Selected: {{bundle}} ({{version}})": "已選擇：{{bundle}}（{{version}}）",
+    "Choose folder again": "重新選擇資料夾",
+    "Ignored {{count}} files not referenced by manifest.json": "已忽略 {{count}} 個未被 manifest 引用的檔案"
   }
 }

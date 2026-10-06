@@ -20,13 +20,21 @@ import type { ModelCatalogImportSource } from './generated/model-catalog-import'
 
 export class CatalogSourceReadError extends Error {
   constructor(
-    readonly code: 'NO_FILES_SELECTED' | 'FILE_READ_FAILED' | 'ENCODING_FAILED',
-    readonly sourceFile?: string
+    readonly code:
+      | 'NO_FILES_SELECTED'
+      | 'MANIFEST_MISSING'
+      | 'REFERENCED_FILES_MISSING'
+      | 'FILE_READ_FAILED'
+      | 'ENCODING_FAILED',
+    readonly sourceFile?: string,
+    readonly missingPaths: string[] = []
   ) {
     super(code)
     this.name = 'CatalogSourceReadError'
   }
 }
+
+const manifestPath = 'manifest.json'
 
 function sourcePath(file: File): string {
   const path = file.webkitRelativePath || file.name
@@ -34,15 +42,41 @@ function sourcePath(file: File): string {
   return rootSeparator < 0 ? path : path.slice(rootSeparator + 1)
 }
 
-function isCatalogSource(path: string): boolean {
-  const segments = path.split('/')
-  const directories = segments.slice(0, -1)
-  return (
-    !directories.some(
-      (segment) => segment === '.git' || segment === '.github'
-    ) &&
-    (segments.at(-1)?.toLowerCase().endsWith('.json') ?? false)
-  )
+async function readBytes(file: File, path: string): Promise<ArrayBuffer> {
+  try {
+    return await file.arrayBuffer()
+  } catch {
+    throw new CatalogSourceReadError('FILE_READ_FAILED', path)
+  }
+}
+
+/**
+ * The files manifest.json lists, with the same separator rule Cloud applies. A manifest that is
+ * not valid JSON or lists no paths yields none: Cloud then reports the exact manifest diagnostic.
+ */
+function manifestReferences(bytes: ArrayBuffer): string[] {
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+  } catch {
+    return []
+  }
+  if (!manifest || typeof manifest !== 'object') return []
+  const fields = manifest as Record<string, unknown>
+  const listed = [
+    fields.providers,
+    fields.channels,
+    fields.models,
+    ...(Array.isArray(fields.openapiContracts) ? fields.openapiContracts : []),
+    ...(Array.isArray(fields.adapterProfiles) ? fields.adapterProfiles : []),
+  ]
+  return [
+    ...new Set(
+      listed
+        .filter((path): path is string => typeof path === 'string' && path !== '')
+        .map((path) => path.replaceAll('\\', '/'))
+    ),
+  ]
 }
 
 function encodeBase64(bytes: ArrayBuffer, path: string): string {
@@ -61,31 +95,45 @@ function encodeBase64(bytes: ArrayBuffer, path: string): string {
   }
 }
 
+/**
+ * Reads manifest.json and only the files it lists. Cloud reads the same closure, so validation
+ * and the source hash do not change; other files in the selected folder are never uploaded.
+ */
 export async function readCatalogSource(
   files: File[]
 ): Promise<ModelCatalogImportSource> {
   if (!files.length) {
     throw new CatalogSourceReadError('NO_FILES_SELECTED')
   }
-
-  const selectedFiles = files
-    .map((file) => ({ file, path: sourcePath(file) }))
-    .filter(({ path }) => isCatalogSource(path))
-  if (!selectedFiles.length) {
-    throw new CatalogSourceReadError('NO_FILES_SELECTED')
+  const selected = files.map((file) => ({ file, path: sourcePath(file) }))
+  const manifest = selected.find(({ path }) => path === manifestPath)
+  if (!manifest) {
+    throw new CatalogSourceReadError('MANIFEST_MISSING', manifestPath, [
+      manifestPath,
+    ])
   }
-
-  const sources = await Promise.all(
-    selectedFiles.map(async ({ file, path }) => {
-      let content: ArrayBuffer
-      try {
-        content = await file.arrayBuffer()
-      } catch {
-        throw new CatalogSourceReadError('FILE_READ_FAILED', path)
-      }
-      return { path, contentBase64: encodeBase64(content, path) }
-    })
-  )
-
+  const manifestBytes = await readBytes(manifest.file, manifestPath)
+  const references = manifestReferences(manifestBytes)
+  const present = new Set(selected.map(({ path }) => path))
+  const missingPaths = references.filter((path) => !present.has(path))
+  if (missingPaths.length) {
+    throw new CatalogSourceReadError(
+      'REFERENCED_FILES_MISSING',
+      manifestPath,
+      missingPaths
+    )
+  }
+  const closure = new Set(references)
+  const sources = [
+    { path: manifestPath, contentBase64: encodeBase64(manifestBytes, manifestPath) },
+    ...(await Promise.all(
+      selected
+        .filter(({ path }) => path !== manifestPath && closure.has(path))
+        .map(async ({ file, path }) => ({
+          path,
+          contentBase64: encodeBase64(await readBytes(file, path), path),
+        }))
+    )),
+  ]
   return { schemaVersion: 1, files: sources }
 }

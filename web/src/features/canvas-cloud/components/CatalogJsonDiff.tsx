@@ -69,25 +69,16 @@ export function CatalogJsonDiff(props: {
 }) {
   const { t } = useTranslation()
   const [showAll, setShowAll] = useState(false)
-  const [expandedFolds, setExpandedFolds] = useState<ReadonlySet<number>>(
-    () => new Set()
-  )
   const { diff } = props
   const changed = diff.hasCurrent && diff.added + diff.removed > 0
   const changesOnly = changed && !showAll
-  const items = useMemo<CatalogJsonDiffItem[]>(() => {
-    const allLines = (from: number, to: number): CatalogJsonDiffItem[] =>
-      Array.from({ length: to - from + 1 }, (_, offset) => ({
-        type: 'line',
-        index: from + offset,
-      }))
-    if (!changesOnly) return allLines(0, diff.lines.length - 1)
-    return foldCatalogJsonDiff(diff.lines).flatMap((item) =>
-      item.type === 'fold' && expandedFolds.has(item.from)
-        ? allLines(item.from, item.to)
-        : [item]
-    )
-  }, [changesOnly, diff.lines, expandedFolds])
+  const items = useMemo<CatalogJsonDiffItem[]>(
+    () =>
+      changesOnly
+        ? foldCatalogJsonDiff(diff.lines)
+        : diff.lines.map((_, index) => ({ type: 'line', index })),
+    [changesOnly, diff.lines]
+  )
   return (
     <div className='min-w-0 space-y-2'>
       <div className='flex flex-wrap items-start justify-between gap-2'>
@@ -131,9 +122,8 @@ export function CatalogJsonDiff(props: {
                 key={`fold-${item.from}`}
                 type='button'
                 className='text-muted-foreground hover:bg-muted block w-full px-2 py-0.5 text-left'
-                onClick={() =>
-                  setExpandedFolds((value) => new Set(value).add(item.from))
-                }
+                // Any folded run switches to the full text; "Show changes only" folds again.
+                onClick={() => setShowAll(true)}
               >
                 {t('⋯ {{count}} unchanged lines. Click to expand.', {
                   count: item.to - item.from + 1,

@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "L'association de clé API de {{model}} ne peut pas être conservée : {{reason}}.",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "Authentification requise : {{required}}. Le groupe de clés API {{group}} prend en charge : {{supported}}.",
     "Price source conflict for {{model}}: {{reason}}.": "Conflit de source de prix pour {{model}} : {{reason}}.",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Résolvez d'abord le prix publié, le prix programmé ou l'offre à prix limité en conflit."
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Résolvez d'abord le prix publié, le prix programmé ou l'offre à prix limité en conflit.",
+    "Model (name customers see)": "Modèle (nom vu par les clients)",
+    "Moved to a new channel of the same API provider; the binding is kept": "Passé à un nouveau canal du même fournisseur d'API ; l'association est conservée",
+    "New models have no binding to keep; bind an API Key group after publication": "Un nouveau modèle n'a aucune association à conserver ; associez un groupe de clés API après la publication",
+    "Binding does not depend on this publication and can be done at any time.": "L'association ne dépend pas de cette publication et peut être faite à tout moment.",
+    "API Key group {{name}}": "Groupe de clés API {{name}}",
+    "No models match the filters.": "Aucun modèle ne correspond aux filtres.",
+    "No resources match the filters.": "Aucune ressource ne correspond aux filtres.",
+    "manifest.json was not found in the selected folder.": "manifest.json est introuvable dans le dossier sélectionné.",
+    "Files listed in manifest.json are missing from the selected folder.": "Des fichiers listés dans manifest.json manquent dans le dossier sélectionné :",
+    "Selected: {{bundle}} ({{version}})": "Sélectionné : {{bundle}} ({{version}})",
+    "Choose folder again": "Choisir un autre dossier",
+    "Ignored {{count}} files not referenced by manifest.json": "{{count}} fichiers non référencés par manifest.json ignorés"
   }
 }

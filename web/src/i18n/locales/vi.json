@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "Không thể giữ liên kết API Key của {{model}}: {{reason}}.",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "Phương thức xác thực cần: {{required}}. Nhóm API Key {{group}} hỗ trợ: {{supported}}.",
     "Price source conflict for {{model}}: {{reason}}.": "Xung đột nguồn giá của {{model}}: {{reason}}.",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Hãy xử lý trước giá đã phát hành, giá đã lên lịch hoặc giá ưu đãi có thời hạn bị xung đột."
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Hãy xử lý trước giá đã phát hành, giá đã lên lịch hoặc giá ưu đãi có thời hạn bị xung đột.",
+    "Model (name customers see)": "Mô hình (tên khách hàng thấy)",
+    "Moved to a new channel of the same API provider; the binding is kept": "Chuyển sang kênh mới của cùng nhà cung cấp API; giữ liên kết cũ",
+    "New models have no binding to keep; bind an API Key group after publication": "Mô hình mới chưa có liên kết để giữ; hãy liên kết nhóm API Key sau khi phát hành",
+    "Binding does not depend on this publication and can be done at any time.": "Việc liên kết không phụ thuộc vào lần phát hành này và có thể làm bất cứ lúc nào.",
+    "API Key group {{name}}": "Nhóm API Key {{name}}",
+    "No models match the filters.": "Không có mô hình nào khớp với bộ lọc.",
+    "No resources match the filters.": "Không có tài nguyên nào khớp với bộ lọc.",
+    "manifest.json was not found in the selected folder.": "Không tìm thấy manifest.json trong thư mục đã chọn.",
+    "Files listed in manifest.json are missing from the selected folder.": "Thư mục đã chọn thiếu các tệp được liệt kê trong manifest.json:",
+    "Selected: {{bundle}} ({{version}})": "Đã chọn: {{bundle}} ({{version}})",
+    "Choose folder again": "Chọn lại thư mục",
+    "Ignored {{count}} files not referenced by manifest.json": "Đã bỏ qua {{count}} tệp không được manifest.json tham chiếu"
   }
 }

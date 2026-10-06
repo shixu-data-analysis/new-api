@@ -18,7 +18,7 @@ const after = {
 }
 
 describe('Catalog JSON diff', () => {
-  it('folds unchanged lines by default and expands one run on click', () => {
+  it('folds unchanged lines by default and switches to the full text when a fold is clicked', () => {
     render(
       <CatalogJsonDiff
         title='Model definition'
@@ -35,6 +35,9 @@ describe('Catalog JSON diff', () => {
     )
 
     expect(screen.getByText('"a": 1,')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Show changes only' })
+    ).toBeInTheDocument()
   })
 
   it('switches between the full text and changes only', () => {

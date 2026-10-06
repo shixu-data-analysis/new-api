@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "{{model}} 的 API Key 绑定不能沿用：{{reason}}。",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "所需认证方式：{{required}}。API Key 组 {{group}} 支持：{{supported}}。",
     "Price source conflict for {{model}}: {{reason}}.": "{{model}} 的价格来源冲突：{{reason}}。",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "请先处理冲突的已发布价格、待生效价格或限时特价"
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "请先处理冲突的已发布价格、待生效价格或限时特价",
+    "Model (name customers see)": "模型（客户看到的名称）",
+    "Moved to a new channel of the same API provider; the binding is kept": "换到同一 API 服务商的新渠道，沿用原绑定",
+    "New models have no binding to keep; bind an API Key group after publication": "新模型没有可沿用的绑定，发布后到 API Key 组绑定",
+    "Binding does not depend on this publication and can be done at any time.": "绑定不依赖本次发布，可随时处理",
+    "API Key group {{name}}": "API Key 组 {{name}}",
+    "No models match the filters.": "没有符合筛选条件的模型。",
+    "No resources match the filters.": "没有符合筛选条件的资源。",
+    "manifest.json was not found in the selected folder.": "所选文件夹中没有 manifest.json。",
+    "Files listed in manifest.json are missing from the selected folder.": "所选文件夹缺少 manifest.json 列出的文件：",
+    "Selected: {{bundle}} ({{version}})": "已选择：{{bundle}}（{{version}}）",
+    "Choose folder again": "重新选择文件夹",
+    "Ignored {{count}} files not referenced by manifest.json": "已忽略 {{count}} 个未被 manifest 引用的文件"
   }
 }

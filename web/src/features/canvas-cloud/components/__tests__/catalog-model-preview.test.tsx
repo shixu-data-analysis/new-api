@@ -55,6 +55,21 @@ describe('Catalog model preview', () => {
     expect(row).toHaveTextContent('Model key canvas.image.model')
   })
 
+  it('shows the full administrator-set name, Bundle name and model key in the detail', () => {
+    const longName = `Admin name ${'very long '.repeat(20)}end`
+    renderPreview([
+      catalogPlanModel({ displayName: 'Bundle name', presentationDisplayName: longName }),
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'View details' }))
+
+    const detail = screen.getByRole('button', { name: 'Collapse' }).closest('tr')?.nextElementSibling
+    if (!detail) throw new Error('No detail row')
+    expect(within(detail as HTMLElement).getByText(longName)).not.toHaveClass('truncate')
+    expect(detail).toHaveTextContent('Name in Bundle: Bundle name')
+    expect(detail).toHaveTextContent('Model key canvas.image.model')
+  })
+
   it('shows each change kind with its version text', () => {
     renderPreview(
       [
@@ -182,7 +197,8 @@ describe('Catalog model preview', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Current version comes from Bundle 2026.10.01.1')).toBeInTheDocument()
     expect(screen.getByText('Pricing (2 specifications × 1 price plans, 1 need pricing)')).toBeInTheDocument()
-    expect(screen.getByText(/Default Price kept, 4K Needs pricing \(New specification\)/)).toBeInTheDocument()
+    expect(screen.getByText('Default · Price kept')).toBeInTheDocument()
+    expect(screen.getByText('4K · Needs pricing (New specification)')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Go to pricing' })).toHaveAttribute(
       'href',
       '/canvas-cloud/model-management/11111111-1111-4111-8111-111111111111/pricing'
@@ -190,7 +206,89 @@ describe('Catalog model preview', () => {
     expect(
       screen.getByText(/The previous API Key group is archived or unavailable/)
     ).toBeInTheDocument()
-    expect(screen.getByText('API Key group: Archived group')).toBeInTheDocument()
+    expect(
+      screen.getByText('Binding does not depend on this publication and can be done at any time.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('API Key group Archived group')).toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      'a model moved to a new channel of the same API provider',
+      catalogPlanModel({
+        action: 'CREATE_VERSION',
+        definition: {
+          current: { release: { channelId: 'old-channel' } },
+          proposed: { release: { channelId: 'image-channel' } },
+        },
+      }),
+      ['Moved to a new channel of the same API provider; the binding is kept'],
+    ],
+    [
+      'a new model',
+      catalogPlanModel({
+        action: 'CREATE',
+        credential: { ...catalogPlanModel().credential, status: 'NEEDS_BINDING', reasonCode: 'UNBOUND_SOURCE' },
+      }),
+      ['New models have no binding to keep; bind an API Key group after publication'],
+    ],
+    [
+      'an existing model without a binding',
+      catalogPlanModel({
+        credential: { ...catalogPlanModel().credential, status: 'NEEDS_BINDING', reasonCode: 'UNBOUND_SOURCE' },
+      }),
+      ['No previous binding', 'Binding does not depend on this publication and can be done at any time.'],
+    ],
+    [
+      'a binding that cannot be kept',
+      catalogPlanModel({
+        credential: { ...catalogPlanModel().credential, status: 'BLOCKED', reasonCode: 'CREDENTIAL_SCHEME_MISMATCH' },
+      }),
+      ['Authentication scheme mismatch', 'Make this API Key group support the required authentication first.'],
+    ],
+  ])('explains the API Key binding of %s', (_name, model, lines) => {
+    renderPreview([model])
+
+    fireEvent.click(screen.getByRole('button', { name: 'View details' }))
+
+    for (const line of lines) expect(screen.getByText(line)).toBeInTheDocument()
+    expect(screen.getByText('API Key group Image group')).toBeInTheDocument()
+  })
+
+  it('says no model matches when the filters leave no rows', async () => {
+    const user = userEvent.setup()
+    renderPreview([catalogPlanModel()])
+
+    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    await user.click(screen.getByRole('combobox', { name: 'Change in this Bundle' }))
+    await user.click(await screen.findByRole('option', { name: 'New' }))
+
+    expect(screen.getByText('No models match the filters.')).toBeInTheDocument()
+  })
+
+  it('shows and expands a located row without clearing the filters', async () => {
+    const user = userEvent.setup()
+    const models = [
+      catalogPlanModel({ productKey: 'a', displayName: 'New model', action: 'CREATE' }),
+      catalogPlanModel({ productKey: 'b', displayName: 'Same model' }),
+    ]
+    const reviews = models.map((model) => reviewCatalogModel(model, []))
+    const view = render(
+      <CatalogModelPreview reviews={reviews} changes={[]} focus={null} onViewChannel={vi.fn()} />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    await user.click(screen.getByRole('combobox', { name: 'Change in this Bundle' }))
+    await user.click(await screen.findByRole('option', { name: 'New' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByText('Same model')).not.toBeInTheDocument()
+
+    view.rerender(
+      <CatalogModelPreview reviews={reviews} changes={[]} focus={{ key: 'b', nonce: 1 }} onViewChannel={vi.fn()} />
+    )
+
+    expect(await screen.findAllByText('Same model')).toHaveLength(2) // row and its expanded detail
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('explains a version caused only by a channel and opens that channel', () => {

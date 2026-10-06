@@ -8821,6 +8821,18 @@
     "The API Key binding of {{model}} cannot be kept: {{reason}}.": "Привязку API Key для {{model}} нельзя сохранить: {{reason}}.",
     "Required authentication: {{required}}. API Key group {{group}} supports: {{supported}}.": "Нужный способ аутентификации: {{required}}. Группа API Key {{group}} поддерживает: {{supported}}.",
     "Price source conflict for {{model}}: {{reason}}.": "Конфликт источника цены для {{model}}: {{reason}}.",
-    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Сначала устраните конфликт опубликованной цены, запланированной цены или ограниченной спеццены."
+    "Resolve the conflicting published price, scheduled price or limited-price special first.": "Сначала устраните конфликт опубликованной цены, запланированной цены или ограниченной спеццены.",
+    "Model (name customers see)": "Модель (имя для клиентов)",
+    "Moved to a new channel of the same API provider; the binding is kept": "Переход на новый канал того же API-провайдера; привязка сохранена",
+    "New models have no binding to keep; bind an API Key group after publication": "У новой модели нет привязки для сохранения; привяжите группу API Key после публикации",
+    "Binding does not depend on this publication and can be done at any time.": "Привязка не зависит от этой публикации и может быть выполнена в любое время.",
+    "API Key group {{name}}": "Группа API Key {{name}}",
+    "No models match the filters.": "Нет моделей, соответствующих фильтрам.",
+    "No resources match the filters.": "Нет ресурсов, соответствующих фильтрам.",
+    "manifest.json was not found in the selected folder.": "В выбранной папке нет manifest.json.",
+    "Files listed in manifest.json are missing from the selected folder.": "В выбранной папке нет файлов, указанных в manifest.json:",
+    "Selected: {{bundle}} ({{version}})": "Выбрано: {{bundle}} ({{version}})",
+    "Choose folder again": "Выбрать папку заново",
+    "Ignored {{count}} files not referenced by manifest.json": "Пропущено файлов, не указанных в manifest.json: {{count}}"
   }
 }

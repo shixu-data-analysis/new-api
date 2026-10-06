@@ -23,6 +23,7 @@ import {
   useReactTable,
   type PaginationState,
 } from '@tanstack/react-table'
+import type { TFunction } from 'i18next'
 import { Copy } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,6 +43,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 import { diffCatalogJson } from '../catalog-json-diff'
 import {
@@ -59,7 +61,8 @@ import { CatalogJsonDiff } from './CatalogJsonDiff'
 import {
   catalogBindingReasonLabel,
   catalogBindingStatusLabel,
-  catalogChangeBadgeVariant,
+  catalogChangeBadgeClass,
+  catalogCredentialRemedy,
   catalogListText,
   catalogModelChangeLabel,
   catalogPriceReasonLabel,
@@ -83,7 +86,7 @@ function ModelChangeCell(props: { review: CatalogModelReview }) {
   }
   return (
     <div className='space-y-1'>
-      <Badge variant={catalogChangeBadgeVariant(kind)}>
+      <Badge className={catalogChangeBadgeClass(kind)}>
         {catalogModelChangeLabel(t, kind)}
       </Badge>
       <div className='text-muted-foreground text-xs tabular-nums'>
@@ -101,13 +104,15 @@ function ModelPendingCell(props: { review: CatalogModelReview }) {
       t('Pricing: {{count}} items', { count: review.pricingCount }),
     review.needsBinding && t('Bind API Key'),
   ].filter((value): value is string => Boolean(value))
-  if (!pending.length && !review.blockers.length) return <span>—</span>
+  if (!pending.length && !review.blockers.length) {
+    return <span className='text-muted-foreground'>—</span>
+  }
   return (
     <div className='space-y-1'>
       {review.blockers.map((blocker) => (
         <div
           key={`${blocker.source}:${blocker.reasonCode}`}
-          className='text-destructive'
+          className='text-destructive font-semibold'
         >
           {t('Blocks publication: {{reason}}', {
             reason:
@@ -148,30 +153,35 @@ function ModelPricingSummary(props: { review: CatalogModelReview }) {
               counts
             )}
       </div>
-      <ul className='space-y-1'>
+      <ul className='space-y-2'>
         {plans.map((planId) => {
           const prices = model.pricing.filter(
             (price) => price.priceGroupId === planId
           )
           return (
-            <li key={planId}>
-              <span className='text-muted-foreground'>
+            <li key={planId} className='flex flex-wrap items-center gap-1.5'>
+              <span className='text-muted-foreground min-w-14 text-xs'>
                 {prices[0]?.priceGroupName}
               </span>
-              {': '}
-              {catalogListText(
-                t,
-                prices.map(
-                  (price) =>
-                    `${price.label === 'Default' ? t('Default') : price.label} ${
-                      price.status === 'REUSE'
-                        ? t('Price kept')
-                        : t('Needs pricing ({{reason}})', {
-                            reason: catalogPriceReasonLabel(t, price.reasonCode),
-                          })
-                    }`
-                )
-              )}
+              {prices.map((price) => (
+                <span
+                  key={price.combinationKey}
+                  className={cn(
+                    'rounded-md px-1.5 py-0.5 text-xs',
+                    price.status === 'REUSE'
+                      ? 'bg-muted text-foreground'
+                      : 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200'
+                  )}
+                >
+                  {price.label === 'Default' ? t('Default') : price.label}
+                  {' · '}
+                  {price.status === 'REUSE'
+                    ? t('Price kept')
+                    : t('Needs pricing ({{reason}})', {
+                        reason: catalogPriceReasonLabel(t, price.reasonCode),
+                      })}
+                </span>
+              ))}
             </li>
           )
         })}
@@ -198,6 +208,56 @@ function ModelPricingSummary(props: { review: CatalogModelReview }) {
       )}
     </div>
   )
+}
+
+const bindingStatusClass = {
+  REUSE: 'text-foreground',
+  NEEDS_BINDING: 'text-orange-700 dark:text-orange-300',
+  BLOCKED: 'text-destructive font-semibold',
+} as const
+
+/** Why the API Key binding has this status and what to do; one entry per line. */
+function bindingExplanation(t: TFunction, review: CatalogModelReview): string[] {
+  const { credential, definition } = review.model
+  if (credential.status === 'REUSE') {
+    const currentChannel = (
+      definition.current?.release as { channelId?: unknown } | undefined
+    )?.channelId
+    const proposedChannel = (
+      definition.proposed.release as { channelId?: unknown } | undefined
+    )?.channelId
+    if (currentChannel !== undefined && currentChannel !== proposedChannel) {
+      return [
+        t(
+          'Moved to a new channel of the same API provider; the binding is kept'
+        ),
+      ]
+    }
+    return [catalogBindingReasonLabel(t, credential.reasonCode)]
+  }
+  if (credential.status === 'NEEDS_BINDING' && review.kind === 'CREATE') {
+    return [
+      t(
+        'New models have no binding to keep; bind an API Key group after publication'
+      ),
+    ]
+  }
+  if (credential.status === 'NEEDS_BINDING') {
+    return [
+      credential.reasonCode === 'CREDENTIAL_GROUP_UNAVAILABLE'
+        ? t(
+            'The previous API Key group is archived or unavailable. Customers cannot use this model now.'
+          )
+        : catalogBindingReasonLabel(t, credential.reasonCode),
+      t(
+        'Binding does not depend on this publication and can be done at any time.'
+      ),
+    ]
+  }
+  return [
+    catalogBindingReasonLabel(t, credential.reasonCode),
+    catalogCredentialRemedy(t, credential.reasonCode),
+  ]
 }
 
 function CatalogModelDetail(props: {
@@ -239,8 +299,8 @@ function CatalogModelDetail(props: {
     )
   }
   return (
-    <div className='grid min-w-0 gap-4 p-2 lg:grid-cols-3'>
-      <div className='min-w-0 lg:col-span-2'>
+    <div className='bg-muted/20 m-1 flex min-w-0 flex-wrap gap-5 rounded-lg border p-4'>
+      <div className='min-w-0 flex-[999_1_520px]'>
         <CatalogJsonDiff
           title={t('Model definition')}
           summary={
@@ -266,9 +326,22 @@ function CatalogModelDetail(props: {
           }
         />
       </div>
-      <div className='min-w-0 space-y-4 text-sm [overflow-wrap:anywhere]'>
+      <div className='min-w-0 flex-[1_1_260px] space-y-4 text-sm [overflow-wrap:anywhere]'>
+        {/* The table truncates these lines; the detail shows them in full. */}
+        <div className='space-y-0.5'>
+          <div className='font-medium'>{catalogModelName(model)}</div>
+          {model.presentationDisplayName &&
+            model.presentationDisplayName !== model.displayName && (
+              <div className='text-muted-foreground text-xs'>
+                {t('Name in Bundle: {{name}}', { name: model.displayName })}
+              </div>
+            )}
+          <div className='text-muted-foreground text-xs'>
+            {t('Model key')} <span className='font-mono'>{model.productKey}</span>
+          </div>
+        </div>
         {review.kind === 'NEW_VERSION' && channel && (
-          <div className='space-y-1'>
+          <div className='bg-muted rounded-md px-2.5 py-2 text-xs'>
             <div>
               {changedLines
                 ? t(
@@ -283,12 +356,12 @@ function CatalogModelDetail(props: {
                     'Model definition is unchanged; the new version comes only from the new version of channel {{channel}}',
                     { channel: channel.key }
                   )}
-            </div>
+            </div>{' '}
             <Button
               type='button'
               variant='link'
               size='sm'
-              className='h-auto p-0'
+              className='h-auto p-0 text-xs'
               onClick={() => props.onViewChannel(channel.key)}
             >
               {t('View this channel')}
@@ -305,18 +378,19 @@ function CatalogModelDetail(props: {
         <ModelPricingSummary review={review} />
         <div className='space-y-1'>
           <div className='font-medium'>{t('API Key binding')}</div>
-          <div>
+          <div className={bindingStatusClass[model.credential.status]}>
             {catalogBindingStatusLabel(t, model.credential.status)}
-            {' · '}
-            {model.credential.reasonCode === 'CREDENTIAL_GROUP_UNAVAILABLE'
-              ? t(
-                  'The previous API Key group is archived or unavailable. Customers cannot use this model now.'
-                )
-              : catalogBindingReasonLabel(t, model.credential.reasonCode)}
           </div>
+          {bindingExplanation(t, review).map((line) => (
+            <div key={line} className='text-muted-foreground'>
+              {line}
+            </div>
+          ))}
           {model.credential.credentialGroupName && (
             <div className='text-muted-foreground'>
-              {t('API Key group')}: {model.credential.credentialGroupName}
+              {t('API Key group {{name}}', {
+                name: model.credential.credentialGroupName,
+              })}
             </div>
           )}
         </div>
@@ -344,13 +418,20 @@ export function CatalogModelPreview(props: {
     pageSize,
   })
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  // A located row stays visible even when it does not match the filters; filters stay unchanged.
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null)
   const sorted = useMemo(
     () => sortCatalogModelReviews(props.reviews),
     [props.reviews]
   )
   const filtered = useMemo(
-    () => sorted.filter((review) => matchesCatalogModelFilters(review, filters)),
-    [filters, sorted]
+    () =>
+      sorted.filter(
+        (review) =>
+          review.model.productKey === pinnedKey ||
+          matchesCatalogModelFilters(review, filters)
+      ),
+    [filters, pinnedKey, sorted]
   )
   const capabilities = [...new Set(props.reviews.map((r) => r.model.capability))]
   const providers = [...new Set(props.reviews.map((r) => r.model.providerId))]
@@ -378,11 +459,19 @@ export function CatalogModelPreview(props: {
   const visible = table.getRowModel().rows.map((row) => row.original)
   const focus = props.focus
   const focusedRow = useRef<HTMLTableRowElement>(null)
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
   useEffect(() => {
     if (!focus) return
-    const index = sorted.findIndex((review) => review.model.productKey === focus.key)
+    const index = sorted
+      .filter(
+        (review) =>
+          review.model.productKey === focus.key ||
+          matchesCatalogModelFilters(review, filtersRef.current)
+      )
+      .findIndex((review) => review.model.productKey === focus.key)
     if (index < 0) return
-    setFilters(emptyCatalogModelFilters)
+    setPinnedKey(focus.key)
     setPagination((value) => ({
       ...value,
       pageIndex: Math.floor(index / value.pageSize),
@@ -397,6 +486,7 @@ export function CatalogModelPreview(props: {
     setFilters((value) => ({ ...value, ...next }))
     setPagination((value) => ({ ...value, pageIndex: 0 }))
     setExpandedKey(null)
+    setPinnedKey(null)
   }
   const activeCount = Object.values(filters).filter(
     (value) => value !== 'ALL'
@@ -531,9 +621,11 @@ export function CatalogModelPreview(props: {
           'aria-label': t('Models'),
           tabIndex: 0,
         }}
-        tableClassName='min-w-[1120px] table-fixed'
+        tableClassName='w-full min-w-[1008px] table-fixed'
+        emptyContent={t('No models match the filters.')}
         columns={[
-          { id: 'model', className: canvasStaticColumnWidth.detail, header: t('Model') },
+          // The model column takes the remaining width, at least the wide tier.
+          { id: 'model', className: 'min-w-52', header: t('Model (name customers see)') },
           {
             id: 'capability',
             className: canvasStaticColumnWidth.compact,
@@ -541,17 +633,17 @@ export function CatalogModelPreview(props: {
           },
           {
             id: 'provider',
-            className: canvasStaticColumnWidth.standard,
+            className: canvasStaticColumnWidth.compact,
             header: t('API provider'),
           },
           {
             id: 'change',
-            className: canvasStaticColumnWidth.standard,
+            className: canvasStaticColumnWidth.compact,
             header: t('Change in this Bundle'),
           },
           {
             id: 'pending',
-            className: canvasStaticColumnWidth.detail,
+            className: canvasStaticColumnWidth.standard,
             header: t('To handle'),
           },
           {
@@ -579,23 +671,28 @@ export function CatalogModelPreview(props: {
                 ref={focus?.key === model.productKey ? focusedRow : undefined}
                 className='align-top [&>td]:whitespace-normal'
               >
-                <TableCell className='max-w-0 align-top [overflow-wrap:anywhere]'>
-                  <div className='font-medium'>{name}</div>
+                <TableCell className='max-w-0 align-top'>
+                  <div className='truncate font-medium' title={name}>
+                    {name}
+                  </div>
                   {model.presentationDisplayName &&
                     model.presentationDisplayName !== model.displayName && (
-                      <div className='text-muted-foreground text-xs'>
+                      <div className='text-muted-foreground truncate text-xs'>
                         {t('Name in Bundle: {{name}}', {
                           name: model.displayName,
                         })}
                       </div>
                     )}
-                  <div className='text-muted-foreground text-xs'>
+                  <div
+                    className='text-muted-foreground truncate text-xs'
+                    title={model.productKey}
+                  >
                     {t('Model key')}{' '}
-                    <span className='font-mono break-all'>{model.productKey}</span>
+                    <span className='font-mono'>{model.productKey}</span>
                   </div>
                 </TableCell>
                 <TableCell className='align-top'>{t(model.capability)}</TableCell>
-                <TableCell className='align-top break-all'>
+                <TableCell className='max-w-0 truncate align-top' title={model.providerId}>
                   {model.providerId}
                 </TableCell>
                 <TableCell className='align-top'>
