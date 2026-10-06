@@ -8833,6 +8833,7 @@
     "Files listed in manifest.json are missing from the selected folder.": "В выбранной папке нет файлов, указанных в manifest.json:",
     "Selected: {{bundle}} ({{version}})": "Выбрано: {{bundle}} ({{version}})",
     "Choose folder again": "Выбрать папку заново",
-    "Ignored {{count}} files not referenced by manifest.json": "Пропущено файлов, не указанных в manifest.json: {{count}}"
+    "Ignored {{count}} files not referenced by manifest.json": "Пропущено файлов, не указанных в manifest.json: {{count}}",
+    "Details: {{text}}": "Подробности: {{text}}"
   }
 }

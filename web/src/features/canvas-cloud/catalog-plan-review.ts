@@ -165,7 +165,10 @@ export function sortCatalogModelReviews(
   )
 }
 
-export type CatalogModelChangeFilter = 'ALL' | 'CHANGED' | CatalogModelChangeKind
+export type CatalogModelChangeFilter =
+  | 'ALL'
+  | 'CHANGED'
+  | CatalogModelChangeKind
 export type CatalogModelPendingFilter =
   | 'ALL'
   | 'PRICING'

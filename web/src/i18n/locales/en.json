@@ -8833,6 +8833,7 @@
     "Files listed in manifest.json are missing from the selected folder.": "Files listed in manifest.json are missing from the selected folder.",
     "Selected: {{bundle}} ({{version}})": "Selected: {{bundle}} ({{version}})",
     "Choose folder again": "Choose folder again",
-    "Ignored {{count}} files not referenced by manifest.json": "Ignored {{count}} files not referenced by manifest.json"
+    "Ignored {{count}} files not referenced by manifest.json": "Ignored {{count}} files not referenced by manifest.json",
+    "Details: {{text}}": "Details: {{text}}"
   }
 }

@@ -48,19 +48,28 @@ describe('catalog JSON diff', () => {
 
     expect(diff.added + diff.removed).toBe(0)
     expect(diff.proposedText).toBe(
-      normalizeCatalogJson({ name: 'x', release: { channelId: 'a', execution: { a: 2, b: 1 } } })
+      normalizeCatalogJson({
+        name: 'x',
+        release: { channelId: 'a', execution: { a: 2, b: 1 } },
+      })
     )
   })
 
   it('reports reordered array items as a change', () => {
-    const diff = diffCatalogJson({ qualities: ['1K', '2K'] }, { qualities: ['2K', '1K'] })
+    const diff = diffCatalogJson(
+      { qualities: ['1K', '2K'] },
+      { qualities: ['2K', '1K'] }
+    )
 
     expect(diff.added).toBeGreaterThan(0)
     expect(diff.removed).toBeGreaterThan(0)
   })
 
   it('shows a changed value as one removed line and one added line', () => {
-    const diff = diffCatalogJson({ limit: 1, name: 'x' }, { limit: 2, name: 'x' })
+    const diff = diffCatalogJson(
+      { limit: 1, name: 'x' },
+      { limit: 2, name: 'x' }
+    )
 
     expect(diff.lines.filter((line) => line.kind !== 'same')).toEqual([
       { kind: 'removed', text: '  "limit": 1,' },
@@ -73,14 +82,21 @@ describe('catalog JSON diff', () => {
 
     expect(diff.hasCurrent).toBe(false)
     expect(diff.lines.every((line) => line.kind === 'same')).toBe(true)
-    expect(diff.lines.map((line) => line.text).join('\n')).toBe(diff.proposedText)
+    expect(diff.lines.map((line) => line.text).join('\n')).toBe(
+      diff.proposedText
+    )
   })
 
   it('compares a large definition changed at both ends without a quadratic table', () => {
     const paths = Object.fromEntries(
       Array.from({ length: 6000 }, (_, index) => [
         `/path-${String(index).padStart(5, '0')}`,
-        { get: { summary: `Operation ${index}`, responses: { 200: { description: 'OK' } } } },
+        {
+          get: {
+            summary: `Operation ${index}`,
+            responses: { 200: { description: 'OK' } },
+          },
+        },
       ])
     )
     const before = { info: { version: '1.0.0' }, paths, zzz: { tail: 1 } }
@@ -108,7 +124,9 @@ describe('catalog JSON diff', () => {
       const before = Array.from({ length: 2200 }, () => `v${random(6)}`)
       const after = before
         .filter(() => random(10) > 0)
-        .flatMap((value) => (random(8) === 0 ? [value, `v${random(6)}`] : [value]))
+        .flatMap((value) =>
+          random(8) === 0 ? [value, `v${random(6)}`] : [value]
+        )
       const left = normalizeCatalogJson(before).split('\n')
       const right = normalizeCatalogJson(after).split('\n')
       expect(left.length * right.length).toBeGreaterThan(4_194_304)
@@ -118,8 +136,16 @@ describe('catalog JSON diff', () => {
       expect(diff.lines.filter((line) => line.kind === 'same')).toHaveLength(
         referenceLcsLength(left, right)
       )
-      expect(diff.lines.filter((line) => line.kind !== 'added').map((line) => line.text)).toEqual(left)
-      expect(diff.lines.filter((line) => line.kind !== 'removed').map((line) => line.text)).toEqual(right)
+      expect(
+        diff.lines
+          .filter((line) => line.kind !== 'added')
+          .map((line) => line.text)
+      ).toEqual(left)
+      expect(
+        diff.lines
+          .filter((line) => line.kind !== 'removed')
+          .map((line) => line.text)
+      ).toEqual(right)
     }
   })
 
@@ -168,10 +194,14 @@ describe('catalog JSON diff', () => {
         referenceLcsLength(left, right)
       )
       expect(
-        diff.lines.filter((line) => line.kind !== 'added').map((line) => line.text)
+        diff.lines
+          .filter((line) => line.kind !== 'added')
+          .map((line) => line.text)
       ).toEqual(left)
       expect(
-        diff.lines.filter((line) => line.kind !== 'removed').map((line) => line.text)
+        diff.lines
+          .filter((line) => line.kind !== 'removed')
+          .map((line) => line.text)
       ).toEqual(right)
     }
     expect([...sampled].sort()).toEqual(['a', 'b', 'c', 'd'])
@@ -185,26 +215,49 @@ describe('catalog JSON diff', () => {
     ['completely different', ['a', 'b', 'c'], ['x', 'y', 'z', 'w']],
     ['repeated lines', ['a', 'a', 'b', 'a', 'a'], ['a', 'b', 'a', 'b', 'a']],
     ['reordered array', ['a', 'b', 'c', 'd'], ['d', 'c', 'b', 'a']],
-    ['very different lengths', ['a'], [...Array.from({ length: 50 }, (_, i) => `v${i}`), 'a']],
+    [
+      'very different lengths',
+      ['a'],
+      [...Array.from({ length: 50 }, (_, i) => `v${i}`), 'a'],
+    ],
     ['odd length difference', ['a', 'b', 'c', 'd', 'e'], ['b', 'd']],
-    ['even length difference', ['a', 'b', 'c', 'd', 'e', 'f'], ['a', 'x', 'f', 'y']],
-  ])('keeps the reference length and rebuilds both sides for %s', (_name, before, after) => {
-    const left = normalizeCatalogJson(before).split('\n')
-    const right = normalizeCatalogJson(after).split('\n')
-    const diff = diffCatalogJson(before, after)
+    [
+      'even length difference',
+      ['a', 'b', 'c', 'd', 'e', 'f'],
+      ['a', 'x', 'f', 'y'],
+    ],
+  ])(
+    'keeps the reference length and rebuilds both sides for %s',
+    (_name, before, after) => {
+      const left = normalizeCatalogJson(before).split('\n')
+      const right = normalizeCatalogJson(after).split('\n')
+      const diff = diffCatalogJson(before, after)
 
-    expect(diff.lines.filter((line) => line.kind === 'same')).toHaveLength(
-      referenceLcsLength(left, right)
-    )
-    expect(diff.removed).toBe(left.length - referenceLcsLength(left, right))
-    expect(diff.added).toBe(right.length - referenceLcsLength(left, right))
-    expect(diff.lines.filter((line) => line.kind !== 'added').map((line) => line.text)).toEqual(left)
-    expect(diff.lines.filter((line) => line.kind !== 'removed').map((line) => line.text)).toEqual(right)
-  })
+      expect(diff.lines.filter((line) => line.kind === 'same')).toHaveLength(
+        referenceLcsLength(left, right)
+      )
+      expect(diff.removed).toBe(left.length - referenceLcsLength(left, right))
+      expect(diff.added).toBe(right.length - referenceLcsLength(left, right))
+      expect(
+        diff.lines
+          .filter((line) => line.kind !== 'added')
+          .map((line) => line.text)
+      ).toEqual(left)
+      expect(
+        diff.lines
+          .filter((line) => line.kind !== 'removed')
+          .map((line) => line.text)
+      ).toEqual(right)
+    }
+  )
 
   it('keeps every enclosing field line of a deep change when folding', () => {
     const before = {
-      a: 1, b: 2, c: 3, d: 4, e: 5,
+      a: 1,
+      b: 2,
+      c: 3,
+      d: 4,
+      e: 5,
       release: { publicInteraction: { referenceLimits: { max: 1 } } },
     }
     const after = {

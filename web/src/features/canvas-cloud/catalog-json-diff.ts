@@ -123,7 +123,12 @@ function middleSnake(
       backward[offset + c] = x
       const k = delta - c
       if (!odd && k >= -d && k <= d && x + forward[offset + k] >= n) {
-        return { startX: n - x, startY: m - y, endX: n - startX, endY: m - startY }
+        return {
+          startX: n - x,
+          startY: m - y,
+          endX: n - startX,
+          endY: m - startY,
+        }
       }
     }
   }
@@ -210,17 +215,50 @@ function myersDiff(
   aHi -= suffix
   bHi -= suffix
   if (aLo === aHi || bLo === bHi) {
-    for (let x = aLo; x < aHi; x += 1) out.push({ kind: 'removed', text: left[x] })
-    for (let y = bLo; y < bHi; y += 1) out.push({ kind: 'added', text: right[y] })
+    for (let x = aLo; x < aHi; x += 1) {
+      out.push({ kind: 'removed', text: left[x] })
+    }
+    for (let y = bLo; y < bHi; y += 1) {
+      out.push({ kind: 'added', text: right[y] })
+    }
   } else if ((aHi - aLo) * (bHi - bLo) <= tableDiffCells) {
     tableDiff(left, aLo, aHi, right, bLo, bHi, out)
   } else {
-    const snake = middleSnake(left, aLo, aHi, right, bLo, bHi, forward, backward)
-    myersDiff(left, right, aLo, aLo + snake.startX, bLo, bLo + snake.startY, out, forward, backward)
+    const snake = middleSnake(
+      left,
+      aLo,
+      aHi,
+      right,
+      bLo,
+      bHi,
+      forward,
+      backward
+    )
+    myersDiff(
+      left,
+      right,
+      aLo,
+      aLo + snake.startX,
+      bLo,
+      bLo + snake.startY,
+      out,
+      forward,
+      backward
+    )
     for (let x = snake.startX; x < snake.endX; x += 1) {
       out.push({ kind: 'same', text: left[aLo + x] })
     }
-    myersDiff(left, right, aLo + snake.endX, aHi, bLo + snake.endY, bHi, out, forward, backward)
+    myersDiff(
+      left,
+      right,
+      aLo + snake.endX,
+      aHi,
+      bLo + snake.endY,
+      bHi,
+      out,
+      forward,
+      backward
+    )
   }
   for (let index = 0; index < suffix; index += 1) {
     out.push({ kind: 'same', text: left[aHi + index] })
@@ -285,7 +323,17 @@ export function diffCatalogJson(
   const raw: CatalogJsonDiffLine[] = []
   // Every sub-problem is smaller, so buffers sized for the whole problem serve all of them.
   const size = 2 * Math.ceil((left.length + right.length) / 2) + 3
-  myersDiff(left, right, 0, left.length, 0, right.length, raw, new Int32Array(size), new Int32Array(size))
+  myersDiff(
+    left,
+    right,
+    0,
+    left.length,
+    0,
+    right.length,
+    raw,
+    new Int32Array(size),
+    new Int32Array(size)
+  )
   const middle = removedFirst(raw)
   const lines: CatalogJsonDiffLine[] = [
     ...next.slice(0, prefix).map((text) => ({ kind: 'same' as const, text })),

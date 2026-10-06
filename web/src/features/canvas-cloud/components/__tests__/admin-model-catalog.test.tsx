@@ -166,7 +166,11 @@ function planModel(overrides: Record<string, unknown> = {}) {
     currentBundleVersion: null,
     customerVisibleAfterPublish: false,
     credential: unboundCredential,
-    publicInteraction: { defaultParams: {}, paramSchema: {}, referenceLimits: {} },
+    publicInteraction: {
+      defaultParams: {},
+      paramSchema: {},
+      referenceLimits: {},
+    },
     pricing: [],
     definition: {
       current: null,
@@ -432,7 +436,8 @@ describe('Canvas model catalog folder upload', () => {
     expect(detail).toHaveTextContent(
       'Reason: A catalog source file is not valid JSON.'
     )
-    expect(detail).not.toHaveTextContent('File is not valid JSON.')
+    // The localized message is generic, so Cloud's summary follows as the details.
+    expect(detail).toHaveTextContent('Details: File is not valid JSON.')
     expect(detail).not.toHaveTextContent('Path:')
     expect(mocks.publish).not.toHaveBeenCalled()
   })
@@ -495,7 +500,8 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
       target: {
         files: bundleFiles(modelDefinition).filter(
-          (file) => file.webkitRelativePath !== 'bundle/profiles/test.profile.json'
+          (file) =>
+            file.webkitRelativePath !== 'bundle/profiles/test.profile.json'
         ),
       },
     })
@@ -520,7 +526,9 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
 
-    expect(await screen.findByText('Selected: canvas.test (7)')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Selected: canvas.test (7)')
+    ).toBeInTheDocument()
     expect(
       screen.queryByText(
         'The folder must contain manifest.json and every file referenced by it.'
@@ -547,7 +555,9 @@ describe('Canvas model catalog folder upload', () => {
       params: {},
     })
     mocks.plan.mockResolvedValue(
-      catalogPlan({ diagnostics: [ignored('docs/a.json'), ignored('tests/b.json')] })
+      catalogPlan({
+        diagnostics: [ignored('docs/a.json'), ignored('tests/b.json')],
+      })
     )
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -638,7 +648,9 @@ describe('Canvas model catalog folder upload', () => {
         pricingSummary: { reused: 1, needsPricing: 1 },
         models: [
           planModel({
-            pricing: [priceItem({ status: 'NEEDS_PRICING', reasonCode: 'NEW_MODEL' })],
+            pricing: [
+              priceItem({ status: 'NEEDS_PRICING', reasonCode: 'NEW_MODEL' }),
+            ],
           }),
           ...Array.from({ length: 20 }, (_, index) =>
             planModel({
@@ -734,17 +746,25 @@ describe('Canvas model catalog folder upload', () => {
         action: 'CONFLICT',
         blocking: true,
         diagnostics: [
-          planDiagnostic('ARTIFACT_VERSION_CONFLICT', 'catalog.plan.artifactVersionConflict', {
-            artifactKind: 'ADAPTER_PROFILE',
-            artifactKey: 'test-profile@1.0.0',
-          }),
-          planDiagnostic('CREDENTIAL_BINDING_BLOCKED', 'catalog.plan.credentialBindingBlocked', {
-            modelKey: 'canvas.image.preview',
-            reasonCode: 'PROVIDER_CHANGED',
-            credentialGroupName: 'Old group',
-            requiredScheme: 'bearerAuth',
-            supportedSchemes: ['bearerAuth'],
-          }),
+          planDiagnostic(
+            'ARTIFACT_VERSION_CONFLICT',
+            'catalog.plan.artifactVersionConflict',
+            {
+              artifactKind: 'ADAPTER_PROFILE',
+              artifactKey: 'test-profile@1.0.0',
+            }
+          ),
+          planDiagnostic(
+            'CREDENTIAL_BINDING_BLOCKED',
+            'catalog.plan.credentialBindingBlocked',
+            {
+              modelKey: 'canvas.image.preview',
+              reasonCode: 'PROVIDER_CHANGED',
+              credentialGroupName: 'Old group',
+              requiredScheme: 'bearerAuth',
+              supportedSchemes: ['bearerAuth'],
+            }
+          ),
         ],
         models: [
           planModel({
@@ -761,8 +781,16 @@ describe('Canvas model catalog folder upload', () => {
             ...sharedChange('MODEL_DEFINITION_ARTIFACT', 'test-profile@1.0.0'),
             action: 'CONFLICT',
             definition: {
-              current: { id: 'test-profile', version: '1.0.0', displayName: 'Old' },
-              proposed: { id: 'test-profile', version: '1.0.0', displayName: 'New' },
+              current: {
+                id: 'test-profile',
+                version: '1.0.0',
+                displayName: 'Old',
+              },
+              proposed: {
+                id: 'test-profile',
+                version: '1.0.0',
+                displayName: 'New',
+              },
             },
           },
         ],
@@ -816,7 +844,10 @@ describe('Canvas model catalog folder upload', () => {
 
   it('explains an already published Bundle and keeps publication disabled', async () => {
     mocks.plan.mockResolvedValue(
-      catalogPlan({ action: 'REPLAY', models: [planModel({ action: 'NO_OP' })] })
+      catalogPlan({
+        action: 'REPLAY',
+        models: [planModel({ action: 'NO_OP' })],
+      })
     )
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -1179,7 +1210,9 @@ describe('Canvas model catalog folder upload', () => {
         target: { files: bundleFiles(modelDefinition) },
       })
       fireEvent.click(
-        await screen.findByRole('button', { name: 'Review publication content' })
+        await screen.findByRole('button', {
+          name: 'Review publication content',
+        })
       )
       fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
 
@@ -1254,7 +1287,9 @@ describe('Canvas model catalog folder upload', () => {
           resolveFirst = resolve
         })
       )
-      .mockResolvedValueOnce(catalogPlan({ importId: IMPORT_CURRENT_ID, bundleVersion: 'current' }))
+      .mockResolvedValueOnce(
+        catalogPlan({ importId: IMPORT_CURRENT_ID, bundleVersion: 'current' })
+      )
     render(
       <QueryClientProvider client={new QueryClient()}>
         <AdminModelCatalog principalId={ADMIN_ONE_ID} />
@@ -1266,14 +1301,12 @@ describe('Canvas model catalog folder upload', () => {
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
     fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
 
-    expect(
-      await screen.findByText(/First import current/)
-    ).toBeVisible()
-    resolveFirst?.(catalogPlan({ importId: IMPORT_OLD_ID, bundleVersion: 'old' }))
+    expect(await screen.findByText(/First import current/)).toBeVisible()
+    resolveFirst?.(
+      catalogPlan({ importId: IMPORT_OLD_ID, bundleVersion: 'old' })
+    )
     await waitFor(() =>
-      expect(
-        screen.queryByText(/First import old/)
-      ).not.toBeInTheDocument()
+      expect(screen.queryByText(/First import old/)).not.toBeInTheDocument()
     )
     expect(screen.getByText(/First import current/)).toBeVisible()
   })

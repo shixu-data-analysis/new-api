@@ -57,7 +57,6 @@ import {
 import type { ModelCatalogChange } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
-import { CatalogJsonDiff } from './CatalogJsonDiff'
 import {
   catalogBindingReasonLabel,
   catalogBindingStatusLabel,
@@ -67,6 +66,7 @@ import {
   catalogModelChangeLabel,
   catalogPriceReasonLabel,
 } from './catalog-plan-labels'
+import { CatalogJsonDiff } from './CatalogJsonDiff'
 
 export type CatalogRowFocus = { key: string; nonce: number }
 
@@ -134,7 +134,9 @@ function ModelPendingCell(props: { review: CatalogModelReview }) {
 function ModelPricingSummary(props: { review: CatalogModelReview }) {
   const { t } = useTranslation()
   const { model } = props.review
-  const specifications = new Set(model.pricing.map((price) => price.combinationKey))
+  const specifications = new Set(
+    model.pricing.map((price) => price.combinationKey)
+  )
   const plans = [...new Set(model.pricing.map((price) => price.priceGroupId))]
   const needsPricing = model.pricing.filter(
     (price) => price.status === 'NEEDS_PRICING'
@@ -217,7 +219,10 @@ const bindingStatusClass = {
 } as const
 
 /** Why the API Key binding has this status and what to do; one entry per line. */
-function bindingExplanation(t: TFunction, review: CatalogModelReview): string[] {
+function bindingExplanation(
+  t: TFunction,
+  review: CatalogModelReview
+): string[] {
   const { credential, definition } = review.model
   if (credential.status === 'REUSE') {
     const currentChannel = (
@@ -285,7 +290,9 @@ function CatalogModelDetail(props: {
   const changedLines = diff.added + diff.removed > 0
   let summary = t('Same as the current version')
   if (review.kind === 'CREATE') {
-    summary = t('New model with no current version; showing the full new version')
+    summary = t(
+      'New model with no current version; showing the full new version'
+    )
   } else if (changedLines) {
     summary = t(
       'Compared with the current version · {{added}} lines added, {{removed}} lines removed',
@@ -306,7 +313,9 @@ function CatalogModelDetail(props: {
           summary={
             <>
               <div>{summary}</div>
-              <div>{t('Client configuration is in release.publicInteraction')}</div>
+              <div>
+                {t('Client configuration is in release.publicInteraction')}
+              </div>
             </>
           }
           diff={diff}
@@ -337,7 +346,8 @@ function CatalogModelDetail(props: {
               </div>
             )}
           <div className='text-muted-foreground text-xs'>
-            {t('Model key')} <span className='font-mono'>{model.productKey}</span>
+            {t('Model key')}{' '}
+            <span className='font-mono'>{model.productKey}</span>
           </div>
         </div>
         {review.kind === 'NEW_VERSION' && channel && (
@@ -433,9 +443,14 @@ export function CatalogModelPreview(props: {
       ),
     [filters, pinnedKey, sorted]
   )
-  const capabilities = [...new Set(props.reviews.map((r) => r.model.capability))]
+  const capabilities = [
+    ...new Set(props.reviews.map((r) => r.model.capability)),
+  ]
   const providers = [...new Set(props.reviews.map((r) => r.model.providerId))]
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pagination.pageSize))
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filtered.length / pagination.pageSize)
+  )
   const effectivePagination = {
     ...pagination,
     pageIndex: Math.min(pagination.pageIndex, pageCount - 1),
@@ -514,7 +529,9 @@ export function CatalogModelPreview(props: {
         <DataTableColumnFilterField label={t('Capability')}>
           <Select
             value={filters.capability}
-            onValueChange={(value) => changeFilter({ capability: value ?? 'ALL' })}
+            onValueChange={(value) =>
+              changeFilter({ capability: value ?? 'ALL' })
+            }
           >
             <SelectTrigger className='w-full' aria-label={t('Capability')}>
               <CanvasLocalizedSelectValue
@@ -535,7 +552,9 @@ export function CatalogModelPreview(props: {
         <DataTableColumnFilterField label={t('API provider')}>
           <Select
             value={filters.providerId}
-            onValueChange={(value) => changeFilter({ providerId: value ?? 'ALL' })}
+            onValueChange={(value) =>
+              changeFilter({ providerId: value ?? 'ALL' })
+            }
           >
             <SelectTrigger className='w-full' aria-label={t('API provider')}>
               <CanvasLocalizedSelectValue
@@ -598,7 +617,9 @@ export function CatalogModelPreview(props: {
               <CanvasLocalizedSelectValue
                 value={filters.pending === 'ALL' ? '' : filters.pending}
                 displayValue={
-                  pendingOptions.find(([value]) => value === filters.pending)?.[1]
+                  pendingOptions.find(
+                    ([value]) => value === filters.pending
+                  )?.[1]
                 }
                 emptyLabelKey='All attention states'
               />
@@ -625,7 +646,11 @@ export function CatalogModelPreview(props: {
         emptyContent={t('No models match the filters.')}
         columns={[
           // The model column takes the remaining width, at least the wide tier.
-          { id: 'model', className: 'min-w-52', header: t('Model (name customers see)') },
+          {
+            id: 'model',
+            className: 'min-w-52',
+            header: t('Model (name customers see)'),
+          },
           {
             id: 'capability',
             className: canvasStaticColumnWidth.compact,
@@ -691,8 +716,13 @@ export function CatalogModelPreview(props: {
                     <span className='font-mono'>{model.productKey}</span>
                   </div>
                 </TableCell>
-                <TableCell className='align-top'>{t(model.capability)}</TableCell>
-                <TableCell className='max-w-0 truncate align-top' title={model.providerId}>
+                <TableCell className='align-top'>
+                  {t(model.capability)}
+                </TableCell>
+                <TableCell
+                  className='max-w-0 truncate align-top'
+                  title={model.providerId}
+                >
                   {model.providerId}
                 </TableCell>
                 <TableCell className='align-top'>
@@ -713,7 +743,9 @@ export function CatalogModelPreview(props: {
                     className='h-auto p-0'
                     aria-expanded={expanded}
                     aria-controls={expanded ? detailId : undefined}
-                    onClick={() => setExpandedKey(expanded ? null : model.productKey)}
+                    onClick={() =>
+                      setExpandedKey(expanded ? null : model.productKey)
+                    }
                   >
                     {expanded ? t('Collapse') : t('View details')}
                   </Button>

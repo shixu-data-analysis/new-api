@@ -56,7 +56,9 @@ describe('catalog source reader', () => {
       sourceFile('README.md', new Uint8Array([1])),
       sourceFile('.git/config', new Uint8Array([2])),
     ]
-    const unrelatedReaders = unrelated.map((file) => vi.spyOn(file, 'arrayBuffer'))
+    const unrelatedReaders = unrelated.map((file) =>
+      vi.spyOn(file, 'arrayBuffer')
+    )
 
     const source = await readCatalogSource([...unrelated, ...bundleFiles()])
 
@@ -118,9 +120,10 @@ describe('catalog source reader', () => {
   it('lists every referenced file that is missing from the folder', async () => {
     const files = bundleFiles().filter(
       (file) =>
-        !['catalog/models.json', 'catalog/profiles/video/test.profile.json'].includes(
-          file.webkitRelativePath
-        )
+        ![
+          'catalog/models.json',
+          'catalog/profiles/video/test.profile.json',
+        ].includes(file.webkitRelativePath)
     )
 
     await expect(readCatalogSource(files)).rejects.toMatchObject({
@@ -142,7 +145,16 @@ describe('catalog source reader', () => {
 
   it('removes one selected root segment and falls back to the file name', async () => {
     const standalone = new File(
-      [JSON.stringify({ ...manifest, providers: 'providers.json', channels: 'providers.json', models: 'providers.json', openapiContracts: [], adapterProfiles: [] })],
+      [
+        JSON.stringify({
+          ...manifest,
+          providers: 'providers.json',
+          channels: 'providers.json',
+          models: 'providers.json',
+          openapiContracts: [],
+          adapterProfiles: [],
+        }),
+      ],
       'manifest.json'
     )
 

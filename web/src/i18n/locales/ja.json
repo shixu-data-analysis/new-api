@@ -8833,6 +8833,7 @@
     "Files listed in manifest.json are missing from the selected folder.": "選択したフォルダーに manifest.json に記載されたファイルがありません：",
     "Selected: {{bundle}} ({{version}})": "選択中：{{bundle}}（{{version}}）",
     "Choose folder again": "フォルダーを選び直す",
-    "Ignored {{count}} files not referenced by manifest.json": "manifest.json に参照されていない {{count}} 件のファイルを無視しました"
+    "Ignored {{count}} files not referenced by manifest.json": "manifest.json に参照されていない {{count}} 件のファイルを無視しました",
+    "Details: {{text}}": "詳細：{{text}}"
   }
 }

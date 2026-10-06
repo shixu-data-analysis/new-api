@@ -8833,6 +8833,7 @@
     "Files listed in manifest.json are missing from the selected folder.": "所選資料夾缺少 manifest.json 列出的檔案：",
     "Selected: {{bundle}} ({{version}})": "已選擇：{{bundle}}（{{version}}）",
     "Choose folder again": "重新選擇資料夾",
-    "Ignored {{count}} files not referenced by manifest.json": "已忽略 {{count}} 個未被 manifest 引用的檔案"
+    "Ignored {{count}} files not referenced by manifest.json": "已忽略 {{count}} 個未被 manifest 引用的檔案",
+    "Details: {{text}}": "詳情：{{text}}"
   }
 }

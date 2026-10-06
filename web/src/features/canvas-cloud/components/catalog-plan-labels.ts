@@ -138,7 +138,9 @@ export function catalogCredentialRemedy(
     )
   }
   if (reasonCode === 'CREDENTIAL_SCHEME_MISMATCH') {
-    return t('Make this API Key group support the required authentication first.')
+    return t(
+      'Make this API Key group support the required authentication first.'
+    )
   }
   return t('Resolve the conflicting historical API Key bindings first.')
 }

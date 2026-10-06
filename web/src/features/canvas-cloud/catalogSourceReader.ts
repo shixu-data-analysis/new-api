@@ -57,7 +57,9 @@ async function readBytes(file: File, path: string): Promise<ArrayBuffer> {
 function manifestReferences(bytes: ArrayBuffer): string[] {
   let manifest: unknown
   try {
-    manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
+    manifest = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    )
   } catch {
     return []
   }
@@ -73,7 +75,9 @@ function manifestReferences(bytes: ArrayBuffer): string[] {
   return [
     ...new Set(
       listed
-        .filter((path): path is string => typeof path === 'string' && path !== '')
+        .filter(
+          (path): path is string => typeof path === 'string' && path !== ''
+        )
         .map((path) => path.replaceAll('\\', '/'))
     ),
   ]
@@ -125,7 +129,10 @@ export async function readCatalogSource(
   }
   const closure = new Set(references)
   const sources = [
-    { path: manifestPath, contentBase64: encodeBase64(manifestBytes, manifestPath) },
+    {
+      path: manifestPath,
+      contentBase64: encodeBase64(manifestBytes, manifestPath),
+    },
     ...(await Promise.all(
       selected
         .filter(({ path }) => path !== manifestPath && closure.has(path))

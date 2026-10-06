@@ -66,7 +66,11 @@ export function catalogPlanModel(
     currentModelId: null,
     currentBundleVersion: null,
     customerVisibleAfterPublish: true,
-    publicInteraction: { defaultParams: {}, paramSchema: {}, referenceLimits: {} },
+    publicInteraction: {
+      defaultParams: {},
+      paramSchema: {},
+      referenceLimits: {},
+    },
     pricing: [catalogPriceItem()],
     credential: {
       status: 'REUSE',

@@ -55,7 +55,6 @@ import {
 import type { ModelCatalogPlan } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
-import { CatalogJsonDiff } from './CatalogJsonDiff'
 import {
   catalogChangeBadgeClass,
   catalogListText,
@@ -63,6 +62,7 @@ import {
   catalogResourceTypeLabel,
   catalogSharedChangeLabel,
 } from './catalog-plan-labels'
+import { CatalogJsonDiff } from './CatalogJsonDiff'
 
 export type CatalogSharedFocus = {
   resourceType: CatalogSharedResourceType
@@ -223,7 +223,10 @@ export function CatalogSharedResources(props: {
       ),
     [filters, pinnedKey, sorted]
   )
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pagination.pageSize))
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filtered.length / pagination.pageSize)
+  )
   const effectivePagination = {
     ...pagination,
     pageIndex: Math.min(pagination.pageIndex, pageCount - 1),
@@ -303,7 +306,9 @@ export function CatalogSharedResources(props: {
           >
             <SelectTrigger className='w-full' aria-label={t('Resource type')}>
               <CanvasLocalizedSelectValue
-                value={filters.resourceType === 'ALL' ? '' : filters.resourceType}
+                value={
+                  filters.resourceType === 'ALL' ? '' : filters.resourceType
+                }
                 displayValue={
                   filters.resourceType === 'ALL'
                     ? undefined
@@ -402,7 +407,9 @@ export function CatalogSharedResources(props: {
               <TableRow
                 id={sharedRowId(change)}
                 ref={
-                  focus && sharedRowKey(focus) === rowKey ? focusedRow : undefined
+                  focus && sharedRowKey(focus) === rowKey
+                    ? focusedRow
+                    : undefined
                 }
                 className='align-top [&>td]:whitespace-normal'
               >

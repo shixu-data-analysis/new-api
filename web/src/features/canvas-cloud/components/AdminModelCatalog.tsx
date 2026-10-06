@@ -34,12 +34,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   getServerErrorCode,
   getServerErrorStatus,
@@ -71,7 +66,10 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { catalogPlanDiagnosticText } from './catalog-plan-labels'
-import { CatalogModelPreview, type CatalogRowFocus } from './CatalogModelPreview'
+import {
+  CatalogModelPreview,
+  type CatalogRowFocus,
+} from './CatalogModelPreview'
 import {
   CatalogSharedResources,
   type CatalogSharedFocus,
@@ -102,6 +100,14 @@ function diagnosticDetails(
       })
     : fallbackMessage
   // A localized message replaces Cloud's English text; without one the Cloud text is the reason.
+  // A generic localized message (no parameters) would lose the specifics, such as the field
+  // name of a schema error, so Cloud's summary follows it as the details.
+  const localized = message !== fallbackMessage
+  const generic = Object.keys(diagnostic.params ?? {}).length === 0
+  const details =
+    localized && generic && diagnostic.valueSummary
+      ? t('Details: {{text}}', { text: diagnostic.valueSummary })
+      : null
   return [
     diagnostic.profileKey &&
       `${t('Adapter Profile')}: ${diagnostic.profileKey}`,
@@ -111,6 +117,7 @@ function diagnosticDetails(
       diagnostic.jsonPath !== '$' &&
       `${t('Path')}: ${diagnostic.jsonPath}`,
     `${t('Reason')}: ${message}`,
+    details,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -139,7 +146,9 @@ function errorDetails(
   if (error instanceof CatalogSourceReadError) {
     const message = {
       NO_FILES_SELECTED: t('Select a catalog source folder.'),
-      MANIFEST_MISSING: t('manifest.json was not found in the selected folder.'),
+      MANIFEST_MISSING: t(
+        'manifest.json was not found in the selected folder.'
+      ),
       REFERENCED_FILES_MISSING: t(
         'Files listed in manifest.json are missing from the selected folder.'
       ),
@@ -210,8 +219,7 @@ const countBadgeClass = {
     'rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-800 dark:bg-blue-500/20 dark:text-blue-200',
   pending:
     'rounded-full bg-orange-100 px-2 text-xs font-medium text-orange-800 dark:bg-orange-500/20 dark:text-orange-200',
-  conflict:
-    'bg-destructive rounded-full px-2 text-xs font-medium text-white',
+  conflict: 'bg-destructive rounded-full px-2 text-xs font-medium text-white',
 } as const
 
 export function AdminModelCatalog(props: {
@@ -441,20 +449,20 @@ export function AdminModelCatalog(props: {
   // One folder picker serves the large upload area and the collapsed line after a plan.
   const folderPicker = (
     <Input
-                    className='sr-only'
-                    type='file'
-                    multiple
-                    disabled={publisher.isPending}
-                    aria-label={t('Choose Bundle folder')}
-                    ref={(node) => {
-                      folderInput.current = node
-                      if (node) node.setAttribute('webkitdirectory', '')
-                    }}
-                    onChange={(event) => {
-                      void selectFolder(event.target.files)
-                      event.target.value = ''
-                    }}
-                  />
+      className='sr-only'
+      type='file'
+      multiple
+      disabled={publisher.isPending}
+      aria-label={t('Choose Bundle folder')}
+      ref={(node) => {
+        folderInput.current = node
+        if (node) node.setAttribute('webkitdirectory', '')
+      }}
+      onChange={(event) => {
+        void selectFolder(event.target.files)
+        event.target.value = ''
+      }}
+    />
   )
   const ignoredFiles = warningDiagnostics.filter(
     (diagnostic) => diagnostic.code === 'CATALOG_SOURCE_FILE_IGNORED'
@@ -529,7 +537,9 @@ export function AdminModelCatalog(props: {
             {plan ? (
               <Card size='sm'>
                 <CardContent className='flex flex-wrap items-center gap-x-4 gap-y-2 text-sm'>
-                  <span className='font-medium'>{t('Model catalog Bundle')}</span>
+                  <span className='font-medium'>
+                    {t('Model catalog Bundle')}
+                  </span>
                   <span className='text-muted-foreground [overflow-wrap:anywhere]'>
                     {t('Selected: {{bundle}} ({{version}})', {
                       bundle: plan.bundleId,
@@ -559,39 +569,39 @@ export function AdminModelCatalog(props: {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='space-y-4'>
-                <label className='hover:bg-muted/40 focus-within:ring-ring flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors focus-within:ring-2 sm:p-8'>
-                  <FolderUp
-                    className='text-muted-foreground size-8'
-                    aria-hidden='true'
-                  />
-                  <span className='font-medium'>
-                    {t('Choose Bundle folder')}
-                  </span>
-                  <span className='text-muted-foreground text-sm'>
-                    {t(
-                      'The folder must contain manifest.json and every file referenced by it.'
-                    )}
-                  </span>
-                  {folderPicker}
-                </label>
-                {failure && (
-                  <div
-                    role='alert'
-                    className='border-destructive/40 bg-destructive/5 text-destructive flex gap-3 rounded-lg border p-3 text-sm'
-                  >
-                    <ShieldAlert className='mt-0.5 size-4 shrink-0' />
-                    <div>
-                      <div>{t(failure.message)}</div>
-                      {failure.details.length > 0 && (
-                        <ul className='mt-2 list-disc space-y-1 pl-4'>
-                          {failure.details.map((detail) => (
-                            <li key={detail}>{detail}</li>
-                          ))}
-                        </ul>
+                  <label className='hover:bg-muted/40 focus-within:ring-ring flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors focus-within:ring-2 sm:p-8'>
+                    <FolderUp
+                      className='text-muted-foreground size-8'
+                      aria-hidden='true'
+                    />
+                    <span className='font-medium'>
+                      {t('Choose Bundle folder')}
+                    </span>
+                    <span className='text-muted-foreground text-sm'>
+                      {t(
+                        'The folder must contain manifest.json and every file referenced by it.'
                       )}
+                    </span>
+                    {folderPicker}
+                  </label>
+                  {failure && (
+                    <div
+                      role='alert'
+                      className='border-destructive/40 bg-destructive/5 text-destructive flex gap-3 rounded-lg border p-3 text-sm'
+                    >
+                      <ShieldAlert className='mt-0.5 size-4 shrink-0' />
+                      <div>
+                        <div>{t(failure.message)}</div>
+                        {failure.details.length > 0 && (
+                          <ul className='mt-2 list-disc space-y-1 pl-4'>
+                            {failure.details.map((detail) => (
+                              <li key={detail}>{detail}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -610,10 +620,13 @@ export function AdminModelCatalog(props: {
                     {plan.bundleId}
                     {' · '}
                     {plan.currentBundle
-                      ? t('Currently published {{current}} → this upload {{next}}', {
-                          current: plan.currentBundle.bundleVersion,
-                          next: plan.bundleVersion,
-                        })
+                      ? t(
+                          'Currently published {{current}} → this upload {{next}}',
+                          {
+                            current: plan.currentBundle.bundleVersion,
+                            next: plan.bundleVersion,
+                          }
+                        )
                       : t('First import {{version}}', {
                           version: plan.bundleVersion,
                         })}
@@ -636,9 +649,12 @@ export function AdminModelCatalog(props: {
                       className='border-destructive/40 bg-destructive/5 text-destructive rounded-lg border p-3 text-sm'
                     >
                       <div className='font-medium'>
-                        {t('Cannot publish: {{count}} items must be resolved first', {
-                          count: blockingDiagnostics.length,
-                        })}
+                        {t(
+                          'Cannot publish: {{count}} items must be resolved first',
+                          {
+                            count: blockingDiagnostics.length,
+                          }
+                        )}
                       </div>
                       <ul className='mt-2 list-disc space-y-2 pl-4'>
                         {blockingDiagnostics.map((diagnostic) => {

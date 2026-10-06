@@ -43,13 +43,23 @@ const conflictingProvider = catalogChange({
     proposed: { id: 'image-provider', internalName: 'New' },
   },
 })
-const unchangedProvider = catalogChange({ resourceType: 'PROVIDER', key: 'other-provider' })
+const unchangedProvider = catalogChange({
+  resourceType: 'PROVIDER',
+  key: 'other-provider',
+})
 const changes = [unchangedProvider, newProfile, channel, conflictingProvider]
 const models = [
-  catalogPlanModel({ productKey: 'a', displayName: 'Moved model', action: 'CREATE_VERSION' }),
+  catalogPlanModel({
+    productKey: 'a',
+    displayName: 'Moved model',
+    action: 'CREATE_VERSION',
+  }),
 ]
 const diagnostics = [
-  catalogDiagnostic({ code: 'PROVIDER_CONFLICT', params: { providerId: 'image-provider' } }),
+  catalogDiagnostic({
+    code: 'PROVIDER_CONFLICT',
+    params: { providerId: 'image-provider' },
+  }),
 ]
 
 function renderShared() {
@@ -77,31 +87,44 @@ describe('Catalog shared resources', () => {
       .getAllByRole('row')
       .slice(1)
       .map((row) => row.querySelectorAll('td')[1]?.textContent)
-    expect(keys).toEqual(['image-provider', 'image-channel', 'image-profile@2.0.0', 'other-provider'])
+    expect(keys).toEqual([
+      'image-provider',
+      'image-channel',
+      'image-profile@2.0.0',
+      'other-provider',
+    ])
     expect(rowFor('image-provider')).toHaveTextContent(
       'Blocks publication: Restore the original internal name, or use a new API provider ID.'
     )
-    expect(rowFor('image-channel')).toHaveTextContent('Causes new versions of 1 models: Moved model')
-    expect(rowFor('image-profile@2.0.0')).toHaveTextContent('Used by channels image-channel')
+    expect(rowFor('image-channel')).toHaveTextContent(
+      'Causes new versions of 1 models: Moved model'
+    )
+    expect(rowFor('image-profile@2.0.0')).toHaveTextContent(
+      'Used by channels image-channel'
+    )
     expect(rowFor('other-provider')).toHaveTextContent('—')
   })
 
   it('starts with every filter set to all', () => {
     renderShared()
 
-    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Clear filters' })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
-    expect(screen.getByRole('combobox', { name: 'Resource type' })).toHaveTextContent('All resource types')
-    expect(screen.getByRole('combobox', { name: 'Change in this Bundle' })).toHaveTextContent('All change types')
+    expect(
+      screen.getByRole('combobox', { name: 'Resource type' })
+    ).toHaveTextContent('All resource types')
+    expect(
+      screen.getByRole('combobox', { name: 'Change in this Bundle' })
+    ).toHaveTextContent('All change types')
   })
 
   it('compares a new file version with the previous version and offers no detail for unchanged rows', () => {
     renderShared()
 
     expect(rowFor('other-provider')).not.toHaveTextContent('View details')
-    fireEvent.click(
-      screen.getAllByRole('button', { name: 'View details' })[2]
-    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'View details' })[2])
     expect(
       screen.getByText('Compared with the previous version image-profile@1.0.0')
     ).toBeInTheDocument()

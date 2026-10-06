@@ -8833,6 +8833,7 @@
     "Files listed in manifest.json are missing from the selected folder.": "Thư mục đã chọn thiếu các tệp được liệt kê trong manifest.json:",
     "Selected: {{bundle}} ({{version}})": "Đã chọn: {{bundle}} ({{version}})",
     "Choose folder again": "Chọn lại thư mục",
-    "Ignored {{count}} files not referenced by manifest.json": "Đã bỏ qua {{count}} tệp không được manifest.json tham chiếu"
+    "Ignored {{count}} files not referenced by manifest.json": "Đã bỏ qua {{count}} tệp không được manifest.json tham chiếu",
+    "Details: {{text}}": "Chi tiết: {{text}}"
   }
 }
