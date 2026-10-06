@@ -193,6 +193,61 @@ it.each(Object.entries({ en, ...localizedResources }))(
   }
 )
 
+const catalogPublicationPreviewSources = [
+  'AdminModelCatalog.tsx',
+  'CatalogModelPreview.tsx',
+  'CatalogSharedResources.tsx',
+  'CatalogJsonDiff.tsx',
+  'catalog-plan-labels.ts',
+]
+const catalogPublicationPreviewKeys = [
+  ...new Set(
+    catalogPublicationPreviewSources.flatMap((file) => {
+      const source = readFileSync(
+        resolve('src/features/canvas-cloud/components', file),
+        'utf8'
+      )
+      return [
+        ...[...source.matchAll(/\bt\(\s*(['"])(.*?)\1/gs)].map(
+          (match) => match[2]
+        ),
+        ...[...source.matchAll(/emptyLabelKey='([^']*)'/g)].map(
+          (match) => match[1]
+        ),
+      ]
+    })
+  ),
+]
+
+it.each(Object.entries({ en, ...localizedResources }))(
+  'defines every MODEL-CATALOG-REVIEW-001 publication preview message in %s',
+  (locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    for (const key of catalogPublicationPreviewKeys) {
+      expect(translations[key], `${locale}: ${key}`).toBeTypeOf('string')
+      expect(translations[key], `${locale}: ${key}`).not.toBe('')
+    }
+  }
+)
+
+it.each(Object.entries(localizedResources))(
+  'does not fall back to English for publication preview terms in %s',
+  (_locale, resource) => {
+    const translations = resource.translation as Record<string, string>
+    const english = en.translation as Record<string, string>
+    for (const key of [
+      'Publication preview',
+      'Shared resources',
+      'Model definition file',
+      'Not visible yet',
+      'Blocks publication: {{reason}}',
+    ]) {
+      expect(translations[key]).toBeTruthy()
+      expect(translations[key]).not.toBe(english[key])
+    }
+  }
+)
+
 it.each(Object.entries(localizedResources))(
   'does not fall back to English for model availability reasons in %s',
   (_locale, resource) => {

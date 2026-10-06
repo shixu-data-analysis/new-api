@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminModelCatalog } from '../AdminModelCatalog'
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@tanstack/react-router', async (original) => ({
   ...(await original<typeof import('@tanstack/react-router')>()),
   useNavigate: () => mocks.navigate,
+  Link: (props: { children: ReactNode }) => <a href='#'>{props.children}</a>,
 }))
 vi.mock('../UnifiedModelPricing', () => ({
   UnifiedModelPricing: (props: {
@@ -118,6 +120,97 @@ const unboundCredential = {
   credentialGroupName: null,
 }
 
+const keptCredential = {
+  status: 'REUSE',
+  reasonCode: 'CURRENT_BINDING',
+  sourceBindingId: '77777777-7777-4777-8777-777777777777',
+  sourceModelId: '88888888-8888-4888-8888-888888888888',
+  credentialGroupVersionId: '99999999-9999-4999-8999-999999999999',
+  credentialGroupName: 'Test group',
+}
+
+function priceItem(overrides: Record<string, unknown> = {}) {
+  return {
+    combinationKey: 'default',
+    label: 'Default',
+    parameters: {},
+    billingDimensions: { dimensions: [], tokenUsageCategories: [] },
+    priceGroupId: 'standard',
+    priceGroupCode: 'standard',
+    priceGroupName: 'Standard',
+    status: 'REUSE',
+    reasonCode: 'CURRENT_PRICE',
+    billingUnit: 'REQUEST',
+    points: '450',
+    tokenRates: null,
+    sourcePriceVersionId: null,
+    sourceProviderRateVersionId: null,
+    sourceModelVersion: 1,
+    effectiveAt: null,
+    ...overrides,
+  }
+}
+
+function planModel(overrides: Record<string, unknown> = {}) {
+  return {
+    productKey: 'canvas.image.preview',
+    displayName: 'Client preview model',
+    presentationDisplayName: null,
+    channelId: 'test-channel',
+    providerId: 'test-provider',
+    capability: 'image.generate',
+    action: 'CREATE',
+    currentVersion: null,
+    proposedVersion: 1,
+    currentModelId: null,
+    currentBundleVersion: null,
+    customerVisibleAfterPublish: false,
+    credential: unboundCredential,
+    publicInteraction: { defaultParams: {}, paramSchema: {}, referenceLimits: {} },
+    pricing: [],
+    definition: {
+      current: null,
+      proposed: { productKey: 'canvas.image.preview' },
+    },
+    ...overrides,
+  }
+}
+
+function sharedChange(resourceType: string, key: string) {
+  return {
+    resourceType,
+    key,
+    action: 'CREATE',
+    currentVersion: null,
+    proposedVersion: resourceType === 'PROVIDER_CHANNEL' ? 1 : null,
+    detail:
+      resourceType === 'MODEL_DEFINITION_ARTIFACT'
+        ? { kind: 'ADAPTER_PROFILE' }
+        : {},
+    definition: { current: null, proposed: { id: key } },
+  }
+}
+
+function planDiagnostic(
+  code: string,
+  messageKey: string,
+  params: Record<string, unknown>
+) {
+  return {
+    code,
+    severity: 'ERROR',
+    sourceFile: 'database',
+    jsonPath: code,
+    valueSummary: code,
+    capability: 'catalog.import.publication',
+    ownerModule: 'model-catalog',
+    recommendation: 'Cloud recommendation',
+    internalTestingAllowed: false,
+    messageKey,
+    params,
+  }
+}
+
 const importPlanFields = {
   importId: IMPORT_ONE_ID,
   sourceSha256: '1'.repeat(64),
@@ -136,6 +229,7 @@ function catalogPlan(overrides: Record<string, unknown> = {}) {
     pricingSummary: { reused: 0, needsPricing: 0 },
     action: 'PUBLISH',
     blocking: false,
+    currentBundle: null,
     diagnostics: [],
     models: [],
     changes: [
@@ -379,7 +473,7 @@ describe('Canvas model catalog folder upload', () => {
       'Reason: 帧率必须至少为 1，当前值为 0。 · Expected number to be greater than or equal to 1'
     )
     expect(
-      screen.getByRole('button', { name: 'Review and publish' })
+      screen.getByRole('button', { name: 'Review publication content' })
     ).toBeDisabled()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
@@ -422,7 +516,7 @@ describe('Canvas model catalog folder upload', () => {
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
-  it('shows server-planned changes and an explicit page indicator after folder selection', async () => {
+  it('shows the publication preview header, Bundle summary and per-tab counts, then publishes', async () => {
     mocks.publish.mockRejectedValue({
       response: {
         data: {
@@ -442,123 +536,44 @@ describe('Canvas model catalog folder upload', () => {
         },
       },
     })
-    mocks.plan.mockResolvedValue({
-      ...importPlanFields,
-      bundleId: 'canvas.test',
-      bundleVersion: '1',
-      manifestSha256: 'a'.repeat(64),
-      planToken: PLAN_TOKEN_ONE,
-      pricingSummary: { reused: 1, needsPricing: 1 },
-      action: 'PUBLISH',
-      blocking: false,
-      diagnostics: [],
-      models: [
-        {
-          productKey: 'canvas.image.preview',
-          displayName: 'Client preview model',
-          channelId: 'test-channel',
-          providerId: 'test-provider',
-          capability: 'image.generate',
-          action: 'CREATE',
-          currentVersion: null,
-          proposedVersion: 1,
-          customerVisibleAfterPublish: false,
-          credential: {
-            status: 'REUSE',
-            reasonCode: 'MATCHED_PUBLISHED_BINDING',
-            sourceBindingId: 'binding-1',
-            sourceModelId: 'model-1',
-            credentialGroupVersionId: 'group-version-1',
-            credentialGroupName: 'Test group',
-          },
-          publicInteraction: {
-            defaultParams: { quality: '2K' },
-            paramSchema: { qualities: ['1K', '2K'] },
-            referenceLimits: { maxImageReferences: 4 },
-          },
-          pricing: [
-            {
-              combinationKey: '480p',
-              label: '480P',
-              parameters: { quality: '480P' },
-              billingDimensions: { billingUnit: 'REQUEST' },
-              priceGroupId: 'standard',
-              priceGroupCode: 'standard',
-              priceGroupName: 'Standard',
-              status: 'REUSE',
-              reasonCode: 'MATCHED_PUBLISHED_PRICE',
-              billingUnit: 'REQUEST',
-              points: '450',
-              tokenRates: null,
-              sourcePriceVersionId: 'price-version-1',
-              sourceProviderRateVersionId: 'provider-rate-version-1',
-              sourceModelVersion: 1,
-              effectiveAt: null,
-            },
-            {
-              combinationKey: '720p',
-              label: '720P',
-              parameters: { quality: '720P' },
-              billingDimensions: { billingUnit: 'REQUEST' },
-              priceGroupId: 'standard',
-              priceGroupCode: 'standard',
-              priceGroupName: 'Standard',
-              status: 'NEEDS_PRICING',
-              reasonCode: 'NEW_SPECIFICATION',
-              billingUnit: 'REQUEST',
-              points: null,
-              tokenRates: null,
-              sourcePriceVersionId: null,
-              sourceProviderRateVersionId: null,
-              sourceModelVersion: null,
-              effectiveAt: null,
-            },
-          ],
+    mocks.plan.mockResolvedValue(
+      catalogPlan({
+        currentBundle: {
+          bundleId: 'canvas.test',
+          bundleVersion: '0.9',
+          effectiveAt: '2026-10-01T00:00:00.000Z',
         },
-        ...Array.from({ length: 20 }, (_, index) => ({
-          productKey: `canvas.image.extra-${index + 1}`,
-          displayName: `Additional client model ${index + 1}`,
-          channelId: 'test-channel',
-          providerId: 'test-provider',
-          capability: 'image.generate',
-          action: 'NO_OP',
-          currentVersion: 1,
-          proposedVersion: null,
-          customerVisibleAfterPublish: false,
-          credential: unboundCredential,
-          publicInteraction: {
-            defaultParams: {},
-            paramSchema: {},
-            referenceLimits: {},
-          },
-          pricing: [],
-        })),
-      ],
-      changes: Array.from({ length: 21 }, (_, index) => ({
-        resourceType: 'CUSTOMER_MODEL',
-        key: `model-${index + 1}`,
-        action: 'CREATE',
-        currentVersion: null,
-        proposedVersion: 1,
-        detail: {},
-      })),
-    })
-    const files = [
-      catalogFile('manifest.json', manifest),
-      catalogFile('providers.json', { schemaVersion: 2, providers: [] }),
-      catalogFile('channels.json', { schemaVersion: 2, channels: [] }),
-      catalogFile('models.json', {
-        schemaVersion: 2,
+        pricingSummary: { reused: 1, needsPricing: 1 },
         models: [
-          { ...modelDefinition, description: 'Default customer description' },
+          planModel({
+            pricing: [priceItem({ status: 'NEEDS_PRICING', reasonCode: 'NEW_MODEL' })],
+          }),
+          ...Array.from({ length: 20 }, (_, index) =>
+            planModel({
+              productKey: `canvas.image.extra-${index + 1}`,
+              displayName: `Additional client model ${index + 1}`,
+              action: 'NO_OP',
+              currentVersion: 1,
+              proposedVersion: 1,
+              credential: keptCredential,
+            })
+          ),
         ],
-      }),
-      catalogFile('openapi/test.openapi.json', { openapi: '3.0.0' }),
-      catalogFile('profiles/test.profile.json', {
-        schemaVersion: 1,
-        templateLanguageVersion: 1,
-      }),
-    ]
+        changes: [
+          {
+            resourceType: 'CUSTOMER_MODEL',
+            key: 'canvas.image.preview',
+            action: 'CREATE',
+            currentVersion: null,
+            proposedVersion: 1,
+            detail: {},
+          },
+          sharedChange('PROVIDER', 'test-provider'),
+          sharedChange('PROVIDER_CHANNEL', 'test-channel'),
+          sharedChange('MODEL_DEFINITION_ARTIFACT', 'test-profile@1.0.0'),
+        ],
+      })
+    )
     render(
       <QueryClientProvider client={new QueryClient()}>
         <AdminModelCatalog principalId={ADMIN_ONE_ID} />
@@ -566,93 +581,48 @@ describe('Canvas model catalog folder upload', () => {
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
     fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
-      target: { files },
+      target: { files: bundleFiles(modelDefinition) },
     })
-    await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(1))
-    const plannedSource = mocks.plan.mock.calls[0]?.[0]
-    expect(plannedSource).toEqual({
-      schemaVersion: 1,
-      files: expect.arrayContaining([
-        expect.objectContaining({ path: 'models.json' }),
-        expect.objectContaining({ path: 'profiles/test.profile.json' }),
-      ]),
-    })
-    expect(await screen.findByText('Client preview model')).toBeInTheDocument()
-    screen
-      .getAllByRole('tablist')
-      .forEach((tabList) =>
-        expect(tabList).toHaveClass('w-full', 'flex-nowrap', 'overflow-x-auto')
+    expect(await screen.findByText('Publication preview')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Currently published 0\.9 → this upload 1/)
+    ).toHaveTextContent('Files validated')
+    expect(
+      screen.getByText(
+        'This Bundle contains: 21 models · 1 API providers · 1 provider channels · 1 model definition files'
       )
-    screen
-      .getAllByRole('tab')
-      .forEach((tab) => expect(tab).toHaveClass('flex-none'))
-    expect(screen.getByText('canvas.image.preview')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'View details' })[0])
-    expect(
-      screen.getByText('Published binding carried forward')
-    ).toBeInTheDocument()
-    expect(screen.getByText(/API Key group: Test group/)).toBeInTheDocument()
-    expect(screen.getByText(/450 points \/ /)).toBeInTheDocument()
-    expect(
-      screen.getByText('New specification has no matching price')
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Source price version: price-version-1')
-    ).toBeInTheDocument()
+      screen.getByRole('tab', {
+        name: 'Models 1 models changed 1 models pending',
+      })
+    ).toHaveAttribute('aria-selected', 'true')
     const modelPanel = screen.getByRole('tabpanel', {
-      name: 'Client model preview (21)',
+      name: 'Models 1 models changed 1 models pending',
     })
     expect(within(modelPanel).getByText('Page 1 of 2')).toBeVisible()
     fireEvent.click(
       within(modelPanel).getByRole('button', { name: 'Go to next page' })
     )
     expect(within(modelPanel).getByText('Page 2 of 2')).toBeVisible()
-    expect(screen.getByText('Additional client model 20')).toBeVisible()
-    expect(
-      screen.queryByText('Source price version: price-version-1')
-    ).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Database plan (21)' }))
-    const databasePanel = screen.getByRole('tabpanel', {
-      name: 'Database plan (21)',
-    })
-    expect(await screen.findByText('model-1')).toBeInTheDocument()
-    expect(screen.queryByText('model-21')).not.toBeInTheDocument()
-    expect(within(databasePanel).getByText('Page 1 of 2')).toBeInTheDocument()
-    expect(within(databasePanel).getByText('21')).toBeInTheDocument()
-    fireEvent.click(
-      within(databasePanel).getByRole('button', { name: 'Go to next page' })
-    )
-    expect(within(databasePanel).getByText('Page 2 of 2')).toBeVisible()
-    const pageSize = within(databasePanel).getByRole('combobox', {
-      name: 'Rows per page',
-    })
-    expect(pageSize).toHaveTextContent('20')
-    await userEvent.click(pageSize)
-    await userEvent.click(screen.getByRole('option', { name: '10' }))
-    expect(await within(databasePanel).findByText('Page 1 of 3')).toBeVisible()
-    fireEvent.click(
-      within(databasePanel).getByRole('button', { name: /Go to page 3/ })
-    )
-    expect(within(databasePanel).getByText('Page 3 of 3')).toBeVisible()
-    expect(screen.getByText('model-21')).toBeVisible()
-    await userEvent.keyboard('{Escape}')
     await userEvent.click(
-      screen.getByRole('tab', { name: 'Client model preview (21)' })
+      screen.getByRole('tab', { name: 'Shared resources 3 resources changed' })
+    )
+    const sharedPanel = screen.getByRole('tabpanel', {
+      name: 'Shared resources 3 resources changed',
+    })
+    expect(within(sharedPanel).getByText('test-profile@1.0.0')).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('tab', {
+        name: 'Models 1 models changed 1 models pending',
+      })
     )
     expect(within(modelPanel).getByText('Page 2 of 2')).toBeVisible()
-    await userEvent.click(
-      screen.getByRole('tab', { name: 'Database plan (21)' })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review publication content' })
     )
-    expect(within(databasePanel).getByText('Page 3 of 3')).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Review and publish' })
-    ).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Review and publish' }))
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       /Existing prices reused:\s*1/
-    )
-    expect(screen.getByRole('alertdialog')).toHaveTextContent(
-      /Specifications needing pricing:\s*1/
     )
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
     await waitFor(() =>
@@ -664,6 +634,116 @@ describe('Canvas model catalog folder upload', () => {
     expect(
       await screen.findByText(/profiles\/test.profile.json/)
     ).toHaveTextContent('Reason: Fix the template')
+  })
+
+  it('lists each blocking diagnostic with its remedy and locates its row', async () => {
+    mocks.plan.mockResolvedValue(
+      catalogPlan({
+        action: 'CONFLICT',
+        blocking: true,
+        diagnostics: [
+          planDiagnostic('ARTIFACT_VERSION_CONFLICT', 'catalog.plan.artifactVersionConflict', {
+            artifactKind: 'ADAPTER_PROFILE',
+            artifactKey: 'test-profile@1.0.0',
+          }),
+          planDiagnostic('CREDENTIAL_BINDING_BLOCKED', 'catalog.plan.credentialBindingBlocked', {
+            modelKey: 'canvas.image.preview',
+            reasonCode: 'PROVIDER_CHANGED',
+            credentialGroupName: 'Old group',
+            requiredScheme: 'bearerAuth',
+            supportedSchemes: ['bearerAuth'],
+          }),
+        ],
+        models: [
+          planModel({
+            credential: {
+              ...unboundCredential,
+              status: 'BLOCKED',
+              reasonCode: 'PROVIDER_CHANGED',
+              credentialGroupName: 'Old group',
+            },
+          }),
+        ],
+        changes: [
+          {
+            ...sharedChange('MODEL_DEFINITION_ARTIFACT', 'test-profile@1.0.0'),
+            action: 'CONFLICT',
+            definition: {
+              current: { id: 'test-profile', version: '1.0.0', displayName: 'Old' },
+              proposed: { id: 'test-profile', version: '1.0.0', displayName: 'New' },
+            },
+          },
+        ],
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(
+      'Cannot publish: 2 items must be resolved first'
+    )
+    expect(alert).toHaveTextContent(
+      'Model definition file test-profile@1.0.0 has different content under the same version.'
+    )
+    expect(alert).toHaveTextContent('Increase the version of this file.')
+    expect(alert).toHaveTextContent(
+      'The API Key binding of Client preview model cannot be kept: API provider changed.'
+    )
+    expect(
+      screen.getByRole('button', { name: 'Review publication content' })
+    ).toBeDisabled()
+    const [artifactLink, modelLink] = within(alert).getAllByRole('button', {
+      name: 'View details',
+    })
+    fireEvent.click(artifactLink)
+    expect(
+      screen.getByRole('tab', { name: /^Shared resources/ })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      await screen.findByText('Published content compared with the Bundle')
+    ).toBeVisible()
+    fireEvent.click(modelLink)
+    expect(screen.getByRole('tab', { name: /^Models/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(
+      await screen.findByText(
+        'New model with no current version; showing the full new version'
+      )
+    ).toBeVisible()
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
+
+  it('explains an already published Bundle and keeps publication disabled', async () => {
+    mocks.plan.mockResolvedValue(
+      catalogPlan({ action: 'REPLAY', models: [planModel({ action: 'NO_OP' })] })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    expect(
+      await screen.findByText(
+        'This exact Bundle is already published. No new publication is required.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText(/First import 1/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Review publication content' })
+    ).toBeDisabled()
   })
 
   it('shows unchanged models and prevents a redundant publication', async () => {
@@ -726,12 +806,14 @@ describe('Canvas model catalog folder upload', () => {
       target: { files },
     })
     expect(await screen.findByText('Existing client model')).toBeInTheDocument()
-    expect(screen.getByText('Unchanged — skipped')).toBeInTheDocument()
+    expect(screen.getByText('Unchanged')).toBeInTheDocument()
     expect(
-      screen.getByText('Nothing needs to be published')
+      screen.getByText(
+        'All catalog resources are unchanged. No new publication will be created.'
+      )
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Review and publish' })
+      screen.getByRole('button', { name: 'Review publication content' })
     ).toBeDisabled()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
@@ -812,14 +894,6 @@ describe('Canvas model catalog folder upload', () => {
         'Review the verified price links for this published catalog before restoring them.'
       )
     ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        'Verified price links will be restored without a new catalog version'
-      )
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText('Catalog unchanged; price links to restore')
-    ).toBeInTheDocument()
     const review = screen.getByRole('button', {
       name: 'Review and restore prices',
     })
@@ -898,9 +972,6 @@ describe('Canvas model catalog folder upload', () => {
       name: 'Review and restore links',
     })
     expect(review).toBeEnabled()
-    expect(
-      screen.getByText('Catalog unchanged; verified links to restore')
-    ).toBeInTheDocument()
     fireEvent.click(review)
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       'This restores only the verified price and API Key links shown in the plan. Existing catalog versions remain unchanged.'
@@ -970,7 +1041,7 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
     const review = await screen.findByRole('button', {
-      name: 'Review and publish',
+      name: 'Review publication content',
     })
     fireEvent.click(review)
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
@@ -986,7 +1057,7 @@ describe('Canvas model catalog folder upload', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Cloud stale fallback')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Review and publish' })
+      screen.queryByRole('button', { name: 'Review publication content' })
     ).not.toBeInTheDocument()
     expect(mocks.publish).toHaveBeenCalledTimes(1)
     fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
@@ -994,7 +1065,7 @@ describe('Canvas model catalog folder upload', () => {
     })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
     expect(
-      await screen.findByRole('button', { name: 'Review and publish' })
+      await screen.findByRole('button', { name: 'Review publication content' })
     ).toBeEnabled()
     expect(mocks.publish).toHaveBeenCalledTimes(1)
   })
@@ -1016,7 +1087,7 @@ describe('Canvas model catalog folder upload', () => {
         target: { files: bundleFiles(modelDefinition) },
       })
       fireEvent.click(
-        await screen.findByRole('button', { name: 'Review and publish' })
+        await screen.findByRole('button', { name: 'Review publication content' })
       )
       fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
 
@@ -1026,7 +1097,7 @@ describe('Canvas model catalog folder upload', () => {
         )
       ).toBeVisible()
       expect(
-        screen.queryByRole('button', { name: 'Review and publish' })
+        screen.queryByRole('button', { name: 'Review publication content' })
       ).not.toBeInTheDocument()
     }
   )
@@ -1049,7 +1120,7 @@ describe('Canvas model catalog folder upload', () => {
       await screen.findByText('The catalog plan has expired.')
     ).toBeVisible()
     expect(
-      screen.queryByRole('button', { name: 'Review and publish' })
+      screen.queryByRole('button', { name: 'Review publication content' })
     ).not.toBeInTheDocument()
   })
 
@@ -1069,13 +1140,13 @@ describe('Canvas model catalog folder upload', () => {
     const input = screen.getByLabelText('Choose Bundle folder')
     fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
     expect(
-      await screen.findByRole('button', { name: 'Review and publish' })
+      await screen.findByRole('button', { name: 'Review publication content' })
     ).toBeEnabled()
 
     fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
     await waitFor(() => expect(mocks.plan).toHaveBeenCalledTimes(2))
     expect(
-      screen.queryByRole('button', { name: 'Review and publish' })
+      screen.queryByRole('button', { name: 'Review publication content' })
     ).not.toBeInTheDocument()
     resolveReplacement?.(catalogPlan({ importId: IMPORT_TWO_ID }))
   })
@@ -1088,7 +1159,7 @@ describe('Canvas model catalog folder upload', () => {
           resolveFirst = resolve
         })
       )
-      .mockResolvedValueOnce(catalogPlan({ importId: IMPORT_CURRENT_ID }))
+      .mockResolvedValueOnce(catalogPlan({ importId: IMPORT_CURRENT_ID, bundleVersion: 'current' }))
     render(
       <QueryClientProvider client={new QueryClient()}>
         <AdminModelCatalog principalId={ADMIN_ONE_ID} />
@@ -1101,15 +1172,15 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.change(input, { target: { files: bundleFiles(modelDefinition) } })
 
     expect(
-      await screen.findByText(new RegExp(IMPORT_CURRENT_ID, 'u'))
+      await screen.findByText(/First import current/)
     ).toBeVisible()
-    resolveFirst?.(catalogPlan({ importId: IMPORT_OLD_ID }))
+    resolveFirst?.(catalogPlan({ importId: IMPORT_OLD_ID, bundleVersion: 'old' }))
     await waitFor(() =>
       expect(
-        screen.queryByText(new RegExp(IMPORT_OLD_ID, 'u'))
+        screen.queryByText(/First import old/)
       ).not.toBeInTheDocument()
     )
-    expect(screen.getByText(new RegExp(IMPORT_CURRENT_ID, 'u'))).toBeVisible()
+    expect(screen.getByText(/First import current/)).toBeVisible()
   })
 
   it('clears the plan and confirmation immediately when the actor changes', async () => {
@@ -1126,7 +1197,7 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Review and publish' })
+      await screen.findByRole('button', { name: 'Review publication content' })
     )
     expect(screen.getByRole('alertdialog')).toBeVisible()
 
@@ -1134,7 +1205,7 @@ describe('Canvas model catalog folder upload', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: 'Review and publish' })
+      screen.queryByRole('button', { name: 'Review publication content' })
     ).not.toBeInTheDocument()
     expect(mocks.publish).not.toHaveBeenCalled()
     client.clear()
@@ -1158,7 +1229,7 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Review and publish' })
+      await screen.findByRole('button', { name: 'Review publication content' })
     )
     const publish = screen.getByRole('button', { name: 'Publish Bundle' })
     fireEvent.click(publish)

@@ -242,6 +242,10 @@
           "currentVersion": {
             "type": ["integer", "null"]
           },
+          "definition": {
+            "$ref": "#/components/schemas/ModelCatalogDefinition",
+            "description": "Present on PROVIDER, PROVIDER_CHANNEL and MODEL_DEFINITION_ARTIFACT rows."
+          },
           "detail": {
             "additionalProperties": true,
             "type": "object"
@@ -258,8 +262,7 @@
               "PROVIDER_CHANNEL",
               "CUSTOMER_MODEL",
               "MODEL_DESCRIPTION_DEFAULT",
-              "MODEL_DEFINITION_ARTIFACT",
-              "PARAMETER_COMBINATION"
+              "MODEL_DEFINITION_ARTIFACT"
             ],
             "type": "string"
           }
@@ -272,6 +275,22 @@
           "proposedVersion",
           "detail"
         ],
+        "type": "object"
+      },
+      "ModelCatalogDefinition": {
+        "additionalProperties": false,
+        "description": "Bundle-visible definition without secrets, fingerprints or internal IDs. current is null when there is nothing published to compare with.",
+        "properties": {
+          "current": {
+            "additionalProperties": true,
+            "type": ["object", "null"]
+          },
+          "proposed": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": ["current", "proposed"],
         "type": "object"
       },
       "ModelCatalogDiagnostic": {
@@ -291,6 +310,10 @@
               "TEMPLATE_INVALID",
               "TEMPLATE_LANGUAGE_UNSUPPORTED",
               "PRICING_SOURCE_CONFLICT",
+              "BUNDLE_VERSION_CONFLICT",
+              "PROVIDER_CONFLICT",
+              "ARTIFACT_VERSION_CONFLICT",
+              "CREDENTIAL_BINDING_BLOCKED",
               "CATALOG_REFERENCE_INVALID",
               "CATALOG_DUPLICATE_IDENTIFIER",
               "CATALOG_SECRET_FORBIDDEN",
@@ -366,7 +389,11 @@
               "catalog.plan.publicationConflict",
               "catalog.plan.blocking",
               "catalog.plan.noChanges",
-              "catalog.plan.audit_unavailable"
+              "catalog.plan.audit_unavailable",
+              "catalog.plan.bundleVersionConflict",
+              "catalog.plan.providerConflict",
+              "catalog.plan.artifactVersionConflict",
+              "catalog.plan.credentialBindingBlocked"
             ],
             "type": "string"
           },
@@ -520,6 +547,7 @@
             "type": "string"
           },
           "blocking": {
+            "description": "True exactly when diagnostics contain an ERROR or BLOCKING entry.",
             "type": "boolean"
           },
           "bundleId": {
@@ -533,6 +561,23 @@
               "$ref": "#/components/schemas/ModelCatalogChange"
             },
             "type": "array"
+          },
+          "currentBundle": {
+            "additionalProperties": false,
+            "properties": {
+              "bundleId": {
+                "type": "string"
+              },
+              "bundleVersion": {
+                "type": "string"
+              },
+              "effectiveAt": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": ["bundleId", "bundleVersion", "effectiveAt"],
+            "type": ["object", "null"]
           },
           "diagnostics": {
             "items": {
@@ -581,7 +626,6 @@
                         "MATCHED_PUBLISHED_BINDING",
                         "UNBOUND_SOURCE",
                         "PROVIDER_CHANGED",
-                        "CHANNEL_CHANGED",
                         "CREDENTIAL_GROUP_UNAVAILABLE",
                         "CREDENTIAL_SCHEME_MISMATCH",
                         "BINDING_CONFLICT"
@@ -611,14 +655,28 @@
                   ],
                   "type": "object"
                 },
+                "currentBundleVersion": {
+                  "type": ["string", "null"]
+                },
+                "currentModelId": {
+                  "format": "uuid",
+                  "type": ["string", "null"]
+                },
                 "currentVersion": {
                   "type": ["integer", "null"]
                 },
                 "customerVisibleAfterPublish": {
                   "type": "boolean"
                 },
+                "definition": {
+                  "$ref": "#/components/schemas/ModelCatalogDefinition"
+                },
                 "displayName": {
                   "type": "string"
+                },
+                "presentationDisplayName": {
+                  "description": "Administrator-set display name currently in effect; null when none is set.",
+                  "type": ["string", "null"]
                 },
                 "pricing": {
                   "items": {
@@ -762,16 +820,20 @@
               "required": [
                 "productKey",
                 "displayName",
+                "presentationDisplayName",
                 "capability",
                 "action",
                 "currentVersion",
                 "proposedVersion",
+                "currentModelId",
+                "currentBundleVersion",
                 "customerVisibleAfterPublish",
                 "publicInteraction",
                 "channelId",
                 "providerId",
                 "pricing",
-                "credential"
+                "credential",
+                "definition"
               ],
               "type": "object"
             },
@@ -803,6 +865,7 @@
           "manifestSha256",
           "action",
           "blocking",
+          "currentBundle",
           "diagnostics",
           "changes",
           "models",

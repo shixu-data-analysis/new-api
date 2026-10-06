@@ -720,6 +720,7 @@ describe('Canvas Cloud API boundary', () => {
       pricingSummary: { reused: 0, needsPricing: 0 },
       action: 'CONFLICT',
       blocking: true,
+      currentBundle: null,
       diagnostics: [diagnostic],
       changes: [],
       models: [],

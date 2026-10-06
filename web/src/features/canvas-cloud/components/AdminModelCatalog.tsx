@@ -18,26 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  getCoreRowModel,
-  getPaginationRowModel,
-  useReactTable,
-  type PaginationState,
-} from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { CheckCircle2, FileJson2, FolderUp, ShieldAlert } from 'lucide-react'
+import { FolderUp, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { DataTablePagination, StaticDataTable } from '@/components/data-table'
-import {
-  DataTableColumnFilterField,
-  DataTableColumnFilterPanel,
-} from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -45,19 +35,11 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from '@/components/ui/select'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs'
 import {
   getServerErrorCode,
   getServerErrorStatus,
@@ -68,6 +50,14 @@ import {
   publishCanvasModelCatalogImport,
 } from '../api'
 import {
+  catalogDiagnosticTarget,
+  catalogModelTabCounts,
+  catalogSharedChangeKind,
+  catalogSharedChanges,
+  reviewCatalogModel,
+  type CatalogDiagnosticTarget,
+} from '../catalog-plan-review'
+import {
   CatalogSourceReadError,
   readCatalogSource,
 } from '../catalogSourceReader'
@@ -76,14 +66,16 @@ import type {
   ModelCatalogImportPlan,
 } from '../generated/model-catalog-import'
 import type { ModelManagementReturnContext } from '../model-management-navigation-state'
-import { canvasStaticColumnWidth } from './canvas-table-layout'
-import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
-import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
-import { CatalogModelPreview } from './CatalogModelPreview'
+import { catalogPlanDiagnosticText } from './catalog-plan-labels'
+import { CatalogModelPreview, type CatalogRowFocus } from './CatalogModelPreview'
+import {
+  CatalogSharedResources,
+  type CatalogSharedFocus,
+} from './CatalogSharedResources'
 import { ModelMonitoringOverview } from './ModelMonitoringOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import {
@@ -206,6 +198,15 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
   return t('Catalog publication failed. Review the validation results.')
 }
 
+const countBadgeClass = {
+  changed:
+    'rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-800 dark:bg-blue-500/20 dark:text-blue-200',
+  pending:
+    'rounded-full bg-orange-100 px-2 text-xs font-medium text-orange-800 dark:bg-orange-500/20 dark:text-orange-200',
+  conflict:
+    'bg-destructive rounded-full px-2 text-xs font-medium text-white',
+} as const
+
 export function AdminModelCatalog(props: {
   principalId: string
   initialPricingModelId?: string
@@ -238,17 +239,12 @@ export function AdminModelCatalog(props: {
   >('published')
   const activeTab = props.tab ?? uncontrolledActiveTab
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
-  const [resourceType, setResourceType] = useState('')
-  const [action, setAction] = useState('ALL')
-  const [sort, setSort] = useState<
-    'resourceType' | 'key' | 'action' | 'currentVersion' | 'proposedVersion'
-  >('resourceType')
-  const [descending, setDescending] = useState(false)
-  const [changePagination, setChangePagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  })
+  const [reviewTab, setReviewTab] = useState<'models' | 'shared'>('models')
+  const [modelFocus, setModelFocus] = useState<CatalogRowFocus | null>(null)
+  const [sharedFocus, setSharedFocus] = useState<CatalogSharedFocus | null>(
+    null
+  )
+  const focusNonce = useRef(0)
   const planner = useMutation({ mutationFn: planCanvasModelCatalogImport })
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogImport,
@@ -289,6 +285,9 @@ export function AdminModelCatalog(props: {
     setPlan(null)
     planActorPrincipalId.current = null
     setFailure(null)
+    setReviewTab('models')
+    setModelFocus(null)
+    setSharedFocus(null)
     if (!files?.length) return
     try {
       const nextPlan = await planner.mutateAsync(
@@ -337,61 +336,24 @@ export function AdminModelCatalog(props: {
       if (timeout !== undefined) window.clearTimeout(timeout)
     }
   }, [plan, t])
-  const filteredChanges = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase()
-    const resourceQuery = resourceType.trim().toLocaleLowerCase()
-    return [...(plan?.changes ?? [])]
-      .filter(
-        (change) =>
-          (action === 'ALL' || change.action === action) &&
-          (!query || change.key.toLocaleLowerCase().includes(query)) &&
-          (!resourceQuery ||
-            change.resourceType.toLocaleLowerCase().includes(resourceQuery))
-      )
-      .sort((left, right) => {
-        const compared =
-          typeof left[sort] === 'number' && typeof right[sort] === 'number'
-            ? left[sort] - right[sort]
-            : String(left[sort] ?? '').localeCompare(String(right[sort] ?? ''))
-        return descending ? -compared : compared
-      })
-  }, [action, descending, plan?.changes, resourceType, search, sort])
-  const pageCount = Math.max(
-    1,
-    Math.ceil(filteredChanges.length / changePagination.pageSize)
+  const reviews = useMemo(
+    () =>
+      (plan?.models ?? []).map((model) =>
+        reviewCatalogModel(model, plan?.changes ?? [])
+      ),
+    [plan]
   )
-  useEffect(() => {
-    setChangePagination((value) =>
-      value.pageIndex >= pageCount
-        ? { ...value, pageIndex: pageCount - 1 }
-        : value
-    )
-  }, [pageCount])
-  const effectiveChangePagination = {
-    ...changePagination,
-    pageIndex: Math.min(changePagination.pageIndex, pageCount - 1),
-  }
-  const changeTable = useReactTable({
-    data: filteredChanges,
-    columns: [{ id: 'change', accessorFn: (change) => change.key }],
-    state: { pagination: effectiveChangePagination },
-    onPaginationChange: (updater) => {
-      const next =
-        typeof updater === 'function'
-          ? updater(effectiveChangePagination)
-          : updater
-      setChangePagination(
-        next.pageSize === effectiveChangePagination.pageSize
-          ? next
-          : { ...next, pageIndex: 0 }
-      )
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  })
-  const visibleChanges = changeTable
-    .getRowModel()
-    .rows.map((row) => row.original)
+  const sharedChanges = useMemo(
+    () => catalogSharedChanges(plan?.changes ?? []),
+    [plan]
+  )
+  const modelCounts = catalogModelTabCounts(reviews)
+  const sharedChanged = sharedChanges.filter(
+    (change) => catalogSharedChangeKind(change) !== 'UNCHANGED'
+  ).length
+  const sharedConflicts = sharedChanges.filter(
+    (change) => catalogSharedChangeKind(change) === 'CONFLICT'
+  ).length
   const publishableChanges = (plan?.changes ?? []).filter(
     (change) => change.action === 'CREATE' || change.action === 'CREATE_VERSION'
   )
@@ -400,12 +362,14 @@ export function AdminModelCatalog(props: {
   )
   const recoveringExisting =
     plan?.action === 'RECOVER_PRICING' || plan?.action === 'RECOVER_CONTINUITY'
-  const hasBlockingDiagnostics =
-    plan?.diagnostics.some(
-      (diagnostic) =>
-        diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
-    ) ?? false
-  const planBlocked = Boolean(plan?.blocking || hasBlockingDiagnostics)
+  const blockingDiagnostics = (plan?.diagnostics ?? []).filter(
+    (diagnostic) =>
+      diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
+  )
+  const warningDiagnostics = (plan?.diagnostics ?? []).filter(
+    (diagnostic) => diagnostic.severity === 'WARNING'
+  )
+  const planBlocked = Boolean(plan?.blocking || blockingDiagnostics.length > 0)
   const canPublish =
     (plan?.action === 'PUBLISH' || recoveringExisting) &&
     !planBlocked &&
@@ -413,13 +377,9 @@ export function AdminModelCatalog(props: {
     Boolean(plan.planToken) &&
     (publishableChanges.length > 0 || recoveringExisting)
   let planDescription = t(
-    'Validation passed. Review the client model preview and every database change before publishing.'
+    'Validation passed. Review the model and shared resource changes before publishing.'
   )
-  if (planBlocked) {
-    planDescription = t(
-      'Publication is blocked. Fix every conflict and upload the Bundle again.'
-    )
-  } else if (plan?.action === 'RECOVER_PRICING') {
+  if (plan?.action === 'RECOVER_PRICING') {
     planDescription = t(
       'Review the verified price links for this published catalog before restoring them.'
     )
@@ -436,23 +396,8 @@ export function AdminModelCatalog(props: {
       'All catalog resources are unchanged. No new publication will be created.'
     )
   }
-  let publicationSummary = t('Nothing needs to be published')
-  if (plan?.action === 'RECOVER_PRICING' && canPublish) {
-    publicationSummary = t(
-      'Verified price links will be restored without a new catalog version'
-    )
-  } else if (plan?.action === 'RECOVER_CONTINUITY' && canPublish) {
-    publicationSummary = t(
-      'Verified price and API Key links will be restored without a new catalog version'
-    )
-  } else if (canPublish) {
-    publicationSummary = t(
-      '{{models}} models and {{changes}} resource changes will be published',
-      { models: changedModels.length, changes: publishableChanges.length }
-    )
-  }
   let confirmationTitle = t('Publish model catalog Bundle?')
-  let reviewLabel = t('Review and publish')
+  let reviewLabel = t('Review publication content')
   let confirmationDescription = t(
     'This publishes immutable catalog versions and the verified price links shown in the plan. Specifications needing pricing remain unpriced.'
   )
@@ -472,14 +417,22 @@ export function AdminModelCatalog(props: {
     )
     confirmLabel = t('Restore verified links')
   }
-  function changeSort(next: typeof sort) {
-    if (sort === next) setDescending((value) => !value)
-    else {
-      setSort(next)
-      setDescending(false)
+  function locate(target: CatalogDiagnosticTarget) {
+    const nonce = ++focusNonce.current
+    setReviewTab(target.tab)
+    if (target.tab === 'models') {
+      setModelFocus({ key: target.key, nonce })
+      return
     }
-    setChangePagination((value) => ({ ...value, pageIndex: 0 }))
+    setSharedFocus({
+      resourceType: target.resourceType,
+      key: target.key,
+      nonce,
+    })
   }
+  const countByType = (resourceType: string) =>
+    sharedChanges.filter((change) => change.resourceType === resourceType)
+      .length
   return (
     <>
       {props.initialPricingModelId && (
@@ -599,27 +552,6 @@ export function AdminModelCatalog(props: {
                 )}
               </CardContent>
             </Card>
-            {plan && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className='flex items-center gap-2'>
-                    <FileJson2 className='size-5' />
-                    {plan.bundleId}
-                  </CardTitle>
-                  <CardDescription>
-                    {t('Bundle version')}: {plan.bundleVersion}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className='text-muted-foreground space-y-1 text-xs'>
-                  <div className='break-all'>
-                    {t('Import ID')}: {plan.importId}
-                  </div>
-                  <div className='break-all'>
-                    {t('Source SHA-256')}: {plan.sourceSha256}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
             {planner.isPending && (
               <Card size='sm'>
                 <CardContent className='text-muted-foreground text-sm'>
@@ -630,249 +562,164 @@ export function AdminModelCatalog(props: {
             {plan && (
               <Card>
                 <CardHeader>
-                  <CardTitle className='flex items-center gap-2'>
-                    <CheckCircle2 className='size-5 text-emerald-600' />
-                    {t('Validation and publication plan')}
-                  </CardTitle>
-                  <CardDescription>{planDescription}</CardDescription>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  {plan.diagnostics.length > 0 && (
-                    <div
-                      role='alert'
-                      className={
-                        planBlocked
-                          ? 'border-destructive/40 bg-destructive/5 text-destructive rounded-lg border p-3 text-sm'
-                          : 'bg-muted/30 rounded-lg border p-3 text-sm'
-                      }
-                    >
-                      <ul className='list-disc space-y-1 pl-4'>
-                        {plan.diagnostics.map((diagnostic) => (
-                          <li
-                            key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
-                          >
-                            {diagnosticDetails(diagnostic, t)}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  <Tabs defaultValue='models'>
-                    <CanvasManagementTabsList>
-                      <CanvasManagementTabsTrigger value='models'>
-                        {t('Client model preview')} ({plan.models.length})
-                      </CanvasManagementTabsTrigger>
-                      <CanvasManagementTabsTrigger value='changes'>
-                        {t('Database plan')} ({plan.changes.length})
-                      </CanvasManagementTabsTrigger>
-                    </CanvasManagementTabsList>
-                    <TabsContent value='models' className='mt-4' keepMounted>
-                      <CatalogModelPreview
-                        models={plan.models}
-                        recoverPricing={plan.action === 'RECOVER_PRICING'}
-                        recoverContinuity={plan.action === 'RECOVER_CONTINUITY'}
-                      />
-                    </TabsContent>
-                    <TabsContent
-                      value='changes'
-                      className='mt-4 space-y-4'
-                      keepMounted
-                    >
-                      <DataTableColumnFilterPanel
-                        activeCount={
-                          [
-                            resourceType,
-                            search,
-                            action === 'ALL' ? '' : action,
-                          ].filter(Boolean).length
-                        }
-                        onClear={() => {
-                          setResourceType('')
-                          setSearch('')
-                          setAction('ALL')
-                          setChangePagination((value) => ({
-                            ...value,
-                            pageIndex: 0,
-                          }))
-                        }}
-                      >
-                        <DataTableColumnFilterField label={t('Resource type')}>
-                          <Input
-                            value={resourceType}
-                            placeholder={t('Resource type')}
-                            onChange={(event) => {
-                              setResourceType(event.target.value)
-                              setChangePagination((value) => ({
-                                ...value,
-                                pageIndex: 0,
-                              }))
-                            }}
-                          />
-                        </DataTableColumnFilterField>
-                        <DataTableColumnFilterField label={t('Key')}>
-                          <Input
-                            value={search}
-                            placeholder={t('Key')}
-                            onChange={(event) => {
-                              setSearch(event.target.value)
-                              setChangePagination((value) => ({
-                                ...value,
-                                pageIndex: 0,
-                              }))
-                            }}
-                          />
-                        </DataTableColumnFilterField>
-                        <DataTableColumnFilterField label={t('Action')}>
-                          <Select
-                            value={action}
-                            onValueChange={(value) => {
-                              setAction(value ?? 'ALL')
-                              setChangePagination((value) => ({
-                                ...value,
-                                pageIndex: 0,
-                              }))
-                            }}
-                          >
-                            <SelectTrigger
-                              className='w-full'
-                              aria-label={t('Action')}
-                            >
-                              <CanvasLocalizedSelectValue
-                                value={action === 'ALL' ? '' : action}
-                                emptyLabelKey='All actions'
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value='ALL'>
-                                {t('All actions')}
-                              </SelectItem>
-                              {[
-                                'CREATE',
-                                'REUSE',
-                                'CREATE_VERSION',
-                                'NO_OP',
-                                'CONFLICT',
-                              ].map((value) => (
-                                <SelectItem key={value} value={value}>
-                                  {t(value)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </DataTableColumnFilterField>
-                      </DataTableColumnFilterPanel>
-                      <StaticDataTable
-                        className='max-w-full overflow-x-auto'
-                        containerProps={{
-                          'aria-label': t('Database plan'),
-                          tabIndex: 0,
-                        }}
-                        tableClassName='min-w-[880px] table-fixed'
-                      >
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead
-                              className={canvasStaticColumnWidth.standard}
-                            >
-                              <CanvasStaticSortHeader
-                                active={sort === 'resourceType'}
-                                descending={descending}
-                                label={t('Resource type')}
-                                onClick={() => changeSort('resourceType')}
-                              />
-                            </TableHead>
-                            <TableHead
-                              className={canvasStaticColumnWidth.detail}
-                            >
-                              <CanvasStaticSortHeader
-                                active={sort === 'key'}
-                                descending={descending}
-                                label={t('Key')}
-                                onClick={() => changeSort('key')}
-                              />
-                            </TableHead>
-                            <TableHead
-                              className={canvasStaticColumnWidth.standard}
-                            >
-                              <CanvasStaticSortHeader
-                                active={sort === 'action'}
-                                descending={descending}
-                                label={t('Action')}
-                                onClick={() => changeSort('action')}
-                              />
-                            </TableHead>
-                            <TableHead
-                              className={canvasStaticColumnWidth.compact}
-                            >
-                              <CanvasStaticSortHeader
-                                active={sort === 'currentVersion'}
-                                descending={descending}
-                                label={t('Current version')}
-                                onClick={() => changeSort('currentVersion')}
-                              />
-                            </TableHead>
-                            <TableHead
-                              className={canvasStaticColumnWidth.compact}
-                            >
-                              <CanvasStaticSortHeader
-                                active={sort === 'proposedVersion'}
-                                descending={descending}
-                                label={t('Proposed version')}
-                                onClick={() => changeSort('proposedVersion')}
-                              />
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {visibleChanges.map((change) => (
-                            <TableRow
-                              key={`${change.resourceType}:${change.key}`}
-                            >
-                              <TableCell>{t(change.resourceType)}</TableCell>
-                              <TableCell className='max-w-[22rem] break-all'>
-                                {change.key}
-                              </TableCell>
-                              <TableCell className='font-medium'>
-                                {t(change.action)}
-                              </TableCell>
-                              <TableCell className='tabular-nums'>
-                                {change.currentVersion ?? '—'}
-                              </TableCell>
-                              <TableCell className='tabular-nums'>
-                                {change.proposedVersion ?? '—'}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </StaticDataTable>
-                      <DataTablePagination table={changeTable} />
-                    </TabsContent>
-                  </Tabs>
-                  <div className='bg-muted/30 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>
-                    <div className='text-sm'>
-                      <div className='font-medium'>{publicationSummary}</div>
-                      <div className='text-muted-foreground mt-1'>
-                        {recoveringExisting
-                          ? t('Existing catalog versions remain unchanged.')
-                          : t(
-                              'Unchanged models are reused and never receive a new version.'
-                            )}
-                      </div>
-                      <div className='mt-2 text-sm tabular-nums'>
-                        {t('Existing prices reused')}:{' '}
-                        {plan.pricingSummary.reused}
-                        {' · '}
-                        {t('Specifications needing pricing')}:{' '}
-                        {plan.pricingSummary.needsPricing}
-                      </div>
-                    </div>
+                  <CardTitle>{t('Publication preview')}</CardTitle>
+                  <CardDescription className='[overflow-wrap:anywhere]'>
+                    {plan.bundleId}
+                    {' · '}
+                    {plan.currentBundle
+                      ? t('Currently published {{current}} → this upload {{next}}', {
+                          current: plan.currentBundle.bundleVersion,
+                          next: plan.bundleVersion,
+                        })
+                      : t('First import {{version}}', {
+                          version: plan.bundleVersion,
+                        })}
+                    {' · '}
+                    {t('Files validated')}
+                  </CardDescription>
+                  <CardAction>
                     <Button
                       disabled={!canPublish || publisher.isPending}
                       onClick={() => setConfirming(true)}
                     >
                       {reviewLabel}
                     </Button>
-                  </div>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className='space-y-4'>
+                  {planBlocked ? (
+                    <div
+                      role='alert'
+                      className='border-destructive/40 bg-destructive/5 text-destructive rounded-lg border p-3 text-sm'
+                    >
+                      <div className='font-medium'>
+                        {t('Cannot publish: {{count}} items must be resolved first', {
+                          count: blockingDiagnostics.length,
+                        })}
+                      </div>
+                      <ul className='mt-2 list-disc space-y-2 pl-4'>
+                        {blockingDiagnostics.map((diagnostic) => {
+                          const text = catalogPlanDiagnosticText(
+                            t,
+                            diagnostic,
+                            plan.models
+                          )
+                          const target = catalogDiagnosticTarget(diagnostic)
+                          return (
+                            <li
+                              key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
+                            >
+                              <div>
+                                {text?.message ??
+                                  diagnosticDetails(diagnostic, t)}
+                              </div>
+                              {text && <div>{text.remedy}</div>}
+                              {target && (
+                                <Button
+                                  type='button'
+                                  variant='link'
+                                  size='sm'
+                                  className='text-destructive h-auto p-0'
+                                  onClick={() => locate(target)}
+                                >
+                                  {t('View details')}
+                                </Button>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className='text-sm'>{planDescription}</p>
+                  )}
+                  {warningDiagnostics.length > 0 && (
+                    <ul className='bg-muted/30 list-disc space-y-1 rounded-lg border p-3 pl-7 text-sm'>
+                      {warningDiagnostics.map((diagnostic) => (
+                        <li
+                          key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
+                        >
+                          {diagnosticDetails(diagnostic, t)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className='text-muted-foreground text-sm tabular-nums'>
+                    {t(
+                      'This Bundle contains: {{models}} models · {{providers}} API providers · {{channels}} provider channels · {{artifacts}} model definition files',
+                      {
+                        models: plan.models.length,
+                        providers: countByType('PROVIDER'),
+                        channels: countByType('PROVIDER_CHANNEL'),
+                        artifacts: countByType('MODEL_DEFINITION_ARTIFACT'),
+                      }
+                    )}
+                  </p>
+                  <Tabs
+                    value={reviewTab}
+                    onValueChange={(value) => {
+                      if (value === 'models' || value === 'shared') {
+                        setReviewTab(value)
+                      }
+                    }}
+                  >
+                    <TabsList className='max-w-full justify-start overflow-x-auto'>
+                      <TabsTrigger value='models' className='flex-none'>
+                        {t('Models')}{' '}
+                        <span className={countBadgeClass.changed}>
+                          {t('{{count}} models changed', {
+                            count: modelCounts.changed,
+                          })}
+                        </span>
+                        {modelCounts.pending > 0 && ' '}
+                        {modelCounts.pending > 0 && (
+                          <span className={countBadgeClass.pending}>
+                            {t('{{count}} models pending', {
+                              count: modelCounts.pending,
+                            })}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger value='shared' className='flex-none'>
+                        {t('Shared resources')}{' '}
+                        <span className={countBadgeClass.changed}>
+                          {t('{{count}} resources changed', {
+                            count: sharedChanged,
+                          })}
+                        </span>
+                        {sharedConflicts > 0 && ' '}
+                        {sharedConflicts > 0 && (
+                          <span className={countBadgeClass.conflict}>
+                            {t('{{count}} resources in conflict', {
+                              count: sharedConflicts,
+                            })}
+                          </span>
+                        )}
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value='models' className='mt-2' keepMounted>
+                      <CatalogModelPreview
+                        reviews={reviews}
+                        changes={plan.changes}
+                        focus={modelFocus}
+                        onViewChannel={(channelId) =>
+                          locate({
+                            tab: 'shared',
+                            resourceType: 'PROVIDER_CHANNEL',
+                            key: channelId,
+                          })
+                        }
+                      />
+                    </TabsContent>
+                    <TabsContent value='shared' className='mt-2' keepMounted>
+                      <CatalogSharedResources
+                        plan={plan}
+                        changes={sharedChanges}
+                        reviews={reviews}
+                        focus={sharedFocus}
+                      />
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               </Card>
             )}
