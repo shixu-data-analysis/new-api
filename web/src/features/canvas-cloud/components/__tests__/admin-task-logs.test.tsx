@@ -339,6 +339,7 @@ describe('Canvas administrator task records', () => {
     )
     routeState.set({
       derivedExecutionStatus: 'UNKNOWN',
+      billingStatus: 'FROZEN',
       upstreamTask: 'absent',
       credentialGroupId: groupId,
     })
@@ -348,6 +349,7 @@ describe('Canvas administrator task records', () => {
       expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
         expect.objectContaining({
           derivedExecutionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
           upstreamTask: 'absent',
           credentialGroupId: groupId,
         }),
@@ -368,6 +370,8 @@ describe('Canvas administrator task records', () => {
     expect(
       within(tags).getByText('Provider task ID: Absent (cannot be queried)')
     ).toBeVisible()
+    // Released tasks are left out by a visible billing status chip, not by the provider task ID filter.
+    expect(within(tags).getByText('Raw billing status: Frozen')).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
     // A carried value inside "More conditions" opens it.
@@ -384,6 +388,16 @@ describe('Canvas administrator task records', () => {
     await user.click(
       within(tags).getByRole('button', {
         name: 'Remove filter API Key group: HFSY API · Default',
+      })
+    )
+    expect(routeState.get()).toEqual({
+      derivedExecutionStatus: 'UNKNOWN',
+      billingStatus: 'FROZEN',
+      upstreamTask: 'absent',
+    })
+    await user.click(
+      within(tags).getByRole('button', {
+        name: 'Remove filter Raw billing status: Frozen',
       })
     )
     expect(routeState.get()).toEqual({

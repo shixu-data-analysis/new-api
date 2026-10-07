@@ -69,6 +69,10 @@ const taskLogSearch = {
     .optional()
     .catch(undefined),
   upstreamTask: z.enum(['present', 'absent']).optional().catch(undefined),
+  billingStatus: z
+    .enum(['FROZEN', 'SETTLED', 'RELEASED_FAILED', 'RELEASED_TIMEOUT'])
+    .optional()
+    .catch(undefined),
   failureReason: z
     .enum(['PROVIDER_OUTPUT_TOO_LARGE', 'RETRY_EXHAUSTED'])
     .optional()

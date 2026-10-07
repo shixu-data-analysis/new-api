@@ -109,7 +109,10 @@ const statusLabel = (value: string, t: Translate) =>
 const requestLabel = (value: string, t: Translate) =>
   t(requestKeys[value as ExecutionWaitRequestState] ?? 'Unknown request status')
 
-/** Task-log filters of the unconfirmed-result links; a group narrows the "cannot be queried" link to that API Key group. */
+/**
+ * Task-log filters of the unconfirmed-result links; a group narrows the "cannot be queried" link to that API Key group.
+ * Tasks whose points were already released are left out by the billing status filter, shown as a removable chip.
+ */
 // oxlint-disable-next-line react/only-export-components -- shared with the link tests
 export function unconfirmedTaskLogSearch(
   upstreamTask: NonNullable<CanvasAdminTaskLogQuery['upstreamTask']>,
@@ -117,6 +120,7 @@ export function unconfirmedTaskLogSearch(
 ) {
   return {
     derivedExecutionStatus: 'UNKNOWN' as const,
+    billingStatus: 'FROZEN' as const,
     upstreamTask,
     ...(credentialGroupId ? { credentialGroupId } : {}),
   }

@@ -167,13 +167,13 @@ export function AdminTaskLogs() {
   const [settlementProgress, setSettlementProgress] = useState('')
   const [specificUpstreamTask, setSpecificUpstreamTask] = useState(false)
   const [upstreamTaskId, setUpstreamTaskId] = useState('')
-  const [billingStatus, setBillingStatus] = useState('')
   const [to, setTo] = useState<Date>()
   // Filters other pages carry in live in the address; editing them keeps the address in step.
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const derivedExecutionStatus = search.derivedExecutionStatus ?? ''
   const upstreamTask = search.upstreamTask
+  const billingStatus = search.billingStatus ?? ''
   const credentialGroupId = search.credentialGroupId ?? ''
   const failureReason = search.failureReason
   const from = useMemo(
@@ -189,6 +189,10 @@ export function AdminTaskLogs() {
     setSearch({
       derivedExecutionStatus: (value ||
         undefined) as typeof search.derivedExecutionStatus,
+    })
+  const setBillingStatus = (value: string) =>
+    setSearch({
+      billingStatus: (value || undefined) as typeof search.billingStatus,
     })
   const setFrom = (value: Date | undefined) =>
     setSearch({ from: value?.toISOString() })
@@ -823,11 +827,11 @@ export function AdminTaskLogs() {
           setSettlementProgress('')
           setSpecificUpstreamTask(false)
           setUpstreamTaskId('')
-          setBillingStatus('')
           setTo(undefined)
           setSearch({
             derivedExecutionStatus: undefined,
             upstreamTask: undefined,
+            billingStatus: undefined,
             credentialGroupId: undefined,
             failureReason: undefined,
             from: undefined,
