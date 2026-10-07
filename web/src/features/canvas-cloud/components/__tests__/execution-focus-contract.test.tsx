@@ -305,10 +305,13 @@ describe('execution capacity overview', () => {
       within(drawer).getAllByText('In progress at provider full (30 / 30)')
     ).toHaveLength(2)
 
-    const rowButton = (index: number) =>
-      within(drawer).getAllByRole('button', { name: /^(Details|Collapse)$/ })[
-        index
-      ]!
+    const rowButton = (index: number) => {
+      const button = within(drawer).getAllByRole('button', {
+        name: /^(Details|Collapse)$/,
+      })[index]
+      if (!button) throw new Error(`Missing row button ${index}`)
+      return button
+    }
     await user.click(rowButton(0))
     expect(rowButton(0)).toHaveAttribute('aria-expanded', 'true')
     expect(rowButton(0)).toHaveTextContent('Collapse')
