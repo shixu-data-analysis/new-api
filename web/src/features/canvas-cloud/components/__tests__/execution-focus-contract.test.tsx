@@ -250,7 +250,7 @@ describe('execution capacity overview', () => {
     const summary = await screen.findByTestId('unconfirmed-summary')
     expect(within(summary).getByRole('link', { name: '2' })).toHaveAttribute(
       'href',
-      '/canvas-cloud/task-logs?derivedExecutionStatus=UNKNOWN&billingStatus=FROZEN&upstreamTask=present'
+      '/canvas-cloud/task-logs?derivedExecutionStatus=UNKNOWN&frozenResultsOnly=true&upstreamTask=present'
     )
     // A zero is shown without a link.
     expect(within(summary).getAllByRole('link')).toHaveLength(1)
@@ -263,7 +263,7 @@ describe('execution capacity overview', () => {
       })
     ).toHaveAttribute(
       'href',
-      '/canvas-cloud/task-logs?derivedExecutionStatus=UNKNOWN&billingStatus=FROZEN&upstreamTask=absent&credentialGroupId=group-1'
+      '/canvas-cloud/task-logs?derivedExecutionStatus=UNKNOWN&frozenResultsOnly=true&upstreamTask=absent&credentialGroupId=group-1'
     )
   })
 

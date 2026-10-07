@@ -7527,6 +7527,8 @@
     "Settlement progress": "结算进度",
     "More conditions": "更多条件",
     "Raw billing status": "原始计费状态",
+    "Result points": "结果积分",
+    "Still frozen only": "仅看仍冻结的结果",
     "Accepted count": "已受理 {{count}}",
     "Processing count": "处理中 {{count}}",
     "Succeeded count": "成功 {{count}}",

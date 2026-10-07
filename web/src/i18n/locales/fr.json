@@ -7527,6 +7527,8 @@
     "Settlement progress": "Progression du règlement",
     "More conditions": "Plus de conditions",
     "Raw billing status": "Statut de facturation brut",
+    "Result points": "Points du résultat",
+    "Still frozen only": "Résultats encore gelés uniquement",
     "Accepted count": "Acceptés : {{count}}",
     "Processing count": "En cours : {{count}}",
     "Succeeded count": "Réussis : {{count}}",

@@ -7527,6 +7527,8 @@
     "Settlement progress": "Tiến độ quyết toán",
     "More conditions": "Điều kiện khác",
     "Raw billing status": "Trạng thái tính phí gốc",
+    "Result points": "Điểm của kết quả",
+    "Still frozen only": "Chỉ kết quả còn đóng băng",
     "Accepted count": "Đã nhận {{count}}",
     "Processing count": "Đang xử lý {{count}}",
     "Succeeded count": "Thành công {{count}}",

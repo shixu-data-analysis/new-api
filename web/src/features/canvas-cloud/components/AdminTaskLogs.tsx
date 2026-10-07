@@ -167,13 +167,14 @@ export function AdminTaskLogs() {
   const [settlementProgress, setSettlementProgress] = useState('')
   const [specificUpstreamTask, setSpecificUpstreamTask] = useState(false)
   const [upstreamTaskId, setUpstreamTaskId] = useState('')
+  const [billingStatus, setBillingStatus] = useState('')
   const [to, setTo] = useState<Date>()
   // Filters other pages carry in live in the address; editing them keeps the address in step.
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const derivedExecutionStatus = search.derivedExecutionStatus ?? ''
   const upstreamTask = search.upstreamTask
-  const billingStatus = search.billingStatus ?? ''
+  const frozenResultsOnly = search.frozenResultsOnly === true
   const credentialGroupId = search.credentialGroupId ?? ''
   const failureReason = search.failureReason
   const from = useMemo(
@@ -189,10 +190,6 @@ export function AdminTaskLogs() {
     setSearch({
       derivedExecutionStatus: (value ||
         undefined) as typeof search.derivedExecutionStatus,
-    })
-  const setBillingStatus = (value: string) =>
-    setSearch({
-      billingStatus: (value || undefined) as typeof search.billingStatus,
     })
   const setFrom = (value: Date | undefined) =>
     setSearch({ from: value?.toISOString() })
@@ -219,6 +216,7 @@ export function AdminTaskLogs() {
     derivedExecutionStatus,
     failureReason,
     from,
+    frozenResultsOnly,
     model,
     settlementProgress,
     setPagination,
@@ -237,6 +235,7 @@ export function AdminTaskLogs() {
       derivedExecutionStatus,
       settlementProgress,
       upstreamTask,
+      frozenResultsOnly,
       specificUpstreamTask ? debouncedUpstreamTaskId : '',
       credentialGroupId,
       failureReason,
@@ -257,6 +256,7 @@ export function AdminTaskLogs() {
           ...(derivedExecutionStatus ? { derivedExecutionStatus } : {}),
           ...(settlementProgress ? { settlementProgress } : {}),
           ...(upstreamTask ? { upstreamTask } : {}),
+          ...(frozenResultsOnly ? { frozenResultsOnly } : {}),
           ...(specificUpstreamTask && debouncedUpstreamTaskId
             ? { upstreamTaskId: debouncedUpstreamTaskId }
             : {}),
@@ -480,6 +480,11 @@ export function AdminTaskLogs() {
         setSearch({ upstreamTask: undefined })
       },
     },
+    frozenResultsOnly && {
+      key: 'frozenResultsOnly',
+      label: tag(t('Result points'), t('Still frozen only')),
+      remove: () => setSearch({ frozenResultsOnly: undefined }),
+    },
     billingStatus && {
       key: 'billingStatus',
       label: tag(
@@ -618,7 +623,11 @@ export function AdminTaskLogs() {
       <div className='sm:col-span-3'>
         <Collapsible
           defaultOpen={Boolean(
-            upstreamMode || credentialGroupId || failureReason || billingStatus
+            upstreamMode ||
+            frozenResultsOnly ||
+            credentialGroupId ||
+            failureReason ||
+            billingStatus
           )}
         >
           <CollapsibleTrigger className='text-primary text-sm underline underline-offset-4'>
@@ -675,6 +684,35 @@ export function AdminTaskLogs() {
                   />
                 ) : null}
               </div>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField label={t('Result points')}>
+              <Select
+                value={frozenResultsOnly ? 'FROZEN' : 'ALL'}
+                onValueChange={(value) =>
+                  setSearch({
+                    frozenResultsOnly: value === 'FROZEN' ? true : undefined,
+                  })
+                }
+              >
+                <SelectTrigger
+                  className={activeControl(frozenResultsOnly)}
+                  aria-label={t('Result points')}
+                >
+                  <CanvasLocalizedSelectValue
+                    value={frozenResultsOnly ? 'FROZEN' : ''}
+                    displayValue={
+                      frozenResultsOnly ? t('Still frozen only') : undefined
+                    }
+                    emptyLabelKey='All'
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ALL'>{t('All')}</SelectItem>
+                  <SelectItem value='FROZEN'>
+                    {t('Still frozen only')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </DataTableColumnFilterField>
             <DataTableColumnFilterField label={t('Raw billing status')}>
               <Select
@@ -827,11 +865,12 @@ export function AdminTaskLogs() {
           setSettlementProgress('')
           setSpecificUpstreamTask(false)
           setUpstreamTaskId('')
+          setBillingStatus('')
           setTo(undefined)
           setSearch({
             derivedExecutionStatus: undefined,
             upstreamTask: undefined,
-            billingStatus: undefined,
+            frozenResultsOnly: undefined,
             credentialGroupId: undefined,
             failureReason: undefined,
             from: undefined,

@@ -1782,6 +1782,8 @@ export interface CanvasAdminTaskLogQuery {
   upstreamTaskId?: string
   /** A result still running or of unknown outcome was submitted with (present) or without (absent) a provider task ID. */
   upstreamTask?: CanvasAdminTaskUpstreamFilter
+  /** Only tasks with an unfinished result still frozen; with `upstreamTask`, both apply to the same result. */
+  frozenResultsOnly?: boolean
   credentialGroupId?: string
   failureReason?: CanvasAdminTaskFailureReason
   billingStatus?: string

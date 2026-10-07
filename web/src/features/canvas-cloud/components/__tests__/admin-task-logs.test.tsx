@@ -339,7 +339,7 @@ describe('Canvas administrator task records', () => {
     )
     routeState.set({
       derivedExecutionStatus: 'UNKNOWN',
-      billingStatus: 'FROZEN',
+      frozenResultsOnly: true,
       upstreamTask: 'absent',
       credentialGroupId: groupId,
     })
@@ -349,7 +349,7 @@ describe('Canvas administrator task records', () => {
       expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
         expect.objectContaining({
           derivedExecutionStatus: 'UNKNOWN',
-          billingStatus: 'FROZEN',
+          frozenResultsOnly: true,
           upstreamTask: 'absent',
           credentialGroupId: groupId,
         }),
@@ -370,8 +370,10 @@ describe('Canvas administrator task records', () => {
     expect(
       within(tags).getByText('Provider task ID: Absent (cannot be queried)')
     ).toBeVisible()
-    // Released tasks are left out by a visible billing status chip, not by the provider task ID filter.
-    expect(within(tags).getByText('Raw billing status: Frozen')).toBeVisible()
+    // Released results are left out by a visible chip, not by the provider task ID filter.
+    expect(
+      within(tags).getByText('Result points: Still frozen only')
+    ).toBeVisible()
 
     fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
     // A carried value inside "More conditions" opens it.
@@ -381,6 +383,9 @@ describe('Canvas administrator task records', () => {
     expect(
       screen.getByRole('combobox', { name: 'Provider task ID' })
     ).toHaveTextContent('Absent (cannot be queried)')
+    expect(
+      screen.getByRole('combobox', { name: 'Result points' })
+    ).toHaveTextContent('Still frozen only')
     expect(
       screen.getByRole('combobox', { name: 'Failure reason' })
     ).toBeInTheDocument()
@@ -392,12 +397,12 @@ describe('Canvas administrator task records', () => {
     )
     expect(routeState.get()).toEqual({
       derivedExecutionStatus: 'UNKNOWN',
-      billingStatus: 'FROZEN',
+      frozenResultsOnly: true,
       upstreamTask: 'absent',
     })
     await user.click(
       within(tags).getByRole('button', {
-        name: 'Remove filter Raw billing status: Frozen',
+        name: 'Remove filter Result points: Still frozen only',
       })
     )
     expect(routeState.get()).toEqual({

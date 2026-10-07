@@ -7527,6 +7527,8 @@
     "Settlement progress": "Ход расчёта",
     "More conditions": "Дополнительные условия",
     "Raw billing status": "Исходный статус расчёта",
+    "Result points": "Баллы результата",
+    "Still frozen only": "Только ещё замороженные результаты",
     "Accepted count": "Принято: {{count}}",
     "Processing count": "В обработке: {{count}}",
     "Succeeded count": "Успешно: {{count}}",

@@ -7527,6 +7527,8 @@
     "Settlement progress": "Settlement progress",
     "More conditions": "More conditions",
     "Raw billing status": "Raw billing status",
+    "Result points": "Result points",
+    "Still frozen only": "Still frozen only",
     "Accepted count": "Accepted {{count}}",
     "Processing count": "Processing {{count}}",
     "Succeeded count": "Succeeded {{count}}",

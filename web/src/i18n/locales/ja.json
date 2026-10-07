@@ -7527,6 +7527,8 @@
     "Settlement progress": "精算の進行状況",
     "More conditions": "その他の条件",
     "Raw billing status": "元の課金状態",
+    "Result points": "結果のポイント",
+    "Still frozen only": "凍結中の結果のみ",
     "Accepted count": "受付済み {{count}}",
     "Processing count": "処理中 {{count}}",
     "Succeeded count": "成功 {{count}}",
