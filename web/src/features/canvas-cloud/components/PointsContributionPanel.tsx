@@ -1437,6 +1437,7 @@ function GroupTable(props: {
     },
     {
       id: 'consumedPoints',
+      accessorFn: (row) => row.consumedPoints,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Consumed points')} />
       ),
@@ -1459,6 +1460,8 @@ function GroupTable(props: {
     },
     {
       id: 'listAmount',
+      accessorFn: (row) => consumptionEquation(row).listAmount,
+      meta: { label: t('List amount') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1470,6 +1473,8 @@ function GroupTable(props: {
     },
     {
       id: 'giftAmount',
+      accessorFn: (row) => consumptionEquation(row).gift,
+      meta: { label: t('Gift portion') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1481,6 +1486,8 @@ function GroupTable(props: {
     },
     {
       id: 'cashSupport',
+      accessorFn: (row) => consumptionEquation(row).cashSupport,
+      meta: { label: t('Recharge amount of consumption') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1521,6 +1528,8 @@ function GroupTable(props: {
     },
     {
       id: 'recordedCost',
+      accessorFn: (row) => consumptionEquation(row).recordedCost,
+      meta: { label: t('Recorded call cost') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1568,6 +1577,8 @@ function GroupTable(props: {
     },
     {
       id: 'contribution',
+      accessorFn: (row) => consumptionEquation(row).contribution,
+      meta: { label: t('Contribution') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1584,6 +1595,8 @@ function GroupTable(props: {
     },
     {
       id: 'listContribution',
+      accessorFn: (row) => consumptionEquation(row).listContribution,
+      meta: { label: t('List contribution') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}
@@ -1600,6 +1613,7 @@ function GroupTable(props: {
     },
     {
       id: 'modelCount',
+      accessorFn: (row) => row.modelCount,
       header: t('Model count'),
       enableSorting: false,
       cell: ({ row }) => (
