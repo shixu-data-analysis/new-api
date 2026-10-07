@@ -356,6 +356,31 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
     ).toBeInTheDocument()
   })
 
+  it('lists the grouped view columns under View and shows no empty column filter', async () => {
+    mount(<PointsContributionPanel />)
+    const card = (await screen.findByText('Grouped view')).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement
+    expect(
+      within(card).queryByRole('button', { name: /Column filters/u })
+    ).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: 'View' }))
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: 'Contribution' })
+    ).toHaveAttribute('aria-checked', 'true')
+    for (const hidden of ['List amount', 'Gift portion', 'List contribution']) {
+      expect(
+        screen.getByRole('menuitemcheckbox', { name: hidden })
+      ).toHaveAttribute('aria-checked', 'false')
+    }
+    fireEvent.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Model count' })
+    )
+    expect(
+      await within(card).findByRole('columnheader', { name: 'Model count' })
+    ).toBeInTheDocument()
+  })
+
   it('distinguishes a query timeout from a general failure', async () => {
     dashboardApi.getOperatingDashboard.mockRejectedValueOnce({
       response: { status: 503, data: { code: 'QUERY_TIMEOUT' } },

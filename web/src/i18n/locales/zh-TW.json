@@ -6162,7 +6162,7 @@
     "The submitted rate change did not pass server validation. Check the field requirements and try again.": "發行比例變更未通過服務端校驗，請檢查欄位要求後重試。",
     "Create price group": "建立方案",
     "Search all columns": "搜尋所有欄",
-    "Column filters": "欄位篩選",
+    "Column filters": "篩選",
     "Filter {{column}}": "篩選{{column}}",
     "No price group records": "沒有方案記錄",
     "No rate records": "沒有積分發行比例記錄",

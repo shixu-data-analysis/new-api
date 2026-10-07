@@ -103,6 +103,8 @@ export function CanvasServerTable<TData>({
     () => withCanvasColumnAlignment(columns, getColumnClassName),
     [columns, getColumnClassName]
   )
+  // Tables without search or filter fields keep the toolbar slot but show no empty panel.
+  const hasFilterFields = Boolean(searchLabel || additionalFilters)
   const visibleActiveFilterCount =
     (search.trim() ? 1 : 0) + (activeFilterCount ?? (hasActiveFilters ? 1 : 0))
   const { table } = useDataTable({
@@ -153,25 +155,27 @@ export function CanvasServerTable<TData>({
             table={table}
             filterPanel={
               <div className='flex min-w-0 flex-wrap items-center gap-2'>
-                <DataTableColumnFilterPanel
-                  activeCount={visibleActiveFilterCount}
-                >
-                  {searchLabel ? (
-                    <DataTableColumnFilterField
-                      label={searchLabel}
-                      htmlFor={searchId}
-                    >
-                      <Input
-                        id={searchId}
-                        className='min-w-0'
-                        value={search}
-                        placeholder={searchPlaceholder ?? searchLabel}
-                        onChange={(event) => setSearch(event.target.value)}
-                      />
-                    </DataTableColumnFilterField>
-                  ) : null}
-                  {additionalFilters}
-                </DataTableColumnFilterPanel>
+                {hasFilterFields ? (
+                  <DataTableColumnFilterPanel
+                    activeCount={visibleActiveFilterCount}
+                  >
+                    {searchLabel ? (
+                      <DataTableColumnFilterField
+                        label={searchLabel}
+                        htmlFor={searchId}
+                      >
+                        <Input
+                          id={searchId}
+                          className='min-w-0'
+                          value={search}
+                          placeholder={searchPlaceholder ?? searchLabel}
+                          onChange={(event) => setSearch(event.target.value)}
+                        />
+                      </DataTableColumnFilterField>
+                    ) : null}
+                    {additionalFilters}
+                  </DataTableColumnFilterPanel>
+                ) : null}
                 {filterTags}
               </div>
             }
