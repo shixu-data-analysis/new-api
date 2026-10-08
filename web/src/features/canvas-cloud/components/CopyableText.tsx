@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+
+import { copyText } from '../copy-text'
 
 export function CopyableText({
   value,
@@ -48,9 +49,12 @@ export function CopyableText({
         aria-label={hideValue ? `${t('Copy')} ${value}` : t('Copy')}
         onClick={async (event) => {
           event.stopPropagation()
-          await navigator.clipboard.writeText(value)
+          const copied = await copyText(value, {
+            copied: t('Copied'),
+            failed: t('Failed to copy to clipboard'),
+          })
+          if (!copied) return
           setCopied(true)
-          toast.success(t('Copied'))
           window.setTimeout(() => setCopied(false), 1500)
         }}
       >

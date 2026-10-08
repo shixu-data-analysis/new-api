@@ -27,7 +27,6 @@ import type { TFunction } from 'i18next'
 import { Copy } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { DataTablePagination, StaticDataTable } from '@/components/data-table'
 import {
@@ -54,6 +53,7 @@ import {
   type CatalogModelFilters,
   type CatalogModelReview,
 } from '../catalog-plan-review'
+import { copyText } from '../copy-text'
 import type { ModelCatalogChange } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -324,10 +324,12 @@ function CatalogModelDetail(props: {
               type='button'
               variant='outline'
               size='sm'
-              onClick={async () => {
-                await navigator.clipboard.writeText(diff.proposedText)
-                toast.success(t('Copied'))
-              }}
+              onClick={() =>
+                void copyText(diff.proposedText, {
+                  copied: t('Copied'),
+                  failed: t('Failed to copy to clipboard'),
+                })
+              }
             >
               <Copy aria-hidden='true' />
               {t('Copy JSON')}

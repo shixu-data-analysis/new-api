@@ -25,7 +25,9 @@ import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CodeBlock } from './CodeBlock'
 import { CopyableText } from './CopyableText'
+import { TableRowPanel } from './TableRowPanel'
 
 const callTypes: Record<string, string> = {
   SUBMIT: 'Submit task',
@@ -142,15 +144,12 @@ function collapseLongStrings(
 export function JsonSnapshot(props: {
   value: unknown
   description?: string
-  // Set to false when the surrounding section already offers a copy action.
-  copyable?: boolean
-  /** More buttons for the header row, after "Show full content" and "Copy". */
-  actions?: ReactNode
+  /** What the copy icon copies when it is more than the shown JSON, such as the whole request with its request line. */
+  copyValue?: unknown
   /** Shown between the header row and the JSON, such as the request line. */
   lead?: ReactNode
 }) {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
   const full = JSON.stringify(props.value, null, 2)
   const collapsed = JSON.stringify(
     collapseLongStrings(props.value, (count) =>
@@ -159,50 +158,21 @@ export function JsonSnapshot(props: {
     null,
     2
   )
-  const copyable = props.copyable ?? true
-  const showHeader =
-    Boolean(props.description) ||
-    copyable ||
-    collapsed !== full ||
-    Boolean(props.actions)
   return (
     <div className='space-y-2'>
-      {showHeader ? (
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          {props.description ? (
-            <p className='text-muted-foreground text-xs'>{props.description}</p>
-          ) : (
-            <span />
-          )}
-          <div className='flex gap-2'>
-            {collapsed !== full ? (
-              <Button
-                type='button'
-                size='sm'
-                variant='ghost'
-                onClick={() => setExpanded((value) => !value)}
-              >
-                {t(expanded ? 'Collapse' : 'Show full content')}
-              </Button>
-            ) : null}
-            {copyable ? (
-              <Button
-                type='button'
-                size='sm'
-                variant='ghost'
-                onClick={() => void navigator.clipboard?.writeText(full)}
-              >
-                {t('Copy')}
-              </Button>
-            ) : null}
-            {props.actions}
-          </div>
-        </div>
+      {props.description ? (
+        <p className='text-muted-foreground text-xs'>{props.description}</p>
       ) : null}
       {props.lead}
-      <pre className='bg-muted max-h-60 overflow-auto rounded-md p-3 text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
-        {expanded ? full : collapsed}
-      </pre>
+      <CodeBlock
+        text={full}
+        collapsedText={collapsed}
+        copyText={
+          props.copyValue === undefined
+            ? undefined
+            : JSON.stringify(props.copyValue, null, 2)
+        }
+      />
     </div>
   )
 }
@@ -426,20 +396,6 @@ export function CallDetails({
   const requestExplanation = t(
     'The request Canvas sent after converting it with the provider interface template.'
   )
-  const copyRequest = (
-    <Button
-      type='button'
-      size='sm'
-      variant='ghost'
-      onClick={() =>
-        void navigator.clipboard?.writeText(
-          JSON.stringify(requestSnapshot, null, 2)
-        )
-      }
-    >
-      {t('Copy')}
-    </Button>
-  )
   const requestLine = (
     <p className='font-mono text-sm'>
       {String(requestSnapshot?.method ?? '')}{' '}
@@ -450,24 +406,23 @@ export function CallDetails({
     <p className='text-muted-foreground text-sm'>—</p>
   )
   if (requestSnapshot && requestRest && Object.keys(requestRest).length) {
-    // "Show full content" joins the explanation and Copy in one row instead of a row of its own.
+    // The copy icon copies the whole request, request line included.
     requestContent = (
       <JsonSnapshot
         value={requestRest}
         description={requestExplanation}
-        copyable={false}
-        actions={copyRequest}
+        copyValue={requestSnapshot}
         lead={requestLine}
       />
     )
   } else if (requestSnapshot) {
     requestContent = (
       <>
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          <p className='text-muted-foreground text-xs'>{requestExplanation}</p>
-          {copyRequest}
-        </div>
-        {requestLine}
+        <p className='text-muted-foreground text-xs'>{requestExplanation}</p>
+        <CodeBlock
+          text={`${String(requestSnapshot.method ?? '')} ${String(requestSnapshot.path ?? '')}`}
+          copyText={JSON.stringify(requestSnapshot, null, 2)}
+        />
         <p className='text-muted-foreground text-sm'>
           {t('No query parameters or request body.')}
         </p>
@@ -775,18 +730,22 @@ export function TaskCallHistory({
         </TableRow>
         {cost ? (
           <TableRow>
-            <TableCell colSpan={row.getVisibleCells().length}>{cost}</TableCell>
+            <TableCell colSpan={row.getVisibleCells().length}>
+              <TableRowPanel>{cost}</TableRowPanel>
+            </TableCell>
           </TableRow>
         ) : null}
         {isOpen(row.original) ? (
           <TableRow>
             <TableCell colSpan={row.getVisibleCells().length}>
-              <CallDetails
-                call={row.original}
-                inputAssets={inputAssets}
-                openingInput={openingInput}
-                onOpenInput={(asset) => void openInput(asset)}
-              />
+              <TableRowPanel>
+                <CallDetails
+                  call={row.original}
+                  inputAssets={inputAssets}
+                  openingInput={openingInput}
+                  onOpenInput={(asset) => void openInput(asset)}
+                />
+              </TableRowPanel>
             </TableCell>
           </TableRow>
         ) : null}

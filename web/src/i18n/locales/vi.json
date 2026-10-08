@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "Dùng giá trị đề xuất hoặc nhập số nguyên dương tùy chỉnh. Máy chủ sẽ kiểm tra lại mức sàn trước khi công bố.",
     "Use recommended": "Dùng giá trị đề xuất",
     "Keep current": "Giữ giá hiện tại",
+    "Keep current credentials": "Giữ thông tin xác thực hiện tại",
     "Pricing recommendation": "Đề xuất định giá",
     "Show calculation details": "Hiển thị chi tiết tính toán",
     "Break-even before rounding": "Điểm hòa vốn trước khi làm tròn",

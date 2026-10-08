@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.",
     "Use recommended": "Use recommended",
     "Keep current": "Keep current",
+    "Keep current credentials": "Keep current credentials",
     "Pricing recommendation": "Pricing recommendation",
     "Show calculation details": "Show calculation details",
     "Break-even before rounding": "Break-even before rounding",

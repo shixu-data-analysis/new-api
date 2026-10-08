@@ -55,6 +55,7 @@ import {
   revealCanvasCode,
   searchCanvasAgentInviteCodes,
 } from '../api'
+import { copyText } from '../copy-text'
 import { formatCanvasDateTime } from '../formatters'
 import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
@@ -365,8 +366,10 @@ export function AgentCenter() {
       ),
     onSuccess: async (result) => {
       if (result.action === 'COPY') {
-        await navigator.clipboard.writeText(result.code)
-        toast.success(t('Invite code copied'))
+        await copyText(result.code, {
+          copied: t('Invite code copied'),
+          failed: t('Failed to copy to clipboard'),
+        })
         return
       }
       setRevealed((current) => ({ ...current, [result.id]: result.code }))

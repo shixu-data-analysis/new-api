@@ -74,6 +74,8 @@ import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './components/CanvasServerTable'
+import { CodeBlock } from './components/CodeBlock'
+import { copyText } from './copy-text'
 import { isCanvasDateRangeValid } from './date-range'
 import {
   cnyToMinor,
@@ -507,11 +509,14 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     Number.isInteger(parsedCount) && parsedCount >= 1 && parsedCount <= 100
   const copyCodes = async () => {
     if (!issued?.codes.length) return
-    await navigator.clipboard.writeText(
-      issued.codes.map((item) => item.code).join('\n')
+    const copied = await copyText(
+      issued.codes.map((item) => item.code).join('\n'),
+      {
+        copied: t('Recharge codes copied'),
+        failed: t('Failed to copy to clipboard'),
+      }
     )
-    setCodesTransferred(true)
-    toast.success(t('Recharge codes copied'))
+    if (copied) setCodesTransferred(true)
   }
 
   const downloadCodes = () => {
@@ -1071,20 +1076,21 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
           </CardHeader>
           <CardContent className='space-y-3'>
             <p className='text-sm font-medium'>{t('Full recharge codes')}</p>
-            <pre
+            {/* "Copy all" below copies the codes and records the transfer, so the block has no copy icon. */}
+            <CodeBlock
               aria-label={t(
                 codesVisible
                   ? 'Visible recharge codes'
                   : 'Hidden recharge codes'
               )}
-              className='bg-muted max-h-72 overflow-auto rounded-lg p-3 font-mono text-sm'
-            >
-              {issued.codes
+              className='text-sm'
+              copyText={null}
+              text={issued.codes
                 .map((item) =>
                   codesVisible ? item.code : '•••• •••• •••• ••••'
                 )
                 .join('\n')}
-            </pre>
+            />
             <div className='flex flex-wrap gap-2'>
               <Button
                 aria-label={t(

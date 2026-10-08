@@ -140,6 +140,40 @@ describe('Canvas customer tasks', () => {
     )
   })
 
+  it('copies through the fallback where the clipboard is denied, shows the whole task ID and wraps long cells', async () => {
+    // The Desktop customer center view denies the clipboard permission, so the API call rejects.
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(
+      new TypeError('Write permission denied')
+    )
+    const execCommand = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    })
+    renderTasks()
+    const taskId = await screen.findByText('01a09f34-complete-task-id')
+    expect(taskId).not.toHaveClass('truncate')
+    expect(taskId).toHaveClass('break-all')
+    expect(taskId.closest('td')).toHaveClass('whitespace-normal')
+    expect(screen.getByText(/1 succeeded/).closest('td')).toHaveClass(
+      'whitespace-normal'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy task ID' }))
+    await waitFor(() =>
+      expect(toastMocks.success).toHaveBeenCalledWith('Task ID copied')
+    )
+    expect(execCommand).toHaveBeenCalledWith('copy')
+
+    execCommand.mockReturnValue(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy task ID' }))
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Failed to copy to clipboard'
+      )
+    )
+  })
+
   it('downloads an available partial-success output through a fresh signed descriptor', async () => {
     const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')

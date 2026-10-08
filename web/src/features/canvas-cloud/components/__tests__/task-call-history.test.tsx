@@ -250,7 +250,7 @@ describe('TaskCallHistory', () => {
     ).toBeVisible()
   })
 
-  it('shows the request body directly under the request line with one copy action', () => {
+  it('shows the request body directly under the request line with one copy icon above it', () => {
     mountDetails({
       ...call,
       sanitizedRequest: {
@@ -269,14 +269,18 @@ describe('TaskCallHistory', () => {
     expect(requestPanel.querySelector('pre')?.textContent).toContain(
       '"prompt": "a girl"'
     )
-    expect(
-      [...requestPanel.querySelectorAll('button')].filter(
-        (button) => button.textContent === 'Copy'
-      )
-    ).toHaveLength(1)
+    const copyButtons = within(requestPanel).getAllByRole('button', {
+      name: 'Copy',
+    })
+    expect(copyButtons).toHaveLength(1)
+    // An icon in the JSON block's corner.
+    expect(copyButtons[0]).toHaveTextContent('')
+    expect(copyButtons[0].parentElement?.previousElementSibling?.tagName).toBe(
+      'PRE'
+    )
   })
 
-  it('puts "Show full content" of a long request body in the explanation row, not a row of its own', () => {
+  it('puts "Show full content" of a long request body next to its copy icon, in the block corner', () => {
     mountDetails({
       ...call,
       sanitizedRequest: {
@@ -289,17 +293,19 @@ describe('TaskCallHistory', () => {
     })
     fireEvent.click(screen.getByRole('tab', { name: 'Sent provider request' }))
 
-    const toggle = screen.getByRole('button', { name: 'Show full content' })
-    const headerRow = toggle.closest('div.justify-between')
-    expect(headerRow).toHaveTextContent(
-      'The request Canvas sent after converting it with the provider interface template.'
-    )
     expect(
-      within(headerRow as HTMLElement).getByRole('button', { name: 'Copy' })
-    ).toBeVisible()
-    expect(headerRow?.nextElementSibling).toHaveTextContent(
-      'POST /v1/video/generations'
-    )
+      screen.getByText(
+        'The request Canvas sent after converting it with the provider interface template.'
+      ).nextElementSibling
+    ).toHaveTextContent('POST /v1/video/generations')
+    // The toggle and the copy icon are both icons in the block's corner.
+    const toggle = screen.getByRole('button', { name: 'Show full content' })
+    expect(toggle).toHaveTextContent('')
+    const actions = toggle.parentElement as HTMLElement
+    expect(within(actions).getByRole('button', { name: 'Copy' })).toBeVisible()
+    expect(actions.previousElementSibling?.tagName).toBe('PRE')
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeVisible()
   })
 
   it.each([

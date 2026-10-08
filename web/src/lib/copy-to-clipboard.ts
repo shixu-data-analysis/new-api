@@ -30,7 +30,13 @@ function fallbackCopyToClipboard(text: string): boolean {
   textArea.style.opacity = '0'
   textArea.setAttribute('readonly', '')
 
-  document.body.appendChild(textArea)
+  // Modal dialogs trap focus: a textarea outside the open dialog cannot keep focus, so nothing is copied
+  // although execCommand reports success. Put it inside the dialog that holds the clicked control.
+  const container =
+    document.activeElement?.closest<HTMLElement>(
+      '[role="dialog"], [role="alertdialog"]'
+    ) ?? document.body
+  container.appendChild(textArea)
 
   try {
     // Select the text
@@ -49,7 +55,7 @@ function fallbackCopyToClipboard(text: string): boolean {
 
     // Execute copy command
     const successful = document.execCommand('copy')
-    document.body.removeChild(textArea)
+    textArea.remove()
     // Clear selection ranges for better UX
     const selectionAfter = window.getSelection()
     if (selectionAfter) {
@@ -60,7 +66,7 @@ function fallbackCopyToClipboard(text: string): boolean {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('Fallback copy failed:', err)
-    document.body.removeChild(textArea)
+    textArea.remove()
     return false
   }
 }

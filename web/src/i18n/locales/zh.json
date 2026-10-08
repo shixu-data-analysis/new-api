@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "可以采用建议值或输入自定义正整数；发布前服务端会再次校验价格底线。",
     "Use recommended": "采用建议值",
     "Keep current": "保持当前价格",
+    "Keep current credentials": "保持当前凭证",
     "Pricing recommendation": "定价建议",
     "Show calculation details": "查看计算依据",
     "Break-even before rounding": "取整前盈亏平衡值",

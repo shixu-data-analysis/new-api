@@ -17,6 +17,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import type { CanvasAdminTestingModel } from '../types'
+import { CodeBlock } from './CodeBlock'
 
 export function PublishedModelDetails({
   model,
@@ -34,9 +35,11 @@ export function PublishedModelDetails({
         <dt className='text-muted-foreground'>{t('Catalog default name')}</dt>
         <dd className='break-words'>{model.catalogDefaultName}</dd>
       </dl>
-      <pre className='bg-muted/50 mt-2 max-h-64 max-w-full overflow-auto rounded p-3 text-xs whitespace-pre'>
-        {JSON.stringify(model.publicCatalogSnapshot, null, 2)}
-      </pre>
+      <div className='mt-2'>
+        <CodeBlock
+          text={JSON.stringify(model.publicCatalogSnapshot, null, 2)}
+        />
+      </div>
     </details>
   )
 }

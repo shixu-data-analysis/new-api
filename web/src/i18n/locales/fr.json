@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "Utilisez la recommandation ou saisissez un entier positif. Le serveur revérifie le plancher avant publication.",
     "Use recommended": "Utiliser la recommandation",
     "Keep current": "Conserver le prix actuel",
+    "Keep current credentials": "Conserver les identifiants actuels",
     "Pricing recommendation": "Recommandation tarifaire",
     "Show calculation details": "Afficher le détail du calcul",
     "Break-even before rounding": "Seuil de rentabilité avant arrondi",

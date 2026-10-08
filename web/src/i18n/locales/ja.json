@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "推奨値を使うか、正の整数を入力してください。公開前にサーバーが下限を再確認します。",
     "Use recommended": "推奨値を使用",
     "Keep current": "現在値を維持",
+    "Keep current credentials": "現在の認証情報を維持",
     "Pricing recommendation": "価格の推奨値",
     "Show calculation details": "計算詳細を表示",
     "Break-even before rounding": "丸め前の損益分岐点",

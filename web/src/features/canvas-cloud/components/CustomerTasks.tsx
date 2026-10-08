@@ -24,12 +24,17 @@ import {
   getCanvasTaskAssetBlob,
   getCanvasTaskAssetDownload,
 } from '../api'
+import { copyText } from '../copy-text'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasCustomerTask, CanvasCustomerTaskAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
+
+// Cells whose text wraps within the column: the full task ID, model names and result explanations.
+const WRAPPING_COLUMNS = new Set(['taskId', 'model', 'derivedExecutionStatus'])
 
 const executionStatuses = [
   'ACCEPTED',
@@ -179,10 +184,11 @@ export function CustomerTasks() {
     [i18n.language]
   )
   const copyTaskId = useCallback(
-    async (id: string) => {
-      await navigator.clipboard.writeText(id)
-      toast.success(t('Task ID copied'))
-    },
+    (id: string) =>
+      copyText(id, {
+        copied: t('Task ID copied'),
+        failed: t('Failed to copy to clipboard'),
+      }),
     [t]
   )
   const downloadResult = useCallback(
@@ -238,16 +244,15 @@ export function CustomerTasks() {
           <DataTableColumnHeader column={column} title={t('Task ID')} />
         ),
         cell: ({ row }) => (
-          <div className='flex min-w-0 items-center gap-1'>
-            <span
-              className='max-w-40 truncate font-mono'
-              title={row.original.id}
-            >
+          <div className='flex min-w-0 items-start gap-1'>
+            {/* The task ID is the customer's reference for support: shown in full, broken within the column. */}
+            <span className='min-w-0 pt-2 font-mono break-all'>
               {row.original.id}
             </span>
             <Button
               size='icon'
               variant='ghost'
+              className='shrink-0'
               aria-label={t('Copy task ID')}
               title={t('Copy task ID')}
               onClick={() => void copyTaskId(row.original.id)}
@@ -268,6 +273,8 @@ export function CustomerTasks() {
       {
         id: 'derivedExecutionStatus',
         accessorKey: 'derivedExecutionStatus',
+        // Result summaries and failure explanations are the longest text of the row.
+        size: CANVAS_COLUMN_SIZES.detail,
         meta: { label: t('Task result') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Task result')} />
@@ -315,7 +322,7 @@ export function CustomerTasks() {
               {failures.map((output) => (
                 <p
                   key={output.outputIndex}
-                  className='text-muted-foreground max-w-md text-xs break-words'
+                  className='text-muted-foreground text-xs break-words'
                 >
                   {t('Result')} {output.outputIndex + 1}:{' '}
                   {output.error?.messages?.[language] ||
@@ -439,6 +446,11 @@ export function CustomerTasks() {
       <CanvasServerTable
         data={tasks.data?.items ?? []}
         columns={columns}
+        getColumnClassName={(columnId, kind) =>
+          kind === 'cell' && WRAPPING_COLUMNS.has(columnId)
+            ? 'whitespace-normal'
+            : undefined
+        }
         total={tasks.data?.total ?? 0}
         state={state}
         loading={tasks.isPending || tasks.isFetching}

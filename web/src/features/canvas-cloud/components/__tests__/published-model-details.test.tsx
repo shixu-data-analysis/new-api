@@ -64,7 +64,7 @@ describe('Published model details', () => {
     const pre = container.querySelector('pre')
     if (!pre) throw new Error('Original catalog configuration is missing')
     expect(pre.textContent).toBe(JSON.stringify(snapshot, null, 2))
-    expect(pre).toHaveClass('max-h-64', 'max-w-full', 'overflow-auto')
+    expect(pre).toHaveClass('max-h-72', 'overflow-auto')
     expect(JSON.stringify(selected)).toBe(before)
   })
 })

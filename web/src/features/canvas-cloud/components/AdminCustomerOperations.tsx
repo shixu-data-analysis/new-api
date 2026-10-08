@@ -72,6 +72,7 @@ import {
   getCanvasOrderPointReturns,
   getCanvasAdminRechargeOrders,
 } from '../api'
+import { copyText } from '../copy-text'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
 import { formatExactRmbReference } from '../number-format'
@@ -1060,8 +1061,10 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       ),
     onSuccess: async (result) => {
       if (result.action === 'COPY') {
-        await navigator.clipboard.writeText(result.code)
-        toast.success(t('Invite code copied'))
+        await copyText(result.code, {
+          copied: t('Invite code copied'),
+          failed: t('Failed to copy to clipboard'),
+        })
       } else {
         setRevealedCodes((current) => ({
           ...current,

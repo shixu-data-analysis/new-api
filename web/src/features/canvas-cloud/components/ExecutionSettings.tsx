@@ -85,6 +85,7 @@ import { formatCanvasDateTime } from '../formatters'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
+import { CodeBlock } from './CodeBlock'
 import { ExecutionAttentionCard } from './ExecutionAttention'
 import { ExecutionCapacityOverview } from './ExecutionCapacityOverview'
 import { ExecutorDrain } from './ExecutorDrain'
@@ -3261,13 +3262,13 @@ function ErrorSection(props: {
                       {t('Sanitized upstream response')}
                     </dt>
                     <dd>
-                      <pre className='bg-muted max-h-60 overflow-auto rounded-md p-2 font-mono text-xs whitespace-pre-wrap'>
-                        {JSON.stringify(
+                      <CodeBlock
+                        text={JSON.stringify(
                           preview.data.sanitizedResponse,
                           null,
                           2
                         )}
-                      </pre>
+                      />
                     </dd>
                   </dl>
                 </section>

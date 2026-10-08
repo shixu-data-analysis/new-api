@@ -6432,6 +6432,7 @@
     "Use the recommendation or enter a custom positive integer. The server rechecks the floor before publication.": "Используйте рекомендацию или введите положительное целое число. Перед публикацией сервер повторно проверит нижнюю границу.",
     "Use recommended": "Использовать рекомендацию",
     "Keep current": "Сохранить текущую цену",
+    "Keep current credentials": "Сохранить текущие учётные данные",
     "Pricing recommendation": "Рекомендация по цене",
     "Show calculation details": "Показать детали расчёта",
     "Break-even before rounding": "Точка безубыточности до округления",

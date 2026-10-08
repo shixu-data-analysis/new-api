@@ -983,7 +983,7 @@ export function RuntimeConfiguration(
         label: t('Credentials'),
         value: value.secretAccessKey
           ? t('Will be replaced')
-          : t('Keep current'),
+          : t('Keep current credentials'),
       },
       { label: t('Reason'), value: value.reason.trim() || t('Not provided') },
     ]

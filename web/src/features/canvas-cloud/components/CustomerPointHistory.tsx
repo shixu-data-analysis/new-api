@@ -21,7 +21,6 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Copy } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
@@ -44,6 +43,7 @@ import {
   getCanvasCustomerPointLedger,
   getCanvasCustomerPointLots,
 } from '../api'
+import { copyText } from '../copy-text'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminPointLot, CanvasPointLedgerItem } from '../types'
@@ -600,9 +600,10 @@ export function CustomerPointHistory({
                     aria-label={t('Copy task ID')}
                     title={t('Copy task ID')}
                     onClick={() =>
-                      void navigator.clipboard
-                        .writeText(taskId)
-                        .then(() => toast.success(t('Task ID copied')))
+                      void copyText(taskId, {
+                        copied: t('Task ID copied'),
+                        failed: t('Failed to copy to clipboard'),
+                      })
                     }
                   >
                     <Copy aria-hidden='true' className='size-4' />

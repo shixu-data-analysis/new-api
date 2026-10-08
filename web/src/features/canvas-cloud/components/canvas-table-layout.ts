@@ -19,12 +19,20 @@ const WIDE_COLUMN =
 const DETAIL_COLUMN =
   /(^|[-_])(reason|description|resource|details|summary|configuration)($|[-_])/i
 
+/** The semantic width tiers of the shared table rules; a column whose ID matches no pattern sets its tier itself. */
+export const CANVAS_COLUMN_SIZES = {
+  compact: 128,
+  standard: 160,
+  wide: 208,
+  detail: 256,
+} as const
+
 export function canvasTableColumnSize(identifier: string): number {
-  if (DETAIL_COLUMN.test(identifier)) return 256
-  if (TIME_COLUMN.test(identifier)) return 208
-  if (WIDE_COLUMN.test(identifier)) return 208
-  if (COMPACT_COLUMN.test(identifier)) return 128
-  return 160
+  if (DETAIL_COLUMN.test(identifier)) return CANVAS_COLUMN_SIZES.detail
+  if (TIME_COLUMN.test(identifier)) return CANVAS_COLUMN_SIZES.wide
+  if (WIDE_COLUMN.test(identifier)) return CANVAS_COLUMN_SIZES.wide
+  if (COMPACT_COLUMN.test(identifier)) return CANVAS_COLUMN_SIZES.compact
+  return CANVAS_COLUMN_SIZES.standard
 }
 
 export function withCanvasTableColumnSizes<TData>(

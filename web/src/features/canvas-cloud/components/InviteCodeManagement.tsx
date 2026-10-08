@@ -68,6 +68,7 @@ import {
   revealCanvasCode,
 } from '../api'
 import { canvasCompactName } from '../brand'
+import { copyText } from '../copy-text'
 import type {
   CanvasAdminInviteCode,
   CanvasAdminInviteCodePage,
@@ -636,8 +637,10 @@ export function InviteCodeManagement(props: {
       ),
     onSuccess: async (result) => {
       if (result.action === 'COPY') {
-        await navigator.clipboard.writeText(result.code)
-        toast.success(t('Invite code copied'))
+        await copyText(result.code, {
+          copied: t('Invite code copied'),
+          failed: t('Failed to copy to clipboard'),
+        })
         return
       }
       setRevealedCodes((current) => ({ ...current, [result.id]: result.code }))
@@ -829,10 +832,12 @@ export function InviteCodeManagement(props: {
               title={t('Copy inviter username')}
               type='button'
               variant='ghost'
-              onClick={() => {
-                void navigator.clipboard.writeText(agent.username)
-                toast.success(t('Inviter username copied'))
-              }}
+              onClick={() =>
+                void copyText(agent.username, {
+                  copied: t('Inviter username copied'),
+                  failed: t('Failed to copy to clipboard'),
+                })
+              }
             >
               <Copy aria-hidden='true' className='size-4' />
             </Button>
@@ -1578,10 +1583,12 @@ export function InviteCodeManagement(props: {
                           size='icon-sm'
                           type='button'
                           variant='outline'
-                          onClick={() => {
-                            void navigator.clipboard.writeText(issuedCode)
-                            toast.success(t('Invite code copied'))
-                          }}
+                          onClick={() =>
+                            void copyText(issuedCode, {
+                              copied: t('Invite code copied'),
+                              failed: t('Failed to copy to clipboard'),
+                            })
+                          }
                         >
                           <Copy aria-hidden='true' />
                         </Button>
