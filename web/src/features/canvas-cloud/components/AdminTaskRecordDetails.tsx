@@ -76,6 +76,7 @@ import {
   ProviderCostRevocationDialog,
   ProviderCostSettlementDialog,
 } from './ProviderCostSettlementDialogs'
+import { TableRowPanel } from './TableRowPanel'
 import { JsonSnapshot, TaskCallHistory } from './TaskCallHistory'
 
 const executionLabels: Record<string, string> = {
@@ -708,7 +709,9 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
       {expanded === row.original.id ? (
         <TableRow>
           <TableCell colSpan={row.getVisibleCells().length}>
-            <PointDetails record={row.original} />
+            <TableRowPanel>
+              <PointDetails record={row.original} />
+            </TableRowPanel>
           </TableCell>
         </TableRow>
       ) : null}

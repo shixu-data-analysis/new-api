@@ -24,7 +24,6 @@ import {
   type PaginationState,
 } from '@tanstack/react-table'
 import type { TFunction } from 'i18next'
-import { Copy } from 'lucide-react'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,7 +52,6 @@ import {
   type CatalogModelFilters,
   type CatalogModelReview,
 } from '../catalog-plan-review'
-import { copyText } from '../copy-text'
 import type { ModelCatalogChange } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
@@ -67,6 +65,7 @@ import {
   catalogPriceReasonLabel,
 } from './catalog-plan-labels'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
+import { TableRowPanel } from './TableRowPanel'
 
 export type CatalogRowFocus = { key: string; nonce: number }
 
@@ -319,22 +318,7 @@ function CatalogModelDetail(props: {
             </>
           }
           diff={diff}
-          actions={
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={() =>
-                void copyText(diff.proposedText, {
-                  copied: t('Copied'),
-                  failed: t('Failed to copy to clipboard'),
-                })
-              }
-            >
-              <Copy aria-hidden='true' />
-              {t('Copy JSON')}
-            </Button>
-          }
+          copyText={diff.proposedText}
         />
       </div>
       <div className='min-w-0 flex-[1_1_260px] space-y-4 text-sm [overflow-wrap:anywhere]'>
@@ -755,12 +739,14 @@ export function CatalogModelPreview(props: {
               </TableRow>
               {expanded && (
                 <TableRow id={detailId}>
-                  <TableCell colSpan={7} className='max-w-0 align-top'>
-                    <CatalogModelDetail
-                      review={review}
-                      changes={props.changes}
-                      onViewChannel={props.onViewChannel}
-                    />
+                  <TableCell colSpan={7} className='align-top'>
+                    <TableRowPanel>
+                      <CatalogModelDetail
+                        review={review}
+                        changes={props.changes}
+                        onViewChannel={props.onViewChannel}
+                      />
+                    </TableRowPanel>
                   </TableCell>
                 </TableRow>
               )}

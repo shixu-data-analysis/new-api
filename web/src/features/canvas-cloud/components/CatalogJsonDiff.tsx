@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ChevronsDownUp, ChevronsUpDown, Copy } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import {
@@ -28,6 +29,8 @@ import {
   type CatalogJsonDiffItem,
   type CatalogJsonDiffLine,
 } from '../catalog-json-diff'
+import { copyText as copyToClipboardWithFeedback } from '../copy-text'
+import { CodeBlockAction } from './CodeBlock'
 
 function DiffLine(props: { line: CatalogJsonDiffLine; marked: boolean }) {
   const { line } = props
@@ -43,7 +46,7 @@ function DiffLine(props: { line: CatalogJsonDiffLine; marked: boolean }) {
   return (
     <div
       className={cn(
-        'flex px-2 whitespace-pre',
+        'flex px-2 [overflow-wrap:anywhere] whitespace-pre-wrap',
         props.marked &&
           line.kind === 'removed' &&
           'bg-destructive/10 text-destructive',
@@ -55,21 +58,26 @@ function DiffLine(props: { line: CatalogJsonDiffLine; marked: boolean }) {
       <span aria-hidden='true' className='w-4 shrink-0 select-none'>
         {marker}
       </span>
-      {content}
+      <span className='min-w-0'>{content}</span>
     </div>
   )
 }
 
-/** Old and new JSON compared line by line; shared by model and shared-resource details. */
+/**
+ * Old and new JSON compared line by line; shared by model and shared-resource details. It looks like
+ * `CodeBlock`: long lines wrap, and switching between changes and full text and copying are icons in
+ * the top-right corner.
+ */
 export function CatalogJsonDiff(props: {
   title: string
   summary: ReactNode
   diff: CatalogJsonDiffResult
-  actions?: ReactNode
+  /** What the copy icon copies; without it there is no copy icon. */
+  copyText?: string
 }) {
   const { t } = useTranslation()
   const [showAll, setShowAll] = useState(false)
-  const { diff } = props
+  const { diff, copyText } = props
   const changed = diff.hasCurrent && diff.added + diff.removed > 0
   const changesOnly = changed && !showAll
   const items = useMemo<CatalogJsonDiffItem[]>(
@@ -79,34 +87,24 @@ export function CatalogJsonDiff(props: {
         : diff.lines.map((_, index) => ({ type: 'line', index })),
     [changesOnly, diff.lines]
   )
+  const actionCount = (changed ? 1 : 0) + (copyText !== undefined ? 1 : 0)
   return (
     <div className='min-w-0 space-y-2'>
-      <div className='flex flex-wrap items-start justify-between gap-2'>
-        <div className='min-w-0'>
-          <div className='font-medium'>{props.title}</div>
-          <div className='text-muted-foreground text-xs'>{props.summary}</div>
-        </div>
-        <div className='flex flex-wrap gap-2'>
-          {changed && (
-            <Button
-              type='button'
-              variant='outline'
-              size='sm'
-              onClick={() => setShowAll((value) => !value)}
-            >
-              {showAll ? t('Show changes only') : t('Show full text')}
-            </Button>
-          )}
-          {props.actions}
-        </div>
+      <div className='min-w-0'>
+        <div className='font-medium'>{props.title}</div>
+        <div className='text-muted-foreground text-xs'>{props.summary}</div>
       </div>
-      <div
-        role='region'
-        aria-label={props.title}
-        tabIndex={0}
-        className='bg-muted/30 max-h-[420px] overflow-auto rounded-md border py-1 font-mono text-xs'
-      >
-        <div className='min-w-max'>
+      <div className='relative min-w-0'>
+        <div
+          role='region'
+          aria-label={props.title}
+          tabIndex={0}
+          className={cn(
+            'bg-muted max-h-[420px] overflow-auto rounded-md px-1 py-3 font-mono text-xs',
+            actionCount === 2 && 'pr-18',
+            actionCount === 1 && 'pr-10'
+          )}
+        >
           {items.map((item) => {
             if (item.type === 'line') {
               return (
@@ -121,7 +119,7 @@ export function CatalogJsonDiff(props: {
               <button
                 key={`fold-${item.from}`}
                 type='button'
-                className='text-muted-foreground hover:bg-muted block w-full px-2 py-0.5 text-left'
+                className='text-muted-foreground hover:bg-background block w-full px-2 py-0.5 text-left'
                 // Any folded run switches to the full text; "Show changes only" folds again.
                 onClick={() => setShowAll(true)}
               >
@@ -132,6 +130,37 @@ export function CatalogJsonDiff(props: {
             )
           })}
         </div>
+        {actionCount > 0 ? (
+          <TooltipProvider delay={200}>
+            <div className='absolute top-1.5 right-1.5 flex items-center gap-0.5'>
+              {changed ? (
+                <CodeBlockAction
+                  label={t(showAll ? 'Show changes only' : 'Show full text')}
+                  onClick={() => setShowAll((value) => !value)}
+                >
+                  {showAll ? (
+                    <ChevronsDownUp aria-hidden='true' className='size-4' />
+                  ) : (
+                    <ChevronsUpDown aria-hidden='true' className='size-4' />
+                  )}
+                </CodeBlockAction>
+              ) : null}
+              {copyText !== undefined ? (
+                <CodeBlockAction
+                  label={t('Copy JSON')}
+                  onClick={() =>
+                    void copyToClipboardWithFeedback(copyText, {
+                      copied: t('Copied'),
+                      failed: t('Failed to copy to clipboard'),
+                    })
+                  }
+                >
+                  <Copy aria-hidden='true' className='size-4' />
+                </CodeBlockAction>
+              ) : null}
+            </div>
+          </TooltipProvider>
+        ) : null}
       </div>
     </div>
   )

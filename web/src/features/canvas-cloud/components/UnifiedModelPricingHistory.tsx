@@ -433,7 +433,7 @@ export function UnifiedModelPricingHistory(props: {
               <TableRow>
                 <TableCell
                   colSpan={row.getVisibleCells().length}
-                  className='bg-muted/20 p-4'
+                  className='bg-muted/20 p-4 whitespace-normal'
                 >
                   {renderExpandedContent(row)}
                 </TableCell>

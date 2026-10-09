@@ -63,6 +63,7 @@ import {
   catalogSharedChangeLabel,
 } from './catalog-plan-labels'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
+import { TableRowPanel } from './TableRowPanel'
 
 export type CatalogSharedFocus = {
   resourceType: CatalogSharedResourceType
@@ -457,8 +458,10 @@ export function CatalogSharedResources(props: {
               </TableRow>
               {expanded && kind !== 'UNCHANGED' && (
                 <TableRow id={detailId}>
-                  <TableCell colSpan={5} className='max-w-0 align-top'>
-                    <SharedResourceDetail change={change} />
+                  <TableCell colSpan={5} className='align-top'>
+                    <TableRowPanel>
+                      <SharedResourceDetail change={change} />
+                    </TableRowPanel>
                   </TableCell>
                 </TableRow>
               )}

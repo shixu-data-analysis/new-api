@@ -76,6 +76,12 @@ describe('Catalog model preview', () => {
     expect(within(detail as HTMLElement).getByText(longName)).not.toHaveClass(
       'truncate'
     )
+    // Table cells do not wrap; the panel lets the detail text wrap within the visible width.
+    expect(
+      within(detail as HTMLElement)
+        .getByText(longName)
+        .closest('[data-slot="table-row-panel"]')
+    ).toHaveClass('whitespace-normal')
     expect(detail).toHaveTextContent('Name in Bundle: Bundle name')
     expect(detail).toHaveTextContent('Model key canvas.image.model')
   })

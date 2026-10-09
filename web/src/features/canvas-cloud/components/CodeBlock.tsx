@@ -100,7 +100,8 @@ export function CodeBlock(props: {
   )
 }
 
-function CodeBlockAction(props: {
+/** An icon action in the top-right corner of a code block, explained on hover. */
+export function CodeBlockAction(props: {
   label: string
   onClick: () => void
   children: ReactNode

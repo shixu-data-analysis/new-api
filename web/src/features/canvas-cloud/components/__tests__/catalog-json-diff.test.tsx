@@ -55,6 +55,31 @@ describe('Catalog JSON diff', () => {
     expect(screen.queryByText('"a": 1,')).not.toBeInTheDocument()
   })
 
+  it('shows the copy icon only when there is text to copy', () => {
+    const { rerender } = render(
+      <CatalogJsonDiff
+        title='Model definition'
+        summary='Compared'
+        diff={diffCatalogJson(before, after)}
+      />
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Copy JSON' })
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <CatalogJsonDiff
+        title='Model definition'
+        summary='Compared'
+        diff={diffCatalogJson(before, after)}
+        copyText='{}'
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: 'Copy JSON' })
+    ).toBeInTheDocument()
+  })
+
   it('marks removed and added lines', () => {
     render(
       <CatalogJsonDiff
