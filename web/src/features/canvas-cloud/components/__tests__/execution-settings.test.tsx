@@ -24,6 +24,7 @@ import {
 } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import fr from '@/i18n/locales/fr.json'
 import zh from '@/i18n/locales/zh.json'
 
 import {
@@ -129,7 +130,7 @@ function mount(
 }
 
 beforeAll(async () => {
-  await i18next.init({ lng: 'en', resources: { en, zhCN: zh } })
+  await i18next.init({ lng: 'en', resources: { en, zhCN: zh, fr } })
 })
 beforeEach(async () => {
   await i18next.changeLanguage('en')
@@ -302,8 +303,8 @@ beforeEach(async () => {
         requestTimeoutMs: 0,
         streamIdleTimeoutMs: 300000,
         pollIntervalMs: 15000,
-        deadlineMs: 86400000,
-        unknownReleaseMs: 14400000,
+        deadlineMs: 14400000,
+        unknownReleaseMs: 600000,
         requestConcurrency: 16,
         asyncInFlightLimit: 30,
       },
@@ -902,7 +903,9 @@ describe('execution settings', () => {
         })
       )
     )
-    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(await screen.findByText('No cloud result yet')).toBeVisible()
+    expect(screen.getByText('Points release in about 10 min')).toBeVisible()
+    expect(screen.getByText(/\(in about 10 min\)$/)).toBeVisible()
     expect(
       screen.getByText('Calculated without a provider task ID')
     ).toBeVisible()
@@ -1239,7 +1242,7 @@ describe('execution settings', () => {
       ],
       [
         'Stream no-data timeout (milliseconds)',
-        'The maximum time a streaming response may go without new data.',
+        'The maximum time a streaming response may go without new data. That is 5 minutes.',
       ],
       [
         'Poll interval (milliseconds)',
@@ -1247,11 +1250,11 @@ describe('execution settings', () => {
       ],
       [
         'Maximum processing time (milliseconds)',
-        'Measured from task acceptance; after it the system stops submitting to or querying the provider and releases still-frozen points as a timeout. Currently 24 hours.',
+        'Measured from task acceptance; after it the system stops submitting to or querying the provider and releases still-frozen points as a timeout. That is 4 hours.',
       ],
       [
         'Refund wait when the result cannot be queried (milliseconds)',
-        'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait. Currently 4 hours.',
+        'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait. That is 10 minutes.',
       ],
       [
         'Simultaneous requests',
@@ -1268,6 +1271,35 @@ describe('execution settings', () => {
       )
     }
     expect(mocks.publishCanvasExecutionPolicy).not.toHaveBeenCalled()
+  })
+
+  it('converts an edited millisecond value as it is typed and limits the wait shown to the deadline', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const wait = await screen.findByLabelText(
+      'Refund wait when the result cannot be queried (milliseconds)'
+    )
+    fireEvent.change(wait, { target: { value: '90000' } })
+    expect(wait).toHaveAccessibleDescription(
+      'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait. That is about 1.5 minutes.'
+    )
+    fireEvent.change(wait, { target: { value: '18000000' } })
+    expect(wait).toHaveAccessibleDescription(
+      'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait. That is 5 hours. Currently within 4 hours after acceptance (limited by the maximum processing time).'
+    )
+    fireEvent.change(wait, { target: { value: '' } })
+    expect(wait).toHaveAccessibleDescription(
+      'When the result cannot be confirmed and there is no provider task ID, frozen points are released after this wait.'
+    )
+  })
+
+  it('writes the converted duration with the decimal separator of the language', async () => {
+    await i18next.changeLanguage('fr')
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const wait = await screen.findByRole('spinbutton', {
+      name: i18next.t('Unknown result release wait (milliseconds)'),
+    })
+    fireEvent.change(wait, { target: { value: '90000' } })
+    expect(wait).toHaveAccessibleDescription(/Soit environ 1,5 minutes\.$/)
   })
 
   it('shows the execution-policy explanations in Chinese', async () => {
@@ -1287,12 +1319,12 @@ describe('execution settings', () => {
     expect(
       screen.getByLabelText('最长处理时间（毫秒）')
     ).toHaveAccessibleDescription(
-      '从任务受理起计算；超过后不再提交或查询服务商，仍冻结的积分按超时释放。当前为 24 小时。'
+      '从任务受理起计算；超过后不再提交或查询服务商，仍冻结的积分按超时释放。即 4 小时。'
     )
     expect(
       screen.getByLabelText('无法查询时的退积分等待（毫秒）')
     ).toHaveAccessibleDescription(
-      '结果无法确认且没有服务商任务编号时，等待这段时间后释放冻结积分。当前为 4 小时。'
+      '结果无法确认且没有服务商任务编号时，等待这段时间后释放冻结积分。即 10 分钟。'
     )
   })
 
@@ -1302,7 +1334,7 @@ describe('execution settings', () => {
       await screen.findByRole('button', { name: 'Test error mappings' })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
-    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(await screen.findByText('No cloud result yet')).toBeVisible()
     expect(
       screen.queryByText(
         'Mappings changed; the result may be out of date. Test again.'
@@ -2242,6 +2274,30 @@ describe('execution settings', () => {
     expect(await screen.findByText('请至少选择一个模型')).toBeVisible()
   })
 
+  it('rejects a maximum processing time beyond 24 hours before review', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const deadline = await screen.findByRole('spinbutton', {
+      name: 'Maximum processing time (milliseconds)',
+    })
+    fireEvent.change(deadline, { target: { value: '86400001' } })
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Review publication' })[0]
+    )
+    expect(
+      await within(deadline.parentElement as HTMLElement).findByRole('alert')
+    ).toBeVisible()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.change(deadline, { target: { value: '86400000' } })
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Review publication' })[0]
+    )
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      '14400000 → 86400000'
+    )
+    expect(mocks.publishCanvasExecutionPolicy).not.toHaveBeenCalled()
+  })
+
   describe('poll interval of an API Key group', () => {
     async function groupWith(
       configuredPollIntervalMs: number | undefined,
@@ -2289,7 +2345,7 @@ describe('execution settings', () => {
       expect(field).toHaveAttribute('readonly')
       expect(field).toHaveAttribute('aria-disabled', 'true')
       expect(field).toHaveAccessibleDescription(
-        'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default. Every model of this group has its interval fixed by its channel at 60 seconds; this setting has no effect.'
+        'How often to query the provider for the result; this does not control client refresh. Leave empty to use the default. Every model of this group has its interval fixed by its channel at 60 seconds; this setting has no effect. That is 15 seconds.'
       )
     })
 
@@ -2378,9 +2434,12 @@ describe('execution settings', () => {
     )
     expect(field).toHaveValue(20000)
     expect(field).toHaveAccessibleDescription(
-      'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel.'
+      'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel. That is 20 seconds.'
     )
     fireEvent.change(field, { target: { value: '45000' } })
+    expect(field).toHaveAccessibleDescription(
+      'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel. That is 45 seconds.'
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Review publication' }))
     fireEvent.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', {

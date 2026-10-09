@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -939,10 +940,13 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     })
     mount()
 
-    expect(await screen.findByText('Confirming cloud result')).toBeVisible()
+    expect(await screen.findByText('No cloud result yet')).toBeVisible()
+    expect(
+      screen.getByText(/^Points release in about \d+ h( \d+ min)?$/)
+    ).toBeVisible()
     expect(
       screen.getByText(
-        'If the result is still unconfirmed at the deadline, frozen points will be released automatically.'
+        'If there is still no result by then, the frozen points will be released.'
       )
     ).toBeVisible()
     expect(screen.getByText('Frozen')).toBeVisible()
@@ -952,6 +956,86 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       screen.queryByText('The upstream service returned an error code.')
     ).not.toBeInTheDocument()
+  })
+
+  it('shows the customer that frozen points are being released once the deadline has passed', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      releasedPoints: '0',
+      deductedPoints: '0',
+      unknownDeadlineAt: '2020-01-01T00:00:00.000Z',
+      earlyReleaseAllowed: false,
+      earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+        },
+      ],
+    })
+    mount()
+
+    expect(await screen.findByText('Releasing points')).toBeVisible()
+    expect(screen.getByText(/\(expired\)$/)).toBeVisible()
+    expect(screen.getByText('Releasing the frozen points.')).toBeVisible()
+    expect(screen.queryByText(/^Points release /)).not.toBeInTheDocument()
+  })
+
+  it('counts the customer view down and switches to releasing at the deadline while the drawer stays open', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    try {
+      vi.setSystemTime(new Date('2026-10-10T12:00:00.000Z'))
+      api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+        ...task,
+        derivedExecutionStatus: 'UNKNOWN',
+        executionStatus: 'UNKNOWN',
+        customerBillingStatus: 'FROZEN',
+        releasedPoints: '0',
+        deductedPoints: '0',
+        unknownDeadlineAt: '2026-10-10T12:02:00.000Z',
+        earlyReleaseAllowed: false,
+        earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+        outputs: [
+          {
+            outputIndex: 0,
+            quotedPoints: '14',
+            settledPoints: null,
+            executionStatus: 'UNKNOWN',
+            billingStatus: 'FROZEN',
+            error: null,
+            usageSnapshot: null,
+            completedAt: null,
+            billingFinalizedAt: null,
+            customerSafeErrorDetail: null,
+          },
+        ],
+      })
+      mount()
+
+      expect(await screen.findByText('No cloud result yet')).toBeVisible()
+      expect(screen.getByText('Points release in about 2 min')).toBeVisible()
+
+      act(() => vi.advanceTimersByTime(60_000))
+      expect(screen.getByText('Points release in about 1 min')).toBeVisible()
+
+      act(() => vi.advanceTimersByTime(70_000))
+      expect(screen.getByText('Releasing points')).toBeVisible()
+      expect(screen.getByText('Releasing the frozen points.')).toBeVisible()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('submits early release and keeps the confirmation state on a 409 refresh', async () => {

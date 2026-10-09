@@ -61,7 +61,10 @@ export type CustomerNodeStatus = {
   failed: boolean
 }
 
-export function customerNodeStatus(task: CustomerTask): CustomerNodeStatus {
+export function customerNodeStatus(
+  task: CustomerTask,
+  now = Date.now()
+): CustomerNodeStatus {
   const { outputs } = task
   const multiple = outputs.length > 1
   const hasSucceeded = outputs.some(
@@ -105,7 +108,16 @@ export function customerNodeStatus(task: CustomerTask): CustomerNodeStatus {
     return { key: 'Customer task view failed points released', failed: true }
   }
   if (task.executionStatus === 'UNKNOWN') {
-    return { key: 'Customer task view verifying', failed: false }
+    const countdown =
+      task.customerBillingStatus === 'FROZEN'
+        ? customerReleaseCountdown(task.unknownDeadlineAt, now)
+        : null
+    return {
+      key: countdown?.expired
+        ? 'Customer task view releasing points'
+        : 'Customer task view verifying',
+      failed: false,
+    }
   }
   // Every result still to come waits for its turn at the Provider.
   const unfinished = outputs.filter(
@@ -147,11 +159,68 @@ export function customerOutputLabelKey(
   return 'Customer task view generating'
 }
 
+/** Translation key and values of the time left before frozen points are released. */
+export type CustomerReleaseCountdown =
+  | { expired: true; key: string; values: Record<string, never> }
+  | {
+      expired: false
+      key: string
+      values: { hours?: number; minutes?: number }
+    }
+
+/**
+ * As Canvas Web `cloudReleaseCountdown()`: the time left rounded to the minute, with under one
+ * minute stated as such; null without a valid deadline.
+ */
+export function customerReleaseCountdown(
+  deadlineAt: string | null | undefined,
+  now = Date.now()
+): CustomerReleaseCountdown | null {
+  const deadline = deadlineAt ? Date.parse(deadlineAt) : Number.NaN
+  if (!Number.isFinite(deadline)) return null
+  const remaining = deadline - now
+  if (remaining <= 0) {
+    return {
+      expired: true,
+      key: 'Customer task view deadline expired',
+      values: {},
+    }
+  }
+  if (remaining < 60_000) {
+    return {
+      expired: false,
+      key: 'Customer task view release under one minute',
+      values: {},
+    }
+  }
+  const totalMinutes = Math.round(remaining / 60_000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) {
+    return {
+      expired: false,
+      key: 'Customer task view release minutes',
+      values: { minutes },
+    }
+  }
+  if (minutes === 0) {
+    return {
+      expired: false,
+      key: 'Customer task view release hours',
+      values: { hours },
+    }
+  }
+  return {
+    expired: false,
+    key: 'Customer task view release hours minutes',
+    values: { hours, minutes },
+  }
+}
+
 export type CustomerDeadline =
   | { kind: 'hidden' }
   | { kind: 'missing' }
-  | { kind: 'releasing' }
-  | { kind: 'scheduled'; at: string }
+  | { kind: 'scheduled'; at: string; countdown: CustomerReleaseCountdown }
 
 export function customerDeadline(
   task: CustomerTask,
@@ -163,12 +232,9 @@ export function customerDeadline(
   ) {
     return { kind: 'hidden' }
   }
-  if (!task.unknownDeadlineAt) return { kind: 'missing' }
-  const timestamp = Date.parse(task.unknownDeadlineAt)
-  if (!Number.isFinite(timestamp)) return { kind: 'missing' }
-  return timestamp <= now
-    ? { kind: 'releasing' }
-    : { kind: 'scheduled', at: task.unknownDeadlineAt }
+  const countdown = customerReleaseCountdown(task.unknownDeadlineAt, now)
+  if (!countdown || !task.unknownDeadlineAt) return { kind: 'missing' }
+  return { kind: 'scheduled', at: task.unknownDeadlineAt, countdown }
 }
 
 export type CustomerPoints = {

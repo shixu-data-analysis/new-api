@@ -1025,7 +1025,7 @@ describe('provider error handling localization', () => {
         '{{description}}{{current}}'
       )
       for (const key of [
-        'Currently {{duration}}.',
+        'That is {{duration}}.',
         'Currently within {{duration}} after acceptance (limited by the execution deadline).',
       ]) {
         expect(translation[key], key).not.toMatch(/\{\{duration\}\}\s/)
@@ -1049,6 +1049,8 @@ describe('provider error handling localization', () => {
         expect(translation[key]?.trim(), key).not.toBe('')
         // French shares the word “Points” with English, as in Canvas Web.
         if (_locale === 'fr' && key === 'Customer task view points') continue
+        // A layout pattern rather than words: only the brackets differ by language.
+        if (key === 'Customer task view deadline value') continue
         expect(translation[key], key).not.toBe(english[key])
       }
     }

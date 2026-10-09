@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
 import {
   Fragment,
+  useEffect,
   useMemo,
   useState,
   type MutableRefObject,
@@ -810,6 +811,28 @@ export function AdminTaskRecordDetails({
       setReleaseError(t('Unable to release frozen points'))
     },
   })
+  // While the drawer stays open, the customer view counts down to the point release; the clock stops once the deadline
+  // has passed, and whether the points were released still comes from the API.
+  const releaseDeadlineAt =
+    query.data?.executionStatus === 'UNKNOWN' &&
+    query.data.customerBillingStatus === 'FROZEN'
+      ? query.data.unknownDeadlineAt
+      : null
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const deadline = releaseDeadlineAt
+      ? Date.parse(releaseDeadlineAt)
+      : Number.NaN
+    if (!Number.isFinite(deadline)) return
+    const tick = () => {
+      const current = Date.now()
+      setNow(current)
+      if (current >= deadline) window.clearInterval(timer)
+    }
+    const timer = window.setInterval(tick, 10_000)
+    tick()
+    return () => window.clearInterval(timer)
+  }, [releaseDeadlineAt])
   if (query.isPending) {
     return (
       <div className='space-y-4' role='status'>
@@ -904,8 +927,8 @@ export function AdminTaskRecordDetails({
           releaseValues
         )
   }
-  const nodeStatus = customerNodeStatus(task)
-  const deadline = customerDeadline(task)
+  const nodeStatus = customerNodeStatus(task, now)
+  const deadline = customerDeadline(task, now)
   const points = customerPoints(task)
   const errorMessage = customerErrorMessage(
     task,
@@ -1003,14 +1026,27 @@ export function AdminTaskRecordDetails({
             <AccordionContent>
               <div className='space-y-4 rounded-lg border p-4'>
                 <div className='flex flex-wrap items-center justify-between gap-2'>
-                  <span
-                    className={
-                      nodeStatus.failed
-                        ? 'text-destructive text-sm font-medium'
-                        : 'text-sm font-medium'
-                    }
-                  >
-                    {t(nodeStatus.key)}
+                  <span className='grid gap-0.5'>
+                    <span
+                      className={
+                        nodeStatus.failed
+                          ? 'text-destructive text-sm font-medium'
+                          : 'text-sm font-medium'
+                      }
+                    >
+                      {t(nodeStatus.key)}
+                    </span>
+                    {deadline.kind === 'scheduled' &&
+                    !deadline.countdown.expired ? (
+                      <span className='text-muted-foreground text-xs'>
+                        {t('Customer task view release in', {
+                          relative: t(
+                            deadline.countdown.key,
+                            deadline.countdown.values
+                          ),
+                        })}
+                      </span>
+                    ) : null}
                   </span>
                   <span className='text-muted-foreground rounded-md border px-2 py-0.5 text-xs'>
                     {t('Customer task view task information')}
@@ -1040,17 +1076,23 @@ export function AdminTaskRecordDetails({
                     </DetailValue>
                     {deadline.kind === 'hidden' ? null : (
                       <DetailValue label='Customer task view deadline'>
-                        {deadline.kind === 'releasing'
-                          ? t('Customer task view deadline releasing')
-                          : formatTime(
-                              locale,
-                              deadline.kind === 'scheduled' ? deadline.at : null
-                            )}
-                        {deadline.kind === 'releasing' ? null : (
-                          <p className='text-muted-foreground mt-1 text-xs'>
-                            {t('Customer task view release notice')}
-                          </p>
-                        )}
+                        {deadline.kind === 'scheduled'
+                          ? t('Customer task view deadline value', {
+                              date: formatTime(locale, deadline.at),
+                              relative: t(
+                                deadline.countdown.key,
+                                deadline.countdown.values
+                              ),
+                            })
+                          : formatTime(locale, null)}
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {t(
+                            deadline.kind === 'scheduled' &&
+                              deadline.countdown.expired
+                              ? 'Customer task view releasing notice'
+                              : 'Customer task view release notice'
+                          )}
+                        </p>
                       </DetailValue>
                     )}
                     <DetailValue label='Customer task view points'>

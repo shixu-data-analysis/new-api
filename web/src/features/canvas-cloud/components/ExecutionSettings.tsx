@@ -59,6 +59,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 import { toIntlLocale } from '@/i18n/languages'
 
+import { customerReleaseCountdown } from '../customer-task-view'
 import { formatErrorRuleMatch } from '../error-rule-format'
 import {
   errorRuleJsonFieldReference,
@@ -97,8 +98,8 @@ const credentialGroupDefaults: Omit<ChannelExecutionConfig, 'pollIntervalMs'> =
   {
     requestTimeoutMs: 120_000,
     streamIdleTimeoutMs: 300_000,
-    deadlineMs: 86_400_000,
-    unknownReleaseMs: 14_400_000,
+    deadlineMs: 14_400_000,
+    unknownReleaseMs: 600_000,
     requestConcurrency: 16,
     asyncInFlightLimit: 30,
   }
@@ -132,7 +133,7 @@ const channelSchema = z.object({
   streamIdleTimeoutMs: integer(1_000, 604_800_000),
   // Empty: the group follows the global default and the field is not saved.
   pollIntervalMs: integer(1_000, 3_600_000).optional(),
-  deadlineMs: integer(1_000, 2_592_000_000),
+  deadlineMs: integer(1_000, 86_400_000),
   unknownReleaseMs: integer(1_000, 86_400_000),
   requestConcurrency: integer(1, 10_000),
   asyncInFlightLimit: integer(1, 100_000),
@@ -963,7 +964,8 @@ function GlobalSection(props: {
   onPublish: (config: Record<string, unknown>) => void
   onDirtyChange: (dirty: boolean) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const durationLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const onDirtyChange = props.onDirtyChange
   const form = useForm<GlobalForm>({
     resolver: zodResolver(globalSchema),
@@ -1049,8 +1051,13 @@ function GlobalSection(props: {
                   valueAsNumber: true,
                 })}
                 error={form.formState.errors.defaultPollIntervalMs?.message}
-                help={t(
-                  'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel.'
+                help={withDuration(
+                  t(
+                    'Used when an API Key group sets no poll interval. Models whose channel sets a query interval follow the channel.'
+                  ),
+                  form.watch('defaultPollIntervalMs'),
+                  t,
+                  durationLocale
                 )}
               />
             </div>
@@ -1302,6 +1309,7 @@ function CredentialGroupSection(props: {
   onDirtyChange: (dirty: boolean) => void
 }) {
   const { t, i18n } = useTranslation()
+  const durationLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const onDirtyChange = props.onDirtyChange
   // The poll interval shows what this group configured; empty follows the global default.
   const initial: ChannelForm = {
@@ -1445,45 +1453,63 @@ function CredentialGroupSection(props: {
                 })}
                 disabled={allFixed}
                 error={form.formState.errors[name]?.message}
-                help={pollHelp.join(' ')}
+                help={withDuration(
+                  pollHelp.join(' '),
+                  form.watch('pollIntervalMs'),
+                  t,
+                  durationLocale
+                )}
               />
             )
           }
           let help: string | undefined
           if (name === 'requestTimeoutMs') {
-            help = t(
-              'The maximum wait for one non-streaming upstream request or result download.'
+            help = withDuration(
+              t(
+                'The maximum wait for one non-streaming upstream request or result download.'
+              ),
+              form.watch('requestTimeoutMs'),
+              t,
+              durationLocale
             )
           } else if (name === 'streamIdleTimeoutMs') {
-            help = t(
-              'The maximum time a streaming response may go without new data.'
+            help = withDuration(
+              t(
+                'The maximum time a streaming response may go without new data.'
+              ),
+              form.watch('streamIdleTimeoutMs'),
+              t,
+              durationLocale
             )
           } else if (name === 'deadlineMs') {
-            help = t('{{description}} {{current}}', {
-              description: t(
+            help = withDuration(
+              t(
                 'Measured from task acceptance; after it the system stops submitting or querying upstream and releases still-frozen points as a timeout.'
               ),
-              current: t('Currently {{duration}}.', {
-                duration: humanDuration(form.watch('deadlineMs'), t),
-              }),
-            })
+              form.watch('deadlineMs'),
+              t,
+              durationLocale
+            )
           } else if (name === 'unknownReleaseMs') {
             const deadline = form.watch('deadlineMs')
             const wait = form.watch('unknownReleaseMs')
-            help = t('{{description}} {{current}}', {
-              description: t(
+            help = withDuration(
+              t(
                 'When the result cannot be confirmed and there is no upstream task ID, frozen points are released after this wait.'
               ),
-              current:
-                wait >= deadline
-                  ? t(
-                      'Currently within {{duration}} after acceptance (limited by the execution deadline).',
-                      { duration: humanDuration(deadline, t) }
-                    )
-                  : t('Currently {{duration}}.', {
-                      duration: humanDuration(wait, t),
-                    }),
-            })
+              wait,
+              t,
+              durationLocale
+            )
+            if (wait >= deadline) {
+              help = t('{{description}} {{current}}', {
+                description: help,
+                current: t(
+                  'Currently within {{duration}} after acceptance (limited by the execution deadline).',
+                  { duration: humanDuration(deadline, t, durationLocale) }
+                ),
+              })
+            }
           } else if (name === 'requestConcurrency') {
             help = t(
               'Concurrent upstream requests across all instances for this API Key group; full capacity queues admitted tasks.'
@@ -3019,10 +3045,14 @@ function ErrorSection(props: {
       )
     }
   }
-  const releaseAt = formatCanvasDateTime(
-    new Date(Date.now() + props.releaseWaitMs).toISOString(),
-    i18n.language
-  )
+  const releaseDeadline = new Date(
+    Date.now() + props.releaseWaitMs
+  ).toISOString()
+  const releaseAt = formatCanvasDateTime(releaseDeadline, i18n.language)
+  const releaseCountdown = customerReleaseCountdown(releaseDeadline)
+  const releaseRelative = releaseCountdown
+    ? t(releaseCountdown.key, releaseCountdown.values)
+    : ''
 
   const draft = editor?.draft
   const draftOutcome = draft?.executionDisposition ?? ''
@@ -3277,17 +3307,26 @@ function ErrorSection(props: {
                     {t('Customer sees · Canvas node and “Task information”')}
                   </h4>
                   <div className='flex flex-wrap items-center justify-between gap-2'>
-                    <span
-                      className={
-                        previewFailed
-                          ? 'text-destructive text-sm font-medium'
-                          : 'text-muted-foreground text-sm font-medium'
-                      }
-                    >
-                      {t(
-                        previewFailed
-                          ? 'Customer task view failed points released'
-                          : 'Customer task view verifying'
+                    <span className='grid gap-0.5'>
+                      <span
+                        className={
+                          previewFailed
+                            ? 'text-destructive text-sm font-medium'
+                            : 'text-muted-foreground text-sm font-medium'
+                        }
+                      >
+                        {t(
+                          previewFailed
+                            ? 'Customer task view failed points released'
+                            : 'Customer task view verifying'
+                        )}
+                      </span>
+                      {previewFailed ? null : (
+                        <span className='text-muted-foreground text-xs'>
+                          {t('Customer task view release in', {
+                            relative: releaseRelative,
+                          })}
+                        </span>
                       )}
                     </span>
                     <span className='text-muted-foreground rounded-md border px-2 py-0.5 text-xs'>
@@ -3303,7 +3342,12 @@ function ErrorSection(props: {
                         <dt className='text-muted-foreground'>
                           {t('Customer task view deadline')}
                         </dt>
-                        <dd>{releaseAt}</dd>
+                        <dd>
+                          {t('Customer task view deadline value', {
+                            date: releaseAt,
+                            relative: releaseRelative,
+                          })}
+                        </dd>
                         <dd className='text-muted-foreground text-xs'>
                           {t('Customer task view release notice')}
                         </dd>
@@ -4211,19 +4255,49 @@ function normalizeErrorDraft(
 }
 function humanDuration(
   milliseconds: number,
-  t: (key: string, options?: Record<string, unknown>) => string
+  t: (key: string, options?: Record<string, unknown>) => string,
+  locale: string | undefined
 ): string {
   if (!Number.isFinite(milliseconds)) return '—'
+  const number = (value: number, fractionDigits: number) =>
+    new Intl.NumberFormat(locale, {
+      maximumFractionDigits: fractionDigits,
+    }).format(value)
   if (milliseconds >= 3_600_000) {
     const hours = milliseconds / 3_600_000
     return Number.isInteger(hours)
-      ? t('{{value}} hours', { value: hours })
-      : t('About {{value}} hours', { value: hours.toFixed(1) })
+      ? t('{{value}} hours', { value: number(hours, 0) })
+      : t('About {{value}} hours', { value: number(hours, 1) })
   }
   if (milliseconds >= 60_000) {
-    return t('{{value}} minutes', { value: Math.round(milliseconds / 60_000) })
+    const minutes = milliseconds / 60_000
+    return Number.isInteger(minutes)
+      ? t('{{value}} minutes', { value: number(minutes, 0) })
+      : t('About {{value}} minutes', { value: number(minutes, 1) })
   }
-  return t('{{value}} seconds', { value: milliseconds / 1000 })
+  return t('{{value}} seconds', { value: number(milliseconds / 1000, 3) })
+}
+
+/** A millisecond field's help followed by the entered value in hours, minutes or seconds; nothing is added while it is empty. */
+function withDuration(
+  description: string,
+  milliseconds: unknown,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  locale: string | undefined
+): string {
+  if (
+    typeof milliseconds !== 'number' ||
+    !Number.isFinite(milliseconds) ||
+    milliseconds <= 0
+  ) {
+    return description
+  }
+  return t('{{description}} {{current}}', {
+    description,
+    current: t('That is {{duration}}.', {
+      duration: humanDuration(milliseconds, t, locale),
+    }),
+  })
 }
 
 function stableJson(value: unknown): string {
