@@ -113,7 +113,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
 /**
  * Navigation badge component
  */
-function NavBadge({
+export function NavBadge({
   children,
   tone,
   label,

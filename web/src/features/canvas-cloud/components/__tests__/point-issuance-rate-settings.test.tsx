@@ -175,7 +175,7 @@ describe('PointIssuanceRateSettings', () => {
     expect(
       await screen.findByRole('button', { name: 'Rate version' })
     ).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     expect(screen.getByLabelText('Rate version')).toBeInTheDocument()
   })
 

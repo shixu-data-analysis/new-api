@@ -19,6 +19,32 @@ describe('operating dashboard formatting', () => {
     )
   })
 
+  it('adds expired cash and subtracts both agent earning types from the contribution', () => {
+    const equation = consumptionEquation({
+      listAmountRmb: '100',
+      cashSupportRmb: '80.00004',
+      recordedCostRmb: '30',
+      expiredCashRmb: '10.00006',
+      agentConsumptionEarningsRmb: '5.4',
+      agentExpiryShareRmb: '4.00004',
+    })
+    expect([
+      equation.expiredCash,
+      equation.agentEarnings,
+      equation.contribution,
+    ]).toEqual(['10.0001', '9.4000', '50.6001'])
+    // A model group has no expired cash and carries its consumption earnings as one total.
+    expect(
+      consumptionEquation({
+        listAmountRmb: '0',
+        cashSupportRmb: '4',
+        recordedCostRmb: '8',
+        expiredCashRmb: null,
+        agentEarningsRmb: '1',
+      }).contribution
+    ).toBe('-5.0000')
+  })
+
   it('keeps the consumption equation exact to 0.0001 RMB after rounding the three base amounts', () => {
     const equation = consumptionEquation({
       listAmountRmb: '137.49995',
@@ -30,6 +56,10 @@ describe('operating dashboard formatting', () => {
       gift: '27.5000',
       cashSupport: '110.0000',
       recordedCost: '0.0035',
+      expiredCash: '0.0000',
+      agentEarnings: '0.0000',
+      agentConsumptionEarnings: '0.0000',
+      agentExpiryShare: '0.0000',
       contribution: '109.9965',
       listContribution: '137.4965',
     })

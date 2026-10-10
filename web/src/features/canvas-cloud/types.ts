@@ -24,6 +24,8 @@ export interface CanvasSession {
   displayName: string
   emailMasked: string | null
   inviterEnabled: boolean
+  /** A DISABLED inviter keeps read access to its earnings only. */
+  inviterStatus: 'ACTIVE' | 'DISABLED' | null
 }
 
 export interface CanvasProvisionedAdministrator {
@@ -60,6 +62,7 @@ export interface CanvasRuntimeTaskMediaConfiguration {
   credentialsConfigured: boolean
   inputRetentionHours: number
   outputRetentionHours: number
+  agentFileRetentionHours: number
   downloadUrlTtlSeconds: number
   reason: string
   effectiveAt: string | null
@@ -459,8 +462,6 @@ export interface CanvasAgentSummary {
   customersWithSuccessfulTasks: number
   successfulTasks: number
   settledPoints: string
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
 }
 
 export interface CanvasAgentPriceGroupSummary {
@@ -469,8 +470,6 @@ export interface CanvasAgentPriceGroupSummary {
   currentCustomers: number
   successfulTasks: number
   settledPoints: string
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
 }
 
 export interface CanvasAgentModelUsageRow {
@@ -494,15 +493,12 @@ export interface CanvasAgentModelUsageRow {
   settledPoints: string
   agentPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
   agentPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
 }
 
 export interface CanvasAdminAgentModelUsageRow extends CanvasAgentModelUsageRow {
-  customerPriceSnapshot: string | Partial<CanvasTokenRateVector> | null
-  customerPriceSnapshotStatus: 'MISSING' | 'SINGLE' | 'VARIES'
-  customerPriceAmount: string | null
-  customerAmountIncomplete: boolean
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+  listAmount: string
 }
 
 export interface CanvasAgentModelPrice {
@@ -556,8 +552,6 @@ export interface CanvasAgentCustomer {
   currentPriceGroup: { id: string; name: string } | null
   successfulTasks: number
   settledPoints: string
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
 }
 
 export interface CanvasAgentInviteCodeQuery {
@@ -586,18 +580,21 @@ export interface CanvasAgentCustomerQuery {
 }
 
 export interface CanvasAdminAgentSummary extends CanvasAgentSummary {
-  customerPriceAmount: string | null
-  customerAmountIncomplete: boolean
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+  listAmount: string
 }
 
 export interface CanvasAdminAgentPriceGroupSummary extends CanvasAgentPriceGroupSummary {
-  customerPriceAmount: string | null
-  customerAmountIncomplete: boolean
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+  listAmount: string
 }
 
 export interface CanvasAdminAgentCustomer extends CanvasAgentCustomer {
-  customerPriceAmount: string | null
-  customerAmountIncomplete: boolean
+  modelUsageAmount: string | null
+  amountIncomplete: boolean
+  listAmount: string
 }
 
 export interface CanvasAdminAgentStatistics {

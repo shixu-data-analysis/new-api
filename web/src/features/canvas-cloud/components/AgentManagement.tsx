@@ -61,9 +61,11 @@ import {
 } from '@/components/ui/sheet'
 import { toIntlLocale } from '@/i18n/languages'
 
+import { agentQualificationLabelKey } from '../agent-earnings-format'
 import { getCanvasAgents, provisionCanvasAgent } from '../api'
 import type { CanvasAgentProfile, CanvasInvitationExactFilter } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { AgentStatusSheet } from './AgentStatusSheet'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -266,6 +268,7 @@ export function AgentManagement(props: {
       discard: closeCreateDrawer,
     })
   }, [closeCreateDrawer, guardWhen, props])
+  const [statusTarget, setStatusTarget] = useState<CanvasAgentProfile>()
   const columns = useMemo<ColumnDef<CanvasAgentProfile, unknown>[]>(
     () => [
       {
@@ -289,7 +292,7 @@ export function AgentManagement(props: {
         cell: ({ row }) => (
           <CanvasStatusBadge
             status={row.original.status}
-            label={t(row.original.status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
+            label={t(agentQualificationLabelKey(row.original.status))}
           />
         ),
       },
@@ -306,24 +309,34 @@ export function AgentManagement(props: {
             { dateStyle: 'medium', timeStyle: 'short' }
           ).format(new Date(row.original.createdAt)),
       },
-      ...(onViewInviteCodes
-        ? [
-            {
-              id: 'actions',
-              enableSorting: false,
-              header: t('Actions'),
-              cell: ({ row }: { row: { original: CanvasAgentProfile } }) => (
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => onViewInviteCodes(row.original)}
-                >
-                  {t('View invite codes')}
-                </Button>
-              ),
-            } as ColumnDef<CanvasAgentProfile, unknown>,
-          ]
-        : []),
+      {
+        id: 'actions',
+        enableSorting: false,
+        header: t('Actions'),
+        size: 256,
+        cell: ({ row }) => (
+          <div className='flex flex-wrap gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => setStatusTarget(row.original)}
+            >
+              {row.original.status === 'ACTIVE' ? t('Disable') : t('Restore')}
+            </Button>
+            {onViewInviteCodes ? (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => onViewInviteCodes(row.original)}
+              >
+                {t('View invite codes')}
+              </Button>
+            ) : null}
+          </div>
+        ),
+      },
     ],
     [i18n.language, i18n.resolvedLanguage, onViewInviteCodes, t]
   )
@@ -470,7 +483,11 @@ export function AgentManagement(props: {
                   displayValue={
                     <CanvasStatusBadge
                       status={status}
-                      label={t(status === 'ACTIVE' ? 'Enabled' : 'Disabled')}
+                      label={t(
+                        agentQualificationLabelKey(
+                          status === 'ACTIVE' ? 'ACTIVE' : 'DISABLED'
+                        )
+                      )}
                     />
                   }
                 />
@@ -478,10 +495,16 @@ export function AgentManagement(props: {
               <SelectContent>
                 <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
                 <SelectItem value='ACTIVE'>
-                  <CanvasStatusBadge status='ACTIVE' label={t('Enabled')} />
+                  <CanvasStatusBadge
+                    status='ACTIVE'
+                    label={t(agentQualificationLabelKey('ACTIVE'))}
+                  />
                 </SelectItem>
                 <SelectItem value='DISABLED'>
-                  <CanvasStatusBadge status='DISABLED' label={t('Disabled')} />
+                  <CanvasStatusBadge
+                    status='DISABLED'
+                    label={t(agentQualificationLabelKey('DISABLED'))}
+                  />
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -493,6 +516,10 @@ export function AgentManagement(props: {
           setStatus('')
         }}
         getRowId={(row) => row.principalId}
+      />
+      <AgentStatusSheet
+        agent={statusTarget}
+        onOpenChange={(open) => (open ? undefined : setStatusTarget(undefined))}
       />
       <PricingActionConfirmation
         open={confirming || discarding}

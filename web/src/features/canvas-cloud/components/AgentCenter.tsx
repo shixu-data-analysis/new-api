@@ -47,6 +47,10 @@ import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
+  formatAgentTaskTimePrice,
+  formatAgentUsage,
+} from '../agent-usage-format'
+import {
   getCanvasAgentCustomers,
   getCanvasAgentInviteCodes,
   getCanvasAgentModelPrices,
@@ -57,7 +61,7 @@ import {
 } from '../api'
 import { copyText } from '../copy-text'
 import { formatCanvasDateTime } from '../formatters'
-import { formatExactRmbReference } from '../number-format'
+import { formatExactPointQuantity } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasAgentCustomer,
@@ -65,7 +69,6 @@ import type {
   CanvasAgentInviteCode,
   CanvasAgentInviteCodeQuery,
   CanvasAgentModelUsageRow,
-  CanvasBillingUnit,
   CanvasInviteCodeStatus,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
@@ -77,74 +80,9 @@ import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
 
-const billingUnitKeys: Record<CanvasBillingUnit, string> = {
-  REQUEST: 'Per request',
-  SECOND: 'Per second',
-  MILLION_TOKENS: 'Per million tokens',
-}
-
-function UsageAmount({
-  value,
-  incomplete,
-}: {
-  value: string | null
-  incomplete: boolean
-}) {
-  const { t, i18n } = useTranslation()
-  return (
-    <span>
-      {value === null
-        ? '—'
-        : `¥${formatExactRmbReference(value, toIntlLocale(i18n.language))}`}
-      {incomplete ? (
-        <span className='ml-1 text-amber-700'>({t('Amount incomplete')})</span>
-      ) : null}
-    </span>
-  )
-}
-
-function PriceSnapshot({
-  value,
-  status,
-}: {
-  value:
-    | string
-    | Partial<Record<'input' | 'output' | 'cacheRead' | 'cacheWrite', string>>
-    | null
-  status: CanvasAgentModelUsageRow['agentPriceSnapshotStatus']
-}) {
-  const { t, i18n } = useTranslation()
-  if (status === 'VARIES') {
-    return <span>{t('Multiple historical prices')}</span>
-  }
-  if (value === null) {
-    return <span>—</span>
-  }
-  if (typeof value === 'string') {
-    return (
-      <span>{`¥${formatExactRmbReference(value, toIntlLocale(i18n.language))}`}</span>
-    )
-  }
-  const labels = {
-    input: 'Input',
-    output: 'Output',
-    cacheRead: 'Cache read',
-    cacheWrite: 'Cache write',
-  } as const
-  return (
-    <span>
-      {Object.entries(value)
-        .map(
-          ([category, amount]) =>
-            `${t(labels[category as keyof typeof labels])}: ¥${formatExactRmbReference(amount, toIntlLocale(i18n.language))}`
-        )
-        .join(' · ')}
-    </span>
-  )
-}
-
 function ModelUsage({ customerId }: { customerId: string }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.language)
   const state = useServerTableState<'priceGroupName'>('priceGroupName')
   const query = useQuery({
     queryKey: [
@@ -188,59 +126,41 @@ function ModelUsage({ customerId }: { customerId: string }) {
       ),
     },
     {
-      id: 'billingUnit',
-      accessorKey: 'billingUnit',
-      header: t('Billing unit'),
-      cell: ({ row }) => t(billingUnitKeys[row.original.billingUnit]),
-    },
-    {
       id: 'usage',
       header: t('Usage'),
-      cell: ({ row }) => {
-        const usage = row.original.usage
-        if (row.original.billingUnit === 'MILLION_TOKENS') {
-          return (
-            <span>
-              {t('Input')}: {usage.inputTokens ?? '—'}; {t('Output')}:{' '}
-              {usage.outputTokens ?? '—'}; {t('Cache read')}:{' '}
-              {usage.cacheReadTokens ?? '—'}; {t('Cache write')}:{' '}
-              {usage.cacheWriteTokens ?? '—'}
-            </span>
-          )
-        }
-        if (row.original.billingUnit === 'SECOND') return usage.seconds
-        return usage.requests
-      },
+      cell: ({ row }) =>
+        formatAgentUsage(
+          row.original,
+          row.original.agentPriceSnapshot,
+          t,
+          locale
+        ),
     },
     {
       id: 'successfulTasks',
       accessorKey: 'successfulTasks',
       header: t('Successful tasks'),
+      cell: ({ row }) =>
+        formatExactPointQuantity(String(row.original.successfulTasks), locale),
     },
     {
       id: 'settledPoints',
       accessorKey: 'settledPoints',
       header: t('Consumed points'),
+      cell: ({ row }) =>
+        formatExactPointQuantity(row.original.settledPoints, locale),
     },
     {
       id: 'agentPriceSnapshot',
-      header: t('Model price snapshot'),
-      cell: ({ row }) => (
-        <PriceSnapshot
-          value={row.original.agentPriceSnapshot}
-          status={row.original.agentPriceSnapshotStatus}
-        />
-      ),
-    },
-    {
-      id: 'modelUsageAmount',
-      header: t('Model usage amount'),
-      cell: ({ row }) => (
-        <UsageAmount
-          value={row.original.modelUsageAmount}
-          incomplete={row.original.amountIncomplete}
-        />
-      ),
+      header: t('Task-time model price'),
+      cell: ({ row }) =>
+        formatAgentTaskTimePrice(
+          row.original,
+          row.original.agentPriceSnapshot,
+          row.original.agentPriceSnapshotStatus,
+          t,
+          locale
+        ),
     },
   ]
   return (
@@ -261,7 +181,8 @@ function ModelUsage({ customerId }: { customerId: string }) {
 }
 
 export function AgentCenter() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.language)
   const [revealed, setRevealed] = useState<Record<string, string>>({})
   const [inviteCodeInput, setInviteCodeInput] = useState('')
   const inviteCodeRef = useRef('')
@@ -528,21 +449,15 @@ export function AgentCenter() {
       id: 'successfulTasks',
       accessorKey: 'successfulTasks',
       header: t('Successful tasks'),
+      cell: ({ row }) =>
+        formatExactPointQuantity(String(row.original.successfulTasks), locale),
     },
     {
       id: 'settledPoints',
       accessorKey: 'settledPoints',
       header: t('Consumed points'),
-    },
-    {
-      id: 'modelUsageAmount',
-      header: t('Model usage amount'),
-      cell: ({ row }) => (
-        <UsageAmount
-          value={row.original.modelUsageAmount}
-          incomplete={row.original.amountIncomplete}
-        />
-      ),
+      cell: ({ row }) =>
+        formatExactPointQuantity(row.original.settledPoints, locale),
     },
     {
       id: 'usageAction',
@@ -724,34 +639,38 @@ export function AgentCenter() {
         <CardHeader>
           <CardTitle>{t('Cumulative overview')}</CardTitle>
         </CardHeader>
-        <CardContent className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+        <CardContent className='grid gap-3 sm:grid-cols-3'>
           <div>
             <p className='text-muted-foreground text-sm'>
               {t('Activated customers')}
             </p>
-            <strong>{data.summary.activatedCustomers}</strong>
+            <strong className='tabular-nums'>
+              {formatExactPointQuantity(
+                String(data.summary.activatedCustomers),
+                locale
+              )}
+            </strong>
           </div>
           <div>
             <p className='text-muted-foreground text-sm'>
               {t('Customers with successful tasks')}
             </p>
-            <strong>{data.summary.customersWithSuccessfulTasks}</strong>
+            <strong className='tabular-nums'>
+              {formatExactPointQuantity(
+                String(data.summary.customersWithSuccessfulTasks),
+                locale
+              )}
+            </strong>
           </div>
           <div>
             <p className='text-muted-foreground text-sm'>
               {t('Successful tasks')}
             </p>
-            <strong>{data.summary.successfulTasks}</strong>
-          </div>
-          <div>
-            <p className='text-muted-foreground text-sm'>
-              {t('Model usage amount')}
-            </p>
-            <strong>
-              <UsageAmount
-                value={data.summary.modelUsageAmount}
-                incomplete={data.summary.amountIncomplete}
-              />
+            <strong className='tabular-nums'>
+              {formatExactPointQuantity(
+                String(data.summary.successfulTasks),
+                locale
+              )}
             </strong>
           </div>
         </CardContent>
@@ -767,21 +686,19 @@ export function AgentCenter() {
             data.priceGroups.map((group) => (
               <div
                 key={group.priceGroupId}
-                className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-4'
+                className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-3'
               >
                 <strong>{group.priceGroupName}</strong>
-                <span>
-                  {t('Successful tasks')}: {group.successfulTasks}
+                <span className='tabular-nums'>
+                  {t('Successful tasks')}:{' '}
+                  {formatExactPointQuantity(
+                    String(group.successfulTasks),
+                    locale
+                  )}
                 </span>
-                <span>
-                  {t('Consumed points')}: {group.settledPoints}
-                </span>
-                <span>
-                  {t('Model usage amount')}:{' '}
-                  <UsageAmount
-                    value={group.modelUsageAmount}
-                    incomplete={group.amountIncomplete}
-                  />
+                <span className='tabular-nums'>
+                  {t('Consumed points')}:{' '}
+                  {formatExactPointQuantity(group.settledPoints, locale)}
                 </span>
               </div>
             ))

@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 import { useTranslation } from 'react-i18next'
 
+import { AgentSettlementPolicySettings } from './AgentSettlementPolicySettings'
 import { PointIssuanceRateSettings } from './PointIssuanceRateSettings'
 import { PriceGroupManagement } from './PriceGroupManagement'
 import { TaskPolicySettings } from './TaskPolicySettings'
@@ -28,6 +29,18 @@ export function PricingPointRules() {
         </h2>
         <PointIssuanceRateSettings />
         <TaskPolicySettings section='recharge' />
+      </section>
+      <section
+        aria-labelledby='agent-settlement-rules-heading'
+        className='min-w-0 space-y-3'
+      >
+        <h2
+          id='agent-settlement-rules-heading'
+          className='text-lg font-semibold'
+        >
+          {t('Agent settlement rules')}
+        </h2>
+        <AgentSettlementPolicySettings />
       </section>
       <section aria-label={t('Quote and release rules')} className='min-w-0'>
         <TaskPolicySettings section='release' />

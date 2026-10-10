@@ -78,6 +78,7 @@ export function OperatingDashboardWaterfall(props: {
         ]
       : [
           ['total', 'Amount'],
+          ['increase', 'Increase'],
           ['decrease', 'Deduction'],
         ]
   return (

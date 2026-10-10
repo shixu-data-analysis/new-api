@@ -187,7 +187,7 @@ describe('Pricing and point rule sections', () => {
       within(section).queryByRole('button', { name: 'Publish' })
     ).not.toBeInTheDocument()
     expect(
-      within(section).getByRole('button', { name: /Column filters/ })
+      within(section).getByRole('button', { name: /^Filters/ })
     ).toBeVisible()
     expect(within(section).getByRole('button', { name: /View/ })).toBeVisible()
   })

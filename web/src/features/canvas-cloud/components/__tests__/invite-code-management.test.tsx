@@ -1530,9 +1530,7 @@ describe('Canvas invite code management', () => {
     })
 
     const { queryClient } = renderWithClient(<InviteCodeManagement />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Column filters' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Invite code' }), {
       target: { value: ' first01 ' },
     })
@@ -1562,9 +1560,7 @@ describe('Canvas invite code management', () => {
       exactFilter: null,
     })
     const { queryClient } = renderWithClient(<InviteCodeManagement />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Column filters' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Invite code' }), {
       target: { value: 'ABC' },
     })

@@ -93,6 +93,7 @@ const runtime = {
     credentialsConfigured: true,
     inputRetentionHours: 24,
     outputRetentionHours: 72,
+    agentFileRetentionHours: 2160,
     downloadUrlTtlSeconds: 900,
     reason: 'initial',
     effectiveAt: '2026-09-04T00:00:00.000Z',
@@ -1640,6 +1641,54 @@ describe('Canvas runtime configuration', () => {
     expect(
       apiMocks.publishCanvasTaskMediaStorage.mock.calls[0]?.[0]
     ).not.toHaveProperty('mediaCredentials')
+  })
+  it('publishes the withdrawal image retention hours with their day count', async () => {
+    apiMocks.publishCanvasTaskMediaStorage.mockResolvedValue({})
+    renderRuntime()
+    await screen.findByText('canvas-uat-task-media')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Update configuration' })
+    )
+    const form = screen.getByRole('form', {
+      name: 'Publish task media configuration',
+    })
+
+    expect(within(form).getByLabelText('R2 endpoint')).toHaveValue(
+      runtime.taskMedia.endpoint
+    )
+    expect(within(form).getByLabelText('Task media bucket')).toHaveValue(
+      runtime.taskMedia.bucket
+    )
+    expect(within(form).getByLabelText('Access key ID')).toHaveValue(
+      runtime.taskMedia.accessKeyId
+    )
+    expect(within(form).getByLabelText('Secret access key')).toHaveValue('')
+    expect(
+      within(form).getByRole('button', {
+        name: 'Review task media publication',
+      })
+    ).toBeDisabled()
+
+    fireEvent.change(
+      within(form).getByLabelText('Withdrawal image retention hours'),
+      { target: { value: '720' } }
+    )
+    expect(within(form).getByText(/= 30 days/u)).toBeVisible()
+    fireEvent.click(
+      within(form).getByRole('button', {
+        name: 'Review task media publication',
+      })
+    )
+    const review = await screen.findByRole('alertdialog')
+    expect(within(review).getByText('2160 → 720')).toBeVisible()
+    fireEvent.click(
+      within(review).getByRole('button', { name: 'Confirm publication' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.publishCanvasTaskMediaStorage).toHaveBeenCalledWith({
+        agentFileRetentionHours: 720,
+      })
+    )
   })
   it.each([
     ['en', en],

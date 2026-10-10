@@ -25,9 +25,15 @@ export const invalidInvitationPrincipalId =
 const uuid = z.string().uuid().optional().catch(invalidInvitationPrincipalId)
 
 const invitationSearchSchema = z.object({
-  tab: z.enum(['codes', 'inviters']).optional(),
+  tab: z.enum(['codes', 'inviters', 'statements', 'withdrawals']).optional(),
   principalId: uuid,
   inviterPrincipalId: uuid,
+  // A statement month carried from the operating dashboard.
+  month: z
+    .string()
+    .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/u)
+    .optional()
+    .catch(undefined),
 })
 
 export const Route = createFileRoute(

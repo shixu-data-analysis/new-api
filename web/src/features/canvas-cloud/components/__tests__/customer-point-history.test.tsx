@@ -277,7 +277,7 @@ describe('Customer point history', () => {
       items: [],
     })
     renderHistory('ledger')
-    fireEvent.click(await screen.findByRole('button', { name: '列筛选' }))
+    fireEvent.click(await screen.findByRole('button', { name: '筛选' }))
     const input = await screen.findByPlaceholderText('关联记录')
     fireEvent.change(input, { target: { value: 'RC-20260914-001' } })
     await waitFor(() =>
@@ -360,7 +360,7 @@ describe('Customer point history', () => {
     expect(copyTaskIdButton).toBeVisible()
     expect(copyTaskIdButton).toHaveTextContent('')
 
-    const filterButtons = screen.getAllByRole('button', { name: '列筛选' })
+    const filterButtons = screen.getAllByRole('button', { name: '筛选' })
     fireEvent.click(filterButtons[0])
     await waitFor(() =>
       expect(screen.getByLabelText('画布充值订单')).toBeVisible()

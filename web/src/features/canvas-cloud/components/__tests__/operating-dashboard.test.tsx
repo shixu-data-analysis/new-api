@@ -16,6 +16,11 @@ import type { DashboardSummary } from '../../operating-dashboard-types'
 import { PointsContributionPanel } from '../PointsContributionPanel'
 import { ProviderBalancesPanel } from '../ProviderBalancesPanel'
 
+const navigate = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => navigate,
+}))
 const dashboardApi = vi.hoisted(() => ({
   getOperatingDashboard: vi.fn(),
   getOperatingDashboardBalances: vi.fn(),
@@ -91,7 +96,11 @@ const summary: DashboardSummary = {
     listAmountRmb: '137.495',
     cashSupportRmb: '110.004',
     recordedCostRmb: '70',
-    contributionRmb: '40.004',
+    expiredCashRmb: '20',
+    agentConsumptionEarningsRmb: '5.5',
+    agentExpiryShareRmb: '4.5',
+    // 110.004 + 20 − (5.5 + 4.5) − 70
+    contributionRmb: '50.004',
     contributionRate: '0.3636',
     giftShare: '0.2',
     incompleteCostTaskCount: 3,
@@ -119,6 +128,8 @@ const summary: DashboardSummary = {
         recordedCostRmb: '40',
         incompleteCostTaskCount: 2,
         modelCount: 1,
+        expiredCashRmb: null,
+        agentEarningsRmb: '3',
       },
       {
         key: 'text.c',
@@ -130,6 +141,8 @@ const summary: DashboardSummary = {
         recordedCostRmb: '8',
         incompleteCostTaskCount: 0,
         modelCount: 1,
+        expiredCashRmb: null,
+        agentEarningsRmb: '0',
       },
     ],
     total: 2,
@@ -148,7 +161,10 @@ const summary: DashboardSummary = {
     listAmountRmb: '130',
     cashSupportRmb: '106',
     recordedCostRmb: '73.7',
-    contributionRmb: '32.3',
+    expiredCashRmb: '10',
+    agentConsumptionEarningsRmb: '2',
+    agentExpiryShareRmb: '1',
+    contributionRmb: '39.3',
     contributionRate: '0.3',
   },
 }
@@ -198,11 +214,19 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
 
   it('shows the consumption equation exact to 0.0001 RMB with provisional contribution and no profit wording', async () => {
     mount(<PointsContributionPanel />)
-    expect(await screen.findByText('¥137.495')).toBeInTheDocument()
-    expect(screen.getByText('¥27.491')).toBeInTheDocument()
-    expect(screen.getAllByText('¥110.004').length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('¥110.004')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('¥20.00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('¥10.00').length).toBeGreaterThan(0)
+    expect(
+      screen.getByText('Consumption earnings ¥5.50 · Expiry share ¥4.50')
+    ).toBeInTheDocument()
     expect(screen.getAllByText('¥70.00').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/¥40\.004/u).length).toBeGreaterThan(0)
+    // Contribution = consumption cash + expired cash − agent earnings − recorded cost.
+    expect(screen.getAllByText(/¥50\.004/u).length).toBeGreaterThan(0)
+    // List amount and its gift portion moved to the pricing reference line.
+    expect(
+      screen.getByText('Pricing reference').parentElement
+    ).toHaveTextContent(/¥137\.495.*¥27\.491/u)
     expect(screen.getAllByText('(provisional)').length).toBeGreaterThan(0)
     expect(screen.queryByText(/profit/iu)).not.toBeInTheDocument()
     expect(screen.getByText('Reconciled')).toBeInTheDocument()
@@ -219,6 +243,19 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
     expect(screen.getAllByText(/^[-−]¥4\.00$/u)[0]).toHaveClass(
       'text-destructive'
     )
+  })
+
+  it('opens the monthly statements of the period month when agent earnings are clicked', async () => {
+    mount(<PointsContributionPanel />)
+    fireEvent.click(
+      (
+        await screen.findAllByRole('button', { name: '¥10.00' })
+      )[0] as HTMLElement
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/canvas-cloud/invitations',
+      search: { tab: 'statements', month: '2026-09' },
+    })
   })
 
   it('opens the cost drawer preset to incomplete tasks with the page asOf as its end', async () => {
@@ -305,7 +342,7 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
     mount(<PointsContributionPanel />)
     fireEvent.click(
       (
-        await screen.findAllByRole('button', { name: '5,500 points' })
+        await screen.findAllByRole('button', { name: 'Consumed points 5,500' })
       )[0] as HTMLElement
     )
     fireEvent.click(await screen.findByRole('button', { name: 'lot-invite' }))
@@ -352,7 +389,7 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
       dashboardApi.getOperatingDashboardCosts.mock.calls[0]?.[0]
     ).toMatchObject({ costState: 'INCOMPLETE', modelKey: 'image.a' })
     expect(
-      await screen.findByRole('button', { name: /Column filters/u })
+      await screen.findByRole('button', { name: /^Filters/u })
     ).toBeInTheDocument()
   })
 
@@ -373,7 +410,7 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
     await i18next.changeLanguage('zhCN')
     mount(<PointsContributionPanel />)
     expect(await screen.findByText('积分核对')).toBeInTheDocument()
-    expect(screen.getByText('消费与调用成本')).toBeInTheDocument()
+    expect(screen.getByText('消费、到期与调用成本')).toBeInTheDocument()
     expect(screen.getAllByText('贡献额').length).toBeGreaterThan(0)
     expect(screen.getByText('3 个任务资料不完整')).toBeInTheDocument()
     expect(screen.getByText('按 API 服务商')).toBeInTheDocument()

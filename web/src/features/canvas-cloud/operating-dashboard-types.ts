@@ -36,6 +36,8 @@ export type DashboardGroupSort =
   | 'recordedCost'
   | 'contribution'
   | 'listContribution'
+  | 'expiredCash'
+  | 'agentEarnings'
 export type PointSourceCategory =
   | 'PURCHASED'
   | 'RECHARGE_BONUS'
@@ -118,6 +120,9 @@ export interface DashboardGroupRow {
   recordedCostRmb: string
   incompleteCostTaskCount: number
   modelCount: number
+  /** Only agent and customer groups; expiry belongs to no model. */
+  expiredCashRmb: string | null
+  agentEarningsRmb: string
 }
 
 /** Amounts are unrounded RMB decimal strings; rates are null when their denominator is zero. */
@@ -174,6 +179,9 @@ export interface DashboardSummary {
     listAmountRmb: string
     cashSupportRmb: string
     recordedCostRmb: string
+    expiredCashRmb: string
+    agentConsumptionEarningsRmb: string
+    agentExpiryShareRmb: string
     contributionRmb: string
     contributionRate: string | null
     giftShare: string | null
@@ -208,6 +216,9 @@ export interface DashboardSummary {
     listAmountRmb: string
     cashSupportRmb: string
     recordedCostRmb: string
+    expiredCashRmb: string
+    agentConsumptionEarningsRmb: string
+    agentExpiryShareRmb: string
     contributionRmb: string
     contributionRate: string | null
   }

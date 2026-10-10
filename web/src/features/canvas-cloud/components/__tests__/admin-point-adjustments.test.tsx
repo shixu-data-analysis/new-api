@@ -238,7 +238,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
     })
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('Agent')).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     await user.click(screen.getByRole('combobox', { name: 'Agent identity' }))
     await user.click(await screen.findByRole('option', { name: 'Agent' }))
     await waitFor(() =>
@@ -270,8 +270,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
         settledPoints: '0',
         modelUsageAmount: null,
         amountIncomplete: true,
-        customerPriceAmount: null,
-        customerAmountIncomplete: true,
+        listAmount: '0',
       },
       priceGroups: [],
     })
@@ -368,7 +367,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       .closest('section')
     if (!customersSection) throw new Error('Agent customers section missing')
     await user.click(
-      within(customersSection).getByRole('button', { name: 'Column filters' })
+      within(customersSection).getByRole('button', { name: 'Filters' })
     )
     await user.click(screen.getByRole('combobox', { name: 'Status' }))
     await user.click(await screen.findByRole('option', { name: 'Valid' }))
@@ -388,9 +387,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
     })
     const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
     renderWithQuery(<AdminPointAdjustments />)
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Column filters' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }))
     fireEvent.change(screen.getByPlaceholderText('Username'), {
       target: { value: 'uat' },
     })
@@ -403,7 +400,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       await screen.findByRole('link', { name: 'uatcustomer' })
     ).toBeVisible()
     expect(screen.queryByText('Customer management')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
     expect(screen.getByPlaceholderText('Username')).toHaveValue('uat')
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 280 }))
     scrollTo.mockRestore()
@@ -564,9 +561,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
     if (!history) throw new Error('Expected return history container')
     expect(await within(history).findByText('Canvas Admin')).toBeVisible()
     expect(within(history).getByText('service adjustment')).toBeVisible()
-    fireEvent.click(
-      within(history).getByRole('button', { name: 'Column filters' })
-    )
+    fireEvent.click(within(history).getByRole('button', { name: 'Filters' }))
     fireEvent.change(await screen.findByPlaceholderText('Reason'), {
       target: { value: 'service' },
     })

@@ -34,6 +34,7 @@ import {
   type canvasAdminSections as adminSections,
   type canvasCustomerSections as customerSections,
 } from './access'
+import { agentEarningsQueryKeys } from './agent-earnings-api'
 import {
   getCanvasAdminWorkspace,
   getCanvasCatalog,
@@ -45,6 +46,7 @@ import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
+import { AgentEarnings } from './components/AgentEarnings'
 import { CustomerModelCenter } from './components/CustomerModelCenter'
 import {
   CustomerPointsCenter,
@@ -70,7 +72,11 @@ import { CanvasRechargeCodes } from './RechargeCodes'
 const route = getRouteApi('/_authenticated/canvas-cloud/$section')
 type CustomerSection = (typeof customerSections)[number]
 type AdminSection = (typeof adminSections)[number]
-type CanvasSection = CustomerSection | AdminSection | 'agent-center'
+type CanvasSection =
+  | CustomerSection
+  | AdminSection
+  | 'agent-center'
+  | 'agent-earnings'
 
 const sectionTitles: Record<CanvasSection, string> = {
   dashboard: 'Canvas Dashboard',
@@ -93,6 +99,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   'provider-configuration': 'Provider configuration',
   audit: 'Canvas Audit Log',
   'agent-center': 'My customers',
+  'agent-earnings': 'My earnings',
 }
 
 const invalidCanvasCloudRuntimeView = '__invalid_canvas_cloud_runtime_view__'
@@ -272,7 +279,7 @@ export function CanvasCloud() {
     !isCanvasSectionAllowed(
       session.data.principalType,
       params.section,
-      session.data.inviterEnabled
+      session.data.inviterStatus
     )
   ) {
     return (
@@ -310,6 +317,8 @@ export function CanvasCloud() {
   let content: ReactNode
   if (section === 'agent-center') {
     content = <AgentCenter />
+  } else if (section === 'agent-earnings') {
+    content = <AgentEarnings />
   } else if (session.data.principalType === 'CUSTOMER') {
     const pointsView =
       search.view === 'lots' || search.view === 'ledger'
@@ -408,6 +417,11 @@ export function CanvasCloud() {
       let queryKey: readonly unknown[] = ['canvas-cloud', 'catalog']
       if (section === 'tasks') {
         queryKey = ['canvas-cloud', 'customer', 'tasks']
+      } else if (section === 'agent-center') {
+        // The page reads the workspace, invite codes, customers, usage and model prices under separate keys.
+        queryKey = ['canvas-cloud']
+      } else if (section === 'agent-earnings') {
+        queryKey = agentEarningsQueryKeys.all
       } else if (section === 'points') {
         await queryClient.invalidateQueries({
           queryKey: ['canvas-cloud', 'customer', 'point-summary'],

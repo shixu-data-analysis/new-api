@@ -26,6 +26,7 @@ const { canvasShellState } = vi.hoisted(() => ({
           | 'PLATFORM_ADMIN'
           | 'SUPER_ADMIN',
         inviterEnabled: false,
+        inviterStatus: null as 'ACTIVE' | 'DISABLED' | null,
       },
     },
   },
@@ -55,6 +56,16 @@ vi.mock('@/features/canvas-cloud/execution-api', () => ({
   }),
 }))
 
+const withdrawals = vi.hoisted(() => ({ pending: 0, unread: 0 }))
+vi.mock('@/features/canvas-cloud/agent-earnings-api', () => ({
+  agentEarningsQueryKeys: {
+    pendingCount: ['canvas-cloud', 'agent-withdrawals', 'pending-count'],
+    unreadCount: ['canvas-cloud', 'agent-earnings', 'unread-count'],
+  },
+  getAdminPendingWithdrawalCount: async () => withdrawals.pending,
+  getAgentUnreadWithdrawalCount: async () => withdrawals.unread,
+}))
+
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider
@@ -75,9 +86,12 @@ describe('Canvas administrator primary sidebar', () => {
     canvasShellState.canvasSession.data = {
       principalType: 'PLATFORM_ADMIN',
       inviterEnabled: false,
+      inviterStatus: null,
     }
     balanceAlerts.alertCount = 0
     executionAttention.count = 0
+    withdrawals.pending = 0
+    withdrawals.unread = 0
   })
 
   it('marks the runtime management entry with the number of attention hints', async () => {
@@ -163,6 +177,7 @@ describe('Canvas administrator primary sidebar', () => {
     canvasShellState.canvasSession.data = {
       principalType: 'SUPER_ADMIN',
       inviterEnabled: false,
+      inviterStatus: null,
     }
     const superAdministrator = renderHook(() => useSidebarData(), { wrapper })
     const superAdministratorGroups = superAdministrator.result.current.navGroups
@@ -203,6 +218,7 @@ describe('Canvas administrator primary sidebar', () => {
     canvasShellState.canvasSession.data = {
       principalType: 'CUSTOMER',
       inviterEnabled: false,
+      inviterStatus: null,
     }
     const ordinary = renderHook(() => useSidebarData(), { wrapper })
     expect(
@@ -217,6 +233,7 @@ describe('Canvas administrator primary sidebar', () => {
     canvasShellState.canvasSession.data = {
       principalType: 'CUSTOMER',
       inviterEnabled: true,
+      inviterStatus: 'ACTIVE',
     }
     const inviter = renderHook(() => useSidebarData(), { wrapper })
     expect(
@@ -226,5 +243,47 @@ describe('Canvas administrator primary sidebar', () => {
           (item) => 'url' in item && item.url === '/canvas-cloud/agent-center'
         )?.title
     ).toBe('My customers')
+  })
+
+  it('keeps My earnings with its unread results for a disabled agent and hides My customers', async () => {
+    withdrawals.unread = 2
+    canvasShellState.canvasSession.data = {
+      principalType: 'CUSTOMER',
+      inviterEnabled: false,
+      inviterStatus: 'DISABLED',
+    }
+    const disabled = renderHook(() => useSidebarData(), { wrapper })
+    const items = () =>
+      disabled.result.current.navGroups.flatMap((group) => group.items)
+    expect(
+      items().some(
+        (item) => 'url' in item && item.url === '/canvas-cloud/agent-center'
+      )
+    ).toBe(false)
+    await waitFor(() =>
+      expect(
+        items().find(
+          (item) => 'url' in item && item.url === '/canvas-cloud/agent-earnings'
+        )
+      ).toMatchObject({
+        title: 'My earnings',
+        badge: '2',
+        badgeTone: 'alert',
+      })
+    )
+  })
+
+  it('marks invitation management with the pending withdrawal count', async () => {
+    withdrawals.pending = 4
+    const admin = renderHook(() => useSidebarData(), { wrapper })
+    await waitFor(() =>
+      expect(
+        admin.result.current.navGroups
+          .flatMap((group) => group.items)
+          .find(
+            (item) => 'url' in item && item.url === '/canvas-cloud/invitations'
+          )
+      ).toMatchObject({ badge: '4', badgeTone: 'alert' })
+    )
   })
 })

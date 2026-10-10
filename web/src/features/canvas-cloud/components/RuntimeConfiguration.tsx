@@ -24,7 +24,7 @@ import {
   useState,
   type ReactElement,
 } from 'react'
-import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useForm, useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
@@ -142,6 +142,11 @@ const taskMediaSchema = z
       .min(1, 'Enter a value from 1 to 8760')
       .max(8760, 'Enter a value from 1 to 8760'),
     outputRetentionHours: z
+      .number({ error: 'Enter a number' })
+      .int('Enter a whole number')
+      .min(1, 'Enter a value from 1 to 8760')
+      .max(8760, 'Enter a value from 1 to 8760'),
+    agentFileRetentionHours: z
       .number({ error: 'Enter a number' })
       .int('Enter a whole number')
       .min(1, 'Enter a value from 1 to 8760')
@@ -424,9 +429,14 @@ export function RuntimeConfiguration(
       secretAccessKey: '',
       inputRetentionHours: 24,
       outputRetentionHours: 72,
+      agentFileRetentionHours: 2160,
       downloadUrlTtlSeconds: 900,
       reason: '',
     },
+  })
+  const agentFileRetentionHours = useWatch({
+    control: taskMedia.control,
+    name: 'agentFileRetentionHours',
   })
   const credential = useForm<CredentialForm>({
     resolver: zodResolver(credentialSchema),
@@ -471,6 +481,7 @@ export function RuntimeConfiguration(
         secretAccessKey: '',
         inputRetentionHours: storageData.taskMedia.inputRetentionHours,
         outputRetentionHours: storageData.taskMedia.outputRetentionHours,
+        agentFileRetentionHours: storageData.taskMedia.agentFileRetentionHours,
         downloadUrlTtlSeconds: storageData.taskMedia.downloadUrlTtlSeconds,
         reason: '',
       })
@@ -558,6 +569,9 @@ export function RuntimeConfiguration(
           : {}),
         ...(current?.outputRetentionHours !== value.outputRetentionHours
           ? { outputRetentionHours: value.outputRetentionHours }
+          : {}),
+        ...(current?.agentFileRetentionHours !== value.agentFileRetentionHours
+          ? { agentFileRetentionHours: value.agentFileRetentionHours }
           : {}),
         ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
           ? { downloadUrlTtlSeconds: value.downloadUrlTtlSeconds }
@@ -971,6 +985,14 @@ export function RuntimeConfiguration(
             },
           ]
         : []),
+      ...(current?.agentFileRetentionHours !== value.agentFileRetentionHours
+        ? [
+            {
+              label: t('Withdrawal image retention hours'),
+              value: `${current?.agentFileRetentionHours ?? t('Not configured')} → ${value.agentFileRetentionHours}`,
+            },
+          ]
+        : []),
       ...(current?.downloadUrlTtlSeconds !== value.downloadUrlTtlSeconds
         ? [
             {
@@ -1193,7 +1215,7 @@ export function RuntimeConfiguration(
                   <StorageSummary
                     bucketLabel={t('Task media bucket')}
                     item={storageData.taskMedia}
-                    details={`${t('Input retention hours')}: ${storageData.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${storageData.taskMedia.outputRetentionHours}h · ${t('Download URL seconds')}: ${storageData.taskMedia.downloadUrlTtlSeconds}s`}
+                    details={`${t('Input retention hours')}: ${storageData.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${storageData.taskMedia.outputRetentionHours}h · ${t('Withdrawal image retention hours')}: ${storageData.taskMedia.agentFileRetentionHours}h · ${t('Download URL seconds')}: ${storageData.taskMedia.downloadUrlTtlSeconds}s`}
                     checkLabel={t('Task media check')}
                     buttonLabel={t('Check task media')}
                     editLabel={t('Update configuration')}
@@ -1318,6 +1340,36 @@ export function RuntimeConfiguration(
                         })}
                       />
                     </Field>
+                    <div className='min-w-0 space-y-1'>
+                      <Field
+                        label={t('Withdrawal image retention hours')}
+                        error={
+                          taskMedia.formState.errors.agentFileRetentionHours
+                            ?.message
+                        }
+                      >
+                        <Input
+                          type='number'
+                          min={1}
+                          max={8760}
+                          aria-describedby='agent-file-retention-help'
+                          {...taskMedia.register('agentFileRetentionHours', {
+                            valueAsNumber: true,
+                          })}
+                        />
+                      </Field>
+                      <p
+                        id='agent-file-retention-help'
+                        className='text-muted-foreground text-xs'
+                      >
+                        {Number.isInteger(agentFileRetentionHours)
+                          ? `= ${t('{{days}} days', { days: Math.round((agentFileRetentionHours / 24) * 10) / 10 })} · `
+                          : ''}
+                        {t(
+                          'How long agents\' payment QR codes and payment proofs are kept; afterwards they are deleted and show "Expired". Default 2160 hours (90 days). Changes affect only images uploaded afterwards.'
+                        )}
+                      </p>
+                    </div>
                     <Field
                       label={t('Download URL seconds')}
                       error={

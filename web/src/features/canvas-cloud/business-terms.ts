@@ -76,16 +76,22 @@ export const canvasBusinessTermConfig = {
       PER_POINT:
         'The average recharge amount per point. The more bonus points, the lower it is; a consumed value below the closing value means more bonus points were spent in this period.',
       LIST_AMOUNT:
-        'What this consumption is worth at model prices: consumed points ÷ the issuance rate at pricing time. It does not depend on whether customers paid with purchased or bonus points. It is not revenue.',
+        'What this consumption is worth at customer prices: points actually charged ÷ the issuance rate at pricing time. Limited-time special prices count at the special price. Both paid and bonus points are included, so it is neither what customers actually paid nor revenue.',
       GIFT: 'The part of the list amount without a corresponding recharge amount, mainly because customers used bonus points.',
       CONSUMED_CASH:
         'The recharge amount these points carried, from the amount recorded when each deducted point was credited, not recalculated with the current issuance rate.',
       RECORDED_COST:
         'Calculated from the purchase rate locked when the task was accepted and the actual usage, including charged failed calls and retries. It is not reconciled with API provider bills.',
       CONTRIBUTION:
-        'Recharge amount of consumption minus recorded call cost; the contribution rate is its share of the recharge amount of consumption. For operating reference only, not profit. Marked provisional while some task cost is incomplete.',
+        'Recharge amount of consumption plus recharge amount of expiry, minus the agent earnings total and recorded call cost; the contribution rate is its share of (recharge amount of consumption + recharge amount of expiry). For operating reference only, not profit. Marked provisional while some task cost is incomplete.',
       LIST_CONTRIBUTION:
-        'List amount minus recorded call cost. It reflects only model prices against cost, regardless of which points customers used.',
+        'List amount minus recorded call cost. It reflects only the customer prices the platform set against cost, regardless of which points customers used. For agent customers it includes the agent earnings; what the platform actually keeps is the contribution.',
+      EXPIRED_CASH:
+        'The recharge amount behind the points that expired unused in this period. Customers already paid but did not use them, so the platform has no call cost. Independently granted points carry 0.',
+      AGENT_EARNINGS:
+        "This period's agent consumption earnings plus expiry shares, from the agent earning entries; it matches the agents' monthly statements. Customers without an agent contribute 0.",
+      AGENT_DISPLAY_AMOUNT:
+        'Agent display price × usage, including what customers paid with bonus points. It is neither the agent earnings nor the provider cost; agent earnings are in "Invitation management → Monthly statements".',
       PURCHASED:
         "Points from recharge redemptions, including reissues. The amount follows the mapping recorded at redemption; reissued points keep the original recharge order's mapping.",
       RECHARGE_BONUS:
@@ -115,6 +121,9 @@ export const canvasBusinessTermConfig = {
       RECORDED_COST: 'Recorded call cost',
       CONTRIBUTION: 'Contribution',
       LIST_CONTRIBUTION: 'List contribution',
+      EXPIRED_CASH: 'Recharge amount of expiry',
+      AGENT_EARNINGS: 'Agent earnings total',
+      AGENT_DISPLAY_AMOUNT: 'Agent display amount',
       PURCHASED: 'Purchased points',
       RECHARGE_BONUS: 'Recharge bonus',
       INDEPENDENT_BONUS: 'Independent bonus',

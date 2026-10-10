@@ -6,16 +6,26 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, useBlocker } from '@tanstack/react-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NavBadge } from '@/components/layout/components/nav-group'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
+import {
+  agentEarningsQueryKeys,
+  getAdminPendingWithdrawalCount,
+  getAgentStatusPreview,
+} from '../agent-earnings-api'
 import type { CanvasInvitationExactFilter } from '../types'
+import { AgentEarningFormulaCard } from './AgentEarningFormulaCard'
 import { AgentManagement } from './AgentManagement'
+import { AgentStatementTable } from './AgentStatementTable'
+import { AgentWithdrawalTable } from './AgentWithdrawalTable'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
@@ -24,6 +34,8 @@ import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { InviteCodeManagement } from './InviteCodeManagement'
 
 const route = getRouteApi('/_authenticated/canvas-cloud/invitations')
+
+type InvitationTab = 'codes' | 'inviters' | 'statements' | 'withdrawals'
 
 export type InvitationNavigationGuard = {
   when: boolean
@@ -105,18 +117,46 @@ export function InvitationManagement() {
     []
   )
 
-  const selectTab = (nextTab: 'codes' | 'inviters') => {
+  const pendingWithdrawals = useQuery({
+    queryKey: agentEarningsQueryKeys.pendingCount,
+    queryFn: ({ signal }) => getAdminPendingWithdrawalCount(signal),
+  })
+  const pendingCount = pendingWithdrawals.data ?? 0
+  // Statements and withdrawals keep an agent located from customer details until it is cleared.
+  const locatedAgentId =
+    tab === 'statements' || tab === 'withdrawals'
+      ? search.principalId
+      : undefined
+  const locatedAgent = useQuery({
+    queryKey: [...agentEarningsQueryKeys.all, 'located-agent', locatedAgentId],
+    queryFn: ({ signal }) =>
+      getAgentStatusPreview(String(locatedAgentId), signal),
+    enabled: Boolean(locatedAgentId),
+  })
+  const selectTab = (nextTab: InvitationTab) => {
     void navigate({
       to: '/canvas-cloud/invitations',
-      search: nextTab === 'codes' ? { tab: 'codes' } : { tab: 'inviters' },
+      search: {
+        tab: nextTab,
+        ...((nextTab === 'statements' || nextTab === 'withdrawals') &&
+        locatedAgentId
+          ? { principalId: locatedAgentId }
+          : {}),
+      },
     })
   }
+  const clearLocatedAgent = () =>
+    void navigate({
+      to: '/canvas-cloud/invitations',
+      search: { tab },
+      replace: true,
+    })
 
   return (
     <Tabs
       className='space-y-4'
       value={tab}
-      onValueChange={(value) => selectTab(value as 'codes' | 'inviters')}
+      onValueChange={(value) => selectTab(value as InvitationTab)}
     >
       <InvitationNavigationProtection guards={Object.values(guards)} />
       <CanvasManagementTabsList aria-label={t('Invitation management')}>
@@ -126,7 +166,36 @@ export function InvitationManagement() {
         <CanvasManagementTabsTrigger value='inviters'>
           {t('Inviters')}
         </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='statements'>
+          {t('Monthly statements')}
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='withdrawals'>
+          {t('Withdrawal requests')}
+          {pendingCount > 0 ? (
+            <NavBadge
+              tone='alert'
+              label={t(
+                '{{count}} withdrawal requests are waiting to be processed',
+                { count: pendingCount }
+              )}
+            >
+              {String(pendingCount)}
+            </NavBadge>
+          ) : null}
+        </CanvasManagementTabsTrigger>
       </CanvasManagementTabsList>
+      {locatedAgentId ? (
+        <div className='flex flex-wrap items-center gap-2'>
+          <p className='text-muted-foreground text-sm'>
+            {t('Precisely located to agent {{username}}.', {
+              username: locatedAgent.data?.username ?? '…',
+            })}
+          </p>
+          <Button type='button' variant='outline' onClick={clearLocatedAgent}>
+            {t('Clear precise location')}
+          </Button>
+        </div>
+      ) : null}
       <TabsContent keepMounted value='codes' className='min-w-0'>
         {search.inviterPrincipalId ? (
           <div className='flex flex-wrap items-center gap-2'>
@@ -225,6 +294,22 @@ export function InvitationManagement() {
               search: { tab: 'codes', inviterPrincipalId: agent.principalId },
             })
           }
+        />
+      </TabsContent>
+      <TabsContent value='statements' className='min-w-0 space-y-4'>
+        <AgentEarningFormulaCard />
+        <AgentStatementTable
+          key={`${locatedAgentId ?? 'all'}:${search.month ?? ''}`}
+          mode='admin'
+          {...(locatedAgentId ? { agentPrincipalId: locatedAgentId } : {})}
+          {...(search.month ? { initialMonth: search.month } : {})}
+        />
+      </TabsContent>
+      <TabsContent value='withdrawals' className='min-w-0'>
+        <AgentWithdrawalTable
+          key={locatedAgentId ?? 'all'}
+          mode='admin'
+          {...(locatedAgentId ? { agentPrincipalId: locatedAgentId } : {})}
         />
       </TabsContent>
     </Tabs>

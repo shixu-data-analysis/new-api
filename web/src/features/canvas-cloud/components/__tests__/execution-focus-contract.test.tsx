@@ -178,7 +178,7 @@ describe('execution capacity overview', () => {
     expect(
       screen.queryByRole('columnheader', { name: 'Simultaneous requests' })
     ).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Column filters' }))
+    await user.click(screen.getByRole('button', { name: 'Filters' }))
     await user.selectOptions(
       screen.getByRole('combobox', { name: 'API provider' }),
       'provider-one'

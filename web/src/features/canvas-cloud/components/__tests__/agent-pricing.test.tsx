@@ -138,8 +138,6 @@ describe('Canvas Agent and provider pricing governance', () => {
         customersWithSuccessfulTasks: 1,
         successfulTasks: 2,
         settledPoints: '20',
-        modelUsageAmount: null,
-        amountIncomplete: true,
       },
       priceGroups: [
         {
@@ -148,8 +146,6 @@ describe('Canvas Agent and provider pricing governance', () => {
           currentCustomers: 1,
           successfulTasks: 2,
           settledPoints: '20',
-          modelUsageAmount: null,
-          amountIncomplete: true,
         },
       ],
     })
@@ -187,8 +183,6 @@ describe('Canvas Agent and provider pricing governance', () => {
           currentPriceGroup: { id: 'group-v1', name: 'Standard' },
           successfulTasks: 2,
           settledPoints: '20',
-          modelUsageAmount: null,
-          amountIncomplete: true,
         },
       ],
     })
@@ -350,7 +344,10 @@ describe('Canvas Agent and provider pricing governance', () => {
     expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument()
     expect(screen.queryByText('My models')).not.toBeInTheDocument()
     expect(screen.getByText('Cumulative overview')).toBeVisible()
-    expect(screen.getAllByText(/Amount incomplete/u).length).toBeGreaterThan(0)
+    // Money moved to "My earnings"; My customers shows counts and points only.
+    expect(
+      screen.queryByText(/Amount incomplete|Model usage amount/u)
+    ).not.toBeInTheDocument()
   })
 
   it('keeps the current model prices collapsed and unqueried until opened', async () => {
@@ -469,9 +466,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     const card = await openModelPrices()
     expect(await screen.findByText('Image Model')).toBeVisible()
 
-    fireEvent.click(
-      within(card).getByRole('button', { name: /Column filters/u })
-    )
+    fireEvent.click(within(card).getByRole('button', { name: /^Filters/u }))
     fireEvent.change(
       await screen.findByRole('textbox', { name: 'Model name' }),
       {
@@ -555,7 +550,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     renderWithClient(<AgentCenter />)
     expect(await screen.findByText('CANVAS-U••••••••CRET')).toBeVisible()
     fireEvent.click(
-      (await screen.findAllByRole('button', { name: 'Column filters' }))[0]
+      (await screen.findAllByRole('button', { name: 'Filters' }))[0]
     )
     const code = await screen.findByRole('textbox', {
       name: 'Exact invite code',
@@ -587,7 +582,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     const user = userEvent.setup()
     renderWithClient(<AgentCenter />)
     await user.click(
-      (await screen.findAllByRole('button', { name: 'Column filters' }))[0]
+      (await screen.findAllByRole('button', { name: 'Filters' }))[0]
     )
     await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
     await user.click(await screen.findByRole('option', { name: 'Standard' }))
@@ -603,7 +598,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     ).toHaveTextContent('Standard')
   })
 
-  it('expands task-time model usage with a frozen price snapshot and missing amount', async () => {
+  it('expands task-time model usage with units and the task-time model price', async () => {
     apiMocks.getCanvasAgentCustomerModelUsage.mockResolvedValue({
       page: 1,
       pageSize: 20,
@@ -630,8 +625,6 @@ describe('Canvas Agent and provider pricing governance', () => {
           settledPoints: '20',
           agentPriceSnapshot: '0.25',
           agentPriceSnapshotStatus: 'SINGLE',
-          modelUsageAmount: null,
-          amountIncomplete: true,
         },
         {
           priceGroupId: 'old-group',
@@ -654,20 +647,22 @@ describe('Canvas Agent and provider pricing governance', () => {
           settledPoints: '0',
           agentPriceSnapshot: null,
           agentPriceSnapshotStatus: 'VARIES',
-          modelUsageAmount: null,
-          amountIncomplete: true,
         },
       ],
     })
     renderWithClient(<AgentCenter />)
     fireEvent.click(await screen.findByRole('button', { name: 'Model usage' }))
     expect((await screen.findAllByText('Previous plan')).length).toBe(2)
-    expect(screen.getByText('¥0.25')).toBeVisible()
+    expect(screen.getByText('¥0.25 / times')).toBeVisible()
+    expect(screen.getByText('2 times')).toBeVisible()
+    expect(screen.getByText('Input — · Output 0 Tokens')).toBeVisible()
     expect(screen.getByText('Image Model / Quality: 4K')).toBeVisible()
     expect(screen.getByText('Text Model / Default scope')).toBeVisible()
-    expect(screen.getByText('Multiple historical prices')).toBeVisible()
-    expect(screen.getByText('Per million tokens')).toBeVisible()
-    expect(screen.getAllByText(/Amount incomplete/u).length).toBeGreaterThan(0)
+    expect(
+      screen.getByText('Multiple prices (repriced during the period)')
+    ).toBeVisible()
+    expect(screen.queryByText('Billing unit')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Amount incomplete/u)).not.toBeInTheDocument()
   })
 
   it('reveals and hides an owned invite code without decrypting twice', async () => {
@@ -756,7 +751,7 @@ describe('Canvas Agent and provider pricing governance', () => {
       .map((element) => element.closest('td'))
       .find(Boolean)
     expect(qualityCell).toHaveClass('whitespace-normal', 'break-all')
-    expect(screen.getByRole('button', { name: 'Column filters' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Filters' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'View' })).toBeVisible()
     expect(
       screen.getByRole('combobox', { name: 'Rows per page' })

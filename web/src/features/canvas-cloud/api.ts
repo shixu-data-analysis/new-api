@@ -1634,6 +1634,7 @@ export async function publishCanvasTaskMediaStorage(input: {
   mediaCredentials?: { accessKeyId: string; secretAccessKey: string }
   inputRetentionHours?: number
   outputRetentionHours?: number
+  agentFileRetentionHours?: number
   downloadUrlTtlSeconds?: number
   reason?: string
 }) {

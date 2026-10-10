@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { useDataTable } from '../../hooks/use-data-table'
+import { DataTableColumnFilterPanel } from '../column-filter-panel'
 import { DataTableToolbar } from '../toolbar'
 
 type RecordRow = { name: string; status: string }
@@ -161,5 +162,35 @@ describe('shared table toolbar', () => {
       screen.queryByRole('option', { name: 'All Status' })
     ).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Enabled/ })).toBeVisible()
+  })
+  it('shows neither an empty filter panel nor an empty column menu', () => {
+    function ActionsOnly() {
+      const { table } = useDataTable({
+        data,
+        columns: [{ id: 'actions', cell: () => 'Open' }],
+        columnFilters: [],
+        onColumnFiltersChange: () => undefined,
+        globalFilter: '',
+        onGlobalFilterChange: () => undefined,
+      })
+      return (
+        <DataTableToolbar
+          table={table}
+          filterPanel={
+            <DataTableColumnFilterPanel activeCount={0}>
+              {null}
+              {undefined}
+            </DataTableColumnFilterPanel>
+          }
+        />
+      )
+    }
+    render(<ActionsOnly />)
+    expect(
+      screen.queryByRole('button', { name: 'Column filters' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'View' })
+    ).not.toBeInTheDocument()
   })
 })

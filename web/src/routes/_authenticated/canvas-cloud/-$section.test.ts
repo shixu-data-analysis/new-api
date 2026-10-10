@@ -37,6 +37,7 @@ async function beforeLoad(
   mocks.getCanvasSession.mockResolvedValue({
     principalType,
     inviterEnabled: true,
+    inviterStatus: 'ACTIVE',
   })
   try {
     await Route.options.beforeLoad?.({ params: { section }, search } as never)

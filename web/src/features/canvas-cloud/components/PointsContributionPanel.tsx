@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,6 +47,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+import { beijingMonthOf } from '../agent-earnings-format'
 import { getCanvasBusinessTerm } from '../business-terms'
 import { getOperatingDashboard } from '../operating-dashboard-api'
 import {
@@ -589,6 +591,7 @@ function SummaryContent(props: {
   ) => void
 }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const format = useDashboardFormatters()
   const { data, open } = props
   const points = data.points
@@ -914,10 +917,53 @@ function SummaryContent(props: {
     data.consumption.contributionRate === null
       ? t('Not applicable')
       : format.percent(data.consumption.contributionRate)
+  const consumedPointsLink = (
+    <LinkValue onClick={() => open({ kind: 'flow', flowType: 'CONSUMED' })}>
+      {t('Consumed points {{points}}', {
+        points: format.points(data.consumption.consumedPoints),
+      })}
+    </LinkValue>
+  )
+  const expiredPointsLabel = t('{{points}} points expired in the period', {
+    points: format.points(points.expired),
+  })
+  const agentEarningsSplit = t(
+    'Consumption earnings {{consumption}} · Expiry share {{expiry}}',
+    {
+      consumption: format.rmb(equation.agentConsumptionEarnings),
+      expiry: format.rmb(equation.agentExpiryShare),
+    }
+  )
+  // Statement months are Beijing months: take the one holding the period's last instant, which matches a month period in
+  // any time zone and the current month of an open period.
+  const openStatements = () =>
+    void navigate({
+      to: '/canvas-cloud/invitations',
+      search: {
+        tab: 'statements',
+        month: beijingMonthOf(
+          new Date(new Date(data.period.to).getTime() - 1).toISOString()
+        ),
+      },
+    })
+  const contributionPrevious = (
+    <PreviousLine
+      current={equation.contribution}
+      previous={previousEquation.contribution}
+      previousLabel={format.rmb(previousEquation.contribution)}
+      range={range}
+      extra={t('Previous contribution rate {{rate}}', {
+        rate:
+          previous.contributionRate === null
+            ? t('Not applicable')
+            : format.percent(previous.contributionRate),
+      })}
+    />
+  )
   const consumptionCard = (
     <Card>
       <CardHeader>
-        <CardTitle>{t('Consumption and call cost')}</CardTitle>
+        <CardTitle>{t('Consumption, expiry and call cost')}</CardTitle>
       </CardHeader>
       <CardContent className='space-y-4'>
         {props.view === 'chart' ? (
@@ -925,61 +971,49 @@ function SummaryContent(props: {
             kind='consumption'
             rows={[
               {
-                term: 'LIST_AMOUNT',
-                role: 'total',
-                amount: equation.listAmount,
-                value: format.rmb(equation.listAmount),
-                sub: (
-                  <LinkValue
-                    onClick={() => open({ kind: 'flow', flowType: 'CONSUMED' })}
-                  >
-                    {t('{{points}} points', {
-                      points: format.points(data.consumption.consumedPoints),
-                    })}
-                  </LinkValue>
-                ),
-                previous: (
-                  <PreviousLine
-                    current={equation.listAmount}
-                    previous={previousEquation.listAmount}
-                    previousLabel={format.rmb(previousEquation.listAmount)}
-                    range={range}
-                  />
-                ),
-              },
-              {
-                term: 'GIFT',
-                role: isNegative(equation.gift) ? 'increase' : 'decrease',
-                amount: equation.gift,
-                value: isNegative(equation.gift)
-                  ? `+${format.rmb(equation.gift.slice(1))}`
-                  : `−${format.rmb(equation.gift)}`,
-                sub:
-                  data.consumption.giftShare === null
-                    ? t('Not applicable')
-                    : t('{{percent}} of list amount', {
-                        percent: format.percent(data.consumption.giftShare),
-                      }),
-                previous: (
-                  <PreviousLine
-                    current={equation.gift}
-                    previous={previousEquation.gift}
-                    previousLabel={format.rmb(previousEquation.gift)}
-                    range={range}
-                  />
-                ),
-              },
-              {
                 term: 'CONSUMED_CASH',
                 role: 'total',
                 amount: equation.cashSupport,
                 value: format.rmb(equation.cashSupport),
+                sub: consumedPointsLink,
                 onOpen: () => open({ kind: 'flow', flowType: 'CONSUMED' }),
                 previous: (
                   <PreviousLine
                     current={equation.cashSupport}
                     previous={previousEquation.cashSupport}
                     previousLabel={format.rmb(previousEquation.cashSupport)}
+                    range={range}
+                  />
+                ),
+              },
+              {
+                term: 'EXPIRED_CASH',
+                role: 'increase',
+                amount: equation.expiredCash,
+                value: `+${format.rmb(equation.expiredCash)}`,
+                sub: expiredPointsLabel,
+                onOpen: () => open({ kind: 'flow', flowType: 'EXPIRED' }),
+                previous: (
+                  <PreviousLine
+                    current={equation.expiredCash}
+                    previous={previousEquation.expiredCash}
+                    previousLabel={format.rmb(previousEquation.expiredCash)}
+                    range={range}
+                  />
+                ),
+              },
+              {
+                term: 'AGENT_EARNINGS',
+                role: 'decrease',
+                amount: equation.agentEarnings,
+                value: `−${format.rmb(equation.agentEarnings)}`,
+                sub: agentEarningsSplit,
+                onOpen: openStatements,
+                previous: (
+                  <PreviousLine
+                    current={equation.agentEarnings}
+                    previous={previousEquation.agentEarnings}
+                    previousLabel={format.rmb(previousEquation.agentEarnings)}
                     range={range}
                   />
                 ),
@@ -1012,76 +1046,13 @@ function SummaryContent(props: {
                 sub: t('Contribution rate {{rate}}', {
                   rate: contributionRateLabel,
                 }),
-                previous: (
-                  <PreviousLine
-                    current={equation.contribution}
-                    previous={previousEquation.contribution}
-                    previousLabel={format.rmb(previousEquation.contribution)}
-                    range={range}
-                    extra={t('Previous contribution rate {{rate}}', {
-                      rate:
-                        previous.contributionRate === null
-                          ? t('Not applicable')
-                          : format.percent(previous.contributionRate),
-                    })}
-                  />
-                ),
+                previous: contributionPrevious,
               },
             ]}
           />
         ) : (
           <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-5'>
             <MetricBlock
-              term='LIST_AMOUNT'
-              value={format.rmb(equation.listAmount)}
-              sub={
-                <LinkValue
-                  onClick={() => open({ kind: 'flow', flowType: 'CONSUMED' })}
-                >
-                  {t('{{points}} points', {
-                    points: format.points(data.consumption.consumedPoints),
-                  })}
-                </LinkValue>
-              }
-              footer={
-                <PreviousLine
-                  current={equation.listAmount}
-                  previous={previousEquation.listAmount}
-                  previousLabel={format.rmb(previousEquation.listAmount)}
-                  range={range}
-                />
-              }
-            />
-            <MetricBlock
-              operator='−'
-              term='GIFT'
-              value={
-                <span
-                  className={
-                    isNegative(equation.gift) ? 'text-destructive' : undefined
-                  }
-                >
-                  {format.rmb(equation.gift)}
-                </span>
-              }
-              sub={
-                data.consumption.giftShare === null
-                  ? t('Not applicable')
-                  : t('{{percent}} of list amount', {
-                      percent: format.percent(data.consumption.giftShare),
-                    })
-              }
-              footer={
-                <PreviousLine
-                  current={equation.gift}
-                  previous={previousEquation.gift}
-                  previousLabel={format.rmb(previousEquation.gift)}
-                  range={range}
-                />
-              }
-            />
-            <MetricBlock
-              operator='='
               term='CONSUMED_CASH'
               value={
                 <LinkValue
@@ -1090,11 +1061,50 @@ function SummaryContent(props: {
                   {format.rmb(equation.cashSupport)}
                 </LinkValue>
               }
+              sub={consumedPointsLink}
               footer={
                 <PreviousLine
                   current={equation.cashSupport}
                   previous={previousEquation.cashSupport}
                   previousLabel={format.rmb(previousEquation.cashSupport)}
+                  range={range}
+                />
+              }
+            />
+            <MetricBlock
+              operator='+'
+              term='EXPIRED_CASH'
+              value={
+                <LinkValue
+                  onClick={() => open({ kind: 'flow', flowType: 'EXPIRED' })}
+                >
+                  {format.rmb(equation.expiredCash)}
+                </LinkValue>
+              }
+              sub={expiredPointsLabel}
+              footer={
+                <PreviousLine
+                  current={equation.expiredCash}
+                  previous={previousEquation.expiredCash}
+                  previousLabel={format.rmb(previousEquation.expiredCash)}
+                  range={range}
+                />
+              }
+            />
+            <MetricBlock
+              operator='−'
+              term='AGENT_EARNINGS'
+              value={
+                <LinkValue onClick={openStatements}>
+                  {format.rmb(equation.agentEarnings)}
+                </LinkValue>
+              }
+              sub={agentEarningsSplit}
+              footer={
+                <PreviousLine
+                  current={equation.agentEarnings}
+                  previous={previousEquation.agentEarnings}
+                  previousLabel={format.rmb(previousEquation.agentEarnings)}
                   range={range}
                 />
               }
@@ -1136,20 +1146,7 @@ function SummaryContent(props: {
               sub={t('Contribution rate {{rate}}', {
                 rate: contributionRateLabel,
               })}
-              footer={
-                <PreviousLine
-                  current={equation.contribution}
-                  previous={previousEquation.contribution}
-                  previousLabel={format.rmb(previousEquation.contribution)}
-                  range={range}
-                  extra={t('Previous contribution rate {{rate}}', {
-                    rate:
-                      previous.contributionRate === null
-                        ? t('Not applicable')
-                        : format.percent(previous.contributionRate),
-                  })}
-                />
-              }
+              footer={contributionPrevious}
             />
           </div>
         )}
@@ -1190,14 +1187,43 @@ function SummaryContent(props: {
             </LinkValue>
           </span>
         </div>
-        <div className='text-sm'>
-          <BusinessTerm kind='dashboardMetric' value='LIST_CONTRIBUTION' />{' '}
-          <span
-            className={`tabular-nums ${isNegative(equation.listContribution) ? 'text-destructive' : ''}`}
-          >
-            {format.rmb(equation.listContribution)}
-          </span>{' '}
-          {provisionalMark}
+        <div className='flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm'>
+          <span className='text-muted-foreground'>
+            {t('Pricing reference')}
+          </span>
+          <span className='tabular-nums'>
+            <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />{' '}
+            {format.rmb(equation.listAmount)} (
+            <BusinessTerm kind='dashboardMetric' value='GIFT' />{' '}
+            <span
+              className={
+                isNegative(equation.gift) ? 'text-destructive' : undefined
+              }
+            >
+              {format.rmb(equation.gift)}
+            </span>
+            {data.consumption.giftShare === null
+              ? ''
+              : `, ${t('{{percent}} of list amount', { percent: format.percent(data.consumption.giftShare) })}`}
+            )
+          </span>
+          <span className='tabular-nums'>
+            <span aria-hidden='true'>· </span>
+            <BusinessTerm
+              kind='dashboardMetric'
+              value='LIST_CONTRIBUTION'
+            />{' '}
+            <span
+              className={
+                isNegative(equation.listContribution)
+                  ? 'text-destructive'
+                  : undefined
+              }
+            >
+              {format.rmb(equation.listContribution)}
+            </span>{' '}
+            {provisionalMark}
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -1387,6 +1413,7 @@ function GroupTable(props: {
     const definition = getCanvasBusinessTerm('dashboardMetric', term)
     return definition ? t(definition.helpKey) : undefined
   }
+  const byOwner = props.groupBy === 'AGENT' || props.groupBy === 'CUSTOMER'
   const columns: ColumnDef<DashboardGroupRow, unknown>[] = [
     {
       id: 'name',
@@ -1411,7 +1438,7 @@ function GroupTable(props: {
     {
       id: 'consumedPoints',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Points consumed')} />
+        <DataTableColumnHeader column={column} title={t('Consumed points')} />
       ),
       enableHiding: false,
       cell: ({ row }) => {
@@ -1462,6 +1489,35 @@ function GroupTable(props: {
         />
       ),
       cell: ({ row }) => amount(consumptionEquation(row.original).cashSupport),
+    },
+    // Expiry belongs to no model: only agent and customer groups have the column.
+    ...(byOwner
+      ? [
+          {
+            id: 'expiredCash',
+            header: ({ column }) => (
+              <DataTableColumnHeader
+                column={column}
+                title={t('Recharge amount of expiry')}
+                description={metricHelp('EXPIRED_CASH')}
+              />
+            ),
+            cell: ({ row }) =>
+              amount(consumptionEquation(row.original).expiredCash),
+          } satisfies ColumnDef<DashboardGroupRow, unknown>,
+        ]
+      : []),
+    {
+      id: 'agentEarnings',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Agent earnings total')}
+          description={metricHelp('AGENT_EARNINGS')}
+        />
+      ),
+      cell: ({ row }) =>
+        amount(consumptionEquation(row.original).agentEarnings),
     },
     {
       id: 'recordedCost',
@@ -1579,15 +1635,32 @@ function GroupTable(props: {
           loading={props.loading}
           emptyTitle={t('No point or cost records in the selected range')}
           getRowId={(row) => row.key ?? '__none__'}
-          initialColumnVisibility={{ modelCount: false }}
+          initialColumnVisibility={{
+            modelCount: false,
+            listAmount: false,
+            giftAmount: false,
+            listContribution: false,
+          }}
         />
         <p className='text-muted-foreground text-xs tabular-nums'>
-          {t('Total consumed points {{points}} · recorded call cost {{cost}}', {
-            points: format.points(props.data.consumption.consumedPoints),
-            cost: format.rmb(
-              consumptionEquation(props.data.consumption).recordedCost
-            ),
-          })}
+          {byOwner
+            ? t('Consumed points {{points}} · recorded call cost {{cost}}', {
+                points: format.points(props.data.consumption.consumedPoints),
+                cost: format.rmb(
+                  consumptionEquation(props.data.consumption).recordedCost
+                ),
+              })
+            : t(
+                'Consumed points {{points}} · recorded call cost {{cost}} · recharge amount of expiry {{expired}} and expiry share {{share}} belong to no model and count only in the totals above',
+                {
+                  points: format.points(props.data.consumption.consumedPoints),
+                  cost: format.rmb(
+                    consumptionEquation(props.data.consumption).recordedCost
+                  ),
+                  expired: format.rmb(props.data.consumption.expiredCashRmb),
+                  share: format.rmb(props.data.consumption.agentExpiryShareRmb),
+                }
+              )}
         </p>
       </CardContent>
     </Card>

@@ -7,7 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { ListFilter } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Children, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,8 @@ export function DataTableColumnFilterPanel({
   onClear?: () => void
 }) {
   const { t } = useTranslation()
+  // A table without search or filter fields shows no filter button and never opens an empty panel.
+  if (Children.toArray(children).length === 0) return null
 
   const panel = (
     <Popover>

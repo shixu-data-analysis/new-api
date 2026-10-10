@@ -141,7 +141,7 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       !isCanvasSectionAllowed(
         session.principalType,
         params.section,
-        session.inviterEnabled
+        session.inviterStatus
       )
     ) {
       throw redirect({ to: '/403' })

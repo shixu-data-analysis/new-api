@@ -35,23 +35,41 @@ export function tenThousandthsToRmb(units: bigint): string {
 }
 
 /**
- * The consumption equation must add up to the last shown digit (0.0001 RMB): the three base amounts are rounded first
- * and the gift part and both contributions are their differences.
+ * The consumption equation must add up to the last shown digit (0.0001 RMB): the base amounts are rounded first and the
+ * gift part and both contributions are their differences. Contribution keeps what the platform retains: consumption cash
+ * + expired cash − agent earnings − recorded cost (AGENT-EARNINGS-001); a model group has no expired cash.
  */
 export function consumptionEquation(input: {
   listAmountRmb: string
   cashSupportRmb: string
   recordedCostRmb: string
+  expiredCashRmb?: string | null
+  agentEarningsRmb?: string
+  agentConsumptionEarningsRmb?: string
+  agentExpiryShareRmb?: string
 }) {
   const list = rmbToTenThousandths(input.listAmountRmb)
   const cash = rmbToTenThousandths(input.cashSupportRmb)
   const cost = rmbToTenThousandths(input.recordedCostRmb)
+  const expired = rmbToTenThousandths(input.expiredCashRmb ?? '0')
+  const consumptionEarnings = rmbToTenThousandths(
+    input.agentConsumptionEarningsRmb ?? '0'
+  )
+  const expiryShare = rmbToTenThousandths(input.agentExpiryShareRmb ?? '0')
+  const earnings =
+    input.agentEarningsRmb !== undefined
+      ? rmbToTenThousandths(input.agentEarningsRmb)
+      : consumptionEarnings + expiryShare
   return {
     listAmount: tenThousandthsToRmb(list),
     gift: tenThousandthsToRmb(list - cash),
     cashSupport: tenThousandthsToRmb(cash),
     recordedCost: tenThousandthsToRmb(cost),
-    contribution: tenThousandthsToRmb(cash - cost),
+    expiredCash: tenThousandthsToRmb(expired),
+    agentEarnings: tenThousandthsToRmb(earnings),
+    agentConsumptionEarnings: tenThousandthsToRmb(consumptionEarnings),
+    agentExpiryShare: tenThousandthsToRmb(expiryShare),
+    contribution: tenThousandthsToRmb(cash + expired - earnings - cost),
     listContribution: tenThousandthsToRmb(list - cost),
   }
 }

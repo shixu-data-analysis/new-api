@@ -347,9 +347,7 @@ describe('Canvas customer tasks', () => {
 
   it('sends task and model filters and returns to the first page', async () => {
     renderTasks()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Column filters' })
-    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Filters' }))
     const taskInput = await screen.findByPlaceholderText('Task ID')
     fireEvent.change(taskInput, { target: { value: '01a09f34' } })
     fireEvent.change(screen.getByPlaceholderText('Model'), {

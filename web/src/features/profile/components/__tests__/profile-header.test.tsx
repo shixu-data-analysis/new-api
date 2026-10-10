@@ -46,6 +46,7 @@ const canvasSession: CanvasSession = {
   displayName: 'UAT Platform Admin',
   emailMasked: null,
   inviterEnabled: false,
+  inviterStatus: null,
 }
 
 describe('ProfileHeader', () => {

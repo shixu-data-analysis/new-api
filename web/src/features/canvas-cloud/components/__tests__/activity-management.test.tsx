@@ -183,7 +183,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
     mount(<ActivityManagement />)
     await userEvent
       .setup()
-      .click(screen.getByRole('button', { name: 'Column filters' }))
+      .click(screen.getByRole('button', { name: 'Filters' }))
 
     const createdField = screen.getByText('Created', {
       selector: 'label',

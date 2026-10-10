@@ -215,7 +215,7 @@ describe('Canvas administrator task records', () => {
     expect(
       screen.queryByRole('menuitemcheckbox', { name: 'Task' })
     ).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     expect(
       screen.getByRole('textbox', { name: 'Task number' })
     ).toBeInTheDocument()
@@ -375,7 +375,7 @@ describe('Canvas administrator task records', () => {
       within(tags).getByText('Result points: Still frozen only')
     ).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
     // A carried value inside "More conditions" opens it.
     expect(
       screen.getByRole('combobox', { name: 'API Key group' })
@@ -434,7 +434,7 @@ describe('Canvas administrator task records', () => {
         expect.any(AbortSignal)
       )
     )
-    fireEvent.click(screen.getByRole('button', { name: /Column filters/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
     await user.click(screen.getByRole('combobox', { name: 'Provider task ID' }))
     await user.click(await screen.findByRole('option', { name: 'Specific ID' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Specific ID' }), {

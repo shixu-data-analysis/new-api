@@ -61,6 +61,10 @@ import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
+  formatAgentTaskTimePrice,
+  formatAgentUsage,
+} from '../agent-usage-format'
+import {
   getCanvasAdminCustomerTasks,
   getCanvasAdminAgentStatistics,
   getCanvasAdminAgentModelPrices,
@@ -75,12 +79,14 @@ import {
 import { copyText } from '../copy-text'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
-import { formatExactRmbReference } from '../number-format'
+import {
+  formatExactPointQuantity,
+  formatExactRmbReference,
+} from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasAdminAgentCustomer,
   CanvasAdminAgentModelUsageRow,
-  CanvasBillingUnit,
   CanvasAdminInviteCode,
   CanvasAdminInviteCodeQuery,
   CanvasAdminCustomerTask,
@@ -88,6 +94,7 @@ import type {
   CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { AgentEarningsOverviewLine } from './AgentEarningsOverviewLine'
 import { AgentModelPricePanel } from './AgentModelPricePanel'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
@@ -105,12 +112,6 @@ import {
 } from './CustomerBusinessFacts'
 import { CustomerPointHistory } from './CustomerPointHistory'
 import { CustomerRecordDetails } from './CustomerRecordDetails'
-
-const agentBillingUnitKeys: Record<CanvasBillingUnit, string> = {
-  REQUEST: 'Per request',
-  SECOND: 'Per second',
-  MILLION_TOKENS: 'Per million tokens',
-}
 
 const orderStatuses = [
   'CREATED',
@@ -1164,32 +1165,8 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       {incomplete ? ` (${t('Amount incomplete')})` : ''}
     </span>
   )
-  const snapshot = (
-    value: CanvasAdminAgentModelUsageRow['agentPriceSnapshot'],
-    status: CanvasAdminAgentModelUsageRow['agentPriceSnapshotStatus']
-  ) => {
-    if (status === 'VARIES') {
-      return t('Multiple historical prices')
-    }
-    if (value === null) {
-      return '—'
-    }
-    if (typeof value === 'string') {
-      return `¥${formatExactRmbReference(value, locale)}`
-    }
-    const labels = {
-      input: 'Input',
-      output: 'Output',
-      cacheRead: 'Cache read',
-      cacheWrite: 'Cache write',
-    } as const
-    return Object.entries(value)
-      .map(
-        ([category, price]) =>
-          `${t(labels[category as keyof typeof labels])}: ¥${formatExactRmbReference(price, locale)}`
-      )
-      .join(' · ')
-  }
+  const count = (value: string | number) =>
+    formatExactPointQuantity(String(value), locale)
   const inviteColumns: ColumnDef<CanvasAdminInviteCode, unknown>[] = [
     {
       id: 'maskedCode',
@@ -1295,26 +1272,28 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       id: 'successfulTasks',
       accessorKey: 'successfulTasks',
       header: t('Successful tasks'),
+      cell: ({ row }) => count(row.original.successfulTasks),
     },
     {
       id: 'settledPoints',
       accessorKey: 'settledPoints',
       header: t('Consumed points'),
+      cell: ({ row }) => count(row.original.settledPoints),
     },
     {
       id: 'modelUsageAmount',
-      header: t('Agent display amount'),
+      meta: { label: t('Agent display amount') },
+      header: () => (
+        <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
+      ),
       cell: ({ row }) =>
         amount(row.original.modelUsageAmount, row.original.amountIncomplete),
     },
     {
-      id: 'customerPriceAmount',
-      header: t('Customer price amount'),
-      cell: ({ row }) =>
-        amount(
-          row.original.customerPriceAmount,
-          row.original.customerAmountIncomplete
-        ),
+      id: 'listAmount',
+      meta: { label: t('List amount') },
+      header: () => <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />,
+      cell: ({ row }) => amount(row.original.listAmount, false),
     },
     {
       id: 'action',
@@ -1352,67 +1331,54 @@ function AgentStatistics({ customerId }: { customerId: string }) {
         `${row.original.effectiveDisplayName} / ${pricingScopeLabel({ key: row.original.combinationKey, parameters: row.original.parameters }, t)}`,
     },
     {
-      id: 'billingUnit',
-      accessorKey: 'billingUnit',
-      header: t('Billing unit'),
-      cell: ({ row }) => t(agentBillingUnitKeys[row.original.billingUnit]),
-    },
-    {
       id: 'usage',
       header: t('Usage'),
-      cell: ({ row }) => {
-        const u = row.original.usage
-        if (row.original.billingUnit === 'MILLION_TOKENS') {
-          return `${t('Input')}: ${u.inputTokens ?? '—'}; ${t('Output')}: ${u.outputTokens ?? '—'}; ${t('Cache read')}: ${u.cacheReadTokens ?? '—'}; ${t('Cache write')}: ${u.cacheWriteTokens ?? '—'}`
-        }
-        if (row.original.billingUnit === 'SECOND') {
-          return u.seconds
-        }
-        return u.requests
-      },
+      cell: ({ row }) =>
+        formatAgentUsage(
+          row.original,
+          row.original.agentPriceSnapshot,
+          t,
+          locale
+        ),
     },
     {
       id: 'successfulTasks',
       accessorKey: 'successfulTasks',
       header: t('Successful tasks'),
+      cell: ({ row }) => count(row.original.successfulTasks),
     },
     {
       id: 'settledPoints',
       accessorKey: 'settledPoints',
       header: t('Consumed points'),
+      cell: ({ row }) => count(row.original.settledPoints),
     },
     {
       id: 'agentPriceSnapshot',
-      header: t('Agent display price snapshot'),
+      header: t('Task-time agent display price'),
       cell: ({ row }) =>
-        snapshot(
+        formatAgentTaskTimePrice(
+          row.original,
           row.original.agentPriceSnapshot,
-          row.original.agentPriceSnapshotStatus
-        ),
-    },
-    {
-      id: 'customerPriceSnapshot',
-      header: t('Customer price snapshot'),
-      cell: ({ row }) =>
-        snapshot(
-          row.original.customerPriceSnapshot,
-          row.original.customerPriceSnapshotStatus
+          row.original.agentPriceSnapshotStatus,
+          t,
+          locale
         ),
     },
     {
       id: 'modelUsageAmount',
-      header: t('Agent display amount'),
+      meta: { label: t('Agent display amount') },
+      header: () => (
+        <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
+      ),
       cell: ({ row }) =>
         amount(row.original.modelUsageAmount, row.original.amountIncomplete),
     },
     {
-      id: 'customerPriceAmount',
-      header: t('Customer price amount'),
-      cell: ({ row }) =>
-        amount(
-          row.original.customerPriceAmount,
-          row.original.customerAmountIncomplete
-        ),
+      id: 'listAmount',
+      meta: { label: t('List amount') },
+      header: () => <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />,
+      cell: ({ row }) => amount(row.original.listAmount, false),
     },
   ]
   if (statistics.isPending) return <LoadingState />
@@ -1478,30 +1444,27 @@ function AgentStatistics({ customerId }: { customerId: string }) {
     <div className='space-y-5'>
       <section className='space-y-2'>
         <h3 className='font-semibold'>{t('Cumulative overview')}</h3>
-        <div className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-4'>
+        <div className='grid gap-2 rounded border p-3 text-sm tabular-nums sm:grid-cols-4'>
           <span>
-            {t('Activated customers')}: {summary.activatedCustomers}
+            {t('Activated customers')}: {count(summary.activatedCustomers)}
           </span>
           <span>
             {t('Customers with successful tasks')}:{' '}
-            {summary.customersWithSuccessfulTasks}
+            {count(summary.customersWithSuccessfulTasks)}
           </span>
           <span>
-            {t('Successful tasks')}: {summary.successfulTasks}
+            {t('Successful tasks')}: {count(summary.successfulTasks)}
           </span>
           <span>
-            {t('Consumed points')}: {summary.settledPoints}
+            {t('Consumed points')}: {count(summary.settledPoints)}
           </span>
           <span>
-            {t('Agent display amount')}:{' '}
-            {amount(summary.modelUsageAmount, summary.amountIncomplete)}
+            <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
+            : {amount(summary.modelUsageAmount, summary.amountIncomplete)}
           </span>
           <span>
-            {t('Customer price amount')}:{' '}
-            {amount(
-              summary.customerPriceAmount,
-              summary.customerAmountIncomplete
-            )}
+            <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />:{' '}
+            {amount(summary.listAmount, false)}
           </span>
         </div>
       </section>
@@ -1550,25 +1513,25 @@ function AgentStatistics({ customerId }: { customerId: string }) {
               className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-5'
             >
               <strong>{group.priceGroupName}</strong>
-              <span>
-                {t('Current customers')}: {group.currentCustomers}
+              <span className='tabular-nums'>
+                {t('Current customers')}: {count(group.currentCustomers)}
+              </span>
+              <span className='tabular-nums'>
+                {t('Successful tasks')}: {count(group.successfulTasks)}
+              </span>
+              <span className='tabular-nums'>
+                {t('Consumed points')}: {count(group.settledPoints)}
               </span>
               <span>
-                {t('Successful tasks')}: {group.successfulTasks}
+                <BusinessTerm
+                  kind='dashboardMetric'
+                  value='AGENT_DISPLAY_AMOUNT'
+                />
+                : {amount(group.modelUsageAmount, group.amountIncomplete)}
               </span>
               <span>
-                {t('Consumed points')}: {group.settledPoints}
-              </span>
-              <span>
-                {t('Agent display amount')}:{' '}
-                {amount(group.modelUsageAmount, group.amountIncomplete)}
-              </span>
-              <span>
-                {t('Customer price amount')}:{' '}
-                {amount(
-                  group.customerPriceAmount,
-                  group.customerAmountIncomplete
-                )}
+                <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />:{' '}
+                {amount(group.listAmount, false)}
               </span>
             </div>
           ))
@@ -1667,6 +1630,11 @@ function AgentStatistics({ customerId }: { customerId: string }) {
           }
         />
       </section>
+      {statistics.data?.profile.principalId ? (
+        <AgentEarningsOverviewLine
+          agentPrincipalId={statistics.data.profile.principalId}
+        />
+      ) : null}
     </div>
   )
 }

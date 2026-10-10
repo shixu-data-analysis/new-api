@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
+  Banknote,
   BarChart3,
   BookOpenCheck,
   Box,
@@ -46,6 +47,11 @@ import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
 import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
+import {
+  agentEarningsQueryKeys,
+  getAdminPendingWithdrawalCount,
+  getAgentUnreadWithdrawalCount,
+} from '@/features/canvas-cloud/agent-earnings-api'
 import {
   getProviderBalanceAlerts,
   providerBalanceAlertsQueryKey,
@@ -76,6 +82,27 @@ export function useSidebarData(): SidebarData {
   const alertCount = balanceAlerts.data?.alertCount ?? 0
   // Executor attention hints mark the runtime management entry the same way.
   const attentionCount = useExecutionAttentionCount(isAdministrator)
+  // Pending withdrawal requests mark invitation management; processed results the agent has not seen mark "My earnings".
+  const pendingWithdrawals = useQuery({
+    queryKey: agentEarningsQueryKeys.pendingCount,
+    queryFn: ({ signal }) => getAdminPendingWithdrawalCount(signal),
+    enabled: isAdministrator,
+    refetchInterval: 5 * 60_000,
+  })
+  const pendingWithdrawalCount = pendingWithdrawals.data ?? 0
+  const inviterStatus = canvasSession.isSuccess
+    ? canvasSession.data.inviterStatus
+    : null
+  const unreadWithdrawals = useQuery({
+    queryKey: agentEarningsQueryKeys.unreadCount,
+    queryFn: ({ signal }) => getAgentUnreadWithdrawalCount(signal),
+    enabled:
+      canvasSession.isSuccess &&
+      canvasSession.data.principalType === 'CUSTOMER' &&
+      inviterStatus !== null,
+    refetchInterval: 5 * 60_000,
+  })
+  const unreadWithdrawalCount = unreadWithdrawals.data ?? 0
 
   if (canvasSession.isPending) return { navGroups: [] }
 
@@ -132,6 +159,16 @@ export function useSidebarData(): SidebarData {
                 title: t('Invitation management'),
                 url: '/canvas-cloud/invitations',
                 icon: UserPlus,
+                ...(pendingWithdrawalCount > 0
+                  ? {
+                      badge: String(pendingWithdrawalCount),
+                      badgeTone: 'alert' as const,
+                      badgeLabel: t(
+                        '{{count}} withdrawal requests are waiting to be processed',
+                        { count: pendingWithdrawalCount }
+                      ),
+                    }
+                  : {}),
               },
               {
                 title: t('Recharge codes'),
@@ -219,12 +256,31 @@ export function useSidebarData(): SidebarData {
               url: '/canvas-cloud/tasks',
               icon: ListTodo,
             },
-            ...(canvasSession.data.inviterEnabled
+            ...(inviterStatus === 'ACTIVE'
               ? [
                   {
                     title: t('My customers'),
                     url: '/canvas-cloud/agent-center',
                     icon: Users,
+                  },
+                ]
+              : []),
+            ...(inviterStatus !== null
+              ? [
+                  {
+                    title: t('My earnings'),
+                    url: '/canvas-cloud/agent-earnings',
+                    icon: Banknote,
+                    ...(unreadWithdrawalCount > 0
+                      ? {
+                          badge: String(unreadWithdrawalCount),
+                          badgeTone: 'alert' as const,
+                          badgeLabel: t(
+                            '{{count}} withdrawal requests have new results',
+                            { count: unreadWithdrawalCount }
+                          ),
+                        }
+                      : {}),
                   },
                 ]
               : []),

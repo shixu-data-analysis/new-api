@@ -36,8 +36,17 @@ describe('Canvas role-scoped information architecture', () => {
     expect(isCanvasSectionAllowed('CUSTOMER', 'dashboard')).toBe(false)
     expect(isCanvasSectionAllowed('CUSTOMER', 'usage-logs')).toBe(false)
     expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center')).toBe(false)
-    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center', true)).toBe(true)
-    expect(isCanvasSectionAllowed('CUSTOMER', 'agents', true)).toBe(false)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center', 'ACTIVE')).toBe(
+      true
+    )
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-center', 'DISABLED')).toBe(
+      false
+    )
+    expect(
+      isCanvasSectionAllowed('CUSTOMER', 'agent-earnings', 'DISABLED')
+    ).toBe(true)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agent-earnings')).toBe(false)
+    expect(isCanvasSectionAllowed('CUSTOMER', 'agents', 'ACTIVE')).toBe(false)
   })
 
   it('limits pricing and point rules to Canvas administrators', () => {
@@ -48,7 +57,7 @@ describe('Canvas role-scoped information architecture', () => {
       true
     )
     expect(
-      isCanvasSectionAllowed('CUSTOMER', 'pricing-point-rules', true)
+      isCanvasSectionAllowed('CUSTOMER', 'pricing-point-rules', 'ACTIVE')
     ).toBe(false)
   })
 

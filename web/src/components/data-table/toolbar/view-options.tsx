@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -49,6 +49,8 @@ export function DataTableViewOptions<TData>({
         ),
     [table]
   )
+  // A menu without hideable columns would open empty.
+  if (hideableColumns.length === 0) return null
 
   return (
     <DropdownMenu modal={false}>

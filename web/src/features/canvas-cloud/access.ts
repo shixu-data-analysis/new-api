@@ -73,16 +73,16 @@ export function isCanvasDefaultLandingPath(pathname: string): boolean {
 export function isCanvasSectionAllowed(
   principalType: CanvasPrincipalType,
   section: string,
-  inviterEnabled = false
+  inviterStatus: 'ACTIVE' | 'DISABLED' | null = null
 ): boolean {
   let allowed: readonly string[] = canvasCustomerSections
   if (isCanvasAdministrator(principalType)) allowed = canvasAdminSections
-  return (
-    (allowed as readonly string[]).includes(section) ||
-    (principalType === 'CUSTOMER' &&
-      inviterEnabled &&
-      section === 'agent-center')
-  )
+  if ((allowed as readonly string[]).includes(section)) return true
+  if (principalType !== 'CUSTOMER') return false
+  // A disabled agent keeps "My earnings" (read-only) but loses "My customers".
+  if (section === 'agent-center') return inviterStatus === 'ACTIVE'
+  if (section === 'agent-earnings') return inviterStatus !== null
+  return false
 }
 
 export function canCanvasPrincipalAccessPath(pathname: string): boolean {

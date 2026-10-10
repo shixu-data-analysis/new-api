@@ -148,7 +148,7 @@ describe('customer business facts', () => {
   it('sends type and status filters together through the paged query', async () => {
     mount()
     await screen.findByRole('button', { name: 'Portrait render' })
-    fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     fireEvent.change(screen.getByRole('combobox', { name: 'Type' }), {
       target: { value: 'cost' },
     })
