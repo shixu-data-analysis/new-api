@@ -7,7 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useId, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -280,10 +280,9 @@ export function LimitedPriceActivityForm(props: {
           'Limited-price Promotion requires a future start and a later end'
         )
       }
-      if (approvalReason.trim().length < 8) {
-        throw new Error(
-          'Promotion approval reason must contain 8 to 2000 characters'
-        )
+      if (!approvalReason.trim()) throw new Error('Enter a reason')
+      if (approvalReason.trim().length > 255) {
+        throw new Error('Reason cannot exceed 255 characters')
       }
       if (tokenPriced) {
         if (
@@ -368,7 +367,7 @@ export function LimitedPriceActivityForm(props: {
     save.mutate()
   }
   return (
-    <Card>
+    <Card className='max-w-3xl'>
       <CardHeader>
         <CardTitle>{t('TASK_PRICE_SPECIAL')}</CardTitle>
       </CardHeader>
@@ -384,7 +383,7 @@ export function LimitedPriceActivityForm(props: {
             />
           </div>
           <div>
-            <Label>{t('Source model')}</Label>
+            <Label>{t('Model')}</Label>
             <Select
               value={modelId}
               onValueChange={(value) => {
@@ -393,16 +392,14 @@ export function LimitedPriceActivityForm(props: {
               }}
             >
               <SelectTrigger
-                className='h-auto min-h-8 w-full min-w-0 py-1.5 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:break-words *:data-[slot=select-value]:whitespace-normal'
-                aria-label={t('Source model')}
+                className='w-full min-w-0'
+                aria-label={t('Model')}
+                title={selectedModel?.effectiveDisplayName}
               >
                 <CanvasLocalizedSelectValue
                   value={modelId}
-                  displayValue={
-                    selectedModel
-                      ? `${selectedModel.effectiveDisplayName} · ${selectedModel.modelKey}`
-                      : undefined
-                  }
+                  placeholderKey='Choose a model'
+                  displayValue={selectedModel?.effectiveDisplayName}
                 />
               </SelectTrigger>
               <SelectContent>
@@ -418,13 +415,10 @@ export function LimitedPriceActivityForm(props: {
             {selectedModel ? (
               <div
                 data-model-identity='activity-source-model'
-                className='mt-2 grid max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1 text-sm'
+                className='mt-1 flex max-w-full min-w-0 items-center gap-1'
               >
-                <span className='min-w-0 break-all'>
-                  {selectedModel.effectiveDisplayName} ·{' '}
-                  <span className='text-muted-foreground font-mono text-xs break-all'>
-                    {selectedModel.modelKey}
-                  </span>
+                <span className='text-muted-foreground min-w-0 font-mono text-xs [overflow-wrap:anywhere]'>
+                  {selectedModel.modelKey}
                 </span>
                 <span className='shrink-0'>
                   <ModelIdentityTooltip
@@ -438,20 +432,25 @@ export function LimitedPriceActivityForm(props: {
             ) : null}
           </div>
           <div>
-            <Label>{t('Source price version')}</Label>
+            <Label>{t('Applicable price')}</Label>
             <Select
               value={sourcePriceVersionId}
               onValueChange={(value) => {
                 setSourcePriceVersionId(value ?? '')
               }}
-              disabled={!modelId || model.isPending}
+              disabled={!modelId || model.isLoading}
             >
               <SelectTrigger
                 className='h-auto min-h-8 w-full min-w-0 py-1.5 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:break-words *:data-[slot=select-value]:whitespace-normal'
-                aria-label={t('Source price version')}
+                aria-label={t('Applicable price')}
               >
                 <CanvasLocalizedSelectValue
-                  value={source?.label ?? (model.isPending ? t('Loading') : '')}
+                  value={source?.label ?? (model.isLoading ? t('Loading') : '')}
+                  placeholderKey={
+                    modelId
+                      ? 'Choose an applicable price'
+                      : 'Choose a model first'
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
@@ -463,12 +462,82 @@ export function LimitedPriceActivityForm(props: {
               </SelectContent>
             </Select>
           </div>
-          {source ? (
-            <p className='text-muted-foreground text-sm lg:col-span-2'>
-              {t('Published base price')}: {source.points} {t('points')} ·{' '}
-              {t('Billing unit')}: {t(source.billingUnit)}
-            </p>
-          ) : null}
+          {tokenPriced && source ? (
+            <>
+              <div className='lg:col-span-2'>
+                <p className='text-sm font-medium'>
+                  {t('{{label}} ({{detail}})', {
+                    label: t('Current regular price'),
+                    detail: t(billingUnitPointsKey[source.billingUnit]),
+                  })}
+                </p>
+                <p className='mt-1 text-sm tabular-nums'>
+                  {requiredTokenCategories
+                    .map(
+                      (category) =>
+                        `${t(tokenCategoryLabelKey[category])} ${source.tokenRates?.[category] ?? ''}`
+                    )
+                    .join(' · ')}
+                </p>
+              </div>
+              {requiredTokenCategories.map((category) => (
+                <LimitedPriceRateInput
+                  key={category}
+                  label={t('{{label}} ({{detail}})', {
+                    label: t(specialRateLabelKey[category]),
+                    detail: t('points per million tokens'),
+                  })}
+                  value={specialTokenRates[category]}
+                  comparison={regularPriceComparison(
+                    source.tokenRates?.[category] ?? '',
+                    specialTokenRates[category],
+                    'MILLION_TOKENS',
+                    t
+                  )}
+                  onChange={(value) => {
+                    setSpecialTokenRates((current) => ({
+                      ...current,
+                      [category]: value,
+                    }))
+                  }}
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <div>
+                <p className='text-sm font-medium'>
+                  {t('Current regular price')}
+                </p>
+                <p className='mt-2 text-sm tabular-nums'>
+                  {source
+                    ? `${source.points} ${t(billingUnitPointsKey[source.billingUnit])}`
+                    : '—'}
+                </p>
+              </div>
+              <LimitedPriceRateInput
+                label={t('{{label}} ({{detail}})', {
+                  label: t('Special price'),
+                  detail: t(
+                    source ? billingUnitPointsKey[source.billingUnit] : 'points'
+                  ),
+                })}
+                value={specialPoints}
+                inputMode='numeric'
+                comparison={
+                  source
+                    ? regularPriceComparison(
+                        source.points ?? '',
+                        specialPoints,
+                        source.billingUnit,
+                        t
+                      )
+                    : null
+                }
+                onChange={setSpecialPoints}
+              />
+            </>
+          )}
           {source ? (
             <LimitedPriceCostReference
               source={source}
@@ -476,66 +545,6 @@ export function LimitedPriceActivityForm(props: {
               specialTokenRates={specialTokenRates}
             />
           ) : null}
-          {tokenPriced ? (
-            <>
-              <LimitedPriceRateInput
-                label={t('Special input token rate')}
-                value={specialTokenRates.input}
-                onChange={(value) => {
-                  setSpecialTokenRates((current) => ({
-                    ...current,
-                    input: value,
-                  }))
-                }}
-              />
-              <LimitedPriceRateInput
-                label={t('Special output token rate')}
-                value={specialTokenRates.output}
-                onChange={(value) => {
-                  setSpecialTokenRates((current) => ({
-                    ...current,
-                    output: value,
-                  }))
-                }}
-              />
-              {source?.tokenRates?.cacheRead !== undefined ? (
-                <LimitedPriceRateInput
-                  label={t('Special cache-read token rate')}
-                  value={specialTokenRates.cacheRead}
-                  onChange={(value) => {
-                    setSpecialTokenRates((current) => ({
-                      ...current,
-                      cacheRead: value,
-                    }))
-                  }}
-                />
-              ) : null}
-              {source?.tokenRates?.cacheWrite !== undefined ? (
-                <LimitedPriceRateInput
-                  label={t('Special cache-write token rate')}
-                  value={specialTokenRates.cacheWrite}
-                  onChange={(value) => {
-                    setSpecialTokenRates((current) => ({
-                      ...current,
-                      cacheWrite: value,
-                    }))
-                  }}
-                />
-              ) : null}
-            </>
-          ) : (
-            <div>
-              <Label htmlFor='limited-price-special-points'>
-                {t('Special price')} ({t('points')})
-              </Label>
-              <Input
-                id='limited-price-special-points'
-                value={specialPoints}
-                inputMode='numeric'
-                onChange={(event) => setSpecialPoints(event.target.value)}
-              />
-            </div>
-          )}
           <div>
             <Label>{t('Start time')}</Label>
             <DateTimePicker
@@ -559,13 +568,11 @@ export function LimitedPriceActivityForm(props: {
             />
           </div>
           <div className='lg:col-span-2'>
-            <Label htmlFor='limited-price-reason'>{t('Approval reason')}</Label>
+            <Label htmlFor='limited-price-reason'>{t('Reason')}</Label>
             <Input
               id='limited-price-reason'
               value={approvalReason}
-              minLength={8}
               onChange={(event) => setApprovalReason(event.target.value)}
-              required
             />
           </div>
           {error ? (
@@ -599,7 +606,7 @@ export function LimitedPriceActivityForm(props: {
             </div>
           ) : null}
           <p className='text-muted-foreground text-sm lg:col-span-2'>
-            {t('Uses your current time zone')}:{' '}
+            {t('{{label}}: ', { label: t('Uses your current time zone') })}
             {Intl.DateTimeFormat().resolvedOptions().timeZone}
           </p>
           <div className='flex justify-end gap-2 lg:col-span-2'>
@@ -619,20 +626,93 @@ export function LimitedPriceActivityForm(props: {
 function LimitedPriceRateInput(props: {
   label: string
   value: string
+  comparison: string | null
+  inputMode?: 'numeric' | 'decimal'
   onChange: (value: string) => void
 }) {
-  const id = `limited-price-${props.label}`
+  const id = useId()
   return (
     <div>
       <Label htmlFor={id}>{props.label}</Label>
       <Input
         id={id}
         value={props.value}
-        inputMode='decimal'
+        inputMode={props.inputMode ?? 'decimal'}
+        aria-describedby={props.comparison ? `${id}-comparison` : undefined}
         onChange={(event) => props.onChange(event.target.value)}
       />
+      {props.comparison ? (
+        <p
+          id={`${id}-comparison`}
+          className='text-muted-foreground mt-1 text-xs'
+        >
+          {props.comparison}
+        </p>
+      ) : null}
     </div>
   )
+}
+
+const billingUnitPointsKey = {
+  REQUEST: 'points per request',
+  SECOND: 'points per second',
+  MILLION_TOKENS: 'points per million tokens',
+} as const
+
+const tokenCategoryLabelKey: Record<TokenRateKey, string> = {
+  input: 'Input',
+  output: 'Output',
+  cacheRead: 'Cache read',
+  cacheWrite: 'Cache write',
+}
+
+const specialRateLabelKey: Record<TokenRateKey, string> = {
+  input: 'Special input token rate',
+  output: 'Special output token rate',
+  cacheRead: 'Special cache-read token rate',
+  cacheWrite: 'Special cache-write token rate',
+}
+
+// A hint only: how the entered special price compares with the current regular price. It sets no price bounds.
+function regularPriceComparison(
+  regular: string,
+  special: string,
+  billingUnit: 'REQUEST' | 'SECOND' | 'MILLION_TOKENS',
+  t: (key: string, values?: Record<string, unknown>) => string
+): string | null {
+  const regularValue = fixedDecimal(regular)
+  const specialValue = fixedDecimal(special.trim())
+  const validSpecial =
+    billingUnit === 'MILLION_TOKENS'
+      ? specialValue !== undefined && specialValue > 0n
+      : /^[1-9]\d*$/u.test(special.trim())
+  if (!validSpecial || regularValue === undefined || regularValue <= 0n) {
+    return null
+  }
+  const specialAmount = specialValue as bigint
+  if (specialAmount === regularValue) return t('Same as the regular price')
+  const percent = Math.round(
+    (Number(specialAmount) / Number(regularValue)) * 100
+  )
+  if (billingUnit === 'MILLION_TOKENS') {
+    return t('{{percent}}% of the regular price', { percent })
+  }
+  const less = specialAmount < regularValue
+  const difference = fixedDecimalText(
+    less ? regularValue - specialAmount : specialAmount - regularValue
+  )
+  const perSecond = billingUnit === 'SECOND'
+  let key =
+    '{{percent}}% of the regular price, {{points}} points more per request'
+  if (less && perSecond) {
+    key = '{{percent}}% of the regular price, {{points}} points less per second'
+  } else if (less) {
+    key =
+      '{{percent}}% of the regular price, {{points}} points less per request'
+  } else if (perSecond) {
+    key = '{{percent}}% of the regular price, {{points}} points more per second'
+  }
+  return t(key, { percent, points: difference })
 }
 
 function LimitedPriceCostReference(props: {
@@ -688,9 +768,12 @@ function SpecialPriceReference(props: {
     <div className='rounded-md border p-3 text-sm lg:col-span-2'>
       <p className='font-medium'>{t('Pricing cost reference')}</p>
       <p>
-        {t('Converted CNY')}: ¥{fixedDecimalText(props.preview.revenue)} ·{' '}
-        {t('Cost reference')}: ¥{fixedDecimalText(props.preview.cost)} ·{' '}
-        {t('Difference')}: ¥{fixedDecimalText(props.preview.difference)}
+        {t('{{label}}: ', { label: t('Converted CNY') })}¥
+        {fixedDecimalText(props.preview.revenue)} ·{' '}
+        {t('{{label}}: ', { label: t('Cost reference') })}¥
+        {fixedDecimalText(props.preview.cost)} ·{' '}
+        {t('{{label}}: ', { label: t('Difference') })}¥
+        {fixedDecimalText(props.preview.difference)}
       </p>
       {props.preview.below ? (
         <p className='text-destructive mt-1 font-medium'>

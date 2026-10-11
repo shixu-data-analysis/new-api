@@ -10,16 +10,16 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef, HeaderContext } from '@tanstack/react-table'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, type FieldErrors } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
 import { DataTableColumnHeader } from '@/components/data-table'
+import { DateTimePicker } from '@/components/datetime-picker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectItem, SelectTrigger } from '@/components/ui/select'
 import {
@@ -28,8 +28,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
+  checkCanvasEligibleActivityCustomers,
   createCanvasBonusActivity,
   createCanvasManualBonusMemberSelection,
   createCanvasManualBonusActivity,
@@ -38,7 +40,7 @@ import {
   resolveCanvasEligibleActivityCustomers,
   updateCanvasManualBonusActivity,
 } from '../activity-api'
-import { minorToCny } from '../activity-shared'
+import { activityBaseSchema, minorToCny } from '../activity-shared'
 import type {
   CanvasActivityEligibleCustomer,
   CanvasBonusActivity,
@@ -48,7 +50,11 @@ import type {
 } from '../activity-types'
 import { isCanvasDateRangeValid } from '../date-range'
 import { useServerTableState } from '../use-server-table-state'
-import { EligibilityBasisContent, SelectContent } from './ActivityShared'
+import {
+  EligibilityBasisContent,
+  FormInput,
+  SelectContent,
+} from './ActivityShared'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -58,16 +64,12 @@ export type CreateType =
   | 'MANUAL_BONUS'
   | 'RECHARGE_BONUS'
   | 'INVITE_BONUS'
+  | 'REGISTRATION_RANK_BONUS'
   | 'TASK_PRICE_SPECIAL'
 
 const EMPTY_CUSTOMER_IDS: string[] = []
 
-const baseSchema = z.object({
-  name: z.string().trim().min(1).max(128),
-  points: z.string().regex(/^[1-9]\d{0,18}$/u),
-  ttlDays: z.coerce.number().int().min(1).max(3650),
-  reason: z.string().trim().min(1).max(255),
-})
+const baseSchema = activityBaseSchema
 
 const manualSchema = baseSchema
   .extend({
@@ -421,8 +423,21 @@ export function ActivityForm(props: {
       />
     )
   }
+  let pointsLabel = 'Points per customer'
+  let pointsDescription: string | undefined
+  if (props.type === 'RECHARGE_BONUS') {
+    pointsLabel = 'Points per code'
+    pointsDescription =
+      'Each bound code adds the bonus once when it is redeemed.'
+  } else if (props.type === 'INVITE_BONUS') {
+    pointsLabel = 'Points per new customer'
+    pointsDescription =
+      'Points go to new customers who register with the invite code; the inviter receives nothing.'
+  }
+  const scheduledAtError = (form.formState.errors as FieldErrors<ManualValues>)
+    .scheduledAt?.message
   return (
-    <Card>
+    <Card className='max-w-3xl'>
       <CardHeader>
         <CardTitle>
           {t(props.initialPlan ? 'Edit manual grant' : props.type)}
@@ -435,12 +450,14 @@ export function ActivityForm(props: {
             name='name'
             label={t('Activity name')}
             className='lg:col-span-2'
+            maxLength={128}
             disabled={Boolean(props.initialPlan)}
           />
           <FormInput
             form={form}
             name='points'
-            label={t(manual ? 'Points per customer' : 'Bonus points')}
+            label={t(pointsLabel)}
+            description={pointsDescription ? t(pointsDescription) : undefined}
             inputMode='numeric'
           />
           <FormInput
@@ -468,7 +485,7 @@ export function ActivityForm(props: {
                       form.setValue(
                         'schedule',
                         value as ManualValues['schedule'],
-                        { shouldValidate: true }
+                        { shouldValidate: form.formState.isSubmitted }
                       )
                     }
                   >
@@ -478,6 +495,11 @@ export function ActivityForm(props: {
                     >
                       <CanvasLocalizedSelectValue
                         value={manualValues.schedule}
+                        valueLabelKey={
+                          manualValues.schedule === 'SCHEDULED'
+                            ? 'Scheduled grant'
+                            : 'Immediate grant'
+                        }
                       />
                     </SelectTrigger>
                     <SelectContent>
@@ -492,19 +514,31 @@ export function ActivityForm(props: {
                 </div>
               )}
               {manualValues.schedule === 'SCHEDULED' ? (
-                <FormInput
-                  form={form}
-                  name='scheduledAt'
-                  label={t('Scheduled time')}
-                  type='datetime-local'
-                />
+                <div>
+                  <Label>{t('Scheduled time')}</Label>
+                  <DateTimePicker
+                    value={
+                      manualValues.scheduledAt
+                        ? new Date(manualValues.scheduledAt)
+                        : undefined
+                    }
+                    onChange={(value) =>
+                      form.setValue(
+                        'scheduledAt',
+                        value ? toDateTimeLocal(value.toISOString()) : '',
+                        { shouldValidate: form.formState.isSubmitted }
+                      )
+                    }
+                    futureOnly
+                    placeholder={t('Scheduled time')}
+                  />
+                  {scheduledAtError ? (
+                    <p role='alert' className='text-destructive mt-1 text-sm'>
+                      {t(scheduledAtError)}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
-              <RecipientSelector
-                form={form}
-                values={manualValues}
-                baselineSelection={baselineSelection.data}
-                baselineLoading={baselineSelection.isPending}
-              />
             </>
           ) : null}
           <FormInput
@@ -513,6 +547,14 @@ export function ActivityForm(props: {
             label={t('Reason')}
             className='lg:col-span-2'
           />
+          {manual ? (
+            <RecipientSelector
+              form={form}
+              values={manualValues}
+              baselineSelection={baselineSelection.data}
+              baselineLoading={baselineSelection.isPending}
+            />
+          ) : null}
           {props.initialPlan ? (
             <ManualGrantChangeSummary
               plan={props.initialPlan}
@@ -622,46 +664,20 @@ function ManualGrantChangeSummary(props: {
   )
 }
 
-function FormInput(props: {
-  form: ReturnType<typeof useForm<ManualValues | BaseValues>>
-  name: keyof ManualValues
-  label: string
-  className?: string
-  type?: string
-  disabled?: boolean
-  min?: number
-  max?: number
-  inputMode?: 'numeric' | 'decimal'
-}) {
-  const { t } = useTranslation()
-  const id = `activity-${props.name}`
-  const error = props.form.getFieldState(props.name as never).error?.message
-  return (
-    <div className={props.className}>
-      <Label htmlFor={id}>{props.label}</Label>
-      <Input
-        id={id}
-        type={props.type}
-        min={props.min}
-        max={props.max}
-        inputMode={props.inputMode}
-        disabled={props.disabled}
-        {...props.form.register(props.name)}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : undefined}
-      />
-      {error ? (
-        <p
-          id={`${id}-error`}
-          role='alert'
-          className='text-destructive mt-1 text-sm'
-        >
-          {t(String(error))}
-        </p>
-      ) : null}
-    </div>
-  )
+type ScopeDraft = {
+  customerIds: string[]
+  selectionToken: string
+  selectedCustomerCount: number
 }
+
+const EMPTY_SCOPE_DRAFT: ScopeDraft = {
+  customerIds: [],
+  selectionToken: '',
+  selectedCustomerCount: 0,
+}
+
+// Selected IDs are checked against changed threshold criteria in requests of at most this many.
+const ELIGIBILITY_CHECK_BATCH = 1_000
 
 function RecipientSelector(props: {
   form: ReturnType<typeof useForm<ManualValues | BaseValues>>
@@ -682,64 +698,207 @@ function RecipientSelector(props: {
     customer: string
   }>()
   const [changedNames, setChangedNames] = useState<Record<string, string>>({})
+  const [removedByCriteria, setRemovedByCriteria] = useState(0)
+  // Bumped by every manual selection change, so a threshold check still in flight is redone with the new selection.
+  const [selectionRevision, setSelectionRevision] = useState(0)
+  const selectionEdited = () => setSelectionRevision((revision) => revision + 1)
   const editing = Boolean(props.values.editingExistingMembers)
+  const scope = props.values.scope ?? 'SELECTED'
   const addedCustomerIds = props.values.addedCustomerIds ?? EMPTY_CUSTOMER_IDS
   const removedCustomerIds =
     props.values.removedCustomerIds ?? EMPTY_CUSTOMER_IDS
   const clearBaseline = Boolean(props.values.clearBaseline)
   const threshold =
-    props.values.scope === 'RECHARGE_THRESHOLD'
+    scope === 'RECHARGE_THRESHOLD'
       ? cnyThresholdToMinor(props.values.minimumRechargeRmb ?? '')
       : null
+  const awaitingThreshold = scope === 'RECHARGE_THRESHOLD' && !threshold
+  const redeemedRange = {
+    ...(props.values.redeemedFrom
+      ? { redeemedFrom: new Date(props.values.redeemedFrom).toISOString() }
+      : {}),
+    ...(props.values.redeemedTo
+      ? { redeemedTo: new Date(props.values.redeemedTo).toISOString() }
+      : {}),
+  }
+  const rangeValid = isCanvasDateRangeValid(
+    props.values.redeemedFrom ? new Date(props.values.redeemedFrom) : undefined,
+    props.values.redeemedTo ? new Date(props.values.redeemedTo) : undefined
+  )
+  // Each scope keeps its own selection; only the shown scope is submitted.
+  const drafts = useRef<Record<ManualValues['scope'], ScopeDraft>>({
+    SELECTED: EMPTY_SCOPE_DRAFT,
+    RECHARGE_THRESHOLD: EMPTY_SCOPE_DRAFT,
+  })
+  const applyDraft = (draft: ScopeDraft) => {
+    props.form.setValue('customerIds', draft.customerIds, {
+      shouldValidate: props.form.formState.isSubmitted,
+    })
+    props.form.setValue('selectionToken', draft.selectionToken)
+    props.form.setValue('selectedCustomerCount', draft.selectedCustomerCount)
+  }
+  const switchScope = (next: ManualValues['scope']) => {
+    if (next === scope || editing) return
+    const current = props.form.getValues() as ManualValues
+    drafts.current[scope] = {
+      customerIds: current.customerIds ?? [],
+      selectionToken: current.selectionToken ?? '',
+      selectedCustomerCount: current.selectedCustomerCount ?? 0,
+    }
+    props.form.setValue('scope', next)
+    applyDraft(drafts.current[next])
+    setRemovedByCriteria(0)
+    resetPage()
+  }
   const selectAllMatching = useMutation({
-    mutationFn: () =>
+    mutationFn: (_request: {
+      scope: ManualValues['scope']
+      criteria: string
+    }) =>
       resolveCanvasEligibleActivityCustomers({
         ...(table.query.search ? { username: table.query.search } : {}),
         minimumRechargeAmountMinor: threshold ?? undefined,
         currency: 'CNY',
-        ...(props.values.redeemedFrom
-          ? { redeemedFrom: new Date(props.values.redeemedFrom).toISOString() }
-          : {}),
-        ...(props.values.redeemedTo
-          ? { redeemedTo: new Date(props.values.redeemedTo).toISOString() }
-          : {}),
+        ...redeemedRange,
       }),
-    onSuccess: (selection) => {
-      props.form.setValue('selectionToken', selection.selectionToken, {
-        shouldValidate: true,
-      })
-      props.form.setValue('selectedCustomerCount', selection.count)
-      props.form.setValue('customerIds', [])
+    onSuccess: (selection, request) => {
+      // A result for a tab left meanwhile goes to that tab's draft, whose criteria cannot change while it is hidden;
+      // a result for criteria changed since the request is dropped.
+      const draft = {
+        customerIds: [],
+        selectionToken: selection.selectionToken,
+        selectedCustomerCount: selection.count,
+      }
+      if (props.form.getValues('scope') !== request.scope) {
+        drafts.current[request.scope] = draft
+        return
+      }
+      if (request.criteria !== latestCriteria.current) return
+      applyDraft(draft)
+      selectionEdited()
     },
     onError: () => toast.error(t('Unable to select matching customers')),
   })
   const clearSelection = () => {
+    setRemovedByCriteria(0)
     if (editing) {
-      props.form.setValue('addedCustomerIds', [], { shouldValidate: true })
-      props.form.setValue('removedCustomerIds', [], { shouldValidate: true })
-      props.form.setValue('clearBaseline', true, { shouldValidate: true })
+      props.form.setValue('addedCustomerIds', [])
+      props.form.setValue('removedCustomerIds', [])
+      props.form.setValue('clearBaseline', true)
       return
     }
-    props.form.setValue('customerIds', [], { shouldValidate: true })
-    props.form.setValue('selectionToken', '', { shouldValidate: true })
-    props.form.setValue('selectedCustomerCount', 0)
+    applyDraft(EMPTY_SCOPE_DRAFT)
+    selectionEdited()
   }
-  const selectionFilterKey = [
-    props.values.scope,
+  // A changed threshold or redeemed time drops the selected customers that no longer qualify and says how many.
+  const criteriaKey = [
     threshold,
     props.values.redeemedFrom,
     props.values.redeemedTo,
-    table.query.search,
   ].join('|')
-  const previousSelectionFilterKey = useRef(selectionFilterKey)
+  const reconciledCriteria = useRef(criteriaKey)
+  const latestCriteria = useRef(criteriaKey)
+  latestCriteria.current = criteriaKey
+  const reconcileRun = useRef(0)
   useEffect(() => {
-    if (previousSelectionFilterKey.current === selectionFilterKey) return
-    previousSelectionFilterKey.current = selectionFilterKey
-    if (editing) return
-    props.form.setValue('customerIds', [], { shouldValidate: true })
-    props.form.setValue('selectionToken', '', { shouldValidate: true })
-    props.form.setValue('selectedCustomerCount', 0)
-  }, [editing, props.form, selectionFilterKey])
+    if (editing) {
+      reconciledCriteria.current = criteriaKey
+      return
+    }
+    if (
+      scope !== 'RECHARGE_THRESHOLD' ||
+      !threshold ||
+      !rangeValid ||
+      reconciledCriteria.current === criteriaKey
+    ) {
+      return
+    }
+    const previousCriteria = reconciledCriteria.current
+    const run = ++reconcileRun.current
+    let settled = false
+    const timer = window.setTimeout(() => {
+      reconciledCriteria.current = criteriaKey
+      const current = props.form.getValues() as ManualValues
+      const criteria = {
+        minimumRechargeAmountMinor: threshold,
+        currency: 'CNY' as const,
+        ...redeemedRange,
+      }
+      if (current.selectionToken) {
+        void resolveCanvasEligibleActivityCustomers({
+          ...criteria,
+          withinSelectionToken: current.selectionToken,
+        })
+          .then((narrowed) => {
+            if (run !== reconcileRun.current) return
+            settled = true
+            setRemovedByCriteria(
+              Math.max(0, (current.selectedCustomerCount ?? 0) - narrowed.count)
+            )
+            applyDraft(
+              narrowed.count
+                ? {
+                    customerIds: [],
+                    selectionToken: narrowed.selectionToken,
+                    selectedCustomerCount: narrowed.count,
+                  }
+                : EMPTY_SCOPE_DRAFT
+            )
+          })
+          .catch(() => {
+            if (run !== reconcileRun.current) return
+            settled = true
+            toast.error(t('Unable to select matching customers'))
+          })
+        return
+      }
+      const selected = current.customerIds ?? []
+      if (!selected.length) {
+        settled = true
+        setRemovedByCriteria(0)
+        return
+      }
+      const batches: string[][] = []
+      for (
+        let index = 0;
+        index < selected.length;
+        index += ELIGIBILITY_CHECK_BATCH
+      ) {
+        batches.push(selected.slice(index, index + ELIGIBILITY_CHECK_BATCH))
+      }
+      void Promise.all(
+        batches.map((customerIds) =>
+          checkCanvasEligibleActivityCustomers({ ...criteria, customerIds })
+        )
+      )
+        .then((results) => {
+          if (run !== reconcileRun.current) return
+          settled = true
+          const eligible = new Set(
+            results.flatMap((result) => result.eligibleCustomerIds)
+          )
+          const kept = selected.filter((id) => eligible.has(id))
+          setRemovedByCriteria(selected.length - kept.length)
+          props.form.setValue('customerIds', kept, {
+            shouldValidate: props.form.formState.isSubmitted,
+          })
+        })
+        .catch(() => {
+          if (run !== reconcileRun.current) return
+          settled = true
+          toast.error(t('Unable to select matching customers'))
+        })
+    }, 400)
+    // Leaving the tab, changing the criteria or editing the selection drops an unanswered check, so its late answer
+    // cannot overwrite newer choices; the threshold tab is checked again with its current selection.
+    return () => {
+      window.clearTimeout(timer)
+      reconcileRun.current += 1
+      if (!settled) reconciledCriteria.current = previousCriteria
+    }
+    // The criteria key covers every input; the form API and helpers are stable for this component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criteriaKey, scope, editing, rangeValid, selectionRevision])
   const customers = useQuery({
     queryKey: [
       'canvas-cloud',
@@ -747,7 +906,7 @@ function RecipientSelector(props: {
       table.query.page,
       table.query.pageSize,
       table.query.search,
-      props.values.scope,
+      scope,
       threshold,
       props.values.redeemedFrom,
       props.values.redeemedTo,
@@ -759,19 +918,11 @@ function RecipientSelector(props: {
           page: table.query.page,
           pageSize: table.query.pageSize,
           ...(table.query.search ? { username: table.query.search } : {}),
-          ...(props.values.scope === 'RECHARGE_THRESHOLD' && threshold
-            ? { minimumRechargeAmountMinor: threshold, currency: 'CNY' }
-            : {}),
-          ...(props.values.scope === 'RECHARGE_THRESHOLD' &&
-          props.values.redeemedFrom
+          ...(scope === 'RECHARGE_THRESHOLD' && threshold
             ? {
-                redeemedFrom: new Date(props.values.redeemedFrom).toISOString(),
-              }
-            : {}),
-          ...(props.values.scope === 'RECHARGE_THRESHOLD' &&
-          props.values.redeemedTo
-            ? {
-                redeemedTo: new Date(props.values.redeemedTo).toISOString(),
+                minimumRechargeAmountMinor: threshold,
+                currency: 'CNY',
+                ...redeemedRange,
               }
             : {}),
           ...(props.baselineSelection
@@ -780,14 +931,11 @@ function RecipientSelector(props: {
         },
         signal
       ),
+    // Without a valid threshold amount the scope has no customers to list.
     enabled:
+      !awaitingThreshold &&
       (!editing || Boolean(props.baselineSelection)) &&
-      isCanvasDateRangeValid(
-        props.values.redeemedFrom
-          ? new Date(props.values.redeemedFrom)
-          : undefined,
-        props.values.redeemedTo ? new Date(props.values.redeemedTo) : undefined
-      ),
+      rangeValid,
     placeholderData: (previous) => previous,
   })
   const selected = props.values.customerIds ?? EMPTY_CUSTOMER_IDS
@@ -806,8 +954,8 @@ function RecipientSelector(props: {
     selectedCount = props.values.selectedCustomerCount ?? 0
   }
   const visibleCustomers = useMemo(
-    () => customers.data?.items ?? [],
-    [customers.data?.items]
+    () => (awaitingThreshold ? [] : (customers.data?.items ?? [])),
+    [awaitingThreshold, customers.data?.items]
   )
   const isSelected = (customer: CanvasActivityEligibleCustomer) => {
     if (!editing) return selected.includes(customer.customerId)
@@ -830,10 +978,11 @@ function RecipientSelector(props: {
         checked
           ? [...new Set([...currentSelected, ...nextIds])]
           : currentSelected.filter((id) => !nextIds.includes(id)),
-        { shouldValidate: true }
+        { shouldValidate: props.form.formState.isSubmitted }
       )
       props.form.setValue('selectionToken', '')
       props.form.setValue('selectedCustomerCount', 0)
+      selectionEdited()
       return
     }
     const added = new Set(currentValues.addedCustomerIds ?? EMPTY_CUSTOMER_IDS)
@@ -855,30 +1004,26 @@ function RecipientSelector(props: {
       }
     }
     setChangedNames((current) => ({ ...current, ...names }))
-    props.form.setValue('addedCustomerIds', [...added], {
-      shouldValidate: true,
-    })
-    props.form.setValue('removedCustomerIds', [...removed], {
-      shouldValidate: true,
-    })
+    props.form.setValue('addedCustomerIds', [...added])
+    props.form.setValue('removedCustomerIds', [...removed])
   }
-  const columns: ColumnDef<
-    NonNullable<typeof customers.data>['items'][number],
-    unknown
-  >[] = [
+  const columns: ColumnDef<CanvasActivityEligibleCustomer, unknown>[] = [
     {
       id: 'select',
       enableSorting: false,
+      enableHiding: false,
       header: () => {
-        const visible = visibleCustomers
         const allVisibleSelected =
-          visible.length > 0 &&
-          visible.every((customer) => isSelected(customer))
+          visibleCustomers.length > 0 &&
+          visibleCustomers.every((customer) => isSelected(customer))
         return (
           <Checkbox
             aria-label={t('Select current page')}
             checked={allVisibleSelected}
-            onCheckedChange={(checked) => setMembership(visible, checked)}
+            disabled={visibleCustomers.length === 0}
+            onCheckedChange={(checked) =>
+              setMembership(visibleCustomers, checked)
+            }
           />
         )
       },
@@ -895,16 +1040,18 @@ function RecipientSelector(props: {
     {
       id: 'customer',
       accessorKey: 'customer',
+      enableHiding: false,
       meta: { label: t('Customer') },
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Customer')} />
       ),
     },
-    ...(props.values.scope === 'RECHARGE_THRESHOLD'
+    ...(scope === 'RECHARGE_THRESHOLD'
       ? [
           {
             id: 'qualifyingAmountMinor',
             accessorKey: 'qualifyingAmountMinor',
+            enableHiding: false,
             meta: { label: t('Qualifying recharge amount') },
             header: ({
               column,
@@ -917,9 +1064,7 @@ function RecipientSelector(props: {
             cell: ({
               row,
             }: {
-              row: {
-                original: NonNullable<typeof customers.data>['items'][number]
-              }
+              row: { original: CanvasActivityEligibleCustomer }
             }) => (
               <Button
                 type='button'
@@ -934,136 +1079,165 @@ function RecipientSelector(props: {
         ]
       : []),
   ]
+  const customerError = (
+    props.form.formState.errors as FieldErrors<ManualValues>
+  ).customerIds?.message
+  let summary = t(
+    'Selected {{count}} customers · Planned total {{points}} points',
+    {
+      count: selectedCount,
+      points:
+        selectedCount &&
+        props.values.points &&
+        /^\d+$/u.test(props.values.points)
+          ? (BigInt(selectedCount) * BigInt(props.values.points)).toString()
+          : '0',
+    }
+  )
+  if (scope === 'RECHARGE_THRESHOLD' && removedByCriteria > 0) {
+    summary += t(
+      ' ({{count}} customers no longer meeting the threshold were removed)',
+      { count: removedByCriteria }
+    )
+  }
   return (
-    <div className='space-y-3 lg:col-span-2'>
-      <div className='grid gap-4 sm:grid-cols-2'>
-        <div>
-          <Label>{t('Customer scope')}</Label>
-          <Select
-            value={props.values.scope ?? 'SELECTED'}
-            onValueChange={(value) => {
-              props.form.setValue('scope', value as ManualValues['scope'], {
-                shouldValidate: true,
-              })
-              clearSelection()
-              resetPage()
-            }}
+    <div className='space-y-3 border-t pt-4 lg:col-span-2'>
+      <h3 className='font-medium'>{t('Select customers')}</h3>
+      <Tabs
+        value={scope}
+        onValueChange={(value) => switchScope(value as ManualValues['scope'])}
+      >
+        <TabsList aria-label={t('Customer scope')}>
+          <TabsTrigger
+            value='SELECTED'
+            disabled={editing && scope !== 'SELECTED'}
           >
-            <SelectTrigger
-              className='w-full min-w-0'
-              aria-label={t('Customer scope')}
-            >
-              <CanvasLocalizedSelectValue
-                value={props.values.scope}
-                valueLabelKey={
-                  props.values.scope === 'RECHARGE_THRESHOLD'
-                    ? 'Recharge threshold'
-                    : 'Selected customers'
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='SELECTED'>
-                {t('Selected customers')}
-              </SelectItem>
-              <SelectItem value='RECHARGE_THRESHOLD'>
-                {t('Recharge threshold')}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {props.values.scope === 'RECHARGE_THRESHOLD' ? (
-          <>
-            <FormInput
-              form={props.form}
-              name='minimumRechargeRmb'
-              label={t('Minimum recharge amount (CNY)')}
-              inputMode='decimal'
+            {t('Selected customers')}
+          </TabsTrigger>
+          <TabsTrigger
+            value='RECHARGE_THRESHOLD'
+            disabled={editing && scope !== 'RECHARGE_THRESHOLD'}
+          >
+            {t('Recharge threshold')}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {scope === 'RECHARGE_THRESHOLD' ? (
+        <div className='grid gap-4 sm:grid-cols-2'>
+          <FormInput
+            form={props.form}
+            name='minimumRechargeRmb'
+            label={t('Minimum recharge amount (CNY)')}
+            inputMode='decimal'
+          />
+          <div className='sm:col-span-2'>
+            <p className='mb-2 text-sm font-medium'>{t('Redeemed time')}</p>
+            <CanvasDateRangeFilter
+              from={
+                props.values.redeemedFrom
+                  ? new Date(props.values.redeemedFrom)
+                  : undefined
+              }
+              to={
+                props.values.redeemedTo
+                  ? new Date(props.values.redeemedTo)
+                  : undefined
+              }
+              onFromChange={(value) => {
+                props.form.setValue(
+                  'redeemedFrom',
+                  value ? toDateTimeLocal(value.toISOString()) : ''
+                )
+                resetPage()
+              }}
+              onToChange={(value) => {
+                props.form.setValue(
+                  'redeemedTo',
+                  value ? toDateTimeLocal(value.toISOString()) : ''
+                )
+                resetPage()
+              }}
             />
-            <div className='sm:col-span-2'>
-              <p className='mb-2 text-sm font-medium'>{t('Redeemed time')}</p>
-              <CanvasDateRangeFilter
-                from={
-                  props.values.redeemedFrom
-                    ? new Date(props.values.redeemedFrom)
-                    : undefined
-                }
-                to={
-                  props.values.redeemedTo
-                    ? new Date(props.values.redeemedTo)
-                    : undefined
-                }
-                onFromChange={(value) => {
-                  props.form.setValue(
-                    'redeemedFrom',
-                    value ? toDateTimeLocal(value.toISOString()) : '',
-                    { shouldValidate: true }
-                  )
-                  resetPage()
-                }}
-                onToChange={(value) => {
-                  props.form.setValue(
-                    'redeemedTo',
-                    value ? toDateTimeLocal(value.toISOString()) : '',
-                    { shouldValidate: true }
-                  )
-                  resetPage()
-                }}
-              />
-            </div>
-          </>
-        ) : null}
-      </div>
+          </div>
+          <p className='text-muted-foreground text-sm sm:col-span-2'>
+            {t(
+              'Qualifying recharge amount is the original amount of the recharge orders redeemed in the redeemed time, minus the cumulative refund reference amount.'
+            )}
+          </p>
+        </div>
+      ) : null}
       <CanvasServerTable
-        data={customers.data?.items ?? []}
+        data={visibleCustomers}
         columns={columns}
-        total={customers.data?.total ?? 0}
+        total={awaitingThreshold ? 0 : (customers.data?.total ?? 0)}
         state={table}
         searchLabel={t('Customer')}
-        loading={customers.isPending || customers.isFetching}
-        error={customers.isError}
+        loading={
+          !awaitingThreshold && (customers.isPending || customers.isFetching)
+        }
+        error={!awaitingThreshold && customers.isError}
         onRetry={() => void customers.refetch()}
-        emptyTitle={t('No eligible customers')}
-        filteredEmptyTitle={t('No customers match the current filters')}
+        emptyTitle={t(
+          awaitingThreshold
+            ? 'Enter the minimum recharge amount to list eligible customers'
+            : 'No eligible customers'
+        )}
+        emptyDescription={
+          awaitingThreshold
+            ? t(
+                'Only active customers whose qualifying recharge amount reaches the threshold are listed.'
+              )
+            : undefined
+        }
+        filteredEmptyTitle={
+          awaitingThreshold
+            ? undefined
+            : t('No customers match the current filters')
+        }
         getRowId={(item) => item.customerId}
       />
-      <div className='flex flex-wrap items-center justify-between gap-2'>
-        <p className='text-muted-foreground text-sm'>
-          {t('Selected {{count}} customers · Planned total {{points}} points', {
-            count: selectedCount,
-            points:
-              selectedCount &&
-              props.values.points &&
-              /^\d+$/u.test(props.values.points)
-                ? (
-                    BigInt(selectedCount) * BigInt(props.values.points)
-                  ).toString()
-                : '0',
-          })}
-        </p>
-        {!editing &&
-        props.values.scope === 'RECHARGE_THRESHOLD' &&
-        !props.values.selectionToken &&
-        visibleCustomers.length > 0 &&
-        visibleCustomers.every((customer) => isSelected(customer)) &&
-        customers.data?.total ? (
-          <Button
-            type='button'
-            variant='outline'
-            disabled={selectAllMatching.isPending}
-            onClick={() => selectAllMatching.mutate()}
-          >
-            {t('Select all {{count}} matching customers', {
-              count: customers.data.total,
-            })}
-          </Button>
-        ) : null}
-        {selectedCount > 0 ? (
-          <Button type='button' variant='outline' onClick={clearSelection}>
-            {t('Clear selection')}
-          </Button>
-        ) : null}
+      {/* Selection actions stay next to the summary they change, apart from the form's submit row. */}
+      <div className='flex flex-wrap items-center gap-x-3 gap-y-2'>
+        <p className='text-muted-foreground text-sm'>{summary}</p>
+        <div className='flex flex-wrap gap-2'>
+          {!editing &&
+          scope === 'RECHARGE_THRESHOLD' &&
+          !props.values.selectionToken &&
+          visibleCustomers.length > 0 &&
+          visibleCustomers.every((customer) => isSelected(customer)) &&
+          customers.data?.total &&
+          selectedCount < customers.data.total ? (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={selectAllMatching.isPending}
+              onClick={() =>
+                selectAllMatching.mutate({ scope, criteria: criteriaKey })
+              }
+            >
+              {t('Select all {{count}} matching customers', {
+                count: customers.data.total,
+              })}
+            </Button>
+          ) : null}
+          {selectedCount > 0 ? (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={clearSelection}
+            >
+              {t('Clear selection')}
+            </Button>
+          ) : null}
+        </div>
       </div>
+      {customerError ? (
+        <p role='alert' className='text-destructive text-sm'>
+          {t(customerError)}
+        </p>
+      ) : null}
       {editing ? (
         <p className='text-muted-foreground text-sm'>
           {t(
@@ -1078,10 +1252,10 @@ function RecipientSelector(props: {
             }
           )}{' '}
           {addedCustomerIds.length
-            ? `${t('Added')}: ${addedCustomerIds.map((id) => changedNames[id] ?? id).join(', ')}`
+            ? `${t('{{label}}: ', { label: t('Added') })}${addedCustomerIds.map((id) => changedNames[id] ?? id).join(', ')}`
             : null}{' '}
           {removedCustomerIds.length
-            ? `${t('Removed')}: ${removedCustomerIds.map((id) => changedNames[id] ?? id).join(', ')}`
+            ? `${t('{{label}}: ', { label: t('Removed') })}${removedCustomerIds.map((id) => changedNames[id] ?? id).join(', ')}`
             : null}
         </p>
       ) : null}
@@ -1147,7 +1321,7 @@ function CurrentEligibilityBasisSheet(props: {
           </SheetTitle>
         </SheetHeader>
         <div className='space-y-3 p-4 text-sm'>
-          {basis.isPending ? <p>{t('Loading')}</p> : null}
+          {basis.isLoading ? <p>{t('Loading')}</p> : null}
           {basis.isError ? (
             <p role='alert'>{t('Unable to load eligibility basis')}</p>
           ) : null}

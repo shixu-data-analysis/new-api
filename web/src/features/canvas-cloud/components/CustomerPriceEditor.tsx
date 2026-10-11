@@ -152,7 +152,7 @@ export function CustomerPriceEditor(props: {
       ? providerTokenCategories
           .map(
             (category) =>
-              `${t(providerTokenCategoryLabel[category])}: ${review.values.tokenRates[category]}`
+              `${t('{{label}}: ', { label: t(providerTokenCategoryLabel[category]) })}${review.values.tokenRates[category]}`
           )
           .join(' · ')
       : (review?.values.points ?? '—')

@@ -8,11 +8,23 @@ License, or (at your option) any later version.
 */
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
+import { ChevronDown, Plus } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Select, SelectItem, SelectTrigger } from '@/components/ui/select'
 
 import { getCanvasActivity, getCanvasActivities } from '../activity-api'
@@ -23,13 +35,15 @@ import {
 import type {
   CanvasActivity,
   CanvasActivityDetail,
-  CanvasActivityStatus,
+  CanvasActivityPhase,
   CanvasActivityType,
-  CanvasBonusActivity,
   CanvasManualGrantPlan,
 } from '../activity-types'
 import { isCanvasDateRangeValid } from '../date-range'
-import { formatCanvasDateTime } from '../formatters'
+import {
+  formatCanvasDateTime,
+  formatCanvasDateTimeMinutes,
+} from '../formatters'
 import { useServerTableState } from '../use-server-table-state'
 import { ActivityDetail } from './ActivityDetail'
 import { ActivityForm, type CreateType } from './ActivityForm'
@@ -37,6 +51,7 @@ import { SelectContent } from './ActivityShared'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
+import { RegistrationRankActivityForm } from './RegistrationRankActivityForm'
 
 type View =
   | { kind: 'list' }
@@ -55,7 +70,7 @@ type ActivityReturnContext = {
   sortId: string
   sortDesc: boolean
   type: CanvasActivityType | ''
-  status: CanvasActivityStatus | ''
+  phase: CanvasActivityPhase | ''
   createdFrom?: string
   createdTo?: string
   view: View
@@ -89,72 +104,126 @@ const activityTypes: CanvasActivityType[] = [
   'MANUAL_BONUS',
   'RECHARGE_BONUS',
   'INVITE_BONUS',
+  'REGISTRATION_RANK_BONUS',
   'TASK_PRICE_SPECIAL',
 ]
 
-const allStatuses: CanvasActivityStatus[] = [
-  'WAITING',
+const activityPhases: CanvasActivityPhase[] = [
+  'UPCOMING',
   'RUNNING',
-  'COMPLETED',
-  'PARTIAL_FAILED',
-  'FAILED',
-  'CANCELLED',
-  'NOT_STARTED',
-  'ACTIVE',
   'ENDED',
-  'STOPPED',
+  'CANCELLED',
 ]
 
-const statusesByType: Record<CanvasActivityType, CanvasActivityStatus[]> = {
-  MANUAL_BONUS: [
-    'WAITING',
-    'RUNNING',
-    'COMPLETED',
-    'PARTIAL_FAILED',
-    'FAILED',
-    'CANCELLED',
-  ],
-  RECHARGE_BONUS: ['ACTIVE', 'STOPPED'],
-  INVITE_BONUS: ['ACTIVE', 'STOPPED'],
-  TASK_PRICE_SPECIAL: ['NOT_STARTED', 'ACTIVE', 'ENDED', 'STOPPED'],
+const pointGrantTypes: CreateType[] = [
+  'MANUAL_BONUS',
+  'RECHARGE_BONUS',
+  'INVITE_BONUS',
+  'REGISTRATION_RANK_BONUS',
+]
+
+function activityPhaseKey(value: CanvasActivityPhase): string {
+  return `Activity phase ${value}`
 }
 
-function activityToListItem(
-  activity: CanvasManualGrantPlan | CanvasBonusActivity
-): CanvasActivity {
-  if ('activityId' in activity) {
-    return {
-      id: activity.activityId,
-      promotionId: activity.activityId,
-      version: activity.version,
-      name: activity.name,
-      type: activity.type,
-      status: activity.status,
-      createdAt: activity.createdAt,
-      startsAt:
-        activity.schedule.mode === 'SCHEDULED'
-          ? activity.schedule.scheduledAt
-          : null,
-      endsAt: null,
-    }
-  }
-  if ('ttlDays' in activity) {
-    return {
-      id: activity.id,
-      promotionId: activity.promotionId,
-      version: activity.version,
-      name: activity.name,
-      type: activity.type,
-      status: activity.status,
-      createdAt: activity.createdAt,
-      startsAt: null,
-      endsAt: null,
-    }
-  }
-  throw new Error('Unsupported activity detail')
+function activityDetailId(activity: CanvasActivityDetail): string {
+  return 'activityId' in activity ? activity.activityId : activity.id
 }
 
-export function ActivityManagement() {
+// The list groups every type into four phases; the type's own state follows in grey where it adds information.
+function ActivityStatusCell(props: { activity: CanvasActivity }) {
+  const { t } = useTranslation()
+  const { activity } = props
+  let note: string | null = null
+  if (activity.status === 'WAITING' && activity.scheduledAt) {
+    note = t('Scheduled {{time}}', {
+      time: formatCanvasDateTimeMinutes(activity.scheduledAt),
+    })
+  } else if (
+    activity.type === 'REGISTRATION_RANK_BONUS' &&
+    activity.status === 'ACTIVE'
+  ) {
+    note = t('{{issued}} / {{total}} recipients', {
+      issued: activity.recipientCount ?? '0',
+      total: activity.recipientLimit ?? '0',
+    })
+  } else if (
+    [
+      'RUNNING',
+      'COMPLETED',
+      'PARTIAL_FAILED',
+      'FAILED',
+      'STOPPED',
+      'FILLED',
+      'EXPIRED',
+    ].includes(activity.status)
+  ) {
+    note = t(activityStatusKey(activity.status))
+  }
+  return (
+    <span>
+      {t(activityPhaseKey(activity.phase))}
+      {note ? <span className='text-muted-foreground'> · {note}</span> : null}
+    </span>
+  )
+}
+
+function CreateActivityMenu(props: {
+  runningRankName?: string
+  triggerRef: (element: HTMLElement | null) => void
+  onCreate: (type: CreateType) => void
+}) {
+  const { t } = useTranslation()
+  const item = (type: CreateType) => {
+    const blocked =
+      type === 'REGISTRATION_RANK_BONUS' && Boolean(props.runningRankName)
+    return (
+      <DropdownMenuItem
+        key={type}
+        disabled={blocked}
+        className='flex-col items-start gap-0.5 py-1.5'
+        onClick={() => props.onCreate(type)}
+      >
+        <span>{t(type)}</span>
+        <span className='text-muted-foreground text-xs'>
+          {blocked
+            ? t('"{{name}}" is running; create a new one after it ends', {
+                name: props.runningRankName,
+              })
+            : t(`Activity type description ${type}`)}
+        </span>
+      </DropdownMenuItem>
+    )
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button size='sm' ref={props.triggerRef} />}>
+        <Plus aria-hidden='true' />
+        {t('Create activity')}
+        <ChevronDown aria-hidden='true' />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' className='w-72'>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            {t('Activity group point grants')}
+          </DropdownMenuLabel>
+          {pointGrantTypes.map(item)}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            {t('Activity group price discounts')}
+          </DropdownMenuLabel>
+          {item('TASK_PRICE_SPECIAL')}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export function ActivityManagement(props: {
+  titleActionSlot?: HTMLElement | null
+}) {
   const { t } = useTranslation()
   const [returnContext] = useState(readActivityReturnContext)
   const [requestedActivityId] = useState(
@@ -173,8 +242,8 @@ export function ActivityManagement() {
   const [type, setType] = useState<CanvasActivityType | ''>(
     returnContext?.type ?? ''
   )
-  const [status, setStatus] = useState<CanvasActivityStatus | ''>(
-    returnContext?.status ?? ''
+  const [phase, setPhase] = useState<CanvasActivityPhase | ''>(
+    returnContext?.phase ?? ''
   )
   const [createdFrom, setCreatedFrom] = useState<Date | undefined>(
     returnContext?.createdFrom ? new Date(returnContext.createdFrom) : undefined
@@ -226,7 +295,7 @@ export function ActivityManagement() {
       sortId: table.sorting[0]?.id ?? 'createdAt',
       sortDesc: table.sorting[0]?.desc ?? true,
       type,
-      status,
+      phase,
       ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
       ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
       view,
@@ -249,7 +318,7 @@ export function ActivityManagement() {
       table.query.sortBy,
       table.query.sortOrder,
       type,
-      status,
+      phase,
       createdFrom?.toISOString(),
       createdTo?.toISOString(),
     ],
@@ -262,7 +331,7 @@ export function ActivityManagement() {
           sortOrder: table.query.sortOrder,
           ...(table.query.search ? { name: table.query.search } : {}),
           ...(type ? { type } : {}),
-          ...(status ? { status } : {}),
+          ...(phase ? { phase } : {}),
           ...(createdFrom ? { createdFrom: createdFrom.toISOString() } : {}),
           ...(createdTo ? { createdTo: createdTo.toISOString() } : {}),
         },
@@ -270,6 +339,23 @@ export function ActivityManagement() {
       ),
     enabled: isCanvasDateRangeValid(createdFrom, createdTo),
     placeholderData: (previous) => previous,
+  })
+  // Only one registration rank bonus may run; the create menu names it instead of offering a publish that would fail.
+  const runningRank = useQuery({
+    queryKey: ['canvas-cloud', 'activities', 'running-registration-rank'],
+    queryFn: ({ signal }) =>
+      getCanvasActivities(
+        {
+          page: 1,
+          pageSize: 10,
+          type: 'REGISTRATION_RANK_BONUS',
+          phase: 'RUNNING',
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        },
+        signal
+      ),
+    enabled: view.kind === 'list',
   })
   const columns = useMemo<ColumnDef<CanvasActivity, unknown>[]>(
     () => [
@@ -321,12 +407,26 @@ export function ActivityManagement() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Status')} />
         ),
-        cell: ({ row }) => t(activityStatusKey(row.original.status)),
+        cell: ({ row }) => <ActivityStatusCell activity={row.original} />,
       },
     ],
     [t]
   )
 
+  if (view.kind === 'create' && view.type === 'REGISTRATION_RANK_BONUS') {
+    return (
+      <RegistrationRankActivityForm
+        onBack={returnToList}
+        onSaved={(activity) =>
+          setView({
+            kind: 'detail',
+            activityId: activity.id,
+            initialDetail: activity,
+          })
+        }
+      />
+    )
+  }
   if (view.kind === 'create') {
     return (
       <ActivityForm
@@ -335,7 +435,7 @@ export function ActivityManagement() {
         onSaved={(activity) =>
           setView({
             kind: 'detail',
-            activityId: activityToListItem(activity).id,
+            activityId: activityDetailId(activity),
             initialDetail: activity,
           })
         }
@@ -383,7 +483,7 @@ export function ActivityManagement() {
         onSaved={(activity) =>
           setView({
             kind: 'detail',
-            activityId: activityToListItem(activity).id,
+            activityId: activityDetailId(activity),
             initialDetail: activity,
           })
         }
@@ -392,34 +492,21 @@ export function ActivityManagement() {
   }
   return (
     <div className='space-y-4'>
-      <div className='flex justify-end'>
-        <Select
-          onValueChange={(value) => {
-            rememberListPosition('create-activity')
-            setView({ kind: 'create', type: value as CreateType })
-          }}
-        >
-          <SelectTrigger
-            aria-label={t('Create activity')}
-            icon='chevron-down'
-            ref={(element) => {
-              listFocusElements.current['create-activity'] = element
-            }}
-          >
-            {t('Create activity')}
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='MANUAL_BONUS'>{t('MANUAL_BONUS')}</SelectItem>
-            <SelectItem value='RECHARGE_BONUS'>
-              {t('RECHARGE_BONUS')}
-            </SelectItem>
-            <SelectItem value='INVITE_BONUS'>{t('INVITE_BONUS')}</SelectItem>
-            <SelectItem value='TASK_PRICE_SPECIAL'>
-              {t('TASK_PRICE_SPECIAL')}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {props.titleActionSlot
+        ? createPortal(
+            <CreateActivityMenu
+              runningRankName={runningRank.data?.items[0]?.name}
+              triggerRef={(element) => {
+                listFocusElements.current['create-activity'] = element
+              }}
+              onCreate={(createType) => {
+                rememberListPosition('create-activity')
+                setView({ kind: 'create', type: createType })
+              }}
+            />,
+            props.titleActionSlot
+          )
+        : null}
       <CanvasServerTable
         data={activities.data?.items ?? []}
         columns={columns}
@@ -439,7 +526,6 @@ export function ActivityManagement() {
                 value={type || 'ALL'}
                 onValueChange={(value) => {
                   setType(value === 'ALL' ? '' : (value as CanvasActivityType))
-                  setStatus('')
                   resetPage()
                 }}
               >
@@ -464,10 +550,10 @@ export function ActivityManagement() {
             </DataTableColumnFilterField>
             <DataTableColumnFilterField label={t('Activity status')}>
               <Select
-                value={status || 'ALL'}
+                value={phase || 'ALL'}
                 onValueChange={(value) => {
-                  setStatus(
-                    value === 'ALL' ? '' : (value as CanvasActivityStatus)
+                  setPhase(
+                    value === 'ALL' ? '' : (value as CanvasActivityPhase)
                   )
                   resetPage()
                 }}
@@ -477,7 +563,8 @@ export function ActivityManagement() {
                   aria-label={t('Activity status')}
                 >
                   <CanvasLocalizedSelectValue
-                    value={status}
+                    value={phase}
+                    valueLabelKey={phase ? activityPhaseKey(phase) : undefined}
                     emptyLabelKey='All activity statuses'
                   />
                 </SelectTrigger>
@@ -485,9 +572,9 @@ export function ActivityManagement() {
                   <SelectItem value='ALL'>
                     {t('All activity statuses')}
                   </SelectItem>
-                  {(type ? statusesByType[type] : allStatuses).map((value) => (
+                  {activityPhases.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {t(activityStatusKey(value))}
+                      {t(activityPhaseKey(value))}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -512,14 +599,14 @@ export function ActivityManagement() {
             </DataTableColumnFilterField>
           </>
         }
-        hasActiveFilters={Boolean(type || status || createdFrom || createdTo)}
+        hasActiveFilters={Boolean(type || phase || createdFrom || createdTo)}
         activeFilterCount={
-          [table.search, type, status, createdFrom, createdTo].filter(Boolean)
+          [table.search, type, phase, createdFrom, createdTo].filter(Boolean)
             .length
         }
         onResetFilters={() => {
           setType('')
-          setStatus('')
+          setPhase('')
           setCreatedFrom(undefined)
           setCreatedTo(undefined)
           resetPage()

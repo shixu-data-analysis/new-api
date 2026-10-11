@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -16,7 +17,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
@@ -29,7 +30,9 @@ const activityApi = vi.hoisted(() => ({
   createCanvasBonusActivity: vi.fn(),
   createCanvasLimitedPriceActivity: vi.fn(),
   createCanvasManualBonusActivity: vi.fn(),
+  checkCanvasEligibleActivityCustomers: vi.fn(),
   createCanvasManualBonusMemberSelection: vi.fn(),
+  createCanvasRegistrationRankActivity: vi.fn(),
   getCanvasActivities: vi.fn(),
   getCanvasActivity: vi.fn(),
   getCanvasCurrentManualGrantEligibilityBasis: vi.fn(),
@@ -45,6 +48,7 @@ const activityApi = vi.hoisted(() => ({
   updateCanvasManualBonusActivity: vi.fn(),
 }))
 const pricingApi = vi.hoisted(() => ({
+  revealCanvasCode: vi.fn(),
   cancelCanvasLimitedPricePromotion: vi.fn(),
   getCanvasCustomerBusinessFacts: vi.fn(),
   getCanvasModelPricingModel: vi.fn(),
@@ -54,6 +58,17 @@ const pricingApi = vi.hoisted(() => ({
 vi.mock('../../activity-api', () => activityApi)
 vi.mock('../../api', () => pricingApi)
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+
+// index.tsx renders the create menu's slot in the page title row.
+function ActivityManagementPage() {
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  return (
+    <>
+      <span ref={setSlot} />
+      <ActivityManagement titleActionSlot={slot} />
+    </>
+  )
+}
 
 function mount(node: ReactNode) {
   const client = new QueryClient({
@@ -66,8 +81,12 @@ function mount(node: ReactNode) {
 
 async function chooseCreateType(value: string) {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('combobox', { name: 'Create activity' }))
-  await user.click(await screen.findByRole('option', { name: value }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Create activity' })
+  )
+  await user.click(
+    await screen.findByRole('menuitem', { name: new RegExp(`^${value}`) })
+  )
 }
 
 // Editing requires a future schedule, so derive it from the real clock instead of a date that expires.
@@ -128,36 +147,226 @@ describe('ADMIN-REWORK-007 activity management', () => {
     })
   })
 
-  it('offers each of the four creation paths', async () => {
-    const { unmount } = mount(<ActivityManagement />)
+  it('offers the five creation paths in two groups with their descriptions', async () => {
+    const { unmount } = mount(<ActivityManagementPage />)
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Create activity' }))
+    const groups = await screen.findAllByRole('group')
+    expect(groups.map((group) => group.textContent)).toEqual([
+      expect.stringMatching(/^Point grants/),
+      expect.stringMatching(/^Price discounts/),
+    ])
     expect(
-      screen
-        .getByRole('combobox', { name: 'Create activity' })
-        .querySelector('[data-icon-kind="chevron-down"]')
-    ).not.toBeNull()
-    await chooseCreateType('Manual bonus')
-    expect(await screen.findByText('Points per customer')).toBeVisible()
+      screen.getByRole('menuitem', { name: /^Registration rank bonus/ })
+    ).toHaveTextContent(
+      'After the activity starts, each of the first N new customers to register receives points'
+    )
     unmount()
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
+    expect(await screen.findByText('Points per customer')).toBeVisible()
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Cancel' }))
+
     await chooseCreateType('Recharge bonus')
     expect(await screen.findByText('Recharge bonus')).toBeVisible()
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Cancel' }))
 
-    await chooseCreateType('Invite bonus')
-    expect(await screen.findByText('Invite bonus')).toBeVisible()
+    await chooseCreateType('Invite registration bonus')
+    expect(await screen.findByText('Invite registration bonus')).toBeVisible()
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Cancel' }))
 
-    await chooseCreateType('Task price special')
-    expect(await screen.findByLabelText('Source model')).toBeVisible()
+    await chooseCreateType('Registration rank bonus')
+    expect(await screen.findByLabelText('Recipients (people)')).toBeVisible()
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await chooseCreateType('Limited-time special')
+    expect(await screen.findByLabelText('Model')).toBeVisible()
+  })
+
+  it('shows the maximum grant under the zhCN interface language without an Intl error', async () => {
+    await i18next.changeLanguage('zhCN')
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Registration rank bonus')
+    const user = userEvent.setup()
+    await user.type(await screen.findByLabelText('Recipients (people)'), '300')
+    await user.type(screen.getByLabelText('Points per recipient'), '100')
+    expect(await screen.findByText('Up to 30,000 points')).toBeVisible()
+  })
+
+  it('rejects a recipient limit and points beyond the PostgreSQL bigint range', async () => {
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Registration rank bonus')
+    const user = userEvent.setup()
+    const recipients = await screen.findByLabelText('Recipients (people)')
+    const points = screen.getByLabelText('Points per recipient')
+    await user.type(recipients, '9223372036854775808')
+    await user.type(points, '9223372036854775808')
+    await user.click(screen.getByRole('button', { name: 'Confirm publish' }))
+    expect(
+      await screen.findAllByText(
+        'Enter a positive whole number within the supported range'
+      )
+    ).toHaveLength(2)
+    await user.clear(recipients)
+    await user.type(recipients, '9223372036854775807')
+    await user.clear(points)
+    await user.type(points, '9223372036854775807')
+    await user.click(screen.getByRole('button', { name: 'Confirm publish' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          'Enter a positive whole number within the supported range'
+        )
+      ).toBeNull()
+    )
+    expect(
+      activityApi.createCanvasRegistrationRankActivity
+    ).not.toHaveBeenCalled()
+  })
+
+  it('names the running registration rank bonus instead of offering a second one', async () => {
+    activityApi.getCanvasActivities.mockImplementation(
+      async (query: { type?: string; phase?: string }) =>
+        query.type === 'REGISTRATION_RANK_BONUS' && query.phase === 'RUNNING'
+          ? {
+              items: [
+                {
+                  id: 'rank-1',
+                  promotionId: 'rank-1',
+                  version: 1,
+                  name: 'First 300',
+                  type: 'REGISTRATION_RANK_BONUS',
+                  status: 'ACTIVE',
+                  phase: 'RUNNING',
+                  createdAt: '2026-10-11T02:00:00.000Z',
+                  startsAt: null,
+                  endsAt: null,
+                  scheduledAt: null,
+                  recipientLimit: '300',
+                  recipientCount: '128',
+                },
+              ],
+              total: 1,
+              page: 1,
+              pageSize: 10,
+            }
+          : { items: [], total: 0, page: 1, pageSize: 20 }
+    )
+    mount(<ActivityManagementPage />)
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Create activity' }))
+    const rank = await screen.findByRole('menuitem', {
+      name: /^Registration rank bonus/,
+    })
+    await waitFor(() =>
+      expect(rank).toHaveTextContent(
+        '"First 300" is running; create a new one after it ends'
+      )
+    )
+    expect(rank).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('shows the four phases with the type state in grey and filters by phase', async () => {
+    activityApi.getCanvasActivities.mockResolvedValue({
+      items: [
+        {
+          id: 'manual-1',
+          promotionId: 'manual-1',
+          version: 1,
+          name: 'October rewards',
+          type: 'MANUAL_BONUS',
+          status: 'WAITING',
+          phase: 'UPCOMING',
+          createdAt: '2026-10-10T08:00:00.000Z',
+          startsAt: null,
+          endsAt: null,
+          scheduledAt: '2026-10-20T02:00:00.000Z',
+          recipientLimit: null,
+          recipientCount: null,
+        },
+        {
+          id: 'rank-1',
+          promotionId: 'rank-1',
+          version: 1,
+          name: 'First 300',
+          type: 'REGISTRATION_RANK_BONUS',
+          status: 'ACTIVE',
+          phase: 'RUNNING',
+          createdAt: '2026-10-11T02:00:00.000Z',
+          startsAt: null,
+          endsAt: null,
+          scheduledAt: null,
+          recipientLimit: '300',
+          recipientCount: '128',
+        },
+        {
+          id: 'invite-1',
+          promotionId: 'invite-1',
+          version: 1,
+          name: 'Old channel',
+          type: 'INVITE_BONUS',
+          status: 'STOPPED',
+          phase: 'ENDED',
+          createdAt: '2026-08-30T02:00:00.000Z',
+          startsAt: null,
+          endsAt: null,
+          scheduledAt: null,
+          recipientLimit: null,
+          recipientCount: null,
+        },
+      ],
+      total: 3,
+      page: 1,
+      pageSize: 20,
+    })
+    mount(<ActivityManagementPage />)
+    const rankRow = (
+      await screen.findByRole('button', { name: 'First 300' })
+    ).closest('tr') as HTMLElement
+    expect(rankRow).toHaveTextContent('Running · 128 / 300 recipients')
+    expect(
+      (
+        screen
+          .getByRole('button', { name: 'Old channel' })
+          .closest('tr') as HTMLElement
+      ).textContent
+    ).toContain('Ended · Stopped')
+    expect(
+      (
+        screen
+          .getByRole('button', { name: 'October rewards' })
+          .closest('tr') as HTMLElement
+      ).textContent
+    ).toMatch(/Upcoming · Scheduled /)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Filter/ }))
+    await user.click(screen.getByRole('combobox', { name: 'Activity status' }))
+    await user.click(await screen.findByRole('option', { name: 'Ended' }))
+    await waitFor(() =>
+      expect(activityApi.getCanvasActivities).toHaveBeenLastCalledWith(
+        expect.objectContaining({ phase: 'ENDED' }),
+        expect.anything()
+      )
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Activity status' })
+    ).toHaveTextContent('Ended')
   })
 
   it('shows created time first and uses localized labels in view options', async () => {
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
 
     expect(
       screen.getAllByRole('columnheader').map((header) => header.textContent)
@@ -180,7 +389,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
   })
 
   it('gives date range filters enough panel width', async () => {
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Filters' }))
@@ -197,7 +406,21 @@ describe('ADMIN-REWORK-007 activity management', () => {
     ).toHaveClass('min-w-0')
   })
 
-  it('uses a token only after every selected page is explicit and clears it when criteria change', async () => {
+  it('uses a token only after every selected page is explicit and narrows it when criteria change', async () => {
+    activityApi.resolveCanvasEligibleActivityCustomers.mockImplementation(
+      async (input: { withinSelectionToken?: string }) =>
+        input.withinSelectionToken
+          ? {
+              selectionToken: '85000000-0000-7000-8000-000000000097',
+              count: 400,
+              expiresAt: '2026-09-12T00:10:00.000Z',
+            }
+          : {
+              selectionToken: '85000000-0000-7000-8000-000000000099',
+              count: 1001,
+              expiresAt: '2026-09-12T00:10:00.000Z',
+            }
+    )
     activityApi.getCanvasEligibleActivityCustomers.mockImplementation(
       (query: { page: number; pageSize: number }) =>
         Promise.resolve({
@@ -226,14 +449,11 @@ describe('ADMIN-REWORK-007 activity management', () => {
           checkedAt: '2026-09-12T00:00:00.000Z',
         })
     )
-    mount(<ActivityManagement />)
-    await chooseCreateType('Manual bonus')
-    fireEvent.click(
-      await screen.findByRole('combobox', { name: 'Customer scope' })
-    )
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
     await userEvent
       .setup()
-      .click(await screen.findByRole('option', { name: 'Recharge threshold' }))
+      .click(await screen.findByRole('tab', { name: 'Recharge threshold' }))
     await userEvent
       .setup()
       .type(screen.getByLabelText('Minimum recharge amount (CNY)'), '100')
@@ -295,8 +515,190 @@ describe('ADMIN-REWORK-007 activity management', () => {
       .setup()
       .type(screen.getByLabelText('Minimum recharge amount (CNY)'), '200')
     await waitFor(() =>
-      expect(screen.getByText(/Selected 0 customers/)).toBeVisible()
+      expect(
+        activityApi.resolveCanvasEligibleActivityCustomers
+      ).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          minimumRechargeAmountMinor: '20000',
+          withinSelectionToken: '85000000-0000-7000-8000-000000000099',
+        })
+      )
     )
+    expect(
+      await screen.findByText(
+        'Selected 400 customers · Planned total 0 points (601 customers no longer meeting the threshold were removed)'
+      )
+    ).toBeVisible()
+  })
+
+  it('keeps each scope selection, lists nobody before a threshold amount and offers no column display menu', async () => {
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    expect(screen.queryByRole('button', { name: 'View' })).toBeNull()
+    activityApi.getCanvasEligibleActivityCustomers.mockClear()
+    await user.click(screen.getByRole('tab', { name: 'Recharge threshold' }))
+    expect(
+      await screen.findByText(
+        'Enter the minimum recharge amount to list eligible customers'
+      )
+    ).toBeVisible()
+    expect(
+      activityApi.getCanvasEligibleActivityCustomers
+    ).not.toHaveBeenCalled()
+    // The empty row spans the amount column the threshold scope adds.
+    const emptyCell = screen
+      .getByText('Enter the minimum recharge amount to list eligible customers')
+      .closest('td') as HTMLTableCellElement
+    expect(emptyCell.colSpan).toBe(
+      emptyCell.closest('table')?.querySelectorAll('thead th').length
+    )
+    expect(screen.getByText(/^Selected 0 customers/)).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'Selected customers' }))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    ).toBeChecked()
+    expect(screen.getByText(/^Selected 1 customers/)).toBeVisible()
+  })
+
+  it('drops a late threshold check after switching tabs and checks the threshold selection again on return', async () => {
+    const answers: Array<(value: { eligibleCustomerIds: string[] }) => void> =
+      []
+    activityApi.checkCanvasEligibleActivityCustomers.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answers.push(resolve)
+        })
+    )
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    await user.click(screen.getByRole('tab', { name: 'Recharge threshold' }))
+    await user.type(
+      screen.getByLabelText('Minimum recharge amount (CNY)'),
+      '100'
+    )
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    await user.type(screen.getByLabelText('Minimum recharge amount (CNY)'), '0')
+    await waitFor(() => expect(answers).toHaveLength(1))
+    await user.click(screen.getByRole('tab', { name: 'Selected customers' }))
+    await act(async () => answers[0]?.({ eligibleCustomerIds: [] }))
+    expect(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    ).toBeChecked()
+    expect(screen.getByText(/^Selected 1 customers/)).toBeVisible()
+
+    await user.click(screen.getByRole('tab', { name: 'Recharge threshold' }))
+    await waitFor(() => expect(answers).toHaveLength(2))
+    expect(
+      activityApi.checkCanvasEligibleActivityCustomers
+    ).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        minimumRechargeAmountMinor: '100000',
+        customerIds: ['85000000-0000-7000-8000-000000000001'],
+      })
+    )
+    await act(async () => answers[1]?.({ eligibleCustomerIds: [] }))
+    expect(
+      await screen.findByText(/no longer meeting the threshold were removed/)
+    ).toBeVisible()
+    expect(screen.getByText(/^Selected 0 customers/)).toBeVisible()
+  })
+
+  it('keeps a late select-all result on the threshold tab after switching tabs', async () => {
+    let answer: (value: {
+      selectionToken: string
+      count: number
+      expiresAt: string
+    }) => void = () => {}
+    activityApi.resolveCanvasEligibleActivityCustomers.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve
+        })
+    )
+    activityApi.checkCanvasEligibleActivityCustomers.mockResolvedValue({
+      eligibleCustomerIds: [],
+    })
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    await user.click(screen.getByRole('tab', { name: 'Recharge threshold' }))
+    await user.type(
+      screen.getByLabelText('Minimum recharge amount (CNY)'),
+      '100'
+    )
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Select all 1001 matching customers',
+      })
+    )
+    await user.click(screen.getByRole('tab', { name: 'Selected customers' }))
+    await act(async () =>
+      answer({
+        selectionToken: '85000000-0000-7000-8000-000000000099',
+        count: 1001,
+        expiresAt: '2026-09-12T00:10:00.000Z',
+      })
+    )
+    expect(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    ).toBeChecked()
+    expect(screen.getByText(/^Selected 1 customers/)).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'Recharge threshold' }))
+    expect(await screen.findByText(/^Selected 1001 customers/)).toBeVisible()
+  })
+
+  it('drops a late threshold check when the selection is cleared meanwhile', async () => {
+    const answers: Array<(value: { eligibleCustomerIds: string[] }) => void> =
+      []
+    activityApi.checkCanvasEligibleActivityCustomers.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answers.push(resolve)
+        })
+    )
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByRole('tab', { name: 'Recharge threshold' })
+    )
+    await user.type(
+      screen.getByLabelText('Minimum recharge amount (CNY)'),
+      '100'
+    )
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'Select customer alice' })
+    )
+    await user.type(screen.getByLabelText('Minimum recharge amount (CNY)'), '0')
+    await waitFor(() => expect(answers).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }))
+    await act(async () =>
+      answers[0]?.({
+        eligibleCustomerIds: ['85000000-0000-7000-8000-000000000001'],
+      })
+    )
+    expect(screen.getByText(/^Selected 0 customers/)).toBeVisible()
+    expect(
+      screen.getByRole('checkbox', { name: 'Select customer alice' })
+    ).not.toBeChecked()
+    expect(screen.queryByText(/no longer meeting the threshold/)).toBeNull()
+    expect(answers).toHaveLength(1)
   })
 
   it('edits a scheduled grant through its member-selection baseline and sends only membership deltas', async () => {
@@ -380,7 +782,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
     })
     activityApi.updateCanvasManualBonusActivity.mockResolvedValue(plan)
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(await screen.findByRole('button', { name: plan.name }))
@@ -447,8 +849,8 @@ describe('ADMIN-REWORK-007 activity management', () => {
       },
     })
 
-    mount(<ActivityManagement />)
-    await chooseCreateType('Manual bonus')
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
     await userEvent
       .setup()
       .click(
@@ -530,7 +932,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       page: 1,
       pageSize: 20,
     })
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     fireEvent.click(
       await screen.findByRole('button', { name: 'Recharge autumn bonus' })
     )
@@ -606,7 +1008,8 @@ describe('ADMIN-REWORK-007 activity management', () => {
           participationId: 'participation-1',
           inviteClaimId: 'claim-1',
           inviteCodeId: 'code-1',
-          inviteCodePrefix: 'INVITE',
+          inviteCodeMasked: 'CANVAS-••••••••',
+          inviteCodeAllowedActions: ['DISPLAY', 'COPY'],
           customerId,
           customer: 'alice',
           bonusPoints: '50',
@@ -621,11 +1024,35 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pageSize: 20,
     })
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(await screen.findByRole('button', { name: 'Invite autumn bonus' }))
     await screen.findByText('Grant records')
+    // The invite code is masked and revealed per row through the audited admin reveal call.
+    pricingApi.revealCanvasCode.mockResolvedValue({ code: 'CANVAS-AB12CD34' })
+    expect(screen.getByText('CANVAS-••••••••')).toBeVisible()
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Show invite code' }))
+    expect(await screen.findByText('CANVAS-AB12CD34')).toBeVisible()
+    expect(pricingApi.revealCanvasCode).toHaveBeenCalledWith(
+      'admin-invite',
+      'code-1',
+      'DISPLAY'
+    )
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Hide invite code' }))
+    expect(screen.getByText('CANVAS-••••••••')).toBeVisible()
+    await userEvent
+      .setup()
+      .click(screen.getByRole('button', { name: 'Copy invite code' }))
+    expect(pricingApi.revealCanvasCode).toHaveBeenLastCalledWith(
+      'admin-invite',
+      'code-1',
+      'COPY'
+    )
     const issuedAtButton = screen
       .getAllByRole('button')
       .find((button) => button.textContent?.includes('2026'))
@@ -712,7 +1139,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pageSize: 20,
     })
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(
@@ -804,7 +1231,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pageSize: 20,
     })
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(
@@ -880,10 +1307,10 @@ describe('ADMIN-REWORK-007 activity management', () => {
       ],
     })
 
-    mount(<ActivityManagement />)
-    await chooseCreateType('Task price special')
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Limited-time special')
     const user = userEvent.setup()
-    await user.click(screen.getByRole('combobox', { name: 'Source model' }))
+    await user.click(screen.getByRole('combobox', { name: 'Model' }))
     const modelOption = await screen.findByRole('option', {
       name: `${longDisplayName} · ${longModelKey}`,
     })
@@ -892,32 +1319,38 @@ describe('ADMIN-REWORK-007 activity management', () => {
       'max-w-[calc(100vw-2rem)]'
     )
     await user.click(modelOption)
-    expect(
-      screen.getByRole('combobox', { name: 'Source model' })
-    ).toHaveTextContent(`${longDisplayName} · ${longModelKey}`)
+    // The trigger shows the display name on one line; the key sits once below, with the identity tooltip.
+    const modelTrigger = screen.getByRole('combobox', { name: 'Model' })
+    expect(modelTrigger).toHaveTextContent(longDisplayName)
+    expect(modelTrigger).not.toHaveTextContent(longModelKey)
     const identity = document.querySelector(
       '[data-model-identity="activity-source-model"]'
     )
-    expect(identity).toHaveClass(
-      'max-w-full',
-      'min-w-0',
-      'grid-cols-[minmax(0,1fr)_auto]',
-      'items-end'
-    )
-    expect(identity?.firstElementChild).toHaveClass('min-w-0', 'break-all')
+    expect(identity).toHaveClass('max-w-full', 'min-w-0')
+    expect(identity).toHaveTextContent(longModelKey)
+    expect(identity).not.toHaveTextContent(longDisplayName)
     const identityButton = within(identity as HTMLElement).getByRole('button', {
       name: 'View model identity',
     })
     expect(identityButton.parentElement).toHaveClass('shrink-0')
-    expect(identity).toHaveTextContent(`${longDisplayName} · ${longModelKey}`)
     await user.click(
-      await screen.findByRole('combobox', { name: 'Source price version' })
+      await screen.findByRole('combobox', { name: 'Applicable price' })
     )
     await user.click(
       await screen.findByRole('option', { name: 'Standard · Default scope' })
     )
-    await user.type(screen.getByLabelText('Special input token rate'), '0')
-    await user.type(screen.getByLabelText('Special output token rate'), '10')
+    await user.type(
+      screen.getByLabelText(
+        'Special input token rate (points per million tokens)'
+      ),
+      '0'
+    )
+    await user.type(
+      screen.getByLabelText(
+        'Special output token rate (points per million tokens)'
+      ),
+      '10'
+    )
 
     expect(await screen.findByText('10 → 0')).toBeVisible()
     expect(screen.getByText('¥0')).toBeVisible()
@@ -928,9 +1361,27 @@ describe('ADMIN-REWORK-007 activity management', () => {
       screen.getAllByText('This category cannot be evaluated yet.')
     ).toHaveLength(2)
 
-    await user.clear(screen.getByLabelText('Special input token rate'))
-    await user.type(screen.getByLabelText('Special input token rate'), '1')
+    await user.clear(
+      screen.getByLabelText(
+        'Special input token rate (points per million tokens)'
+      )
+    )
+    await user.type(
+      screen.getByLabelText(
+        'Special input token rate (points per million tokens)'
+      ),
+      '1'
+    )
     expect(await screen.findByText('¥0.01')).toBeVisible()
+    // The current regular price sits beside the inputs and each rate shows its share of it, as a hint only.
+    expect(
+      screen.getByText('Current regular price (points per million tokens)')
+    ).toBeVisible()
+    expect(
+      screen.getByText('Input 10 · Output 20 · Cache read 1')
+    ).toBeVisible()
+    expect(screen.getByText('10% of the regular price')).toBeVisible()
+    expect(screen.getByText('50% of the regular price')).toBeVisible()
   })
 
   it('renders the frozen Token-category cost snapshot without using current pricing facts', async () => {
@@ -1040,7 +1491,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pageSize: 20,
     })
 
-    mount(<ActivityManagement />)
+    mount(<ActivityManagementPage />)
     await userEvent
       .setup()
       .click(
@@ -1108,7 +1559,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
       pageSize: 20,
     })
 
-    const first = mount(<ActivityManagement />)
+    const first = mount(<ActivityManagementPage />)
     const activityButton = await screen.findByRole('button', {
       name: 'Focusable activity',
     })
@@ -1125,14 +1576,14 @@ describe('ADMIN-REWORK-007 activity management', () => {
     )
     first.unmount()
 
-    mount(<ActivityManagement />)
-    await chooseCreateType('Manual bonus')
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Manual grant')
     await userEvent
       .setup()
       .click(screen.getByRole('button', { name: 'Cancel' }))
     await waitFor(() =>
       expect(
-        screen.getByRole('combobox', { name: 'Create activity' })
+        screen.getByRole('button', { name: 'Create activity' })
       ).toHaveFocus()
     )
   })

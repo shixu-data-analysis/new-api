@@ -49,10 +49,9 @@ export { DataTableRowActionMenu } from './row-action-menu'
 
 export function DataTableView<TData>(props: DataTableViewProps<TData>) {
   const rows = props.rows ?? props.table.getRowModel().rows
-  const colSpan = React.useMemo(
-    () => props.table.getVisibleLeafColumns().length,
-    [props.table]
-  )
+  // The table instance is stable while its columns change (for example a column added for a filter), so the span of
+  // the loading and empty rows is read on every render instead of being memoized on the instance.
+  const colSpan = props.table.getVisibleLeafColumns().length
   const columnClassName = useResolvedColumnClassName(
     props.table,
     props.getColumnClassName,

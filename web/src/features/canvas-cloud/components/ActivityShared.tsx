@@ -6,9 +6,23 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useEffect, useContext, useRef, type ReactNode } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Copy } from 'lucide-react'
+import { useEffect, useContext, useRef, useState, type ReactNode } from 'react'
+import {
+  get,
+  useFormState,
+  type FieldValues,
+  type Path,
+  type UseFormReturn,
+} from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { SelectContent as BaseSelectContent } from '@/components/ui/select'
 
 import { ActivityRecordNavigationContext, minorToCny } from '../activity-shared'
@@ -16,7 +30,12 @@ import type {
   CanvasEligibilityBasis,
   CanvasTokenCategoryCostReference,
 } from '../activity-types'
+import { revealCanvasCode } from '../api'
+import { copyText } from '../copy-text'
 import { formatCanvasDateTime } from '../formatters'
+import type { CanvasServerTableState } from '../use-server-table-state'
+import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
+import { CanvasServerTable } from './CanvasServerTable'
 
 export function SelectContent(props: { children: ReactNode }) {
   return (
@@ -159,10 +178,11 @@ export function EligibilityBasisContent(props: {
   return (
     <>
       <p>
-        {t('Checked at')}: {formatCanvasDateTime(props.basis.checkedAt)}
+        {t('{{label}}: ', { label: t('Checked at') })}
+        {formatCanvasDateTime(props.basis.checkedAt)}
       </p>
       <p>
-        {t('Qualifying recharge amount')}: ¥
+        {t('{{label}}: ', { label: t('Qualifying recharge amount') })}¥
         {minorToCny(props.basis.qualifyingAmountMinor)}
       </p>
       <div className='space-y-2'>
@@ -170,17 +190,184 @@ export function EligibilityBasisContent(props: {
           <div className='border-b pb-2' key={order.rechargeOrderId}>
             <p>{order.orderNumber}</p>
             <p className='text-muted-foreground'>
-              {t('Original amount')}: ¥{minorToCny(order.originalAmountMinor)} ·{' '}
-              {t('Returned reference')}: ¥
+              {t('{{label}}: ', { label: t('Original amount') })}¥
+              {minorToCny(order.originalAmountMinor)} ·{' '}
+              {t('{{label}}: ', { label: t('Returned reference') })}¥
               {minorToCny(order.returnedReferenceAmountMinor)}
             </p>
             <p>
-              {t('Qualifying amount')}: ¥
+              {t('{{label}}: ', { label: t('Qualifying amount') })}¥
               {minorToCny(order.qualifyingAmountMinor)}
             </p>
           </div>
         ))}
       </div>
     </>
+  )
+}
+
+// Reads the field error through useFormState so that a failed submit re-renders the message.
+export function FormInput<TValues extends FieldValues>(props: {
+  form: UseFormReturn<TValues>
+  name: Path<TValues>
+  label: string
+  description?: string
+  className?: string
+  type?: string
+  disabled?: boolean
+  min?: number
+  max?: number
+  maxLength?: number
+  inputMode?: 'numeric' | 'decimal'
+}) {
+  const { t } = useTranslation()
+  const { errors } = useFormState({
+    control: props.form.control,
+    name: props.name,
+  })
+  const id = `activity-${props.name}`
+  const error = (get(errors, props.name) as { message?: unknown } | undefined)
+    ?.message
+  const describedBy = [
+    props.description ? `${id}-description` : null,
+    error ? `${id}-error` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return (
+    <div className={props.className}>
+      <Label htmlFor={id}>{props.label}</Label>
+      <Input
+        id={id}
+        type={props.type}
+        min={props.min}
+        max={props.max}
+        maxLength={props.maxLength}
+        inputMode={props.inputMode}
+        disabled={props.disabled}
+        {...props.form.register(props.name)}
+        aria-invalid={Boolean(error)}
+        aria-describedby={describedBy || undefined}
+      />
+      {props.description ? (
+        <p
+          id={`${id}-description`}
+          className='text-muted-foreground mt-1 text-xs'
+        >
+          {props.description}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          id={`${id}-error`}
+          role='alert'
+          className='text-destructive mt-1 text-sm'
+        >
+          {t(String(error))}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+export function ActivityRecordTable<
+  TData extends { participationId: string },
+>(props: {
+  title: string
+  table: CanvasServerTableState
+  data: TData[]
+  total: number
+  columns: ColumnDef<TData, unknown>[]
+  loading: boolean
+  error: boolean
+  onRetry: () => void
+  emptyTitle: string
+  filteredEmptyTitle: string
+  getRowId: (item: TData) => string
+  filters: ReactNode
+  hasActiveFilters: boolean
+  onReset: () => void
+}) {
+  return (
+    <div className='space-y-3 border-t pt-4'>
+      <h3 className='font-medium'>{props.title}</h3>
+      <CanvasServerTable
+        data={props.data}
+        columns={props.columns}
+        total={props.total}
+        state={props.table}
+        loading={props.loading}
+        error={props.error}
+        onRetry={props.onRetry}
+        emptyTitle={props.emptyTitle}
+        filteredEmptyTitle={props.filteredEmptyTitle}
+        getRowId={props.getRowId}
+        additionalFilters={props.filters}
+        hasActiveFilters={props.hasActiveFilters}
+        onResetFilters={props.onReset}
+      />
+    </div>
+  )
+}
+
+// Same masked code, reveal and copy as the invite code page; each row is revealed on its own and both actions are audited.
+export function GrantInviteCode(props: {
+  inviteCodeId: string
+  maskedCode: string
+  allowedActions: Array<'DISPLAY' | 'COPY'>
+}) {
+  const { t } = useTranslation()
+  const [revealedCode, setRevealedCode] = useState<string>()
+  const reveal = useMutation({
+    mutationFn: (action: 'DISPLAY' | 'COPY') =>
+      revealCanvasCode('admin-invite', props.inviteCodeId, action).then(
+        (result) => ({ ...result, action })
+      ),
+    onSuccess: async (result) => {
+      if (result.action === 'COPY') {
+        await copyText(result.code, {
+          copied: t('Invite code copied'),
+          failed: t('Failed to copy to clipboard'),
+        })
+        return
+      }
+      setRevealedCode(result.code)
+    },
+    onError: () => toast.error(t('Invite code could not be revealed')),
+  })
+  return (
+    // Sized to its content so a mobile record card aligns it with the other values.
+    <div className='inline-flex max-w-full items-start gap-1'>
+      <span className='min-w-0 font-mono break-all'>
+        {revealedCode ?? props.maskedCode}
+      </span>
+      {props.allowedActions.includes('DISPLAY') ? (
+        <CanvasCodeRevealButton
+          label={t(revealedCode ? 'Hide invite code' : 'Show invite code')}
+          revealed={Boolean(revealedCode)}
+          disabled={reveal.isPending && reveal.variables === 'DISPLAY'}
+          onClick={() => {
+            if (revealedCode) {
+              setRevealedCode(undefined)
+              return
+            }
+            reveal.mutate('DISPLAY')
+          }}
+        />
+      ) : null}
+      {props.allowedActions.includes('COPY') ? (
+        <Button
+          aria-label={t('Copy invite code')}
+          disabled={reveal.isPending && reveal.variables === 'COPY'}
+          size='icon-sm'
+          title={t('Copy invite code')}
+          type='button'
+          variant='ghost'
+          onClick={() => reveal.mutate('COPY')}
+        >
+          <Copy aria-hidden='true' className='size-4' />
+        </Button>
+      ) : null}
+    </div>
   )
 }

@@ -218,7 +218,8 @@ export function PricingQuestionnaire(props: {
         {props.currentPoints ? (
           <div className='flex flex-wrap items-center gap-2 text-sm'>
             <span className='text-muted-foreground'>
-              {t('Current price')}: {props.currentPoints} {pointUnit}
+              {t('{{label}}: ', { label: t('Current price') })}
+              {props.currentPoints} {pointUnit}
             </span>
             {priceAction === 'SET' && props.onKeepCurrent ? (
               <Button
@@ -396,7 +397,7 @@ export function PricingQuestionnaire(props: {
           </summary>
           <div className='text-muted-foreground mt-3 space-y-3'>
             <p>
-              {t('Published point issuance rate')}:{' '}
+              {t('{{label}}: ', { label: t('Published point issuance rate') })}
               {formatBusinessNumber(props.pointsPerRmb)} {t('points per RMB')}
             </p>
             <p>{t('Expected attempt cost explanation')}</p>

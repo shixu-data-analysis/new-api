@@ -256,7 +256,7 @@ export function CanvasRechargeOrderSummary({
         <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm'>
           {showCustomer ? (
             <span>
-              {t('Customer')}:{' '}
+              {t('{{label}}: ', { label: t('Customer') })}
               {order.customerName ? (
                 <CopyableText value={order.customerName} />
               ) : (
@@ -265,30 +265,35 @@ export function CanvasRechargeOrderSummary({
             </span>
           ) : null}
           <span>
-            {t('Status')}:{' '}
+            {t('{{label}}: ', { label: t('Status') })}
             <BusinessTerm kind='rechargeOrderStatus' value={order.status} />
           </span>
           <span>
-            {t('Expected Paid points')}: {order.expectedPaidPoints}
+            {t('{{label}}: ', { label: t('Expected Paid points') })}
+            {order.expectedPaidPoints}
           </span>
           <span>
-            {t('Issued Paid points')}: {order.issuedPaidPoints}
+            {t('{{label}}: ', { label: t('Issued Paid points') })}
+            {order.issuedPaidPoints}
           </span>
           <span>
-            {t('Available Paid points for this order')}:{' '}
+            {t('{{label}}: ', {
+              label: t('Available Paid points for this order'),
+            })}
             {order.availablePaidPoints}
           </span>
           {showCorrectionDetails ? (
             <span>
-              {t('Remaining correctable points')}:{' '}
+              {t('{{label}}: ', { label: t('Remaining correctable points') })}
               {order.remainingCorrectionPoints}
             </span>
           ) : null}
           <span>
-            {t('Order created at')}: {formatCanvasDateTime(order.createdAt)}
+            {t('{{label}}: ', { label: t('Order created at') })}
+            {formatCanvasDateTime(order.createdAt)}
           </span>
           <span>
-            {t('Recharge code redeemed at')}:{' '}
+            {t('{{label}}: ', { label: t('Recharge code redeemed at') })}
             {formatCanvasDateTime(order.redeemedAt, t('Not redeemed'))}
           </span>
         </div>

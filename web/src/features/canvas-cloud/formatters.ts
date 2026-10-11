@@ -32,3 +32,19 @@ export function formatCanvasDateTime(
 ): string {
   return value ? new Date(value).toLocaleString() : fallback
 }
+
+/** Planned or end times that are set to the minute. */
+export function formatCanvasDateTimeMinutes(
+  value: string | null,
+  fallback = '—'
+): string {
+  return value
+    ? new Date(value).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : fallback
+}

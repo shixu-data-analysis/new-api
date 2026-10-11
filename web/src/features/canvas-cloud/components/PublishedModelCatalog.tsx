@@ -606,7 +606,7 @@ export function PublishedModelCatalog(props: {
               : t('Not configured')
           if (units.length === 1) label = t(units[0])
           else if (units.length > 1) {
-            label = `${t('Billing unit conflict')}: ${units.map((unit) => t(unit)).join(' · ')}`
+            label = `${t('{{label}}: ', { label: t('Billing unit conflict') })}${units.map((unit) => t(unit)).join(' · ')}`
           }
           return <span className='whitespace-normal'>{label}</span>
         },
@@ -1115,7 +1115,10 @@ export function PublishedModelCatalog(props: {
             </div>
             <div className='space-y-1'>
               <Label htmlFor='model-description'>
-                {t('Client description')} ({t('Optional')})
+                {t('{{label}} ({{detail}})', {
+                  label: t('Client description'),
+                  detail: t('Optional'),
+                })}
               </Label>
               <Textarea
                 id='model-description'

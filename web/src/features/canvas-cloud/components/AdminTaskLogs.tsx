@@ -361,7 +361,7 @@ export function AdminTaskLogs() {
             {row.original.outstandingDebtPoints &&
             BigInt(row.original.outstandingDebtPoints) > 0n ? (
               <div className='text-destructive text-xs'>
-                {t('Outstanding debt')}:{' '}
+                {t('{{label}}: ', { label: t('Outstanding debt') })}
                 {new Intl.NumberFormat(
                   toIntlLocale(i18n.resolvedLanguage || i18n.language)
                 ).format(BigInt(row.original.outstandingDebtPoints))}

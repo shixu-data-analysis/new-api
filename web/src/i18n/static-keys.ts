@@ -50,8 +50,8 @@ export const STATIC_I18N_KEYS = [
   'Cache read',
   'Cache write',
 
-  // Canvas activity management dynamic states
-  'Activity status PENDING',
+  // Canvas activity management dynamic states, list phases and type descriptions
+  'Activity status WAITING',
   'Activity status RUNNING',
   'Activity status COMPLETED',
   'Activity status PARTIAL_FAILED',
@@ -61,6 +61,17 @@ export const STATIC_I18N_KEYS = [
   'Activity status ACTIVE',
   'Activity status ENDED',
   'Activity status STOPPED',
+  'Activity status FILLED',
+  'Activity status EXPIRED',
+  'Activity phase UPCOMING',
+  'Activity phase RUNNING',
+  'Activity phase ENDED',
+  'Activity phase CANCELLED',
+  'Activity type description MANUAL_BONUS',
+  'Activity type description RECHARGE_BONUS',
+  'Activity type description INVITE_BONUS',
+  'Activity type description REGISTRATION_RANK_BONUS',
+  'Activity type description TASK_PRICE_SPECIAL',
 
   // Header navigation
   'Home',

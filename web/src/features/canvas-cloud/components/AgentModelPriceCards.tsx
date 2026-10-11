@@ -58,7 +58,10 @@ function PriceRow(props: { price: AgentPrice }) {
     if (value === null) return '—'
     if (typeof value === 'string') return rmb(value)
     return Object.entries(value)
-      .map(([category, amount]) => `${tokenLabel(category)}: ${rmb(amount)}`)
+      .map(
+        ([category, amount]) =>
+          `${t('{{label}}: ', { label: tokenLabel(category) })}${rmb(amount)}`
+      )
       .join(' · ')
   }
   const rates = price.customerTokenRates
@@ -123,7 +126,10 @@ function PriceRow(props: { price: AgentPrice }) {
             <div className='text-base font-bold break-words'>
               {rates
                 ? Object.entries(rates)
-                    .map(([key, value]) => `${tokenLabel(key)}: ${value}`)
+                    .map(
+                      ([key, value]) =>
+                        `${t('{{label}}: ', { label: tokenLabel(key) })}${value}`
+                    )
                     .join(' · ')
                 : price.customerPoints}
             </div>

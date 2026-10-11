@@ -253,7 +253,7 @@ export function ManualActivityDetail(props: {
     ]
   }, [isMembershipSnapshot, props, showEligibilitySnapshot, t])
   return (
-    <Card>
+    <Card className='max-w-3xl'>
       <CardHeader>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <CardTitle>
@@ -267,52 +267,55 @@ export function ManualActivityDetail(props: {
       <CardContent className='space-y-4 text-sm'>
         <div className='space-y-1'>
           <p>
-            {t('Points per customer')}: {props.plan.points} ·{' '}
-            {t('Bonus validity (days)')}: {props.plan.ttlDays}
+            {t('{{label}}: ', { label: t('Points per customer') })}
+            {props.plan.points} ·{' '}
+            {t('{{label}}: ', { label: t('Bonus validity (days)') })}
+            {props.plan.ttlDays}
           </p>
           <p>
             {props.plan.schedule.mode === 'SCHEDULED'
-              ? `${t('Scheduled time')}: ${formatCanvasDateTime(props.plan.schedule.scheduledAt)}`
+              ? `${t('{{label}}: ', { label: t('Scheduled time') })}${formatCanvasDateTime(props.plan.schedule.scheduledAt)}`
               : t('Immediate grant')}
           </p>
           <p>
-            {t('Actual start')}:{' '}
+            {t('{{label}}: ', { label: t('Actual start') })}
             {props.plan.actualStartedAt
               ? formatCanvasDateTime(props.plan.actualStartedAt)
               : '—'}
           </p>
           <p>
-            {t('Reason')}: {props.plan.reason}
+            {t('{{label}}: ', { label: t('Reason') })}
+            {props.plan.reason}
           </p>
           <p>
-            {t('Published at')}:{' '}
+            {t('{{label}}: ', { label: t('Published at') })}
             {props.plan.publishedAt
               ? formatCanvasDateTime(props.plan.publishedAt)
               : '—'}
           </p>
           {props.plan.publisher ? (
             <p>
-              {t('Published by')}:{' '}
+              {t('{{label}}: ', { label: t('Published by') })}
               {props.plan.publisher.displayName ??
                 props.plan.publisher.principalId}
             </p>
           ) : null}
           {props.plan.cancelledAt ? (
             <p>
-              {t('Cancelled at')}:{' '}
+              {t('{{label}}: ', { label: t('Cancelled at') })}
               {formatCanvasDateTime(props.plan.cancelledAt)}
             </p>
           ) : null}
           {props.plan.cancelledBy ? (
             <p>
-              {t('Cancelled by')}:{' '}
+              {t('{{label}}: ', { label: t('Cancelled by') })}
               {props.plan.cancelledBy.displayName ??
                 props.plan.cancelledBy.principalId}
             </p>
           ) : null}
           {thresholdScope ? (
             <p>
-              {t('Minimum recharge amount (CNY)')}: ¥
+              {t('{{label}}: ', { label: t('Minimum recharge amount (CNY)') })}¥
               {minorToCny(thresholdScope.minimumRechargeAmountMinor)}
             </p>
           ) : null}
@@ -349,6 +352,9 @@ export function ManualActivityDetail(props: {
                     >
                       <CanvasLocalizedSelectValue
                         value={result}
+                        valueLabelKey={
+                          result ? `Manual grant result ${result}` : undefined
+                        }
                         emptyLabelKey='All results'
                       />
                     </SelectTrigger>
@@ -537,15 +543,16 @@ export function CancelActivityDialog(props: {
           </DialogDescription>
         </DialogHeader>
         <p>
-          {t('Activity name')}: {props.plan.name}
+          {t('{{label}}: ', { label: t('Activity name') })}
+          {props.plan.name}
         </p>
         <p>
           {props.plan.schedule.mode === 'SCHEDULED'
-            ? `${t('Scheduled time')}: ${formatCanvasDateTime(props.plan.schedule.scheduledAt)}`
+            ? `${t('{{label}}: ', { label: t('Scheduled time') })}${formatCanvasDateTime(props.plan.schedule.scheduledAt)}`
             : t('Immediate grant')}
         </p>
         <p>
-          {t('Uses your current time zone')}:{' '}
+          {t('{{label}}: ', { label: t('Uses your current time zone') })}
           {Intl.DateTimeFormat().resolvedOptions().timeZone}
         </p>
         <p>

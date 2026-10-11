@@ -264,7 +264,7 @@ function completeCnyCalculationScopes(input: {
 
 function billingUnitLabel(
   unit: CanvasBillingUnit,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   if (unit === 'REQUEST') return t('per request')
   if (unit === 'SECOND') return t('per second')
@@ -273,7 +273,7 @@ function billingUnitLabel(
 
 function pricingConflictLabel(
   code: string,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   const keys: Record<string, string> = {
     SCHEDULED_PRICE:
@@ -1003,7 +1003,12 @@ export function UnifiedModelPricing(props: {
           label: t('Effective mode'),
           value:
             effectiveMode === 'SCHEDULED'
-              ? `${new Date(preview.data.effectiveAt).toLocaleString(locale)} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`
+              ? t('{{label}} ({{detail}})', {
+                  label: new Date(preview.data.effectiveAt).toLocaleString(
+                    locale
+                  ),
+                  detail: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                })
               : t('Immediately'),
         },
         {
@@ -1214,7 +1219,7 @@ export function UnifiedModelPricing(props: {
             ?.current?.inputMode === 'POINTS' ? (
             <p className='rounded-lg border p-3 text-sm'>
               {t('Current active version is legacy points pricing')} ·{' '}
-              {t('Original customer points')}:{' '}
+              {t('{{label}}: ', { label: t('Original customer points') })}
               {billingUnit === 'MILLION_TOKENS'
                 ? selected.tokenCategories
                     .map(
@@ -1558,7 +1563,9 @@ export function UnifiedModelPricing(props: {
                   id='model-pricing-effective-help'
                   className='text-muted-foreground text-xs'
                 >
-                  {t('Uses your current time zone')}:{' '}
+                  {t('{{label}}: ', {
+                    label: t('Uses your current time zone'),
+                  })}
                   {Intl.DateTimeFormat().resolvedOptions().timeZone}
                 </p>
                 {form.formState.errors.effectiveAt?.message && (
@@ -1859,9 +1866,14 @@ function CurrentModelPricingTable(props: {
           return (
             <div className='space-y-1 whitespace-normal'>
               <p>
-                {t('Effective at')}:{' '}
+                {t('{{label}}: ', { label: t('Effective at') })}
                 {scheduled.effectiveAt
-                  ? `${new Date(scheduled.effectiveAt).toLocaleString(locale)} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`
+                  ? t('{{label}} ({{detail}})', {
+                      label: new Date(scheduled.effectiveAt).toLocaleString(
+                        locale
+                      ),
+                      detail: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    })
                   : t('Not recorded')}
               </p>
               <p>
@@ -2065,7 +2077,7 @@ function CurrentModelPricingTable(props: {
 
 function customerPriceSummary(
   price: CanvasModelPricingPriceSnapshot | null,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   if (!price?.billingUnit) return '—'
   const amount =
@@ -2078,7 +2090,7 @@ function customerPriceSummary(
 function cnyValueSummary(
   value: CanvasModelPricingCnyValue,
   unit: CanvasBillingUnit,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   const amount = typeof value === 'string' ? value : tokenRateSummary(value, t)
   return `${amount} ${t('RMB')} / ${billingUnitLabel(unit, t)}`
@@ -2099,11 +2111,14 @@ function cnyScaled(value: string): bigint {
 
 function tokenRateSummary(
   rates: CanvasModelPricingTokenRateVector | null,
-  t: (key: string) => string,
+  t: (key: string, options?: Record<string, unknown>) => string,
   formatAmount: (amount: string) => string = (amount) => amount
 ) {
   if (!rates) return '—'
   return Object.entries(rates)
-    .map(([category, amount]) => `${t(category)}: ${formatAmount(amount)}`)
+    .map(
+      ([category, amount]) =>
+        `${t('{{label}}: ', { label: t(category) })}${formatAmount(amount)}`
+    )
     .join(' · ')
 }

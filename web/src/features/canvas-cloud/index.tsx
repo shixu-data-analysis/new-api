@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useLocation } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -152,6 +152,7 @@ export function AdminContent(props: {
   onReturnToModelList?: () => void
   runtimeView?: RuntimeManagementView
   onRuntimeViewChange?: (view: RuntimeManagementView) => void
+  titleActionSlot?: HTMLElement | null
 }) {
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'admin'],
@@ -220,7 +221,9 @@ export function AdminContent(props: {
       />
     )
   }
-  if (props.section === 'point-campaigns') return <ActivityManagement />
+  if (props.section === 'point-campaigns') {
+    return <ActivityManagement titleActionSlot={props.titleActionSlot} />
+  }
   if (props.section === 'dashboard') return <OperatingDashboard />
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
@@ -248,6 +251,10 @@ export function CanvasCloud() {
     queryFn: getCanvasSession,
     retry: false,
   })
+  // A section may place its primary action left of Refresh in the title row.
+  const [titleActionSlot, setTitleActionSlot] = useState<HTMLElement | null>(
+    null
+  )
   if (session.isPending) {
     return (
       <SectionPageLayout fluid={false}>
@@ -362,6 +369,7 @@ export function CanvasCloud() {
       <AdminContent
         principalId={session.data.principalId}
         section={section as AdminSection}
+        titleActionSlot={titleActionSlot}
         providerTarget={search}
         initialPricingModelId={search.modelId}
         initialPricingPublicationId={search.publicationId}
@@ -454,6 +462,7 @@ export function CanvasCloud() {
           (section === 'points' || section === 'tasks')
         ) && (
           <SectionPageLayout.Actions>
+            <span ref={setTitleActionSlot} className='contents' />
             <Button
               variant='outline'
               size='sm'

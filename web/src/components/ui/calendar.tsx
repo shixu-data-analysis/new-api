@@ -59,9 +59,13 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       locale={locale}
+      // Every calendar starts the week on Sunday, whatever the interface language.
+      weekStartsOn={0}
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString(locale?.code, { month: 'short' }),
+        formatYearDropdown: (date) =>
+          date.toLocaleString(locale?.code, { year: 'numeric' }),
         ...formatters,
       }}
       classNames={{

@@ -17,12 +17,46 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { fireEvent, render, screen } from '@testing-library/react'
+import i18next from 'i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DateTimePicker } from '../datetime-picker'
 
 describe('DateTimePicker', () => {
-  afterEach(() => vi.useRealTimers())
+  afterEach(async () => {
+    vi.useRealTimers()
+    await i18next.changeLanguage('en')
+  })
+
+  // i18next reports Chinese as zhCN / zhTW; the calendar must follow the interface language, not fall back to English.
+  it.each([
+    ['zhCN', '2026年', ['日', '一', '二', '三', '四', '五', '六']],
+    ['zhTW', '2026年', ['日', '一', '二', '三', '四', '五', '六']],
+    ['en', '2026', ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']],
+  ])(
+    'shows the %s calendar in the interface language, starting on Sunday',
+    async (language, year, weekdays) => {
+      vi.setSystemTime(new Date(2026, 9, 12, 10, 0, 0))
+      await i18next.changeLanguage(language)
+      const { container } = render(
+        <DateTimePicker futureOnly placeholder='date' />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'date' }))
+
+      const document = container.ownerDocument
+      expect(
+        [...document.querySelectorAll('.rdp-weekday')].map(
+          (cell) => cell.textContent
+        )
+      ).toEqual(weekdays)
+      expect(
+        [...document.querySelectorAll('.rdp-years_dropdown option')].some(
+          (option) => option.textContent === year
+        )
+      ).toBe(true)
+    }
+  )
 
   it('disables past local dates and advances today to the next local minute', () => {
     vi.setSystemTime(new Date(2026, 8, 2, 10, 15, 30))

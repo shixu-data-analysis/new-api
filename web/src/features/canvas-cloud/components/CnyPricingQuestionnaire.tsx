@@ -226,7 +226,7 @@ export function CnyPricingQuestionnaire(props: {
       })}
       {props.pointsPerRmb ? (
         <p className='text-muted-foreground text-sm'>
-          {t('Pricing rate snapshot')}:{' '}
+          {t('{{label}}: ', { label: t('Pricing rate snapshot') })}
           {formatBusinessNumber(props.pointsPerRmb, 8)} {t('points per RMB')}
         </p>
       ) : null}

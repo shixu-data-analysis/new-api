@@ -538,20 +538,26 @@ function HistoryDetails(props: {
   return (
     <div className='space-y-3 text-sm'>
       <p>
-        <span className='text-muted-foreground'>{t('Model')}: </span>
+        <span className='text-muted-foreground'>
+          {t('{{label}}: ', { label: t('Model') })}
+        </span>
         {props.item.displayNameSnapshot}
       </p>
       {hasActor || hasReason ? (
         <div className='space-y-1'>
           {hasActor ? (
             <p>
-              <span className='text-muted-foreground'>{t('Operator')}: </span>
+              <span className='text-muted-foreground'>
+                {t('{{label}}: ', { label: t('Operator') })}
+              </span>
               {props.item.actor.displayName}
             </p>
           ) : null}
           {hasReason ? (
             <p>
-              <span className='text-muted-foreground'>{t('Reason')}: </span>
+              <span className='text-muted-foreground'>
+                {t('{{label}}: ', { label: t('Reason') })}
+              </span>
               {props.item.decisionSummary}
             </p>
           ) : null}
@@ -974,15 +980,16 @@ function TokenCategoryAssumptionFacts(props: {
             ) : null}
             {hasRecordedValue(assumption?.otherVariableCostRmb) ? (
               <p>
-                {t('Other variable cost')}:{' '}
+                {t('{{label}}: ', { label: t('Other variable cost') })}
                 {formatCny(assumption?.otherVariableCostRmb ?? '')} {t('RMB')} /{' '}
                 {t('per million tokens')}
               </p>
             ) : null}
             {hasRecordedValue(assumption?.riskBufferRmb) ? (
               <p>
-                {t('Risk buffer')}: {formatCny(assumption?.riskBufferRmb ?? '')}{' '}
-                {t('RMB')} / {t('per million tokens')}
+                {t('{{label}}: ', { label: t('Risk buffer') })}
+                {formatCny(assumption?.riskBufferRmb ?? '')} {t('RMB')} /{' '}
+                {t('per million tokens')}
               </p>
             ) : null}
             {risk ? <TokenCategoryCalculationFacts risk={risk} /> : null}
@@ -1179,7 +1186,7 @@ function LegacyProviderRateFacts(props: {
     <>
       {policy ? (
         <p>
-          {t('Failure charge')}:{' '}
+          {t('{{label}}: ', { label: t('Failure charge') })}
           {t(
             {
               NONE: 'No failed-attempt cost',
@@ -1194,18 +1201,19 @@ function LegacyProviderRateFacts(props: {
       ) : null}
       {foreign && hasRecordedValue(props.facts.nativeAmount) ? (
         <p>
-          {t('Native amount')}:{' '}
+          {t('{{label}}: ', { label: t('Native amount') })}
           {formatBusinessNumber(props.facts.nativeAmount ?? '', 8)}
         </p>
       ) : null}
       {foreign && props.facts.currency ? (
         <p>
-          {t('Currency')}: {props.facts.currency}
+          {t('{{label}}: ', { label: t('Currency') })}
+          {props.facts.currency}
         </p>
       ) : null}
       {foreign && props.facts.exchangeRateSnapshot ? (
         <p>
-          {t('Exchange rate snapshot')}:{' '}
+          {t('{{label}}: ', { label: t('Exchange rate snapshot') })}
           {formatBusinessNumber(props.facts.exchangeRateSnapshot.rate, 8)} ·{' '}
           {props.facts.exchangeRateSnapshot.source} ·{' '}
           {formatCanvasDateTime(props.facts.exchangeRateSnapshot.asOf)}

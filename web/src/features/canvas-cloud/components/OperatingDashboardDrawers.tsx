@@ -732,7 +732,8 @@ function FlowDrawer(props: {
         </p>
         {query.data ? (
           <p className='tabular-nums'>
-            {t('Flow type')}: {t(flowTypeLabels[flowType])} ·{' '}
+            {t('{{label}}: ', { label: t('Flow type') })}
+            {t(flowTypeLabels[flowType])} ·{' '}
             {t('{{points}} points', {
               points: format.points(query.data.summary.points),
             })}{' '}

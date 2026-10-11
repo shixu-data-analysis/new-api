@@ -267,7 +267,8 @@ function ProviderCallCost(props: {
   if (incomplete) {
     status = (
       <span>
-        {t('Provider cost')}: {t('Incomplete cost data')} ·{' '}
+        {t('{{label}}: ', { label: t('Provider cost') })}
+        {t('Incomplete cost data')} ·{' '}
         {t(incompleteCostReasons[incomplete.reason] ?? 'Unclassified')}
       </span>
     )
@@ -280,7 +281,8 @@ function ProviderCallCost(props: {
           })
     status = (
       <span>
-        {t('Provider cost')}: {t('Settled manually')} · {charged}
+        {t('{{label}}: ', { label: t('Provider cost') })}
+        {t('Settled manually')} · {charged}
         {settlement.settledBy ? ` · ${settlement.settledBy}` : ''} ·{' '}
         {formatTime(locale, settlement.settledAt)}
       </span>

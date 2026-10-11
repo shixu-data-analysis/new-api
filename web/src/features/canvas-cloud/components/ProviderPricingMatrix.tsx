@@ -215,7 +215,7 @@ export function ProviderPricingMatrix() {
     reviewCost = providerTokenCategories
       .map(
         (category) =>
-          `${t(providerTokenCategoryLabel[category])}: ${exact(rateReview.values.tokenRates[category])}`
+          `${t('{{label}}: ', { label: t(providerTokenCategoryLabel[category]) })}${exact(rateReview.values.tokenRates[category])}`
       )
       .join(' · ')
   } else if (rateReview) {
@@ -704,8 +704,8 @@ function RiskForm(props: {
         </Button>
         {props.current ? (
           <p className='text-muted-foreground self-center text-sm md:col-span-2 xl:col-span-3'>
-            {t('Current decision')}: {t(props.current.decisionType)} ·{' '}
-            {props.current.reason}
+            {t('{{label}}: ', { label: t('Current decision') })}
+            {t(props.current.decisionType)} · {props.current.reason}
           </p>
         ) : null}
       </form>
@@ -833,7 +833,10 @@ function PricingTable(props: {
         (row) => (
           <details>
             <summary className='text-primary cursor-pointer'>
-              {t('View')} ({row.prices.length})
+              {t('{{label}} ({{detail}})', {
+                label: t('View'),
+                detail: row.prices.length,
+              })}
             </summary>
             <div className='mt-2 min-w-0 space-y-2 text-xs whitespace-normal'>
               <Button

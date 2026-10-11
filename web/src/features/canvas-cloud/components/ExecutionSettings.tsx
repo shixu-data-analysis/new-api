@@ -2822,7 +2822,7 @@ function ErrorSection(props: {
       props.showSafeErrorDetailsToCustomer
         ? []
         : [
-            `${t('Show the upstream reason to customers')}: ${t(
+            `${t('{{label}}: ', { label: t('Show the upstream reason to customers') })}${t(
               values.showSafeErrorDetailsToCustomer ? 'Enabled' : 'Disabled'
             )}`,
           ]),
@@ -3944,7 +3944,10 @@ function ErrorSection(props: {
                       <NativeSelectOption key={category} value={category}>
                         {systemDefaultStatusByCategory[category] === undefined
                           ? t(categoryDescriptionKeys[category])
-                          : `${t(categoryDescriptionKeys[category])} (${systemDefaultStatusByCategory[category]})`}
+                          : t('{{label}} ({{detail}})', {
+                              label: t(categoryDescriptionKeys[category]),
+                              detail: systemDefaultStatusByCategory[category],
+                            })}
                       </NativeSelectOption>
                     ))}
                   </NativeSelect>

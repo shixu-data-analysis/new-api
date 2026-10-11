@@ -34,6 +34,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { toIntlLocale } from '@/i18n/languages'
 
 import {
   getCanvasExecutionCapacity,
@@ -178,7 +179,7 @@ function LocalizedTime({ value, now }: { value: string; now: Date }) {
     date.getDate() === now.getDate()
   return (
     <time dateTime={value}>
-      {new Intl.DateTimeFormat(i18n.language, {
+      {new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
         ...(sameDay ? {} : { year: 'numeric', month: 'short', day: 'numeric' }),
         hour: '2-digit',
         minute: '2-digit',

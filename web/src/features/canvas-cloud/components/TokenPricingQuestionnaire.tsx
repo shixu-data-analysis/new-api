@@ -268,7 +268,8 @@ export function TokenPricingQuestionnaire(
               <div className='mt-4 space-y-3'>
                 {props.currentRates?.[category] !== undefined ? (
                   <p className='text-muted-foreground text-sm'>
-                    {t('Current price')}: {props.currentRates[category]}{' '}
+                    {t('{{label}}: ', { label: t('Current price') })}
+                    {props.currentRates[category]}{' '}
                     {t('points per million tokens')}
                   </p>
                 ) : null}
@@ -425,7 +426,9 @@ export function TokenPricingQuestionnaire(
                         {t('RMB per million tokens')}
                       </p>
                       <p>
-                        {t('Published point issuance rate')}:{' '}
+                        {t('{{label}}: ', {
+                          label: t('Published point issuance rate'),
+                        })}
                         {props.pointsPerRmb} {t('points per RMB')}
                       </p>
                       <p>

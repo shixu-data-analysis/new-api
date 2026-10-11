@@ -11,6 +11,7 @@ export type CanvasActivityType =
   | 'MANUAL_BONUS'
   | 'RECHARGE_BONUS'
   | 'INVITE_BONUS'
+  | 'REGISTRATION_RANK_BONUS'
   | 'TASK_PRICE_SPECIAL'
 
 export type CanvasActivityStatus =
@@ -24,6 +25,10 @@ export type CanvasActivityStatus =
   | 'ACTIVE'
   | 'ENDED'
   | 'STOPPED'
+  | 'FILLED'
+  | 'EXPIRED'
+
+export type CanvasActivityPhase = 'UPCOMING' | 'RUNNING' | 'ENDED' | 'CANCELLED'
 
 export interface CanvasActivityActor {
   principalId: string
@@ -37,9 +42,13 @@ export interface CanvasActivity {
   name: string
   type: CanvasActivityType
   status: CanvasActivityStatus
+  phase: CanvasActivityPhase
   createdAt: string
   startsAt: string | null
   endsAt: string | null
+  scheduledAt: string | null
+  recipientLimit: string | null
+  recipientCount: string | null
 }
 
 export interface CanvasActivityPage {
@@ -200,6 +209,26 @@ export interface CanvasBonusActivity {
   stoppedBy: CanvasActivityActor | null
 }
 
+export interface CanvasRegistrationRankActivity {
+  id: string
+  promotionId: string
+  version: number
+  type: 'REGISTRATION_RANK_BONUS'
+  status: 'ACTIVE' | 'FILLED' | 'EXPIRED' | 'STOPPED'
+  name: string
+  recipientLimit: string
+  recipientCount: string
+  points: string
+  ttlDays: number
+  endsAt: string | null
+  reason: string
+  createdAt: string
+  publisher: CanvasActivityActor | null
+  publishedAt: string | null
+  stoppedAt: string | null
+  stoppedBy: CanvasActivityActor | null
+}
+
 export interface CanvasLimitedPriceActivity {
   id: string
   promotionId: string
@@ -287,7 +316,8 @@ export interface CanvasInviteBonusGrantRecord {
   participationId: string
   inviteClaimId: string
   inviteCodeId: string
-  inviteCodePrefix: string
+  inviteCodeMasked: string
+  inviteCodeAllowedActions: Array<'DISPLAY' | 'COPY'>
   customerId: string | null
   customer: string | null
   bonusPoints: string
@@ -295,6 +325,19 @@ export interface CanvasInviteBonusGrantRecord {
   reservedAt: string
   issuedAt: string
   expiresAt: string | null
+}
+
+export interface CanvasRegistrationRankGrantRecord {
+  participationId: string
+  rank: string
+  inviteCodeId: string
+  inviteCodeMasked: string
+  inviteCodeAllowedActions: Array<'DISPLAY' | 'COPY'>
+  customerId: string
+  customer: string
+  pointLotId: string
+  issuedAt: string
+  expiresAt: string
 }
 
 export interface CanvasLimitedPriceParticipationTaskRecord {
@@ -344,4 +387,5 @@ export interface CanvasActivityRecordPage<T> {
 export type CanvasActivityDetail =
   | CanvasManualGrantPlan
   | CanvasBonusActivity
+  | CanvasRegistrationRankActivity
   | CanvasLimitedPriceActivity

@@ -9,7 +9,7 @@ License, or (at your option) any later version.
 
 export function pricingScopeLabel(
   scope: { key: string; parameters: Record<string, unknown> } | undefined,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ): string {
   if (!scope) return t('Not recorded')
   const entries = Object.entries(scope.parameters)
@@ -17,7 +17,7 @@ export function pricingScopeLabel(
     return entries
       .map(
         ([key, value]) =>
-          `${key === 'quality' ? t('Quality') : key}: ${String(value)}`
+          `${t('{{label}}: ', { label: key === 'quality' ? t('Quality') : key })}${String(value)}`
       )
       .join(' · ')
   }

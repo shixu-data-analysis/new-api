@@ -70,8 +70,8 @@ export function ModelMonitoringMatrix(props: {
           </div>
         </CardTitle>
         <p className='text-muted-foreground text-sm'>
-          {t('Time granularity')}: {props.data.bucketSeconds / 60}{' '}
-          {t('minutes')}
+          {t('{{label}}: ', { label: t('Time granularity') })}
+          {props.data.bucketSeconds / 60} {t('minutes')}
         </p>
       </CardHeader>
       <CardContent className='space-y-3'>

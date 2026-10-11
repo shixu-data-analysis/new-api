@@ -349,7 +349,9 @@ export function AdminPointAdjustments({
     const requestId =
       typeof payload?.requestId === 'string' ? payload.requestId : undefined
     toast.error(t('Point adjustment failed'), {
-      description: requestId ? `${t('Request ID')}: ${requestId}` : undefined,
+      description: requestId
+        ? `${t('{{label}}: ', { label: t('Request ID') })}${requestId}`
+        : undefined,
     })
   }
   const finishSuccessfulAdjustment = async (message: string) => {
@@ -853,38 +855,38 @@ export function AdminPointAdjustments({
               </div>
               <div className='text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm'>
                 <span>
-                  {t('Status')}:{' '}
+                  {t('{{label}}: ', { label: t('Status') })}
                   <BusinessTerm kind='customerStatus' value={customer.status} />
                 </span>
                 {customer.isAgent && (
                   <span>
-                    {t('Agent')}:{' '}
+                    {t('{{label}}: ', { label: t('Agent') })}
                     {customer.agentStatus === 'ACTIVE'
                       ? t('Enabled')
                       : t('Disabled')}
                   </span>
                 )}
                 <span>
-                  {t('Available points')}:{' '}
+                  {t('{{label}}: ', { label: t('Available points') })}
                   {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
                     BigInt(customer.availablePoints)
                   )}
                 </span>
                 <span>
-                  {t('Paid points')}:{' '}
+                  {t('{{label}}: ', { label: t('Paid points') })}
                   {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
                     BigInt(customer.paidAvailablePoints)
                   )}
                 </span>
                 <span>
-                  {t('Bonus points')}:{' '}
+                  {t('{{label}}: ', { label: t('Bonus points') })}
                   {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
                     BigInt(customer.bonusAvailablePoints)
                   )}
                 </span>
                 {BigInt(customer.debtPoints ?? '0') > 0n ? (
                   <span>
-                    {t('Outstanding debt')}:{' '}
+                    {t('{{label}}: ', { label: t('Outstanding debt') })}
                     {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
                       BigInt(customer.debtPoints ?? '0')
                     )}
@@ -976,7 +978,9 @@ export function AdminPointAdjustments({
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Uses your current time zone')}:{' '}
+                          {t('{{label}}: ', {
+                            label: t('Uses your current time zone'),
+                          })}
                           {Intl.DateTimeFormat().resolvedOptions().timeZone}
                         </FormDescription>
                         <FormMessage />
@@ -1063,36 +1067,37 @@ export function AdminPointAdjustments({
                   <div className='space-y-1'>
                     <div className='text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-sm'>
                       <span>
-                        {t('Customer')}: {customer.username ?? t('Unknown')}
+                        {t('{{label}}: ', { label: t('Customer') })}
+                        {customer.username ?? t('Unknown')}
                       </span>
                       <span>
-                        {t('Type')}:{' '}
+                        {t('{{label}}: ', { label: t('Type') })}
                         <BusinessTerm
                           kind='pointLotType'
                           value={selectedLot.type}
                         />
                       </span>
                       <span>
-                        {t('Source')}:{' '}
+                        {t('{{label}}: ', { label: t('Source') })}
                         {selectedLot.rechargeOrderNumber ??
                           t(
                             factValueLabels[selectedLot.sourceType] ?? 'Unknown'
                           )}
                       </span>
                       <span>
-                        {t('Issued at')}:{' '}
+                        {t('{{label}}: ', { label: t('Issued at') })}
                         {formatCanvasDateTime(selectedLot.issuedAt)}
                       </span>
                       <span>
-                        {t('Available points')}:{' '}
+                        {t('{{label}}: ', { label: t('Available points') })}
                         {formatPoints(selectedLot.availablePoints)}
                       </span>
                       <span>
-                        {t('Task-reserved points')}:{' '}
+                        {t('{{label}}: ', { label: t('Task-reserved points') })}
                         {formatPoints(selectedLot.reservedPoints)}
                       </span>
                       <span>
-                        {t('Expires at')}:{' '}
+                        {t('{{label}}: ', { label: t('Expires at') })}
                         {formatCanvasDateTime(
                           selectedLot.expiresAt,
                           t('No expiry')
@@ -1102,7 +1107,7 @@ export function AdminPointAdjustments({
                     <details className='pt-2 text-sm'>
                       <summary className='cursor-pointer'>{t('More')}</summary>
                       <div className='mt-2'>
-                        {t('Point Lot')}:{' '}
+                        {t('{{label}}: ', { label: t('Point Lot') })}
                         <CopyableText value={selectedLot.id} />
                       </div>
                     </details>
@@ -1154,21 +1159,27 @@ export function AdminPointAdjustments({
                       {selectedOrder.orderNumber}
                     </p>
                     <p>
-                      {t('Original recharge amount')}:{' '}
+                      {t('{{label}}: ', {
+                        label: t('Original recharge amount'),
+                      })}
                       {formatMoneyMinor(
                         selectedOrder.listedAmountMinor,
                         selectedOrder.currency
                       )}
                     </p>
                     <p>
-                      {t('Original purchased points')}:{' '}
+                      {t('{{label}}: ', {
+                        label: t('Original purchased points'),
+                      })}
                       {formatPoints(
                         selectedOrder.purchasedPoints ??
                           selectedOrder.expectedPaidPoints
                       )}
                     </p>
                     <p>
-                      {t('Currently returnable points')}:{' '}
+                      {t('{{label}}: ', {
+                        label: t('Currently returnable points'),
+                      })}
                       {formatPoints(selectedOrder.availablePaidPoints)}
                     </p>
                   </div>
@@ -1212,14 +1223,18 @@ export function AdminPointAdjustments({
                   {pointReturnDraft ? (
                     <div className='space-y-1 text-sm'>
                       <p>
-                        {t('Refund reference amount')}:{' '}
+                        {t('{{label}}: ', {
+                          label: t('Refund reference amount'),
+                        })}
                         {formatMoneyMinor(
                           pointReturnDraft.referenceAmountMinor,
                           selectedOrder.currency
                         )}
                       </p>
                       <p>
-                        {t('Available points after return')}:{' '}
+                        {t('{{label}}: ', {
+                          label: t('Available points after return'),
+                        })}
                         {formatPoints(
                           pointReturnDraft.remainingAvailablePaidPoints
                         )}

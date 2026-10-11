@@ -63,27 +63,27 @@ import type {
   CanvasManualGrantPlan,
   CanvasInviteBonusGrantRecord,
   CanvasRechargeBonusBindingRecord,
+  CanvasRegistrationRankActivity,
 } from '../activity-types'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
-import {
-  type CanvasServerTableState,
-  useServerTableState,
-} from '../use-server-table-state'
+import { useServerTableState } from '../use-server-table-state'
 import {
   ActivityRecordLink,
+  ActivityRecordTable,
   EligibilityBasisContent,
+  GrantInviteCode,
   SelectContent,
 } from './ActivityShared'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
-import { CanvasServerTable } from './CanvasServerTable'
 import { CustomerRecordDetails } from './CustomerRecordDetails'
 import { LimitedPriceActivityDetail } from './LimitedPriceActivityDetail'
 import {
   CancelActivityDialog,
   ManualActivityDetail,
 } from './ManualActivityDetail'
+import { RegistrationRankActivityDetail } from './RegistrationRankActivityDetail'
 
 function activityOrderHref(customerId: string, orderId: string): string {
   return `/canvas-cloud/customers?${new URLSearchParams({
@@ -202,6 +202,28 @@ export function ActivityDetail(props: {
       </ManualActivityDetail>
     )
   }
+  const stopDialog = (
+    stoppable: CanvasBonusActivity | CanvasRegistrationRankActivity
+  ) => (
+    <StopActivityDialog
+      open={stopOpen}
+      activity={stoppable}
+      pending={stop.isPending}
+      onOpenChange={setStopOpen}
+      onConfirm={() => stop.mutate()}
+    />
+  )
+  if (activity.type === 'REGISTRATION_RANK_BONUS') {
+    return (
+      <RegistrationRankActivityDetail
+        activity={activity}
+        onBack={props.onBack}
+        onStop={() => setStopOpen(true)}
+      >
+        {stopDialog(activity)}
+      </RegistrationRankActivityDetail>
+    )
+  }
   if ('ttlDays' in activity) {
     return (
       <BonusActivityDetail
@@ -209,13 +231,7 @@ export function ActivityDetail(props: {
         onBack={props.onBack}
         onStop={() => setStopOpen(true)}
       >
-        <StopActivityDialog
-          open={stopOpen}
-          activity={activity}
-          pending={stop.isPending}
-          onOpenChange={setStopOpen}
-          onConfirm={() => stop.mutate()}
-        />
+        {stopDialog(activity)}
         <BonusActivityRecords activity={activity} />
       </BonusActivityDetail>
     )
@@ -226,14 +242,14 @@ export function ActivityDetail(props: {
 }
 
 function BonusActivityDetail(props: {
-  activity: Extract<CanvasActivityDetail, { ttlDays: number }>
+  activity: CanvasBonusActivity
   onBack: () => void
   onStop: () => void
   children: ReactNode
 }) {
   const { t } = useTranslation()
   return (
-    <Card>
+    <Card className='max-w-3xl'>
       <CardHeader>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <CardTitle>
@@ -247,41 +263,46 @@ function BonusActivityDetail(props: {
       </CardHeader>
       <CardContent className='space-y-3 text-sm'>
         <p>
-          {props.activity.type === 'RECHARGE_BONUS'
-            ? t('Bonus per recharge code')
-            : t('Bonus per new customer')}
-          : {props.activity.points} {t('points')}
+          {t('{{label}}: ', {
+            label:
+              props.activity.type === 'RECHARGE_BONUS'
+                ? t('Bonus per recharge code')
+                : t('Bonus per new customer'),
+          })}
+          {props.activity.points} {t('points')}
         </p>
         <p>
-          {t('Bonus validity')}:{' '}
+          {t('{{label}}: ', { label: t('Bonus validity') })}
           {t('Valid for {{days}} days after credit', {
             days: props.activity.ttlDays,
           })}
         </p>
         <p>
-          {t('Reason')}: {props.activity.reason}
+          {t('{{label}}: ', { label: t('Reason') })}
+          {props.activity.reason}
         </p>
         <p>
-          {t('Published at')}:{' '}
+          {t('{{label}}: ', { label: t('Published at') })}
           {props.activity.publishedAt
             ? formatCanvasDateTime(props.activity.publishedAt)
             : '—'}
         </p>
         {props.activity.publisher ? (
           <p>
-            {t('Published by')}:{' '}
+            {t('{{label}}: ', { label: t('Published by') })}
             {props.activity.publisher.displayName ??
               props.activity.publisher.principalId}
           </p>
         ) : null}
         {props.activity.stoppedAt ? (
           <p>
-            {t('Stopped at')}: {formatCanvasDateTime(props.activity.stoppedAt)}
+            {t('{{label}}: ', { label: t('Stopped at') })}
+            {formatCanvasDateTime(props.activity.stoppedAt)}
           </p>
         ) : null}
         {props.activity.stoppedBy ? (
           <p>
-            {t('Stopped by')}:{' '}
+            {t('{{label}}: ', { label: t('Stopped by') })}
             {props.activity.stoppedBy.displayName ??
               props.activity.stoppedBy.principalId}
           </p>
@@ -614,7 +635,7 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
     customer?: string
     issuedFrom?: string
     issuedTo?: string
-    sortId?: 'customer' | 'inviteCodePrefix' | 'bonusPoints' | 'issuedAt'
+    sortId?: 'customer' | 'inviteCode' | 'bonusPoints' | 'issuedAt'
     sortDesc?: boolean
   }>(navigation?.recordState, 'invite')
   const table = useServerTableState<'issuedAt'>('issuedAt', restored?.search)
@@ -726,11 +747,18 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
           ),
       },
       {
-        id: 'inviteCodePrefix',
-        accessorKey: 'inviteCodePrefix',
+        id: 'inviteCode',
+        accessorKey: 'inviteCodeMasked',
         meta: { label: t('Invite code') },
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Invite code')} />
+        ),
+        cell: ({ row }) => (
+          <GrantInviteCode
+            inviteCodeId={row.original.inviteCodeId}
+            maskedCode={row.original.inviteCodeMasked}
+            allowedActions={row.original.inviteCodeAllowedActions}
+          />
         ),
       },
       {
@@ -861,47 +889,9 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
   )
 }
 
-function ActivityRecordTable<TData extends { participationId: string }>(props: {
-  title: string
-  table: CanvasServerTableState
-  data: TData[]
-  total: number
-  columns: ColumnDef<TData, unknown>[]
-  loading: boolean
-  error: boolean
-  onRetry: () => void
-  emptyTitle: string
-  filteredEmptyTitle: string
-  getRowId: (item: TData) => string
-  filters: ReactNode
-  hasActiveFilters: boolean
-  onReset: () => void
-}) {
-  return (
-    <div className='space-y-3 border-t pt-4'>
-      <h3 className='font-medium'>{props.title}</h3>
-      <CanvasServerTable
-        data={props.data}
-        columns={props.columns}
-        total={props.total}
-        state={props.table}
-        loading={props.loading}
-        error={props.error}
-        onRetry={props.onRetry}
-        emptyTitle={props.emptyTitle}
-        filteredEmptyTitle={props.filteredEmptyTitle}
-        getRowId={props.getRowId}
-        additionalFilters={props.filters}
-        hasActiveFilters={props.hasActiveFilters}
-        onResetFilters={props.onReset}
-      />
-    </div>
-  )
-}
-
 function StopActivityDialog(props: {
   open: boolean
-  activity: Extract<CanvasActivityDetail, { ttlDays: number }>
+  activity: CanvasBonusActivity | CanvasRegistrationRankActivity
   pending: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
@@ -911,20 +901,25 @@ function StopActivityDialog(props: {
     props.activity.type === 'RECHARGE_BONUS'
       ? t('recharge codes')
       : t('invite codes')
+  const description =
+    props.activity.type === 'REGISTRATION_RANK_BONUS'
+      ? t(
+          'After you disable it, customers who register later no longer receive the bonus; credited points are unaffected. It cannot be re-enabled.'
+        )
+      : t(
+          'New {{binding}} cannot bind this activity. Existing bindings retain their saved entitlement.',
+          { binding }
+        )
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('Disable activity')}</DialogTitle>
-          <DialogDescription>
-            {t(
-              'New {{binding}} cannot bind this activity. Existing bindings retain their saved entitlement.',
-              { binding }
-            )}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <p>
-          {t('Activity name')}: {props.activity.name}
+          {t('{{label}}: ', { label: t('Activity name') })}
+          {props.activity.name}
         </p>
         <DialogFooter>
           <Button
@@ -940,7 +935,7 @@ function StopActivityDialog(props: {
             disabled={props.pending}
             onClick={props.onConfirm}
           >
-            {t('Confirm disable')}
+            {t('Confirm stop')}
           </Button>
         </DialogFooter>
       </DialogContent>

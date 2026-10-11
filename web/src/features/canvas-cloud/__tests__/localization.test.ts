@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
@@ -321,7 +321,6 @@ const inviteBonusKeys = [
   'Bonus promotion',
   'Initial Bonus points',
   'Bonus validity days',
-  'Initial Bonus',
   'Optional',
 ] as const
 const inviteStatusKeys = [
@@ -1219,4 +1218,56 @@ describe('operation log localization', () => {
       }
     }
   )
+})
+
+describe('Canvas wording and Chinese punctuation', () => {
+  const canvasSources = () => {
+    const root = resolve(process.cwd(), 'src/features/canvas-cloud')
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name)
+        if (entry.isDirectory()) {
+          if (entry.name !== '__tests__') walk(path)
+        } else if (/\.tsx?$/.test(entry.name)) {
+          files.push(path)
+        }
+      }
+    }
+    walk(root)
+    return files.map((file) => ({ file, source: readFileSync(file, 'utf8') }))
+  }
+
+  it('hands label separators and brackets to translation so Chinese uses full-width marks', () => {
+    for (const locale of [zh, zhTW]) {
+      expect(locale.translation['{{label}}: ']).toBe('{{label}}：')
+      expect(locale.translation['{{label}} ({{detail}})']).toBe(
+        '{{label}}（{{detail}}）'
+      )
+    }
+    expect(en.translation['{{label}}: ']).toBe('{{label}}: ')
+    const concatenated = canvasSources().filter(({ source }) =>
+      /\bt\((?:'[^']+'|`[^`]+`)\)\}?: |\{t\('[^']+'\)\} \(\{t\(/.test(source)
+    )
+    expect(concatenated.map(({ file }) => file)).toEqual([])
+  })
+
+  it('uses the unified activity names and "原因" in Chinese', () => {
+    const values = Object.values(zh.translation as Record<string, string>)
+    for (const retired of [
+      '注册赠分',
+      '邀请赠送',
+      '等待发放',
+      '审批理由',
+      '审批原因',
+      '评审理由',
+      '手动赠送',
+      '任务特价活动',
+    ]) {
+      expect(values.filter((value) => value.includes(retired))).toEqual([])
+    }
+    expect(zh.translation['Activity status WAITING']).toBe('待发放')
+    expect('Activity status PENDING' in zh.translation).toBe(false)
+    expect('Initial Bonus' in zh.translation).toBe(false)
+  })
 })

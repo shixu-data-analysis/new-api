@@ -690,14 +690,14 @@ export function AgentCenter() {
               >
                 <strong>{group.priceGroupName}</strong>
                 <span className='tabular-nums'>
-                  {t('Successful tasks')}:{' '}
+                  {t('{{label}}: ', { label: t('Successful tasks') })}
                   {formatExactPointQuantity(
                     String(group.successfulTasks),
                     locale
                   )}
                 </span>
                 <span className='tabular-nums'>
-                  {t('Consumed points')}:{' '}
+                  {t('{{label}}: ', { label: t('Consumed points') })}
                   {formatExactPointQuantity(group.settledPoints, locale)}
                 </span>
               </div>

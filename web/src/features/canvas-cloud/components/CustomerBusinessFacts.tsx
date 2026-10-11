@@ -312,7 +312,7 @@ function FactFields({
                 </div>
                 <div className='sm:col-span-3'>
                   <span className='text-muted-foreground'>
-                    {t('Expires at')}:{' '}
+                    {t('{{label}}: ', { label: t('Expires at') })}
                   </span>
                   {allocation.expiresAt
                     ? new Intl.DateTimeFormat(locale, {
@@ -345,12 +345,14 @@ function FactFields({
         <CopyableText value={fact.id} />
         {pricePlanCode && (
           <p>
-            {t('Price plan')}: <CopyableText value={pricePlanCode} />
+            {t('{{label}}: ', { label: t('Price plan') })}
+            <CopyableText value={pricePlanCode} />
           </p>
         )}
         {upstreamTaskId && (
           <p>
-            {t('Upstream task ID')}: <CopyableText value={upstreamTaskId} />
+            {t('{{label}}: ', { label: t('Upstream task ID') })}
+            <CopyableText value={upstreamTaskId} />
           </p>
         )}
       </details>

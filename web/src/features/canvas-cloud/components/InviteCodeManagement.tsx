@@ -857,7 +857,8 @@ export function InviteCodeManagement(props: {
           {row.original.consumedCount} / {row.original.maxRegistrations}
           {Number(row.original.activeReservedCount) > 0 ? (
             <span className='text-muted-foreground block'>
-              {t('Reserved')}: {row.original.activeReservedCount}
+              {t('{{label}}: ', { label: t('Reserved') })}
+              {row.original.activeReservedCount}
             </span>
           ) : null}
         </span>
@@ -1531,11 +1532,13 @@ export function InviteCodeManagement(props: {
                   {selectedCampaign ? (
                     <div className='grid gap-2 text-sm md:grid-cols-2'>
                       <p>
-                        {t('Bonus per new customer')}: {selectedCampaign.points}{' '}
-                        {t('points')}
+                        {t('{{label}}: ', {
+                          label: t('Bonus per new customer'),
+                        })}
+                        {selectedCampaign.points} {t('points')}
                       </p>
                       <p>
-                        {t('Bonus validity')}:{' '}
+                        {t('{{label}}: ', { label: t('Bonus validity') })}
                         {t(
                           'Valid for {{days}} days after registration credit',
                           {
@@ -1614,7 +1617,7 @@ export function InviteCodeManagement(props: {
               <div className='text-muted-foreground mt-3 grid gap-1 text-sm sm:grid-cols-2'>
                 <span>{t('Invite status ACTIVE')}</span>
                 <span>
-                  {t('Valid from')}:{' '}
+                  {t('{{label}}: ', { label: t('Valid from') })}
                   {formatTokyoDate(
                     new Date(form.validFrom).toISOString(),
                     i18n.resolvedLanguage ?? i18n.language

@@ -600,7 +600,10 @@ export function InviteCodeEditSheet(props: {
                   </div>
                   <div className='space-y-2'>
                     <Label htmlFor='invite-extend-reason'>
-                      {t('Extension reason')} ({t('Optional')})
+                      {t('{{label}} ({{detail}})', {
+                        label: t('Extension reason'),
+                        detail: t('Optional'),
+                      })}
                     </Label>
                     <Input
                       id='invite-extend-reason'
@@ -626,7 +629,7 @@ export function InviteCodeEditSheet(props: {
                   </div>
                   {extendPreview ? (
                     <p role='status' className='text-sm'>
-                      {t('After extension')}:{' '}
+                      {t('{{label}}: ', { label: t('After extension') })}
                       {extendPreview.redeemable
                         ? t('Invite status REDEEMABLE')
                         : extendPreview.unavailableReasons

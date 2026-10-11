@@ -710,7 +710,7 @@ export function RuntimeConfiguration(
     if (result.outcome === 'PASSED') toast.success(t('Connection check passed'))
     else {
       toast.error(
-        `${t('Connection check failed')}: ${connectionCheckReason(result.reasonCode, t)}`
+        `${t('{{label}}: ', { label: t('Connection check failed') })}${connectionCheckReason(result.reasonCode, t)}`
       )
     }
     await refresh()
@@ -1093,7 +1093,7 @@ export function RuntimeConfiguration(
         value: (
           <span>
             {model.credentialGroupName
-              ? `${model.effectiveDisplayName}: ${model.credentialGroupName} → ${selectedGroup.name}`
+              ? `${t('{{label}}: ', { label: model.effectiveDisplayName })}${model.credentialGroupName} → ${selectedGroup.name}`
               : model.effectiveDisplayName}
             <ModelIdentityTooltip
               effectiveDisplayName={model.effectiveDisplayName}
@@ -1215,7 +1215,7 @@ export function RuntimeConfiguration(
                   <StorageSummary
                     bucketLabel={t('Task media bucket')}
                     item={storageData.taskMedia}
-                    details={`${t('Input retention hours')}: ${storageData.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${storageData.taskMedia.outputRetentionHours}h · ${t('Payment proof retention hours')}: ${storageData.taskMedia.agentFileRetentionHours}h · ${t('Download URL seconds')}: ${storageData.taskMedia.downloadUrlTtlSeconds}s`}
+                    details={`${t('{{label}}: ', { label: t('Input retention hours') })}${storageData.taskMedia.inputRetentionHours}h · ${t('{{label}}: ', { label: t('Output retention hours') })}${storageData.taskMedia.outputRetentionHours}h · ${t('{{label}}: ', { label: t('Payment proof retention hours') })}${storageData.taskMedia.agentFileRetentionHours}h · ${t('{{label}}: ', { label: t('Download URL seconds') })}${storageData.taskMedia.downloadUrlTtlSeconds}s`}
                     checkLabel={t('Task media check')}
                     buttonLabel={t('Check task media')}
                     editLabel={t('Update configuration')}
@@ -2512,16 +2512,16 @@ function CredentialGroupChangeHistory(props: { credentialGroupId: string }) {
 
 function formatCredentialGroupChange(
   change: CanvasProviderCredentialGroupChange['changes'][number],
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ) {
   if (change.type === 'KEY_REPLACED') {
     return t('API Key replaced')
   }
   if (change.type === 'GROUP_RENAMED') {
-    return `${t('API Key group')}: ${change.before ?? '—'} → ${change.after ?? '—'}`
+    return `${t('{{label}}: ', { label: t('API Key group') })}${change.before ?? '—'} → ${change.after ?? '—'}`
   }
   if (change.displayNameSnapshot) {
-    return `${change.displayNameSnapshot}: ${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
+    return `${t('{{label}}: ', { label: change.displayNameSnapshot })}${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
   }
   return t(change.type ?? 'GROUP_UPDATED')
 }

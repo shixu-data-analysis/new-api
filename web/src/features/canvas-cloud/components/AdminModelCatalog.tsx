@@ -110,13 +110,14 @@ function diagnosticDetails(
       : null
   return [
     diagnostic.profileKey &&
-      `${t('Adapter Profile')}: ${diagnostic.profileKey}`,
-    diagnostic.operation && `${t('Operation')}: ${diagnostic.operation}`,
+      `${t('{{label}}: ', { label: t('Adapter Profile') })}${diagnostic.profileKey}`,
+    diagnostic.operation &&
+      `${t('{{label}}: ', { label: t('Operation') })}${diagnostic.operation}`,
     diagnostic.sourceFile,
     diagnostic.jsonPath &&
       diagnostic.jsonPath !== '$' &&
-      `${t('Path')}: ${diagnostic.jsonPath}`,
-    `${t('Reason')}: ${message}`,
+      `${t('{{label}}: ', { label: t('Path') })}${diagnostic.jsonPath}`,
+    `${t('{{label}}: ', { label: t('Reason') })}${message}`,
     details,
   ]
     .filter(Boolean)

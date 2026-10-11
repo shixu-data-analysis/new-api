@@ -62,15 +62,16 @@ export function ExecutionTargetCoverage(props: {
         {props.coverage.map((coverage) => (
           <li key={coverage.priceGroupId} className='space-y-0.5 break-words'>
             <span>
-              {t('Price plan')}: {coverage.priceGroupName} ·{' '}
-              {coverage.pricedCount}/{coverage.requiredCount}{' '}
+              {t('{{label}}: ', { label: t('Price plan') })}
+              {coverage.priceGroupName} · {coverage.pricedCount}/
+              {coverage.requiredCount}{' '}
               {coverage.customerVisible
                 ? t('Visible to customers')
                 : t('Not shown to customers')}
             </span>
             {!coverage.customerVisible && coverage.invisibleReasons.length ? (
               <p className='text-muted-foreground'>
-                {t('Reason')}:{' '}
+                {t('{{label}}: ', { label: t('Reason') })}
                 {coverage.invisibleReasons
                   .map((reason) =>
                     t(invisibleReasonLabels[reason] ?? 'Unavailable')
@@ -80,7 +81,7 @@ export function ExecutionTargetCoverage(props: {
             ) : null}
             {coverage.missingCombinationIds.length ? (
               <p className='text-muted-foreground'>
-                {t('Missing specifications')}:{' '}
+                {t('{{label}}: ', { label: t('Missing specifications') })}
                 {coverage.missingCombinationIds
                   .map(
                     (id) =>

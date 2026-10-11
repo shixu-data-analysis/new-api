@@ -64,6 +64,7 @@ export function CanvasServerTable<TData>({
   errorTitle,
   onRetry,
   emptyTitle,
+  emptyDescription,
   filteredEmptyTitle,
   additionalFilters,
   filterTags,
@@ -89,6 +90,8 @@ export function CanvasServerTable<TData>({
   errorTitle?: string
   onRetry?: () => void
   emptyTitle: string
+  /** Replaces the generic hint under the empty title when the table explains why it has no rows. */
+  emptyDescription?: string
   filteredEmptyTitle?: string
   additionalFilters?: React.ReactNode
   /** Removable tags of the active filters, shown beside the column-filter button. */
@@ -148,6 +151,15 @@ export function CanvasServerTable<TData>({
     initialColumnVisibility,
   })
 
+  // Table rule: without a column that can be hidden there is no "Display" menu.
+  const hasHideableColumn = table
+    .getAllLeafColumns()
+    .some(
+      (column) =>
+        column.id !== FILLER_COLUMN_ID &&
+        typeof column.accessorFn !== 'undefined' &&
+        column.getCanHide()
+    )
   // Real columns get their tier width; only the blank trailing column has none, so it takes the rest.
   const visibleColumns = table.getVisibleLeafColumns()
   const colgroup = (
@@ -180,6 +192,7 @@ export function CanvasServerTable<TData>({
             ? filteredEmptyTitle
             : emptyTitle
         }
+        emptyDescription={emptyDescription}
         fixedHeight={false}
         paginationInFooter={false}
         getRowClassName={getRowClassName}
@@ -225,6 +238,7 @@ export function CanvasServerTable<TData>({
               onResetFilters?.()
             }}
             hasAdditionalFilters={hasActiveFilters}
+            hideViewOptions={!hasHideableColumn}
           />
         }
       />

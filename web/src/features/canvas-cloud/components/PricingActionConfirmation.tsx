@@ -128,7 +128,8 @@ export function PricingActionConfirmation(props: {
                 <div key={groupId} className='min-w-0 space-y-2'>
                   {group.label && (
                     <h4 className='font-medium [overflow-wrap:anywhere]'>
-                      {t('Price plan')}: {group.label}
+                      {t('{{label}}: ', { label: t('Price plan') })}
+                      {group.label}
                     </h4>
                   )}
                   <div

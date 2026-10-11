@@ -1174,7 +1174,12 @@ function AgentStatistics({ customerId }: { customerId: string }) {
   const amount = (value: string | null, incomplete: boolean) => (
     <span>
       {value === null ? '—' : `¥${formatExactRmbReference(value, locale)}`}
-      {incomplete ? ` (${t('Amount incomplete')})` : ''}
+      {incomplete
+        ? t('{{label}} ({{detail}})', {
+            label: '',
+            detail: t('Amount incomplete'),
+          })
+        : ''}
     </span>
   )
   const count = (value: string | number) =>

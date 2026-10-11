@@ -12,7 +12,7 @@ import type {
   CanvasActivityDetail,
   CanvasActivityEligibleCustomerPage,
   CanvasActivityPage,
-  CanvasActivityStatus,
+  CanvasActivityPhase,
   CanvasActivityType,
   CanvasBonusActivity,
   CanvasEligibilityBasis,
@@ -25,6 +25,8 @@ import type {
   CanvasInviteBonusGrantRecord,
   CanvasLimitedPriceParticipationTaskRecord,
   CanvasRechargeBonusBindingRecord,
+  CanvasRegistrationRankActivity,
+  CanvasRegistrationRankGrantRecord,
 } from './activity-types'
 
 const webBase = '/canvas-api/v1/web/admin/activities'
@@ -38,7 +40,7 @@ export interface CanvasActivityListQuery {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   name?: string
   type?: CanvasActivityType
-  status?: CanvasActivityStatus
+  phase?: CanvasActivityPhase
   createdFrom?: string
   createdTo?: string
   sortBy: 'name' | 'type' | 'status' | 'createdAt'
@@ -94,6 +96,7 @@ export async function resolveCanvasEligibleActivityCustomers(input: {
   currency?: 'CNY'
   redeemedFrom?: string
   redeemedTo?: string
+  withinSelectionToken?: string
 }): Promise<{
   selectionToken: string
   count: number
@@ -108,6 +111,16 @@ export async function resolveCanvasEligibleActivityCustomers(input: {
       }
     )
   ).data
+}
+
+export async function checkCanvasEligibleActivityCustomers(input: {
+  customerIds: string[]
+  minimumRechargeAmountMinor: string
+  currency: 'CNY'
+  redeemedFrom?: string
+  redeemedTo?: string
+}): Promise<{ eligibleCustomerIds: string[] }> {
+  return (await api.post(`${webBase}/eligible-customers/check`, input)).data
 }
 
 export async function createCanvasManualBonusActivity(input: {
@@ -137,6 +150,23 @@ export async function createCanvasBonusActivity(
       `${webBase}/${path}`,
       { ...input, confirmed: true },
       { headers: { 'Idempotency-Key': idempotencyKey('web-activity-bonus') } }
+    )
+  ).data
+}
+
+export async function createCanvasRegistrationRankActivity(input: {
+  name: string
+  recipientLimit: string
+  points: string
+  ttlDays: number
+  endsAt?: string
+  reason: string
+}): Promise<CanvasRegistrationRankActivity> {
+  return (
+    await api.post<CanvasRegistrationRankActivity>(
+      `${webBase}/registration-rank-bonuses`,
+      { ...input, confirmed: true },
+      { headers: { 'Idempotency-Key': idempotencyKey('web-activity-rank') } }
     )
   ).data
 }
@@ -285,7 +315,7 @@ export async function stopCanvasBonusActivity(
   reason: string
 ) {
   return (
-    await api.post<CanvasBonusActivity>(
+    await api.post<CanvasBonusActivity | CanvasRegistrationRankActivity>(
       `${webBase}/${activityId}/stop`,
       { confirmed: true, reason },
       { headers: { 'Idempotency-Key': idempotencyKey('web-activity-stop') } }
@@ -330,7 +360,7 @@ export async function getCanvasInviteBonusGrants(
     customer?: string
     issuedFrom?: string
     issuedTo?: string
-    sortBy: 'customer' | 'inviteCodePrefix' | 'bonusPoints' | 'issuedAt'
+    sortBy: 'customer' | 'inviteCode' | 'bonusPoints' | 'issuedAt'
     sortOrder: 'asc' | 'desc'
   },
   signal?: AbortSignal
@@ -338,6 +368,27 @@ export async function getCanvasInviteBonusGrants(
   return (
     await api.get<CanvasActivityRecordPage<CanvasInviteBonusGrantRecord>>(
       `${webBase}/${activityId}/invite-grants`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasRegistrationRankGrants(
+  activityId: string,
+  query: {
+    page: number
+    pageSize: 10 | 20 | 30 | 40 | 50 | 100
+    customer?: string
+    issuedFrom?: string
+    issuedTo?: string
+    sortBy: 'rank' | 'customer' | 'inviteCode' | 'issuedAt'
+    sortOrder: 'asc' | 'desc'
+  },
+  signal?: AbortSignal
+): Promise<CanvasActivityRecordPage<CanvasRegistrationRankGrantRecord>> {
+  return (
+    await api.get<CanvasActivityRecordPage<CanvasRegistrationRankGrantRecord>>(
+      `${webBase}/${activityId}/registration-rank-grants`,
       { params: query, signal }
     )
   ).data

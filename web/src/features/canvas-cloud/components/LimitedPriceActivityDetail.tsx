@@ -80,12 +80,16 @@ export function LimitedPriceActivityDetail(props: {
     props.activity.status === 'NOT_STARTED' ||
     props.activity.status === 'ACTIVE'
   return (
-    <Card>
+    <Card className='max-w-3xl'>
       <CardHeader>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <CardTitle>
             {props.activity.name} ·{' '}
-            {t(activityStatusKey(props.activity.status))}
+            {t(
+              props.activity.status === 'ACTIVE'
+                ? 'Activity phase RUNNING'
+                : activityStatusKey(props.activity.status)
+            )}
           </CardTitle>
           <Button type='button' variant='outline' onClick={props.onBack}>
             {t('Back to activity management')}
@@ -132,7 +136,7 @@ function LimitedPriceStopDialog(props: {
       ? Object.entries(props.activity.specialTokenRates ?? {})
           .map(
             ([category, value]) =>
-              `${t(`Token category ${category}`)}: ${value}`
+              `${t('{{label}}: ', { label: t(`Token category ${category}`) })}${value}`
           )
           .join(' · ')
       : (props.activity.specialPoints ?? '—')
@@ -151,17 +155,19 @@ function LimitedPriceStopDialog(props: {
         </DialogHeader>
         <div className='space-y-2 text-sm'>
           <p>
-            {t('Activity name')}: {props.activity.name}
+            {t('{{label}}: ', { label: t('Activity name') })}
+            {props.activity.name}
           </p>
           <p>
-            {t('Applicable price')}: {target.customerModel.displayNameSnapshot}{' '}
-            ·{' '}
+            {t('{{label}}: ', { label: t('Applicable price') })}
+            {target.customerModel.displayNameSnapshot} ·{' '}
             {target.parameterCombination.label ??
               target.parameterCombination.id}{' '}
             · {target.priceGroup.label ?? target.priceGroup.id}
           </p>
           <p>
-            {t('Special price')}: {specialPrice}
+            {t('{{label}}: ', { label: t('Special price') })}
+            {specialPrice}
           </p>
         </div>
         <DialogFooter>
@@ -194,34 +200,37 @@ function LimitedPriceSnapshot(props: {
   const facts = (
     <>
       <p>
-        {t('Applicable price')}: {target.customerModel.displayNameSnapshot} ·{' '}
+        {t('{{label}}: ', { label: t('Applicable price') })}
+        {target.customerModel.displayNameSnapshot} ·{' '}
         {target.priceGroup.label ?? target.priceGroup.id} ·{' '}
         {target.parameterCombination.label ?? target.parameterCombination.id}
       </p>
       <p>
-        {t('Reason')}: {props.activity.reason}
+        {t('{{label}}: ', { label: t('Reason') })}
+        {props.activity.reason}
       </p>
       <p>
-        {t('Published at')}:{' '}
+        {t('{{label}}: ', { label: t('Published at') })}
         {props.activity.publishedAt
           ? formatCanvasDateTime(props.activity.publishedAt)
           : '—'}
       </p>
       {props.activity.publisher ? (
         <p>
-          {t('Published by')}:{' '}
+          {t('{{label}}: ', { label: t('Published by') })}
           {props.activity.publisher.displayName ??
             props.activity.publisher.principalId}
         </p>
       ) : null}
       {props.activity.stoppedAt ? (
         <p>
-          {t('Stopped at')}: {formatCanvasDateTime(props.activity.stoppedAt)}
+          {t('{{label}}: ', { label: t('Stopped at') })}
+          {formatCanvasDateTime(props.activity.stoppedAt)}
         </p>
       ) : null}
       {props.activity.stoppedBy ? (
         <p>
-          {t('Stopped by')}:{' '}
+          {t('{{label}}: ', { label: t('Stopped by') })}
           {props.activity.stoppedBy.displayName ??
             props.activity.stoppedBy.principalId}
         </p>
@@ -232,19 +241,20 @@ function LimitedPriceSnapshot(props: {
     return (
       <div className='space-y-1'>
         <p>
-          {t('Billing unit')}: {t(props.activity.billingUnit)}
+          {t('{{label}}: ', { label: t('Billing unit') })}
+          {t(props.activity.billingUnit)}
         </p>
         {facts}
         <p>
-          {t('Original price')}: {props.activity.basePoints ?? '—'}{' '}
-          {t('points')}
+          {t('{{label}}: ', { label: t('Original price') })}
+          {props.activity.basePoints ?? '—'} {t('points')}
         </p>
         <p>
-          {t('Special price')}: {props.activity.specialPoints ?? '—'}{' '}
-          {t('points')}
+          {t('{{label}}: ', { label: t('Special price') })}
+          {props.activity.specialPoints ?? '—'} {t('points')}
         </p>
         <p>
-          {t('Activity period')}:{' '}
+          {t('{{label}}: ', { label: t('Activity period') })}
           {formatCanvasDateTime(props.activity.startsAt)} —{' '}
           {formatCanvasDateTime(props.activity.endsAt)}
         </p>
@@ -259,8 +269,9 @@ function LimitedPriceSnapshot(props: {
         historical
       />
       <p>
-        {t('Activity period')}: {formatCanvasDateTime(props.activity.startsAt)}{' '}
-        — {formatCanvasDateTime(props.activity.endsAt)}
+        {t('{{label}}: ', { label: t('Activity period') })}
+        {formatCanvasDateTime(props.activity.startsAt)} —{' '}
+        {formatCanvasDateTime(props.activity.endsAt)}
       </p>
       {facts}
     </div>

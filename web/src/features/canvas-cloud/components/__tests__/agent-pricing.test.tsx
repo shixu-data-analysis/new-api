@@ -253,7 +253,7 @@ describe('Canvas Agent and provider pricing governance', () => {
     fireEvent.click(createButton)
 
     expect(await screen.findByText('Enter a username')).toBeVisible()
-    expect(screen.getByText('Enter an approval reason')).toBeVisible()
+    expect(screen.getByText('Enter a reason')).toBeVisible()
     expect(screen.getByLabelText('Customer username')).toHaveAttribute(
       'aria-invalid',
       'true'

@@ -210,7 +210,8 @@ export function CustomerPriceAssignment(props: {
   return (
     <div className='mt-4 flex flex-wrap items-center gap-2 border-t pt-4 text-sm'>
       <span>
-        {t('Price plan')}: <strong>{currentLabel}</strong>
+        {t('{{label}}: ', { label: t('Price plan') })}
+        <strong>{currentLabel}</strong>
       </span>
       <Button
         type='button'
@@ -314,7 +315,8 @@ export function CustomerPriceAssignment(props: {
               >
                 <SideDrawerSection>
                   <p className='text-sm'>
-                    {t('Current price plan')}: {currentLabel}
+                    {t('{{label}}: ', { label: t('Current price plan') })}
+                    {currentLabel}
                   </p>
                   <FormField
                     control={form.control}
@@ -436,7 +438,8 @@ export function CustomerPriceAssignment(props: {
               })}
             </SheetTitle>
             <SheetDescription>
-              {t('Current price plan')}: {currentLabel}
+              {t('{{label}}: ', { label: t('Current price plan') })}
+              {currentLabel}
             </SheetDescription>
           </SheetHeader>
           <div className={sideDrawerFormClassName()}>
