@@ -135,7 +135,7 @@ export function useSidebarData(): SidebarData {
                 icon: ListTodo,
               },
               {
-                title: t('Canvas Audit Log'),
+                title: t('Operation log'),
                 url: '/canvas-cloud/audit',
                 icon: BookOpenCheck,
               },

@@ -28,13 +28,18 @@ export function CopyableText({
   value,
   hideValue = false,
   noTruncate = false,
+  copyLabel,
 }: {
   value: string
   hideValue?: boolean
   noTruncate?: boolean
+  /** Names what is copied, such as "Point lot ID"; the button and the success message then say so. */
+  copyLabel?: string
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  let copyName = hideValue ? `${t('Copy')} ${value}` : t('Copy')
+  if (copyLabel) copyName = t('Copy {{label}}', { label: copyLabel })
 
   return (
     <span className='inline-flex min-w-0 items-center gap-1'>
@@ -46,11 +51,14 @@ export function CopyableText({
         variant='ghost'
         size='icon-sm'
         className='shrink-0'
-        aria-label={hideValue ? `${t('Copy')} ${value}` : t('Copy')}
+        aria-label={copyName}
+        title={copyLabel ? copyName : undefined}
         onClick={async (event) => {
           event.stopPropagation()
           const copied = await copyText(value, {
-            copied: t('Copied'),
+            copied: copyLabel
+              ? t('Copied {{label}}', { label: copyLabel })
+              : t('Copied'),
             failed: t('Failed to copy to clipboard'),
           })
           if (!copied) return

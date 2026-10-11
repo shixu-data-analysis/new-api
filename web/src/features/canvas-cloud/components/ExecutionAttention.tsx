@@ -10,20 +10,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { attentionMessageKeys } from '../execution-attention-messages'
 import type { ExecutionAttention } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
 import { TaskLogCountLink } from './ExecutionCapacityOverview'
-
-const messageKeys: Record<ExecutionAttention['type'], string> = {
-  OUTPUT_TOO_LARGE:
-    '{{count}} tasks in the last 24 hours failed because the result file was too large',
-  RETRY_EXHAUSTED:
-    '{{count}} tasks in the last 24 hours failed after repeated attempts to fetch the result',
-  WAITING_AREA_NEARLY_FULL:
-    '{{count}} executor instances are nearly full of tasks waiting for results',
-  DATABASE_UNSTABLE:
-    '{{count}} executor instances failed to reach the database repeatedly in the last 10 minutes',
-}
 
 /**
  * The attention hints in force, after the drain row; hidden when there are none. Details stay on the linked task log and
@@ -50,9 +40,12 @@ export function ExecutionAttentionCard(props: {
           {props.attention.map((hint) => (
             <li key={hint.type} className='space-y-1 py-2 first:pt-0 last:pb-0'>
               <p className='font-medium'>
-                {t(messageKeys[hint.type] ?? 'Unknown attention hint', {
-                  count: hint.count,
-                })}
+                {t(
+                  attentionMessageKeys[hint.type] ?? 'Unknown attention hint',
+                  {
+                    count: hint.count,
+                  }
+                )}
               </p>
               <p className='text-muted-foreground'>
                 {hint.type === 'WAITING_AREA_NEARLY_FULL'

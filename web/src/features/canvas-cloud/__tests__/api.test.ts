@@ -623,14 +623,15 @@ describe('Canvas Cloud API boundary', () => {
 
   it('reads filtered Cloud audit facts without a mutation or mode parameter', async () => {
     mocks.get.mockResolvedValue({
-      data: { page: 1, pageSize: 50, total: 0, items: [] },
+      data: { page: 1, pageSize: 20, total: 0, items: [] },
     })
     const query = {
       page: 1 as const,
-      pageSize: 50 as const,
-      outcome: 'FAILURE' as const,
-      action: 'task.execution',
-      resourceId: '85000000-0000-7000-8000-000000000002',
+      pageSize: 20 as const,
+      actorScope: 'ADMIN' as const,
+      action: 'points.manual_bonus.granted',
+      customerId: '85000000-0000-7000-8000-000000000002',
+      sortOrder: 'desc' as const,
     }
     await getCanvasAuditEvents(query)
     expect(mocks.get).toHaveBeenCalledWith(

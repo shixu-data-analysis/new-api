@@ -1017,19 +1017,43 @@ export interface CanvasAuditEventPage {
     reasonCode: string | null
     publicMetadata: Record<string, unknown>
   }>
+  resolvedNames: CanvasAuditResolvedNames
 }
+
+type CanvasAuditNameMap = Record<string, string>
+
+/** Readable names for the IDs on one page, keyed by ID; IDs whose rows no longer exist are absent. */
+export interface CanvasAuditResolvedNames {
+  customers: CanvasAuditNameMap
+  customerModels: CanvasAuditNameMap
+  agents: CanvasAuditNameMap
+  rechargeOrders: CanvasAuditNameMap
+  priceGroups: CanvasAuditNameMap
+  modelTags: CanvasAuditNameMap
+  promotionVersions: Record<
+    string,
+    { activityName: string | null; modelName: string | null }
+  >
+  campaignGrantPlans: Record<string, { activityName: string | null }>
+  priceVersions: Record<
+    string,
+    { modelName: string | null; priceGroupName: string | null }
+  >
+  providerRateVersions: CanvasAuditNameMap
+  providers: CanvasAuditNameMap
+  inviteCodes: CanvasAuditNameMap
+  rechargeCodes: CanvasAuditNameMap
+  rechargeCodeBatches: CanvasAuditNameMap
+  principals: CanvasAuditNameMap
+}
+
+export type CanvasAuditActorScope = 'ADMIN' | 'SYSTEM' | 'CUSTOMER' | 'ALL'
 
 export interface CanvasAuditEventQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
-  resource?: string
-  reason?: string
-  category?: string
+  actorScope?: CanvasAuditActorScope
   action?: string
-  outcome?: CanvasAuditEventPage['items'][number]['outcome']
-  actorPrincipalId?: string
-  resourceType?: string
-  resourceId?: string
   customerId?: string
   from?: string
   to?: string

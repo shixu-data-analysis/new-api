@@ -44,7 +44,7 @@ export interface DashboardSelectOption {
  * Searchable single choice for the dashboard's agent and customer filters. The typed text only requests candidates; the
  * filter changes once an option is chosen. Fixed options (such as "All" or "No agent") stay at the top.
  */
-function DashboardSearchSelect(props: {
+export function DashboardSearchSelect(props: {
   id?: string
   value: DashboardSelectOption
   fixedOptions: DashboardSelectOption[]

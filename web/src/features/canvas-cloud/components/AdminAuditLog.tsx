@@ -19,93 +19,115 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { TFunction } from 'i18next'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from '@/components/ui/select'
-import { useDebounce } from '@/hooks'
+import { getServerErrorStatus } from '@/lib/server-error-message'
 
 import { getCanvasAuditEvents } from '../api'
+import {
+  AUDIT_ACTIONS,
+  auditActionLabelKey,
+  auditActionOptionLabel,
+  auditActorText,
+  auditObjectText,
+  type AuditEvent,
+} from '../audit-log-format'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
-import type { CanvasAuditEventPage } from '../types'
+import type { CanvasAuditActorScope, CanvasAuditResolvedNames } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { AuditEventDetailsSheet } from './AuditEventDetailsSheet'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
-import { CopyableText } from './CopyableText'
+import {
+  ALL_OPTION_VALUE,
+  DashboardCustomerSelect,
+  DashboardSearchSelect,
+  type DashboardSelectOption,
+} from './DashboardSearchSelect'
 
-type AuditEvent = CanvasAuditEventPage['items'][number]
-const categories = [
-  'CONFIGURATION',
-  'EXECUTOR',
-  'IAM',
-  'PAYMENT',
-  'POINTS',
-  'PRICING',
-  'TASK_EXECUTION',
-] as const
-function localizeAuditValue(t: TFunction, value: string, unknownKey: string) {
-  return t(value, { defaultValue: t(unknownKey) })
+const DEFAULT_SCOPE: CanvasAuditActorScope = 'ADMIN'
+const scopeLabelKeys: Record<CanvasAuditActorScope, string> = {
+  ADMIN: 'Admin',
+  SYSTEM: 'System',
+  CUSTOMER: 'Customer',
+  ALL: 'All',
+}
+const emptyNames: CanvasAuditResolvedNames = {
+  customers: {},
+  customerModels: {},
+  agents: {},
+  rechargeOrders: {},
+  priceGroups: {},
+  modelTags: {},
+  promotionVersions: {},
+  campaignGrantPlans: {},
+  priceVersions: {},
+  providerRateVersions: {},
+  providers: {},
+  inviteCodes: {},
+  rechargeCodes: {},
+  rechargeCodeBatches: {},
+  principals: {},
 }
 
-const auditActorLabelKeys: Record<string, string> = {
-  PLATFORM_ADMIN: 'Platform administrator',
-}
-const auditResourceLabelKeys: Record<string, string> = {
-  POINT_LEDGER: 'Point ledger',
-  MODEL_PRICING_PUBLICATION: 'Model pricing',
-}
-const auditReasonLabelKeys: Record<string, string> = {
-  SELECTED_LOT_DEDUCTION: 'Selected Point Lot deduction',
+function loadErrorKey(error: unknown) {
+  const status = getServerErrorStatus(error)
+  if (status === 401) return 'Your session has expired. Sign in again.'
+  if (status === 403) {
+    return 'You do not have permission to view operation logs.'
+  }
+  return 'Unable to load operation logs'
 }
 
-export function AdminAuditLog({ customerId }: { customerId?: string }) {
-  const { t } = useTranslation()
+export function AdminAuditLog() {
+  const { t, i18n } = useTranslation()
   const state = useServerTableState('occurredAt')
   const setPagination = state.setPagination
-  const [category, setCategory] = useState('')
-  const [resource, setResource] = useState('')
-  const [reason, setReason] = useState('')
-  const [outcome, setOutcome] = useState('')
+  const allActions = useMemo(
+    () => ({ value: ALL_OPTION_VALUE, label: t('All actions') }),
+    [t]
+  )
+  const allCustomers = useMemo(
+    () => ({ value: ALL_OPTION_VALUE, label: t('All customers') }),
+    [t]
+  )
+  const [scope, setScope] = useState<CanvasAuditActorScope>(DEFAULT_SCOPE)
+  const [actionCode, setActionCode] = useState('')
+  const [customer, setCustomer] = useState<DashboardSelectOption>()
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
+  const [openEventId, setOpenEventId] = useState<string>()
+  const fieldId = useId()
   const dateRangeValid = isCanvasDateRangeValid(from, to)
-  const debouncedResource = useDebounce(resource.trim(), 300)
-  const debouncedReason = useDebounce(reason.trim(), 300)
+  const customerId = customer?.value ?? ''
 
   useEffect(() => {
     setPagination((value) =>
       value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
     )
-  }, [
-    category,
-    debouncedReason,
-    debouncedResource,
-    from,
-    outcome,
-    setPagination,
-    to,
-  ])
+  }, [actionCode, customerId, from, scope, setPagination, to])
   const query = useQuery({
     queryKey: [
       'canvas-cloud',
       'audit',
+      state.query.page,
+      state.query.pageSize,
+      state.query.sortOrder,
+      scope,
+      actionCode,
       customerId,
-      state.query,
-      debouncedResource,
-      debouncedReason,
-      category,
-      outcome,
       from?.toISOString(),
       to?.toISOString(),
     ],
@@ -115,13 +137,8 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
           page: state.query.page,
           pageSize: state.query.pageSize,
           sortOrder: state.query.sortOrder,
-          ...(state.query.search ? { action: state.query.search } : {}),
-          ...(debouncedResource ? { resource: debouncedResource } : {}),
-          ...(debouncedReason ? { reason: debouncedReason } : {}),
-          ...(category ? { category } : {}),
-          ...(outcome
-            ? { outcome: outcome as 'SUCCESS' | 'FAILURE' | 'DEFERRED' }
-            : {}),
+          actorScope: scope,
+          ...(actionCode ? { action: actionCode } : {}),
           ...(customerId ? { customerId } : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
@@ -130,79 +147,73 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
       ),
     enabled: dateRangeValid,
   })
+  const names = query.data?.resolvedNames ?? emptyNames
+  const openEvent = query.data?.items.find((item) => item.id === openEventId)
+  const actionOptions = useMemo(
+    () =>
+      AUDIT_ACTIONS.map((code) => ({
+        value: code,
+        label: auditActionOptionLabel(code, t),
+      })),
+    [t]
+  )
   const columns = useMemo<ColumnDef<AuditEvent, unknown>[]>(
     () => [
       {
         id: 'occurredAt',
         accessorKey: 'occurredAt',
+        enableHiding: false,
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title={t('Time')} />
         ),
         meta: { label: t('Time') },
-        cell: ({ row }) => formatCanvasDateTime(row.original.occurredAt),
-      },
-      {
-        id: 'category',
-        accessorKey: 'category',
-        enableSorting: false,
-        header: t('Category'),
-        cell: ({ row }) =>
-          localizeAuditValue(t, row.original.category, 'Unknown category'),
+        cell: ({ row }) => (
+          <span className='tabular-nums'>
+            {formatCanvasDateTime(row.original.occurredAt)}
+          </span>
+        ),
       },
       {
         id: 'action',
         accessorKey: 'action',
         enableSorting: false,
+        enableHiding: false,
         header: t('Action'),
-        cell: ({ row }) =>
-          localizeAuditValue(t, row.original.action, 'Unknown action'),
-      },
-      {
-        id: 'outcome',
-        accessorKey: 'outcome',
-        enableSorting: false,
-        header: t('Outcome'),
-        cell: ({ row }) =>
-          localizeAuditValue(t, row.original.outcome, 'Unknown outcome'),
+        meta: { label: t('Action') },
+        cell: ({ row }) => {
+          const labelKey = auditActionLabelKey(row.original.action)
+          return (
+            <Button
+              type='button'
+              variant='link'
+              className='h-auto p-0 text-start whitespace-normal'
+              onClick={() => setOpenEventId(row.original.id)}
+            >
+              {labelKey ? (
+                t(labelKey)
+              ) : (
+                <span className='font-mono'>{row.original.action}</span>
+              )}
+            </Button>
+          )
+        },
       },
       {
         id: 'actor',
         accessorKey: 'actorType',
         enableSorting: false,
         header: t('Actor'),
-        cell: ({ row }) => {
-          const actorLabelKey = auditActorLabelKeys[row.original.actorType]
-          const actorLabel = actorLabelKey
-            ? t(actorLabelKey)
-            : localizeAuditValue(t, row.original.actorType, 'Unknown actor')
-          return (
-            <span>
-              {actorLabel}
-              {row.original.actorUsername ? (
-                <>
-                  {' '}
-                  · <CopyableText value={row.original.actorUsername} />
-                </>
-              ) : null}
-            </span>
-          )
-        },
+        meta: { label: t('Actor') },
+        cell: ({ row }) => auditActorText(row.original, t),
       },
       {
-        id: 'resource',
+        id: 'object',
         accessorKey: 'resourceType',
         enableSorting: false,
-        header: t('Resource'),
+        header: t('Operation object'),
+        meta: { label: t('Operation object') },
         cell: ({ row }) => {
-          const resourceLabelKey =
-            auditResourceLabelKeys[row.original.resourceType]
-          const resourceLabel = resourceLabelKey
-            ? t(resourceLabelKey)
-            : localizeAuditValue(
-                t,
-                row.original.resourceType,
-                'Unknown resource'
-              )
+          const label = auditObjectText(row.original, names, t)
           const modelId = row.original.publicMetadata.customerModelId
           if (
             row.original.resourceType === 'MODEL_PRICING_PUBLICATION' &&
@@ -220,100 +231,83 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
                   publicationId: row.original.resourceId,
                 }}
               >
-                {resourceLabel}
+                {label}
               </Link>
             )
           }
-          return (
-            <span>
-              {resourceLabel}
-              {row.original.resourceId ? (
-                <>
-                  {' '}
-                  · <CopyableText value={row.original.resourceId} />
-                </>
-              ) : null}
-            </span>
-          )
-        },
-      },
-      {
-        id: 'reason',
-        accessorKey: 'reasonCode',
-        enableSorting: false,
-        header: t('Reason'),
-        cell: ({ row }) => {
-          if (!row.original.reasonCode) return '—'
-          const reasonLabelKey = auditReasonLabelKeys[row.original.reasonCode]
-          return reasonLabelKey
-            ? t(reasonLabelKey)
-            : localizeAuditValue(t, row.original.reasonCode, 'Unknown reason')
+          return label
         },
       },
     ],
-    [t]
+    [names, t]
   )
   const filters = (
     <>
-      <DataTableColumnFilterField label={t('Resource')}>
-        <Input
-          value={resource}
-          placeholder={t('Resource')}
-          onChange={(event) => setResource(event.target.value)}
-        />
-      </DataTableColumnFilterField>
-      <DataTableColumnFilterField label={t('Reason')}>
-        <Input
-          value={reason}
-          placeholder={t('Reason')}
-          onChange={(event) => setReason(event.target.value)}
-        />
-      </DataTableColumnFilterField>
-      <DataTableColumnFilterField label={t('Category')}>
+      <DataTableColumnFilterField
+        label={t('Operation source')}
+        htmlFor={`${fieldId}-source`}
+      >
         <Select
-          value={category || 'ALL'}
+          value={scope}
           onValueChange={(value) =>
-            setCategory(value === 'ALL' ? '' : (value ?? ''))
+            setScope((value as CanvasAuditActorScope | null) ?? DEFAULT_SCOPE)
           }
         >
-          <SelectTrigger className='w-full'>
+          <SelectTrigger id={`${fieldId}-source`} className='w-full'>
             <CanvasLocalizedSelectValue
-              value={category}
-              emptyLabelKey='All categories'
+              value={scope}
+              valueLabelKey={scopeLabelKeys[scope]}
             />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>{t('All categories')}</SelectItem>
-            {categories.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(value)}
-              </SelectItem>
-            ))}
+            {(Object.keys(scopeLabelKeys) as CanvasAuditActorScope[]).map(
+              (value) => (
+                <SelectItem key={value} value={value}>
+                  {t(scopeLabelKeys[value])}
+                </SelectItem>
+              )
+            )}
           </SelectContent>
         </Select>
       </DataTableColumnFilterField>
-      <DataTableColumnFilterField label={t('Outcome')}>
-        <Select
-          value={outcome || 'ALL'}
-          onValueChange={(value) =>
-            setOutcome(value === 'ALL' ? '' : (value ?? ''))
+      <DataTableColumnFilterField
+        label={t('Action')}
+        htmlFor={`${fieldId}-action`}
+      >
+        <DashboardSearchSelect
+          id={`${fieldId}-action`}
+          value={
+            actionCode
+              ? {
+                  value: actionCode,
+                  label: auditActionOptionLabel(actionCode, t),
+                }
+              : allActions
           }
-        >
-          <SelectTrigger className='w-full'>
-            <CanvasLocalizedSelectValue
-              value={outcome}
-              emptyLabelKey='All outcomes'
-            />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value='ALL'>{t('All outcomes')}</SelectItem>
-            {['SUCCESS', 'FAILURE', 'DEFERRED'].map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(value)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          queryKey={`audit-actions:${i18n.language}`}
+          placeholder={t('All actions')}
+          fixedOptions={[allActions]}
+          load={async (search) =>
+            actionOptions.filter((option) =>
+              option.label.toLowerCase().includes(search.toLowerCase())
+            )
+          }
+          onChange={(option) =>
+            setActionCode(option.value === ALL_OPTION_VALUE ? '' : option.value)
+          }
+        />
+      </DataTableColumnFilterField>
+      <DataTableColumnFilterField
+        label={t('Customer')}
+        htmlFor={`${fieldId}-customer`}
+      >
+        <DashboardCustomerSelect
+          id={`${fieldId}-customer`}
+          value={customer ?? allCustomers}
+          onChange={(option) =>
+            setCustomer(option.value === ALL_OPTION_VALUE ? undefined : option)
+          }
+        />
       </DataTableColumnFilterField>
       <div className='sm:col-span-2'>
         <CanvasDateRangeFilter
@@ -326,32 +320,41 @@ export function AdminAuditLog({ customerId }: { customerId?: string }) {
     </>
   )
   return (
-    <CanvasServerTable
-      data={query.data?.items ?? []}
-      columns={columns}
-      total={query.data?.total ?? 0}
-      state={state}
-      searchLabel={t('Action')}
-      loading={query.isLoading || query.isFetching}
-      emptyTitle={t('No audit events')}
-      additionalFilters={filters}
-      hasActiveFilters={Boolean(
-        resource || reason || category || outcome || from || to
-      )}
-      activeFilterCount={
-        [state.search, resource, reason, category, outcome, from, to].filter(
-          Boolean
-        ).length
-      }
-      onResetFilters={() => {
-        setResource('')
-        setReason('')
-        setCategory('')
-        setOutcome('')
-        setFrom(undefined)
-        setTo(undefined)
-      }}
-      getRowId={(row) => row.id}
-    />
+    <>
+      <CanvasServerTable
+        data={query.data?.items ?? []}
+        columns={columns}
+        total={query.data?.total ?? 0}
+        state={state}
+        loading={query.isLoading || query.isFetching}
+        error={query.isError}
+        errorTitle={t(loadErrorKey(query.error))}
+        onRetry={() => void query.refetch()}
+        emptyTitle={t('No operation logs')}
+        filteredEmptyTitle={t('No matching operation logs')}
+        additionalFilters={filters}
+        hasActiveFilters={Boolean(
+          scope !== DEFAULT_SCOPE || actionCode || customerId || from || to
+        )}
+        activeFilterCount={
+          [scope !== DEFAULT_SCOPE, actionCode, customerId, from, to].filter(
+            Boolean
+          ).length
+        }
+        onResetFilters={() => {
+          setScope(DEFAULT_SCOPE)
+          setActionCode('')
+          setCustomer(undefined)
+          setFrom(undefined)
+          setTo(undefined)
+        }}
+        getRowId={(row) => row.id}
+      />
+      <AuditEventDetailsSheet
+        {...(openEvent ? { event: openEvent } : {})}
+        names={names}
+        onClose={() => setOpenEventId(undefined)}
+      />
+    </>
   )
 }

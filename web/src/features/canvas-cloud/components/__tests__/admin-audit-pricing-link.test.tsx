@@ -68,6 +68,23 @@ function renderLog(record = event) {
     pageSize: 20,
     total: 1,
     items: [record],
+    resolvedNames: {
+      customers: {},
+      customerModels: { [modelId]: 'Seedance 1.0 Pro' },
+      agents: {},
+      rechargeOrders: {},
+      priceGroups: {},
+      modelTags: {},
+      promotionVersions: {},
+      campaignGrantPlans: {},
+      priceVersions: {},
+      providerRateVersions: {},
+      providers: {},
+      inviteCodes: {},
+      rechargeCodes: {},
+      rechargeCodeBatches: {},
+      principals: {},
+    },
   })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -88,7 +105,9 @@ describe('unified pricing audit links', () => {
 
   it('links the exact publication and model without selecting a nearby version', async () => {
     renderLog()
-    const link = await screen.findByRole('link', { name: 'Model pricing' })
+    const link = await screen.findByRole('link', {
+      name: 'Model · Seedance 1.0 Pro',
+    })
     expect(link.getAttribute('href')).toBe(
       `/canvas-cloud/model-management/${modelId}/pricing?tab=history&publicationId=${publicationId}`
     )
@@ -96,12 +115,8 @@ describe('unified pricing audit links', () => {
 
   it('keeps incomplete legacy metadata readable without inventing a destination', async () => {
     renderLog({ ...event, publicMetadata: {} })
-    expect(
-      await screen.findByRole('cell', { name: /Model pricing/ })
-    ).toBeVisible()
-    expect(
-      screen.queryByRole('link', { name: 'Model pricing' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByText(publicationId)).toBeVisible()
+    expect(await screen.findByRole('cell', { name: 'Model' })).toBeVisible()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(screen.queryByText(publicationId)).not.toBeInTheDocument()
   })
 })

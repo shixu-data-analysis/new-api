@@ -73,6 +73,8 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import { DetailValue } from './DetailValue'
+import { PreflightDiagnosticDetails } from './PreflightDiagnosticDetails'
 import {
   ProviderCostRevocationDialog,
   ProviderCostSettlementDialog,
@@ -151,35 +153,6 @@ const earlyReleaseBlockedReasons: Record<string, string> = {
     'A provider request is still active. Try again after the request lease ends.',
 }
 
-// Which provider address check stopped a task before it was sent; Cloud records the check, never the host.
-const providerUrlRejectionKeys: Record<string, string> = {
-  URL_NOT_HTTPS: 'The provider address is not credential-free HTTPS',
-  URL_LOCALHOST: 'The provider address points to this machine',
-  URL_FORBIDDEN_NETWORK:
-    'The provider host resolves to a private or reserved network',
-  URL_DNS_CHANGED: 'The provider host resolved differently during the task',
-  URL_DNS_NOT_FOUND: 'The provider host does not exist',
-  URL_DNS_UNAVAILABLE:
-    'The provider host could not be resolved at that moment; retrying usually works',
-}
-
-function DetailValue({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className='min-w-0'>
-      <dt className='text-muted-foreground text-sm'>{t(label)}</dt>
-      <dd className='mt-1 min-h-5 text-sm [overflow-wrap:anywhere] break-words'>
-        {children}
-      </dd>
-    </div>
-  )
-}
 function Points({ value }: { value: string | null | undefined }) {
   const { i18n } = useTranslation()
   return value === null || value === undefined ? (
@@ -380,55 +353,7 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
         <section className='space-y-3'>
           <h3 className='text-sm font-medium'>{t('Failure diagnosis')}</h3>
           {task.preflightDiagnostic ? (
-            <dl className='grid gap-4 sm:grid-cols-2'>
-              <DetailValue label='Failure stage'>
-                <span className='font-mono select-text'>
-                  {task.preflightDiagnostic.stage}
-                </span>
-              </DetailValue>
-              <DetailValue label='Specific reason'>
-                {task.preflightDiagnostic.reason === 'BODY_TEMPLATE_INVALID'
-                  ? `${t('Request template invalid')} · `
-                  : null}
-                <span className='font-mono select-text'>
-                  {task.preflightDiagnostic.reason}
-                </span>
-              </DetailValue>
-              {task.preflightDiagnostic.detail ? (
-                <DetailValue
-                  label={
-                    task.preflightDiagnostic.reason === 'PROVIDER_URL_REJECTED'
-                      ? 'Provider address check'
-                      : 'Template error'
-                  }
-                >
-                  {task.preflightDiagnostic.detail ===
-                  'INTEGER_CONVERSION_FAILED'
-                    ? `${t('Integer conversion failed')} · `
-                    : null}
-                  {providerUrlRejectionKeys[task.preflightDiagnostic.detail]
-                    ? `${t(providerUrlRejectionKeys[task.preflightDiagnostic.detail])} · `
-                    : null}
-                  <span className='font-mono select-text'>
-                    {task.preflightDiagnostic.detail}
-                  </span>
-                </DetailValue>
-              ) : null}
-              {task.preflightDiagnostic.field ? (
-                <DetailValue label='Field path'>
-                  <span className='font-mono select-text'>
-                    {task.preflightDiagnostic.field}
-                  </span>
-                </DetailValue>
-              ) : null}
-              {task.preflightDiagnostic.rule ? (
-                <DetailValue label='Validation rule'>
-                  <span className='font-mono select-text'>
-                    {task.preflightDiagnostic.rule}
-                  </span>
-                </DetailValue>
-              ) : null}
-            </dl>
+            <PreflightDiagnosticDetails diagnostic={task.preflightDiagnostic} />
           ) : (
             <p className='text-muted-foreground text-sm'>
               {t('No more specific error was recorded for this task')}

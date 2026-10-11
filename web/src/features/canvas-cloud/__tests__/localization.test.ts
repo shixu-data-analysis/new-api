@@ -29,6 +29,7 @@ import vi from '@/i18n/locales/vi.json'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
+import { AUDIT_ACTIONS, auditActionLabelKey } from '../audit-log-format'
 import { canvasBusinessTermConfig } from '../business-terms'
 import { errorRuleJsonFieldReference } from '../error-rule-json-reference'
 
@@ -640,15 +641,6 @@ const pointAdjustmentKeys = [
   'In review',
   'Recovered',
   'Waived',
-  'CONFIGURATION',
-  'PAYMENT',
-  'TASK_EXECUTION',
-  'Unknown category',
-  'Unknown action',
-  'Unknown outcome',
-  'Unknown actor',
-  'Unknown resource',
-  'Unknown reason',
 ] as const
 
 describe('Canvas interface localization', () => {
@@ -1165,4 +1157,66 @@ it('uses the plain execution wording in Chinese', () => {
       /上游|异步在途|请求并发|实例并发|查询预留并发|结果不明释放|执行截止时间|流空闲|排空|心跳|租约|提供商/
     )
   }
+})
+
+describe('operation log localization', () => {
+  const formatSource = readFileSync(
+    resolve('src/features/canvas-cloud/audit-log-format.ts'),
+    'utf8'
+  )
+  const operationLogKeys = [
+    ...new Set([
+      ...AUDIT_ACTIONS.map((action) => auditActionLabelKey(action) ?? action),
+      auditActionLabelKey('task.execution.succeeded') ?? '',
+      ...[
+        ...formatSource.matchAll(
+          /(?:label|objectType|idLabel|bucketLabel)\s*[:=]\s*'([^']+)'/g
+        ),
+      ].map((match) => match[1]),
+      ...[...formatSource.matchAll(/thresholdPair\('([^']+)'\)/g)].map(
+        (match) => match[1]
+      ),
+      'Operation log',
+      'Operation source',
+      'Operation object',
+      'Basic information',
+      'No operation logs',
+      'No matching operation logs',
+      'Unable to load operation logs',
+      'You do not have permission to view operation logs.',
+      'Copy {{label}}',
+      'Copied {{label}}',
+      'ADMIN_EARLY_RELEASE',
+      'CLAIMED',
+      'LEASE_EXPIRED_OR_RESTART',
+      'CAPACITY_RECHECK',
+      'QUEUE_OWNER_REJECTED',
+      'SAFE_CAPACITY_FACTS_REPAIRED',
+      'UNCERTAIN_PROVIDER_CALL_PRESERVED',
+      'TEMPORARY_LOSS_EXPIRED',
+      'WINDOW_MISSED_DURING_DOWNTIME',
+    ]),
+  ]
+
+  it.each(Object.entries({ en, ...localizedResources }))(
+    'names every operation-log action, object, ID and field in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of operationLogKeys) {
+        expect(translations[key], key).toBeTypeOf('string')
+      }
+    }
+  )
+
+  it.each(Object.entries(localizedResources))(
+    'does not leave operation-log action codes untranslated in %s',
+    (_locale, resource) => {
+      const translations = resource.translation as Record<string, string>
+      for (const key of operationLogKeys.filter((key) =>
+        /^[a-z_]+\./.test(key)
+      )) {
+        expect(translations[key], key).not.toBe(key)
+      }
+    }
+  )
 })

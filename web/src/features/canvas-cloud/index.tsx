@@ -97,7 +97,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   runtime: 'Runtime management',
   execution: 'Runtime management',
   'provider-configuration': 'Provider configuration',
-  audit: 'Canvas Audit Log',
+  audit: 'Operation log',
   'agent-center': 'My customers',
   'agent-earnings': 'My earnings',
 }

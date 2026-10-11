@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils'
 import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
+import { billingLabels, executionLabels } from '../task-status-labels'
 import type {
   CanvasAdminTaskFailureReason,
   CanvasAdminTaskLog,
@@ -83,24 +84,10 @@ const upstreamTaskLabels: Record<
 // A filter control that holds a value stands out, so a filter carried in from another page is easy to see.
 const activeControl = (active: boolean) =>
   cn('w-full', active && 'border-primary ring-primary/30 ring-1')
-const executionLabels: Record<string, string> = {
-  ACCEPTED: 'Accepted',
-  PROCESSING: 'Processing',
-  SUCCEEDED: 'Succeeded',
-  PARTIAL_SUCCESS: 'Partial success',
-  CONFIRMED_FAILED: 'Confirmed failed',
-  UNKNOWN: 'Result pending confirmation',
-}
 const settlementLabels: Record<string, string> = {
   PENDING: 'Pending',
   PROCESSING: 'Settlement in progress',
   COMPLETED: 'Settlement complete',
-}
-const billingLabels: Record<string, string> = {
-  FROZEN: 'Frozen',
-  SETTLED: 'Settled',
-  RELEASED_FAILED: 'Released after failure',
-  RELEASED_TIMEOUT: 'Released after timeout',
 }
 
 function executionSummary(
