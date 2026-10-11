@@ -574,7 +574,7 @@ const executionPolicyKeys = [
   'Credential group scope',
   'Credential scope',
   'Custom JSON mapping',
-  'More specific conditions match first, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.',
+  'Mappings match from top to bottom, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.',
   'Custom JSON order',
   'Custom mapping',
   'Custom message',

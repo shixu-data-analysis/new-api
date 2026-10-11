@@ -9,6 +9,8 @@ the Free Software Foundation, either version 3 of the License, or
 
 import { api } from '@/lib/api'
 
+import type { GatewayError } from './execution-types'
+
 export interface CanvasTaskCall {
   localCallId: string
   outputIndices: number[]
@@ -51,6 +53,7 @@ export interface CanvasTaskCall {
   responseBodyRecorded: boolean
   responseFromQuery: boolean
   providerResponseDiagnostic: CanvasProviderResponseDiagnostic | null
+  gatewayError?: GatewayError
   errorRuleId: string | null
   errorRuleVersion: number | null
   sanitizedRequest: unknown

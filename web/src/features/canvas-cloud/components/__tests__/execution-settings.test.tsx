@@ -967,6 +967,7 @@ describe('execution settings', () => {
     expect(
       screen.queryByText('The upstream service returned an error code.')
     ).not.toBeInTheDocument()
+    expect(screen.queryByText('Recognition')).not.toBeInTheDocument()
   })
 
   it('uses the mapped failure message when an upstream 401 hides safe details', async () => {
@@ -1328,6 +1329,46 @@ describe('execution settings', () => {
     )
   })
 
+  it.each(['zhCN', 'zhTW'] as const)(
+    'previews and edits customer messages in the %s interface language',
+    async (language) => {
+      await i18next.changeLanguage(language)
+      mount({ view: 'credentialGroup', credentialGroupId })
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: i18next.t('Test error mappings'),
+        })
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'New API 503 model_not_found' })
+      )
+      await waitFor(() =>
+        expect(mocks.previewCanvasExecutionError).toHaveBeenLastCalledWith(
+          expect.objectContaining({ locale: language })
+        )
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: i18next.t('Add mapping') })
+      )
+      const dialog = screen.getByRole('dialog')
+      fireEvent.change(
+        within(dialog).getByLabelText(i18next.t('Customer message')),
+        { target: { value: '请更换提示词' } }
+      )
+      fireEvent.click(
+        within(dialog).getByRole('button', {
+          name: i18next.t('{ } View / edit JSON'),
+        })
+      )
+      const json = within(dialog).getByRole('textbox', {
+        name: i18next.t('Error mapping JSON'),
+      })
+      expect(
+        JSON.parse((json as HTMLTextAreaElement).value).clientMessages
+      ).toEqual({ [language]: '请更换提示词' })
+    }
+  )
+
   it('marks a test result stale after the mappings or inputs change', async () => {
     mount({ view: 'credentialGroup', credentialGroupId })
     fireEvent.click(
@@ -1613,9 +1654,212 @@ describe('execution settings', () => {
     })
     expect(
       within(errorForm).getByText(
-        'More specific conditions match first, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.'
+        'Mappings match from top to bottom, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.'
       )
     ).toBeVisible()
+  })
+
+  it('lists the New API row between custom mappings and status defaults and expands both downward', async () => {
+    const data = await mocks.getCanvasCredentialGroupExecution()
+    mocks.getCanvasCredentialGroupExecution.mockClear()
+    const override = {
+      ...systemRule,
+      source: 'OVERRIDE',
+      executionDisposition: 'UNKNOWN',
+    }
+    mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+      ...data,
+      errors: {
+        ...data.errors,
+        configured: { rules: [override] },
+        effective: { ...data.errors.effective, rules: [override] },
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const form = await screen.findByRole('form', { name: 'Error mappings' })
+    const follows = (first: Node, second: Node) =>
+      Boolean(
+        first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    const customEmpty = within(form).getByText('No custom mappings yet.')
+    const newApiSummary = within(form).getByText(
+      'System defaults handle New API error codes: always mark failed; New API’s own errors are not shown to customers as raw text.'
+    )
+    const statusSummary = within(form).getByText(
+      /System defaults handle HTTP 429 \(1 modified shown below\)/
+    )
+    const modifiedRow = within(form).getByRole('group', { name: 'HTTP 429' })
+    expect(follows(customEmpty, newApiSummary)).toBe(true)
+    expect(follows(newApiSummary, statusSummary)).toBe(true)
+    expect(follows(statusSummary, modifiedRow)).toBe(true)
+
+    const newApiToggle = within(form).getByRole('button', { name: 'View' })
+    expect(newApiToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(form).queryByText('model_not_found')).not.toBeInTheDocument()
+    fireEvent.click(newApiToggle)
+    expect(within(form).getByRole('button', { name: 'Hide' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    const table = within(form).getByRole('table')
+    expect(follows(newApiSummary, table)).toBe(true)
+    expect(follows(table, statusSummary)).toBe(true)
+    expect(within(table).getAllByRole('row')).toHaveLength(12)
+    expect(
+      within(table).getByText('Relay model or channel misconfigured')
+    ).toBeVisible()
+    expect(within(table).getByText('model_not_found')).toBeVisible()
+    expect(within(table).getByText('(no error code) HTTP 401')).toBeVisible()
+    expect(
+      within(table).getByText('Provider errors forwarded by New API')
+    ).toBeVisible()
+    expect(within(table).getByText('fail_to_fetch_task')).toBeVisible()
+    expect(
+      within(table).getAllByText(
+        "This model can't be used right now. Try another model, or contact an administrator."
+      ).length
+    ).toBeGreaterThan(0)
+    expect(table.textContent).not.toMatch(/\b(A1|A2|M[1-4])\b/)
+    expect(within(table).queryByRole('button')).not.toBeInTheDocument()
+    expect(
+      within(form).getByText(
+        'Unlisted New API own error codes: marked failed, raw text not shown, category by status code. Only submission errors are handled.'
+      )
+    ).toBeVisible()
+
+    fireEvent.click(within(form).getByRole('button', { name: 'View / modify' }))
+    expect(
+      follows(
+        statusSummary,
+        within(form).getByRole('group', { name: 'HTTP 429' })
+      )
+    ).toBe(true)
+  })
+
+  it('lists an unconditional custom status mapping after the New API row, as Cloud matches it', async () => {
+    const data = await mocks.getCanvasCredentialGroupExecution()
+    mocks.getCanvasCredentialGroupExecution.mockClear()
+    const customStatus = {
+      ...systemRule,
+      id: 'custom.error.418',
+      httpStatus: 418,
+      category: 'PROVIDER_INTERNAL_ERROR' as const,
+      clientMessages: {},
+      adminNote: '',
+      source: 'CUSTOM' as const,
+    }
+    mocks.getCanvasCredentialGroupExecution.mockResolvedValueOnce({
+      ...data,
+      errors: {
+        ...data.errors,
+        configured: { rules: [customStatus] },
+        effective: {
+          ...data.errors.effective,
+          rules: [...data.errors.effective.rules, customStatus],
+        },
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    const form = await screen.findByRole('form', { name: 'Error mappings' })
+    const row = await within(form).findByRole('group', { name: 'HTTP 418' })
+    const newApiSummary = within(form).getByText(
+      'System defaults handle New API error codes: always mark failed; New API’s own errors are not shown to customers as raw text.'
+    )
+    const statusSummary = within(form).getByText(/System defaults handle HTTP/)
+    expect(
+      newApiSummary.compareDocumentPosition(row) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      row.compareDocumentPosition(statusSummary) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      within(form).queryByText('No custom mappings yet.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the New API recognition and its system reason only for a recognized error', async () => {
+    mocks.previewCanvasExecutionError.mockResolvedValueOnce({
+      facts: { httpStatus: 503, upstreamCode: 'model_not_found' },
+      upstreamRequestId: null,
+      upstreamRequestIdSource: null,
+      upstreamTaskId: null,
+      upstreamTaskIdSource: null,
+      canvasErrorCode: null,
+      upstreamErrorCode: 'model_not_found',
+      errorCategory: 'PROVIDER_MODEL_UNAVAILABLE',
+      sanitizedResponse: { error: { code: 'model_not_found' } },
+      customerSafeErrorDetail: 'UPSTREAM_ERROR_CODE_PRESENT',
+      adminNote: null,
+      match: {
+        ruleId: 'system.new-api.model-config',
+        ruleVersion: 1,
+        category: 'PROVIDER_MODEL_UNAVAILABLE',
+        clientMessage: "This model can't be used right now.",
+        messageSource: 'SYSTEM_DEFAULT',
+        clientHttpStatus: 503,
+        executionDisposition: 'CONFIRMED_FAILED',
+        executionDispositionSource: 'SYSTEM',
+      },
+      gatewayError: {
+        gateway: 'NEW_API',
+        kind: 'OWN',
+        code: 'model_not_found',
+        groupId: 'model-config',
+      },
+      customerView: {
+        message: "This model can't be used right now.",
+        upstreamReason: null,
+      },
+    })
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Test error mappings' })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'New API 503 model_not_found' })
+    )
+    await waitFor(() =>
+      expect(mocks.previewCanvasExecutionError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          httpStatus: 503,
+          response: expect.objectContaining({
+            error: expect.objectContaining({
+              code: 'model_not_found',
+              type: 'new_api_error',
+            }),
+          }),
+        })
+      )
+    )
+    expect(await screen.findByText('Recognition')).toBeVisible()
+    expect(
+      screen.getByText('New API’s own error · raw text not shown')
+    ).toBeVisible()
+    expect(
+      screen.getByText('System rule: New API errors never get a result')
+    ).toBeVisible()
+    expect(
+      screen.getByText('New API error code model_not_found (system default)')
+    ).toBeVisible()
+    expect(screen.getByText('API provider model unavailable')).toBeVisible()
+    expect(
+      screen.getByText(
+        'The relay lacks this model or its price, or a channel is misconfigured; the relay administrator must fix it.'
+      )
+    ).toBeVisible()
+  })
+
+  it('offers the new category in the mapping editor', async () => {
+    mount({ view: 'credentialGroup', credentialGroupId })
+    fireEvent.click(await screen.findByRole('button', { name: 'Add mapping' }))
+    const dialog = screen.getByRole('dialog')
+    expect(
+      within(dialog).getByRole('option', {
+        name: 'API provider model unavailable',
+      })
+    ).toBeInTheDocument()
   })
 
   it('reviews an edited custom mapping by its readable condition', async () => {

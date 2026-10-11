@@ -83,6 +83,14 @@ import type {
   LimitRule,
 } from '../execution-types'
 import { formatCanvasDateTime } from '../formatters'
+import {
+  newApiCodeTableMatch,
+  newApiErrorGroupDescriptionKey,
+  newApiErrorGroupNameKey,
+  newApiErrorGroups,
+  newApiForwardedCodes,
+  newApiRecognitionKeys,
+} from '../new-api-errors'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -166,6 +174,7 @@ const errorRuleSchema = z.object({
     'PROVIDER_BALANCE_INSUFFICIENT',
     'PROVIDER_ACCESS_DENIED',
     'PROVIDER_ENDPOINT_NOT_FOUND',
+    'PROVIDER_MODEL_UNAVAILABLE',
     'PROVIDER_REQUEST_TIMEOUT',
     'PROVIDER_RATE_LIMITED',
     'PROVIDER_INTERNAL_ERROR',
@@ -228,6 +237,7 @@ const editableErrorRuleJsonSchema = z
       'PROVIDER_BALANCE_INSUFFICIENT',
       'PROVIDER_ACCESS_DENIED',
       'PROVIDER_ENDPOINT_NOT_FOUND',
+      'PROVIDER_MODEL_UNAVAILABLE',
       'PROVIDER_REQUEST_TIMEOUT',
       'PROVIDER_RATE_LIMITED',
       'PROVIDER_INTERNAL_ERROR',
@@ -452,6 +462,7 @@ const categories: ErrorCategory[] = [
   'PROVIDER_BALANCE_INSUFFICIENT',
   'PROVIDER_ACCESS_DENIED',
   'PROVIDER_ENDPOINT_NOT_FOUND',
+  'PROVIDER_MODEL_UNAVAILABLE',
   'PROVIDER_REQUEST_TIMEOUT',
   'PROVIDER_RATE_LIMITED',
   'PROVIDER_INTERNAL_ERROR',
@@ -472,6 +483,7 @@ const categoryDescriptionKeys: Record<ErrorCategory, string> = {
   PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
   PROVIDER_ACCESS_DENIED: 'Provider access denied',
   PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
+  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
   PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
   PROVIDER_RATE_LIMITED: 'Provider rate limited',
   PROVIDER_INTERNAL_ERROR: 'Provider internal error',
@@ -536,6 +548,8 @@ const defaultCustomerMessageKeys: Record<ErrorCategory, string> = {
   PROVIDER_ACCESS_DENIED: 'Default customer message PROVIDER_ACCESS_DENIED',
   PROVIDER_ENDPOINT_NOT_FOUND:
     'Default customer message PROVIDER_ENDPOINT_NOT_FOUND',
+  PROVIDER_MODEL_UNAVAILABLE:
+    'Default customer message PROVIDER_MODEL_UNAVAILABLE',
   PROVIDER_REQUEST_TIMEOUT: 'Default customer message PROVIDER_REQUEST_TIMEOUT',
   PROVIDER_RATE_LIMITED: 'Default customer message PROVIDER_RATE_LIMITED',
   PROVIDER_INTERNAL_ERROR: 'Default customer message PROVIDER_INTERNAL_ERROR',
@@ -564,6 +578,18 @@ const errorPreviewSamples: Array<{
     label: 'Control: 502 without an error code',
     status: '502',
     response: { error: { message: 'Bad gateway' } },
+  },
+  {
+    label: 'New API 503 model_not_found',
+    status: '503',
+    response: {
+      error: {
+        code: 'model_not_found',
+        type: 'new_api_error',
+        message:
+          'No available channel for model dola-seedance-2.0-15s under group default (distributor)',
+      },
+    },
   },
 ]
 
@@ -2534,6 +2560,34 @@ function JsonValidationStatus(props: {
   )
 }
 
+function NewApiCodeList(props: { codes: string[]; uncodedStatus?: number }) {
+  const { t } = useTranslation()
+  const uncoded =
+    props.uncodedStatus === undefined
+      ? []
+      : [
+          t('(no error code) HTTP {{status}}', {
+            status: props.uncodedStatus,
+          }),
+        ]
+  return (
+    <div className='[overflow-wrap:anywhere]'>
+      {props.codes.map((code, index) => (
+        <Fragment key={code}>
+          {index ? t(', ') : null}
+          <code className='font-mono text-xs'>{code}</code>
+        </Fragment>
+      ))}
+      {uncoded.map((label) => (
+        <Fragment key={label}>
+          {props.codes.length ? t(', ') : null}
+          <span className='text-muted-foreground'>{label}</span>
+        </Fragment>
+      ))}
+    </div>
+  )
+}
+
 function ErrorSection(props: {
   providerId: string
   providerName: string
@@ -2609,6 +2663,7 @@ function ErrorSection(props: {
     null
   )
   const [showSystem, setShowSystem] = useState(false)
+  const [showNewApiCodes, setShowNewApiCodes] = useState(false)
   const [editor, setEditor] = useState<RuleEditorState | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const editorTrigger = useRef<HTMLElement | null>(null)
@@ -2897,7 +2952,14 @@ function ErrorSection(props: {
       }
       return left.index - right.index
     })
-  const customRows = ordered.filter(({ rule }) => rule.source === 'CUSTOM')
+  // Rows follow Cloud's match layers: conditional and JSON custom mappings come before the
+  // New API code table; unconditional status mappings, custom ones included, come after it.
+  const customRows = ordered.filter(
+    ({ rule }) => rule.source === 'CUSTOM' && errorRulePriority(rule) < 2
+  )
+  const customStatusRows = ordered.filter(
+    ({ rule }) => rule.source === 'CUSTOM' && errorRulePriority(rule) === 2
+  )
   const systemRows = ordered.filter(({ rule }) => rule.source !== 'CUSTOM')
   const changedSystemRows = systemRows.filter(
     ({ rule }) =>
@@ -3032,7 +3094,32 @@ function ErrorSection(props: {
     preview.data?.match.executionDisposition === 'CONFIRMED_FAILED'
   let previewReason = t('Set by this mapping')
   const previewStatusCode = preview.data?.facts.httpStatus
-  if (preview.data?.match.executionDispositionSource === 'SYSTEM') {
+  const previewGateway = preview.data?.gatewayError
+  const previewGatewayGroup = previewGateway?.groupId
+    ? newApiErrorGroups.find((group) => group.id === previewGateway.groupId)
+    : undefined
+  // Only an own error that no custom mapping caught hits the New API code table.
+  const previewHitCodeTable =
+    previewGateway?.kind === 'OWN' &&
+    preview.data?.match.ruleId === `system.new-api.${previewGateway.groupId}`
+  let previewMatchedMapping = t('None (fallback: unknown provider error)')
+  if (previewHitCodeTable && previewGateway) {
+    previewMatchedMapping = newApiCodeTableMatch(
+      previewGateway,
+      previewStatusCode,
+      t
+    )
+  } else if (matchedFacts && previewGateway?.kind === 'FORWARDED') {
+    previewMatchedMapping = t('{{match}} (by the decoded provider response)', {
+      match: formatErrorRuleMatch(matchedFacts, t),
+      interpolation: { escapeValue: false },
+    })
+  } else if (matchedFacts) {
+    previewMatchedMapping = formatErrorRuleMatch(matchedFacts, t)
+  }
+  if (previewGateway) {
+    previewReason = t('System rule: New API errors never get a result')
+  } else if (preview.data?.match.executionDispositionSource === 'SYSTEM') {
     if (!previewFailed) {
       previewReason = t('System rule: no clear failure evidence')
     } else if (previewStatusCode !== undefined && previewStatusCode >= 400) {
@@ -3067,7 +3154,7 @@ function ErrorSection(props: {
           <h3 className='font-semibold'>{t('Provider error mappings')}</h3>
           <p className='text-muted-foreground text-sm'>
             {t(
-              'More specific conditions match first, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.'
+              'Mappings match from top to bottom, and matching stops at the first hit. All conditions must be met; add another mapping for alternatives. If unsure, start from an example in “Add mapping”.'
             )}
           </p>
         </div>
@@ -3196,9 +3283,7 @@ function ErrorSection(props: {
                     </dt>
                     <dd>
                       <span className='font-mono text-xs'>
-                        {matchedFacts
-                          ? formatErrorRuleMatch(matchedFacts, t)
-                          : t('None (fallback: unknown provider error)')}
+                        {previewMatchedMapping}
                       </span>
                       {matchedFacts &&
                       matchedFacts.httpStatus !== null &&
@@ -3218,6 +3303,14 @@ function ErrorSection(props: {
                         </p>
                       ) : null}
                     </dd>
+                    {previewGateway ? (
+                      <>
+                        <dt className='text-muted-foreground'>
+                          {t('Recognition')}
+                        </dt>
+                        <dd>{t(newApiRecognitionKeys[previewGateway.kind])}</dd>
+                      </>
+                    ) : null}
                     <dt className='text-muted-foreground'>
                       {t('Task result')}
                     </dt>
@@ -3286,6 +3379,21 @@ function ErrorSection(props: {
                           {t('Administrator rationale')}
                         </dt>
                         <dd>{preview.data.adminNote}</dd>
+                      </>
+                    ) : null}
+                    {previewHitCodeTable &&
+                    previewGatewayGroup?.hasDescription ? (
+                      <>
+                        <dt className='text-muted-foreground'>
+                          {t('Administrator rationale')}
+                        </dt>
+                        <dd>
+                          {t(
+                            newApiErrorGroupDescriptionKey(
+                              previewGatewayGroup.id
+                            )
+                          )}
+                        </dd>
                       </>
                     ) : null}
                     <dt className='text-muted-foreground'>
@@ -3394,14 +3502,107 @@ function ErrorSection(props: {
           <span>{t('Handle this way')}</span>
           <span />
         </div>
-        {customRows.length ? (
-          customRows.map(renderRow)
-        ) : (
+        {customRows.map(renderRow)}
+        {customRows.length || customStatusRows.length ? null : (
           <p className='text-muted-foreground rounded-lg border p-3 text-sm'>
             {t('No custom mappings yet.')}
           </p>
         )}
-        {shownSystemRows.map(renderRow)}
+        <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3 text-xs'>
+          <span className='text-muted-foreground'>
+            {t(
+              'System defaults handle New API error codes: always mark failed; New API’s own errors are not shown to customers as raw text.'
+            )}
+          </span>
+          <Button
+            type='button'
+            size='sm'
+            variant='link'
+            aria-expanded={showNewApiCodes}
+            aria-controls='new-api-error-codes'
+            onClick={() => setShowNewApiCodes((open) => !open)}
+          >
+            {t(showNewApiCodes ? 'Hide' : 'New API error codes view')}
+          </Button>
+        </div>
+        {showNewApiCodes ? (
+          <div id='new-api-error-codes' className='space-y-2'>
+            {/* Bounded by the code table: 10 groups plus the forwarded row, so no paging. */}
+            <StaticDataTable
+              columns={[
+                {
+                  id: 'codes',
+                  header: t('New API error code'),
+                  className: canvasStaticColumnWidth.detail,
+                  cellClassName: 'align-top whitespace-normal',
+                  cell: (row) => (
+                    <>
+                      <div className='mb-1 font-medium'>{row.name}</div>
+                      <NewApiCodeList
+                        codes={row.codes}
+                        uncodedStatus={row.uncodedStatus}
+                      />
+                    </>
+                  ),
+                },
+                {
+                  id: 'category',
+                  header: t('Error category'),
+                  className: canvasStaticColumnWidth.wide,
+                  cellClassName: 'align-top whitespace-normal',
+                  cell: (row) => (
+                    <>
+                      {row.category}
+                      {row.description ? (
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {row.description}
+                        </p>
+                      ) : null}
+                    </>
+                  ),
+                },
+                {
+                  id: 'message',
+                  header: t('Customer message'),
+                  className: canvasStaticColumnWidth.detail,
+                  cellClassName: 'align-top whitespace-normal',
+                  cell: (row) => row.message,
+                },
+              ]}
+              data={[
+                ...newApiErrorGroups.map((group) => ({
+                  id: group.id,
+                  name: t(newApiErrorGroupNameKey(group.id)),
+                  codes: group.codes,
+                  uncodedStatus: group.uncodedStatus,
+                  category: t(categoryDescriptionKeys[group.category]),
+                  description: group.hasDescription
+                    ? t(newApiErrorGroupDescriptionKey(group.id))
+                    : '',
+                  message: t(defaultCustomerMessageKeys[group.category]),
+                })),
+                {
+                  id: 'forwarded',
+                  name: t('Provider errors forwarded by New API'),
+                  codes: newApiForwardedCodes,
+                  uncodedStatus: undefined,
+                  category: t('By the provider’s original response'),
+                  description: '',
+                  message: t(
+                    'By the provider’s original response; the provider reason is attached when the conditions are met'
+                  ),
+                },
+              ]}
+              getRowKey={(row) => row.id}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Unlisted New API own error codes: marked failed, raw text not shown, category by status code. Only submission errors are handled.'
+              )}
+            </p>
+          </div>
+        ) : null}
+        {customStatusRows.map(renderRow)}
         <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-3 text-xs'>
           <span className='text-muted-foreground'>
             {t('System defaults handle HTTP {{statuses}}', {
@@ -3411,7 +3612,7 @@ function ErrorSection(props: {
                 .join(', '),
             })}
             {!showSystem && changedSystemRows.length
-              ? ` ${t('({{count}} modified shown above)', {
+              ? ` ${t('({{count}} modified shown below)', {
                   count: changedSystemRows.length,
                 })}`
               : ''}
@@ -3426,6 +3627,7 @@ function ErrorSection(props: {
             {t(showSystem ? 'Hide' : 'View / modify')}
           </Button>
         </div>
+        {shownSystemRows.map(renderRow)}
       </div>
       {Object.keys(form.formState.errors).length > 0 &&
         fieldError(t('Fix the highlighted rule fields'))}
@@ -4110,14 +4312,22 @@ function conditionValueForEditor(
 
 function executionLocaleForLanguage(language: string): ExecutionLocale {
   const normalized = language.replaceAll('_', '-').toLowerCase()
+  // i18next reports Chinese with the interface codes `zhCN` / `zhTW`.
   if (
+    normalized === 'zhtw' ||
     normalized === 'zh-tw' ||
     normalized === 'zh-hk' ||
     normalized.startsWith('zh-hant')
   ) {
     return 'zhTW'
   }
-  if (normalized === 'zh' || normalized.startsWith('zh-hans')) return 'zhCN'
+  if (
+    normalized === 'zh' ||
+    normalized === 'zhcn' ||
+    normalized.startsWith('zh-hans')
+  ) {
+    return 'zhCN'
+  }
   const base = normalized.split('-')[0]
   return locales.includes(base as ExecutionLocale)
     ? (base as ExecutionLocale)

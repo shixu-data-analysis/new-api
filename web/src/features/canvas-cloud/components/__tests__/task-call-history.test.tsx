@@ -233,6 +233,33 @@ describe('TaskCallHistory', () => {
     expect(screen.queryByText(/EQUALS/)).not.toBeInTheDocument()
   })
 
+  it('shows the New API recognition and the matched code-table group of a recorded submission', () => {
+    mountDetails({
+      ...call,
+      finalHttpStatus: 503,
+      errorCategory: 'PROVIDER_MODEL_UNAVAILABLE',
+      errorRuleId: 'system.new-api.model-config',
+      errorRuleVersion: 1,
+      matchedRule: null,
+      gatewayError: {
+        gateway: 'NEW_API',
+        kind: 'OWN',
+        code: 'model_not_found',
+        groupId: 'model-config',
+      },
+      executionJudgement: { status: 'CONFIRMED_FAILED', source: 'SYSTEM' },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    expect(
+      screen.getByText('New API error code model_not_found (system default)')
+    ).toBeVisible()
+    expect(screen.getByText('Recognition')).toBeVisible()
+    expect(
+      screen.getByText('New API’s own error · raw text not shown')
+    ).toBeVisible()
+    expect(screen.getByText('API provider model unavailable')).toBeVisible()
+  })
+
   it('shows the request line and only non-empty request parts', () => {
     mountDetails({
       ...call,

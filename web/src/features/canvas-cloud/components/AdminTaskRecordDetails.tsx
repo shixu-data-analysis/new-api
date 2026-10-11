@@ -103,6 +103,7 @@ const errorCategories: Record<string, string> = {
   PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
   PROVIDER_ACCESS_DENIED: 'Provider access denied',
   PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
+  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
   PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
   PROVIDER_RATE_LIMITED: 'Provider rate limited',
   PROVIDER_INTERNAL_ERROR: 'Provider internal error',

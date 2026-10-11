@@ -46,6 +46,7 @@ export type ErrorCategory =
   | 'PROVIDER_BALANCE_INSUFFICIENT'
   | 'PROVIDER_ACCESS_DENIED'
   | 'PROVIDER_ENDPOINT_NOT_FOUND'
+  | 'PROVIDER_MODEL_UNAVAILABLE'
   | 'PROVIDER_REQUEST_TIMEOUT'
   | 'PROVIDER_RATE_LIMITED'
   | 'PROVIDER_INTERNAL_ERROR'
@@ -302,6 +303,14 @@ export interface CredentialGroupExecutionOverview {
   }>
 }
 
+/** A recognized relay-gateway error on a submission (Cloud `GatewayError`); administrator-only. */
+export interface GatewayError {
+  gateway: 'NEW_API'
+  kind: 'OWN' | 'FORWARDED'
+  code: string | null
+  groupId: string | null
+}
+
 export interface ErrorPreviewResult {
   facts: {
     httpStatus?: number
@@ -334,6 +343,7 @@ export interface ErrorPreviewResult {
     executionDispositionSource: 'RULE' | 'SYSTEM'
     hideUpstreamReason?: boolean
   }
+  gatewayError?: GatewayError
   customerView: {
     message: string
     upstreamReason: string | null

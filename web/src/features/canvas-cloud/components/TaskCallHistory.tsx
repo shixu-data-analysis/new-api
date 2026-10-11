@@ -21,6 +21,7 @@ import {
   getCanvasAdminTaskInputDownload,
 } from '../api'
 import { formatErrorRuleMatch } from '../error-rule-format'
+import { newApiCodeTableMatch, newApiRecognitionKeys } from '../new-api-errors'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
@@ -45,6 +46,7 @@ const errorCategories: Record<string, string> = {
   PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
   PROVIDER_ACCESS_DENIED: 'Provider access denied',
   PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
+  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
   PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
   PROVIDER_RATE_LIMITED: 'Provider rate limited',
   PROVIDER_INTERNAL_ERROR: 'Provider internal error',
@@ -287,6 +289,19 @@ export function CallDetails({
   } else if (responseDiagnostic?.schema) {
     schemaNote = t('Response does not match the interface contract.')
   }
+  let matchedMapping = '—'
+  if (call.matchedRule) {
+    matchedMapping = formatErrorRuleMatch(call.matchedRule, t)
+  } else if (
+    call.gatewayError &&
+    call.errorRuleId === `system.new-api.${call.gatewayError.groupId}`
+  ) {
+    matchedMapping = newApiCodeTableMatch(
+      call.gatewayError,
+      call.finalHttpStatus,
+      t
+    )
+  }
   const fields: Array<[string, ReactNode, boolean?]> = [
     [
       'Provider / channel',
@@ -344,9 +359,7 @@ export function CallDetails({
       'Matched mapping',
       call.errorRuleId ? (
         <div key='matched-mapping'>
-          <div>
-            {call.matchedRule ? formatErrorRuleMatch(call.matchedRule, t) : '—'}
-          </div>
+          <div>{matchedMapping}</div>
           <p className='text-muted-foreground mt-1 text-xs'>
             {call.errorRuleId}
             {call.errorRuleVersion === null
@@ -358,6 +371,11 @@ export function CallDetails({
         '—'
       ),
     ],
+    ...(call.gatewayError
+      ? ([
+          ['Recognition', t(newApiRecognitionKeys[call.gatewayError.kind])],
+        ] as Array<[string, ReactNode, boolean?]>)
+      : []),
     ['Execution judgement', executionJudgementText(call.executionJudgement, t)],
     ...(call.matchedRule?.adminNote.trim()
       ? ([
