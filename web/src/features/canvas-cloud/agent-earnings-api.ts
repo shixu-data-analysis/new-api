@@ -28,6 +28,7 @@ import type {
   AgentEarningsSummary,
   AgentMonthlyStatementPage,
   AgentPageSize,
+  AgentPaymentQrResult,
   AgentStatementCustomerList,
   AgentStatusChangeResult,
   AgentStatusPreview,
@@ -127,9 +128,9 @@ export async function markAgentWithdrawalsSeen(): Promise<void> {
   })
 }
 
-/** `amount` is RMB with at most two decimals; `qrImage` is base64, or null to reuse the previous QR code. */
+/** `amount` is RMB with at most two decimals; the request is paid to the agent's current QR code. */
 export async function submitAgentWithdrawal(
-  input: { amount: string; qrImage: string | null },
+  input: { amount: string },
   key: string
 ): Promise<AgentWithdrawal> {
   return (
@@ -142,6 +143,24 @@ export async function submitAgentWithdrawal(
 
 export function newWithdrawalIdempotencyKey(): string {
   return idempotencyKey('agent-withdrawal')
+}
+
+/** Uploads the agent's payment QR code (base64), replacing the current one for every requested withdrawal. */
+export async function replaceAgentPaymentQr(
+  image: string,
+  key: string
+): Promise<AgentPaymentQrResult> {
+  return (
+    await api.put<AgentPaymentQrResult>(
+      `${webBase}/agent/payment-qr`,
+      { image },
+      { headers: { 'Idempotency-Key': key }, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export function newPaymentQrIdempotencyKey(): string {
+  return idempotencyKey('agent-payment-qr')
 }
 
 // ---- Administrator ----
@@ -205,15 +224,17 @@ export async function getAdminPendingWithdrawalCount(
   ).data.count
 }
 
+/** `qrUploadId` is the QR code the administrator paid to; Cloud refuses it with QR_CODE_CHANGED once replaced. */
 export async function payAgentWithdrawal(
   withdrawalId: string,
   proofImage: string,
+  qrUploadId: string,
   key: string
 ): Promise<AgentWithdrawal> {
   return (
     await api.post<AgentWithdrawal>(
       `${webBase}/admin/agent-withdrawals/${encodeURIComponent(withdrawalId)}/pay`,
-      { proofImage },
+      { proofImage, qrUploadId },
       {
         headers: { 'Idempotency-Key': key },
         skipErrorHandler: true,

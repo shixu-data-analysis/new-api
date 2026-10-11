@@ -17,33 +17,21 @@ export function PricingPointRules() {
   const { t } = useTranslation()
   return (
     <div className='min-w-0 space-y-6'>
+      {/* One card per rule category, in business order; each card keeps its own publication flow. */}
       <section aria-label={t('Price plans')} className='min-w-0'>
         <PriceGroupManagement />
       </section>
-      <section
-        aria-labelledby='recharge-rules-heading'
-        className='min-w-0 space-y-3'
-      >
-        <h2 id='recharge-rules-heading' className='text-lg font-semibold'>
-          {t('Recharge rules')}
-        </h2>
+      <section aria-label={t('Point issuance rate')} className='min-w-0'>
         <PointIssuanceRateSettings />
-        <TaskPolicySettings section='recharge' />
       </section>
-      <section
-        aria-labelledby='agent-settlement-rules-heading'
-        className='min-w-0 space-y-3'
-      >
-        <h2
-          id='agent-settlement-rules-heading'
-          className='text-lg font-semibold'
-        >
-          {t('Agent settlement rules')}
-        </h2>
+      <section aria-label={t('Point validity')} className='min-w-0'>
+        <TaskPolicySettings section='points' />
+      </section>
+      <section aria-label={t('Quote rules')} className='min-w-0'>
+        <TaskPolicySettings section='quote' />
+      </section>
+      <section aria-label={t('Agent settlement rules')} className='min-w-0'>
         <AgentSettlementPolicySettings />
-      </section>
-      <section aria-label={t('Quote and release rules')} className='min-w-0'>
-        <TaskPolicySettings section='release' />
       </section>
     </div>
   )

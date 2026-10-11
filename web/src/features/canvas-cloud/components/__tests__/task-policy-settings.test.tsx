@@ -7,7 +7,14 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,13 +31,15 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('../../api', () => apiMocks)
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-function renderSettings(section: 'recharge' | 'release' = 'release') {
+/** Renders one rule card, or both as the pricing rules page does. */
+function renderSettings(section: 'points' | 'quote' | 'both' = 'quote') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   const view = render(
     <QueryClientProvider client={client}>
-      <TaskPolicySettings section={section} />
+      {section === 'quote' ? null : <TaskPolicySettings section='points' />}
+      {section === 'points' ? null : <TaskPolicySettings section='quote' />}
     </QueryClientProvider>
   )
   return { ...view, client }
@@ -68,23 +77,16 @@ describe('Canvas administrator task policy settings', () => {
     })
   })
 
-  it('loads defaults and publishes confirmed bounded values', async () => {
-    renderSettings()
+  it('groups the two point validity rules and publishes confirmed bounded values', async () => {
+    renderSettings('points')
 
-    const quote = await screen.findByLabelText('Quote validity')
+    const paid = await screen.findByRole('textbox', {
+      name: 'Paid points validity',
+    })
     const grace = screen.getByLabelText('Bonus failure grace')
-    expect(quote).toHaveValue('300')
+    expect(paid).toHaveValue('90')
     expect(grace).toHaveValue('7')
-    expect(
-      screen.queryByLabelText('Paid points validity')
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByText(
-        en.translation[
-          'This is how long a customer can submit a task using a quoted price. After it expires, the system creates a new quote using the current price; the old quote is not extended.'
-        ]
-      )
-    ).toBeVisible()
+    expect(screen.queryByLabelText('Quote validity')).not.toBeInTheDocument()
     expect(
       screen.getByText(
         en.translation[
@@ -93,7 +95,6 @@ describe('Canvas administrator task policy settings', () => {
       )
     ).toBeVisible()
 
-    fireEvent.change(quote, { target: { value: '600' } })
     fireEvent.change(grace, { target: { value: '14' } })
     fireEvent.click(
       screen.getByRole('button', { name: 'Review settings change' })
@@ -105,10 +106,7 @@ describe('Canvas administrator task policy settings', () => {
     await waitFor(() =>
       expect(
         apiMocks.publishConfirmedCanvasTaskPolicySettings
-      ).toHaveBeenCalledWith({
-        quoteTtlSeconds: 600,
-        bonusFailureGraceDays: 14,
-      })
+      ).toHaveBeenCalledWith({ bonusFailureGraceDays: 14 })
     )
   })
 
@@ -118,28 +116,30 @@ describe('Canvas administrator task policy settings', () => {
       ...settings,
       quoteTtlVersion: 4,
     })
-    renderSettings()
+    renderSettings('both')
     await screen.findByLabelText('Quote validity')
     expect(screen.getByText('v4')).toBeVisible()
-    expect(screen.getByText('Default configuration')).toBeVisible()
+    expect(screen.getAllByText('Default configuration')).toHaveLength(2)
     expect(
       screen.queryByText(/Published settings are versioned/)
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/Whole seconds from/)).not.toBeInTheDocument()
     expect(screen.queryByText('—')).not.toBeInTheDocument()
     expect(screen.getByText('seconds')).toBeVisible()
-    expect(screen.getByText('days')).toBeVisible()
+    expect(screen.getAllByText('days')).toHaveLength(2)
   })
 
   it('rejects values outside the documented bounds', async () => {
-    renderSettings()
+    renderSettings('both')
     const quote = await screen.findByLabelText('Quote validity')
-    const grace = screen.getByLabelText('Bonus failure grace')
+    const grace = await screen.findByLabelText('Bonus failure grace')
     fireEvent.change(quote, { target: { value: '0' } })
     fireEvent.change(grace, { target: { value: '366' } })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review settings change' })
-    )
+    for (const button of screen.getAllByRole('button', {
+      name: 'Review settings change',
+    })) {
+      fireEvent.click(button)
+    }
 
     expect(
       await screen.findByText('Enter a whole number from 1 to 86400')
@@ -152,6 +152,16 @@ describe('Canvas administrator task policy settings', () => {
   it('publishes only the edited field so unrelated settings cannot be overwritten', async () => {
     renderSettings()
     const quote = await screen.findByLabelText('Quote validity')
+    expect(
+      screen.getByText(
+        en.translation[
+          'This is how long a customer can submit a task using a quoted price. After it expires, the system creates a new quote using the current price; the old quote is not extended.'
+        ]
+      )
+    ).toBeVisible()
+    expect(
+      screen.queryByLabelText('Bonus failure grace')
+    ).not.toBeInTheDocument()
     fireEvent.change(quote, { target: { value: '600' } })
     fireEvent.click(
       screen.getByRole('button', { name: 'Review settings change' })
@@ -167,7 +177,7 @@ describe('Canvas administrator task policy settings', () => {
   })
 
   it('keeps recharge validity separate and reads the published version back', async () => {
-    renderSettings('recharge')
+    renderSettings('points')
     const paid = await screen.findByRole('textbox', {
       name: 'Paid points validity',
     })
@@ -185,14 +195,14 @@ describe('Canvas administrator task policy settings', () => {
       ).toHaveBeenCalledWith({ paidExpiryDays: 120 })
     )
     expect(paid).toHaveValue('120')
-    expect(screen.getByText('v1')).toBeVisible()
+    expect(screen.getAllByText('v1')).toHaveLength(2)
     expect(
       screen.getByRole('button', { name: 'Review settings change' })
     ).toBeDisabled()
   })
 
   it('validates Paid boundaries after touch and clears corrected errors', async () => {
-    renderSettings('recharge')
+    renderSettings('points')
     const paid = await screen.findByRole('textbox', {
       name: 'Paid points validity',
     })
@@ -208,8 +218,9 @@ describe('Canvas administrator task policy settings', () => {
   })
 
   it('preserves a draft across a query refresh and omits remotely changed fields', async () => {
-    const { client } = renderSettings()
+    const { client } = renderSettings('both')
     const quote = await screen.findByLabelText('Quote validity')
+    const quoteForm = screen.getByRole('form', { name: 'Quote rules' })
     fireEvent.change(quote, { target: { value: '600' } })
     const settings = await apiMocks.getCanvasTaskPolicySettings()
     await act(async () => {
@@ -224,12 +235,11 @@ describe('Canvas administrator task policy settings', () => {
       expect(screen.getByLabelText('Bonus failure grace')).toHaveValue('21')
     )
     expect(quote).toHaveValue('600')
-    expect(
-      screen.getByRole('button', { name: 'Review settings change' })
-    ).toBeEnabled()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Review settings change' })
-    )
+    const review = within(quoteForm).getByRole('button', {
+      name: 'Review settings change',
+    })
+    expect(review).toBeEnabled()
+    fireEvent.click(review)
     fireEvent.click(
       await screen.findByRole('button', { name: 'Confirm change' })
     )

@@ -114,9 +114,10 @@ describe('TaskCallHistory', () => {
     const headerRow = screen.getByText('Call started at').closest('tr')
     expect(headerRow).not.toBeNull()
     expect(
-      [...(headerRow?.querySelectorAll('th') ?? [])].map(
-        (header) => header.textContent
-      )
+      [
+        // The blank spacer column is hidden from assistive technology.
+        ...(headerRow?.querySelectorAll('th:not([aria-hidden="true"])') ?? []),
+      ].map((header) => header.textContent)
     ).toEqual([
       'Call started at',
       'Type',

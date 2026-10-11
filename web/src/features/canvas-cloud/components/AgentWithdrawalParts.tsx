@@ -158,6 +158,13 @@ export function WithdrawalSummaryCard(
         taxMinor={values.taxMinor}
         taxRateBasisPoints={values.taxRateBasisPoints}
       />
+      {props.kind === 'withdrawal' && props.withdrawal.fullBalance ? (
+        <p className='text-muted-foreground'>
+          {t(
+            'Whole-balance withdrawal while disabled; single withdrawal limits do not apply.'
+          )}
+        </p>
+      ) : null}
       {timeline ? (
         <p className='text-muted-foreground tabular-nums'>{timeline}</p>
       ) : null}
@@ -173,7 +180,6 @@ export function WithdrawalSummaryCard(
   )
 }
 
-/** A thumbnail that opens the large image. `retentionDays` is the image's own frozen retention. */
 /** A visible upload button for one withdrawal image; the native file input stays hidden behind it. */
 export function WithdrawalImageUploadButton(props: {
   id: string
@@ -220,6 +226,7 @@ export function WithdrawalImageUploadButton(props: {
   )
 }
 
+/** A thumbnail that opens the large image. `retentionDays` is a payment proof's frozen retention; null shows none. */
 export function WithdrawalImage(props: {
   file: AgentWithdrawalFile | null
   previewUrl?: string
@@ -283,7 +290,7 @@ export function WithdrawalImage(props: {
           {props.retentionDays !== null ? (
             <p className='text-muted-foreground text-sm'>
               {t(
-                'The image is kept for {{days}} days; after that it shows "Expired".',
+                'Kept for {{days}} days after upload, then deleted automatically.',
                 { days: props.retentionDays }
               )}
             </p>

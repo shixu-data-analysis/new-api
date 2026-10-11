@@ -38,6 +38,20 @@ export interface AgentWithdrawalFile {
   expiresAt: string
 }
 
+/** The agent's one current payment QR code; it does not expire. `expiresAt` is when the URL expires. */
+export interface AgentPaymentQr extends AgentWithdrawalFile {
+  /** Changes with every upload; a payment confirms the upload it was paid to. */
+  uploadId: string
+  uploadedAt: string
+}
+
+export interface AgentPaymentQrResult {
+  uploadId: string
+  uploadedAt: string
+  /** Requested withdrawals now paid to the new code. */
+  pendingWithdrawalCount: number
+}
+
 export interface AgentEarningsSummary {
   status: 'ACTIVE' | 'DISABLED'
   periodMonth: string
@@ -46,12 +60,8 @@ export interface AgentEarningsSummary {
   availableMinor: string
   paidMinor: string
   policy: AgentSettlementPolicy
-  previousQr: {
-    withdrawalId: string
-    expired: boolean
-    retentionDays: number
-    file: AgentWithdrawalFile | null
-  } | null
+  /** Null before the first upload. */
+  paymentQr: AgentPaymentQr | null
 }
 
 export interface AdminAgentEarningsSummary {
@@ -109,11 +119,10 @@ export interface AgentWithdrawal {
   requestedAt: string
   processedAt: string | null
   rejectReason: string | null
-  returnedToBalance: boolean
-  qrExpired: boolean
+  /** Requested while the agent was DISABLED: the whole available balance, outside the min and max. */
+  fullBalance: boolean
   /** Null until a payment proof exists. */
   proofExpired: boolean | null
-  qrRetentionDays: number
   proofRetentionDays: number | null
   unread: boolean
 }
@@ -130,7 +139,8 @@ export interface AdminAgentWithdrawal extends AgentWithdrawal {
 }
 
 export interface AdminAgentWithdrawalDetail extends AdminAgentWithdrawal {
-  qr: AgentWithdrawalFile | null
+  /** The agent's current QR code while the request is pending. */
+  qr: AgentPaymentQr | null
   proof: AgentWithdrawalFile | null
 }
 
@@ -148,7 +158,6 @@ export interface AgentStatusChangeResult {
   status: 'ACTIVE' | 'DISABLED'
   pausedInviteCodeCount?: number
   resumedInviteCodeCount?: number
-  forfeitedMinor: string
 }
 
 export interface AdminAgentStatementQuery {

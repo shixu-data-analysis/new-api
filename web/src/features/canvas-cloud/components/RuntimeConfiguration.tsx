@@ -988,7 +988,7 @@ export function RuntimeConfiguration(
       ...(current?.agentFileRetentionHours !== value.agentFileRetentionHours
         ? [
             {
-              label: t('Withdrawal image retention hours'),
+              label: t('Payment proof retention hours'),
               value: `${current?.agentFileRetentionHours ?? t('Not configured')} → ${value.agentFileRetentionHours}`,
             },
           ]
@@ -1215,7 +1215,7 @@ export function RuntimeConfiguration(
                   <StorageSummary
                     bucketLabel={t('Task media bucket')}
                     item={storageData.taskMedia}
-                    details={`${t('Input retention hours')}: ${storageData.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${storageData.taskMedia.outputRetentionHours}h · ${t('Withdrawal image retention hours')}: ${storageData.taskMedia.agentFileRetentionHours}h · ${t('Download URL seconds')}: ${storageData.taskMedia.downloadUrlTtlSeconds}s`}
+                    details={`${t('Input retention hours')}: ${storageData.taskMedia.inputRetentionHours}h · ${t('Output retention hours')}: ${storageData.taskMedia.outputRetentionHours}h · ${t('Payment proof retention hours')}: ${storageData.taskMedia.agentFileRetentionHours}h · ${t('Download URL seconds')}: ${storageData.taskMedia.downloadUrlTtlSeconds}s`}
                     checkLabel={t('Task media check')}
                     buttonLabel={t('Check task media')}
                     editLabel={t('Update configuration')}
@@ -1342,7 +1342,7 @@ export function RuntimeConfiguration(
                     </Field>
                     <div className='min-w-0 space-y-1'>
                       <Field
-                        label={t('Withdrawal image retention hours')}
+                        label={t('Payment proof retention hours')}
                         error={
                           taskMedia.formState.errors.agentFileRetentionHours
                             ?.message
@@ -1366,7 +1366,7 @@ export function RuntimeConfiguration(
                           ? `= ${t('{{days}} days', { days: Math.round((agentFileRetentionHours / 24) * 10) / 10 })} · `
                           : ''}
                         {t(
-                          'How long agents\' payment QR codes and payment proofs are kept; afterwards they are deleted and show "Expired". Default 2160 hours (90 days). Changes affect only images uploaded afterwards.'
+                          'How long payment proofs of agent withdrawals are kept; afterwards they are deleted and show "Expired". Default 2160 hours (90 days). Changes affect only proofs uploaded afterwards. Payment QR codes do not expire.'
                         )}
                       </p>
                     </div>

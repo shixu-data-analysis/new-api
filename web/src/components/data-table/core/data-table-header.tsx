@@ -57,6 +57,9 @@ export function DataTableHeader<TData>({
               key={header.id}
               colSpan={header.colSpan}
               data-column-id={header.column.id}
+              aria-hidden={
+                header.column.columnDef.meta?.presentational || undefined
+              }
               className={cn(
                 'relative',
                 getColumnClassName?.(header.column.id, 'header')

@@ -766,9 +766,10 @@ export function AgentCenter() {
               setCustomerStatus('')
             }}
             getRowId={(row) => row.id}
-            renderRow={(row) => (
+            renderRow={(row, getColumnClassName) => (
               <Fragment key={row.id}>
                 <DataTableRow
+                  getColumnClassName={getColumnClassName}
                   row={row}
                   cellRenderColumns={customerColumns}
                   aria-expanded={expandedCustomerId === row.original.id}

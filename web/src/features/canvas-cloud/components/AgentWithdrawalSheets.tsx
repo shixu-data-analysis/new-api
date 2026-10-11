@@ -30,6 +30,7 @@ import {
 } from '@/components/drawer-layout'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -142,11 +143,7 @@ function ViewContent(props: {
         <h3 className='font-medium'>{t('Reject reason')}</h3>
         <p className='whitespace-pre-wrap'>{withdrawal.rejectReason}</p>
         <p className='text-muted-foreground'>
-          {withdrawal.returnedToBalance
-            ? t('The amount was returned to the available balance.')
-            : t(
-                'The agent was restored after this request, so the amount was not returned.'
-              )}
+          {t('The amount was returned to the available balance.')}
         </p>
       </div>
     )
@@ -227,6 +224,8 @@ export function AdminWithdrawalProcessSheet(props: {
   const [proofError, setProofError] = useState<string>()
   const [reason, setReason] = useState('')
   const [reasonTouched, setReasonTouched] = useState(false)
+  // Set when Cloud refused a payment because the agent replaced the QR code after this sheet showed it.
+  const [qrChanged, setQrChanged] = useState(false)
   const payKey = useRequestIdempotencyKey(() =>
     newAdminWithdrawalIdempotencyKey('pay')
   )
@@ -250,6 +249,7 @@ export function AdminWithdrawalProcessSheet(props: {
     setProofError(undefined)
     setReason('')
     setReasonTouched(false)
+    setQrChanged(false)
     payKey.reset()
     rejectKey.reset()
     props.onOpenChange(false)
@@ -267,21 +267,23 @@ export function AdminWithdrawalProcessSheet(props: {
     rejectKey.settle(error)
     const code = (error as { response?: { data?: { code?: string } } }).response
       ?.data?.code
-    if (code === 'QR_CODE_EXPIRED') {
-      toast.error(
-        t('The QR code expired and cannot be paid. Reject the request.')
-      )
+    if (code === 'QR_CODE_CHANGED') {
+      // The refetch below shows the new code; the sheet itself explains what to do, and the uploaded proof stays.
+      setQrChanged(true)
     } else if (code === 'INVALID_STATE_TRANSITION') {
       toast.error(t('This request was already processed.'))
     } else toast.error(t('The request could not be processed. Try again.'))
     void detail.refetch()
   }
   const pay = useMutation({
-    mutationFn: (proofImage: string) =>
+    mutationFn: (input: { proofImage: string; qrUploadId: string }) =>
       payAgentWithdrawal(
         String(props.withdrawalId),
-        proofImage,
-        payKey.keyFor(`${props.withdrawalId}|${proofImage}`)
+        input.proofImage,
+        input.qrUploadId,
+        payKey.keyFor(
+          `${props.withdrawalId}|${input.qrUploadId}|${input.proofImage}`
+        )
       ),
     onSuccess: () => finished(t('Marked as paid')),
     onError: failed,
@@ -298,9 +300,9 @@ export function AdminWithdrawalProcessSheet(props: {
   })
   const busy = pay.isPending || reject.isPending
   const withdrawal = detail.data
-  const qrExpired = Boolean(
-    withdrawal && (withdrawal.qrExpired || !withdrawal.qr)
-  )
+  // The request is paid to the agent's current QR code; an agent may not have uploaded one yet.
+  const qr = withdrawal?.qr ?? null
+  const noQr = Boolean(withdrawal && !qr)
   const reasonError =
     reasonTouched && !reason.trim() ? t('Enter a reject reason') : undefined
   let footer: React.ReactNode
@@ -344,13 +346,15 @@ export function AdminWithdrawalProcessSheet(props: {
         </Button>
         <Button
           type='button'
-          disabled={busy || qrExpired}
+          disabled={busy || noQr}
           onClick={() => {
             if (!proof) {
               setProofError(t('Upload the payment proof'))
               return
             }
-            pay.mutate(proof.base64)
+            if (qr) {
+              pay.mutate({ proofImage: proof.base64, qrUploadId: qr.uploadId })
+            }
           }}
         >
           {t('Confirm paid')}
@@ -378,10 +382,33 @@ export function AdminWithdrawalProcessSheet(props: {
           />
           {mode === 'pay' ? (
             <>
-              {qrExpired ? (
+              {qrChanged ? (
+                <Alert variant='destructive'>
+                  <AlertTitle>
+                    {t(
+                      'The agent replaced the payment QR code. Check the new code below.'
+                    )}
+                  </AlertTitle>
+                  <AlertDescription>
+                    <ul className='list-disc space-y-1 ps-5'>
+                      <li>
+                        {t(
+                          'Not paid yet: pay to the new code, then confirm with a new proof.'
+                        )}
+                      </li>
+                      <li>
+                        {t(
+                          'Paid to the old code: confirm once the agent says the money arrived; do not pay twice.'
+                        )}
+                      </li>
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {noQr ? (
                 <p className='text-destructive text-sm'>
                   {t(
-                    'The QR code expired and cannot be paid. Reject the request and ask the agent to upload a new QR code and apply again.'
+                    'The agent has no payment QR code. Ask the agent to upload one, or reject the request.'
                   )}
                 </p>
               ) : (
@@ -392,9 +419,9 @@ export function AdminWithdrawalProcessSheet(props: {
                     })}
                   </p>
                   <WithdrawalImage
-                    file={withdrawal.qr}
+                    file={qr}
                     alt={t('Payment QR code')}
-                    retentionDays={withdrawal.qrRetentionDays}
+                    retentionDays={null}
                     size='large'
                   />
                 </div>
@@ -415,7 +442,7 @@ export function AdminWithdrawalProcessSheet(props: {
                 <WithdrawalImageUploadButton
                   id={proofId}
                   label={t('Upload payment proof')}
-                  disabled={qrExpired || busy}
+                  disabled={noQr || busy}
                   invalid={Boolean(proofError)}
                   describedBy={`${proofId}-help ${proofId}-error`}
                   onSelect={async (file) => {
@@ -449,9 +476,7 @@ export function AdminWithdrawalProcessSheet(props: {
                 ) : null}
               </div>
               <p className='text-muted-foreground text-sm'>
-                {t(
-                  'After confirming, the status becomes "Paid" and the agent can view the payment proof. This cannot be undone.'
-                )}
+                {t('This cannot be undone after confirming.')}
               </p>
             </>
           ) : (

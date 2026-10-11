@@ -68,4 +68,6 @@ export type DataTableViewProps<TData> = {
   containerProps?: Omit<React.ComponentProps<'div'>, 'className' | 'children'>
   tableContainerClassName?: string
   colgroup?: React.ReactNode
+  /** Table style that goes with a custom `colgroup`, for example a fixed layout with a minimum width. */
+  tableStyle?: React.CSSProperties
 }

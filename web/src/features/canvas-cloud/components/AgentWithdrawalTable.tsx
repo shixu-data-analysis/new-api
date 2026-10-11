@@ -54,6 +54,7 @@ import {
   AdminWithdrawalProcessSheet,
   AgentWithdrawalViewSheet,
 } from './AgentWithdrawalSheets'
+import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -114,6 +115,7 @@ export function AgentWithdrawalTable(
       accessorKey: 'requestedAt',
       enableSorting: false,
       header: t('Requested at (Beijing time)'),
+      size: CANVAS_COLUMN_SIZES.wide,
       cell: ({ row }) =>
         formatBeijingDateTime(row.original.requestedAt, locale),
     },
@@ -123,6 +125,7 @@ export function AgentWithdrawalTable(
             id: 'agentUsername',
             enableSorting: false,
             header: t('Agent'),
+            size: CANVAS_COLUMN_SIZES.wide,
             cell: ({ row }: { row: { original: Row } }) =>
               (row.original as AdminAgentWithdrawal).agentUsername ?? '—',
           } satisfies ColumnDef<Row, unknown>,
@@ -162,10 +165,10 @@ export function AgentWithdrawalTable(
       ),
     },
     {
-      id: 'action',
+      // "actions" sizes the column to its button, as in the other shared tables.
+      id: 'actions',
       enableSorting: false,
       header: t('Action'),
-      size: 128,
       cell: ({ row }) =>
         admin && row.original.status === 'REQUESTED' ? (
           <Button size='sm' onClick={() => setProcessId(row.original.id)}>

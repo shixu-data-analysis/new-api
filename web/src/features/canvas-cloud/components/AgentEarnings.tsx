@@ -43,6 +43,7 @@ import {
   settlementMonths,
 } from '../agent-earnings-format'
 import type { AgentEarningsSummary } from '../agent-earnings-types'
+import { AgentPaymentQrCard } from './AgentPaymentQrCard'
 import { AgentStatementTable } from './AgentStatementTable'
 import { AgentWithdrawalApplyCard } from './AgentWithdrawalApplyCard'
 import { AgentWithdrawalTable } from './AgentWithdrawalTable'
@@ -170,18 +171,21 @@ function EarningsOverview(props: { summary: AgentEarningsSummary }) {
             </div>
           ))}
         </div>
-        <p className='text-muted-foreground text-sm'>
-          {props.summary.status === 'DISABLED'
-            ? t(
-                'The agent qualification is disabled: consumption by your customers earns nothing from the disable onwards; withdrawals are unavailable while disabled, and restoring the qualification clears the balance that was not withdrawn before the disable.'
-              )
-            : t(
-                '{{month}} earnings accumulate in real time and join the available balance after settlement on {{date}}.',
-                { month: monthName, date: settleDate }
-              )}{' '}
+        {/* A flex row keeps the icon link centered on the text; an inline-flex button would sit on the icon's bottom edge. */}
+        <p className='text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-sm'>
+          <span>
+            {props.summary.status === 'DISABLED'
+              ? t(
+                  'The agent qualification is disabled: nothing is earned while disabled, nor added after a restore. Earlier earnings settle as usual; each withdrawal takes the whole balance.'
+                )
+              : t(
+                  '{{month}} earnings accumulate in real time and join the available balance after settlement on {{date}}.',
+                  { month: monthName, date: settleDate }
+                )}
+          </span>
           <Button
             variant='link'
-            className='h-auto p-0 align-baseline'
+            className='h-auto p-0'
             onClick={() => setGuideOpen(true)}
           >
             <CircleHelp aria-hidden='true' />
@@ -257,6 +261,7 @@ export function AgentEarnings() {
           <AgentStatementTable mode='agent' />
         </TabsContent>
         <TabsContent value='withdrawals' className='mt-4 space-y-4'>
+          <AgentPaymentQrCard paymentQr={summary.data.paymentQr} />
           <AgentWithdrawalApplyCard summary={summary.data} />
           <AgentWithdrawalTable mode='agent' />
         </TabsContent>

@@ -125,24 +125,25 @@ export function AgentStatusSheet(props: {
           t(
             'Customers are not affected: accounts, price plans, available models and agent attribution stay unchanged.'
           ),
-          t('Earnings stop from the moment of the disable.'),
           t(
-            'The agent cannot apply for withdrawals; requests submitted before the disable are still paid or rejected.'
+            'Earnings stop from the moment of the disable; earnings from before it are settled as usual.'
+          ),
+          t(
+            'The agent can still withdraw; each request takes the whole available balance at that time, outside the single withdrawal limits. Requests submitted before the disable are still paid or rejected.'
           ),
           t(
             'Active invite codes assigned to the agent are paused; restoring resumes the ones still valid.'
           ),
-          t('The agent loses "My customers"; "My earnings" becomes read-only.'),
+          t(
+            'The agent loses "My customers"; "My earnings" shows the disable notice.'
+          ),
         ]
       : [
           t(
             'Earnings restart from the moment of the restore; nothing is added for the disabled period.'
           ),
           t(
-            'The available balance and unsettled earnings from before the restore are cleared and not paid.'
-          ),
-          t(
-            'Requests submitted before the disable and rejected after the restore are not returned to the balance.'
+            'The available balance and earnings from before the restore are kept; withdrawals follow the single withdrawal limits again.'
           ),
           t(
             'Invite codes paused by the disable resume if still valid; expired ones stay expired; codes paused manually before the disable stay paused.'
@@ -205,9 +206,7 @@ export function AgentStatusSheet(props: {
                 )}
               </dd>
               <dt className='text-muted-foreground'>
-                {action === 'disable'
-                  ? t('Available balance')
-                  : t('Balance to be cleared')}
+                {t('Available balance')}
               </dt>
               <dd className='font-semibold tabular-nums'>
                 {formatRmbMinor(preview.data.availableMinor, locale)}

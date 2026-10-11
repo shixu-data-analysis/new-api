@@ -416,9 +416,10 @@ export function UnifiedModelPricingHistory(props: {
             />
           </>
         }
-        renderRow={(row) => (
+        renderRow={(row, getColumnClassName) => (
           <Fragment key={row.id}>
             <DataTableRow
+              getColumnClassName={getColumnClassName}
               row={row}
               cellRenderColumns={columns}
               aria-expanded={expandedId === row.original.id}

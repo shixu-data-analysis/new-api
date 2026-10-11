@@ -733,9 +733,10 @@ function WaitingTasksDrawer(props: {
             emptyTitle={t('No waiting tasks')}
             getRowId={(item) => item.taskId}
             hideMobile
-            renderRow={(row) => (
+            renderRow={(row, getColumnClassName) => (
               <Fragment key={row.id}>
                 <DataTableRow
+                  getColumnClassName={getColumnClassName}
                   row={row}
                   cellRenderColumns={columns}
                   aria-expanded={expandedTaskId === row.original.taskId}

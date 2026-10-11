@@ -93,22 +93,29 @@ describe('Pricing and point rule sections', () => {
     })
   })
 
-  it('shows all three sections without field tabs and isolates recharge publication', async () => {
+  it('shows one card per rule category without field tabs and isolates point validity publication', async () => {
     renderRules()
     expect(screen.getByRole('region', { name: 'Price plans' })).toBeVisible()
-    const recharge = screen.getByRole('region', { name: 'Recharge rules' })
-    const release = screen.getByRole('region', {
-      name: 'Quote and release rules',
-    })
+    expect(
+      screen.getByRole('region', { name: 'Point issuance rate' })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('region', { name: 'Agent settlement rules' })
+    ).toBeVisible()
+    const recharge = screen.getByRole('region', { name: 'Point validity' })
+    const release = screen.getByRole('region', { name: 'Quote rules' })
     const paid = await within(recharge).findByRole('textbox', {
       name: 'Paid points validity',
     })
+    expect(within(recharge).getByLabelText('Bonus failure grace')).toHaveValue(
+      '7'
+    )
     expect(within(release).getByLabelText('Quote validity')).toHaveValue('300')
     expect(
       within(recharge).queryByLabelText('Quote validity')
     ).not.toBeInTheDocument()
     expect(
-      within(release).queryByRole('textbox', { name: 'Paid points validity' })
+      within(release).queryByLabelText('Bonus failure grace')
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     fireEvent.change(paid, { target: { value: '120' } })
@@ -196,7 +203,7 @@ describe('Pricing and point rule sections', () => {
     await i18next.changeLanguage('fr')
     renderRules()
     const section = screen.getByRole('region', {
-      name: fr.translation['Quote and release rules'],
+      name: fr.translation['Quote rules'],
     })
     await within(section).findByLabelText(fr.translation['Quote validity'])
     const formatted = new Intl.DateTimeFormat('fr', {
@@ -207,7 +214,7 @@ describe('Pricing and point rule sections', () => {
       within(section).getByText((text) => text.includes(formatted))
     ).toBeVisible()
     expect(
-      screen.getByRole('region', { name: fr.translation['Recharge rules'] })
+      screen.getByRole('region', { name: fr.translation['Point validity'] })
     ).toBeVisible()
   })
 })

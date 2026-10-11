@@ -24,7 +24,7 @@ export interface CanvasSession {
   displayName: string
   emailMasked: string | null
   inviterEnabled: boolean
-  /** A DISABLED inviter keeps read access to its earnings only. */
+  /** A DISABLED inviter keeps its earnings; each withdrawal request takes the whole available balance at that time. */
   inviterStatus: 'ACTIVE' | 'DISABLED' | null
 }
 
@@ -498,7 +498,6 @@ export interface CanvasAgentModelUsageRow {
 export interface CanvasAdminAgentModelUsageRow extends CanvasAgentModelUsageRow {
   modelUsageAmount: string | null
   amountIncomplete: boolean
-  listAmount: string
 }
 
 export interface CanvasAgentModelPrice {
@@ -582,25 +581,23 @@ export interface CanvasAgentCustomerQuery {
 export interface CanvasAdminAgentSummary extends CanvasAgentSummary {
   modelUsageAmount: string | null
   amountIncomplete: boolean
-  listAmount: string
-}
-
-export interface CanvasAdminAgentPriceGroupSummary extends CanvasAgentPriceGroupSummary {
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
-  listAmount: string
 }
 
 export interface CanvasAdminAgentCustomer extends CanvasAgentCustomer {
   modelUsageAmount: string | null
   amountIncomplete: boolean
-  listAmount: string
+}
+
+/** The administrator's customer list also narrows to the customers currently on one price group. */
+export interface CanvasAdminAgentCustomerQuery extends CanvasAgentCustomerQuery {
+  priceGroupId?: string
 }
 
 export interface CanvasAdminAgentStatistics {
   profile: CanvasAgentProfile
   summary: CanvasAdminAgentSummary
-  priceGroups: CanvasAdminAgentPriceGroupSummary[]
+  /** Options of the customer filter by current price group. */
+  priceGroups: CanvasAgentPriceGroupSummary[]
 }
 
 export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPrice> {

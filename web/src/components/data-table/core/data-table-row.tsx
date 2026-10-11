@@ -74,6 +74,9 @@ function DataTableRowInner<TData>({
           <TableCell
             key={cell.id}
             data-column-id={cell.column.id}
+            aria-hidden={
+              cell.column.columnDef.meta?.presentational || undefined
+            }
             className={cn(
               'max-w-full min-w-0',
               renderedCell.isPrimitive && 'overflow-hidden',

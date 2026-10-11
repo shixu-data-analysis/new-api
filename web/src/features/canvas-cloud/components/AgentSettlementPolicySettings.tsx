@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toIntlLocale } from '@/i18n/languages'
@@ -60,29 +60,27 @@ const fields: Array<{
     name: 'minWithdrawal',
     label: 'Minimum withdrawal amount',
     unit: 'CNY',
-    explanation:
-      'The minimum amount of each withdrawal request, judged on the withdrawal amount before tax. Changes affect only requests submitted afterwards.',
+    explanation: 'Judged on the withdrawal amount before tax.',
   },
   {
     name: 'maxWithdrawal',
     label: 'Maximum single withdrawal amount',
     unit: 'CNY',
     explanation:
-      'The maximum amount of each withdrawal request, judged on the withdrawal amount before tax. A larger balance is withdrawn in several requests. Changes affect only requests submitted afterwards.',
+      'Judged on the withdrawal amount before tax; a larger balance takes several requests.',
   },
   {
     name: 'taxRatePercent',
     label: 'Withholding tax rate',
     unit: '%',
     explanation:
-      'Tax withheld at this rate on each withdrawal; net payment = withdrawal amount − withholding tax. There is no tax now, so keep 0. Changes affect only requests submitted afterwards.',
+      'Net payment = withdrawal amount − withholding tax. The default 0% withholds nothing.',
   },
   {
     name: 'expirySharePercent',
     label: 'Expired-points share ratio',
     unit: '%',
-    explanation:
-      "When a customer's paid points expire, this share of what the expired points cost joins the agent's earnings. Changes affect only expiries that happen afterwards.",
+    explanation: "Share of what the customer's expired paid points cost.",
   },
 ]
 
@@ -102,7 +100,10 @@ function toValues(
   }
 }
 
-/** "Agent settlement rules": the four parameters every agent page reads; publishing creates a new version and an audit. */
+/**
+ * "Agent settlement rules": the four parameters every agent page reads; publishing creates a new version and an audit. The four
+ * share one version, so the form shows it once; the card matches the other rule cards of the same page.
+ */
 export function AgentSettlementPolicySettings() {
   const { t } = useTranslation()
   const policy = useQuery({
@@ -111,7 +112,10 @@ export function AgentSettlementPolicySettings() {
   })
   return (
     <Card>
-      <CardContent className='pt-6'>
+      <CardHeader>
+        <CardTitle>{t('Agent settlement rules')}</CardTitle>
+      </CardHeader>
+      <CardContent>
         {policy.isPending ? (
           <div className='text-muted-foreground text-sm'>{t('Loading')}</div>
         ) : null}
@@ -179,7 +183,7 @@ function PolicyForm(props: { policy: AdminAgentSettlementPolicy }) {
       <form
         noValidate
         aria-label={t('Agent settlement rules')}
-        className='grid gap-4'
+        className='bg-muted/20 space-y-3 rounded-xl border p-4'
         onSubmit={form.handleSubmit((values) => {
           // Compare normalized numbers so "50" and "50.00" are no change.
           const changed = fields.filter(
@@ -196,10 +200,10 @@ function PolicyForm(props: { policy: AdminAgentSettlementPolicy }) {
           })
         })}
       >
-        <div className='grid gap-4 md:grid-cols-2'>
+        <div className='grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]'>
           {fields.map((field) => (
             <div key={field.name} className='min-w-0 space-y-2'>
-              <Label htmlFor={`agent-policy-${field.name}`}>
+              <Label htmlFor={`agent-policy-${field.name}`} className='min-h-5'>
                 {t(field.label)} <span className='text-destructive'>*</span>
               </Label>
               <div className='flex items-center gap-2'>
@@ -211,7 +215,7 @@ function PolicyForm(props: { policy: AdminAgentSettlementPolicy }) {
                   disabled={publish.isPending}
                   aria-required='true'
                   aria-invalid={Boolean(errors[field.name])}
-                  aria-describedby={`agent-policy-${field.name}-explanation${errors[field.name] ? ` agent-policy-${field.name}-error` : ''}`}
+                  aria-describedby={`agent-policy-${field.name}-explanation agent-policy-version${errors[field.name] ? ` agent-policy-${field.name}-error` : ''}`}
                 />
                 <span className='text-muted-foreground shrink-0 text-sm'>
                   {field.unit === 'CNY' ? t('CNY') : field.unit}
@@ -232,25 +236,35 @@ function PolicyForm(props: { policy: AdminAgentSettlementPolicy }) {
               >
                 {t(field.explanation)}
               </p>
-              <div className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'>
-                <Badge variant='secondary'>
-                  {props.policy.version == null
-                    ? t('Default configuration')
-                    : `v${props.policy.version}`}
-                </Badge>
-                {props.policy.version != null && props.policy.effectiveAt ? (
-                  <span>
-                    {dateFormatter.format(new Date(props.policy.effectiveAt))}
-                  </span>
-                ) : null}
-              </div>
             </div>
           ))}
-        </div>
-        <div className='flex justify-end'>
-          <Button type='submit' disabled={!isDirty || publish.isPending}>
+          <Button
+            type='submit'
+            className='w-full md:col-span-2 xl:col-span-1 xl:mt-7 xl:w-auto'
+            disabled={!isDirty || publish.isPending}
+          >
             {t('Review rule changes')}
           </Button>
+        </div>
+        <div
+          id='agent-policy-version'
+          className='text-muted-foreground flex flex-wrap items-center gap-2 text-xs'
+        >
+          <Badge variant='secondary'>
+            {props.policy.version == null
+              ? t('Default configuration')
+              : `v${props.policy.version}`}
+          </Badge>
+          {props.policy.version != null && props.policy.effectiveAt ? (
+            <span>
+              {dateFormatter.format(new Date(props.policy.effectiveAt))}
+            </span>
+          ) : null}
+          <span>
+            {t(
+              "Changes affect only withdrawal requests submitted and paid points that expire afterwards. A disabled agent's whole-balance withdrawal ignores the minimum and the maximum."
+            )}
+          </span>
         </div>
       </form>
       <PricingActionConfirmation

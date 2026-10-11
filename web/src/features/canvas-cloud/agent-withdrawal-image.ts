@@ -49,13 +49,15 @@ export async function readAgentImage(file: File): Promise<AgentImageCheck> {
 
 /**
  * Opens a stored image (short-lived URL, or bytes read through the Canvas proxy for a local store). Components share the
- * fetched bytes but each owns the object URL it creates, so one closing never revokes another's image.
+ * fetched bytes but each owns the object URL it creates, so one closing never revokes another's image. A locally stored
+ * payment QR code keeps the same content path across replacements, so its upload ID is part of the identity.
  */
 export function useWithdrawalImageUrl(
   file: AgentWithdrawalFile | null | undefined
 ): { url: string | undefined; isError: boolean } {
+  const uploadId = file && 'uploadId' in file ? file.uploadId : undefined
   const image = useQuery({
-    queryKey: ['canvas-cloud', 'agent-withdrawal-image', file?.url],
+    queryKey: ['canvas-cloud', 'agent-withdrawal-image', file?.url, uploadId],
     // Runs only while `file` is set (`enabled`).
     queryFn: ({ signal }) =>
       resolveAgentWithdrawalImage(file as AgentWithdrawalFile, signal),

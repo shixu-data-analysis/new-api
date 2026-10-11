@@ -49,6 +49,7 @@ import type {
 import { formatExactPointQuantity } from '../number-format'
 import { useServerTableState } from '../use-server-table-state'
 import { AgentMonthPicker } from './AgentMonthPicker'
+import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasServerTable } from './CanvasServerTable'
 
 type StatementTableProps =
@@ -222,6 +223,7 @@ export function AgentStatementTable(props: StatementTableProps) {
             accessorKey: 'agentUsername',
             enableSorting: false,
             header: t('Agent'),
+            size: CANVAS_COLUMN_SIZES.wide,
             cell: ({ row }: { row: { original: AgentMonthlyStatement } }) =>
               row.original.agentUsername ?? '—',
           } satisfies ColumnDef<AgentMonthlyStatement, unknown>,
@@ -261,13 +263,14 @@ export function AgentStatementTable(props: StatementTableProps) {
       accessorKey: 'settledAt',
       enableSorting: false,
       header: t('Settled at (Beijing time)'),
+      size: CANVAS_COLUMN_SIZES.wide,
       cell: ({ row }) => formatBeijingDateTime(row.original.settledAt, locale),
     },
     {
-      id: 'action',
+      // "actions" sizes the column to its button, as in the other shared tables.
+      id: 'actions',
       enableSorting: false,
       header: t('Action'),
-      size: 128,
       cell: ({ row }) => (
         <Button
           size='sm'
@@ -312,9 +315,10 @@ export function AgentStatementTable(props: StatementTableProps) {
       hasActiveFilters={Boolean(month)}
       onResetFilters={() => setMonth(undefined)}
       getRowId={(row) => row.id}
-      renderRow={(row) => (
+      renderRow={(row, getColumnClassName) => (
         <Fragment key={row.id}>
           <DataTableRow
+            getColumnClassName={getColumnClassName}
             row={row}
             cellRenderColumns={columns}
             aria-expanded={expandedId === row.original.id}

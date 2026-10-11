@@ -1670,7 +1670,7 @@ describe('Canvas runtime configuration', () => {
     ).toBeDisabled()
 
     fireEvent.change(
-      within(form).getByLabelText('Withdrawal image retention hours'),
+      within(form).getByLabelText('Payment proof retention hours'),
       { target: { value: '720' } }
     )
     expect(within(form).getByText(/= 30 days/u)).toBeVisible()

@@ -232,7 +232,7 @@ function getTableSizing<TData>(props: DataTableViewProps<TData>): {
   style?: React.CSSProperties
 } {
   if (props.colgroup) {
-    return { colgroup: props.colgroup }
+    return { colgroup: props.colgroup, style: props.tableStyle }
   }
 
   if (!props.splitHeader && !props.applyHeaderSize) {

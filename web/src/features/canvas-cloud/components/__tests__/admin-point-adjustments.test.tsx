@@ -270,7 +270,6 @@ describe('ADMIN-REWORK-004 customer management', () => {
         settledPoints: '0',
         modelUsageAmount: null,
         amountIncomplete: true,
-        listAmount: '0',
       },
       priceGroups: [],
     })
@@ -336,7 +335,17 @@ describe('ADMIN-REWORK-004 customer management', () => {
     renderWithQuery(<AdminPointAdjustments customerId={customer.customerId} />)
     expect(await screen.findByText('Agent: Disabled')).toBeVisible()
     fireEvent.click(screen.getByRole('tab', { name: 'Agent statistics' }))
-    expect(await screen.findByText('Cumulative overview')).toBeVisible()
+    expect(await screen.findByText('Overview')).toBeVisible()
+    // An incomplete amount comes back as null; the hint still shows.
+    expect(screen.getByText('Amount incomplete')).toBeVisible()
+    // One overview card; no price group summary and no list amount on this tab.
+    expect(
+      screen.getByRole('button', {
+        name: 'View statements and withdrawal requests',
+      })
+    ).toBeVisible()
+    expect(screen.queryByText('Price group summary')).not.toBeInTheDocument()
+    expect(screen.queryByText('List amount')).not.toBeInTheDocument()
     // The price section starts collapsed and only queries once opened.
     expect(apiMocks.getCanvasAdminAgentModelPrices).not.toHaveBeenCalled()
     fireEvent.click(

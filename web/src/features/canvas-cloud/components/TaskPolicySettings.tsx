@@ -34,7 +34,8 @@ import {
   type ConfirmationDetail,
 } from './PricingActionConfirmation'
 
-type PolicySection = 'recharge' | 'release'
+/** "points" holds the two point validity rules; "quote" holds the quote validity. */
+type PolicySection = 'points' | 'quote'
 type PolicyField = keyof TaskPolicyValues
 const fields = {
   quoteTtlSeconds: {
@@ -73,9 +74,7 @@ export function TaskPolicySettings(props: { section: PolicySection }) {
     <Card>
       <CardHeader>
         <CardTitle>
-          {props.section === 'recharge'
-            ? t('Paid points validity')
-            : t('Quote and release rules')}
+          {props.section === 'points' ? t('Point validity') : t('Quote rules')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -106,9 +105,9 @@ function PolicyForm(props: {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const names: PolicyField[] =
-    props.section === 'recharge'
-      ? ['paidExpiryDays']
-      : ['quoteTtlSeconds', 'bonusFailureGraceDays']
+    props.section === 'points'
+      ? ['paidExpiryDays', 'bonusFailureGraceDays']
+      : ['quoteTtlSeconds']
   const defaults = Object.fromEntries(
     names.map((name) => [name, String(props.settings[name])])
   ) as TaskPolicyValues
@@ -125,12 +124,12 @@ function PolicyForm(props: {
   const { reset } = form
   useEffect(() => {
     const next =
-      props.section === 'recharge'
-        ? { paidExpiryDays: String(props.settings.paidExpiryDays) }
-        : {
-            quoteTtlSeconds: String(props.settings.quoteTtlSeconds),
+      props.section === 'points'
+        ? {
+            paidExpiryDays: String(props.settings.paidExpiryDays),
             bonusFailureGraceDays: String(props.settings.bonusFailureGraceDays),
           }
+        : { quoteTtlSeconds: String(props.settings.quoteTtlSeconds) }
     reset(next, {
       keepDirtyValues: true,
       keepDirty: true,
@@ -165,9 +164,7 @@ function PolicyForm(props: {
       <form
         noValidate
         aria-label={
-          props.section === 'recharge'
-            ? t('Paid points validity')
-            : t('Adjust task policy settings')
+          props.section === 'points' ? t('Point validity') : t('Quote rules')
         }
         onSubmit={form.handleSubmit((values) => {
           const changed = names.filter(
@@ -189,9 +186,9 @@ function PolicyForm(props: {
       >
         <div
           className={
-            props.section === 'recharge'
-              ? 'grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]'
-              : 'grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+            props.section === 'points'
+              ? 'grid items-start gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]'
+              : 'grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_auto]'
           }
         >
           {names.map((name) => {
@@ -203,7 +200,7 @@ function PolicyForm(props: {
                 <Label
                   htmlFor={name}
                   className={
-                    props.section === 'release'
+                    props.section === 'points'
                       ? 'md:min-h-10 xl:min-h-5'
                       : 'min-h-5'
                   }
@@ -259,9 +256,9 @@ function PolicyForm(props: {
           <Button
             type='submit'
             className={
-              props.section === 'recharge'
-                ? 'w-full md:mt-7 md:w-auto'
-                : 'w-full md:col-span-2 xl:col-span-1 xl:mt-7 xl:w-auto'
+              props.section === 'points'
+                ? 'w-full md:col-span-2 xl:col-span-1 xl:mt-7 xl:w-auto'
+                : 'w-full md:mt-7 md:w-auto'
             }
             disabled={!isDirty || publish.isPending}
           >

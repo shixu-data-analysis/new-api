@@ -94,8 +94,8 @@ import type {
   CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
-import { AgentEarningsOverviewLine } from './AgentEarningsOverviewLine'
 import { AgentModelPricePanel } from './AgentModelPricePanel'
+import { AgentStatisticsOverview } from './AgentStatisticsOverview'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
@@ -517,9 +517,10 @@ function CustomerOrders({
             ? 'bg-primary/5'
             : undefined
         }
-        renderRow={(row) => (
+        renderRow={(row, getColumnClassName) => (
           <Fragment key={row.id}>
             <DataTableRow
+              getColumnClassName={getColumnClassName}
               id={`recharge-order-${row.original.id}`}
               row={row}
               cellRenderColumns={columns}
@@ -1044,12 +1045,19 @@ function AgentStatistics({ customerId }: { customerId: string }) {
   const [searchVersion, setSearchVersion] = useState(0)
   const [expandedCustomerId, setExpandedCustomerId] = useState<string>()
   const [agentCustomerStatus, setAgentCustomerStatus] = useState('')
+  const [agentCustomerPriceGroup, setAgentCustomerPriceGroup] = useState('')
   useEffect(() => {
     setExpandedCustomerId(undefined)
     setCustomerPagination((value) =>
       value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
     )
-  }, [agentCustomerStatus, customerSearch, customerId, setCustomerPagination])
+  }, [
+    agentCustomerStatus,
+    agentCustomerPriceGroup,
+    customerSearch,
+    customerId,
+    setCustomerPagination,
+  ])
   useEffect(
     () => setExpandedCustomerId(undefined),
     [customerPage, customerPageSize]
@@ -1117,6 +1125,7 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       customerId,
       customerState.query,
       agentCustomerStatus,
+      agentCustomerPriceGroup,
     ],
     queryFn: ({ signal }) =>
       getCanvasAdminAgentCustomers(
@@ -1134,6 +1143,9 @@ function AgentStatistics({ customerId }: { customerId: string }) {
                 status:
                   agentCustomerStatus as CanvasAdminAgentCustomer['status'],
               }
+            : {}),
+          ...(agentCustomerPriceGroup
+            ? { priceGroupId: agentCustomerPriceGroup }
             : {}),
         },
         signal
@@ -1290,12 +1302,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
         amount(row.original.modelUsageAmount, row.original.amountIncomplete),
     },
     {
-      id: 'listAmount',
-      meta: { label: t('List amount') },
-      header: () => <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />,
-      cell: ({ row }) => amount(row.original.listAmount, false),
-    },
-    {
       id: 'action',
       header: t('Action'),
       cell: ({ row }) => (
@@ -1374,18 +1380,14 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       cell: ({ row }) =>
         amount(row.original.modelUsageAmount, row.original.amountIncomplete),
     },
-    {
-      id: 'listAmount',
-      meta: { label: t('List amount') },
-      header: () => <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />,
-      cell: ({ row }) => amount(row.original.listAmount, false),
-    },
   ]
   if (statistics.isPending) return <LoadingState />
   if (statistics.isError) {
     return <ErrorState onRetry={() => void statistics.refetch()} />
   }
   const { summary, priceGroups } = statistics.data
+  const priceGroupName = (id: string) =>
+    priceGroups.find((group) => group.priceGroupId === id)?.priceGroupName ?? id
   const inviteFilters = (
     <>
       <DataTableColumnFilterField label={t('Exact invite code')}>
@@ -1442,32 +1444,10 @@ function AgentStatistics({ customerId }: { customerId: string }) {
   )
   return (
     <div className='space-y-5'>
-      <section className='space-y-2'>
-        <h3 className='font-semibold'>{t('Cumulative overview')}</h3>
-        <div className='grid gap-2 rounded border p-3 text-sm tabular-nums sm:grid-cols-4'>
-          <span>
-            {t('Activated customers')}: {count(summary.activatedCustomers)}
-          </span>
-          <span>
-            {t('Customers with successful tasks')}:{' '}
-            {count(summary.customersWithSuccessfulTasks)}
-          </span>
-          <span>
-            {t('Successful tasks')}: {count(summary.successfulTasks)}
-          </span>
-          <span>
-            {t('Consumed points')}: {count(summary.settledPoints)}
-          </span>
-          <span>
-            <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
-            : {amount(summary.modelUsageAmount, summary.amountIncomplete)}
-          </span>
-          <span>
-            <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />:{' '}
-            {amount(summary.listAmount, false)}
-          </span>
-        </div>
-      </section>
+      <AgentStatisticsOverview
+        agentPrincipalId={statistics.data.profile.principalId}
+        summary={summary}
+      />
       <AgentModelPricePanel
         key={customerId}
         variant='section'
@@ -1505,41 +1485,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
         />
       </section>
       <section className='space-y-2'>
-        <h3 className='font-semibold'>{t('Price group summary')}</h3>
-        {priceGroups.length ? (
-          priceGroups.map((group) => (
-            <div
-              key={group.priceGroupId}
-              className='grid gap-2 rounded border p-3 text-sm sm:grid-cols-5'
-            >
-              <strong>{group.priceGroupName}</strong>
-              <span className='tabular-nums'>
-                {t('Current customers')}: {count(group.currentCustomers)}
-              </span>
-              <span className='tabular-nums'>
-                {t('Successful tasks')}: {count(group.successfulTasks)}
-              </span>
-              <span className='tabular-nums'>
-                {t('Consumed points')}: {count(group.settledPoints)}
-              </span>
-              <span>
-                <BusinessTerm
-                  kind='dashboardMetric'
-                  value='AGENT_DISPLAY_AMOUNT'
-                />
-                : {amount(group.modelUsageAmount, group.amountIncomplete)}
-              </span>
-              <span>
-                <BusinessTerm kind='dashboardMetric' value='LIST_AMOUNT' />:{' '}
-                {amount(group.listAmount, false)}
-              </span>
-            </div>
-          ))
-        ) : (
-          <p>{t('No price groups')}</p>
-        )}
-      </section>
-      <section className='space-y-2'>
         <h3 className='font-semibold'>{t('Agent customers')}</h3>
         <CanvasServerTable
           data={customers.data?.items ?? []}
@@ -1548,41 +1493,81 @@ function AgentStatistics({ customerId }: { customerId: string }) {
           state={customerState}
           searchLabel={t('Username')}
           additionalFilters={
-            <DataTableColumnFilterField label={t('Status')}>
-              <Select
-                value={agentCustomerStatus || 'ALL'}
-                onValueChange={(value) =>
-                  setAgentCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
-                }
-              >
-                <SelectTrigger className='w-full' aria-label={t('Status')}>
-                  <CanvasLocalizedSelectValue
-                    value={agentCustomerStatus}
-                    emptyLabelKey='All statuses'
-                    termKind='customerStatus'
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                  {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                    <SelectItem key={value} value={value}>
-                      <BusinessTerm kind='customerStatus' value={value} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </DataTableColumnFilterField>
+            <>
+              <DataTableColumnFilterField label={t('Status')}>
+                <Select
+                  value={agentCustomerStatus || 'ALL'}
+                  onValueChange={(value) =>
+                    setAgentCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
+                  }
+                >
+                  <SelectTrigger className='w-full' aria-label={t('Status')}>
+                    <CanvasLocalizedSelectValue
+                      value={agentCustomerStatus}
+                      emptyLabelKey='All statuses'
+                      termKind='customerStatus'
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
+                    {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
+                      <SelectItem key={value} value={value}>
+                        <BusinessTerm kind='customerStatus' value={value} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </DataTableColumnFilterField>
+              <DataTableColumnFilterField label={t('Current price group')}>
+                <Select
+                  value={agentCustomerPriceGroup || 'ALL'}
+                  onValueChange={(value) =>
+                    setAgentCustomerPriceGroup(
+                      value === 'ALL' ? '' : (value ?? '')
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    className='w-full'
+                    aria-label={t('Current price group')}
+                  >
+                    <CanvasLocalizedSelectValue
+                      value={agentCustomerPriceGroup}
+                      emptyLabelKey='All price groups'
+                      displayValue={priceGroupName(agentCustomerPriceGroup)}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='ALL'>{t('All price groups')}</SelectItem>
+                    {priceGroups.map((group) => (
+                      <SelectItem
+                        key={group.priceGroupId}
+                        value={group.priceGroupId}
+                      >
+                        {group.priceGroupName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </DataTableColumnFilterField>
+            </>
           }
-          hasActiveFilters={Boolean(agentCustomerStatus)}
-          onResetFilters={() => setAgentCustomerStatus('')}
+          hasActiveFilters={Boolean(
+            agentCustomerStatus || agentCustomerPriceGroup
+          )}
+          onResetFilters={() => {
+            setAgentCustomerStatus('')
+            setAgentCustomerPriceGroup('')
+          }}
           loading={customers.isPending || customers.isFetching}
           error={customers.isError}
           onRetry={() => void customers.refetch()}
           emptyTitle={t('No customers')}
           getRowId={(row) => row.id}
-          renderRow={(row) => (
+          renderRow={(row, getColumnClassName) => (
             <Fragment key={row.id}>
               <DataTableRow
+                getColumnClassName={getColumnClassName}
                 row={row}
                 cellRenderColumns={customerColumns}
                 aria-expanded={expandedCustomerId === row.original.id}
@@ -1630,11 +1615,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
           }
         />
       </section>
-      {statistics.data?.profile.principalId ? (
-        <AgentEarningsOverviewLine
-          agentPrincipalId={statistics.data.profile.principalId}
-        />
-      ) : null}
     </div>
   )
 }

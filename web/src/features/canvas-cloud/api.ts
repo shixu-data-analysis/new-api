@@ -62,6 +62,7 @@ import type {
   CanvasAdminAgentModelUsageRow,
   CanvasAgentModelPricePage,
   CanvasAdminAgentCustomer,
+  CanvasAdminAgentCustomerQuery,
   CanvasAdminAgentStatistics,
   CanvasProviderPricingRow,
   CanvasAdminPointLot,
@@ -1106,7 +1107,7 @@ export async function getCanvasAdminAgentStatistics(
 
 export async function getCanvasAdminAgentCustomers(
   customerId: string,
-  query: CanvasAgentCustomerQuery,
+  query: CanvasAdminAgentCustomerQuery,
   signal?: AbortSignal
 ): Promise<CanvasPage<CanvasAdminAgentCustomer>> {
   return (

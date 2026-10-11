@@ -17,12 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Fragment } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StaticDataTable } from '@/components/data-table/static/static-data-table'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TableBody, TableCell, TableRow } from '@/components/ui/table'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { cn } from '@/lib/utils'
 
 import {
   agentEarningsQueryKeys,
@@ -30,9 +36,14 @@ import {
 } from '../agent-earnings-api'
 import { formatBasisPointsPercent } from '../agent-earnings-format'
 
-/** The administrator's always-visible statement of how earnings are calculated; the ratio follows the current setting. */
+/**
+ * The administrator's always-visible statement of how earnings are calculated; the ratio follows the current setting.
+ * Name and formula pairs are a definition list, not a data table: nothing here is filtered, sorted or paged. It starts
+ * collapsed to its title, so the statements below stay in view.
+ */
 export function AgentEarningFormulaCard() {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
   const policy = useQuery({
     queryKey: [...agentEarningsQueryKeys.all, 'policy'],
     queryFn: ({ signal }) => getAgentSettlementPolicy(signal),
@@ -89,58 +100,60 @@ export function AgentEarningFormulaCard() {
     },
   ]
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('How earnings are calculated')}</CardTitle>
-      </CardHeader>
-      <CardContent className='grid gap-3'>
-        <StaticDataTable
-          className='max-w-full overflow-x-auto'
-          tableClassName='w-full min-w-[640px] table-fixed'
-        >
-          <TableBody>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card>
+        <CardHeader className='flex flex-row items-center justify-between gap-3'>
+          <CardTitle>{t('How earnings are calculated')}</CardTitle>
+          <CollapsibleTrigger
+            render={<Button variant='ghost' size='sm' className='shrink-0' />}
+          >
+            {open ? t('Collapse') : t('Expand')}
+            <ChevronDown
+              aria-hidden='true'
+              className={cn('transition-transform', open && 'rotate-180')}
+            />
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className='grid gap-4'>
             {groups.map((group) => (
-              <Fragment key={group.title}>
-                <TableRow>
-                  <TableCell colSpan={2} className='bg-muted/40 font-semibold'>
-                    {group.title}
-                  </TableCell>
-                </TableRow>
-                {group.rows.map(([name, formula]) => (
-                  <TableRow key={name}>
-                    <TableCell className='w-64 align-top font-medium whitespace-normal'>
-                      {name}
-                    </TableCell>
-                    <TableCell className='whitespace-normal'>
-                      {formula}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Fragment>
+              <section key={group.title} className='grid gap-1.5'>
+                <h3 className='text-sm font-semibold'>{group.title}</h3>
+                <dl className='grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[14rem_minmax(0,1fr)]'>
+                  {group.rows.map(([name, formula]) => (
+                    <div key={name} className='contents'>
+                      <dt className='text-muted-foreground'>{name}</dt>
+                      <dd className='mb-1 sm:mb-0'>{formula}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             ))}
-          </TableBody>
-        </StaticDataTable>
-        <ul className='text-muted-foreground list-disc space-y-1 ps-5 text-sm'>
-          <li>
-            {t(
-              'Each result is calculated first and then added up. When a result counts as 0, "customer paid amount − agent display amount (paid portion)" in the details is slightly smaller than "consumption earnings"; this is expected.'
-            )}
-          </li>
-          <li>
-            {t('Points bought at different times use their own RMB per point.')}
-          </li>
-          <li>
-            {t(
-              'Bonus points earn nothing; rounding remainders count as earnings.'
-            )}
-          </li>
-          <li>
-            {t(
-              '"Agent display amount (paid portion)" is called "model fee" on the agent side; it is not the provider cost.'
-            )}
-          </li>
-        </ul>
-      </CardContent>
-    </Card>
+            <ul className='text-muted-foreground list-disc space-y-1 ps-5 text-sm'>
+              <li>
+                {t(
+                  'Each result is calculated first and then added up. When a result counts as 0, "customer paid amount − agent display amount (paid portion)" in the details is slightly smaller than "consumption earnings"; this is expected.'
+                )}
+              </li>
+              <li>
+                {t(
+                  'Points bought at different times use their own RMB per point.'
+                )}
+              </li>
+              <li>
+                {t(
+                  'Bonus points earn nothing; rounding remainders count as earnings.'
+                )}
+              </li>
+              <li>
+                {t(
+                  '"Agent display amount (paid portion)" is called "model fee" on the agent side; it is not the provider cost.'
+                )}
+              </li>
+            </ul>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   )
 }

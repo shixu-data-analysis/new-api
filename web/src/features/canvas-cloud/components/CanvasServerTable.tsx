@@ -38,6 +38,20 @@ import {
   withCanvasTableColumnSizes,
 } from './canvas-table-layout'
 
+const FILLER_COLUMN_ID = '__canvas_filler'
+
+/** Blank trailing column: no header or content, not in the column list, hidden in mobile cards and from assistive technology. */
+function fillerColumn<TData>(): ColumnDef<TData, unknown> {
+  return {
+    id: FILLER_COLUMN_ID,
+    header: () => null,
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
+    meta: { mobileHidden: true, presentational: true },
+  }
+}
+
 export function CanvasServerTable<TData>({
   data,
   columns,
@@ -87,7 +101,11 @@ export function CanvasServerTable<TData>({
     row: Row<TData>,
     context: { isMobile: boolean }
   ) => string | undefined
-  renderRow?: (row: Row<TData>) => ReactNode
+  /** A custom row passes `getColumnClassName` to its `DataTableRow`, so column widths and alignment match the header. */
+  renderRow?: (
+    row: Row<TData>,
+    getColumnClassName: DataTableColumnClassName
+  ) => ReactNode
   renderExpandedContent?: (row: Row<TData>) => ReactNode
   initialColumnVisibility?: VisibilityState
   getColumnClassName?: DataTableColumnClassName
@@ -97,7 +115,12 @@ export function CanvasServerTable<TData>({
     state
   const searchId = useId()
   const pageCount = Math.max(1, Math.ceil(total / pagination.pageSize))
-  const sizedColumns = withCanvasTableColumnSizes(columns)
+  // A blank trailing column takes the width the real columns leave, so every real column keeps its tier width and a
+  // right-aligned last column stays next to its neighbours instead of being pushed to the far edge.
+  const sizedColumns = useMemo(
+    () => [...withCanvasTableColumnSizes(columns), fillerColumn<TData>()],
+    [columns]
+  )
   // Stable per columns so memoized rows are not re-rendered by a new class callback.
   const columnClassName = useMemo(
     () => withCanvasColumnAlignment(columns, getColumnClassName),
@@ -125,6 +148,23 @@ export function CanvasServerTable<TData>({
     initialColumnVisibility,
   })
 
+  // Real columns get their tier width; only the blank trailing column has none, so it takes the rest.
+  const visibleColumns = table.getVisibleLeafColumns()
+  const colgroup = (
+    <colgroup>
+      {visibleColumns.map((column) => (
+        <col
+          key={column.id}
+          style={
+            column.id === FILLER_COLUMN_ID
+              ? undefined
+              : { width: column.getSize() }
+          }
+        />
+      ))}
+    </colgroup>
+  )
+
   return (
     <div className='space-y-3'>
       {error ? (
@@ -144,9 +184,14 @@ export function CanvasServerTable<TData>({
         paginationInFooter={false}
         getRowClassName={getRowClassName}
         getColumnClassName={columnClassName}
-        renderRow={renderRow ? (row) => renderRow(row) : undefined}
+        renderRow={
+          renderRow ? (row) => renderRow(row, columnClassName) : undefined
+        }
         mobileProps={{ renderExpandedContent }}
-        applyHeaderSize
+        colgroup={colgroup}
+        // A tier width is a lower bound: longer content widens only its own column, and a container narrower than
+        // the content scrolls the table sideways instead of squeezing the other columns below their tier.
+        tableStyle={{ minWidth: 'max-content' }}
         hideMobile={hideMobile}
         toolbar={
           <DataTableToolbar

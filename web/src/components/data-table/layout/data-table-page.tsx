@@ -194,6 +194,15 @@ export type DataTablePageProps<TData> = {
   applyHeaderSize?: boolean
 
   /**
+   * Replaces the `<colgroup>` the table derives from column sizes, for a page that sets its own
+   * column widths (for example, fixed widths with the remaining width left to the last column).
+   */
+  colgroup?: React.ReactNode
+
+  /** Table style that goes with `colgroup`, for example a fixed layout with a minimum width. */
+  tableStyle?: React.CSSProperties
+
+  /**
    * Optional skeleton key prefix for stable React keys across re-renders.
    */
   skeletonKeyPrefix?: string
@@ -430,6 +439,8 @@ function renderMobile<TData>(
           skeletonKeyPrefix={props.skeletonKeyPrefix}
           renderRow={props.renderRow}
           applyHeaderSize={props.applyHeaderSize}
+          colgroup={props.colgroup}
+          tableStyle={props.tableStyle}
           tableHeaderClassName={cn(
             '[background-color:var(--table-header)]',
             props.tableHeaderClassName
@@ -529,6 +540,8 @@ function renderDesktop<TData>(
       skeletonKeyPrefix={props.skeletonKeyPrefix}
       renderRow={props.renderRow}
       applyHeaderSize={props.applyHeaderSize}
+      colgroup={props.colgroup}
+      tableStyle={props.tableStyle}
       splitHeader={fixedHeight}
       tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
       tableHeaderClassName={cn(
