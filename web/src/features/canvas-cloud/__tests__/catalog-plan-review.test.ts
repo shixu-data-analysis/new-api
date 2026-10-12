@@ -38,11 +38,24 @@ import {
 
 describe('catalog plan model review', () => {
   it.each([
-    ['CREATE', 'CREATE'],
-    ['CREATE_VERSION', 'NEW_VERSION'],
-    ['NO_OP', 'UNCHANGED'],
-  ] as const)('classifies a %s model as %s', (action, kind) => {
-    expect(reviewCatalogModel(catalogPlanModel({ action })).kind).toBe(kind)
+    ['CREATE', [], 'CREATE'],
+    ['CREATE_VERSION', [], 'NEW_VERSION'],
+    [
+      'NO_OP',
+      [
+        catalogChange({
+          resourceType: 'MODEL_DESCRIPTION_DEFAULT',
+          key: 'canvas.image.model',
+          action: 'CREATE_VERSION',
+        }),
+      ],
+      'DESCRIPTION',
+    ],
+    ['NO_OP', [], 'UNCHANGED'],
+  ] as const)('classifies a %s model as %s', (action, changes, kind) => {
+    expect(
+      reviewCatalogModel(catalogPlanModel({ action }), [...changes]).kind
+    ).toBe(kind)
   })
 
   it('counts price items that need pricing but treats price conflicts as blockers', () => {
@@ -64,7 +77,8 @@ describe('catalog plan model review', () => {
             reasonCode: 'PROMOTION_CONFLICT',
           }),
         ],
-      })
+      }),
+      []
     )
 
     expect(review.pricingCount).toBe(2)
@@ -81,7 +95,8 @@ describe('catalog plan model review', () => {
           status: 'NEEDS_BINDING',
           reasonCode: 'CREDENTIAL_GROUP_UNAVAILABLE',
         },
-      })
+      }),
+      []
     )
     const blocked = reviewCatalogModel(
       catalogPlanModel({
@@ -90,7 +105,8 @@ describe('catalog plan model review', () => {
           status: 'BLOCKED',
           reasonCode: 'PROVIDER_CHANGED',
         },
-      })
+      }),
+      []
     )
 
     expect(needsBinding.needsBinding).toBe(true)
@@ -101,9 +117,15 @@ describe('catalog plan model review', () => {
     ])
   })
 
-  it('sorts blocked, pending, new, new version and unchanged models, then by key', () => {
+  it('sorts blocked, pending, new, new version, description and unchanged models, then by key', () => {
+    const description = catalogChange({
+      resourceType: 'MODEL_DESCRIPTION_DEFAULT',
+      key: 'f.description',
+      action: 'CREATE_VERSION',
+    })
     const reviews = [
       catalogPlanModel({ productKey: 'g.unchanged' }),
+      catalogPlanModel({ productKey: 'f.description' }),
       catalogPlanModel({ productKey: 'e.version', action: 'CREATE_VERSION' }),
       catalogPlanModel({ productKey: 'd.new', action: 'CREATE' }),
       catalogPlanModel({
@@ -124,7 +146,7 @@ describe('catalog plan model review', () => {
         },
       }),
       catalogPlanModel({ productKey: 'a.unchanged' }),
-    ].map((model) => reviewCatalogModel(model))
+    ].map((model) => reviewCatalogModel(model, [description]))
 
     expect(
       sortCatalogModelReviews(reviews).map((review) => review.model.productKey)
@@ -133,6 +155,7 @@ describe('catalog plan model review', () => {
       'c.pending',
       'd.new',
       'e.version',
+      'f.description',
       'a.unchanged',
       'g.unchanged',
     ])
@@ -144,7 +167,8 @@ describe('catalog plan model review', () => {
         action: 'CREATE',
         capability: 'video.generate',
         providerId: 'video-provider',
-      })
+      }),
+      []
     )
     const matches = (filters: Partial<typeof emptyCatalogModelFilters>) =>
       matchesCatalogModelFilters(review, {
@@ -223,7 +247,7 @@ describe('catalog plan shared resources', () => {
     models,
     diagnostics,
   }
-  const reviews = models.map((model) => reviewCatalogModel(model))
+  const reviews = models.map((model) => reviewCatalogModel(model, plan.changes))
 
   it('keeps only providers, channels and model definition files and puts conflicts first', () => {
     const shared = catalogSharedChanges([

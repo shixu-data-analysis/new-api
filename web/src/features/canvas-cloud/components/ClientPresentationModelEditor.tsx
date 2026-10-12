@@ -87,7 +87,7 @@ export function ClientPresentationModelEditor(props: {
           className='text-muted-foreground text-xs'
         >
           {t(
-            'Brought in when the catalog is first imported; after that it changes only here, and re-importing does not overwrite it.'
+            'A catalog import and this page can both change it; the later change wins. Importing the same description again does not overwrite changes made here.'
           )}
         </p>
       </div>

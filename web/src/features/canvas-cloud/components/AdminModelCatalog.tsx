@@ -376,7 +376,10 @@ export function AdminModelCatalog(props: {
     }
   }, [plan, t])
   const reviews = useMemo(
-    () => (plan?.models ?? []).map((model) => reviewCatalogModel(model)),
+    () =>
+      (plan?.models ?? []).map((model) =>
+        reviewCatalogModel(model, plan?.changes ?? [])
+      ),
     [plan]
   )
   const sharedChanges = useMemo(

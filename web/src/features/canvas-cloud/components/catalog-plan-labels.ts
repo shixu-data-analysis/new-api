@@ -83,6 +83,7 @@ export function catalogModelChangeLabel(
   return {
     CREATE: t('New'),
     NEW_VERSION: t('New version'),
+    DESCRIPTION: t('Description updated'),
     UNCHANGED: t('Unchanged'),
   }[kind]
 }

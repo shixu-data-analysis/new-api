@@ -50,6 +50,10 @@ export interface PresentationSnapshot {
   badges: CanvasClientPresentationBadge[]
 }
 
+/**
+ * Edits replace only what they change, so an unchanged model, order or badge list keeps the same object as
+ * the published snapshot; comparisons and row rendering skip those by reference.
+ */
 export interface PresentationDraftState {
   revision: number
   published: PresentationSnapshot
@@ -98,12 +102,6 @@ export type PresentationDraftAction =
       >
     }
   | { type: 'toggleBadge'; modelKey: string; badgeId: string }
-  | {
-      type: 'move'
-      capability: PresentationCapability
-      from: number
-      to: number
-    }
   | {
       type: 'moveMany'
       capability: PresentationCapability
@@ -168,7 +166,7 @@ export function initialDraftState(
   return {
     revision: data.revision,
     published,
-    draft: structuredClone(published),
+    draft: published,
     unsorted: new Set(
       data.models
         .filter((model) => model.position === null)
@@ -191,22 +189,21 @@ export function applyBatch(
   modelKeys: string[],
   value: string | null
 ): BatchResult {
-  const next = structuredClone(snapshot)
+  const models = { ...snapshot.models }
   let applied = 0
   let skipped = 0
   for (const modelKey of modelKeys) {
-    const model = next.models[modelKey]
+    const model = models[modelKey]
     if (!model) continue
+    let patch: Partial<DraftModel>
     if (kind === 'icon') {
-      model.iconKey = isIconKey(value) ? value : null
-      applied += 1
+      patch = { iconKey: isIconKey(value) ? value : null }
     } else if (kind === 'color') {
       if (!model.iconKey || !isModelPresentationColor(value)) {
         skipped += 1
         continue
       }
-      model.iconColor = value
-      applied += 1
+      patch = { iconColor: value }
     } else if (kind === 'add') {
       if (
         !value ||
@@ -216,106 +213,150 @@ export function applyBatch(
         skipped += 1
         continue
       }
-      model.badgeIds = [...model.badgeIds, value]
-      applied += 1
+      patch = { badgeIds: [...model.badgeIds, value] }
     } else {
       if (!value || !model.badgeIds.includes(value)) {
         skipped += 1
         continue
       }
-      model.badgeIds = model.badgeIds.filter((id) => id !== value)
-      applied += 1
+      patch = { badgeIds: model.badgeIds.filter((id) => id !== value) }
     }
+    models[modelKey] = { ...model, ...patch }
+    applied += 1
   }
-  return { snapshot: next, applied, skipped }
+  return { snapshot: { ...snapshot, models }, applied, skipped }
+}
+
+function withModel(
+  state: PresentationDraftState,
+  modelKey: string,
+  change: (model: DraftModel) => Partial<DraftModel>
+): PresentationDraftState {
+  const model = state.draft.models[modelKey]
+  if (!model) return state
+  const models = {
+    ...state.draft.models,
+    [modelKey]: { ...model, ...change(model) },
+  }
+  return { ...state, draft: { ...state.draft, models } }
 }
 
 export function presentationDraftReducer(
   state: PresentationDraftState,
   action: PresentationDraftAction
 ): PresentationDraftState {
-  if (action.type === 'load') return initialDraftState(action.data)
-  if (action.type === 'discard') {
-    return {
-      ...state,
-      draft: structuredClone(state.published),
-      nextBadgeRef: 1,
+  const draft = state.draft
+  switch (action.type) {
+    case 'load':
+      return initialDraftState(action.data)
+    case 'discard':
+      return { ...state, draft: state.published, nextBadgeRef: 1 }
+    case 'updateModel':
+      return withModel(state, action.modelKey, () => action.patch)
+    case 'toggleBadge':
+      return withModel(state, action.modelKey, (model) => {
+        if (model.badgeIds.includes(action.badgeId)) {
+          return {
+            badgeIds: model.badgeIds.filter((id) => id !== action.badgeId),
+          }
+        }
+        return model.badgeIds.length < MODEL_BADGE_LIMIT
+          ? { badgeIds: [...model.badgeIds, action.badgeId] }
+          : {}
+      })
+    case 'moveMany':
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          orders: {
+            ...draft.orders,
+            [action.capability]: moveModels(
+              draft.orders[action.capability],
+              action.modelKeys,
+              action.target
+            ),
+          },
+        },
+      }
+    case 'createBadge':
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          badges: [
+            ...draft.badges,
+            {
+              id: `new-${state.nextBadgeRef}`,
+              name: action.name.trim(),
+              color: 'gray',
+            },
+          ],
+        },
+        nextBadgeRef: state.nextBadgeRef + 1,
+      }
+    case 'updateBadge': {
+      if (!draft.badges.some((badge) => badge.id === action.id)) return state
+      const badges = draft.badges.map((badge) =>
+        badge.id === action.id
+          ? {
+              ...badge,
+              ...(action.name !== undefined && { name: action.name.trim() }),
+              ...(action.color !== undefined && { color: action.color }),
+            }
+          : badge
+      )
+      return { ...state, draft: { ...draft, badges } }
     }
-  }
-  const draft = structuredClone(state.draft)
-  if (action.type === 'updateModel') {
-    const model = draft.models[action.modelKey]
-    if (!model) return state
-    Object.assign(model, action.patch)
-    return { ...state, draft }
-  }
-  if (action.type === 'toggleBadge') {
-    const model = draft.models[action.modelKey]
-    if (!model) return state
-    if (model.badgeIds.includes(action.badgeId)) {
-      model.badgeIds = model.badgeIds.filter((id) => id !== action.badgeId)
-    } else if (model.badgeIds.length < MODEL_BADGE_LIMIT) {
-      model.badgeIds = [...model.badgeIds, action.badgeId]
+    case 'deleteBadge': {
+      const models = { ...draft.models }
+      for (const model of Object.values(draft.models)) {
+        if (model.badgeIds.includes(action.id)) {
+          models[model.modelKey] = {
+            ...model,
+            badgeIds: model.badgeIds.filter((id) => id !== action.id),
+          }
+        }
+      }
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          models,
+          badges: draft.badges.filter((badge) => badge.id !== action.id),
+        },
+      }
     }
-    return { ...state, draft }
-  }
-  if (action.type === 'move') {
-    const keys = draft.orders[action.capability]
-    const [moved] = keys.splice(action.from, 1)
-    if (moved === undefined) return state
-    keys.splice(action.to, 0, moved)
-    return { ...state, draft }
-  }
-  if (action.type === 'moveMany') {
-    draft.orders[action.capability] = moveModels(
-      draft.orders[action.capability],
-      action.modelKeys,
-      action.target
-    )
-    return { ...state, draft }
-  }
-  if (action.type === 'createBadge') {
-    draft.badges.push({
-      id: `new-${state.nextBadgeRef}`,
-      name: action.name.trim(),
-      color: 'gray',
-    })
-    return { ...state, draft, nextBadgeRef: state.nextBadgeRef + 1 }
-  }
-  if (action.type === 'updateBadge') {
-    const badge = draft.badges.find((item) => item.id === action.id)
-    if (!badge) return state
-    if (action.name !== undefined) badge.name = action.name.trim()
-    if (action.color !== undefined) badge.color = action.color
-    return { ...state, draft }
-  }
-  if (action.type === 'deleteBadge') {
-    draft.badges = draft.badges.filter((badge) => badge.id !== action.id)
-    for (const model of Object.values(draft.models)) {
-      model.badgeIds = model.badgeIds.filter((id) => id !== action.id)
-    }
-    return { ...state, draft }
-  }
-  return {
-    ...state,
-    draft: applyBatch(draft, action.kind, action.modelKeys, action.value)
-      .snapshot,
+    case 'batch':
+      return {
+        ...state,
+        draft: applyBatch(draft, action.kind, action.modelKeys, action.value)
+          .snapshot,
+      }
   }
 }
+
+const sameKeys = (left: string[], right: string[]) =>
+  left === right ||
+  (left.length === right.length &&
+    left.every((key, index) => key === right[index]))
 
 function sameModel(
   published: DraftModel,
   draft: DraftModel,
   deleted: Set<string>
 ) {
+  if (published === draft) return true
   return (
     published.displayName.trim() === draft.displayName.trim() &&
     published.description.trim() === draft.description.trim() &&
     published.iconKey === draft.iconKey &&
     (draft.iconKey === null || published.iconColor === draft.iconColor) &&
     // A deleted badge leaves the published model on the server too.
-    JSON.stringify(published.badgeIds.filter((id) => !deleted.has(id))) ===
-      JSON.stringify(draft.badgeIds)
+    sameKeys(
+      published.badgeIds.filter((id) => !deleted.has(id)),
+      draft.badgeIds
+    )
   )
 }
 
@@ -343,12 +384,15 @@ export function presentationChanges(
       .map((model) => model.modelKey),
     capabilities: PRESENTATION_CAPABILITIES.filter(
       (capability) =>
-        JSON.stringify(state.draft.orders[capability]) !==
-        JSON.stringify(state.published.orders[capability])
+        !sameKeys(
+          state.draft.orders[capability],
+          state.published.orders[capability]
+        )
     ),
     badges:
+      state.draft.badges !== state.published.badges &&
       JSON.stringify(state.draft.badges) !==
-      JSON.stringify(state.published.badges),
+        JSON.stringify(state.published.badges),
   }
 }
 
@@ -382,10 +426,14 @@ export function buildPublication(
     models: changes.modelKeys.flatMap((modelKey) => {
       const model = state.draft.models[modelKey]
       if (!model) return []
+      const published = state.published.models[modelKey]
+      const displayName = model.displayName.trim()
+      const description = model.description.trim()
+      // An unchanged name or description is left out, so the server keeps it following its current source.
       return {
         modelKey,
-        displayName: model.displayName.trim(),
-        description: model.description.trim(),
+        ...(displayName !== published?.displayName.trim() && { displayName }),
+        ...(description !== published?.description.trim() && { description }),
         iconKey: model.iconKey,
         iconColor: model.iconKey ? model.iconColor : null,
         badges: model.badgeIds,

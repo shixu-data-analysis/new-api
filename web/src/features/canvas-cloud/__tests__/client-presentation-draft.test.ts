@@ -84,10 +84,10 @@ describe('client presentation draft', () => {
     expect(hasPresentationChanges(presentationChanges(state))).toBe(false)
 
     state = presentationDraftReducer(state, {
-      type: 'move',
+      type: 'moveMany',
       capability: 'image.generate',
-      from: 2,
-      to: 0,
+      modelKeys: ['image.c'],
+      target: 'top',
     })
     state = presentationDraftReducer(state, {
       type: 'updateModel',
@@ -110,8 +110,6 @@ describe('client presentation draft', () => {
       models: [
         {
           modelKey: 'image.b',
-          displayName: 'Beta',
-          description: '',
           iconKey: 'gemini',
           iconColor: 'blue',
           badges: [],
@@ -129,6 +127,58 @@ describe('client presentation draft', () => {
         deletedIds: [],
       },
     })
+  })
+
+  it('sends a name or description only when it changed, so the other keeps its source', () => {
+    let state = initialDraftState(data)
+    state = presentationDraftReducer(state, {
+      type: 'updateModel',
+      modelKey: 'image.b',
+      patch: { description: ' 新说明 ' },
+    })
+    state = presentationDraftReducer(state, {
+      type: 'updateModel',
+      modelKey: 'video.a',
+      patch: { displayName: 'Delta Pro' },
+    })
+    state = presentationDraftReducer(state, {
+      type: 'updateModel',
+      modelKey: 'image.c',
+      patch: { displayName: ' Gamma ' },
+    })
+
+    expect(buildPublication(state, presentationChanges(state)).models).toEqual([
+      {
+        modelKey: 'image.b',
+        description: '新说明',
+        iconKey: null,
+        iconColor: null,
+        badges: [],
+      },
+      {
+        modelKey: 'video.a',
+        displayName: 'Delta Pro',
+        iconKey: null,
+        iconColor: null,
+        badges: [],
+      },
+    ])
+  })
+
+  it('keeps unchanged models and the published snapshot untouched by edits', () => {
+    const initial = initialDraftState(data)
+    const state = presentationDraftReducer(initial, {
+      type: 'updateModel',
+      modelKey: 'image.b',
+      patch: { displayName: 'Beta Pro' },
+    })
+
+    expect(state.draft.models['image.a']).toBe(initial.draft.models['image.a'])
+    expect(state.draft.orders).toBe(initial.draft.orders)
+    expect(state.published.models['image.b']?.displayName).toBe('Beta')
+    expect(presentationDraftReducer(state, { type: 'discard' }).draft).toBe(
+      state.published
+    )
   })
 
   it('does not republish a model whose only change is a deleted badge', () => {

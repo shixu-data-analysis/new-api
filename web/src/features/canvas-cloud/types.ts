@@ -909,8 +909,10 @@ export interface CanvasClientPresentationPublicationRequest {
   expectedRevision: number
   models: Array<{
     modelKey: string
-    displayName: string
-    description: string
+    /** Sent only when changed; omitted keeps the current name. */
+    displayName?: string
+    /** Sent only when changed; omitted keeps the current description. */
+    description?: string
     iconKey: string | null
     iconColor: string | null
     badges: string[]

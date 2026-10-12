@@ -496,6 +496,7 @@ export function CatalogModelPreview(props: {
     ['CHANGED', t('Changed')],
     ['CREATE', t('New')],
     ['NEW_VERSION', t('New version')],
+    ['DESCRIPTION', t('Description updated')],
     ['UNCHANGED', t('Unchanged')],
   ] as const
   const pendingOptions = [

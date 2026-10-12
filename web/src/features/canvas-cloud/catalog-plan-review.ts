@@ -25,7 +25,11 @@ import type {
 export type CatalogPlanModel = ModelCatalogPlan['models'][number]
 export type CatalogPricingItem = CatalogPlanModel['pricing'][number]
 
-export type CatalogModelChangeKind = 'CREATE' | 'NEW_VERSION' | 'UNCHANGED'
+export type CatalogModelChangeKind =
+  | 'CREATE'
+  | 'NEW_VERSION'
+  | 'DESCRIPTION'
+  | 'UNCHANGED'
 
 export type CatalogSharedChangeKind =
   | 'CREATE'
@@ -72,11 +76,21 @@ export function catalogModelName(model: CatalogPlanModel): string {
 }
 
 export function reviewCatalogModel(
-  model: CatalogPlanModel
+  model: CatalogPlanModel,
+  changes: ModelCatalogChange[]
 ): CatalogModelReview {
   let kind: CatalogModelChangeKind = 'UNCHANGED'
   if (model.action === 'CREATE') kind = 'CREATE'
   else if (model.action === 'CREATE_VERSION') kind = 'NEW_VERSION'
+  else if (
+    changes.some(
+      (change) =>
+        change.resourceType === 'MODEL_DESCRIPTION_DEFAULT' &&
+        change.key === model.productKey
+    )
+  ) {
+    kind = 'DESCRIPTION'
+  }
   const blockers: CatalogModelBlocker[] = []
   if (model.credential.status === 'BLOCKED') {
     blockers.push({
@@ -125,6 +139,7 @@ export function catalogModelTabCounts(reviews: CatalogModelReview[]) {
 const modelKindRank: Record<CatalogModelChangeKind, number> = {
   CREATE: 2,
   NEW_VERSION: 3,
+  DESCRIPTION: 4,
   UNCHANGED: 5,
 }
 

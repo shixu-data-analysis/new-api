@@ -124,11 +124,46 @@ export function ClientPresentationManager(props: {
     if (!lockedRef.current) dispatch(action)
   }, [])
   const attempt = useRef<{ body: string; key: string } | null>(null)
-  const dragFrom = useRef<number | null>(null)
+  const dragFrom = useRef<{ modelKey: string; index: number } | null>(null)
   const pendingFocus = useRef<{ modelKey: string; action: MoveAction } | null>(
     null
   )
   const listRef = useRef<HTMLOListElement>(null)
+  // Stable row callbacks: rows of unchanged models skip rendering while another model is edited.
+  const toggleRow = useCallback((modelKey: string) => {
+    setSelected((current) => (current === modelKey ? null : modelKey))
+  }, [])
+  const checkRow = useCallback((modelKey: string, checked: boolean) => {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (checked) next.add(modelKey)
+      else next.delete(modelKey)
+      return next
+    })
+  }, [])
+  const moveRow = useCallback(
+    (modelKey: string, to: number, action?: MoveAction) => {
+      if (action) pendingFocus.current = { modelKey, action }
+      editDispatch({
+        type: 'moveMany',
+        capability,
+        modelKeys: [modelKey],
+        target: to + 1,
+      })
+    },
+    [capability, editDispatch]
+  )
+  const dragRow = useCallback((modelKey: string, index: number) => {
+    dragFrom.current = { modelKey, index }
+  }, [])
+  const dropRow = useCallback(
+    (index: number) => {
+      const from = dragFrom.current
+      dragFrom.current = null
+      if (from && from.index !== index) moveRow(from.modelKey, index)
+    },
+    [moveRow]
+  )
   // The bulk bar sticks right below the toolbar, whose height changes when it wraps.
   const [toolbarHeight, setToolbarHeight] = useState(0)
   const toolbarRef = useCallback((toolbar: HTMLDivElement | null) => {
@@ -355,15 +390,6 @@ export function ClientPresentationManager(props: {
     }
   }
 
-  function move(index: number, to: number, action?: MoveAction) {
-    const modelKey = keys[index]
-    if (modelKey === undefined || to < 0 || to >= keys.length || to === index) {
-      return
-    }
-    if (action) pendingFocus.current = { modelKey, action }
-    editDispatch({ type: 'move', capability, from: index, to })
-  }
-
   const availableTypes = PRESENTATION_CAPABILITIES.filter(
     (item) => draft.orders[item].length > 0
   )
@@ -381,66 +407,34 @@ export function ClientPresentationManager(props: {
       </li>
     )
   } else {
-    listContent = shown.map(({ model, index }, visibleIndex) => {
-      // Up and down jump over models hidden by the search or filter, which keep their places.
-      const previous = shown[visibleIndex - 1]?.index
-      const next = shown[visibleIndex + 1]?.index
-      return (
-        <ClientPresentationModelRow
-          key={model.modelKey}
-          model={model}
-          index={index}
-          total={keys.length}
-          canMoveUp={previous !== undefined}
-          canMoveDown={next !== undefined}
-          expanded={selected === model.modelKey}
-          checked={picked.has(model.modelKey)}
-          unsorted={state.unsorted.has(model.modelKey)}
-          badges={draft.badges}
-          onToggle={() =>
-            setSelected((current) =>
-              current === model.modelKey ? null : model.modelKey
-            )
-          }
-          onCheckedChange={(checked) => {
-            const next = new Set(picked)
-            if (checked) next.add(model.modelKey)
-            else next.delete(model.modelKey)
-            setPicked(next)
-          }}
-          onMove={(action) => {
-            if (action === 'top') move(index, 0, action)
-            else if (action === 'up' && previous !== undefined) {
-              move(index, previous, action)
-            } else if (action === 'down' && next !== undefined) {
-              move(index, next, action)
-            }
-          }}
-          onMoveTo={(position) =>
-            editDispatch({
-              type: 'moveMany',
-              capability,
-              modelKeys: [model.modelKey],
-              target: position,
-            })
-          }
-          onDragStart={() => {
-            dragFrom.current = index
-          }}
-          onDrop={() => {
-            if (dragFrom.current !== null) move(dragFrom.current, index)
-            dragFrom.current = null
-          }}
-        >
+    listContent = shown.map(({ model, index }, visibleIndex) => (
+      <ClientPresentationModelRow
+        key={model.modelKey}
+        model={model}
+        index={index}
+        total={keys.length}
+        previousIndex={shown[visibleIndex - 1]?.index}
+        nextIndex={shown[visibleIndex + 1]?.index}
+        expanded={selected === model.modelKey}
+        checked={picked.has(model.modelKey)}
+        unsorted={state.unsorted.has(model.modelKey)}
+        badges={draft.badges}
+        onToggle={toggleRow}
+        onCheckedChange={checkRow}
+        onMove={moveRow}
+        onDragStart={dragRow}
+        onDrop={dropRow}
+      >
+        {selected === model.modelKey && (
           <ClientPresentationModelEditor
             model={model}
             badges={draft.badges}
             dispatch={editDispatch}
             onOpenModelCategories={props.onOpenModelCategories}
           />
-        </ClientPresentationModelRow>
-      )
-    })
+        )}
+      </ClientPresentationModelRow>
+    ))
   }
 
   return (
