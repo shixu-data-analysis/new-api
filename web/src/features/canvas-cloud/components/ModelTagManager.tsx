@@ -223,8 +223,8 @@ export function ModelTagManager(props: {
         ?.status
       setError(
         status === 409
-          ? 'Model tags changed elsewhere. Refresh and review before retrying.'
-          : 'Model tag change failed'
+          ? 'Model categories changed elsewhere. Refresh and review before retrying.'
+          : 'Model category change failed'
       )
     },
   })
@@ -260,7 +260,7 @@ export function ModelTagManager(props: {
           showCloseButton={!mutation.isPending}
         >
           <DialogHeader>
-            <DialogTitle>{t('Manage model tags')}</DialogTitle>
+            <DialogTitle>{t('Manage model categories')}</DialogTitle>
           </DialogHeader>
           <form
             className='flex flex-wrap items-end gap-2'
@@ -274,7 +274,7 @@ export function ModelTagManager(props: {
           >
             <div className='min-w-48 flex-1 space-y-1'>
               <Label htmlFor='model-tag-name'>
-                {editingTag ? t('Rename tag') : t('New tag')}
+                {editingTag ? t('Rename category') : t('New category')}
               </Label>
               <Input
                 id='model-tag-name'
@@ -290,7 +290,7 @@ export function ModelTagManager(props: {
               )}
             </div>
             <Button type='submit' disabled={mutation.isPending}>
-              {editingTag ? t('Rename') : t('Add tag')}
+              {editingTag ? t('Rename') : t('Add category')}
             </Button>
             {editingTag && (
               <Button type='button' variant='outline' onClick={cancelRename}>
@@ -444,7 +444,7 @@ export function ModelTagManager(props: {
               onClick={closeAssignment}
               disabled={mutation.isPending}
             >
-              {t('Back to tags')}
+              {t('Back to categories')}
             </Button>
             <Button
               disabled={mutation.isPending || sameModelKeys(selected, expected)}
@@ -463,10 +463,10 @@ export function ModelTagManager(props: {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Delete model tag?')}</AlertDialogTitle>
+            <AlertDialogTitle>{t('Delete model category?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                'This removes the tag from {{count}} models. The models and their other tags remain.',
+                'This removes the category from {{count}} models. The models and their other categories remain.',
                 { count: deletingTag?.modelCount ?? 0 }
               )}
             </AlertDialogDescription>
@@ -508,7 +508,7 @@ export function ModelTagManager(props: {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('Discard changes?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('Your unsaved model tag changes will be lost.')}
+              {t('Your unsaved model category changes will be lost.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

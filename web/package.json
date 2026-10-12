@@ -22,6 +22,7 @@
     "i18n:sync": "node scripts/sync-i18n.mjs",
     "canvas:catalog-types": "node scripts/generate-canvas-catalog-import-types.mjs",
     "canvas:catalog-types:check": "node scripts/generate-canvas-catalog-import-types.mjs --check",
+    "canvas:presentation-performance": "node scripts/run-canvas-presentation-performance-check.mjs origin/main",
     "canvas:catalog-types:cross-check": "node scripts/generate-canvas-catalog-import-types.mjs --check --input ../../.worktrees/canvas-cloud-integration/api/openapi-v1.json",
     "knip": "knip"
   },

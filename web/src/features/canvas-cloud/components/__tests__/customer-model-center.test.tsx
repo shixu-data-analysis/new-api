@@ -31,6 +31,13 @@ const models: CanvasCatalogModel[] = [
       description: 'A long published description',
     },
     tags: [{ id: 'photo', name: 'Photography' }],
+    iconKey: 'openai',
+    iconColor: 'green',
+    badges: [
+      { name: 'Official', color: 'green' },
+      { name: 'Hot', color: 'unknown' },
+      { name: 'New', color: 'blue' },
+    ],
     parameterCombinations: [
       {
         id: 'quality-1',
@@ -50,6 +57,9 @@ const models: CanvasCatalogModel[] = [
     catalogDefaultName: 'Catalog Sketch',
     catalog: { capability: 'image.generate' },
     tags: [],
+    iconKey: null,
+    iconColor: null,
+    badges: [],
     parameterCombinations: [],
   },
   {
@@ -59,6 +69,9 @@ const models: CanvasCatalogModel[] = [
     catalogDefaultName: 'Catalog Clip',
     catalog: { capability: 'video.generate' },
     tags: [{ id: 'film', name: 'Film' }],
+    iconKey: null,
+    iconColor: null,
+    badges: [],
     parameterCombinations: [
       {
         id: 'duration-1',
@@ -85,25 +98,28 @@ const models: CanvasCatalogModel[] = [
 describe('customer model center', () => {
   it('filters actual catalog capabilities, tags and names without losing the current scope', () => {
     render(<CustomerModelCenter models={models} />)
-    expect(screen.getByRole('button', { name: 'All tags 3' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'All categories 3' })
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'image.generate' }))
-    expect(screen.getByRole('button', { name: 'All tags 2' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.getByRole('button', { name: 'All categories 2' })
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Photography 1' })).toBeVisible()
     expect(screen.getByText('Portrait')).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'View model identity' })
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Clip')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Untagged 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No category 1' }))
     expect(screen.getByText('Sketch')).toBeVisible()
     expect(screen.queryByText('Portrait')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Search model name'), {
       target: { value: 'missing' },
     })
-    expect(screen.getByRole('button', { name: 'All tags 0' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'All categories 0' })
+    ).toBeVisible()
     expect(screen.getByText('No matching models')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
     expect(screen.getByText('Sketch')).toBeVisible()
@@ -113,7 +129,7 @@ describe('customer model center', () => {
     render(<CustomerModelCenter models={models} />)
     expect(screen.getByText('A long published description')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'video.generate' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No category 0' }))
     expect(screen.getByText('No models available in this filter')).toBeVisible()
   })
 
@@ -137,6 +153,32 @@ describe('customer model center', () => {
     ).toBeNull()
   })
 
+  it('shows the chosen icon and at most two badges after the title with unknown colors as gray', () => {
+    const { container } = render(<CustomerModelCenter models={models} />)
+
+    const cards = container.querySelectorAll<HTMLElement>('[data-slot="card"]')
+    const brandTile = cards[0].querySelector('.model-icon-tile')
+    expect(brandTile).toHaveAttribute('data-model-color', 'green')
+    expect(brandTile).toHaveAttribute('aria-hidden', 'true')
+    expect(brandTile?.querySelector('use')).toHaveAttribute(
+      'href',
+      '#model-icon-openai'
+    )
+    expect(within(cards[0]).getByText('Official')).toHaveAttribute(
+      'data-model-color',
+      'green'
+    )
+    expect(within(cards[0]).getByText('Hot')).toHaveAttribute(
+      'data-model-color',
+      'gray'
+    )
+    expect(within(cards[0]).queryByText('New')).toBeNull()
+    expect(cards[2].querySelector('.model-icon-tile')).toHaveAttribute(
+      'data-model-color',
+      'none'
+    )
+  })
+
   it('searches only the client display name without exposing internal identities', () => {
     render(<CustomerModelCenter models={models} />)
     const search = screen.getByLabelText('Search model name')
@@ -158,6 +200,9 @@ describe('customer model center', () => {
       catalogDefaultName: 'Catalog Chat',
       catalog: { capability: 'text.generate' },
       tags: [],
+      iconKey: null,
+      iconColor: null,
+      badges: [],
       parameterCombinations: [
         {
           id: 'token-1',

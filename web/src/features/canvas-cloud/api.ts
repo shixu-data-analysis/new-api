@@ -37,6 +37,8 @@ import type {
   CanvasAdminRechargeCodeExactSearchPage,
   CanvasAdminRechargeCodeQuery,
   CanvasCatalogModel,
+  CanvasClientPresentation,
+  CanvasClientPresentationPublicationRequest,
   CanvasCustomerWorkspace,
   CanvasSession,
   CanvasAdminProvisioningPrincipals,
@@ -1246,22 +1248,25 @@ export async function publishCanvasModelCatalogImport(input: {
   ).data
 }
 
-export async function publishCanvasModelPresentation(input: {
-  modelKey: string
-  displayName: string
-  description: string
-  expectedVersion?: number
-  tagIds?: string[]
-  expectedTagIds?: string[]
-}) {
+export async function getCanvasClientPresentation(): Promise<CanvasClientPresentation> {
+  return (
+    await api.get<CanvasClientPresentation>(
+      `${webBase}/admin/client-presentation`
+    )
+  ).data
+}
+
+/** The caller keeps the idempotency key of one publish attempt so a retry replays it. */
+export async function publishCanvasClientPresentation(input: {
+  body: CanvasClientPresentationPublicationRequest
+  idempotencyKey: string
+}): Promise<{ id: string; revision: number; effectiveAt: string }> {
   return (
     await api.post(
-      `${webBase}/admin/model-presentations/publications`,
-      { ...input, confirmed: true },
+      `${webBase}/admin/client-presentation/publications`,
+      input.body,
       {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-model-presentation'),
-        },
+        headers: { 'Idempotency-Key': input.idempotencyKey },
         skipErrorHandler: true,
       }
     )

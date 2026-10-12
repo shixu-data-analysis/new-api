@@ -13,11 +13,13 @@ import z from 'zod'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { AdminModelCatalog } from '@/features/canvas-cloud/components/AdminModelCatalog'
+import { isModelManagementTab } from '@/features/canvas-cloud/components/model-management-tabs'
 import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation-state'
 import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
+  modelKey: z.string().optional(),
   legacyError: z
     .enum(['invalid-model', 'invalid-publication', 'missing-model'])
     .optional(),
@@ -51,18 +53,22 @@ function ModelManagementIndex() {
       />
     )
   }
-  const tab =
-    search.tab === 'import' || search.tab === 'monitoring'
-      ? search.tab
-      : 'published'
+  const tab = isModelManagementTab(search.tab) ? search.tab : 'published'
   return (
     <AdminModelCatalog
       principalId={session.data.principalId}
       tab={tab}
-      onTabChange={(next) =>
+      presentationModelKey={tab === 'display' ? search.modelKey : undefined}
+      onTabChange={(next, options) =>
         void navigate({
           to: '/canvas-cloud/model-management',
-          search: next === 'published' ? {} : { tab: next },
+          search:
+            next === 'published'
+              ? {}
+              : {
+                  tab: next,
+                  ...(options?.modelKey ? { modelKey: options.modelKey } : {}),
+                },
         })
       }
       onManagePricing={(modelId, returnContext) =>

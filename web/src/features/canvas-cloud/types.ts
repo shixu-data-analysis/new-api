@@ -508,6 +508,9 @@ export interface CanvasAgentModelPrice {
   description: string | null
   capability: string
   tags: Array<{ id: string; name: string }>
+  iconKey: string | null
+  iconColor: string | null
+  badges: CanvasCatalogModelBadge[]
   priceGroups: Array<{
     priceGroupId: string
     priceGroupName: string
@@ -856,6 +859,9 @@ export interface CanvasCatalogModel {
   catalogDefaultName: string
   catalog: Record<string, unknown>
   tags: CanvasModelTag[]
+  iconKey: string | null
+  iconColor: string | null
+  badges: CanvasCatalogModelBadge[]
   parameterCombinations: Array<{
     id: string
     executionTargetId: string
@@ -865,6 +871,59 @@ export interface CanvasCatalogModel {
     tokenRates: Partial<CanvasTokenRateVector> | null
     points: string
   }>
+}
+
+export interface CanvasCatalogModelBadge {
+  name: string
+  color: string
+}
+
+export interface CanvasClientPresentationBadge {
+  id: string
+  name: string
+  color: string
+}
+
+export interface CanvasClientPresentationModel {
+  modelKey: string
+  capability: 'image.generate' | 'video.generate' | 'chat.generate'
+  providerName: string
+  displayName: string
+  description: string
+  tags: CanvasModelTag[]
+  customerVisible: boolean
+  iconKey: string | null
+  iconColor: string | null
+  badgeIds: string[]
+  /** null when the model has never been ordered. */
+  position: number | null
+}
+
+export interface CanvasClientPresentation {
+  revision: number
+  badges: CanvasClientPresentationBadge[]
+  models: CanvasClientPresentationModel[]
+}
+
+export interface CanvasClientPresentationPublicationRequest {
+  expectedRevision: number
+  models: Array<{
+    modelKey: string
+    displayName: string
+    description: string
+    iconKey: string | null
+    iconColor: string | null
+    badges: string[]
+  }>
+  orders: Array<{
+    capability: CanvasClientPresentationModel['capability']
+    modelKeys: string[]
+  }>
+  badges: {
+    created: Array<{ ref: string; name: string; color: string }>
+    updated: CanvasClientPresentationBadge[]
+    deletedIds: string[]
+  }
 }
 
 export interface CanvasModelTag {

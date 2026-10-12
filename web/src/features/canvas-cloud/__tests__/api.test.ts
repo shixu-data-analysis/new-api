@@ -76,7 +76,8 @@ import {
   publishConfirmedCanvasTaskPolicySettings,
   publishCanvasPointIssuanceRate,
   publishCanvasModelCatalogImport,
-  publishCanvasModelPresentation,
+  getCanvasClientPresentation,
+  publishCanvasClientPresentation,
   publishCanvasExecutionTargetPresentation,
   redeemCanvasRechargeCode,
   getCanvasAgents,
@@ -753,18 +754,49 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('publishes model presentation separately from Bundle definitions', async () => {
-    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
-    const input = {
-      modelKey: 'canvas.image.test',
-      displayName: '测试模型',
-      description: '客户端说明',
+  it('publishes the client presentation with the idempotency key of the attempt', async () => {
+    mocks.post.mockResolvedValue({
+      data: { id: 'p1', revision: 4, effectiveAt: '2026-10-12T00:00:00.000Z' },
+    })
+    const body = {
+      expectedRevision: 3,
+      models: [],
+      orders: [
+        {
+          capability: 'image.generate' as const,
+          modelKeys: ['canvas.image.test'],
+        },
+      ],
+      badges: { created: [], updated: [], deletedIds: [] },
     }
-    await publishCanvasModelPresentation(input)
+
+    await publishCanvasClientPresentation({
+      body,
+      idempotencyKey: 'web-client-presentation-1',
+    })
+
     expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/model-presentations/publications',
-      { ...input, confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
+      '/canvas-api/v1/web/admin/client-presentation/publications',
+      body,
+      {
+        headers: { 'Idempotency-Key': 'web-client-presentation-1' },
+        skipErrorHandler: true,
+      }
+    )
+  })
+
+  it('reads the client presentation from the admin route', async () => {
+    mocks.get.mockResolvedValue({
+      data: { revision: 0, badges: [], models: [] },
+    })
+
+    await expect(getCanvasClientPresentation()).resolves.toEqual({
+      revision: 0,
+      badges: [],
+      models: [],
+    })
+    expect(mocks.get).toHaveBeenCalledWith(
+      '/canvas-api/v1/web/admin/client-presentation'
     )
   })
 

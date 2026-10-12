@@ -67,7 +67,7 @@ function renderShared() {
     <CatalogSharedResources
       plan={{ changes, models, diagnostics }}
       changes={catalogSharedChanges(changes)}
-      reviews={models.map((model) => reviewCatalogModel(model, changes))}
+      reviews={models.map((model) => reviewCatalogModel(model))}
       focus={null}
     />
   )

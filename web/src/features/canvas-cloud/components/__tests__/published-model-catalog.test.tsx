@@ -24,14 +24,12 @@ import { PublishedModelCatalog } from '../PublishedModelCatalog'
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   tags: vi.fn(),
-  publishPresentation: vi.fn(),
   publishTargetPresentation: vi.fn(),
 }))
 
 vi.mock('../../api', () => ({
   getCanvasAdminTestingModels: mocks.list,
   getCanvasAdminModelTags: mocks.tags,
-  publishCanvasModelPresentation: mocks.publishPresentation,
   publishCanvasExecutionTargetPresentation: mocks.publishTargetPresentation,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -132,7 +130,8 @@ function model(
 function renderCatalog(
   onManageBindings?: ComponentProps<
     typeof PublishedModelCatalog
-  >['onManageBindings']
+  >['onManageBindings'],
+  onEditPresentation = vi.fn()
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -142,6 +141,7 @@ function renderCatalog(
       <PublishedModelCatalog
         onManagePricing={vi.fn()}
         onManageBindings={onManageBindings}
+        onEditPresentation={onEditPresentation}
       />
     </QueryClientProvider>
   )
@@ -152,11 +152,9 @@ describe('Published model catalog', () => {
   beforeEach(() => {
     mocks.list.mockReset()
     mocks.tags.mockReset()
-    mocks.publishPresentation.mockReset()
     mocks.publishTargetPresentation.mockReset()
     mocks.list.mockResolvedValue([model()])
     mocks.tags.mockResolvedValue([])
-    mocks.publishPresentation.mockResolvedValue({ status: 'PUBLISHED' })
     mocks.publishTargetPresentation.mockResolvedValue({ status: 'PUBLISHED' })
   })
 
@@ -254,17 +252,21 @@ describe('Published model catalog', () => {
     ])
     renderCatalog()
     await screen.findByText('Alpha model')
-    expect(screen.getByRole('button', { name: 'All tags 2' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'All categories 2' })
+    ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
     fireEvent.change(screen.getByPlaceholderText('Model'), {
       target: { value: 'Alpha' },
     })
-    expect(screen.getByRole('button', { name: 'All tags 1' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Untagged 0' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'All categories 1' })
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'No category 0' })).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Photography 1' }))
     expect(screen.getByText('Alpha model')).toBeVisible()
     expect(screen.queryByText('Second model')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Untagged 0' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No category 0' }))
     expect(screen.queryByText('Second model')).not.toBeInTheDocument()
   })
 
@@ -326,30 +328,6 @@ describe('Published model catalog', () => {
     expect(
       types.getByRole('button', { name: 'image.generate' })
     ).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('publishes a tag-only edit with the saved client description', async () => {
-    mocks.tags.mockResolvedValue([
-      { id: 'photo', name: 'Photography', modelCount: 0, modelKeys: [] },
-    ])
-    renderCatalog()
-    await screen.findByText('Alpha model')
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Edit display information' })
-    )
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Photography' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save and publish' }))
-    await waitFor(() =>
-      expect(mocks.publishPresentation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKey: 'canvas.image.alpha',
-          description: 'Client description',
-          tagIds: ['photo'],
-          expectedTagIds: [],
-        }),
-        expect.any(Object)
-      )
-    )
   })
 
   it('keeps identical upstream targets separate without exposing internal routing facts', async () => {
@@ -512,7 +490,6 @@ describe('Published model catalog', () => {
         targetId,
       ],
     })
-    expect(mocks.publishPresentation).not.toHaveBeenCalled()
   })
 
   it('uses version zero when a target has no published presentation yet', async () => {
@@ -551,31 +528,17 @@ describe('Published model catalog', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('keeps shared display publication separate from target visibility', async () => {
-    renderCatalog()
+  it('opens the client presentation tab for the model when editing display information', async () => {
+    const onEditPresentation = vi.fn()
+    renderCatalog(undefined, onEditPresentation)
 
     await screen.findByText('Alpha model')
     fireEvent.click(
       screen.getByRole('button', { name: 'Edit display information' })
     )
-    fireEvent.change(screen.getByLabelText(/Client display name/), {
-      target: { value: 'Renamed Alpha' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save and publish' }))
 
-    await waitFor(() =>
-      expect(mocks.publishPresentation).toHaveBeenCalledWith(
-        {
-          modelKey: 'canvas.image.alpha',
-          displayName: 'Renamed Alpha',
-          description: 'Client description',
-          expectedVersion: 0,
-          tagIds: [],
-          expectedTagIds: [],
-        },
-        expect.any(Object)
-      )
-    )
+    expect(onEditPresentation).toHaveBeenCalledWith('canvas.image.alpha')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('searches current models by names, model key, and every upstream model ID', async () => {

@@ -261,7 +261,6 @@
               "PROVIDER",
               "PROVIDER_CHANNEL",
               "CUSTOMER_MODEL",
-              "MODEL_DESCRIPTION_DEFAULT",
               "MODEL_DEFINITION_ARTIFACT"
             ],
             "type": "string"
@@ -329,6 +328,7 @@
               "CATALOG_PLAN_PUBLICATION_CONFLICT",
               "CATALOG_PLAN_BLOCKING",
               "CATALOG_PLAN_NO_CHANGES",
+              "CATALOG_DESCRIPTION_NOT_UPDATED",
               "CATALOG_MANIFEST_INVALID",
               "CATALOG_MANIFEST_REFERENCE_DUPLICATE",
               "CATALOG_MANIFEST_REFERENCE_INVALID",

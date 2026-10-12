@@ -14,7 +14,6 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Box, Image as ImageIcon, Video } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -37,6 +35,8 @@ import type {
   CanvasTokenCategory,
   CanvasTokenRateVector,
 } from '../types'
+import { ModelBadges } from './ModelBadges'
+import { ModelIconTile } from './ModelIconTile'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 
 export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
@@ -137,10 +137,10 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
         <div
           className='flex flex-wrap gap-2'
           role='group'
-          aria-label={t('Model tags')}
+          aria-label={t('Categories')}
         >
           <ModelTagFilterButton
-            label={t('All tags')}
+            label={t('All categories')}
             count={tagCountModels.length}
             selected={!effectiveTagId}
             onClick={() => setTagId('')}
@@ -155,7 +155,7 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
             />
           ))}
           <ModelTagFilterButton
-            label={t('Untagged')}
+            label={t('No category')}
             count={untaggedCount}
             selected={effectiveTagId === '__untagged__'}
             onClick={() => setTagId('__untagged__')}
@@ -194,9 +194,17 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
               className='ring-foreground/15 hover:ring-primary/55 shadow-xs transition-shadow motion-reduce:transition-none'
             >
               <CardHeader className='grid-cols-[auto_minmax(0,1fr)] gap-x-3'>
-                <CapabilityIcon capability={model.catalog.capability} />
-                <CardTitle className='min-w-0 break-words'>
-                  {model.effectiveDisplayName}
+                <ModelIconTile
+                  iconKey={model.iconKey}
+                  iconColor={model.iconColor}
+                  capability={model.catalog.capability}
+                  className='row-span-2'
+                />
+                <CardTitle className='flex min-w-0 flex-wrap items-center gap-1.5 break-words'>
+                  <span className='min-w-0 break-words'>
+                    {model.effectiveDisplayName}
+                  </span>
+                  <ModelBadges badges={model.badges} />
                 </CardTitle>
                 <CardDescription className='flex min-w-0 flex-wrap items-center gap-1.5'>
                   <span>
@@ -272,28 +280,4 @@ function tokenRateSummary(
     .filter((category) => typeof rates[category] === 'string')
     .map((category) => `${t(tokenCategoryLabel[category])} ${rates[category]}`)
     .join(' · ')
-}
-
-// Leading visual anchor for each card; the capability text beside the title stays the
-// accessible label, so the icon is decorative.
-export function CapabilityIcon(props: { capability: unknown }) {
-  if (props.capability === 'video.generate') {
-    return (
-      <IconBadge tone='chart-3' size='title' className='row-span-2'>
-        <Video />
-      </IconBadge>
-    )
-  }
-  if (props.capability === 'image.generate') {
-    return (
-      <IconBadge tone='chart-1' size='title' className='row-span-2'>
-        <ImageIcon />
-      </IconBadge>
-    )
-  }
-  return (
-    <IconBadge tone='neutral' size='title' className='row-span-2'>
-      <Box />
-    </IconBadge>
-  )
 }

@@ -28,7 +28,8 @@ import { toIntlLocale } from '@/i18n/languages'
 import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type { CanvasAgentModelPrice, CanvasBillingUnit } from '../types'
-import { CapabilityIcon } from './CustomerModelCenter'
+import { ModelBadges } from './ModelBadges'
+import { ModelIconTile } from './ModelIconTile'
 
 type AgentPrice = CanvasAgentModelPrice['priceGroups'][number]['prices'][number]
 
@@ -182,9 +183,17 @@ function ModelPriceCard(props: { model: CanvasAgentModelPrice }) {
   return (
     <Card className='ring-foreground/15 hover:ring-primary/55 h-full shadow-xs transition-shadow motion-reduce:transition-none'>
       <CardHeader className='grid-cols-[auto_minmax(0,1fr)] gap-x-3'>
-        <CapabilityIcon capability={model.capability} />
-        <CardTitle className='min-w-0 break-words'>
-          {model.effectiveDisplayName}
+        <ModelIconTile
+          iconKey={model.iconKey}
+          iconColor={model.iconColor}
+          capability={model.capability}
+          className='row-span-2'
+        />
+        <CardTitle className='flex min-w-0 flex-wrap items-center gap-1.5 break-words'>
+          <span className='min-w-0 break-words'>
+            {model.effectiveDisplayName}
+          </span>
+          <ModelBadges badges={model.badges} />
         </CardTitle>
         <CardDescription className='flex min-w-0 flex-wrap items-center gap-1.5'>
           <span>{t(model.capability)}</span>

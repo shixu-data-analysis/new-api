@@ -91,7 +91,7 @@ type View = 'numbers' | 'chart'
 const groupByLabels: Record<DashboardGroupBy, string> = {
   MODEL: 'By model',
   PROVIDER: 'By API provider',
-  TAG: 'By model tag',
+  TAG: 'By model category',
   CAPABILITY: 'By generation type',
   AGENT: 'By agent',
   CUSTOMER: 'By customer',
@@ -100,7 +100,7 @@ const groupByLabels: Record<DashboardGroupBy, string> = {
 const groupColumnLabels: Record<DashboardGroupBy, string> = {
   MODEL: 'Model',
   PROVIDER: 'API provider',
-  TAG: 'Model tag',
+  TAG: 'Model category',
   CAPABILITY: 'Generation type',
   AGENT: 'Agent',
   CUSTOMER: 'Customer',
@@ -1390,7 +1390,7 @@ function GroupTable(props: {
         {
           MODEL: 'Unknown',
           PROVIDER: 'Unknown',
-          TAG: 'Untagged',
+          TAG: 'No category',
           CAPABILITY: 'Unknown generation type',
           AGENT: 'No agent',
           CUSTOMER: 'Unknown customer',

@@ -295,17 +295,17 @@ export function ModelMonitoringOverview() {
               aria-controls='monitoring-tag-options'
               onClick={() => setTagsOpen((open) => !open)}
             >
-              {t('Model tags')}
+              {t('Model categories')}
             </Button>
             {tagsOpen ? (
               <div
                 id='monitoring-tag-options'
                 className='mt-2 flex flex-wrap gap-2'
                 role='group'
-                aria-label={t('Model tags')}
+                aria-label={t('Model categories')}
               >
                 <ModelTagFilterButton
-                  label={t('All tags')}
+                  label={t('All categories')}
                   count={data?.preTagTotal ?? 0}
                   selected={!tagId}
                   onClick={() => {
@@ -326,7 +326,7 @@ export function ModelMonitoringOverview() {
                   />
                 ))}
                 <ModelTagFilterButton
-                  label={t('Untagged')}
+                  label={t('No category')}
                   count={data?.untaggedCount ?? 0}
                   selected={tagId === 'untagged'}
                   onClick={() => {

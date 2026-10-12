@@ -188,17 +188,17 @@ export function AgentModelPricePanel(props: {
             </SelectContent>
           </Select>
         </DataTableColumnFilterField>
-        <DataTableColumnFilterField label={t('Tag')}>
+        <DataTableColumnFilterField label={t('Category')}>
           <Select
             value={tagId || 'ALL'}
             onValueChange={(value) =>
               setTagId(value === 'ALL' ? '' : (value ?? ''))
             }
           >
-            <SelectTrigger aria-label={t('Tag')}>
+            <SelectTrigger aria-label={t('Category')}>
               <CanvasLocalizedSelectValue
                 value={tagId}
-                emptyLabelKey='All tags'
+                emptyLabelKey='All categories'
                 displayValue={
                   prices.data?.filters.tags.find((tag) => tag.id === tagId)
                     ?.name
@@ -206,7 +206,7 @@ export function AgentModelPricePanel(props: {
               />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='ALL'>{t('All tags')}</SelectItem>
+              <SelectItem value='ALL'>{t('All categories')}</SelectItem>
               {prices.data?.filters.tags.map((tag) => (
                 <SelectItem key={tag.id} value={tag.id}>
                   {tag.name}

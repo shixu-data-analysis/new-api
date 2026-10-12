@@ -188,7 +188,7 @@ describe('logical model monitoring overview', () => {
       expect.objectContaining({ window: 'day', origin: 'REAL', page: 1 }),
       expect.anything()
     )
-    const allTags = screen.getByRole('button', { name: 'All tags 2' })
+    const allTags = screen.getByRole('button', { name: 'All categories 2' })
     expect(allTags).toHaveAttribute('aria-pressed', 'true')
     expect(within(allTags).getByText('2')).toHaveAttribute('data-slot', 'badge')
     expect(screen.getByRole('button', { name: 'Photo 1' })).toBeVisible()
@@ -242,7 +242,7 @@ describe('logical model monitoring overview', () => {
         expect.anything()
       )
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Untagged 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No category 1' }))
     await waitFor(() =>
       expect(mocks.getOverview).toHaveBeenCalledWith(
         expect.objectContaining({ untagged: true }),

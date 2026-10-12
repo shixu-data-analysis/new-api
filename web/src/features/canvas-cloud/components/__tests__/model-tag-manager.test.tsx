@@ -110,16 +110,16 @@ describe('model tag manager', () => {
         <ModelTagManager open onOpenChange={close} tags={[]} models={models} />
       </QueryClientProvider>
     )
-    fireEvent.change(screen.getByLabelText('New tag'), {
+    fireEvent.change(screen.getByLabelText('New category'), {
       target: { value: 'New category' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(close).not.toHaveBeenCalled()
     expect(
-      screen.getByText('Your unsaved model tag changes will be lost.')
+      screen.getByText('Your unsaved model category changes will be lost.')
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.getByLabelText('New tag')).toHaveValue('New category')
+    expect(screen.getByLabelText('New category')).toHaveValue('New category')
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(close).toHaveBeenCalledWith(false)
@@ -142,9 +142,9 @@ describe('model tag manager', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Select search results' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Back to tags' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to categories' }))
     expect(
-      screen.getByText('Your unsaved model tag changes will be lost.')
+      screen.getByText('Your unsaved model category changes will be lost.')
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(
@@ -170,12 +170,12 @@ describe('model tag manager', () => {
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
-    fireEvent.change(screen.getByLabelText('Rename tag'), {
+    fireEvent.change(screen.getByLabelText('Rename category'), {
       target: { value: 'Portraits' },
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
     await screen.findByText(
-      'Model tags changed elsewhere. Refresh and review before retrying.'
+      'Model categories changed elsewhere. Refresh and review before retrying.'
     )
     client.setQueryData(
       ['canvas-cloud', 'admin-model-tags'],
@@ -192,11 +192,11 @@ describe('model tag manager', () => {
     await waitFor(() =>
       expect(
         screen.queryByText(
-          'Model tags changed elsewhere. Refresh and review before retrying.'
+          'Model categories changed elsewhere. Refresh and review before retrying.'
         )
       ).not.toBeInTheDocument()
     )
-    expect(screen.getByLabelText('Rename tag')).toHaveValue('Portraits')
+    expect(screen.getByLabelText('Rename category')).toHaveValue('Portraits')
     fireEvent.click(screen.getAllByRole('button', { name: 'Rename' })[0])
     await waitFor(() =>
       expect(mocks.rename).toHaveBeenLastCalledWith({
@@ -230,7 +230,7 @@ describe('model tag manager', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save associations' }))
     await screen.findByText(
-      'Model tags changed elsewhere. Refresh and review before retrying.'
+      'Model categories changed elsewhere. Refresh and review before retrying.'
     )
     client.setQueryData(
       ['canvas-cloud', 'admin-testing-models'],
@@ -248,7 +248,7 @@ describe('model tag manager', () => {
     await waitFor(() =>
       expect(
         screen.queryByText(
-          'Model tags changed elsewhere. Refresh and review before retrying.'
+          'Model categories changed elsewhere. Refresh and review before retrying.'
         )
       ).not.toBeInTheDocument()
     )
@@ -284,7 +284,7 @@ describe('model tag manager', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(
       screen.getByText(
-        'This removes the tag from 3 models. The models and their other tags remain.'
+        'This removes the category from 3 models. The models and their other categories remain.'
       )
     ).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))

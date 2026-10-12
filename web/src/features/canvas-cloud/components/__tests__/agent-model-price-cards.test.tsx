@@ -26,6 +26,9 @@ function model(name: string, price: Partial<Price>): CanvasAgentModelPrice {
     description: null,
     capability: 'image.generate',
     tags: [],
+    iconKey: null,
+    iconColor: null,
+    badges: [],
     priceGroups: [
       {
         priceGroupId: 'g1',
@@ -66,6 +69,31 @@ describe('Agent model price cards', () => {
     expect(card.getByText('Model price')).toBeVisible()
     expect(card.getByText('¥0.25')).toBeVisible()
     expect(card.getByText('Default scope · Per request')).toBeVisible()
+  })
+
+  it('shows the model icon and badges after the title', () => {
+    render(
+      <AgentModelPriceCards
+        models={[
+          {
+            ...model('Branded', {}),
+            iconKey: 'gemini',
+            iconColor: 'blue',
+            badges: [{ name: 'Official', color: 'green' }],
+          },
+        ]}
+      />
+    )
+
+    const card = cardOf('Branded')
+    expect(card.querySelector('.model-icon-tile use')).toHaveAttribute(
+      'href',
+      '#model-icon-gemini'
+    )
+    expect(within(card).getByText('Official')).toHaveAttribute(
+      'data-model-color',
+      'green'
+    )
   })
 
   it('keeps every token category with both its customer rate and its model price', () => {

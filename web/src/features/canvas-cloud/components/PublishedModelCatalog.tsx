@@ -14,7 +14,6 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   flexRender,
@@ -32,9 +31,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   DataTableColumnHeader,
@@ -60,16 +57,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -78,19 +66,12 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
 
 import {
   getCanvasAdminModelTags,
   getCanvasAdminTestingModels,
   publishCanvasExecutionTargetPresentation,
-  publishCanvasModelPresentation,
 } from '../api'
-import {
-  modelPresentationSchema,
-  type ModelPresentationFormValues,
-  hasModelPresentationChanges,
-} from '../lib/model-presentation-schema'
 import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
 import type { CanvasAdminTestingModel } from '../types'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
@@ -110,20 +91,14 @@ export interface ModelBindingNavigationTarget {
   credentialGroupId?: string
 }
 
-function presentationVersion(model: CanvasAdminTestingModel) {
-  return model.presentationVersion ?? 0
-}
-
-function sameTagIds(left: string[], right: string[]) {
-  return [...left].sort().join(',') === [...right].sort().join(',')
-}
-
 function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
   return enabled ? t('Turn off display switch') : t('Turn on display switch')
 }
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
+  /** Opens the 客户端展示 tab with this model selected. */
+  onEditPresentation: (modelKey: string) => void
   onManageBindings?: (
     target: ModelBindingNavigationTarget,
     returnContext?: { nonce: string }
@@ -149,8 +124,6 @@ export function PublishedModelCatalog(props: {
   const [tagId, setTagId] = useState(() => navigation?.listState.tagId ?? '')
   const [tagsExpanded, setTagsExpanded] = useState(true)
   const [managingTags, setManagingTags] = useState(false)
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
-  const [originalTagIds, setOriginalTagIds] = useState<string[]>([])
   const [pagination, setPagination] = useState<PaginationState>(
     () => navigation?.listState.pagination ?? { pageIndex: 0, pageSize: 20 }
   )
@@ -205,23 +178,13 @@ export function PublishedModelCatalog(props: {
         : { ...current, pageIndex: Math.max(0, pageCount - 1) }
     )
   }, [])
-  const [editing, setEditing] = useState<CanvasAdminTestingModel | null>(null)
   const [toggling, setToggling] = useState<{
     model: CanvasAdminTestingModel
     target: CanvasAdminTestingModel['executionTargets'][number]
   } | null>(null)
-  const [discardingEdit, setDiscardingEdit] = useState(false)
   const [formServerError, setFormServerError] = useState<string | null>(null)
   const [presentationConflict, setPresentationConflict] = useState(false)
   const [reloadingPresentation, setReloadingPresentation] = useState(false)
-  const [originalPresentation, setOriginalPresentation] =
-    useState<ModelPresentationFormValues | null>(null)
-  const displayForm = useForm<ModelPresentationFormValues>({
-    resolver: zodResolver(modelPresentationSchema),
-    mode: 'onTouched',
-    defaultValues: { displayName: '', description: '' },
-  })
-  const watchedPresentation = displayForm.watch()
   const models = useQuery({
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
@@ -258,44 +221,6 @@ export function PublishedModelCatalog(props: {
     })
     return () => cancelAnimationFrame(frame)
   }, [models.data, navigation])
-  const publisher = useMutation({
-    mutationFn: publishCanvasModelPresentation,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ['canvas-cloud', 'admin-testing-models'],
-      })
-      displayForm.reset()
-      setEditing(null)
-      setToggling(null)
-      setFormServerError(null)
-      setPresentationConflict(false)
-      setOriginalPresentation(null)
-      toast.success(t('Model display settings published'))
-    },
-    onError: (error: unknown) => {
-      const response = error as {
-        response?: { status?: number; data?: { code?: string } }
-      }
-      const status = response.response?.status
-      const payload = response.response?.data
-      if (status === 409 && payload?.code === 'MODEL_PRESENTATION_UNCHANGED') {
-        setFormServerError('No display changes to publish.')
-        return
-      }
-      if (
-        status === 409 &&
-        (payload?.code === 'MODEL_PRESENTATION_VERSION_CONFLICT' ||
-          payload?.code === 'MODEL_TAGS_CONFLICT')
-      ) {
-        setFormServerError(
-          'This model was changed elsewhere. Reload and try again.'
-        )
-        setPresentationConflict(true)
-        return
-      }
-      setFormServerError('Model display settings publication failed')
-    },
-  })
   const targetPresentation = useMutation({
     mutationFn: publishCanvasExecutionTargetPresentation,
     onSuccess: async () => {
@@ -333,14 +258,13 @@ export function PublishedModelCatalog(props: {
       )
     },
   })
-  const presentationBusy =
-    publisher.isPending || targetPresentation.isPending || reloadingPresentation
+  const presentationBusy = targetPresentation.isPending || reloadingPresentation
   async function reloadPresentation() {
     if (presentationBusy) return
     setReloadingPresentation(true)
     const result = await models.refetch()
     const current = result.data?.find(
-      (model) => model.id === (editing ?? toggling?.model)?.id
+      (model) => model.id === toggling?.model.id
     )
     if (result.isError || !current) {
       setFormServerError(
@@ -349,32 +273,7 @@ export function PublishedModelCatalog(props: {
       setReloadingPresentation(false)
       return
     }
-    if (editing) {
-      const draft = displayForm.getValues()
-      displayForm.reset({
-        displayName:
-          originalPresentation &&
-          draft.displayName.trim() !== originalPresentation.displayName.trim()
-            ? draft.displayName
-            : current.effectiveDisplayName,
-        description:
-          originalPresentation &&
-          draft.description.trim() !== originalPresentation.description.trim()
-            ? draft.description
-            : current.description,
-      })
-      setEditing(current)
-      setOriginalPresentation({
-        displayName: current.effectiveDisplayName,
-        description: current.description,
-      })
-      setOriginalTagIds(current.tags.map((tag) => tag.id))
-      setSelectedTagIds((draft) =>
-        sameTagIds(draft, originalTagIds)
-          ? current.tags.map((tag) => tag.id)
-          : draft
-      )
-    } else if (toggling) {
+    if (toggling) {
       const target = current.executionTargets.find(
         (candidate) => candidate.id === toggling.target.id
       )
@@ -493,43 +392,6 @@ export function PublishedModelCatalog(props: {
   } else if (visibility === 'INTERNAL') {
     visibilityFilterLabel = t('Not shown to customers')
   }
-  const startEdit = useCallback(
-    (model: CanvasAdminTestingModel) => {
-      const values = {
-        displayName: model.effectiveDisplayName,
-        description: model.description,
-      }
-      displayForm.reset(values)
-      setOriginalPresentation(values)
-      setOriginalTagIds(model.tags.map((tag) => tag.id))
-      setSelectedTagIds(model.tags.map((tag) => tag.id))
-      setFormServerError(null)
-      setPresentationConflict(false)
-      setEditing(model)
-    },
-    [displayForm]
-  )
-  const closeEdit = useCallback(() => {
-    if (presentationBusy) return
-    if (
-      originalPresentation &&
-      (hasModelPresentationChanges(
-        displayForm.getValues(),
-        originalPresentation
-      ) ||
-        !sameTagIds(selectedTagIds, originalTagIds))
-    ) {
-      setDiscardingEdit(true)
-      return
-    }
-    setEditing(null)
-  }, [
-    displayForm,
-    originalPresentation,
-    originalTagIds,
-    presentationBusy,
-    selectedTagIds,
-  ])
   const columns = useMemo<ColumnDef<CanvasAdminTestingModel, unknown>[]>(
     () => [
       {
@@ -674,7 +536,7 @@ export function PublishedModelCatalog(props: {
                 <Button
                   variant='outline'
                   disabled={presentationBusy}
-                  onClick={() => startEdit(model)}
+                  onClick={() => props.onEditPresentation(model.modelKey)}
                 >
                   {t('Edit display information')}
                 </Button>
@@ -684,7 +546,7 @@ export function PublishedModelCatalog(props: {
         },
       },
     ],
-    [navigation, onManagePricing, presentationBusy, props, startEdit, t]
+    [navigation, onManagePricing, presentationBusy, props, t]
   )
   const sizedColumns = useMemo(
     () => withCanvasTableColumnSizes(columns),
@@ -857,26 +719,26 @@ export function PublishedModelCatalog(props: {
             ))}
           </div>
         </section>
-        <section className='mb-4 space-y-2' aria-label={t('Model tags')}>
+        <section className='mb-4 space-y-2' aria-label={t('Model categories')}>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <Button
               variant='ghost'
               aria-expanded={tagsExpanded}
               onClick={() => setTagsExpanded((value) => !value)}
             >
-              {t('Model tags')}
+              {t('Model categories')}
             </Button>
             <Button
               variant='outline'
               disabled={tags.isPending || tags.isError}
               onClick={() => setManagingTags(true)}
             >
-              {t('Manage model tags')}
+              {t('Manage model categories')}
             </Button>
           </div>
           {tags.isError && (
             <div role='alert' className='text-destructive text-sm'>
-              {t('Unable to load model tags')}{' '}
+              {t('Unable to load model categories')}{' '}
               <Button variant='outline' onClick={() => void tags.refetch()}>
                 {t('Retry')}
               </Button>
@@ -885,7 +747,7 @@ export function PublishedModelCatalog(props: {
           {tagsExpanded && (
             <div className='flex flex-wrap gap-2'>
               <ModelTagFilterButton
-                label={t('All tags')}
+                label={t('All categories')}
                 count={modelsBeforeTag.length}
                 selected={!tagId}
                 onClick={() => setTagId('')}
@@ -900,7 +762,7 @@ export function PublishedModelCatalog(props: {
                 />
               ))}
               <ModelTagFilterButton
-                label={t('Untagged')}
+                label={t('No category')}
                 count={tagFilterCounts.untagged}
                 selected={tagId === '__untagged__'}
                 onClick={() => setTagId('__untagged__')}
@@ -1045,183 +907,6 @@ export function PublishedModelCatalog(props: {
         tags={tags.data ?? []}
         models={models.data ?? []}
       />
-      <Dialog
-        open={Boolean(editing)}
-        onOpenChange={(open) => !open && closeEdit()}
-      >
-        <DialogContent
-          showCloseButton={!presentationBusy}
-          aria-busy={presentationBusy}
-        >
-          <DialogHeader>
-            <DialogTitle>{t('Edit model display information')}</DialogTitle>
-            <DialogDescription>
-              {t('Set the model name and description customers see.')}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            noValidate
-            className='space-y-4'
-            onSubmit={displayForm.handleSubmit((value) => {
-              if (
-                !editing ||
-                presentationBusy ||
-                presentationConflict ||
-                !originalPresentation ||
-                (!hasModelPresentationChanges(value, originalPresentation) &&
-                  sameTagIds(selectedTagIds, originalTagIds))
-              ) {
-                return
-              }
-              publisher.mutate({
-                modelKey: editing.modelKey,
-                displayName: value.displayName.trim(),
-                description: value.description.trim(),
-                expectedVersion: presentationVersion(editing),
-                tagIds: selectedTagIds,
-                expectedTagIds: originalTagIds,
-              })
-            })}
-          >
-            <div className='space-y-1'>
-              <Label htmlFor='model-display-name'>
-                {t('Client display name')} *
-              </Label>
-              <Input
-                id='model-display-name'
-                aria-required='true'
-                maxLength={191}
-                disabled={presentationBusy}
-                aria-invalid={Boolean(displayForm.formState.errors.displayName)}
-                aria-describedby={
-                  displayForm.formState.errors.displayName
-                    ? 'model-display-name-error'
-                    : undefined
-                }
-                {...displayForm.register('displayName')}
-              />
-              {displayForm.formState.errors.displayName && (
-                <p
-                  id='model-display-name-error'
-                  role='alert'
-                  className='text-destructive text-xs'
-                >
-                  {t(
-                    displayForm.formState.errors.displayName.message ??
-                      'Required'
-                  )}
-                </p>
-              )}
-            </div>
-            <div className='space-y-1'>
-              <Label htmlFor='model-description'>
-                {t('{{label}} ({{detail}})', {
-                  label: t('Client description'),
-                  detail: t('Optional'),
-                })}
-              </Label>
-              <Textarea
-                id='model-description'
-                maxLength={500}
-                disabled={presentationBusy}
-                aria-invalid={Boolean(displayForm.formState.errors.description)}
-                aria-describedby={
-                  displayForm.formState.errors.description
-                    ? 'model-description-error'
-                    : undefined
-                }
-                {...displayForm.register('description')}
-              />
-              {displayForm.formState.errors.description && (
-                <p
-                  id='model-description-error'
-                  role='alert'
-                  className='text-destructive text-xs'
-                >
-                  {t(displayForm.formState.errors.description.message ?? '')}
-                </p>
-              )}
-            </div>
-            <fieldset className='space-y-2'>
-              <legend className='text-sm font-medium'>{t('Model tags')}</legend>
-              <div className='flex flex-wrap gap-3'>
-                {(tags.data ?? []).map((tag) => (
-                  <label
-                    key={tag.id}
-                    className='flex items-center gap-2 text-sm'
-                  >
-                    <input
-                      type='checkbox'
-                      checked={selectedTagIds.includes(tag.id)}
-                      disabled={presentationBusy}
-                      onChange={(event) =>
-                        setSelectedTagIds((current) =>
-                          event.target.checked
-                            ? [...current, tag.id]
-                            : current.filter((id) => id !== tag.id)
-                        )
-                      }
-                    />
-                    {tag.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            {presentationFeedback}
-            <DialogFooter>
-              <Button
-                type='button'
-                variant='outline'
-                disabled={presentationBusy}
-                onClick={closeEdit}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button
-                type='submit'
-                disabled={
-                  !editing ||
-                  !originalPresentation ||
-                  (!hasModelPresentationChanges(
-                    watchedPresentation,
-                    originalPresentation
-                  ) &&
-                    sameTagIds(selectedTagIds, originalTagIds)) ||
-                  !watchedPresentation.displayName.trim() ||
-                  presentationBusy ||
-                  presentationConflict
-                }
-              >
-                {publisher.isPending
-                  ? t('Publishing...')
-                  : t('Save and publish')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <AlertDialog open={discardingEdit} onOpenChange={setDiscardingEdit}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('Discard changes?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('Your unsaved display information changes will be lost.')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                displayForm.reset()
-                setEditing(null)
-                setDiscardingEdit(false)
-              }}
-            >
-              {t('Discard changes')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       {toggling && (
         <AlertDialog
           open

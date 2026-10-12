@@ -387,24 +387,24 @@ const SPECS: Record<string, ActionSpec> = {
     reason: { label: 'Reason' },
   },
   'model.tag.created': {
-    objectType: 'Model tag',
+    objectType: 'Model category',
     objectName: meta('name'),
     fields: [{ key: 'name', label: 'Name' }],
   },
   'model.tag.renamed': {
-    objectType: 'Model tag',
+    objectType: 'Model category',
     objectName: meta('name'),
     fields: [{ key: 'name', previous: 'previousName', label: 'Name' }],
   },
   'model.tag.deleted': {
-    objectType: 'Model tag',
+    objectType: 'Model category',
     objectName: meta('name'),
     fields: [
       { key: 'affectedModelKeys', label: 'Affected models', kind: 'list' },
     ],
   },
   'model.tag.assignments.updated': {
-    objectType: 'Model tag',
+    objectType: 'Model category',
     objectName: modelTagName,
     fields: [
       { key: 'addedModelKeys', label: 'Add Models', kind: 'list' },
@@ -415,8 +415,8 @@ const SPECS: Record<string, ActionSpec> = {
     objectType: 'Model',
     objectName: resourceKey,
     fields: [
-      { key: 'addedTagIds', label: 'New tag', kind: 'modelTags' },
-      { key: 'removedTagIds', label: 'Removed tags', kind: 'modelTags' },
+      { key: 'addedTagIds', label: 'New category', kind: 'modelTags' },
+      { key: 'removedTagIds', label: 'Removed categories', kind: 'modelTags' },
     ],
   },
   'pricing.model.published': pricingModel,
@@ -1055,8 +1055,8 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'catalog.continuity.published': 'Publish Bundle',
   'model.key.monitoring.enabled': 'Restore model',
   'model.key.monitoring.disabled': 'Disable model',
-  'model.tag.created': 'New tag',
-  'model.tag.renamed': 'Rename tag',
+  'model.tag.created': 'New category',
+  'model.tag.renamed': 'Rename category',
   'model.tag.assignments.updated': 'Associate models',
   'pricing.provider_rate.risk_decided': 'Record risk decision',
   'points.activity.stopped': 'Stop activity',

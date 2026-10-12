@@ -1,0 +1,160 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+*/
+/* Canvas Cloud model icons and badges. Nine preset colors: icon and badge text use the
+ * deeper value in light themes and the lighter value in dark themes; tiles and badges
+ * use a tint of the same color. Canvas Web keeps the same values. */
+:root {
+  --model-tone-alpha: 11%;
+  --model-tone-gray: #475569;
+  --model-tone-red: #b91c1c;
+  --model-tone-orange: #9a3412;
+  --model-tone-yellow: #854d0e;
+  --model-tone-green: #166534;
+  --model-tone-cyan: #155e75;
+  --model-tone-blue: #1d4ed8;
+  --model-tone-purple: #6d28d9;
+  --model-tone-pink: #be185d;
+}
+
+.dark,
+.model-preview-dark {
+  --model-tone-alpha: 16%;
+  --model-tone-gray: #cbd5e1;
+  --model-tone-red: #fca5a5;
+  --model-tone-orange: #fdba74;
+  --model-tone-yellow: #fde047;
+  --model-tone-green: #86efac;
+  --model-tone-cyan: #67e8f9;
+  --model-tone-blue: #93c5fd;
+  --model-tone-purple: #c4b5fd;
+  --model-tone-pink: #f9a8d4;
+}
+
+.model-preview-light {
+  --model-tone-alpha: 11%;
+  --model-tone-gray: #475569;
+  --model-tone-red: #b91c1c;
+  --model-tone-orange: #9a3412;
+  --model-tone-yellow: #854d0e;
+  --model-tone-green: #166534;
+  --model-tone-cyan: #155e75;
+  --model-tone-blue: #1d4ed8;
+  --model-tone-purple: #6d28d9;
+  --model-tone-pink: #be185d;
+}
+
+[data-model-color='gray'] {
+  --model-tone: var(--model-tone-gray);
+  --model-swatch: #64748b;
+}
+[data-model-color='red'] {
+  --model-tone: var(--model-tone-red);
+  --model-swatch: #ef4444;
+}
+[data-model-color='orange'] {
+  --model-tone: var(--model-tone-orange);
+  --model-swatch: #f97316;
+}
+[data-model-color='yellow'] {
+  --model-tone: var(--model-tone-yellow);
+  --model-swatch: #eab308;
+}
+[data-model-color='green'] {
+  --model-tone: var(--model-tone-green);
+  --model-swatch: #22c55e;
+}
+[data-model-color='cyan'] {
+  --model-tone: var(--model-tone-cyan);
+  --model-swatch: #06b6d4;
+}
+[data-model-color='blue'] {
+  --model-tone: var(--model-tone-blue);
+  --model-swatch: #3b82f6;
+}
+[data-model-color='purple'] {
+  --model-tone: var(--model-tone-purple);
+  --model-swatch: #8b5cf6;
+}
+[data-model-color='pink'] {
+  --model-tone: var(--model-tone-pink);
+  --model-swatch: #ec4899;
+}
+[data-model-color='none'] {
+  --model-tone: var(--muted-foreground);
+}
+.model-preview-dark [data-model-color='none'],
+.model-preview-light [data-model-color='none'] {
+  --model-tone: var(--model-preview-muted);
+}
+
+.model-icon-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--model-tone);
+  background: color-mix(
+    in srgb,
+    var(--model-tone) var(--model-tone-alpha),
+    transparent
+  );
+}
+.model-icon-tile > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.model-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--model-tone);
+  background: color-mix(
+    in srgb,
+    var(--model-tone) calc(var(--model-tone-alpha) + 4%),
+    transparent
+  );
+}
+
+.model-color-swatch {
+  background: var(--model-swatch);
+}
+
+/* Client preview scopes of the 客户端展示 page, independent of the admin theme. */
+.model-preview-dark {
+  --model-preview-page: #141414;
+  --model-preview-surface: rgba(31, 31, 31, 0.98);
+  --model-preview-border: #3d3d3d;
+  --model-preview-text: #f4f4f4;
+  --model-preview-muted: #a6a6a6;
+  --model-preview-hover: rgba(255, 255, 255, 0.08);
+  --model-preview-price: #f3c969;
+  --model-preview-ok: #86efac;
+  --model-preview-duration: #8ad6ff;
+}
+.model-preview-light {
+  --model-preview-page: #eef1f5;
+  --model-preview-surface: rgba(255, 255, 255, 0.98);
+  --model-preview-border: #c5ccd6;
+  --model-preview-text: #171c24;
+  --model-preview-muted: #5f6875;
+  --model-preview-hover: rgba(0, 0, 0, 0.06);
+  --model-preview-price: #b45309;
+  --model-preview-ok: #15803d;
+  --model-preview-duration: #2563eb;
+}

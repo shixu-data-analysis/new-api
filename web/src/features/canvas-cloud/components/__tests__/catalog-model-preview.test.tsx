@@ -30,7 +30,7 @@ function renderPreview(
 ) {
   return render(
     <CatalogModelPreview
-      reviews={models.map((model) => reviewCatalogModel(model, changes))}
+      reviews={models.map((model) => reviewCatalogModel(model))}
       changes={changes}
       focus={null}
       onViewChannel={onViewChannel}
@@ -87,47 +87,31 @@ describe('Catalog model preview', () => {
   })
 
   it('shows each change kind with its version text', () => {
-    renderPreview(
-      [
-        catalogPlanModel({
-          productKey: 'a',
-          displayName: 'New one',
-          action: 'CREATE',
-          currentVersion: null,
-          proposedVersion: 1,
-        }),
-        catalogPlanModel({
-          productKey: 'b',
-          displayName: 'Versioned',
-          action: 'CREATE_VERSION',
-          currentVersion: 2,
-          proposedVersion: 3,
-        }),
-        catalogPlanModel({
-          productKey: 'c',
-          displayName: 'Described',
-          currentVersion: 4,
-          proposedVersion: 4,
-        }),
-        catalogPlanModel({
-          productKey: 'd',
-          displayName: 'Same',
-          currentVersion: 5,
-          proposedVersion: 5,
-        }),
-      ],
-      [
-        catalogChange({
-          resourceType: 'MODEL_DESCRIPTION_DEFAULT',
-          key: 'c',
-          action: 'CREATE_VERSION',
-        }),
-      ]
-    )
+    renderPreview([
+      catalogPlanModel({
+        productKey: 'a',
+        displayName: 'New one',
+        action: 'CREATE',
+        currentVersion: null,
+        proposedVersion: 1,
+      }),
+      catalogPlanModel({
+        productKey: 'b',
+        displayName: 'Versioned',
+        action: 'CREATE_VERSION',
+        currentVersion: 2,
+        proposedVersion: 3,
+      }),
+      catalogPlanModel({
+        productKey: 'd',
+        displayName: 'Same',
+        currentVersion: 5,
+        proposedVersion: 5,
+      }),
+    ])
 
     expect(rowFor('New one')).toHaveTextContent('Newv1')
     expect(rowFor('Versioned')).toHaveTextContent('New versionv2 → v3')
-    expect(rowFor('Described')).toHaveTextContent('Description updatedv4')
     expect(rowFor('Same')).toHaveTextContent('Unchangedv5')
   })
 
@@ -433,7 +417,7 @@ describe('Catalog model preview', () => {
       }),
       catalogPlanModel({ productKey: 'b', displayName: 'Same model' }),
     ]
-    const reviews = models.map((model) => reviewCatalogModel(model, []))
+    const reviews = models.map((model) => reviewCatalogModel(model))
     const view = render(
       <CatalogModelPreview
         reviews={reviews}

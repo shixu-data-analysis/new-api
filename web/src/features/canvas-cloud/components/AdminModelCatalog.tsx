@@ -74,6 +74,11 @@ import {
   CatalogSharedResources,
   type CatalogSharedFocus,
 } from './CatalogSharedResources'
+import { ClientPresentationManager } from './ClientPresentationManager'
+import {
+  isModelManagementTab,
+  type ModelManagementTab,
+} from './model-management-tabs'
 import { ModelMonitoringOverview } from './ModelMonitoringOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import {
@@ -227,8 +232,13 @@ export function AdminModelCatalog(props: {
   principalId: string
   initialPricingModelId?: string
   initialPricingPublicationId?: string
-  tab?: 'published' | 'import' | 'monitoring'
-  onTabChange?: (tab: 'published' | 'import' | 'monitoring') => void
+  tab?: ModelManagementTab
+  /** Model selected when the 客户端展示 tab opens. */
+  presentationModelKey?: string
+  onTabChange?: (
+    tab: ModelManagementTab,
+    options?: { modelKey?: string }
+  ) => void
   onManagePricing?: (
     modelId: string,
     returnContext?: ModelManagementReturnContext
@@ -250,10 +260,22 @@ export function AdminModelCatalog(props: {
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
   const selectionGeneration = useRef(0)
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<
-    'published' | 'import' | 'monitoring'
-  >('published')
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] =
+    useState<ModelManagementTab>('published')
+  const [uncontrolledModelKey, setUncontrolledModelKey] = useState<string>()
   const activeTab = props.tab ?? uncontrolledActiveTab
+  const presentationModelKey =
+    props.tab === undefined ? uncontrolledModelKey : props.presentationModelKey
+  // The 客户端展示 tab loads on first visit and then stays mounted, so its draft survives tab switches.
+  const [displayVisited, setDisplayVisited] = useState(activeTab === 'display')
+  if (activeTab === 'display' && !displayVisited) setDisplayVisited(true)
+  function changeTab(tab: ModelManagementTab, options?: { modelKey?: string }) {
+    if (props.tab === undefined) {
+      setUncontrolledActiveTab(tab)
+      setUncontrolledModelKey(options?.modelKey)
+    }
+    props.onTabChange?.(tab, options)
+  }
   const navigate = useNavigate()
   const [reviewTab, setReviewTab] = useState<'models' | 'shared'>('models')
   const [modelFocus, setModelFocus] = useState<CatalogRowFocus | null>(null)
@@ -354,10 +376,7 @@ export function AdminModelCatalog(props: {
     }
   }, [plan, t])
   const reviews = useMemo(
-    () =>
-      (plan?.models ?? []).map((model) =>
-        reviewCatalogModel(model, plan?.changes ?? [])
-      ),
+    () => (plan?.models ?? []).map((model) => reviewCatalogModel(model)),
     [plan]
   )
   const sharedChanges = useMemo(
@@ -493,20 +512,16 @@ export function AdminModelCatalog(props: {
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
-            if (
-              value !== 'published' &&
-              value !== 'import' &&
-              value !== 'monitoring'
-            ) {
-              return
-            }
-            if (props.tab === undefined) setUncontrolledActiveTab(value)
-            props.onTabChange?.(value)
+            if (!isModelManagementTab(value)) return
+            changeTab(value)
           }}
         >
           <CanvasManagementTabsList>
             <CanvasManagementTabsTrigger value='published'>
               {t('Model list')}
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='display'>
+              {t('Client presentation')}
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='import'>
               {t('Import and publish')}
@@ -529,7 +544,18 @@ export function AdminModelCatalog(props: {
                 })
               }}
               onManageBindings={props.onManageBindings}
+              onEditPresentation={(modelKey) =>
+                changeTab('display', { modelKey })
+              }
             />
+          </TabsContent>
+          <TabsContent value='display' className='mt-4' keepMounted>
+            {displayVisited && (
+              <ClientPresentationManager
+                initialModelKey={presentationModelKey}
+                onOpenModelCategories={() => changeTab('published')}
+              />
+            )}
           </TabsContent>
           <TabsContent value='monitoring' className='mt-4'>
             <ModelMonitoringOverview />
