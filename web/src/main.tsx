@@ -43,7 +43,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
-import './i18n/config'
+import { i18nReady } from './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
 
@@ -207,4 +207,5 @@ function renderApplication(): void {
   )
 }
 
-renderApplication()
+// A language loaded on demand is ready before the first render, so no untranslated key flashes.
+void i18nReady.then(renderApplication)

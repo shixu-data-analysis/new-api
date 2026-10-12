@@ -36,7 +36,7 @@
   - **非 React 环境**（工具函数、常量、类方法）：可使用 `import { t } from 'i18next'`；此类用法不会随语言切换自动更新，仅在不依赖响应式更新的场景使用。
   - 即使父组件已使用 `useTranslation()`，子组件仍应自行使用，以保证独立性。
 - **专有名词**：品牌、产品、技术术语等可保留英文（如 API、React、TypeScript）；若有约定俗成的译法则使用翻译。
-- **翻译键与语言**：使用 `src/i18n/locales/{lang}.json` 的扁平 JSON，以英文原文作为 key；文件覆盖 en、zh、zh-TW、fr、ru、ja、vi。当前 `src/i18n/config.ts` 的 fallback 为 en，运行时中文语言码为 zhCN/zhTW，映射由 `src/i18n/languages.ts` 维护，不自行拼写或直接交给 Intl。日期/数字格式化使用该文件的 `toIntlLocale`；同步工具为 `bun run i18n:sync`。
+- **翻译键与语言**：使用 `src/i18n/locales/{lang}.json` 的扁平 JSON，以英文原文作为 key；文件覆盖 en、zh、zh-TW、fr、ru、ja、vi。当前 `src/i18n/config.ts` 的 fallback 为 en；只有 en 和 zh 打进主包，其他语言在首次使用时按需加载（`onDemandLanguages`），新增语言须登记在其中，页面在当前语言就绪后才渲染；运行时中文语言码为 zhCN/zhTW，映射由 `src/i18n/languages.ts` 维护，不自行拼写或直接交给 Intl。日期/数字格式化使用该文件的 `toIntlLocale`；同步工具为 `bun run i18n:sync`。
 
 - **枚举与文案（常量中的 i18n）**
   各 feature 的 `constants.ts` 中常出现「枚举/状态 + 展示文案」或「成功/错误消息」，须统一约定以免遗漏 i18n、用法混乱：

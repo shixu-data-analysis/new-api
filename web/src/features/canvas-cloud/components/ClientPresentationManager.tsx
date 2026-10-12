@@ -38,6 +38,7 @@ import {
   publishCanvasClientPresentation,
 } from '../api'
 import {
+  type DraftModel,
   PRESENTATION_CAPABILITIES,
   buildPublication,
   hasPresentationChanges,
@@ -79,6 +80,24 @@ function isVisibilityFilter(value: unknown): value is VisibilityFilter {
   return (visibilityFilters as readonly unknown[]).includes(value)
 }
 
+function matchesSearch(model: DraftModel, search: string): boolean {
+  const normalized = search.trim().toLowerCase()
+  return (
+    !normalized ||
+    model.displayName.toLowerCase().includes(normalized) ||
+    model.modelKey.toLowerCase().includes(normalized)
+  )
+}
+
+function matchesVisibility(
+  model: DraftModel,
+  visibility: VisibilityFilter
+): boolean {
+  return (
+    visibility === 'ALL' || model.customerVisible === (visibility === 'VISIBLE')
+  )
+}
+
 const typeOrderKeys: Record<PresentationCapability, string> = {
   'image.generate': 'Image order',
   'video.generate': 'Video order',
@@ -111,6 +130,11 @@ export function ClientPresentationManager(props: {
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [visibility, setVisibility] = useState<VisibilityFilter>('ALL')
+  // A model to bring into view once its row is rendered; a new object on every request, even for the same model.
+  const [locateTarget, setLocateTarget] = useState<{
+    modelKey: string
+    focusName: boolean
+  } | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [conflict, setConflict] = useState(false)
   // Publishing and reloading replace the draft, so edits wait until they finish.
@@ -188,30 +212,56 @@ export function ClientPresentationManager(props: {
     }
   }, [query.data, state, props.initialModelKey])
 
+  /**
+   * Selects a model and brings it into view. Another generation type resets what switching the type resets;
+   * otherwise only a search or visibility filter that hides the model is cleared.
+   */
+  function locate(model: DraftModel, focusName: boolean) {
+    if (model.capability !== capability) {
+      setCapability(model.capability)
+      setPicked(new Set())
+      setSearch('')
+      setVisibility('ALL')
+    } else {
+      if (!matchesSearch(model, search)) setSearch('')
+      if (!matchesVisibility(model, visibility)) setVisibility('ALL')
+    }
+    setSelected(model.modelKey)
+    setLocateTarget({ modelKey: model.modelKey, focusName })
+  }
+
   const loaded = Boolean(state)
   useEffect(() => {
     // "编辑展示信息" in the model list opens this tab with that model selected and focused.
     if (!loaded || !props.initialModelKey) return
     const model = state?.draft.models[props.initialModelKey]
-    if (!model) return
-    setCapability(model.capability)
-    setSelected(model.modelKey)
-    setSearch('')
-    const frame = requestAnimationFrame(() => {
-      const row = listRef.current?.querySelector<HTMLElement>(
-        `[data-model-key="${CSS.escape(model.modelKey)}"]`
-      )
-      row?.scrollIntoView({ block: 'nearest' })
+    if (model) locate(model, true)
+    // Runs when the requested model changes, not on every draft edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, props.initialModelKey])
+
+  // Runs after the commit that applied the filters and selection, so the row and its editor exist.
+  useLayoutEffect(() => {
+    if (!locateTarget) return
+    const row = listRef.current?.querySelector<HTMLElement>(
+      `[data-model-key="${CSS.escape(locateTarget.modelKey)}"]`
+    )
+    row?.scrollIntoView({
+      block: 'nearest',
+      behavior:
+        locateTarget.focusName ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+    })
+    if (locateTarget.focusName) {
       row
         ?.querySelector<HTMLInputElement>(
           'input[id^="client-presentation-name-"]'
         )
         ?.focus()
-    })
-    return () => cancelAnimationFrame(frame)
-    // Runs when the requested model changes, not on every draft edit.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, props.initialModelKey])
+    }
+  }, [locateTarget])
 
   const changes = useMemo(
     () => (state ? presentationChanges(state) : null),
@@ -240,8 +290,7 @@ export function ClientPresentationManager(props: {
 
   const draft = state.draft
   const keys = draft.orders[capability]
-  const normalizedSearch = search.trim().toLowerCase()
-  const searching = Boolean(normalizedSearch)
+  const searching = Boolean(search.trim())
   // Searching or filtering shows part of the order; moves still apply to the whole order.
   const filtering = searching || visibility !== 'ALL'
   const shown = keys
@@ -251,11 +300,7 @@ export function ClientPresentationManager(props: {
     })
     .filter(
       ({ model }) =>
-        (!searching ||
-          model.displayName.toLowerCase().includes(normalizedSearch) ||
-          model.modelKey.toLowerCase().includes(normalizedSearch)) &&
-        (visibility === 'ALL' ||
-          model.customerVisible === (visibility === 'VISIBLE'))
+        matchesSearch(model, search) && matchesVisibility(model, visibility)
     )
 
   const separator = t('list separator')
@@ -572,19 +617,8 @@ export function ClientPresentationManager(props: {
           keys={keys}
           selected={selected}
           onSelect={(modelKey) => {
-            setSelected(modelKey)
-            requestAnimationFrame(() =>
-              listRef.current
-                ?.querySelector(`[data-model-key="${CSS.escape(modelKey)}"]`)
-                ?.scrollIntoView({
-                  block: 'nearest',
-                  behavior: window.matchMedia(
-                    '(prefers-reduced-motion: reduce)'
-                  ).matches
-                    ? 'auto'
-                    : 'smooth',
-                })
-            )
+            const model = draft.models[modelKey]
+            if (model) locate(model, false)
           }}
         />
       </div>

@@ -100,14 +100,28 @@ function renderManager(initialModelKey?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
-  return render(
+  const element = (modelKey?: string) => (
     <QueryClientProvider client={client}>
       <ClientPresentationManager
-        initialModelKey={initialModelKey}
+        initialModelKey={modelKey}
         onOpenModelCategories={vi.fn()}
       />
     </QueryClientProvider>
   )
+  const result = render(element(initialModelKey))
+  // The model list jump changes initialModelKey of the mounted page.
+  return {
+    ...result,
+    openModel: (modelKey: string) => result.rerender(element(modelKey)),
+  }
+}
+
+async function showHiddenModelsOnly(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('combobox', { name: 'Customer display' }))
+  await user.click(
+    await screen.findByRole('option', { name: 'Hidden from customers' })
+  )
+  expect(rowNames()).toEqual(['image.hidden'])
 }
 
 const list = () => screen.getAllByRole('list')[0] as HTMLElement
@@ -211,6 +225,35 @@ describe('Client presentation manager', () => {
       await screen.findByRole('option', { name: 'Visible to customers' })
     )
     expect(rowNames()).toEqual(['image.a', 'image.gpt'])
+  })
+
+  it('clears the filter that hides a model picked in the preview and opens its editor', async () => {
+    const user = userEvent.setup()
+    renderManager()
+    await screen.findByRole('button', { name: 'Image 3' })
+    await showHiddenModelsOnly(user)
+
+    const preview = screen.getByRole('complementary', {
+      name: 'Client preview',
+    })
+    await user.click(within(preview).getByText('GPT Image'))
+
+    expect(rowNames()).toEqual(['image.a', 'image.gpt', 'image.hidden'])
+    expect(screen.getByDisplayValue('GPT Image')).toBeVisible()
+  })
+
+  it('clears the filter that hides a model opened from the model list and focuses its name', async () => {
+    const user = userEvent.setup()
+    const { openModel } = renderManager()
+    await screen.findByRole('button', { name: 'Image 3' })
+    await showHiddenModelsOnly(user)
+
+    openModel('image.gpt')
+
+    await waitFor(() =>
+      expect(screen.getByDisplayValue('GPT Image')).toHaveFocus()
+    )
+    expect(rowNames()).toEqual(['image.a', 'image.gpt', 'image.hidden'])
   })
 
   it('moves the checked models together to a position from the batch bar, even while searching', async () => {

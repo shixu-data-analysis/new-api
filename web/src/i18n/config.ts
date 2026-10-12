@@ -16,34 +16,52 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18n from 'i18next'
+import i18n, { type BackendModule, type ResourceKey } from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
 import { convertDetectedLanguage } from './languages'
 import en from './locales/en.json'
-import fr from './locales/fr.json'
-import ja from './locales/ja.json'
-import ru from './locales/ru.json'
-import vi from './locales/vi.json'
-import zhTW from './locales/zh-TW.json'
 import zhCN from './locales/zh.json'
 
+// Simplified Chinese (most users) and English (the fallback) ship in the main bundle. The other languages are
+// separate files loaded the first time they are used, so a first visit downloads only the language it shows.
 export const resources = {
   en,
   zhCN,
-  fr,
-  ru,
-  ja,
-  vi,
-  zhTW,
 } as const
 
-i18n
+type LocaleModule = { default: Record<string, ResourceKey> }
+
+export const onDemandLanguages: Record<string, () => Promise<LocaleModule>> = {
+  fr: () => import('./locales/fr.json'),
+  ru: () => import('./locales/ru.json'),
+  ja: () => import('./locales/ja.json'),
+  vi: () => import('./locales/vi.json'),
+  zhTW: () => import('./locales/zh-TW.json'),
+}
+
+// With two parameters, i18next takes the returned promise as the result of the read.
+const onDemandBackend: BackendModule = {
+  type: 'backend',
+  init() {},
+  read(language, namespace) {
+    const load = onDemandLanguages[language]
+    return load
+      ? load().then((locale) => locale.default[namespace] ?? {})
+      : Promise.resolve({})
+  },
+}
+
+/** Resolves when the detected language can be shown; a failed load falls back to English. */
+export const i18nReady = i18n
+  .use(onDemandBackend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
+    // Languages missing from `resources` come from the backend above.
+    partialBundledLanguages: true,
     fallbackLng: 'en',
     supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
     load: 'currentOnly',
