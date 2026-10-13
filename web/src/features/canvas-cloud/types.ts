@@ -983,6 +983,8 @@ export interface CanvasAdminTestingModel {
       label: string
       normalizedParameters: Record<string, unknown>
       enabled: boolean
+      /** False when an administrator disabled this specification. */
+      controlEnabled: boolean
     }>
   }>
   version: number
@@ -1010,6 +1012,7 @@ export interface CanvasAdminTestingModel {
     id: string
     key: string
     enabled: boolean
+    controlEnabled: boolean
     normalizedParameters: Record<string, unknown>
     billingDimensionsSnapshot: Record<string, unknown>
   }>
@@ -1218,6 +1221,8 @@ export interface CanvasModelPricingDetail {
     combinationKey: string
     parameters: Record<string, unknown>
     enabled: boolean
+    /** False when an administrator disabled this specification; it stays priceable. */
+    controlEnabled: boolean
     currentProviderRate: CanvasModelPricingProviderRate | null
     scheduledProviderRate: CanvasModelPricingProviderRate | null
     originalProviderSuccessPriceCny?: CanvasModelPricingCnyValue | null

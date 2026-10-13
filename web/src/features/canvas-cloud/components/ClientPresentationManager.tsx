@@ -189,13 +189,24 @@ export function ClientPresentationManager(props: {
     [moveRow]
   )
   // The bulk bar sticks right below the toolbar, whose height changes when it wraps.
+  // The sticky preview is capped to the scroll area left under the toolbar.
   const [toolbarHeight, setToolbarHeight] = useState(0)
+  const [scrollAreaHeight, setScrollAreaHeight] = useState<number | null>(null)
   const toolbarRef = useCallback((toolbar: HTMLDivElement | null) => {
     if (!toolbar || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() =>
+    let scrollArea = toolbar.parentElement
+    while (
+      scrollArea &&
+      !/(auto|scroll)/.test(getComputedStyle(scrollArea).overflowY)
+    ) {
+      scrollArea = scrollArea.parentElement
+    }
+    const observer = new ResizeObserver(() => {
       setToolbarHeight(toolbar.offsetHeight)
-    )
+      if (scrollArea) setScrollAreaHeight(scrollArea.clientHeight)
+    })
     observer.observe(toolbar)
+    if (scrollArea) observer.observe(scrollArea)
     return () => observer.disconnect()
   }, [])
 
@@ -488,13 +499,18 @@ export function ClientPresentationManager(props: {
       style={
         {
           '--presentation-toolbar-height': `${toolbarHeight}px`,
+          ...(scrollAreaHeight === null
+            ? {}
+            : { '--presentation-scroll-area-height': `${scrollAreaHeight}px` }),
         } as CSSProperties
       }
     >
       <ClientPresentationLeaveGuard when={dirty || conflict} />
       <div
         ref={toolbarRef}
-        className='bg-background sticky top-0 z-10 flex max-w-[1240px] flex-wrap items-center justify-between gap-2.5 py-2'
+        // The scroll area's top padding stays visible above a top-0 sticky bar;
+        // the ::before fill covers it so rows never show through above the bar.
+        className='bg-background before:bg-background sticky top-0 z-10 flex max-w-[1240px] flex-wrap items-center justify-between gap-2.5 border-b py-2 before:absolute before:inset-x-0 before:-top-1.5 before:h-1.5'
       >
         {availableTypes.length > 0 && (
           <PresentationSegmented
@@ -611,16 +627,19 @@ export function ClientPresentationManager(props: {
             {listContent}
           </ol>
         </Card>
-        <ClientPresentationPreview
-          key={capability}
-          snapshot={draft}
-          keys={keys}
-          selected={selected}
-          onSelect={(modelKey) => {
-            const model = draft.models[modelKey]
-            if (model) locate(model, false)
-          }}
-        />
+        {/* Side by side, the preview stays in view while the model list scrolls. */}
+        <div className='min-[1200px]:sticky min-[1200px]:top-[calc(var(--presentation-toolbar-height,0px)+1rem)] min-[1200px]:max-h-[calc(var(--presentation-scroll-area-height,100dvh)-var(--presentation-toolbar-height,0px)-2.5rem)] min-[1200px]:overflow-y-auto'>
+          <ClientPresentationPreview
+            key={capability}
+            snapshot={draft}
+            keys={keys}
+            selected={selected}
+            onSelect={(modelKey) => {
+              const model = draft.models[modelKey]
+              if (model) locate(model, false)
+            }}
+          />
+        </div>
       </div>
     </div>
   )

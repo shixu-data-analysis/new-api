@@ -253,6 +253,8 @@ export interface CanvasLimitedPriceActivity {
       id: string
       label: string | null
       parameters: Record<string, unknown> | null
+      /** Current specification state; false after an administrator disabled it. */
+      controlEnabled: boolean | null
     }
   }
   sourcePriceSnapshot: {

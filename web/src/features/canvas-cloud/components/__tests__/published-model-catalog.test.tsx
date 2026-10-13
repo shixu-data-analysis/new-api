@@ -25,12 +25,15 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   tags: vi.fn(),
   publishTargetPresentation: vi.fn(),
+  publishParameterCombinationControl: vi.fn(),
 }))
 
 vi.mock('../../api', () => ({
   getCanvasAdminTestingModels: mocks.list,
   getCanvasAdminModelTags: mocks.tags,
   publishCanvasExecutionTargetPresentation: mocks.publishTargetPresentation,
+  publishCanvasParameterCombinationControl:
+    mocks.publishParameterCombinationControl,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -70,6 +73,7 @@ function executionTarget(
         label: '1K',
         normalizedParameters: { quality: '1K' },
         enabled: true,
+        controlEnabled: true,
       },
       {
         id: '85000000-0000-7000-8000-000000000009',
@@ -77,6 +81,7 @@ function executionTarget(
         label: '2K',
         normalizedParameters: { quality: '2K' },
         enabled: true,
+        controlEnabled: true,
       },
       {
         id: '85000000-0000-7000-8000-000000000010',
@@ -84,6 +89,7 @@ function executionTarget(
         label: '4K',
         normalizedParameters: { quality: '4K' },
         enabled: true,
+        controlEnabled: true,
       },
     ],
     ...overrides,
@@ -156,6 +162,10 @@ describe('Published model catalog', () => {
     mocks.list.mockResolvedValue([model()])
     mocks.tags.mockResolvedValue([])
     mocks.publishTargetPresentation.mockResolvedValue({ status: 'PUBLISHED' })
+    mocks.publishParameterCombinationControl.mockReset()
+    mocks.publishParameterCombinationControl.mockResolvedValue({
+      status: 'PUBLISHED',
+    })
   })
 
   it('uses backend labels rather than internal parameter keys for target labels', () => {
@@ -359,7 +369,7 @@ describe('Published model catalog', () => {
     ).toBeNull()
   })
 
-  it('keeps all parameter combinations of one target under one display switch', async () => {
+  it('adds one specification switch per specification under the target display switch', async () => {
     mocks.list.mockResolvedValue([
       model({
         executionTargets: [
@@ -371,6 +381,7 @@ describe('Published model catalog', () => {
                 label: '1K',
                 normalizedParameters: { quality: '1K' },
                 enabled: true,
+                controlEnabled: true,
               },
               {
                 id: '85000000-0000-7000-8000-000000000009',
@@ -378,6 +389,7 @@ describe('Published model catalog', () => {
                 label: '2K',
                 normalizedParameters: { quality: '2K' },
                 enabled: true,
+                controlEnabled: true,
               },
             ],
           }),
@@ -389,7 +401,225 @@ describe('Published model catalog', () => {
 
     await screen.findByText('Alpha model')
     expect(screen.getByText('1K · 2K')).toBeVisible()
+    expect(
+      screen.getByRole('switch', {
+        name: 'Customer display for Alpha model · 1K · 2K · provider-alpha',
+      })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('switch', { name: 'Enable switch for specification 1K' })
+    ).toBeChecked()
+    expect(
+      screen.getByRole('switch', { name: 'Enable switch for specification 2K' })
+    ).toBeChecked()
+  })
+
+  it('shows no specification switch for a single-specification target', async () => {
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({
+            parameterCombinations: [
+              {
+                id: '85000000-0000-7000-8000-000000000007',
+                key: 'quality=1K',
+                label: '1K',
+                normalizedParameters: { quality: '1K' },
+                enabled: true,
+                controlEnabled: true,
+              },
+            ],
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
     expect(screen.getAllByRole('switch')).toHaveLength(1)
+  })
+
+  it('disables the specification switches while the target display switch is off', async () => {
+    mocks.list.mockResolvedValue([
+      model({ executionTargets: [executionTarget({ enabled: false })] }),
+    ])
+
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    for (const specification of ['1K', '2K', '4K']) {
+      expect(
+        screen.getByRole('switch', {
+          name: `Enable switch for specification ${specification}`,
+        })
+      ).toHaveAttribute('aria-disabled', 'true')
+    }
+  })
+
+  it('disables one specification after confirmation without a reason', async () => {
+    const { client } = renderCatalog()
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable switch for specification 1K' })
+    )
+    const confirmation = screen.getByRole('alertdialog')
+    expect(
+      within(confirmation).getByText('Disable specification?')
+    ).toBeVisible()
+    expect(confirmation).toHaveTextContent('1K · 2K · 4K · provider-alpha')
+    expect(confirmation).toHaveTextContent(
+      'Specification enabled state → Specification disabled state'
+    )
+    expect(confirmation).not.toHaveTextContent(
+      'This is the last enabled specification'
+    )
+    expect(
+      within(confirmation).getByLabelText('Reason (optional)')
+    ).toHaveValue('')
+    fireEvent.click(
+      within(confirmation).getByRole('button', {
+        name: 'Disable specification',
+      })
+    )
+
+    await waitFor(() =>
+      expect(mocks.publishParameterCombinationControl).toHaveBeenCalledWith(
+        {
+          parameterCombinationId: '85000000-0000-7000-8000-000000000007',
+          enabled: false,
+          reason: '',
+        },
+        expect.any(Object)
+      )
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    )
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['canvas-cloud', 'admin-testing-models'],
+    })
+  })
+
+  it('warns that disabling the last enabled specification hides the whole target', async () => {
+    const combinations = executionTarget().parameterCombinations.map(
+      (combination, index) => ({ ...combination, controlEnabled: index === 0 })
+    )
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({ parameterCombinations: combinations }),
+        ],
+      }),
+    ])
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable switch for specification 1K' })
+    )
+
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
+      'This is the last enabled specification of this target'
+    )
+  })
+
+  it('restores a disabled unpriced specification with the reason and the pricing hint', async () => {
+    const combinations = executionTarget().parameterCombinations.map(
+      (combination) => ({
+        ...combination,
+        controlEnabled: combination.label !== '2K',
+      })
+    )
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({ parameterCombinations: combinations }),
+        ],
+      }),
+    ])
+    renderCatalog()
+
+    expect(await screen.findByText('Disabled specifications: 2K')).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable switch for specification 2K' })
+    )
+    const confirmation = screen.getByRole('alertdialog')
+    expect(
+      within(confirmation).getByText('Restore specification?')
+    ).toBeVisible()
+    expect(confirmation).toHaveTextContent(
+      'Specification disabled state → Specification enabled state'
+    )
+    expect(confirmation).toHaveTextContent('It has no price yet')
+    fireEvent.change(within(confirmation).getByLabelText('Reason (optional)'), {
+      target: { value: 'Provider resumed 2K' },
+    })
+    fireEvent.click(
+      within(confirmation).getByRole('button', {
+        name: 'Restore specification',
+      })
+    )
+
+    await waitFor(() =>
+      expect(mocks.publishParameterCombinationControl).toHaveBeenCalledWith(
+        {
+          parameterCombinationId: '85000000-0000-7000-8000-000000000009',
+          enabled: true,
+          reason: 'Provider resumed 2K',
+        },
+        expect.any(Object)
+      )
+    )
+  })
+
+  it('lists disabled specifications even when no price plan is published', async () => {
+    const combinations = executionTarget().parameterCombinations.map(
+      (combination) => ({
+        ...combination,
+        controlEnabled: combination.label !== '4K',
+      })
+    )
+    mocks.list.mockResolvedValue([
+      model({
+        executionTargets: [
+          executionTarget({
+            pricingCoverage: [],
+            parameterCombinations: combinations,
+          }),
+        ],
+      }),
+    ])
+
+    renderCatalog()
+
+    expect(await screen.findByText('No published price plans')).toBeVisible()
+    expect(screen.getByText('Disabled specifications: 4K')).toBeVisible()
+  })
+
+  it('keeps the dialog open with an error when the specification change fails', async () => {
+    mocks.publishParameterCombinationControl.mockRejectedValue(
+      new Error('conflict')
+    )
+    renderCatalog()
+
+    await screen.findByText('Alpha model')
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable switch for specification 4K' })
+    )
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Disable specification',
+      })
+    )
+
+    expect(
+      await within(screen.getByRole('alertdialog')).findByRole('alert')
+    ).toHaveTextContent(
+      'Specification change failed. Refresh the model list before retrying.'
+    )
   })
 
   it('shows missing 2K and 4K specifications for a three-quality target with one priced combination', async () => {

@@ -1307,6 +1307,34 @@ export async function publishCanvasExecutionTargetPresentation(input: {
   ).data
 }
 
+export async function publishCanvasParameterCombinationControl(input: {
+  parameterCombinationId: string
+  enabled: boolean
+  reason: string
+}) {
+  const reason = input.reason.trim()
+  return (
+    await api.post(
+      `${webBase}/admin/model-resource-controls/publications`,
+      {
+        resourceType: 'PARAMETER_COMBINATION',
+        resourceId: input.parameterCombinationId,
+        enabled: input.enabled,
+        ...(reason ? { reason } : {}),
+        confirmed: true,
+      },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey(
+            'web-parameter-combination-control'
+          ),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function redeemCanvasRechargeCode(code: string): Promise<{
   rechargeCodeId: string
   orderNumber: string

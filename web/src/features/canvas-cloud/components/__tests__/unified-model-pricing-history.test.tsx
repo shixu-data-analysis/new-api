@@ -227,6 +227,7 @@ function scopeDetail(): CanvasModelPricingDetail {
         combinationKey: 'duration',
         parameters: { duration: 10 },
         enabled: true,
+        controlEnabled: true,
         currentProviderRate: null,
         scheduledProviderRate: null,
         prices: [],

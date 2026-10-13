@@ -84,7 +84,10 @@ import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 import { ModelTagManager } from './ModelTagManager'
+import { ParameterCombinationControlDialog } from './ParameterCombinationControlDialog'
 import { PublishedModelDetails } from './PublishedModelDetails'
+
+type ExecutionTarget = CanvasAdminTestingModel['executionTargets'][number]
 
 export interface ModelBindingNavigationTarget {
   providerId: string
@@ -183,6 +186,11 @@ export function PublishedModelCatalog(props: {
     target: CanvasAdminTestingModel['executionTargets'][number]
   } | null>(null)
   const [formServerError, setFormServerError] = useState<string | null>(null)
+  const [specificationToggling, setSpecificationToggling] = useState<{
+    model: CanvasAdminTestingModel
+    target: ExecutionTarget
+    combination: ExecutionTarget['parameterCombinations'][number]
+  } | null>(null)
   const [presentationConflict, setPresentationConflict] = useState(false)
   const [reloadingPresentation, setReloadingPresentation] = useState(false)
   const models = useQuery({
@@ -574,23 +582,60 @@ export function PublishedModelCatalog(props: {
     model: CanvasAdminTestingModel,
     mobile = false
   ) => {
-    const displayControl = (
-      target: CanvasAdminTestingModel['executionTargets'][number]
-    ) => (
-      <Switch
-        checked={target.enabled}
-        disabled={presentationBusy}
-        aria-label={t('Customer display for {{model}}', {
-          model: `${model.effectiveDisplayName} · ${executionTargetLabel(target, t)}`,
-        })}
-        onCheckedChange={() => {
-          if (presentationBusy) return
-          setFormServerError(null)
-          setPresentationConflict(false)
-          setToggling({ model, target })
-        }}
-      />
-    )
+    const displayControl = (target: ExecutionTarget) => {
+      const targetSwitch = (
+        <Switch
+          checked={target.enabled}
+          disabled={presentationBusy}
+          aria-label={t('Customer display for {{model}}', {
+            model: `${model.effectiveDisplayName} · ${executionTargetLabel(target, t)}`,
+          })}
+          onCheckedChange={() => {
+            if (presentationBusy) return
+            setFormServerError(null)
+            setPresentationConflict(false)
+            setToggling({ model, target })
+          }}
+        />
+      )
+      // Only targets with several specifications get per-specification switches.
+      if (target.parameterCombinations.length < 2) return targetSwitch
+      return (
+        <div className='flex flex-col items-start gap-1.5'>
+          <div>{targetSwitch}</div>
+          <div className='flex flex-col gap-1.5 border-t pt-1.5'>
+            {target.parameterCombinations.map((combination) => (
+              <div key={combination.id} className='flex items-center gap-2'>
+                <Switch
+                  size='sm'
+                  checked={combination.controlEnabled}
+                  disabled={presentationBusy || !target.enabled}
+                  aria-label={t(
+                    'Enable switch for specification {{specification}}',
+                    {
+                      specification: t(combination.label),
+                    }
+                  )}
+                  onCheckedChange={() => {
+                    if (presentationBusy) return
+                    setSpecificationToggling({ model, target, combination })
+                  }}
+                />
+                <span
+                  className={
+                    target.enabled && combination.controlEnabled
+                      ? 'text-sm'
+                      : 'text-muted-foreground text-sm'
+                  }
+                >
+                  {t(combination.label)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
     if (mobile) {
       return (
         <div className='space-y-3' aria-label={t('Execution targets')}>
@@ -973,6 +1018,12 @@ export function PublishedModelCatalog(props: {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+      {specificationToggling && (
+        <ParameterCombinationControlDialog
+          {...specificationToggling}
+          onClose={() => setSpecificationToggling(null)}
+        />
       )}
     </Card>
   )

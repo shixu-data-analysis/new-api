@@ -2,7 +2,14 @@
 Copyright (C) 2023-2026 QuantumNous
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -95,6 +102,7 @@ const detail = {
       combinationKey: 'standard',
       parameters: { quality: 'HD' },
       enabled: true,
+      controlEnabled: true,
       currentProviderRate: {
         id: 'provider-1',
         billingUnit: 'REQUEST',
@@ -262,6 +270,20 @@ beforeEach(() => {
 })
 
 describe('UnifiedModelPricing UAT-028', () => {
+  it('marks a disabled specification in current pricing and keeps its price adjustable', async () => {
+    const disabledDetail = structuredClone(detail)
+    disabledDetail.pricingScopes[0].controlEnabled = false
+    mocks.detail.mockResolvedValue(disabledDetail)
+
+    renderPricing('current')
+
+    const row = (await screen.findByText('Specification disabled')).closest(
+      'tr'
+    ) as HTMLElement
+    expect(row).toHaveTextContent('HD')
+    expect(within(row).getByTestId('adjust-pricing')).toBeEnabled()
+  })
+
   it('does not present the current model identity as a historical record', async () => {
     renderPricing('history')
 

@@ -204,6 +204,11 @@ function LimitedPriceSnapshot(props: {
         {target.customerModel.displayNameSnapshot} ·{' '}
         {target.priceGroup.label ?? target.priceGroup.id} ·{' '}
         {target.parameterCombination.label ?? target.parameterCombination.id}
+        {target.parameterCombination.controlEnabled === false && (
+          <span className='text-muted-foreground ml-2'>
+            {t('Specification disabled')}
+          </span>
+        )}
       </p>
       <p>
         {t('{{label}}: ', { label: t('Reason') })}

@@ -1755,6 +1755,13 @@ function CurrentModelPricingTable(props: {
                 {t('Disabled')}
               </span>
             )}
+            {/* A disabled specification stays priceable, so the adjust action stays available. */}
+            {row.original.scope.enabled !== false &&
+              row.original.scope.controlEnabled === false && (
+                <span className='text-muted-foreground ml-2'>
+                  {t('Specification disabled')}
+                </span>
+              )}
           </div>
         ),
       },

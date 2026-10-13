@@ -22,14 +22,30 @@ const invisibleReasonLabels: Record<string, string> = {
 
 export function ExecutionTargetCoverage(props: {
   coverage: CanvasExecutionTargetPricingCoverage[]
-  parameterCombinations: Array<{ id: string; label: string }>
+  parameterCombinations: Array<{
+    id: string
+    label: string
+    controlEnabled: boolean
+  }>
 }) {
   const { t } = useTranslation()
+  const disabledSpecifications = props.parameterCombinations
+    .filter((combination) => !combination.controlEnabled)
+    .map((combination) => t(combination.label))
+  const disabledLine = disabledSpecifications.length ? (
+    <p className='text-muted-foreground'>
+      {t('{{label}}: ', { label: t('Disabled specifications') })}
+      {disabledSpecifications.join(' · ')}
+    </p>
+  ) : null
   if (!props.coverage.length) {
     return (
-      <span className='text-muted-foreground'>
-        {t('No published price plans')}
-      </span>
+      <div className='space-y-1 text-sm'>
+        <span className='text-muted-foreground'>
+          {t('No published price plans')}
+        </span>
+        {disabledLine}
+      </div>
     )
   }
   const visibleGroupCount = props.coverage.filter(
@@ -97,6 +113,7 @@ export function ExecutionTargetCoverage(props: {
           </li>
         ))}
       </ul>
+      {disabledLine}
     </div>
   )
 }

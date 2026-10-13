@@ -93,6 +93,8 @@ type PublishedPriceSource = {
   tokenRates: CanvasModelPricingPriceSnapshot['tokenRates']
   calculation: CanvasModelPricingPriceSnapshot['calculation']
   tokenCategoryRisks: CanvasTokenCategoryRisk[]
+  /** A disabled specification stays listed but cannot get a new special. */
+  specificationDisabled: boolean
 }
 
 type TokenRateKey = 'input' | 'output' | 'cacheRead' | 'cacheWrite'
@@ -257,6 +259,7 @@ export function LimitedPriceActivityForm(props: {
             tokenRates: current.tokenRates,
             calculation: current.calculation,
             tokenCategoryRisks: current.assumptions?.tokenCategoryRisks ?? [],
+            specificationDisabled: scope.controlEnabled === false,
           },
         ]
       })
@@ -455,8 +458,17 @@ export function LimitedPriceActivityForm(props: {
               </SelectTrigger>
               <SelectContent>
                 {sources.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
+                  <SelectItem
+                    key={item.id}
+                    value={item.id}
+                    disabled={item.specificationDisabled}
+                  >
                     {item.label}
+                    {item.specificationDisabled && (
+                      <span className='text-muted-foreground ml-2'>
+                        {t('Specification disabled')}
+                      </span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -1384,6 +1384,183 @@ describe('ADMIN-REWORK-007 activity management', () => {
     expect(screen.getByText('50% of the regular price')).toBeVisible()
   })
 
+  it('lists a disabled specification as an unselectable applicable price', async () => {
+    pricingApi.getCanvasModelPricingWorkspace.mockResolvedValue({
+      models: [
+        {
+          id: 'model-video',
+          effectiveDisplayName: 'Video model',
+          catalogDefaultName: 'Video model',
+          modelKey: 'canvas.video',
+          hasPublishedPricing: true,
+        },
+      ],
+    })
+    const scope = (quality: string, controlEnabled: boolean) => ({
+      combinationKey: `quality=${quality}`,
+      parameters: { quality },
+      controlEnabled,
+      prices: [
+        {
+          priceGroupName: 'Standard',
+          current: {
+            id: `price-${quality}`,
+            status: 'PUBLISHED',
+            billingUnit: 'REQUEST',
+            points: '100',
+            tokenRates: null,
+            calculation: { baseRatePointsPerRmb: '100', kPricingRmb: '0.1' },
+            assumptions: {},
+          },
+        },
+      ],
+    })
+    pricingApi.getCanvasModelPricingModel.mockResolvedValue({
+      pricingScopes: [scope('480P', false), scope('720P', true)],
+    })
+
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Limited-time special')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Model' }))
+    await user.click(
+      await screen.findByRole('option', { name: 'Video model · canvas.video' })
+    )
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Applicable price' })
+    )
+
+    const disabled = await screen.findByRole('option', {
+      name: /Quality: 480P/,
+    })
+    expect(disabled).toHaveTextContent('Disabled')
+    expect(disabled).toHaveAttribute('aria-disabled', 'true')
+    const enabled = screen.getByRole('option', { name: /Quality: 720P/ })
+    expect(enabled).not.toHaveTextContent('Disabled')
+    expect(enabled).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('marks the specification of an existing special that was disabled afterwards', async () => {
+    const activityId = '85000000-0000-7000-8000-000000000013'
+    activityApi.getCanvasActivities.mockResolvedValue({
+      items: [
+        {
+          id: activityId,
+          promotionId: activityId,
+          version: 1,
+          name: 'Frozen Token special',
+          type: 'TASK_PRICE_SPECIAL',
+          status: 'ACTIVE',
+          createdAt: '2026-09-12T00:00:00.000Z',
+          startsAt: '2026-09-13T00:00:00.000Z',
+          endsAt: '2026-09-14T00:00:00.000Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    activityApi.getCanvasActivity.mockResolvedValue({
+      id: activityId,
+      promotionId: activityId,
+      version: 1,
+      type: 'TASK_PRICE_SPECIAL',
+      name: 'Frozen Token special',
+      reason: 'Frozen approval facts',
+      status: 'ACTIVE',
+      publisher: null,
+      publishedAt: '2026-09-12T00:00:00.000Z',
+      stoppedAt: null,
+      stoppedBy: null,
+      sourcePriceVersionId: 'price-token',
+      target: {
+        customerModel: {
+          id: 'model-token',
+          modelKey: 'canvas.token',
+          displayNameSnapshot: 'Historical Canvas Token',
+        },
+        priceGroup: { id: 'group-standard', label: 'Standard' },
+        parameterCombination: {
+          id: 'default',
+          label: 'default',
+          parameters: {},
+          controlEnabled: false,
+        },
+      },
+      sourcePriceSnapshot: {
+        sourcePriceVersionId: 'price-token',
+        billingUnit: 'MILLION_TOKENS',
+        basePoints: null,
+        baseRatePointsPerRmb: '100',
+        kPricingRmb: null,
+        baseTokenRates: { input: '10', output: '20' },
+        tokenCategoryCostReferences: [
+          {
+            category: 'input',
+            basePoints: '10',
+            specialPoints: '0',
+            baseRatePointsPerRmb: '100',
+            kPricingRmb: '0.05',
+            specialPriceRmb: '0',
+            differenceRmb: '-0.05',
+            belowCostReference: true,
+          },
+        ],
+      },
+      billingUnit: 'MILLION_TOKENS',
+      basePoints: null,
+      specialPoints: null,
+      baseTokenRates: { input: '10', output: '20' },
+      specialTokenRates: { input: '0', output: '10' },
+      tokenCategoryCostReferences: [
+        {
+          category: 'input',
+          basePoints: '10',
+          specialPoints: '0',
+          baseRatePointsPerRmb: '100',
+          kPricingRmb: '0.05',
+          specialPriceRmb: '0',
+          differenceRmb: '-0.05',
+          belowCostReference: true,
+        },
+        {
+          category: 'output',
+          basePoints: '20',
+          specialPoints: '10',
+          baseRatePointsPerRmb: '100',
+          kPricingRmb: null,
+          specialPriceRmb: '0.1',
+          differenceRmb: null,
+          belowCostReference: null,
+        },
+      ],
+      discountPoints: null,
+      expectedContributionRate: null,
+      budgetConsumedMinor: null,
+      expectedLossMinor: null,
+      startsAt: '2026-09-13T00:00:00.000Z',
+      endsAt: '2026-09-14T00:00:00.000Z',
+    })
+    activityApi.getCanvasLimitedPriceParticipationTasks.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+    })
+
+    mount(<ActivityManagementPage />)
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByRole('button', { name: 'Frozen Token special' })
+      )
+
+    const applicablePrice = await screen.findByText(
+      /Historical Canvas Token · Standard · default/
+    )
+    expect(applicablePrice).toHaveTextContent('Disabled')
+  })
+
   it('renders the frozen Token-category cost snapshot without using current pricing facts', async () => {
     const activityId = '85000000-0000-7000-8000-000000000013'
     activityApi.getCanvasActivities.mockResolvedValue({
@@ -1428,6 +1605,7 @@ describe('ADMIN-REWORK-007 activity management', () => {
           id: 'default',
           label: 'default',
           parameters: {},
+          controlEnabled: true,
         },
       },
       sourcePriceSnapshot: {
