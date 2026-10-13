@@ -173,6 +173,28 @@ describe('operation log value names', () => {
     )
   })
 
+  it('names manual result requests and outcomes by their own actions, with the 1-based result position', () => {
+    const requested = event(
+      'task.execution.admin_manual_result_requested',
+      { outputIndex: 1, reason: '服务商后台可见', resultOrigin: 'https://cdn.example.com' },
+      { resourceType: 'TASK', reasonCode: 'ADMIN_MANUAL_RESULT' }
+    )
+    expect(rows(requested)).toMatchObject({ 结果位置: '2', 原因: '服务商后台可见', 文件所在网站: 'https://cdn.example.com' })
+    const failed = event(
+      'executor.manual_result.failed',
+      { outputIndex: 0 },
+      { actorType: 'SYSTEM', resourceType: 'TASK', reasonCode: 'PROVIDER_OUTPUT_UNSUPPORTED_MEDIA' }
+    )
+    expect(auditObjectText(failed, names, i18next.t)).toBe('任务')
+    expect(auditReasonRow(failed, i18next.t)?.value).toBe('结果不是可用的媒体')
+    expect(
+      auditReasonRow(
+        { ...failed, reasonCode: 'OUTPUT_NOT_AWAITING_RESULT' },
+        i18next.t
+      )?.value
+    ).toBe('不用补录了：服务商已返回结果，或积分已释放')
+  })
+
   it('labels settlement rule changes like the settlement settings page, with money and percent units', () => {
     expect(
       rows(

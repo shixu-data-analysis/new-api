@@ -478,6 +478,24 @@ export async function getCanvasTaskPointLedger(
   ).data
 }
 
+export async function requestCanvasTaskManualResult(
+  taskId: string,
+  outputIndex: number,
+  input: { url: string; reason?: string },
+  requestKey = idempotencyKey('web-task-manual-result')
+): Promise<CanvasAdminTaskRecordDetail> {
+  return (
+    await api.post<CanvasAdminTaskRecordDetail>(
+      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/outputs/${outputIndex}/manual-result`,
+      { ...input, confirmed: true },
+      {
+        headers: { 'Idempotency-Key': requestKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function releaseCanvasTaskFrozenPoints(
   taskId: string,
   input: { upstreamFailureConfirmed: boolean; reason: string },

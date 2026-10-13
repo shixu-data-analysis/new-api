@@ -2711,6 +2711,24 @@ describe('execution settings', () => {
             from: '2026-10-04T06:00:00.000Z',
           },
         },
+        {
+          type: 'UNRECOGNIZED_PROVIDER_STATUS',
+          count: 2,
+          latestAt: '2026-10-05T05:50:00.000Z',
+          taskLogFilters: {
+            unrecognizedStatus: 'present',
+            from: '2026-10-04T06:00:00.000Z',
+          },
+          unrecognizedStatuses: [
+            {
+              providerName: 'Example Provider',
+              channelCode: 'example.video',
+              status: 'sample_status',
+              taskCount: 2,
+              latestAt: '2026-10-05T05:50:00.000Z',
+            },
+          ],
+        },
         { type: 'WAITING_AREA_NEARLY_FULL', count: 1, latestAt: null },
       ],
     })
@@ -2736,6 +2754,28 @@ describe('execution settings', () => {
         'When it is full, the instance stops taking new tasks. Add executor instances or raise the poll interval.'
       )
     ).toBeVisible()
+    expect(
+      within(card).getByText(
+        '2 tasks in the last 24 hours received an unrecognized provider status'
+      )
+    ).toBeVisible()
+    expect(
+      within(card).getByText(/^These tasks keep querying as usual\./)
+    ).toBeVisible()
+    // The status is shown as the raw value, inside the translated sentence.
+    const row = within(card).getByText('sample_status').closest('li') as HTMLElement
+    expect(row).toHaveTextContent(
+      'Example Provider / example.video: sample_status (2 tasks)'
+    )
+    expect(within(row).getByText('sample_status').tagName).toBe('CODE')
+    expect(
+      within(card).getByRole('link', {
+        name: 'View these 2 tasks in task records',
+      })
+    ).toHaveAttribute(
+      'href',
+      '/canvas-cloud/task-logs?unrecognizedStatus=present&from=2026-10-04T06%3A00%3A00.000Z'
+    )
     const drain = screen.getByText('Pause intake')
     expect(
       drain.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING

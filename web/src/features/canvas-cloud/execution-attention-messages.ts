@@ -15,6 +15,8 @@ export const attentionMessageKeys: Record<ExecutionAttention['type'], string> =
       '{{count}} tasks in the last 24 hours failed because the result file was too large',
     RETRY_EXHAUSTED:
       '{{count}} tasks in the last 24 hours failed after repeated attempts to fetch the result',
+    UNRECOGNIZED_PROVIDER_STATUS:
+      '{{count}} tasks in the last 24 hours received a provider status the interface template does not list',
     WAITING_AREA_NEARLY_FULL:
       '{{count}} executor instances are nearly full of tasks waiting for results',
     DATABASE_UNSTABLE:

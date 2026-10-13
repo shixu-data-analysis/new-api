@@ -9,6 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -56,6 +57,7 @@ const call: CanvasTaskCall = {
   errorRuleId: null,
   errorRuleVersion: null,
   providerResponseDiagnostic: null,
+  unrecognizedStatus: null,
   sanitizedRequest: null,
   startedAt: '2026-09-06T00:00:00Z',
   sentAt: '2026-09-06T00:00:00Z',
@@ -231,6 +233,19 @@ describe('TaskCallHistory', () => {
       screen.getByText('Succeeded (provider status succeeded)')
     ).toBeVisible()
     expect(screen.queryByText(/EQUALS/)).not.toBeInTheDocument()
+  })
+
+  it('shows a provider status the interface template does not list, and nothing when there is none', () => {
+    mountDetails({ ...call, unrecognizedStatus: 'warming_up' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    expect(screen.getByText('Unrecognized provider status')).toBeVisible()
+    expect(screen.getByText('warming_up')).toBeVisible()
+    cleanup()
+    mountDetails(call)
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    expect(
+      screen.queryByText('Unrecognized provider status')
+    ).not.toBeInTheDocument()
   })
 
   it('shows the New API recognition and the matched code-table group of a recorded submission', () => {

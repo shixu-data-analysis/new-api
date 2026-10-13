@@ -26,6 +26,7 @@ const api = vi.hoisted(() => ({
   getCanvasAdminTaskInputBlob: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
   releaseCanvasTaskFrozenPoints: vi.fn(),
+  requestCanvasTaskManualResult: vi.fn(),
   settleCanvasTaskProviderCost: vi.fn(),
   revokeCanvasTaskProviderCostSettlement: vi.fn(),
 }))
@@ -63,6 +64,8 @@ const task = {
   unknownDeadlineAt: null,
   earlyReleaseAllowed: false,
   earlyReleaseBlockedReason: null,
+  manualResultTargets: [],
+  manualResults: [],
   parameters: {
     quality: '2K',
     aspectRatio: '9:16',
@@ -1108,6 +1111,375 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     await waitFor(() =>
       expect(api.getCanvasAdminTaskRecord.mock.calls.length).toBeGreaterThan(1)
     )
+  })
+
+  it('enters a manual result for an eligible result after checking the URL and reason, and shows its record', async () => {
+    const unknownOutput = (outputIndex: number) => ({
+      outputIndex,
+      quotedPoints: '7',
+      settledPoints: null,
+      executionStatus: 'UNKNOWN',
+      billingStatus: 'FROZEN',
+      error: null,
+      usageSnapshot: null,
+      completedAt: null,
+      billingFinalizedAt: null,
+      customerSafeErrorDetail: null,
+    })
+    const pendingTask = {
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: true,
+      outputs: [unknownOutput(0), unknownOutput(1)],
+      manualResultTargets: [
+        { outputIndex: 0, upstreamTaskId: 'upstream-a' },
+        { outputIndex: 1, upstreamTaskId: 'upstream-b' },
+      ],
+      manualResults: [
+        {
+          id: 'manual-1',
+          outputIndex: 1,
+          upstreamTaskId: 'upstream-b',
+          status: 'FAILED',
+          resultUrl: 'https://cdn.example.com/page.html',
+          reason: 'Found in the provider console',
+          failureReasonCode: 'PROVIDER_OUTPUT_UNSUPPORTED_MEDIA',
+          requestedBy: { principalId: 'admin-1', displayName: 'Operator' },
+          createdAt: '2026-09-14T09:20:00.000Z',
+          completedAt: '2026-09-14T09:20:10.000Z',
+        },
+      ],
+    }
+    api.getCanvasAdminTaskRecord.mockResolvedValue(pendingTask)
+    api.requestCanvasTaskManualResult.mockResolvedValue(pendingTask)
+    mount()
+    // The record of an earlier attempt shows why it was not applied.
+    expect(await screen.findByText('Manual result records')).toBeVisible()
+    expect(screen.getByText('Not applied')).toBeVisible()
+    expect(screen.getByText('Result is not usable media')).toBeVisible()
+    expect(screen.getByText('https://cdn.example.com/page.html')).toBeVisible()
+    expect(screen.getByText('upstream-b')).toBeVisible()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Enter a manual result' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    expect(
+      within(dialog).getByText(
+        /If it passes, the customer gets it and 7 points are deducted\./
+      )
+    ).toBeVisible()
+    // Two results can take a manual result: the dialog says so, and the first is chosen with the Provider task that covers it.
+    expect(
+      within(dialog).getByText('2 results can be entered, one at a time.')
+    ).toBeVisible()
+    expect(within(dialog).getByText('upstream-a')).toBeVisible()
+    const submit = within(dialog).getByRole('button', {
+      name: 'Submit manual result',
+    })
+    expect(submit).toBeDisabled()
+    const confirmation = within(dialog).getByText(
+      'I confirm this is the result of this task'
+    )
+    fireEvent.change(within(dialog).getByLabelText('File URL'), {
+      target: { value: 'ftp://cdn.example.com/result.png' },
+    })
+    fireEvent.click(confirmation)
+    fireEvent.click(submit)
+    expect(
+      within(dialog).getByText(
+        'Enter an address starting with http:// or https://.'
+      )
+    ).toBeVisible()
+    // The reason is optional: leaving it empty is no error.
+    expect(
+      within(dialog).queryByText('Enter a reason.')
+    ).not.toBeInTheDocument()
+    expect(within(dialog).getByLabelText('File URL')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
+    expect(api.requestCanvasTaskManualResult).not.toHaveBeenCalled()
+
+    // An HTTP link copied from a provider console is accepted; Cloud downloads it over HTTPS.
+    fireEvent.change(within(dialog).getByLabelText('File URL'), {
+      target: { value: ' http://cdn.example.com/result.png ' },
+    })
+    expect(
+      within(dialog).getByText(
+        'http addresses are downloaded over https automatically.'
+      )
+    ).toBeVisible()
+    // The confirmation was for the earlier address: another address needs it again.
+    expect(submit).toBeDisabled()
+    fireEvent.click(confirmation)
+    expect(submit).toBeEnabled()
+    fireEvent.change(within(dialog).getByLabelText('Reason (optional)'), {
+      target: { value: ' Provider support sent the file ' },
+    })
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(api.requestCanvasTaskManualResult).toHaveBeenCalledWith(
+        task.id,
+        0,
+        {
+          url: 'http://cdn.example.com/result.png',
+          reason: 'Provider support sent the file',
+        }
+      )
+    )
+  })
+
+  it('disables early release while a manual result waits for the executor, and refreshes until it finishes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const waiting = {
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: false,
+      earlyReleaseBlockedReason: 'MANUAL_RESULT_PENDING',
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'UNKNOWN',
+          billingStatus: 'FROZEN',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+        },
+      ],
+      manualResultTargets: [],
+      manualResults: [
+        {
+          id: 'manual-1',
+          outputIndex: 0,
+          upstreamTaskId: 'upstream-a',
+          status: 'PENDING',
+          resultUrl: 'https://cdn.example.com/result.mp4',
+          reason: 'Provider support sent the file',
+          failureReasonCode: null,
+          requestedBy: { principalId: 'admin-1', displayName: 'Operator' },
+          createdAt: '2026-09-14T09:20:00.000Z',
+          completedAt: null,
+        },
+      ],
+    }
+    api.getCanvasAdminTaskRecord.mockResolvedValue(waiting)
+    try {
+      mount()
+      expect(
+        await screen.findByRole('button', {
+          name: 'Release frozen points early',
+        })
+      ).toBeDisabled()
+      expect(
+        screen.getByText(
+          'Points can be released after the manual result finishes.'
+        )
+      ).toBeVisible()
+      expect(screen.getByText('Processing')).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: 'Enter a manual result' })
+      ).not.toBeInTheDocument()
+      expect(api.getCanvasAdminTaskRecord).toHaveBeenCalledTimes(1)
+
+      // The executor applies it: the next refresh shows the result, and refreshing stops.
+      api.getCanvasAdminTaskRecord.mockResolvedValue({
+        ...waiting,
+        derivedExecutionStatus: 'SUCCEEDED',
+        executionStatus: 'SUCCEEDED',
+        customerBillingStatus: 'SETTLED',
+        earlyReleaseBlockedReason: null,
+        manualResults: waiting.manualResults.map((manual) => ({
+          ...manual,
+          status: 'APPLIED',
+          completedAt: '2026-09-14T09:20:10.000Z',
+        })),
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(api.getCanvasAdminTaskRecord).toHaveBeenCalledTimes(2)
+      expect(await screen.findByText('Applied')).toBeInTheDocument()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000)
+      })
+      expect(api.getCanvasAdminTaskRecord).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the chosen result after a 409 refresh and asks to choose and confirm again when it can no longer take one', async () => {
+    const output = (
+      outputIndex: number,
+      executionStatus: string,
+      billingStatus: string
+    ) => ({
+      outputIndex,
+      quotedPoints: '7',
+      settledPoints: executionStatus === 'SUCCEEDED' ? '7' : null,
+      executionStatus,
+      billingStatus,
+      error: null,
+      usageSnapshot: null,
+      completedAt: null,
+      billingFinalizedAt: null,
+      customerSafeErrorDetail: null,
+    })
+    const base = {
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: true,
+      manualResults: [],
+    }
+    // Result 1 succeeds while the dialog is open: after the 409 refresh only result 2 can take a manual result.
+    api.getCanvasAdminTaskRecord
+      .mockResolvedValueOnce({
+        ...base,
+        outputs: [
+          output(0, 'UNKNOWN', 'FROZEN'),
+          output(1, 'UNKNOWN', 'FROZEN'),
+        ],
+        manualResultTargets: [
+          { outputIndex: 0, upstreamTaskId: 'upstream-a' },
+          { outputIndex: 1, upstreamTaskId: 'upstream-b' },
+        ],
+      })
+      .mockResolvedValue({
+        ...base,
+        outputs: [
+          output(0, 'SUCCEEDED', 'SETTLED'),
+          output(1, 'UNKNOWN', 'FROZEN'),
+        ],
+        manualResultTargets: [{ outputIndex: 1, upstreamTaskId: 'upstream-b' }],
+      })
+    api.requestCanvasTaskManualResult.mockRejectedValueOnce({
+      response: { status: 409 },
+    })
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Enter a manual result' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.change(within(dialog).getByLabelText('File URL'), {
+      target: { value: 'https://cdn.example.com/first.mp4' },
+    })
+    fireEvent.click(
+      within(dialog).getByText('I confirm this is the result of this task')
+    )
+    const submit = within(dialog).getByRole('button', {
+      name: 'Submit manual result',
+    })
+    fireEvent.click(submit)
+    await waitFor(() =>
+      expect(api.requestCanvasTaskManualResult).toHaveBeenCalledWith(
+        task.id,
+        0,
+        { url: 'https://cdn.example.com/first.mp4' }
+      )
+    )
+    // The dialog does not move the file to result 2: it asks for a new choice and a new confirmation.
+    expect(
+      await within(dialog).findByText(
+        'Result 1 can no longer take a manual result. Choose a result and confirm again.'
+      )
+    ).toBeVisible()
+    expect(within(dialog).getByText('Choose a result')).toBeVisible()
+    expect(within(dialog).getByRole('checkbox')).not.toBeChecked()
+    fireEvent.click(
+      within(dialog).getByText('I confirm this is the result of this task')
+    )
+    expect(submit).toBeDisabled()
+    expect(api.requestCanvasTaskManualResult).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the only eligible result of a task with several results, with its Provider task ID', async () => {
+    const output = (
+      outputIndex: number,
+      executionStatus: string,
+      billingStatus: string
+    ) => ({
+      outputIndex,
+      quotedPoints: '7',
+      settledPoints: executionStatus === 'SUCCEEDED' ? '7' : null,
+      executionStatus,
+      billingStatus,
+      error: null,
+      usageSnapshot: null,
+      completedAt: null,
+      billingFinalizedAt: null,
+      customerSafeErrorDetail: null,
+    })
+    api.getCanvasAdminTaskRecord.mockResolvedValue({
+      ...task,
+      derivedExecutionStatus: 'UNKNOWN',
+      executionStatus: 'UNKNOWN',
+      customerBillingStatus: 'FROZEN',
+      unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
+      earlyReleaseAllowed: true,
+      outputs: [
+        output(0, 'SUCCEEDED', 'SETTLED'),
+        output(1, 'UNKNOWN', 'FROZEN'),
+      ],
+      manualResultTargets: [
+        { outputIndex: 1, upstreamTaskId: 'upstream-second' },
+      ],
+      manualResults: [],
+    })
+    mount()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Enter a manual result' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('Result 2')).toBeVisible()
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(dialog).getByText('upstream-second')).toBeVisible()
+    expect(
+      within(dialog).getByText(
+        "Use this ID to find the file in the provider's console."
+      )
+    ).toBeVisible()
+    // Submitted without a reason: the request carries none.
+    api.requestCanvasTaskManualResult.mockResolvedValue({})
+    fireEvent.change(within(dialog).getByLabelText('File URL'), {
+      target: { value: 'https://cdn.example.com/second.mp4' },
+    })
+    fireEvent.click(
+      within(dialog).getByText('I confirm this is the result of this task')
+    )
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Submit manual result' })
+    )
+    await waitFor(() =>
+      expect(api.requestCanvasTaskManualResult).toHaveBeenCalledWith(
+        task.id,
+        1,
+        { url: 'https://cdn.example.com/second.mp4' }
+      )
+    )
+  })
+
+  it('offers no manual result when no result is eligible', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValue(task)
+    mount()
+    expect(await screen.findByText('UAT customer')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Enter a manual result' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Manual result records')).not.toBeInTheDocument()
   })
 
   it('force-ends a processing task with the early-release dialog, counting only its unfinished frozen result', async () => {

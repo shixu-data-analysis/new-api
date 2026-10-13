@@ -67,6 +67,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { DetailValue } from './DetailValue'
+import { ManualResultDialog } from './ManualResultDialog'
 import { PreflightDiagnosticDetails } from './PreflightDiagnosticDetails'
 import {
   ProviderCostRevocationDialog,
@@ -138,8 +139,20 @@ const lotTypes: Record<string, string> = {
   BONUS: 'Bonus points',
   GRACE_BONUS: 'Grace bonus points',
 }
+const manualResultStatuses: Record<string, string> = {
+  PENDING: 'Waiting for the executor',
+  APPLIED: 'Manual result applied',
+  FAILED: 'Manual result not applied',
+}
+// A manual result fails for an output retrieval reason (errorCategories) or because its result stopped waiting.
+const manualResultFailureReasons: Record<string, string> = {
+  OUTPUT_NOT_AWAITING_RESULT:
+    'The result no longer waited: the provider answered first or the points were released',
+}
 const earlyReleaseBlockedReasons: Record<string, string> = {
   TASK_NOT_ELIGIBLE: 'This task is not eligible for early point release.',
+  MANUAL_RESULT_PENDING:
+    'A manual result is being processed. Points can be released after it finishes.',
   ACTIVE_EXECUTOR_CLAIM:
     'An executor is still handling this task. Try again after its claim ends.',
   ACTIVE_REQUEST_LEASE:
@@ -672,11 +685,19 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   const [releaseError, setReleaseError] = useState('')
   const [releaseConflict, setReleaseConflict] = useState(false)
   const [reasonTried, setReasonTried] = useState(false)
+  const [manualResultOpen, setManualResultOpen] = useState(false)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const query = useQuery({
     queryKey: ['canvas-cloud', 'task-record', taskId],
     queryFn: ({ signal }) => getCanvasAdminTaskRecord(taskId, signal),
     retry: false,
+    // The executor applies a manual result after it is submitted; refresh until it is applied or not applied.
+    refetchInterval: (current) =>
+      current.state.data?.manualResults.some(
+        (manual) => manual.status === 'PENDING'
+      )
+        ? 5_000
+        : false,
   })
   const release = useMutation({
     // The variable says whether this release force-ends a processing task.
@@ -813,6 +834,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
     : releasableOutputs
         .reduce((sum, output) => sum + BigInt(output.quotedPoints), 0n)
         .toString()
+  const manualResultShown = task.manualResultTargets.length > 0
   const multipleResults = task.outputs.length > 1
   const releaseValues = {
     points: releasablePoints,
@@ -927,11 +949,12 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
         ) : null}
       </dl>
       <Accordion
-        defaultValue={
-          task.derivedExecutionStatus === 'SUCCEEDED'
+        defaultValue={[
+          ...(task.derivedExecutionStatus === 'SUCCEEDED'
             ? []
-            : ['customer-view', 'execution-details']
-        }
+            : ['customer-view', 'execution-details']),
+          ...(task.manualResults.length > 0 ? ['manual-results'] : []),
+        ]}
       >
         {task.derivedExecutionStatus !== 'SUCCEEDED' ? (
           <AccordionItem value='customer-view'>
@@ -1040,6 +1063,70 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
             <ExecutionDetails task={task} />
           </AccordionContent>
         </AccordionItem>
+        {task.manualResults.length > 0 ? (
+          <AccordionItem value='manual-results'>
+            <AccordionTrigger>{t('Manual result records')}</AccordionTrigger>
+            <AccordionContent>
+              <ul className='divide-y text-sm'>
+                {task.manualResults.map((manual) => (
+                  <li key={manual.id} className='space-y-1 py-3 first:pt-0'>
+                    <div className='flex flex-wrap items-center justify-between gap-2'>
+                      <span className='font-medium'>
+                        {t('Result {{position}}', {
+                          position: manual.outputIndex + 1,
+                        })}
+                      </span>
+                      <span
+                        className={
+                          manual.status === 'FAILED'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }
+                      >
+                        {t(manualResultStatuses[manual.status] ?? 'Unknown')}
+                      </span>
+                    </div>
+                    {manual.status === 'FAILED' && manual.failureReasonCode ? (
+                      <p className='text-destructive'>
+                        {t(
+                          manualResultFailureReasons[
+                            manual.failureReasonCode
+                          ] ??
+                            errorCategories[manual.failureReasonCode] ??
+                            'Unknown error category'
+                        )}
+                      </p>
+                    ) : null}
+                    {manual.upstreamTaskId ? (
+                      <p className='text-muted-foreground text-xs'>
+                        {t('Upstream task ID')}{' '}
+                        <span className='font-mono [overflow-wrap:anywhere]'>
+                          {manual.upstreamTaskId}
+                        </span>
+                      </p>
+                    ) : null}
+                    <p className='font-mono text-xs [overflow-wrap:anywhere]'>
+                      {manual.resultUrl}
+                    </p>
+                    {manual.reason ? (
+                      <p className='[overflow-wrap:anywhere]'>
+                        {manual.reason}
+                      </p>
+                    ) : null}
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Submitted by {{name}} at {{time}}', {
+                        name:
+                          manual.requestedBy.displayName ??
+                          t('Unknown administrator'),
+                        time: formatTime(locale, manual.createdAt),
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </AccordionContent>
+          </AccordionItem>
+        ) : null}
         <AccordionItem value='point-records'>
           <AccordionTrigger>{t('Point records')}</AccordionTrigger>
           <AccordionContent>
@@ -1047,9 +1134,11 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-      {releaseActionShown ? (
+      {releaseActionShown || manualResultShown ? (
         <div className='bg-background/95 sticky bottom-0 flex flex-col items-end gap-2 border-t py-4 backdrop-blur'>
-          {!task.earlyReleaseAllowed && task.earlyReleaseBlockedReason ? (
+          {releaseActionShown &&
+          !task.earlyReleaseAllowed &&
+          task.earlyReleaseBlockedReason ? (
             <p className='text-muted-foreground text-sm'>
               {t(
                 earlyReleaseBlockedReasons[task.earlyReleaseBlockedReason] ??
@@ -1057,16 +1146,34 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
               )}
             </p>
           ) : null}
-          <Button
-            type='button'
-            variant='destructive'
-            disabled={!task.earlyReleaseAllowed}
-            onClick={() => setReleaseOpen(true)}
-          >
-            {t(releaseActionLabel)}
-          </Button>
+          <div className='flex flex-wrap justify-end gap-2'>
+            {manualResultShown ? (
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => setManualResultOpen(true)}
+              >
+                {t('Enter a manual result')}
+              </Button>
+            ) : null}
+            {releaseActionShown ? (
+              <Button
+                type='button'
+                variant='destructive'
+                disabled={!task.earlyReleaseAllowed}
+                onClick={() => setReleaseOpen(true)}
+              >
+                {t(releaseActionLabel)}
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
+      <ManualResultDialog
+        task={task}
+        open={manualResultOpen}
+        onOpenChange={setManualResultOpen}
+      />
       <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

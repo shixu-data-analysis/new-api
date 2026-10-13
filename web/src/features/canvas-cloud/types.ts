@@ -1621,6 +1621,8 @@ export interface CanvasAdminTaskLogQuery {
   frozenResultsOnly?: boolean
   credentialGroupId?: string
   failureReason?: CanvasAdminTaskFailureReason
+  /** Tasks with a provider call that received a status the interface template does not list. */
+  unrecognizedStatus?: 'present'
   billingStatus?: string
   executionOrigin?: 'REAL' | 'MOCK'
   from?: string
@@ -1776,6 +1778,20 @@ export interface CanvasAdminTaskProviderCost {
   }>
 }
 
+/** An administrator's manual result for one UNKNOWN output with frozen points, applied by the Executor that next claims the task. */
+export interface CanvasAdminTaskManualResult {
+  id: string
+  outputIndex: number
+  upstreamTaskId: string | null
+  status: 'PENDING' | 'APPLIED' | 'FAILED'
+  resultUrl: string
+  reason: string | null
+  failureReasonCode: string | null
+  requestedBy: { principalId: string; displayName: string | null }
+  createdAt: string
+  completedAt: string | null
+}
+
 export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
@@ -1798,9 +1814,16 @@ export interface CanvasAdminTaskRecordDetail {
   earlyReleaseAllowed: boolean
   earlyReleaseBlockedReason:
     | 'TASK_NOT_ELIGIBLE'
+    | 'MANUAL_RESULT_PENDING'
     | 'ACTIVE_EXECUTOR_CLAIM'
     | 'ACTIVE_REQUEST_LEASE'
     | null
+  /** Results an administrator may enter a manual result for, with the Provider task that covers each. */
+  manualResultTargets: Array<{
+    outputIndex: number
+    upstreamTaskId: string | null
+  }>
+  manualResults: CanvasAdminTaskManualResult[]
   providerCost?: CanvasAdminTaskProviderCost
   parameters: Record<string, string | number | boolean | null> | null
   multiResultMode: 'NATIVE' | 'FANOUT'

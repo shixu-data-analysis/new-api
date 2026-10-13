@@ -377,6 +377,16 @@ export function CallDetails({
         ] as Array<[string, ReactNode, boolean?]>)
       : []),
     ['Execution judgement', executionJudgementText(call.executionJudgement, t)],
+    ...(call.unrecognizedStatus
+      ? ([
+          [
+            'Unrecognized provider status',
+            <span key='unrecognized-status' className='font-mono'>
+              {call.unrecognizedStatus}
+            </span>,
+          ],
+        ] as Array<[string, ReactNode, boolean?]>)
+      : []),
     ...(call.matchedRule?.adminNote.trim()
       ? ([
           ['Administrator rationale', call.matchedRule.adminNote, true],

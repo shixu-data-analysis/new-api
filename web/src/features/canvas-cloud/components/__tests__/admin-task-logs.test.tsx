@@ -103,6 +103,8 @@ const task = {
 
 const taskDetail = {
   ...task,
+  manualResultTargets: [],
+  manualResults: [],
   quotedPoints: '20',
   deductedPoints: '12',
   releasedPoints: '8',
@@ -395,6 +397,37 @@ describe('Canvas administrator task records', () => {
     await waitFor(() =>
       expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
         expect.not.objectContaining({ credentialGroupId: groupId }),
+        expect.any(AbortSignal)
+      )
+    )
+  })
+
+  it('filters to tasks that received an unrecognized provider status, shown as a removable chip', async () => {
+    const user = userEvent.setup()
+    routeState.set({
+      unrecognizedStatus: 'present',
+      from: '2026-10-04T12:00:00.000Z',
+    })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          unrecognizedStatus: 'present',
+          from: '2026-10-04T12:00:00.000Z',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    await user.click(
+      within(tags).getByRole('button', {
+        name: 'Remove filter Received an unrecognized provider status',
+      })
+    )
+    expect(routeState.get()).not.toHaveProperty('unrecognizedStatus')
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ unrecognizedStatus: 'present' }),
         expect.any(AbortSignal)
       )
     )

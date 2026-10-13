@@ -856,6 +856,17 @@ const SPECS: Record<string, ActionSpec> = {
     ],
     reason: { label: 'Release mode' },
   },
+  'task.execution.admin_manual_result_requested': {
+    objectType: 'Customer',
+    objectName: customerName(),
+    idLabel: 'Task number',
+    fields: [
+      customerField,
+      reasonField,
+      { key: 'outputIndex', label: 'Output index', kind: 'positions' },
+      { key: 'resultOrigin', label: 'Result file site' },
+    ],
+  },
   'task.provider_cost.settled': {
     objectType: 'Customer',
     objectName: customerName(),
@@ -950,6 +961,17 @@ const SPECS: Record<string, ActionSpec> = {
         kind: 'diagnostic',
       },
     ],
+    reason: { label: 'Failure reason' },
+  },
+  'executor.manual_result.applied': {
+    objectType: 'Task',
+    idLabel: 'Task number',
+    fields: [{ key: 'outputIndex', label: 'Output index', kind: 'positions' }],
+  },
+  'executor.manual_result.failed': {
+    objectType: 'Task',
+    idLabel: 'Task number',
+    fields: [{ key: 'outputIndex', label: 'Output index', kind: 'positions' }],
     reason: { label: 'Failure reason' },
   },
   'executor.output.retrieval_retry': outputRetrieval,
@@ -1079,6 +1101,9 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'executor.drain.started': 'Start draining',
   'executor.drain.cancelled': 'Cancel draining',
   'task.execution.admin_frozen_points_released': 'Release frozen points early',
+  'task.execution.admin_manual_result_requested': 'Enter a manual result',
+  'executor.manual_result.applied': 'Manual result applied',
+  'executor.manual_result.failed': 'Manual result not applied',
   'task.provider_cost.settled': 'Settle cost',
   'task.provider_cost.settlement_revoked': 'Revoke settlement',
   'agent.withdrawal.requested': 'Withdrawal request submitted',
@@ -1174,6 +1199,15 @@ const REASON_VALUE_KEYS: Record<string, string> = {
   RESTORED_DEFAULT: 'Restore default',
   BILLING_UNIT_CHANGED: 'Billing unit changed',
   ADMIN_CONFIRMED_UPSTREAM_FAILED: 'Provider failure confirmed',
+  // Why a manual result was not applied: an output retrieval reason, or its result stopped waiting.
+  OUTPUT_NOT_AWAITING_RESULT:
+    'The result no longer waited: the provider answered first or the points were released',
+  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
+  PROVIDER_OUTPUT_LOCATION_REJECTED: 'Result address rejected',
+  PROVIDER_OUTPUT_DOWNLOAD_FAILED: 'Result download failed',
+  PROVIDER_OUTPUT_UNSUPPORTED_MEDIA: 'Result is not usable media',
+  PROVIDER_OUTPUT_INVALID: 'Result file invalid',
+  OUTPUT_STORAGE_FAILED: 'Result storage failed',
 }
 
 export function auditReasonRow(

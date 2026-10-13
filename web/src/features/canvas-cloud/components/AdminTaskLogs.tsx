@@ -164,6 +164,7 @@ export function AdminTaskLogs() {
   const frozenResultsOnly = search.frozenResultsOnly === true
   const credentialGroupId = search.credentialGroupId ?? ''
   const failureReason = search.failureReason
+  const unrecognizedStatus = search.unrecognizedStatus
   const from = useMemo(
     () => (search.from ? new Date(search.from) : undefined),
     [search.from]
@@ -202,6 +203,7 @@ export function AdminTaskLogs() {
     debouncedUpstreamTaskId,
     derivedExecutionStatus,
     failureReason,
+    unrecognizedStatus,
     from,
     frozenResultsOnly,
     model,
@@ -226,6 +228,7 @@ export function AdminTaskLogs() {
       specificUpstreamTask ? debouncedUpstreamTaskId : '',
       credentialGroupId,
       failureReason,
+      unrecognizedStatus,
       billingStatus,
       from?.toISOString(),
       to?.toISOString(),
@@ -249,6 +252,7 @@ export function AdminTaskLogs() {
             : {}),
           ...(credentialGroupId ? { credentialGroupId } : {}),
           ...(failureReason ? { failureReason } : {}),
+          ...(unrecognizedStatus ? { unrecognizedStatus } : {}),
           ...(billingStatus ? { billingStatus } : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
@@ -489,6 +493,11 @@ export function AdminTaskLogs() {
       key: 'failureReason',
       label: tag(t('Failure reason'), t(failureReasonLabels[failureReason])),
       remove: () => setSearch({ failureReason: undefined }),
+    },
+    unrecognizedStatus && {
+      key: 'unrecognizedStatus',
+      label: t('Received an unrecognized provider status'),
+      remove: () => setSearch({ unrecognizedStatus: undefined }),
     },
   ].filter((item): item is { key: string; label: string; remove: () => void } =>
     Boolean(item)

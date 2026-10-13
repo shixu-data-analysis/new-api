@@ -53,6 +53,8 @@ export interface CanvasTaskCall {
   responseBodyRecorded: boolean
   responseFromQuery: boolean
   providerResponseDiagnostic: CanvasProviderResponseDiagnostic | null
+  /** The latest provider status in this call chain that the interface template lists in no state group. */
+  unrecognizedStatus: string | null
   gatewayError?: GatewayError
   errorRuleId: string | null
   errorRuleVersion: number | null

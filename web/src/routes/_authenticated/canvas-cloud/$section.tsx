@@ -74,6 +74,7 @@ const taskLogSearch = {
     .enum(['PROVIDER_OUTPUT_TOO_LARGE', 'RETRY_EXHAUSTED'])
     .optional()
     .catch(undefined),
+  unrecognizedStatus: z.literal('present').optional().catch(undefined),
   from: z.string().datetime({ offset: true }).optional().catch(undefined),
 }
 

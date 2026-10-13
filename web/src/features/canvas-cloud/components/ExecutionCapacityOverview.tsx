@@ -136,6 +136,7 @@ export function TaskLogCountLink(props: {
     | 'upstreamTask'
     | 'credentialGroupId'
     | 'failureReason'
+    | 'unrecognizedStatus'
     | 'from'
   >
   label?: string

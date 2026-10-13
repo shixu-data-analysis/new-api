@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 */
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -53,6 +53,9 @@ export function ExecutionAttentionCard(props: {
                       'When it is full, the instance stops taking new tasks. Add executor instances or raise the poll interval.'
                     )
                   : null}
+                {hint.type === 'UNRECOGNIZED_PROVIDER_STATUS'
+                  ? `${t('These tasks keep querying. Once the meaning of each value is confirmed, add it to the interface template and publish a new catalog.')} `
+                  : null}
                 {hint.latestAt
                   ? t('Latest {{time}}', {
                       time: formatCanvasDateTime(hint.latestAt),
@@ -72,6 +75,32 @@ export function ExecutionAttentionCard(props: {
                   </>
                 ) : null}
               </p>
+              {hint.unrecognizedStatuses?.length ? (
+                <ul className='text-muted-foreground space-y-0.5'>
+                  {hint.unrecognizedStatuses.map((entry) => (
+                    <li
+                      key={`${entry.channelCode}:${entry.status}`}
+                      className='[overflow-wrap:anywhere]'
+                    >
+                      {/* The status is the raw value, exactly as the interface template needs it. */}
+                      <Trans
+                        i18nKey='{{provider}} / {{channel}}: <status>{{status}}</status> ({{count}} tasks)'
+                        values={{
+                          provider: entry.providerName,
+                          channel: entry.channelCode,
+                          status: entry.status,
+                          count: entry.taskCount,
+                        }}
+                        components={{
+                          status: (
+                            <code className='text-foreground font-mono' />
+                          ),
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ul>
