@@ -8,7 +8,6 @@ import {
   within,
 } from '@testing-library/react'
 import i18next from 'i18next'
-import { useRef } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
@@ -154,10 +153,9 @@ const pointRecord = {
 
 function mount() {
   function View() {
-    const ref = useRef<HTMLDivElement | null>(null)
     return (
-      <div ref={ref}>
-        <AdminTaskRecordDetails taskId={task.id} scrollContainerRef={ref} />
+      <div>
+        <AdminTaskRecordDetails taskId={task.id} />
       </div>
     )
   }

@@ -21,22 +21,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   activateCanvasInvite,
   cancelCanvasLimitedPricePromotion,
-  cancelScheduledCanvasPrice,
-  approveCanvasPriceDraft,
-  approveCanvasPointIssuanceRate,
-  createCanvasPointIssuanceRateDraft,
-  createCanvasLimitedPricePromotion,
   createCanvasAdminInviteCode,
   checkCanvasInviteCodeAvailability,
   previewCanvasInviteCodeExtension,
   extendCanvasAdminInviteCode,
   expandCanvasAdminInviteCodeCapacity,
   downloadCanvasUnusedRechargeCodes,
-  createCanvasPriceDraft,
-  approveCanvasPriceGroup,
-  createCanvasPriceGroupDraft,
   getCanvasPriceGroups,
-  publishCanvasPriceGroup,
   getCanvasAdminRechargeCodes,
   getCanvasAdminRechargeCodeBatchItems,
   searchCanvasAdminRechargeCodeBatch,
@@ -48,7 +39,6 @@ import {
   getCanvasAdminWorkspace,
   getCanvasAuditEvents,
   getCanvasAdminTestingModels,
-  getCanvasCustomerWorkspace,
   getCanvasCustomerPointSummary,
   getCanvasCustomerRechargeRedemptions,
   getCanvasCustomerTasks,
@@ -68,13 +58,9 @@ import {
   changeCanvasAdminInviteCodeStatus,
   normalizeCanvasRechargePurchaseLink,
   planCanvasModelCatalogImport,
-  publishCanvasPriceVersion,
-  publishConfirmedCanvasPriceChange,
-  publishConfirmedCanvasInitialPrice,
   publishConfirmedCanvasPointIssuanceRate,
   publishConfirmedCanvasPriceGroup,
   publishConfirmedCanvasTaskPolicySettings,
-  publishCanvasPointIssuanceRate,
   publishCanvasModelCatalogImport,
   getCanvasClientPresentation,
   publishCanvasClientPresentation,
@@ -85,15 +71,12 @@ import {
   getCanvasAgentInviteCodes,
   searchCanvasAgentInviteCodes,
   getCanvasAgentCustomers,
-  getCanvasProviderPricingMatrix,
   getCanvasProviderCredentialGroupChanges,
   provisionCanvasAgent,
-  publishCanvasProviderRate,
   publishCanvasProviderCredentialGroup,
   publishCanvasCredentialGroupManagement,
   archiveCanvasCredentialGroup,
   restoreCanvasCredentialGroup,
-  resolveCanvasProviderRateRisk,
   revealCanvasCode,
   deductCanvasPointLot,
   getCanvasAdminCustomerPointLots,
@@ -106,7 +89,6 @@ import {
   getCanvasOrderPointReturns,
   getCanvasTaskLogOptions,
   getCanvasTaskPointLedger,
-  getCanvasTaskPointLedgerDetail,
   grantCanvasManualBonus,
   grantCanvasPaidCorrection,
   previewCanvasOrderPointReturn,
@@ -313,14 +295,7 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('keeps Canvas customer and administrator reads under the isolated proxy prefix', async () => {
-    mocks.get.mockResolvedValue({
-      data: { wallet: {}, rechargeOrders: [], tasks: [], ledger: [] },
-    })
-    await getCanvasCustomerWorkspace()
-    expect(mocks.get).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/customer/workspace'
-    )
+  it('keeps Canvas administrator reads under the isolated proxy prefix', async () => {
     mocks.get.mockResolvedValue({
       data: { channels: [], prices: [], refunds: [], reconciliationTasks: [] },
     })
@@ -536,11 +511,6 @@ describe('Canvas Cloud API boundary', () => {
         skipErrorHandler: true,
       }
     )
-    await getCanvasTaskPointLedgerDetail('task-id', 'ledger-id')
-    expect(mocks.get).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/tasks/task-id/point-ledger/ledger-id',
-      { signal: undefined, skipErrorHandler: true }
-    )
 
     await getCanvasOrderPointReturns('customer-id', 'order-id', {
       operator: 'Canvas Admin',
@@ -642,7 +612,7 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.post).not.toHaveBeenCalled()
   })
 
-  it('uses protected administrator routes for testing models and initial pricing', async () => {
+  it('uses protected administrator routes for testing models', async () => {
     mocks.get.mockResolvedValue({
       data: [
         {
@@ -665,27 +635,6 @@ describe('Canvas Cloud API boundary', () => {
       channelEnabled: true,
       effectiveEnabled: true,
     })
-
-    const input = {
-      codeMode: 'GENERATED' as const,
-      customerModelId: 'model-id',
-      priceGroupId: 'group-id',
-      parameterCombinationId: 'combination-id',
-      points: '20',
-      targetMarginRate: '0.4',
-      successProbability: '0.9',
-      successfulTaskCostRmb: '0.16',
-      failedUnrecoverableCostRmb: '0.18',
-      otherVariableCostRmb: '0',
-      riskBufferRmb: '0.02',
-    }
-    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
-    await publishConfirmedCanvasInitialPrice(input)
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/price-versions/initial-publications',
-      { ...input, confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
   })
 
   it('uses raw source import planning and publishes only the frozen import', async () => {
@@ -817,85 +766,18 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('sends publication through the role-authenticated Web route with an idempotency key', async () => {
-    mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
-    await publishCanvasPriceVersion('price-version-id')
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/price-versions/price-version-id/publish',
-      undefined,
-      { headers: { 'Idempotency-Key': expect.stringMatching(/^web-price-/) } }
-    )
-  })
-
-  it('keeps price draft creation and PLATFORM_ADMIN approval on distinct protected calls', async () => {
-    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
-    const input = {
-      sourcePriceVersionId: 'published-price-id',
-      points: '20',
-      targetMarginRate: '0.4',
-      successProbability: '0.9',
-      successfulTaskCostRmb: '0.16',
-      failedUnrecoverableCostRmb: '0.18',
-      otherVariableCostRmb: '0',
-      riskBufferRmb: '0.02',
-    }
-    await createCanvasPriceDraft(input)
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
-      '/canvas-api/v1/web/admin/price-versions/drafts',
-      input,
-      {
-        headers: {
-          'Idempotency-Key': expect.stringMatching(/^web-price-draft-/),
-        },
-        skipErrorHandler: true,
-      }
-    )
-
-    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
-    await approveCanvasPriceDraft('draft-price-id', 'Reviewed frozen formula')
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
-      '/canvas-api/v1/web/admin/price-versions/draft-price-id/approve',
-      { reason: 'Reviewed frozen formula' },
-      {
-        headers: {
-          'Idempotency-Key': expect.stringMatching(/^web-price-approve-/),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  })
-
   it('uses confirmed publication routes for the single-administrator pricing workflow', async () => {
     mocks.post.mockResolvedValue({ data: { status: 'PUBLISHED' } })
-    const price = {
-      sourcePriceVersionId: 'published-price-id',
-      points: '20',
-      targetMarginRate: '0.250000',
-      successProbability: '0.9',
-      successfulTaskCostRmb: '0.16',
-      failedUnrecoverableCostRmb: '0.18',
-      otherVariableCostRmb: '0',
-      riskBufferRmb: '0.02',
-    }
-    await publishConfirmedCanvasPriceChange(price)
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
-      '/canvas-api/v1/web/admin/price-versions/publications',
-      { ...price, confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
     await publishConfirmedCanvasPointIssuanceRate({ pointsPerRmb: '60' })
     expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
+      1,
       '/canvas-api/v1/web/admin/point-issuance-rates/publications',
       { pointsPerRmb: '60', confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
     )
     await publishConfirmedCanvasPriceGroup({ internalName: '测试客户' })
     expect(mocks.post).toHaveBeenNthCalledWith(
-      3,
+      2,
       '/canvas-api/v1/web/admin/price-groups/publications',
       { internalName: '测试客户', confirmed: true },
       expect.objectContaining({ skipErrorHandler: true })
@@ -953,50 +835,8 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('sends the future timestamp and protects scheduled cancellation', async () => {
-    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
-    const effectiveAt = '2026-08-29T00:00:00.000Z'
-    await publishConfirmedCanvasPriceChange({
-      sourcePriceVersionId: 'published-price-id',
-      points: '20',
-      targetMarginRate: '0.25',
-      successProbability: '0.9',
-      successfulTaskCostRmb: '0.16',
-      failedUnrecoverableCostRmb: '0.18',
-      otherVariableCostRmb: '0',
-      riskBufferRmb: '0.02',
-      effectiveAt,
-    })
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/price-versions/publications',
-      expect.objectContaining({ effectiveAt, confirmed: true }),
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await cancelScheduledCanvasPrice('scheduled-price-id')
-    expect(mocks.post).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/price-versions/scheduled-price-id/cancel-schedule',
-      { confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-  })
-
-  it('keeps limited-time specials on confirmed administrator-only routes', async () => {
-    mocks.post.mockResolvedValue({ data: { status: 'APPROVED' } })
-    const input = {
-      sourcePriceVersionId: 'published-price-id',
-      specialPoints: '15',
-      startsAt: '2026-08-29T00:00:00.000Z',
-      endsAt: '2026-08-30T00:00:00.000Z',
-      campaignBudgetMinor: '10000',
-      maxParticipants: '100',
-      approvalReason: 'Approved launch promotion',
-    }
-    await createCanvasLimitedPricePromotion(input)
-    expect(mocks.post).toHaveBeenCalledWith(
-      '/canvas-api/v1/web/admin/limited-price-promotions',
-      { ...input, confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
+  it('keeps limited-time special cancellation on a confirmed administrator-only route', async () => {
+    mocks.post.mockResolvedValue({ data: { status: 'STOPPED' } })
     await cancelCanvasLimitedPricePromotion('promotion-version-id')
     expect(mocks.post).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/admin/limited-price-promotions/promotion-version-id/cancel',
@@ -1005,68 +845,19 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('keeps issuance-rate reads and controlled transitions on dedicated Web routes', async () => {
+  it('keeps issuance-rate reads on dedicated Web routes', async () => {
     mocks.get.mockResolvedValue({ data: [] })
     await getCanvasPointIssuanceRates()
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/point-issuance-rates'
     )
-    const input = {
-      pointsPerRmb: '60',
-    }
-    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
-    await createCanvasPointIssuanceRateDraft(input)
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
-      '/canvas-api/v1/web/admin/point-issuance-rates/drafts',
-      input,
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await approveCanvasPointIssuanceRate('rate-v2', 'Reviewed and approved')
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
-      '/canvas-api/v1/web/admin/point-issuance-rates/rate-v2/approve',
-      { reason: 'Reviewed and approved' },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await publishCanvasPointIssuanceRate('rate-v2')
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      3,
-      '/canvas-api/v1/web/admin/point-issuance-rates/rate-v2/publish',
-      undefined,
-      expect.objectContaining({ skipErrorHandler: true })
-    )
   })
 
-  it('keeps PriceGroup reads and governed transitions on dedicated Web routes', async () => {
+  it('keeps PriceGroup reads on dedicated Web routes', async () => {
     mocks.get.mockResolvedValue({ data: [] })
     await getCanvasPriceGroups()
     expect(mocks.get).toHaveBeenCalledWith(
       '/canvas-api/v1/web/admin/price-groups'
-    )
-    mocks.post.mockResolvedValue({ data: { status: 'DRAFT' } })
-    await createCanvasPriceGroupDraft({
-      internalName: '测试客户',
-    })
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      1,
-      '/canvas-api/v1/web/admin/price-groups/drafts',
-      { internalName: '测试客户' },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await approveCanvasPriceGroup('group-v1', 'Reviewed and approved')
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      2,
-      '/canvas-api/v1/web/admin/price-groups/group-v1/approve',
-      { reason: 'Reviewed and approved' },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await publishCanvasPriceGroup('group-v1')
-    expect(mocks.post).toHaveBeenNthCalledWith(
-      3,
-      '/canvas-api/v1/web/admin/price-groups/group-v1/publish',
-      undefined,
-      expect.objectContaining({ skipErrorHandler: true })
     )
   })
 
@@ -1394,7 +1185,7 @@ describe('Canvas Cloud API boundary', () => {
     expect(config.params).not.toHaveProperty('codeSuffix')
   })
 
-  it('uses explicit role-scoped Agent and provider-rate endpoints', async () => {
+  it('uses explicit role-scoped Agent endpoints', async () => {
     mocks.get.mockResolvedValue({ data: [] })
     const agentQuery = {
       page: 1,
@@ -1451,10 +1242,6 @@ describe('Canvas Cloud API boundary', () => {
       '/canvas-api/v1/web/agent/customers',
       { params: agentCustomerQuery, signal: undefined }
     )
-    await getCanvasProviderPricingMatrix()
-    expect(mocks.get).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/provider-pricing-matrix'
-    )
 
     mocks.post.mockResolvedValue({ data: {} })
     await provisionCanvasAgent({
@@ -1471,41 +1258,6 @@ describe('Canvas Cloud API boundary', () => {
     expect(mocks.post).toHaveBeenLastCalledWith(
       '/canvas-api/v1/web/agent/invite-codes/invite-v1/reveal',
       { action: 'COPY', confirmed: true },
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await publishCanvasProviderRate({
-      customerModelId: 'model-v1',
-      parameterCombinationId: 'quality-4k',
-      billingUnit: 'REQUEST',
-      nativeAmount: '0.40',
-      currency: 'CNY',
-      exchangeRateSnapshot: {
-        rate: '1',
-        source: 'contract',
-        asOf: '2026-08-30T00:00:00.000Z',
-      },
-      normalizedAmountMinor: '0.40',
-      failureChargePolicy: { mode: 'NONE' },
-      decisionSummary: 'Approved contract update',
-    })
-    expect(mocks.post).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/provider-rate-versions/publications',
-      expect.objectContaining({ billingUnit: 'REQUEST', confirmed: true }),
-      expect.objectContaining({ skipErrorHandler: true })
-    )
-    await resolveCanvasProviderRateRisk({
-      providerRateVersionId: 'rate-v1',
-      decisionType: 'TEMPORARY_LOSS',
-      lossEndsAt: '2026-09-01T00:00:00.000Z',
-      maxExpectedLossPoints: '100',
-      reason: 'Approved transition loss',
-    })
-    expect(mocks.post).toHaveBeenLastCalledWith(
-      '/canvas-api/v1/web/admin/provider-rate-risk-decisions',
-      expect.objectContaining({
-        confirmed: true,
-        decisionType: 'TEMPORARY_LOSS',
-      }),
       expect.objectContaining({ skipErrorHandler: true })
     )
   })

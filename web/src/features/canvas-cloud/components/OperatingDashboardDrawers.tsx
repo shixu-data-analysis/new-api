@@ -1288,7 +1288,6 @@ export function OperatingDashboardDrawers(props: {
 }) {
   const { t } = useTranslation()
   const listScroll = useRef<HTMLDivElement | null>(null)
-  const detailScroll = useRef<HTMLDivElement | null>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   const [detail, setDetail] = useState<DrawerDetail>()
   useEffect(() => setDetail(undefined), [props.request])
@@ -1359,16 +1358,12 @@ export function OperatingDashboardDrawers(props: {
           ) : null}
         </div>
         {detail?.kind === 'task' ? (
-          <div ref={detailScroll} className={sideDrawerFormClassName()}>
-            <AdminTaskRecordDetails
-              key={detail.id}
-              taskId={detail.id}
-              scrollContainerRef={detailScroll}
-            />
+          <div className={sideDrawerFormClassName()}>
+            <AdminTaskRecordDetails key={detail.id} taskId={detail.id} />
           </div>
         ) : null}
         {detail?.kind === 'lot' ? (
-          <div ref={detailScroll} className={sideDrawerFormClassName()}>
+          <div className={sideDrawerFormClassName()}>
             <CustomerRecordDetails
               key={detail.id}
               customerId={detail.customerId}

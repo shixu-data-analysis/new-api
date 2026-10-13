@@ -49,7 +49,6 @@ export interface CanvasAdminProvisioningPrincipals {
 export interface CanvasRuntimeConfiguration {
   environment: 'UAT' | 'STG' | 'PROD'
   taskMedia: CanvasRuntimeTaskMediaConfiguration | null
-  databaseBackup: CanvasRuntimeDatabaseBackupConfiguration | null
 }
 
 export interface CanvasRuntimeTaskMediaConfiguration {
@@ -63,24 +62,6 @@ export interface CanvasRuntimeTaskMediaConfiguration {
   inputRetentionHours: number
   outputRetentionHours: number
   agentFileRetentionHours: number
-  downloadUrlTtlSeconds: number
-  reason: string
-  effectiveAt: string | null
-  createdByPrincipalId: string
-  updatedBy: string
-  createdAt: string
-  latestCheck: CanvasRuntimeConnectionCheck | null
-}
-
-export interface CanvasRuntimeDatabaseBackupConfiguration {
-  id: string
-  version: number
-  status: string
-  endpoint: string
-  bucket: string
-  accessKeyId: string | null
-  credentialsConfigured: boolean
-  backupRetentionHours: number
   downloadUrlTtlSeconds: number
   reason: string
   effectiveAt: string | null
@@ -159,35 +140,6 @@ export interface CanvasProviderModel {
   credentialGroupName: string | null
   credentialGroupVersionId: string | null
   credentialGroupVersion: number | null
-  latestAccessCheck: CanvasModelAccessPermissionCheck | null
-}
-
-export interface CanvasProviderCredentialVersion {
-  id: string
-  credentialGroupId: string
-  providerId: string
-  providerCode: string
-  name: string
-  version: number
-  status: string
-  schemeNames: string[]
-  reason: string | null
-  effectiveAt: string | null
-  createdByPrincipalId: string
-  updatedBy: string
-  affectedModelCount: number | null
-  createdAt: string
-}
-
-export interface CanvasProviderCredentialHistoryQuery {
-  targetVersionId?: string
-  version?: number
-  operator?: string
-  reason?: string
-  sortBy: 'version' | 'effectiveAt' | 'updatedBy' | 'reason'
-  sortOrder: 'asc' | 'desc'
-  page: number
-  pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
 
 export interface CanvasProviderCredentialGroupChange {
@@ -216,27 +168,6 @@ export interface CanvasProviderCredentialGroupChange {
   }>
 }
 
-export interface CanvasCredentialVersionAffectedModels extends CanvasPage<{
-  id: string
-  displayNameSnapshot: string
-}> {
-  factAvailable: boolean
-}
-
-export interface CanvasModelCredentialBindingVersion {
-  id: string
-  version: number
-  status: string
-  credentialGroupId: string
-  credentialGroupVersionId: string
-  credentialGroupVersion: number
-  credentialGroupName: string
-  reason: string | null
-  effectiveAt: string | null
-  updatedBy: string
-  createdAt: string
-}
-
 export interface CanvasCredentialRotationPreview {
   credentialGroupId: string
   providerId: string
@@ -256,13 +187,6 @@ export interface CanvasCredentialRotationPreview {
 
 export interface CanvasRuntimeConnectionCheck {
   outcome: 'PASSED' | 'FAILED'
-  reasonCode: string | null
-  checkedBy?: string
-  checkedAt: string
-}
-
-export interface CanvasModelAccessPermissionCheck {
-  outcome: 'PASSED' | 'FAILED' | 'UNVERIFIABLE'
   reasonCode: string | null
   checkedBy?: string
   checkedAt: string
@@ -641,65 +565,6 @@ export interface CanvasTokenCategoryRisk {
   belowTargetMargin?: boolean
 }
 
-export interface CanvasProviderPricingRow {
-  providerId: string
-  providerCode: string
-  providerName: string
-  channelId: string
-  channelCode: string
-  customerModelId: string
-  modelKey: string
-  effectiveDisplayName: string
-  catalogDefaultName: string
-  combinationId: string
-  combinationKey: string
-  parameters: Record<string, unknown>
-  billingDimensions: Record<string, unknown>
-  upstreamModelId: string
-  rateId: string | null
-  rateVersion: number | null
-  rateStatus: string | null
-  billingUnit: CanvasBillingUnit | null
-  nativeAmount: string | null
-  tokenRates: CanvasTokenRateVector | null
-  currency: string | null
-  normalizedAmountMinor: string | null
-  normalizedTokenRates: CanvasTokenRateVector | null
-  failureChargePolicy:
-    | { mode: 'NONE' }
-    | { mode: 'SAME_AS_SUCCESS' }
-    | { mode: 'FIXED'; normalizedAmountMinor: string }
-    | null
-  rateEffectiveAt: string | null
-  prices: Array<{
-    id: string
-    groupId: string
-    groupName: string
-    billingUnit: CanvasBillingUnit
-    points: string
-    tokenRates: CanvasTokenRateVector | null
-    version: number
-    status: string
-    providerRateVersionId: string | null
-    effectiveAt: string | null
-    breakEvenPoints: string
-    newBreakEvenPoints: string | null
-    belowBreakEven: boolean
-    categoryRisks: CanvasTokenCategoryRisk[]
-    success_probability?: string
-    risk_buffer_minor?: string
-    pricing_assumptions_snapshot?: Record<string, unknown>
-  }>
-  riskDecision: {
-    id: string
-    decisionType: 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
-    lossEndsAt: string | null
-    maxExpectedLossPoints: string | null
-    consumedExpectedLossPoints: string
-    reason: string
-  } | null
-}
-
 export interface CanvasCreatedInviteCode {
   item: CanvasAdminInviteCode
   code: string | null
@@ -717,68 +582,6 @@ export interface CanvasInviteCodeExtensionPreview {
   newExpiresAt: string
   redeemable: boolean
   unavailableReasons: CanvasAdminInviteCode['unavailableReasons']
-}
-
-export interface CanvasCustomerWorkspace {
-  wallet: {
-    debtPoints?: string
-    netAvailablePoints?: string
-    availablePoints: string
-    paidAvailablePoints: string
-    bonusAvailablePoints: string
-    lots: Array<{
-      id: string
-      type: string
-      availablePoints: string
-      remainingPoints: string
-      reservedPoints: string
-      expiresAt: string | null
-      issuedAt: string
-    }>
-  }
-  rechargeOrders: Array<{
-    id: string
-    orderNumber: string
-    status: string
-    currency: string
-    listedAmountMinor: string
-    createdAt: string
-  }>
-  tasks: Array<{
-    id: string
-    displayNameSnapshot: string
-    quotedPoints: string
-    settledPoints?: string
-    outstandingDebtPoints?: string
-    outputSummaries?: Array<{
-      outputIndex: number
-      executionStatus: string
-      billingStatus: string
-      quotedPoints: string
-      settledPoints: string | null
-      error?: {
-        code: string | null
-        messages: Record<string, string> | null
-        upstreamReason?: string | null
-      } | null
-    }>
-    executionStatus: string
-    customerBillingStatus: string
-    providerReconcileStatus: string
-    acceptedAt: string
-    completedAt: string | null
-  }>
-  ledger: Array<{
-    id: string
-    eventType: string
-    eventPoints: string
-    remainingDelta: string
-    reservedDelta: string
-    taskId: string | null
-    refundLinkId: string | null
-    reason: string | null
-    occurredAt: string
-  }>
 }
 
 export interface CanvasCustomerPointSummary {
@@ -1363,37 +1166,6 @@ export interface CanvasModelPricingPriceSnapshot {
   }
 }
 
-export interface CanvasModelPricingPointsScope {
-  parameterCombinationId: string
-  providerRate:
-    | {
-        action?: 'SET'
-        nativeAmount: string
-        currency: string
-        exchangeRateSnapshot: { rate: string; source: string; asOf: string }
-        tokenRates?: CanvasModelPricingTokenRateVector
-        failureChargePolicy: CanvasModelPricingFailureChargePolicy
-      }
-    | {
-        action: 'KEEP'
-        sourceProviderRateVersionId: string
-      }
-  prices: Array<{
-    priceGroupId: string
-    action: 'KEEP' | 'SET'
-    sourcePriceVersionId?: string
-    points?: string
-    tokenRates?: CanvasModelPricingTokenRateVector
-    targetMarginRate?: string
-    tokenCategoryAssumptions?: CanvasTokenCategoryAssumptions
-    successProbability?: string
-    otherVariableCostRmb?: string
-    riskBufferRmb?: string
-    decisionSummary?: string
-    evidenceRefs?: string[]
-  }>
-}
-
 export type CanvasModelPricingCnyValue =
   | string
   | CanvasModelPricingTokenRateVector
@@ -1408,8 +1180,6 @@ export interface CanvasModelPricingCnyScope {
     customerPriceCny: CanvasModelPricingCnyValue
   }>
 }
-
-export type CanvasModelPricingScope = CanvasModelPricingPointsScope
 
 export interface CanvasModelPricingModel {
   id: string
@@ -1696,20 +1466,6 @@ export interface CanvasPage<T> {
   pageSize: number
   total: number
   items: T[]
-}
-
-export interface CanvasAdminRefund {
-  id: string
-  refundReference: string
-  customerConfirmationReference: string | null
-  orderNumber: string
-  status: string
-  cashAmountMinor: string
-  pointsRequested: string
-  pointsClawedBack: string
-  pointsOutstanding: string
-  recoveryStatus: string | null
-  createdAt: string
 }
 
 export interface CanvasPointLedgerItem {
@@ -2104,23 +1860,6 @@ export interface CanvasAdminTaskPointRecord {
   targetRemainingAfter: string | null
   targetReservedBefore: string | null
   targetReservedAfter: string | null
-}
-
-export interface CanvasTaskPointLedgerDetail {
-  id: string
-  occurredAt: string
-  eventType: string
-  eventPoints: string
-  pointLotId: string | null
-  lotType: string | null
-  taskOutputId: string | null
-  outputIndex: number | null
-  debtId: string | null
-  reason: string | null
-  remainingBefore: string | null
-  remainingAfter: string | null
-  reservedBefore: string | null
-  reservedAfter: string | null
 }
 
 export interface CanvasAdminPointLot {

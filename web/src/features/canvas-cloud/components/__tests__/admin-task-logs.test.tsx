@@ -27,7 +27,6 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminTaskRecord: vi.fn(),
   getCanvasTaskLogOptions: vi.fn(),
   getCanvasTaskPointLedger: vi.fn(),
-  getCanvasTaskPointLedgerDetail: vi.fn(),
 }))
 
 vi.mock('../../api', () => apiMocks)
@@ -177,22 +176,6 @@ describe('Canvas administrator task records', () => {
           reason: null,
         },
       ],
-    })
-    apiMocks.getCanvasTaskPointLedgerDetail.mockResolvedValue({
-      id: 'ledger-1',
-      occurredAt: '2026-09-03T00:01:00.000Z',
-      eventType: 'SETTLE',
-      eventPoints: '-12',
-      pointLotId: 'lot-1',
-      lotType: 'PAID',
-      taskOutputId: null,
-      outputIndex: null,
-      debtId: null,
-      reason: null,
-      remainingBefore: '20',
-      remainingAfter: '8',
-      reservedBefore: '12',
-      reservedAfter: '0',
     })
   })
 

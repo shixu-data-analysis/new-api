@@ -23,7 +23,6 @@ import zh from '@/i18n/locales/zh.json'
 
 import { AgentCenter } from '../AgentCenter'
 import { AgentManagement } from '../AgentManagement'
-import { ProviderPricingMatrix } from '../ProviderPricingMatrix'
 
 const apiMocks = vi.hoisted(() => ({
   getCanvasAgentWorkspace: vi.fn(),
@@ -34,9 +33,6 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAgentCustomerModelUsage: vi.fn(),
   getCanvasAgents: vi.fn(),
   provisionCanvasAgent: vi.fn(),
-  getCanvasProviderPricingMatrix: vi.fn(),
-  publishCanvasProviderRate: vi.fn(),
-  resolveCanvasProviderRateRisk: vi.fn(),
   revealCanvasCode: vi.fn(),
 }))
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -186,48 +182,6 @@ describe('Canvas Agent and provider pricing governance', () => {
         },
       ],
     })
-    apiMocks.getCanvasProviderPricingMatrix.mockResolvedValue([
-      {
-        providerId: 'provider-v1',
-        providerCode: 'HFSY',
-        providerName: 'HFSY API',
-        channelId: 'channel-v1',
-        channelCode: 'image',
-        customerModelId: 'model-v1',
-        modelKey: 'image.model',
-        effectiveDisplayName: 'Image Model',
-        catalogDefaultName: 'Catalog Image Model',
-        combinationId: 'combination-v1',
-        combinationKey: 'quality=4K',
-        parameters: { quality: '4K' },
-        billingDimensions: { billingUnit: 'REQUEST', dimensions: ['quality'] },
-        upstreamModelId: 'image-4k',
-        rateId: 'rate-v1',
-        rateVersion: 2,
-        rateStatus: 'PUBLISHED',
-        billingUnit: 'REQUEST',
-        nativeAmount: '0.40',
-        currency: 'CNY',
-        normalizedAmountMinor: '0.40',
-        rateEffectiveAt: '2026-08-30T00:00:00.000Z',
-        prices: [
-          {
-            id: 'price-v1',
-            groupId: 'group-v1',
-            groupName: 'Standard',
-            points: '20',
-            version: 1,
-            status: 'PUBLISHED',
-            providerRateVersionId: 'rate-old',
-            effectiveAt: '2026-08-29T00:00:00.000Z',
-            breakEvenPoints: '10',
-            newBreakEvenPoints: '24',
-            belowBreakEven: true,
-          },
-        ],
-        riskDecision: null,
-      },
-    ])
   })
 
   it('confirms that invitation ability preserves the existing customer boundary', async () => {
@@ -710,75 +664,5 @@ describe('Canvas Agent and provider pricing governance', () => {
     expect(await screen.findByText('CANVAS-U••••••••CRET')).toBeVisible()
     expect(apiMocks.revealCanvasCode).toHaveBeenCalledTimes(1)
     expect(container.querySelector('.lucide-eye')).toBeInTheDocument()
-  })
-
-  it('shows the new cost floor and requires an explicit risk action', async () => {
-    renderWithClient(<ProviderPricingMatrix />)
-    fireEvent.change(
-      await screen.findByRole('combobox', { name: /^Model and quality/ }),
-      { target: { value: 'combination-v1' } }
-    )
-    const modelRow = screen.getByText('Image Model').closest('tr')
-    if (!modelRow) throw new Error('Expected the model pricing table row')
-    expect(within(modelRow).getByText('Below break-even')).toBeVisible()
-    fireEvent.change(screen.getByRole('combobox', { name: /^Risk action/ }), {
-      target: { value: 'MANUAL_PAUSE' },
-    })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Record risk decision' })
-    )
-    expect(await screen.findByText('Enter at least 8 characters')).toBeVisible()
-    fireEvent.change(screen.getByRole('textbox', { name: /^Reason/ }), {
-      target: { value: 'Pause this quality until safe pricing is published' },
-    })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Record risk decision' })
-    )
-    expect(
-      await screen.findByText('Confirm pricing risk decision?')
-    ).toBeVisible()
-    expect(apiMocks.resolveCanvasProviderRateRisk).not.toHaveBeenCalled()
-  })
-
-  it('wraps long model and quality values inside their table columns', async () => {
-    renderWithClient(<ProviderPricingMatrix />)
-
-    const modelCell = (await screen.findByText('Image Model')).closest('td')
-    expect(modelCell).toHaveClass('whitespace-normal', 'break-words')
-
-    const qualityCell = screen
-      .getAllByText('4K')
-      .map((element) => element.closest('td'))
-      .find(Boolean)
-    expect(qualityCell).toHaveClass('whitespace-normal', 'break-all')
-    expect(screen.getByRole('button', { name: 'Filters' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'View' })).toBeVisible()
-    expect(
-      screen.getByRole('combobox', { name: 'Rows per page' })
-    ).toBeVisible()
-  })
-
-  it('localizes every upstream cost table heading in Chinese', async () => {
-    await i18next.changeLanguage('zh')
-    renderWithClient(<ProviderPricingMatrix />)
-
-    expect(
-      await screen.findByRole('columnheader', { name: 'API 服务商' })
-    ).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '模型' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '质量' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '计费单位' })).toBeVisible()
-    expect(
-      screen.getByRole('columnheader', { name: '服务商费率版本' })
-    ).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '当前成本' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: '定价风险' })).toBeVisible()
-    expect(
-      screen.getByRole('columnheader', { name: '客户价格对比' })
-    ).toBeVisible()
-    expect(screen.queryByText('Provider rate version')).not.toBeInTheDocument()
-    expect(
-      screen.queryByText('Customer price comparison')
-    ).not.toBeInTheDocument()
   })
 })

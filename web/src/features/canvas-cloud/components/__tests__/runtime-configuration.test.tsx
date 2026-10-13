@@ -40,13 +40,8 @@ import {
 import { RuntimeManagement } from '../RuntimeManagement'
 
 const apiMocks = vi.hoisted(() => ({
-  checkCanvasCustomerModelAccessPermission: vi.fn(),
   checkCanvasTaskMediaStorage: vi.fn(),
-  getCanvasCredentialRotationPreview: vi.fn(),
-  getCanvasCredentialVersionAffectedModels: vi.fn(),
-  getCanvasModelCredentialBindingHistory: vi.fn(),
   getCanvasProviderConfiguration: vi.fn(),
-  getCanvasProviderCredentialHistory: vi.fn(),
   getCanvasProviderCredentialGroupChanges: vi.fn(),
   getCanvasRuntimeConfiguration: vi.fn(),
   publishCanvasProviderCredentialGroup: vi.fn(),
@@ -107,23 +102,6 @@ const runtime = {
       checkedAt: '2026-09-04T00:01:00.000Z',
     },
   },
-  databaseBackup: {
-    id: '85000000-0000-7000-8000-000000000007',
-    version: 2,
-    status: 'PUBLISHED',
-    endpoint: 'https://account.r2.cloudflarestorage.com',
-    bucket: 'canvas-uat-db-backups',
-    accessKeyId: 'current-backup-access',
-    credentialsConfigured: true,
-    backupRetentionHours: 72,
-    downloadUrlTtlSeconds: 900,
-    reason: 'separate backup',
-    effectiveAt: '2026-09-04T00:00:00.000Z',
-    createdByPrincipalId: 'admin-id',
-    updatedBy: 'Platform Admin',
-    createdAt: '2026-09-04T00:00:00.000Z',
-    latestCheck: null,
-  },
 }
 
 const model: CanvasProviderModel = {
@@ -152,12 +130,6 @@ const model: CanvasProviderModel = {
   credentialGroupName: 'Primary',
   credentialGroupVersionId: '85000000-0000-7000-8000-000000000003',
   credentialGroupVersion: 1,
-  latestAccessCheck: {
-    outcome: 'UNVERIFIABLE',
-    reasonCode: 'MODEL_ACCESS_CHECK_UNSUPPORTED',
-    checkedBy: 'Platform Admin',
-    checkedAt: '2026-09-04T00:02:00.000Z',
-  },
 }
 const secondModel = {
   ...model,
@@ -265,43 +237,6 @@ describe('Canvas runtime configuration', () => {
     apiMocks.publishCanvasProviderCredentialGroup.mockResolvedValue({
       providerId: providerRuntime.providers[0].id,
       credentialGroupId: providerRuntime.credentialGroups[0].credentialGroupId,
-    })
-    apiMocks.getCanvasCredentialRotationPreview.mockResolvedValue({
-      credentialGroupId: '85000000-0000-7000-8000-000000000004',
-      providerId: '85000000-0000-7000-8000-000000000001',
-      name: 'Primary',
-      currentCredentialGroupVersionId: '85000000-0000-7000-8000-000000000003',
-      currentVersion: 1,
-      nextVersion: 2,
-      affectedModels: [
-        {
-          customerModelId: model.id,
-          modelKey: model.modelKey,
-          effectiveDisplayName: model.effectiveDisplayName,
-          catalogDefaultName: model.catalogDefaultName,
-          bindingId: model.credentialBindingId,
-          bindingVersion: model.credentialBindingVersion,
-        },
-      ],
-    })
-    apiMocks.getCanvasProviderCredentialHistory.mockResolvedValue({
-      page: 1,
-      pageSize: 20,
-      total: 0,
-      items: [],
-    })
-    apiMocks.getCanvasCredentialVersionAffectedModels.mockResolvedValue({
-      page: 1,
-      pageSize: 20,
-      total: 0,
-      factAvailable: true,
-      items: [],
-    })
-    apiMocks.getCanvasModelCredentialBindingHistory.mockResolvedValue({
-      page: 1,
-      pageSize: 20,
-      total: 0,
-      items: [],
     })
   })
 

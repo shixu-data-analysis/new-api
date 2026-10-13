@@ -18,14 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
-import {
-  Fragment,
-  useEffect,
-  useMemo,
-  useState,
-  type MutableRefObject,
-  type ReactNode,
-} from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -668,15 +661,7 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
   )
 }
 
-export function AdminTaskRecordDetails({
-  taskId,
-  scrollContainerRef: _scrollContainerRef,
-  onLedgerDetailsChange: _onLedgerDetailsChange,
-}: {
-  taskId: string
-  scrollContainerRef: MutableRefObject<HTMLDivElement | null>
-  onLedgerDetailsChange?: (ledgerId?: string) => void
-}) {
+export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [releaseOpen, setReleaseOpen] = useState(false)

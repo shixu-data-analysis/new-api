@@ -6,7 +6,6 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -28,9 +27,6 @@ export function TaskRecordDetailsSheet(props: {
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const drawerScroll = useRef<HTMLDivElement | null>(null)
-  const [selectedLedgerId, setSelectedLedgerId] = useState<string>()
-  useEffect(() => setSelectedLedgerId(undefined), [props.taskId])
   return (
     <Sheet
       open={Boolean(props.taskId)}
@@ -42,18 +38,11 @@ export function TaskRecordDetailsSheet(props: {
         className={sideDrawerContentClassName('max-w-none sm:!max-w-[1200px]')}
       >
         <SheetHeader className={sideDrawerHeaderClassName()}>
-          <SheetTitle>
-            {selectedLedgerId ? t('Point ledger details') : t('Task details')}
-          </SheetTitle>
+          <SheetTitle>{t('Task details')}</SheetTitle>
         </SheetHeader>
-        <div ref={drawerScroll} className={sideDrawerFormClassName()}>
+        <div className={sideDrawerFormClassName()}>
           {props.taskId ? (
-            <AdminTaskRecordDetails
-              key={props.taskId}
-              taskId={props.taskId}
-              scrollContainerRef={drawerScroll}
-              onLedgerDetailsChange={setSelectedLedgerId}
-            />
+            <AdminTaskRecordDetails key={props.taskId} taskId={props.taskId} />
           ) : null}
         </div>
       </SheetContent>

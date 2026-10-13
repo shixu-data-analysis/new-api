@@ -39,7 +39,6 @@ import type {
   CanvasCatalogModel,
   CanvasClientPresentation,
   CanvasClientPresentationPublicationRequest,
-  CanvasCustomerWorkspace,
   CanvasSession,
   CanvasAdminProvisioningPrincipals,
   CanvasAdminProvisioningStatus,
@@ -66,7 +65,6 @@ import type {
   CanvasAdminAgentCustomer,
   CanvasAdminAgentCustomerQuery,
   CanvasAdminAgentStatistics,
-  CanvasProviderPricingRow,
   CanvasAdminPointLot,
   CanvasAdminRechargeOrder,
   CanvasAdminCustomerPointBalance,
@@ -81,8 +79,6 @@ import type {
   CanvasCustomerRechargeRedemption,
   CanvasCustomerTask,
   CanvasTaskAssetDownload,
-  CanvasTaskPointLedgerDetail,
-  CanvasAdminRefund,
   CanvasPage,
   CanvasPointLedgerItem,
   CanvasOrderPointReturn,
@@ -92,11 +88,6 @@ import type {
   CanvasProviderConfiguration,
   CanvasProviderCredentialGroupChange,
   CanvasProviderConfigurationQuery,
-  CanvasProviderCredentialVersion,
-  CanvasProviderCredentialHistoryQuery,
-  CanvasCredentialVersionAffectedModels,
-  CanvasModelCredentialBindingVersion,
-  CanvasCredentialRotationPreview,
   CanvasModelPricingHistory,
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
@@ -234,12 +225,6 @@ export function getCanvasSessionFailureRoute(error: unknown): '/403' | '/503' {
   }
   const status = (error as { response?: { status?: unknown } }).response?.status
   return status === 401 || status === 403 ? '/403' : '/503'
-}
-
-export async function getCanvasCustomerWorkspace(): Promise<CanvasCustomerWorkspace> {
-  return (
-    await api.get<CanvasCustomerWorkspace>(`${webBase}/customer/workspace`)
-  ).data
 }
 
 export async function getCanvasCustomerPointSummary(
@@ -546,18 +531,6 @@ export async function revokeCanvasTaskProviderCostSettlement(
 }
 
 /** @deprecated Kept for callers outside the UAT-018 task-details slice. */
-export async function getCanvasTaskPointLedgerDetail(
-  taskId: string,
-  ledgerId: string,
-  signal?: AbortSignal
-): Promise<CanvasTaskPointLedgerDetail> {
-  return (
-    await api.get<CanvasTaskPointLedgerDetail>(
-      `${webBase}/admin/tasks/${encodeURIComponent(taskId)}/point-ledger/${encodeURIComponent(ledgerId)}`,
-      { signal, skipErrorHandler: true }
-    )
-  ).data
-}
 
 export async function getCanvasAdminTestingModels(): Promise<
   CanvasAdminTestingModel[]
@@ -1134,63 +1107,6 @@ export async function getCanvasAdminAgentCustomerModelUsage(
   ).data
 }
 
-export async function getCanvasProviderPricingMatrix(): Promise<
-  CanvasProviderPricingRow[]
-> {
-  return (await api.get(`${webBase}/admin/provider-pricing-matrix`)).data
-}
-
-export async function publishCanvasProviderRate(input: {
-  customerModelId: string
-  parameterCombinationId: string
-  billingUnit: import('./types').CanvasBillingUnit
-  nativeAmount: string
-  tokenRates?: import('./types').CanvasTokenRateVector
-  currency: string
-  exchangeRateSnapshot: { rate: string; source: string; asOf: string }
-  normalizedAmountMinor: string
-  normalizedTokenRates?: import('./types').CanvasTokenRateVector
-  failureChargePolicy:
-    | { mode: 'NONE' }
-    | { mode: 'SAME_AS_SUCCESS' }
-    | { mode: 'FIXED'; normalizedAmountMinor: string }
-  decisionSummary: string
-  effectiveAt?: string
-}): Promise<{ id: string; version: number; status: string }> {
-  return (
-    await api.post(
-      `${webBase}/admin/provider-rate-versions/publications`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-provider-rate') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function resolveCanvasProviderRateRisk(input: {
-  providerRateVersionId: string
-  decisionType: 'REPRICE_SCHEDULED' | 'MANUAL_PAUSE' | 'TEMPORARY_LOSS'
-  scheduledPriceVersionIds?: string[]
-  lossEndsAt?: string
-  maxExpectedLossPoints?: string
-  reason: string
-}) {
-  return (
-    await api.post(
-      `${webBase}/admin/provider-rate-risk-decisions`,
-      { ...input, confirmed: true },
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-provider-rate-risk'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
 export async function changeCanvasAdminInviteCodeStatus(
   inviteCodeId: string,
   action: 'pause' | 'resume' | 'revoke'
@@ -1393,71 +1309,6 @@ export async function redeemCanvasRechargeCode(code: string): Promise<{
   ).data
 }
 
-export async function publishCanvasPriceVersion(priceVersionId: string) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-versions/${priceVersionId}/publish`,
-      undefined,
-      { headers: { 'Idempotency-Key': idempotencyKey('web-price') } }
-    )
-  ).data
-}
-
-export interface CanvasPriceDraftInput {
-  sourcePriceVersionId: string
-  points: string
-  billingUnit?: import('./types').CanvasBillingUnit
-  tokenRates?: import('./types').CanvasTokenRateVector
-  targetMarginRate: string
-  successProbability: string
-  successfulTaskCostRmb: string
-  failedUnrecoverableCostRmb: string
-  otherVariableCostRmb: string
-  riskBufferRmb: string
-  decisionSummary?: string
-  effectiveAt?: string
-}
-
-export async function cancelScheduledCanvasPrice(priceVersionId: string) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-versions/${priceVersionId}/cancel-schedule`,
-      { confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-price-cancel') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export interface CanvasLimitedPricePromotionInput {
-  pointBudget?: string
-  sourcePriceVersionId: string
-  specialPoints: string
-  startsAt: string
-  endsAt: string
-  campaignBudgetMinor?: string
-  maxExpectedLossMinor?: string
-  maxParticipants?: string
-  approvalReason: string
-}
-
-export async function createCanvasLimitedPricePromotion(
-  input: CanvasLimitedPricePromotionInput
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/limited-price-promotions`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-limited-special') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
 export async function cancelCanvasLimitedPricePromotion(
   promotionVersionId: string
 ) {
@@ -1469,65 +1320,6 @@ export async function cancelCanvasLimitedPricePromotion(
         headers: {
           'Idempotency-Key': idempotencyKey('web-limited-special-cancel'),
         },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function createCanvasPriceDraft(input: CanvasPriceDraftInput) {
-  return (
-    await api.post(`${webBase}/admin/price-versions/drafts`, input, {
-      headers: { 'Idempotency-Key': idempotencyKey('web-price-draft') },
-      skipErrorHandler: true,
-    })
-  ).data
-}
-
-export async function publishConfirmedCanvasPriceChange(
-  input: CanvasPriceDraftInput
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-versions/publications`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-price-confirmed') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function publishConfirmedCanvasInitialPrice(
-  input: Omit<CanvasPriceDraftInput, 'sourcePriceVersionId'> & {
-    customerModelId: string
-    priceGroupId: string
-    parameterCombinationId: string
-  }
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-versions/initial-publications`,
-      { ...input, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-initial-price') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function approveCanvasPriceDraft(
-  priceVersionId: string,
-  reason: string
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-versions/${priceVersionId}/approve`,
-      { reason },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-price-approve') },
         skipErrorHandler: true,
       }
     )
@@ -1570,19 +1362,6 @@ export async function getCanvasProviderConfiguration(
   ).data
 }
 
-export async function getCanvasProviderCredentialHistory(
-  credentialGroupId: string,
-  query: CanvasProviderCredentialHistoryQuery,
-  signal?: AbortSignal
-): Promise<CanvasPage<CanvasProviderCredentialVersion>> {
-  return (
-    await api.get<CanvasPage<CanvasProviderCredentialVersion>>(
-      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/versions`,
-      { params: query, signal }
-    )
-  ).data
-}
-
 export async function getCanvasProviderCredentialGroupChanges(
   credentialGroupId: string,
   query: { page: number; pageSize: 10 | 20 | 30 | 40 | 50 | 100 },
@@ -1592,44 +1371,6 @@ export async function getCanvasProviderCredentialGroupChanges(
     await api.get<CanvasPage<CanvasProviderCredentialGroupChange>>(
       `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/changes`,
       { params: query, signal }
-    )
-  ).data
-}
-
-export async function getCanvasCredentialVersionAffectedModels(
-  credentialGroupVersionId: string,
-  query: { page: number; pageSize: number },
-  signal?: AbortSignal
-): Promise<CanvasCredentialVersionAffectedModels> {
-  return (
-    await api.get<CanvasCredentialVersionAffectedModels>(
-      `${webBase}/admin/provider-credential-group-versions/${encodeURIComponent(credentialGroupVersionId)}/affected-models`,
-      { params: query, signal }
-    )
-  ).data
-}
-
-export async function getCanvasModelCredentialBindingHistory(
-  customerModelId: string,
-  query: { page: number; pageSize: number },
-  signal?: AbortSignal
-): Promise<CanvasPage<CanvasModelCredentialBindingVersion>> {
-  return (
-    await api.get<CanvasPage<CanvasModelCredentialBindingVersion>>(
-      `${webBase}/admin/provider-models/${encodeURIComponent(customerModelId)}/credential-bindings`,
-      { params: query, signal }
-    )
-  ).data
-}
-
-export async function getCanvasCredentialRotationPreview(
-  credentialGroupId: string,
-  signal?: AbortSignal
-): Promise<CanvasCredentialRotationPreview> {
-  return (
-    await api.get<CanvasCredentialRotationPreview>(
-      `${webBase}/admin/provider-credential-groups/${encodeURIComponent(credentialGroupId)}/rotation-preview`,
-      { signal }
     )
   ).data
 }
@@ -1651,28 +1392,6 @@ export async function publishCanvasTaskMediaStorage(input: {
       {
         headers: {
           'Idempotency-Key': idempotencyKey('web-task-media-storage'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function publishCanvasDatabaseBackupStorage(input: {
-  endpoint?: string
-  backupBucket?: string
-  backupCredentials?: { accessKeyId: string; secretAccessKey: string }
-  backupRetentionHours?: number
-  downloadUrlTtlSeconds?: number
-  reason?: string
-}) {
-  return (
-    await api.post(
-      `${webBase}/admin/runtime-storage/database-backup/publications`,
-      { ...input, confirmed: true },
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-database-backup-storage'),
         },
         skipErrorHandler: true,
       }
@@ -1790,40 +1509,6 @@ export async function checkCanvasTaskMediaStorage(
   ).data
 }
 
-export async function checkCanvasDatabaseBackupStorage(
-  backupConfigVersionId: string
-) {
-  return (
-    await api.post<import('./types').CanvasRuntimeConnectionCheck>(
-      `${webBase}/admin/runtime-storage/database-backup/${backupConfigVersionId}/checks`,
-      undefined,
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-database-backup-check'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function checkCanvasCustomerModelAccessPermission(
-  customerModelId: string
-) {
-  return (
-    await api.post<import('./types').CanvasModelAccessPermissionCheck>(
-      `${webBase}/admin/customer-models/${customerModelId}/access-permission-checks`,
-      undefined,
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-model-access-check'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
 export async function publishConfirmedCanvasTaskPolicySettings(input: {
   quoteTtlSeconds?: number
   bonusFailureGraceDays?: number
@@ -1838,18 +1523,6 @@ export async function publishConfirmedCanvasTaskPolicySettings(input: {
         skipErrorHandler: true,
       }
     )
-  ).data
-}
-
-export async function createCanvasPointIssuanceRateDraft(input: {
-  pointsPerRmb: string
-  decisionSummary?: string
-}) {
-  return (
-    await api.post(`${webBase}/admin/point-issuance-rates/drafts`, input, {
-      headers: { 'Idempotency-Key': idempotencyKey('web-rate-draft') },
-      skipErrorHandler: true,
-    })
   ).data
 }
 
@@ -1869,51 +1542,11 @@ export async function publishConfirmedCanvasPointIssuanceRate(input: {
   ).data
 }
 
-export async function approveCanvasPointIssuanceRate(
-  rateId: string,
-  reason: string
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/point-issuance-rates/${rateId}/approve`,
-      { reason },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-rate-approve') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function publishCanvasPointIssuanceRate(rateId: string) {
-  return (
-    await api.post(
-      `${webBase}/admin/point-issuance-rates/${rateId}/publish`,
-      undefined,
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-rate-publish') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
 export async function getCanvasPriceGroups() {
   return (
     await api.get<import('./types').CanvasPriceGroupVersion[]>(
       `${webBase}/admin/price-groups`
     )
-  ).data
-}
-
-export async function createCanvasPriceGroupDraft(input: {
-  internalName: string
-}) {
-  return (
-    await api.post(`${webBase}/admin/price-groups/drafts`, input, {
-      headers: { 'Idempotency-Key': idempotencyKey('web-price-group-draft') },
-      skipErrorHandler: true,
-    })
   ).data
 }
 
@@ -1930,53 +1563,6 @@ export async function publishConfirmedCanvasPriceGroup(input: {
         },
         skipErrorHandler: true,
       }
-    )
-  ).data
-}
-
-export async function approveCanvasPriceGroup(
-  priceGroupId: string,
-  reason: string
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-groups/${priceGroupId}/approve`,
-      { reason },
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-price-group-approve'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function publishCanvasPriceGroup(priceGroupId: string) {
-  return (
-    await api.post(
-      `${webBase}/admin/price-groups/${priceGroupId}/publish`,
-      undefined,
-      {
-        headers: {
-          'Idempotency-Key': idempotencyKey('web-price-group-publish'),
-        },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function reconcileCanvasTask(
-  taskId: string,
-  status: 'RECONCILED' | 'DISPUTED',
-  reason: string
-) {
-  return (
-    await api.post(
-      `${webBase}/admin/tasks/${taskId}/reconciliation`,
-      { status, reason },
-      { headers: { 'Idempotency-Key': idempotencyKey('web-reconcile') } }
     )
   ).data
 }
@@ -2211,30 +1797,6 @@ export async function createCanvasOrderPointReturn(
         skipErrorHandler: true,
       }
     )
-  ).data
-}
-
-export async function getCanvasAdminRefunds(
-  query: {
-    refundReference?: string
-    orderNumber?: string
-    customerConfirmation?: string
-    customerId?: string
-    status?: string
-    from?: string
-    to?: string
-    sortBy?: 'orderNumber' | 'status' | 'amount' | 'createdAt'
-    sortOrder?: 'asc' | 'desc'
-    page?: number
-    pageSize?: 10 | 20 | 30 | 40 | 50 | 100
-  } = {},
-  signal?: AbortSignal
-): Promise<CanvasPage<CanvasAdminRefund>> {
-  return (
-    await api.get(`${webBase}/admin/refunds`, {
-      params: { page: 1, pageSize: 20, ...query },
-      signal,
-    })
   ).data
 }
 

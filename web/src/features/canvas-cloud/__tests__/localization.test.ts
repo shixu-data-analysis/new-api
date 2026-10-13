@@ -314,8 +314,6 @@ const canvasCloudCoverageKeys = [
   'records',
   'Production',
   'Quality',
-  'Pricing risk',
-  'No active risk',
 ] as const
 const inviteBonusKeys = [
   'Bonus promotion',
@@ -784,8 +782,6 @@ describe('Canvas interface localization', () => {
       ]
     ).not.toMatch(/REQUEST|quality/i)
     expect(zh.translation.Quality).toBe('质量')
-    expect(zh.translation['Pricing risk']).toBe('定价风险')
-    expect(zh.translation['No active risk']).toBe('当前无风险')
   })
 
   it.each(Object.entries(localizedResources))(
