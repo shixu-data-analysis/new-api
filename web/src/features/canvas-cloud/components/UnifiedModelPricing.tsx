@@ -34,6 +34,7 @@ import {
   calculateCanvasModelPricingCny,
   getCanvasModelPricingModel,
   getCanvasModelPricingWorkspace,
+  getCanvasPointIssuanceRates,
   previewCanvasModelPricing,
   publishCanvasModelPricing,
 } from '../api'
@@ -189,30 +190,34 @@ export function UnifiedModelPricing(props: {
     () => (pricing ? originalPricingDrafts(pricing) : {}),
     [pricing]
   )
+  // Starts editing from these prices: the drafts, the billing unit and its choice follow them together.
+  function adoptPricing(latest: CanvasModelPricingDetail) {
+    const model = latest.model
+    setPricing(latest)
+    setPricingChanged(false)
+    setDrafts(originalPricingDrafts(latest))
+    setBillingUnit(
+      model.billingUnit ?? model.allowedBillingUnits[0] ?? 'REQUEST'
+    )
+    setUnitChosen(model.billingUnitState !== 'MIXED')
+  }
   useEffect(() => {
     const latest = detail.data
-    if (!latest || latest === pricing) return
+    if (!latest) return
     if (initializedModelId === latest.model.id && pricing) {
+      if (latest === pricing) return
       // A refresh that keeps the current versions (such as a cancelled schedule) keeps the drafts too.
       if (currentPricingIdentity(latest) === currentPricingIdentity(pricing)) {
         setPricing(latest)
       } else if (hasEdits.current) {
         setPricingChanged(true)
       } else {
-        setPricing(latest)
-        setDrafts(originalPricingDrafts(latest))
+        adoptPricing(latest)
       }
       return
     }
-    const model = latest.model
-    setInitializedModelId(model.id)
-    setPricing(latest)
-    setPricingChanged(false)
-    setBillingUnit(
-      model.billingUnit ?? model.allowedBillingUnits[0] ?? 'REQUEST'
-    )
-    setUnitChosen(model.billingUnitState !== 'MIXED')
-    setDrafts(originalPricingDrafts(latest))
+    setInitializedModelId(latest.model.id)
+    adoptPricing(latest)
     setAttempted(false)
     setBarError('')
     setConflicts([])
@@ -251,6 +256,15 @@ export function UnifiedModelPricing(props: {
   const labeling = pricing
     ? pricingRowLabeling(pricing, billingUnit === 'MILLION_TOKENS')
     : null
+
+  // The snapshot shows before any price can be calculated, such as on a model's first pricing.
+  const issuanceRates = useQuery({
+    queryKey: ['canvas-cloud', 'point-issuance-rates'],
+    queryFn: getCanvasPointIssuanceRates,
+  })
+  const publishedIssuanceRate = issuanceRates.data?.find(
+    (rate) => rate.status === 'PUBLISHED'
+  )
 
   // Points and margins under the cells come from the API calculation of the current drafts.
   const calculationRevision = useRef(0)
@@ -383,17 +397,7 @@ export function UnifiedModelPricing(props: {
     invalidatePreview()
     setAttempted(false)
     const latest = detail.data ?? pricing
-    if (latest) {
-      setPricing(latest)
-      setPricingChanged(false)
-      setDrafts(originalPricingDrafts(latest))
-      setBillingUnit(
-        latest.model.billingUnit ??
-          latest.model.allowedBillingUnits[0] ??
-          'REQUEST'
-      )
-      setUnitChosen(latest.model.billingUnitState !== 'MIXED')
-    }
+    if (latest) adoptPricing(latest)
     form.reset(EMPTY_META)
     preview.reset()
     publication.reset()
@@ -634,7 +638,10 @@ export function UnifiedModelPricing(props: {
             unitChange={
               state.unitChange && selected.billingUnitState !== 'MIXED'
             }
-            pointsPerRmb={calculation?.pointIssuanceRate.pointsPerRmb}
+            pointsPerRmb={
+              calculation?.pointIssuanceRate.pointsPerRmb ??
+              publishedIssuanceRate?.pointsPerRmb
+            }
             onUnitChange={changeBillingUnit}
           />
           {calculationFailed ? (

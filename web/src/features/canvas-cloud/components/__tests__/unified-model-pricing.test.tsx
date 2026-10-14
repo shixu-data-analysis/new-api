@@ -259,6 +259,9 @@ beforeEach(() => {
     priceGroups: detail.priceGroups,
   })
   mocks.detail.mockResolvedValue(structuredClone(detail))
+  mocks.issuance.mockResolvedValue([
+    { status: 'PUBLISHED', pointsPerRmb: '100.00000000' },
+  ])
   mocks.calculate.mockResolvedValue(structuredClone(calculation))
   mocks.preview.mockResolvedValue(structuredClone(preview))
   mocks.publish.mockResolvedValue({ id: 'publication-1', status: 'PUBLISHED' })
@@ -336,6 +339,9 @@ describe('UnifiedModelPricing inline editing', () => {
         expect.any(String)
       )
     )
+    // The refreshed prices equal the snapshot, and the table must still come back after publishing.
+    expect(await customerInput()).toHaveValue('1.2345')
+    expect(footer().getByText('No unpublished changes')).toBeVisible()
   })
 
   it('marks invalid prices instead of previewing', async () => {
@@ -664,6 +670,50 @@ describe('UnifiedModelPricing inline editing', () => {
     fireEvent.click(footer().getByRole('button', { name: 'Discard changes' }))
     expect(await customerInput()).toHaveValue('1.9000')
     expect(mocks.preview).not.toHaveBeenCalled()
+  })
+
+  it('shows the pricing rate snapshot before a model has any price', async () => {
+    const unpriced = structuredClone(detail)
+    const [scope] = unpriced.pricingScopes
+    scope.prices[0].current = null as never
+    scope.originalProviderSuccessPriceCny = null as never
+    mocks.detail.mockResolvedValue(unpriced)
+    renderPricing()
+
+    expect(await screen.findByText(/100\.0000 points per RMB/)).toBeVisible()
+    expect(mocks.calculate).not.toHaveBeenCalled()
+  })
+
+  it('follows a background change of the billing unit while nothing is edited', async () => {
+    const videoModel = { ...model, allowedBillingUnits: ['REQUEST', 'SECOND'] }
+    mocks.workspace.mockResolvedValue({
+      models: [videoModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...structuredClone(detail),
+      model: videoModel,
+    })
+    const { client } = renderPricing()
+    await customerInput()
+
+    const perSecond = republishedDetail()
+    perSecond.model = {
+      ...videoModel,
+      billingUnit: 'SECOND',
+      publishedBillingUnits: ['SECOND'],
+    } as never
+    mocks.detail.mockResolvedValue(perSecond)
+    await act(() => client.invalidateQueries())
+
+    await waitFor(async () =>
+      expect(await customerInput()).toHaveValue('1.9000')
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Billing unit' })
+    ).toHaveTextContent('per second')
+    expect(footer().getByText('No unpublished changes')).toBeVisible()
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
   })
 })
 
