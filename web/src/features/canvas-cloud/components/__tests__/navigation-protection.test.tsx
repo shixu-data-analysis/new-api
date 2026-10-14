@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { FormNavigationGuard } from '@/features/system-settings/components/form-navigation-guard'
 
+import { modelPricingTabNavigation } from '../../model-pricing-tab-navigation'
 import {
   InvitationNavigationProtection,
   type InvitationNavigationGuard,
@@ -105,5 +106,60 @@ describe('Canvas protected navigation', () => {
       screen.getByRole('button', { name: 'Leave protected page' })
     )
     await waitFor(() => expect(router.state.location.pathname).toBe('/404'))
+  })
+
+  it('switches model-pricing tabs without the leave prompt while unpublished changes still guard leaving', async () => {
+    function PricingPage() {
+      const navigate = useNavigate()
+      return (
+        <>
+          <FormNavigationGuard when />
+          <button
+            type='button'
+            onClick={() =>
+              void navigate({
+                to: '/',
+                ...modelPricingTabNavigation('history', 'publication-1'),
+              })
+            }
+          >
+            Open history
+          </button>
+          <button type='button' onClick={() => void navigate({ to: '/404' })}>
+            Leave pricing
+          </button>
+        </>
+      )
+    }
+    const root = createRootRoute({ component: Outlet })
+    const router = createRouter({
+      routeTree: root.addChildren([
+        createRoute({
+          getParentRoute: () => root,
+          path: '/',
+          component: PricingPage,
+        }),
+        createRoute({
+          getParentRoute: () => root,
+          path: '/404',
+          component: () => <p>Next page</p>,
+        }),
+      ]),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
+    render(<RouterProvider router={router} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open history' }))
+    await waitFor(() =>
+      expect(router.state.location.search).toEqual({
+        tab: 'history',
+        publicationId: 'publication-1',
+      })
+    )
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave pricing' }))
+    expect(await screen.findByRole('alertdialog')).toBeVisible()
+    expect(router.state.location.pathname).toBe('/')
   })
 })

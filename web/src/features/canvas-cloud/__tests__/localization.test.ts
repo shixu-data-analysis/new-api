@@ -32,18 +32,28 @@ import zh from '@/i18n/locales/zh.json'
 import { AUDIT_ACTIONS, auditActionLabelKey } from '../audit-log-format'
 import { canvasBusinessTermConfig } from '../business-terms'
 import { errorRuleJsonFieldReference } from '../error-rule-json-reference'
+import {
+  PRICING_CONFLICT_MESSAGES,
+  PRICING_MESSAGES,
+} from '../lib/model-pricing-editor'
 
 const localizedResources = { fr, ja, ru, vi, 'zh-TW': zhTW, zh }
 const unifiedPricingSources = [
   'UnifiedModelPricing.tsx',
   'UnifiedModelPricingHistory.tsx',
   'PricingQuestionnaire.tsx',
+  'ModelPricingEditorCells.tsx',
+  'ModelPricingEditorTable.tsx',
+  'ModelPricingPublishBar.tsx',
+  'ModelPricingPublishConfirmation.tsx',
+  'ModelPricingScheduleCancelDialog.tsx',
+  'ModelPricingUnitSummary.tsx',
 ]
 const unifiedPricingKeys = [
-  'Cancel the scheduled customer price before publishing a new change.',
-  'Cancel the scheduled provider rate before publishing a new change.',
-  'Resolve the limited-price special conflict before publishing.',
-  'Resolve the price validation issue before publishing.',
+  ...Object.values(PRICING_MESSAGES),
+  ...Object.values(PRICING_CONFLICT_MESSAGES),
+  'Image models are always billed per request',
+  'Text models are always billed per million tokens',
   'Initial',
   'Provider cost and customer sale price',
   'Customer sale price retained',

@@ -6,12 +6,11 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef, Row } from '@tanstack/react-table'
 import i18n from 'i18next'
 import { Fragment, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { DataTableColumnHeader, DataTableRow } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
@@ -28,7 +27,6 @@ import {
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
-  cancelCanvasModelPricingSchedule,
   getCanvasModelPricingHistory,
   getCanvasModelPricingPublication,
 } from '../api'
@@ -38,6 +36,7 @@ import {
   pricingLoadErrorTitle,
   pricingPublicationErrorTitle,
 } from '../model-pricing-error'
+import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import {
   providerTokenCategories,
@@ -58,7 +57,7 @@ import type {
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
-import { PricingActionConfirmation } from './PricingActionConfirmation'
+import { ModelPricingScheduleCancelDialog } from './ModelPricingScheduleCancelDialog'
 
 type HistoryStatus = 'ALL' | CanvasModelPricingPublication['status']
 type HistoryScope = CanvasModelPricingPublication['scopeSummary'][number]
@@ -72,7 +71,6 @@ export function UnifiedModelPricingHistory(props: {
   initialPublicationId?: string
 }) {
   const { t } = useTranslation()
-  const client = useQueryClient()
   const state = useServerTableState('effectiveAt')
   const [combinationId, setCombinationId] = useState('')
   const [priceGroupId, setPriceGroupId] = useState('')
@@ -81,8 +79,7 @@ export function UnifiedModelPricingHistory(props: {
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
   const [expandedId, setExpandedId] = useState('')
-  const [pendingCancellation, setPendingCancellation] =
-    useState<CanvasModelPricingPublication>()
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
   const validRange = isCanvasDateRangeValid(from, to)
   const fromIso = validRange && from ? from.toISOString() : undefined
   const toIso = validRange && to ? to.toISOString() : undefined
@@ -130,18 +127,6 @@ export function UnifiedModelPricingHistory(props: {
     queryFn: () =>
       getCanvasModelPricingPublication(props.initialPublicationId ?? ''),
     enabled: Boolean(props.initialPublicationId),
-  })
-  const cancellation = useMutation({
-    mutationFn: (item: CanvasModelPricingPublication) =>
-      cancelCanvasModelPricingSchedule(item.id),
-    onSuccess: async () => {
-      setPendingCancellation(undefined)
-      toast.success(t('Scheduled pricing cancelled'))
-      await client.invalidateQueries({
-        queryKey: ['canvas-cloud', 'model-pricing', props.modelId, 'history'],
-      })
-    },
-    onError: () => toast.error(t('Scheduled pricing could not be cancelled')),
   })
   const resetPage = () =>
     state.setPagination((value) => ({ ...value, pageIndex: 0 }))
@@ -213,7 +198,22 @@ export function UnifiedModelPricingHistory(props: {
     {
       id: 'status',
       header: t('Status'),
-      cell: ({ row }) => statusLabel(row.original.status, t) || '—',
+      cell: ({ row }) => {
+        // A partly cancelled publication keeps its status and says how many of its prices were cancelled.
+        const cancelled = row.original.scopeSummary.filter(
+          (scope) => scope.priceGroupId !== null && scope.status === 'CANCELLED'
+        ).length
+        return (
+          <>
+            {statusLabel(row.original.status, t) || '—'}
+            {cancelled > 0 && row.original.status !== 'CANCELLED' ? (
+              <span className='text-muted-foreground block text-xs'>
+                {t('Of which {{count}} cancelled', { count: cancelled })}
+              </span>
+            ) : null}
+          </>
+        )
+      },
     },
     {
       id: 'actions',
@@ -238,7 +238,7 @@ export function UnifiedModelPricingHistory(props: {
               variant='outline'
               onClick={(event) => {
                 event.stopPropagation()
-                setPendingCancellation(row.original)
+                setCancellingId(row.original.id)
               }}
             >
               {t('Cancel schedule')}
@@ -443,33 +443,10 @@ export function UnifiedModelPricingHistory(props: {
           </Fragment>
         )}
       />
-      <PricingActionConfirmation
-        open={Boolean(pendingCancellation)}
-        onOpenChange={(open) => {
-          if (!open) setPendingCancellation(undefined)
-        }}
-        title={t('Cancel scheduled pricing')}
-        description={t(
-          'This only cancels the scheduled unified pricing publication.'
-        )}
-        details={[
-          {
-            label: t('Model'),
-            value: pendingCancellation?.displayNameSnapshot ?? '—',
-          },
-          {
-            label: t('Effective at'),
-            value: formatCanvasDateTime(
-              pendingCancellation?.effectiveAt ?? null
-            ),
-          },
-        ]}
-        confirmLabel={t('Cancel schedule')}
-        destructive
-        pending={cancellation.isPending}
-        onConfirm={() => {
-          if (pendingCancellation) cancellation.mutate(pendingCancellation)
-        }}
+      <ModelPricingScheduleCancelDialog
+        publicationId={cancellingId}
+        detail={props.detail}
+        onClose={() => setCancellingId(null)}
       />
     </div>
   )
@@ -626,6 +603,14 @@ function HistoryDetails(props: {
                             {props.groupName(entry.priceGroupId)}
                           </p>
                         ) : null}
+                        {entry.status ? (
+                          <p>
+                            <span className='text-muted-foreground'>
+                              {t('{{label}}: ', { label: t('Status') })}
+                            </span>
+                            {statusLabel(entry.status, t)}
+                          </p>
+                        ) : null}
                         {prices.length ? (
                           <ScopeChanges
                             scope={previewScope}
@@ -726,7 +711,13 @@ function PricingBasis(props: {
               {t('Pricing rate snapshot')}
             </dt>
             <dd>
-              {props.pointIssuanceRate?.pointsPerRmb ?? t('Not recorded')}{' '}
+              {props.pointIssuanceRate?.pointsPerRmb
+                ? formatExactRmbReference(
+                    props.pointIssuanceRate.pointsPerRmb,
+                    toIntlLocale(i18n.resolvedLanguage ?? i18n.language),
+                    4
+                  )
+                : t('Not recorded')}{' '}
               {t('points per RMB')}
             </dd>
           </div>

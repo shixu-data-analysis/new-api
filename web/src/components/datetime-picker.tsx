@@ -23,7 +23,13 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Input } from '@/components/ui/input'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import {
   Popover,
   PopoverContent,
@@ -52,6 +58,15 @@ interface DateTimePickerProps {
   futureOnly?: boolean
 }
 
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+const TIME_SLOTS = Array.from(
+  { length: 48 },
+  (_, index) =>
+    `${Math.floor(index / 2)
+      .toString()
+      .padStart(2, '0')}:${index % 2 ? '30' : '00'}`
+)
+
 const startOfLocalDay = (value: Date) =>
   new Date(value.getFullYear(), value.getMonth(), value.getDate())
 
@@ -59,6 +74,13 @@ const nextLocalMinute = (value: Date) => {
   const result = new Date(value)
   result.setSeconds(0, 0)
   result.setMinutes(result.getMinutes() + 1)
+  return result
+}
+
+const nextLocalHour = (value: Date) => {
+  const result = new Date(value)
+  result.setMinutes(0, 0, 0)
+  result.setHours(result.getHours() + 1)
   return result
 }
 
@@ -73,6 +95,18 @@ const formatLocalTime = (value: Date) =>
     .toString()
     .padStart(2, '0')}`
 
+const atLocalTime = (day: Date, time: string) => {
+  const [hours, minutes] = time.split(':').map(Number)
+  const result = new Date(day)
+  result.setHours(hours, minutes, 0, 0)
+  return result
+}
+
+/**
+ * A date button and a typable time box with a 30-minute list. The time can be filled before the date; a value is
+ * reported only once both are set. A future-only picker starts today at the next whole hour and moves any past
+ * moment there; other pickers start a new date at 00:00, since time-range filters look at past data.
+ */
 export function DateTimePicker({
   value,
   onChange,
@@ -92,64 +126,63 @@ export function DateTimePicker({
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
-  const [time, setTime] = React.useState<string>('00:00')
-  const minimumDateTime = futureOnly ? nextLocalMinute(new Date()) : undefined
+  const [time, setTime] = React.useState(value ? formatLocalTime(value) : '')
+  const [timeText, setTimeText] = React.useState(time)
+  const now = new Date()
 
+  // Callers often rebuild the Date on every render, so follow the moment rather than the object.
+  const valueTime = value?.getTime()
   React.useEffect(() => {
-    setDate(value)
-    setMonth(value)
-    if (value) {
-      setTime(formatLocalTime(value))
+    const next = valueTime === undefined ? undefined : new Date(valueTime)
+    setDate(next)
+    setMonth(next)
+    const nextTime = next ? formatLocalTime(next) : ''
+    setTime(nextTime)
+    setTimeText(nextTime)
+  }, [valueTime])
+
+  const commit = (day: Date, nextTime: string) => {
+    const current = new Date()
+    const defaultTime =
+      futureOnly && isSameLocalDay(day, current)
+        ? formatLocalTime(nextLocalHour(current))
+        : '00:00'
+    let result = atLocalTime(day, nextTime || defaultTime)
+    if (futureOnly && result < nextLocalMinute(current)) {
+      result = nextLocalHour(current)
     }
-  }, [value])
+    setDate(result)
+    setMonth(result)
+    setTime(formatLocalTime(result))
+    setTimeText(formatLocalTime(result))
+    onChange?.(result)
+  }
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
-      const [hours, minutes] = time.split(':').map(Number)
-      const newDate = new Date(selectedDate)
-      newDate.setHours(hours, minutes, 0, 0)
-      const currentMinimum = futureOnly
-        ? nextLocalMinute(new Date())
-        : undefined
-      if (currentMinimum && newDate < currentMinimum) {
-        newDate.setTime(currentMinimum.getTime())
-        setTime(formatLocalTime(currentMinimum))
-      }
-      setDate(newDate)
-      setMonth(newDate)
-      onChange?.(newDate)
+      commit(selectedDate, time)
       setOpen(false)
-    } else {
-      setDate(undefined)
-      setMonth(undefined)
-      onChange?.(undefined)
+      return
     }
+    setDate(undefined)
+    setMonth(undefined)
+    onChange?.(undefined)
   }
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTime = e.target.value
-    setTime(newTime)
-
+  const applyTime = (nextTime: string) => {
     if (date) {
-      const [hours, minutes] = newTime.split(':').map(Number)
-      const newDate = new Date(date)
-      newDate.setHours(hours, minutes, 0, 0)
-      const currentMinimum = futureOnly
-        ? nextLocalMinute(new Date())
-        : undefined
-      if (currentMinimum && newDate < currentMinimum) {
-        newDate.setTime(currentMinimum.getTime())
-        setTime(formatLocalTime(currentMinimum))
-      }
-      setDate(newDate)
-      onChange?.(newDate)
+      commit(date, nextTime)
+      return
     }
+    setTime(nextTime)
+    setTimeText(nextTime)
   }
 
   const handleClear = () => {
     setDate(undefined)
     setMonth(undefined)
-    setTime('00:00')
+    setTime('')
+    setTimeText('')
     onChange?.(undefined)
   }
 
@@ -182,26 +215,61 @@ export function DateTimePicker({
             startMonth={new Date(currentYear - 100, 0)}
             endMonth={new Date(currentYear + 100, 11)}
             disabled={
-              minimumDateTime
-                ? { before: startOfLocalDay(minimumDateTime) }
+              futureOnly
+                ? { before: startOfLocalDay(nextLocalMinute(now)) }
                 : undefined
             }
           />
         </PopoverContent>
       </Popover>
-      <Input
-        type='time'
-        value={time}
-        onChange={handleTimeChange}
-        className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
-        disabled={!date}
-        min={
-          date && minimumDateTime && isSameLocalDay(date, minimumDateTime)
-            ? formatLocalTime(minimumDateTime)
-            : undefined
-        }
-      />
-      {date && (
+      <Combobox<string>
+        items={TIME_SLOTS}
+        value={TIME_SLOTS.includes(time) ? time : null}
+        filter={null}
+        inputValue={timeText}
+        onInputValueChange={(text, details) => {
+          // Only typing edits the box; the list and blur keep it in step with the chosen time.
+          if (details.reason !== 'input-change') return
+          const digits = text.replaceAll(/\D/g, '').slice(0, 4)
+          const formatted =
+            digits.length > 2
+              ? `${digits.slice(0, 2)}:${digits.slice(2)}`
+              : digits
+          setTimeText(formatted)
+          if (TIME_PATTERN.test(formatted)) applyTime(formatted)
+        }}
+        onValueChange={(slot) => {
+          if (slot) applyTime(slot)
+        }}
+      >
+        <ComboboxInput
+          className='w-32 shrink-0'
+          placeholder={t('Time')}
+          aria-label={t('Time')}
+          inputMode='numeric'
+          maxLength={5}
+          onBlur={() => setTimeText(time)}
+        />
+        <ComboboxContent>
+          <ComboboxList>
+            {(slot: string) => (
+              <ComboboxItem
+                key={slot}
+                value={slot}
+                disabled={Boolean(
+                  futureOnly &&
+                  date &&
+                  isSameLocalDay(date, now) &&
+                  atLocalTime(date, slot) < nextLocalMinute(now)
+                )}
+              >
+                {slot}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      {(date || time) && (
         <Button
           type='button'
           variant='outline'

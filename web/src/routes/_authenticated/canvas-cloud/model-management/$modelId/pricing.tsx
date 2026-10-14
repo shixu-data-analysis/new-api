@@ -18,6 +18,7 @@ import z from 'zod'
 import { ErrorState } from '@/components/error-state'
 import { UnifiedModelPricing } from '@/features/canvas-cloud/components/UnifiedModelPricing'
 import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation-state'
+import { modelPricingTabNavigation } from '@/features/canvas-cloud/model-pricing-tab-navigation'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
@@ -41,20 +42,17 @@ function ModelPricingRoute() {
   const publicationId = search.publicationId
     ? z.string().uuid().safeParse(search.publicationId)
     : undefined
-  let tab: 'current' | 'set' | 'history' = 'current'
+  let tab: 'current' | 'history' = 'current'
   if (
     (publicationId?.success || publicationId === undefined) &&
-    (search.tab === 'set' || search.tab === 'history')
+    search.tab === 'history'
   ) {
     tab = search.tab
   }
   const resolvedTab = publicationId?.success ? 'history' : tab
   useEffect(() => {
     if (!modelId.success || (publicationId && !publicationId.success)) return
-    const validTab =
-      search.tab === 'current' ||
-      search.tab === 'set' ||
-      search.tab === 'history'
+    const validTab = search.tab === 'current' || search.tab === 'history'
     if (publicationId?.success && search.tab !== 'history') {
       void navigate({
         to: '/canvas-cloud/model-management/$modelId/pricing',
@@ -86,15 +84,7 @@ function ModelPricingRoute() {
         void navigate({
           to: '/canvas-cloud/model-management/$modelId/pricing',
           params: { modelId: modelId.data },
-          search:
-            next === 'history'
-              ? {
-                  tab: next,
-                  ...(publicationId?.data
-                    ? { publicationId: publicationId.data }
-                    : {}),
-                }
-              : { tab: next },
+          ...modelPricingTabNavigation(next, publicationId?.data),
         })
       }
       onBack={() =>

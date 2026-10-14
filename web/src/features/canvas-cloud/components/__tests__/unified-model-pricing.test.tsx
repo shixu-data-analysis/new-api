@@ -11,7 +11,10 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { PageFooterProvider } from '@/components/layout/components/page-footer'
 
 import { UnifiedModelPricing } from '../UnifiedModelPricing'
 
@@ -24,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
   history: vi.fn(),
   cancel: vi.fn(),
+  publication: vi.fn(),
   blocker: vi.fn(),
 }))
 
@@ -36,6 +40,7 @@ vi.mock('../../api', () => ({
   publishCanvasModelPricing: mocks.publish,
   getCanvasModelPricingHistory: mocks.history,
   cancelCanvasModelPricingSchedule: mocks.cancel,
+  getCanvasModelPricingPublication: mocks.publication,
 }))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -202,46 +207,45 @@ const preview = {
   canPublish: true,
 }
 
+// The publish bar renders into the page footer, as under SectionPageLayout.
+function PageShell(props: { children: React.ReactNode }) {
+  const [footer, setFooter] = useState<HTMLDivElement | null>(null)
+  return (
+    <PageFooterProvider container={footer}>
+      {props.children}
+      <div data-testid='page-footer' ref={setFooter} />
+    </PageFooterProvider>
+  )
+}
+
 function renderPricing(
-  tab: 'set' | 'current' | 'history' = 'set',
-  onTabChange?: (tab: 'current' | 'set' | 'history') => void
+  tab: 'current' | 'history' = 'current',
+  onBack = vi.fn()
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  const view = render(
+  const page = (next: 'current' | 'history') => (
     <QueryClientProvider client={client}>
-      <UnifiedModelPricing
-        initialModelId='model-1'
-        tab={tab}
-        onTabChange={onTabChange}
-        onBack={vi.fn()}
-      />
+      <PageShell>
+        <UnifiedModelPricing
+          initialModelId='model-1'
+          tab={next}
+          onBack={onBack}
+        />
+      </PageShell>
     </QueryClientProvider>
   )
+  const view = render(page(tab))
   return {
     ...view,
-    rerenderTab: (next: 'set' | 'current' | 'history') =>
-      view.rerender(
-        <QueryClientProvider client={client}>
-          <UnifiedModelPricing
-            initialModelId='model-1'
-            tab={next}
-            onTabChange={onTabChange}
-            onBack={vi.fn()}
-          />
-        </QueryClientProvider>
-      ),
+    client,
+    rerenderTab: (next: 'current' | 'history') => view.rerender(page(next)),
   }
 }
 
-async function fields() {
-  return {
-    provider: await screen.findByLabelText(/Provider cost/),
-    inviter: screen.getByLabelText(/Inviter \(agent\) display price/),
-    customer: screen.getByLabelText(/Customer sale price/),
-  }
-}
+const customerInput = () => screen.findByLabelText('HD Customer sale price')
+const footer = () => within(screen.getByTestId('page-footer'))
 
 beforeEach(() => {
   Object.values(mocks).forEach((mock) => mock.mockReset())
@@ -255,9 +259,6 @@ beforeEach(() => {
     priceGroups: detail.priceGroups,
   })
   mocks.detail.mockResolvedValue(structuredClone(detail))
-  mocks.issuance.mockResolvedValue([
-    { status: 'PUBLISHED', pointsPerRmb: '100' },
-  ])
   mocks.calculate.mockResolvedValue(structuredClone(calculation))
   mocks.preview.mockResolvedValue(structuredClone(preview))
   mocks.publish.mockResolvedValue({ id: 'publication-1', status: 'PUBLISHED' })
@@ -269,254 +270,65 @@ beforeEach(() => {
   })
 })
 
-describe('UnifiedModelPricing UAT-028', () => {
-  it('marks a disabled specification in current pricing and keeps its price adjustable', async () => {
-    const disabledDetail = structuredClone(detail)
-    disabledDetail.pricingScopes[0].controlEnabled = false
-    mocks.detail.mockResolvedValue(disabledDetail)
-
-    renderPricing('current')
-
-    const row = (await screen.findByText('Specification disabled')).closest(
-      'tr'
-    ) as HTMLElement
-    expect(row).toHaveTextContent('HD')
-    expect(within(row).getByTestId('adjust-pricing')).toBeEnabled()
-  })
-
-  it('does not present the current model identity as a historical record', async () => {
-    renderPricing('history')
-
-    expect(
-      (await screen.findAllByText('History versions')).length
-    ).toBeGreaterThan(0)
-    expect(screen.queryByText('Video Alpha')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'View model identity' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('keeps a mixed-unit model editable but requires an explicit unit and fresh complete prices', async () => {
-    const mixedModel = {
-      ...model,
-      billingUnit: null,
-      billingUnitState: 'MIXED',
-      publishedBillingUnits: ['REQUEST', 'SECOND'],
-    }
-    const mixedDetail = structuredClone(detail)
-    mixedDetail.model = mixedModel as never
-    mocks.workspace.mockResolvedValue({
-      models: [mixedModel],
-      priceGroups: mixedDetail.priceGroups,
-    })
-    mocks.detail.mockResolvedValue(mixedDetail)
-    const user = userEvent.setup()
+describe('UnifiedModelPricing inline editing', () => {
+  it('edits prices in the current table without a set-prices tab or adjust column', async () => {
     renderPricing()
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Published pricing contains mixed billing units.'
-    )
-    const previewButton = screen.getByRole('button', {
-      name: 'Preview and publish',
-    })
-    expect(previewButton).toBeDisabled()
+
+    expect(await customerInput()).toHaveValue('1.2345')
+    expect(screen.getByLabelText('HD Provider cost')).toHaveValue('0.5000')
     expect(
-      screen.getByRole('radio', { name: 'Schedule for later' })
+      screen.getByLabelText('HD Inviter (agent) display price')
+    ).toHaveValue('1.0000')
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Current pricing',
+      'History versions',
+    ])
+    expect(screen.queryByText('Adjust pricing')).not.toBeInTheDocument()
+    expect(await screen.findByText('124 points per request')).toBeVisible()
+    expect(screen.getByText('Above provider cost by 0.5000 yuan')).toBeVisible()
+    expect(screen.getByText(/100\.0000 points per RMB/)).toBeVisible()
+    expect(
+      screen.getByText('Above inviter display price by 0.2345 yuan')
+    ).toBeVisible()
+    expect(footer().getByText('No unpublished changes')).toBeVisible()
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+    expect(
+      footer().getByRole('button', { name: 'Discard changes' })
     ).toBeDisabled()
-    expect(mocks.preview).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
-    await user.click(screen.getByRole('option', { name: 'per request' }))
-    const input = await fields()
-    expect(input.provider).toHaveValue('')
-    expect(input.inviter).toHaveValue('')
-    expect(input.customer).toHaveValue('')
-    expect(previewButton).toBeEnabled()
-    await user.click(previewButton)
-    expect(mocks.preview).not.toHaveBeenCalled()
-    fireEvent.change(input.provider, { target: { value: '0.5000' } })
-    fireEvent.change(input.inviter, { target: { value: '1.0000' } })
-    fireEvent.change(input.customer, { target: { value: '1.2345' } })
-    await user.click(previewButton)
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
-    expect(mocks.preview.mock.calls[0][0]).toMatchObject({
-      billingUnit: 'REQUEST',
-      effectiveMode: 'IMMEDIATE',
-      scopes: [{ parameterCombinationId: 'scope-1' }],
-    })
   })
 
-  it('shows current CNY cost, inviter price, sale price and points without inventing legacy RMB originals', async () => {
-    renderPricing('current')
-    expect(
-      await screen.findByRole('columnheader', { name: 'Provider cost' })
-    ).toBeVisible()
-    expect(
-      screen.getByRole('columnheader', {
-        name: 'Inviter (agent) display price',
+  it('publishes a changed price after confirming old and new values', async () => {
+    renderPricing()
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+
+    expect(footer().getByText('Changed 1 pricing scopes')).toBeVisible()
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(mocks.preview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effectiveMode: 'IMMEDIATE',
+        scopes: [
+          {
+            parameterCombinationId: 'scope-1',
+            providerSuccessPriceCny: '0.5000',
+            prices: [
+              {
+                priceGroupId: 'group-1',
+                sourcePriceVersionId: 'price-1',
+                inviterDisplayPriceCny: '1.0000',
+                customerPriceCny: '1.5',
+              },
+            ],
+          },
+        ],
       })
-    ).toBeVisible()
-    expect(
-      screen.getByRole('columnheader', { name: 'Customer sale price' })
-    ).toBeVisible()
-    expect(screen.getByText(/1.0000 RMB/)).toBeVisible()
-    expect(screen.getByText(/1.2345 RMB/)).toBeVisible()
-    expect(screen.getByText(/124 points/)).toBeVisible()
-  })
-
-  it('shows only CNY inputs and restores the three actual original values', async () => {
-    renderPricing()
-    const input = await fields()
-    expect(
-      screen.queryByRole('radio', { name: 'Points pricing' })
-    ).not.toBeInTheDocument()
-    expect(input.provider).toHaveValue('0.5000')
-    expect(input.inviter).toHaveValue('1.0000')
-    expect(input.customer).toHaveValue('1.2345')
-    expect(await screen.findByText('124 points / per request')).toBeVisible()
-  })
-
-  it('shows no whole-request hint for a model without a fixed batch', async () => {
-    renderPricing()
-    await fields()
-    expect(
-      screen.queryByText(/always returns \d+ images per request/)
-    ).not.toBeInTheDocument()
-  })
-
-  it('tells the admin to enter the whole-request price for a fixed four-image batch', async () => {
-    const batchModel = { ...model, fixedRequestBatchSize: 4 }
-    const batchDetail = structuredClone(detail)
-    batchDetail.model = batchModel as never
-    mocks.workspace.mockResolvedValue({
-      models: [batchModel],
-      priceGroups: detail.priceGroups,
-    })
-    mocks.detail.mockResolvedValue(batchDetail)
-    renderPricing()
-    await fields()
-    expect(
-      screen.getByText(
-        'This model always returns 4 images per request. Enter the price of one whole request (4 images), not the price of one image.'
-      )
-    ).toBeVisible()
-  })
-
-  it('leaves missing original RMB fields blank for a legacy POINTS version while showing old points read-only', async () => {
-    const old = structuredClone(detail)
-    old.pricingScopes[0].originalProviderSuccessPriceCny = null as never
-    old.pricingScopes[0].prices[0].current = {
-      ...old.pricingScopes[0].prices[0].current,
-      inputMode: 'POINTS',
-      originalCnyValues: {
-        providerSuccessPriceCny: null,
-        inviterDisplayPriceCny: null,
-        customerPriceCny: null,
-      },
-    } as never
-    mocks.detail.mockResolvedValue(old)
-    renderPricing()
-    const input = await fields()
-    expect(input.provider).toHaveValue('')
-    expect(input.inviter).toHaveValue('')
-    expect(input.customer).toHaveValue('')
-    expect(
-      screen.getByText(/Current active version is legacy points pricing/)
-    ).toBeVisible()
-    expect(screen.getByText(/Original customer points/)).toBeVisible()
-  })
-
-  it('preserves recorded CNY cost and sale price but leaves a missing inviter original blank', async () => {
-    const old = structuredClone(detail)
-    old.pricingScopes[0].prices[0].current.originalCnyValues.inviterDisplayPriceCny =
-      null as never
-    const oldPreview = structuredClone(preview)
-    oldPreview.scopes[0].prices[0].current.originalCnyValues.inviterDisplayPriceCny =
-      null as never
-    mocks.preview.mockResolvedValue(oldPreview)
-    mocks.detail.mockResolvedValue(old)
-    renderPricing()
-    const input = await fields()
-    expect(input.provider).toHaveValue('0.5000')
-    expect(input.inviter).toHaveValue('')
-    expect(input.customer).toHaveValue('1.2345')
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
-    expect(mocks.preview).not.toHaveBeenCalled()
-    fireEvent.change(input.inviter, { target: { value: '1.0000' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
-    expect(
-      await screen.findByText(/Original RMB value not recorded → ¥1.0000/)
-    ).toBeVisible()
-  })
-
-  it('labels missing originals as not set only for first pricing', async () => {
-    const firstDetail = structuredClone(detail)
-    firstDetail.pricingScopes[0].originalProviderSuccessPriceCny = null as never
-    firstDetail.pricingScopes[0].prices[0].current = null as never
-    const firstPreview = structuredClone(preview)
-    firstPreview.scopes[0].prices[0].current = null as never
-    mocks.detail.mockResolvedValue(firstDetail)
-    mocks.preview.mockResolvedValue(firstPreview)
-    renderPricing()
-    const input = await fields()
-    fireEvent.change(input.provider, { target: { value: '0.5000' } })
-    fireEvent.change(input.inviter, { target: { value: '1.0000' } })
-    fireEvent.change(input.customer, { target: { value: '1.2345' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
-    expect((await screen.findAllByText(/Not set → ¥/)).length).toBeGreaterThan(
-      0
     )
-    expect(
-      screen.queryByText(/Original RMB value not recorded →/)
-    ).not.toBeInTheDocument()
-  })
-
-  it('does not preview when amount precision exceeds four decimals or prices invert', async () => {
-    renderPricing()
-    const input = await fields()
-    fireEvent.change(input.provider, { target: { value: '0.50001' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
-    expect(
-      (
-        await screen.findAllByText(
-          /Enter an amount above 0 with up to 4 decimals/
-        )
-      ).length
-    ).toBeGreaterThan(0)
-    expect(mocks.preview).not.toHaveBeenCalled()
-    fireEvent.change(input.provider, { target: { value: '2.0000' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and publish' }))
-    expect(
-      await screen.findByText(
-        /Inviter display price must be at least provider cost/
-      )
-    ).toBeVisible()
-    expect(mocks.preview).not.toHaveBeenCalled()
-  })
-
-  it('sends one shared cost and the two plan prices, then confirms only server-derived points', async () => {
-    const user = userEvent.setup()
-    renderPricing()
-    await fields()
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
-    expect(mocks.preview.mock.calls[0][0]).toMatchObject({
-      inputMode: 'CNY',
-      calculationIdentity: identity,
-      scopes: [
-        {
-          providerSuccessPriceCny: '0.5000',
-          prices: [
-            { inviterDisplayPriceCny: '1.0000', customerPriceCny: '1.2345' },
-          ],
-        },
-      ],
-    })
-    expect(
-      await screen.findByRole('button', { name: 'Confirm and publish' })
-    ).toBeVisible()
-    await user.click(
-      screen.getByRole('button', { name: 'Confirm and publish' })
+    expect(dialog).toHaveTextContent('Customer sale price 1.2345 → 1.5 yuan')
+    expect(dialog).toHaveTextContent('Customer points 124 → 124 points')
+    expect(dialog).toHaveTextContent('Immediately')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Confirm and publish' })
     )
     await waitFor(() =>
       expect(mocks.publish).toHaveBeenCalledWith(
@@ -526,279 +338,342 @@ describe('UnifiedModelPricing UAT-028', () => {
     )
   })
 
-  it('invalidates a prior preview and derived results when an input changes', async () => {
+  it('marks invalid prices instead of previewing', async () => {
     renderPricing()
-    const input = await fields()
-    await screen.findByText('0.2345 RMB / per request')
-    fireEvent.change(input.customer, { target: { value: '1.5000' } })
+    fireEvent.change(
+      await screen.findByLabelText('HD Inviter (agent) display price'),
+      {
+        target: { value: '0.4' },
+      }
+    )
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
+
     expect(
-      screen.queryByText('0.2345 RMB / per request')
-    ).not.toBeInTheDocument()
+      await screen.findByText(
+        'Inviter display price must be at least provider cost, with up to 4 decimals.'
+      )
+    ).toBeVisible()
+    expect(
+      footer().getByText('Fix the prices marked in red first')
+    ).toBeVisible()
+    expect(
+      screen.getByLabelText('HD Inviter (agent) display price')
+    ).toHaveAttribute('aria-invalid', 'true')
+    expect(mocks.preview).not.toHaveBeenCalled()
   })
 
-  it('keeps one cost shared while two plans submit independent inviter and customer prices', async () => {
-    const nextDetail = structuredClone(detail)
-    nextDetail.priceGroups.push({
-      id: 'group-2',
-      code: 'PREMIUM',
-      internalName: 'Premium',
-    })
-    nextDetail.pricingScopes[0].prices.push({
-      priceGroupId: 'group-2',
-      priceGroupCode: 'PREMIUM',
-      priceGroupName: 'Premium',
-      scheduled: null,
-      current: {
-        ...structuredClone(current),
-        id: 'price-2',
-        originalCnyValues: {
-          providerSuccessPriceCny: '0.5000',
-          inviterDisplayPriceCny: '2.0000',
-          customerPriceCny: '3.0000',
-        },
-      },
-    })
-    mocks.workspace.mockResolvedValue({
-      models: [model],
-      priceGroups: nextDetail.priceGroups,
-    })
-    mocks.detail.mockResolvedValue(nextDetail)
-    const user = userEvent.setup()
+  it('allows three equal prices', async () => {
     renderPricing()
-    const first = await fields()
-    expect(first.provider).toHaveValue('0.5000')
-    expect(first.inviter).toHaveValue('1.0000')
-    await user.click(screen.getByRole('combobox', { name: 'Price plan' }))
-    await user.click(screen.getByRole('option', { name: 'Premium' }))
-    expect(screen.getByLabelText(/Provider cost/)).toHaveValue('0.5000')
-    expect(
-      screen.getByLabelText(/Inviter \(agent\) display price/)
-    ).toHaveValue('2.0000')
-    expect(screen.getByLabelText(/Customer sale price/)).toHaveValue('3.0000')
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
+    fireEvent.change(
+      await screen.findByLabelText('HD Inviter (agent) display price'),
+      {
+        target: { value: '0.5' },
+      }
     )
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
-    expect(mocks.preview.mock.calls[0][0].scopes[0]).toMatchObject({
-      providerSuccessPriceCny: '0.5000',
-      prices: [
+    fireEvent.change(await customerInput(), { target: { value: '0.5' } })
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
+
+    expect(await screen.findByRole('alertdialog')).toBeVisible()
+  })
+
+  it('marks preview conflicts on the rows and does not open the confirmation', async () => {
+    mocks.preview.mockResolvedValue({
+      ...structuredClone(preview),
+      canPublish: false,
+      conflicts: [
         {
-          priceGroupId: 'group-1',
-          inviterDisplayPriceCny: '1.0000',
-          customerPriceCny: '1.2345',
-        },
-        {
-          priceGroupId: 'group-2',
-          inviterDisplayPriceCny: '2.0000',
-          customerPriceCny: '3.0000',
+          code: 'LIMITED_PRICE_SPECIAL',
+          parameterCombinationId: 'scope-1',
+          message: 'Resolve limited price',
         },
       ],
     })
-  })
-
-  it('renders only supported Token categories with isolated inviter inputs', async () => {
-    const tokenModel = {
-      ...model,
-      billingUnit: 'MILLION_TOKENS',
-      allowedBillingUnits: ['MILLION_TOKENS'],
-      tokenCategories: ['input', 'output'],
-    }
-    const tokenDetail = structuredClone(detail)
-    tokenDetail.model = tokenModel as never
-    tokenDetail.pricingScopes[0].originalProviderSuccessPriceCny = {
-      input: '0.5000',
-      output: '0.7500',
-    } as never
-    tokenDetail.pricingScopes[0].prices[0].current.originalCnyValues = {
-      providerSuccessPriceCny: { input: '0.5000', output: '0.7500' },
-      inviterDisplayPriceCny: { input: '1.0000', output: '1.2500' },
-      customerPriceCny: { input: '1.5000', output: '2.0000' },
-    } as never
-    mocks.workspace.mockResolvedValue({
-      models: [tokenModel],
-      priceGroups: tokenDetail.priceGroups,
-    })
-    mocks.detail.mockResolvedValue(tokenDetail)
     renderPricing()
-    const inviters = await screen.findAllByLabelText(
-      /Inviter \(agent\) display price/
-    )
-    expect(inviters).toHaveLength(2)
-    expect(inviters[0]).toHaveValue('1.0000')
-    expect(inviters[1]).toHaveValue('1.2500')
-    fireEvent.change(inviters[0], { target: { value: '1.1000' } })
-    expect(inviters[1]).toHaveValue('1.2500')
-    expect(screen.queryByText('cacheRead')).not.toBeInTheDocument()
-  })
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
 
-  it('shows only changed original values in compact confirmation and preserves edits on return', async () => {
-    const user = userEvent.setup()
-    renderPricing()
-    const input = await fields()
-    fireEvent.change(input.customer, { target: { value: '1.5000' } })
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    expect(await screen.findByText(/¥1.2345 → ¥1.5000/)).toBeVisible()
-    expect(screen.queryByText(/¥0.5000 → ¥0.5000/)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Return to editing' }))
-    expect(input.customer).toHaveValue('1.5000')
-    expect(mocks.publish).not.toHaveBeenCalled()
-  })
-
-  it('ignores a calculation response for an older input revision', async () => {
-    let resolveCalculation: ((value: unknown) => void) | undefined
-    mocks.calculate.mockReturnValue(
-      new Promise((resolve) => {
-        resolveCalculation = resolve
-      })
-    )
-    renderPricing()
-    const input = await fields()
-    await waitFor(() => expect(mocks.calculate).toHaveBeenCalled())
-    fireEvent.change(input.customer, { target: { value: '1.5000' } })
-    await act(async () => {
-      resolveCalculation?.(structuredClone(calculation))
-    })
     expect(
-      screen.queryByText('0.2345 RMB / per request')
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Confirm and publish' })
-    ).not.toBeInTheDocument()
-  })
-
-  it('does not open a stale preview after the price changes', async () => {
-    let resolvePreview: ((value: unknown) => void) | undefined
-    mocks.preview.mockReturnValue(
-      new Promise((resolve) => {
-        resolvePreview = resolve
-      })
-    )
-    const user = userEvent.setup()
-    renderPricing()
-    const input = await fields()
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
-    fireEvent.change(input.customer, { target: { value: '1.5000' } })
-    await act(async () => {
-      resolvePreview?.(structuredClone(preview))
-    })
-    expect(
-      screen.queryByRole('button', { name: 'Confirm and publish' })
-    ).not.toBeInTheDocument()
-  })
-})
-
-describe('UnifiedModelPricing UAT-030', () => {
-  it('shows refreshed immediate pricing after publication and allows a new edit', async () => {
-    const published = structuredClone(detail)
-    published.pricingScopes[0].prices[0].current.points = '200'
-    published.pricingScopes[0].prices[0].current.originalCnyValues.customerPriceCny =
-      '2.0000'
-    mocks.detail
-      .mockResolvedValueOnce(structuredClone(detail))
-      .mockResolvedValue(structuredClone(published))
-    const user = userEvent.setup()
-    renderPricing()
-    await fields()
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    await user.click(
-      await screen.findByRole('button', { name: 'Confirm and publish' })
-    )
-    expect(await screen.findByText(/200 points/)).toBeVisible()
-    expect(
-      screen.getByRole('tab', { name: 'Current pricing' })
-    ).toHaveAttribute('aria-selected', 'true')
-    expect(mocks.detail.mock.calls.length).toBeGreaterThan(1)
-    await user.click(screen.getByRole('button', { name: 'Adjust pricing' }))
-    expect(
-      screen.getByRole('tab', { name: 'Set prices', hidden: true })
-    ).toHaveAttribute('aria-selected', 'true')
-    expect((await fields()).customer).toHaveValue('2.0000')
-    expect(mocks.preview).toHaveBeenCalledTimes(1)
-  })
-
-  it('requests the current URL tab on success and follows URL tab changes on reentry', async () => {
-    const onTabChange = vi.fn()
-    const user = userEvent.setup()
-    const view = renderPricing('set', onTabChange)
-    await fields()
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    await user.click(
-      await screen.findByRole('button', { name: 'Confirm and publish' })
-    )
-    await waitFor(() => expect(onTabChange).toHaveBeenCalledWith('current'))
-    view.rerenderTab('current')
-    expect(
-      screen.getByRole('tab', { name: 'Current pricing' })
-    ).toHaveAttribute('aria-selected', 'true')
-    view.rerenderTab('set')
-    expect(screen.getByRole('tab', { name: 'Set prices' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
-    expect((await fields()).customer).toHaveValue('1.2345')
-    view.rerenderTab('current')
-    expect(
-      screen.getByRole('tab', { name: 'Current pricing' })
-    ).toHaveAttribute('aria-selected', 'true')
-  })
-
-  it('keeps the editing draft and confirmation after a failed publication', async () => {
-    mocks.publish.mockRejectedValueOnce(new Error('publication failed'))
-    const user = userEvent.setup()
-    renderPricing()
-    const input = await fields()
-    await user.clear(input.customer)
-    await user.type(input.customer, '1.5000')
-    await user.click(
-      screen.getByRole('button', { name: 'Preview and publish' })
-    )
-    await user.click(
-      await screen.findByRole('button', { name: 'Confirm and publish' })
-    )
-    await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
-    expect(
-      screen.getByRole('tab', { name: 'Set prices', hidden: true })
-    ).toHaveAttribute('aria-selected', 'true')
-    expect(input.customer).toHaveValue('1.5000')
-    expect(
-      screen.getByRole('button', { name: 'Confirm and publish' })
+      await screen.findByText(
+        'A limited-price special is in progress. Wait until it ends or cancel it before changing prices.'
+      )
     ).toBeVisible()
+    expect(footer().getByText('1 conflicts block publishing')).toBeVisible()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.change(await customerInput(), { target: { value: '1.6' } })
+    expect(
+      footer().queryByText('1 conflicts block publishing')
+    ).not.toBeInTheDocument()
   })
 
-  it('keeps current and scheduled prices separate, including a scheduled-only row', async () => {
+  it('locks a scheduled row and cancels only its pricing scope from the table', async () => {
     const scheduledDetail = structuredClone(detail)
-    scheduledDetail.pricingScopes[0].prices[0].scheduled = {
-      ...structuredClone(current),
+    ;(
+      scheduledDetail.pricingScopes[0].prices[0] as Record<string, unknown>
+    ).scheduled = {
+      ...current,
       id: 'price-2',
       status: 'APPROVED',
-      effectiveAt: '2030-01-01T00:00:00Z',
-      points: '300',
-      originalCnyValues: { ...original, customerPriceCny: '3.0000' },
-    } as never
+      points: '150',
+      effectiveAt: '2026-12-01T10:00:00Z',
+      publicationId: 'publication-9',
+      originalCnyValues: { ...original, customerPriceCny: '1.5000' },
+    }
     mocks.detail.mockResolvedValue(scheduledDetail)
-    const view = renderPricing('current')
+    mocks.publication.mockResolvedValue({
+      id: 'publication-9',
+      displayNameSnapshot: 'Video Alpha',
+      effectiveAt: '2026-12-01T10:00:00Z',
+      change: 'PRICE',
+      scopeSummary: [
+        {
+          combinationId: 'scope-1',
+          combinationKey: 'standard',
+          parameters: { quality: 'HD' },
+          priceGroupId: 'group-1',
+          changeKind: 'PRICE',
+          providerRateVersionId: 'provider-1',
+          priceVersionId: 'price-2',
+          rateCurrent: true,
+          priceCurrent: false,
+          status: 'SCHEDULED',
+        },
+        {
+          combinationId: 'scope-2',
+          combinationKey: 'premium',
+          parameters: { quality: '4K' },
+          priceGroupId: 'group-1',
+          changeKind: 'PRICE',
+          providerRateVersionId: 'provider-2',
+          priceVersionId: 'price-3',
+          rateCurrent: true,
+          priceCurrent: false,
+          status: 'SCHEDULED',
+        },
+      ],
+    })
+    mocks.cancel.mockResolvedValue({ id: 'publication-9', status: 'APPROVED' })
+    renderPricing()
+
+    expect(await customerInput()).toBeDisabled()
+    expect(screen.getByText('1.5000 yuan · 150 points')).toBeVisible()
     expect(
-      await screen.findByRole('columnheader', { name: 'Scheduled price' })
+      screen.getByText('A price is scheduled and cannot be changed')
     ).toBeVisible()
-    expect(screen.getByText(/124 points/)).toBeVisible()
-    expect(screen.getByText(/300 points/)).toBeVisible()
-    expect(screen.getByText(/Effective at/)).toBeVisible()
-    const scheduledOnly = structuredClone(scheduledDetail)
-    scheduledOnly.pricingScopes[0].prices[0].current = null as never
-    mocks.detail.mockResolvedValue(scheduledOnly)
-    // A fresh mount represents returning to the route after a later scheduled publication.
-    view.unmount()
-    renderPricing('current')
-    expect(await screen.findByText('Not priced')).toBeVisible()
-    expect(screen.getAllByText(/300 points/).length).toBeGreaterThan(0)
+    fireEvent.change(
+      footer().getByRole('textbox', { name: 'Change reason (optional)' }),
+      { target: { value: 'kept after cancel' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel schedule' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    await waitFor(() =>
+      expect(dialog).toHaveTextContent(
+        'Only the prices below are cancelled; current prices stay in effect.'
+      )
+    )
+    expect(dialog).toHaveTextContent(
+      'Other pricing scopes of this schedule (4K) are not affected.'
+    )
+    expect(dialog).toHaveTextContent('To cancel:HD')
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel schedule' })
+    )
+    mocks.detail.mockResolvedValue(structuredClone(detail))
+    await waitFor(() =>
+      expect(mocks.cancel).toHaveBeenCalledWith('publication-9', ['scope-1'])
+    )
+    // The current versions did not change, so the row unlocks in place and nothing is lost.
+    await waitFor(async () => expect(await customerInput()).toBeEnabled())
+    expect(
+      footer().getByRole('textbox', { name: 'Change reason (optional)' })
+    ).toHaveValue('kept after cancel')
+    expect(
+      screen.queryByText(
+        'Prices changed after you started editing. These changes cannot be published; discard them to load the latest prices.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
+  it('clears every price when the billing unit changes and restores them when it changes back', async () => {
+    const videoModel = { ...model, allowedBillingUnits: ['REQUEST', 'SECOND'] }
+    mocks.workspace.mockResolvedValue({
+      models: [videoModel],
+      priceGroups: detail.priceGroups,
+    })
+    mocks.detail.mockResolvedValue({
+      ...structuredClone(detail),
+      model: videoModel,
+    })
+    renderPricing()
+    await customerInput()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(await screen.findByRole('option', { name: 'per second' }))
+
+    expect(await customerInput()).toHaveValue('')
+    expect(
+      screen.getByText(
+        'The billing unit was changed. Re-enter every pricing scope and price plan before publishing.'
+      )
+    ).toBeVisible()
+    expect(
+      footer().getByText(
+        'Billing unit changed to per second; fill in all 1 prices'
+      )
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('combobox', { name: 'Billing unit' }))
+    await user.click(await screen.findByRole('option', { name: 'per request' }))
+    expect(await customerInput()).toHaveValue('1.2345')
+  })
+
+  it('keeps unpublished changes while history is open and hides the publish bar there', async () => {
+    const view = renderPricing()
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+
+    view.rerenderTab('history')
+    await waitFor(() =>
+      expect(screen.getByTestId('page-footer')).toBeEmptyDOMElement()
+    )
+    view.rerenderTab('current')
+
+    expect(await customerInput()).toHaveValue('1.5')
+  })
+
+  it('requires an effective time for a scheduled publication', async () => {
+    renderPricing()
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+    fireEvent.click(footer().getByRole('radio', { name: 'Schedule for later' }))
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
+
+    expect(await footer().findByText('Choose an effective time')).toBeVisible()
+    expect(mocks.preview).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed price calculation and retries it', async () => {
+    mocks.calculate.mockRejectedValueOnce(new Error('offline'))
+    renderPricing()
+
+    expect(
+      await screen.findByText('Pricing preview could not be created')
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('124 points per request')).toBeVisible()
+    expect(
+      screen.queryByText('Pricing preview could not be created')
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the page of an invalid price hidden by pagination and focuses it', async () => {
+    const pagedDetail = structuredClone(detail)
+    const [scope] = pagedDetail.pricingScopes
+    pagedDetail.pricingScopes = Array.from({ length: 21 }, (_, index) => ({
+      ...structuredClone(scope),
+      parameterCombinationId: `scope-${index + 1}`,
+      combinationKey: `q${index + 1}`,
+      parameters: { quality: `Q${index + 1}` },
+    }))
+    mocks.detail.mockResolvedValue(pagedDetail)
+    renderPricing()
+    await screen.findByLabelText('Q1 Customer sale price')
+
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }))
+    fireEvent.change(await screen.findByLabelText('Q21 Customer sale price'), {
+      target: { value: '0.1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /previous page/i }))
+    await screen.findByLabelText('Q1 Customer sale price')
+    fireEvent.click(footer().getByRole('button', { name: 'Publish' }))
+
+    const hidden = await screen.findByLabelText('Q21 Customer sale price')
+    await waitFor(() => expect(hidden).toHaveFocus())
+    expect(
+      footer().getByText('Fix the prices marked in red first')
+    ).toBeVisible()
+  })
+
+  it('keeps both actions disabled until a price changes', async () => {
+    renderPricing()
+    await customerInput()
+    fireEvent.change(
+      footer().getByRole('textbox', { name: 'Change reason (optional)' }),
+      { target: { value: 'quarterly review' } }
+    )
+
+    expect(footer().getByText('No unpublished changes')).toBeVisible()
+    expect(
+      footer().getByRole('button', { name: 'Discard changes' })
+    ).toBeDisabled()
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+  })
+
+  it('leaves through the navigation guard alone, without a second confirmation', async () => {
+    const onBack = vi.fn()
+    renderPricing('current', onBack)
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Back to model list' }))
+
+    expect(onBack).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the same focused input while a price is typed', async () => {
+    const user = userEvent.setup()
+    renderPricing()
+    const input = await customerInput()
+
+    await user.clear(input)
+    await user.type(input, '1.55')
+
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue('1.55')
+  })
+
+  it('follows a refresh of the current prices while nothing is edited', async () => {
+    const { client } = renderPricing()
+    expect(await customerInput()).toHaveValue('1.2345')
+
+    mocks.detail.mockResolvedValue(republishedDetail())
+    await act(() => client.invalidateQueries())
+
+    await waitFor(async () =>
+      expect(await customerInput()).toHaveValue('1.9000')
+    )
+    expect(footer().getByText('No unpublished changes')).toBeVisible()
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+  })
+
+  it('keeps edits on their original versions and blocks publishing after another admin republishes', async () => {
+    const { client } = renderPricing()
+    fireEvent.change(await customerInput(), { target: { value: '1.5' } })
+
+    mocks.detail.mockResolvedValue(republishedDetail())
+    await act(() => client.invalidateQueries())
+
+    expect(
+      await screen.findByText(
+        'Prices changed after you started editing. These changes cannot be published; discard them to load the latest prices.'
+      )
+    ).toBeVisible()
+    expect(await customerInput()).toHaveValue('1.5')
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+
+    fireEvent.click(footer().getByRole('button', { name: 'Discard changes' }))
+    expect(await customerInput()).toHaveValue('1.9000')
+    expect(mocks.preview).not.toHaveBeenCalled()
   })
 })
+
+function republishedDetail() {
+  const next = structuredClone(detail)
+  const [price] = next.pricingScopes[0].prices
+  price.current = {
+    ...price.current,
+    id: 'price-2',
+    originalCnyValues: { ...original, customerPriceCny: '1.9000' },
+  }
+  return next
+}

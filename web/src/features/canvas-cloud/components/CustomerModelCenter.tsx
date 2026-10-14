@@ -29,8 +29,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { pointsUnitKey } from '../lib/billing-unit-labels'
 import type {
-  CanvasBillingUnit,
   CanvasCatalogModel,
   CanvasTokenCategory,
   CanvasTokenRateVector,
@@ -255,14 +255,6 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
       )}
     </div>
   )
-}
-
-// Customer price unit mirrors Canvas Web; unknown units stay plain points.
-function pointsUnitKey(billingUnit: CanvasBillingUnit) {
-  if (billingUnit === 'SECOND') return 'points per second'
-  if (billingUnit === 'MILLION_TOKENS') return 'points per million tokens'
-  if (billingUnit === 'REQUEST') return 'points per request'
-  return 'points'
 }
 
 const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {

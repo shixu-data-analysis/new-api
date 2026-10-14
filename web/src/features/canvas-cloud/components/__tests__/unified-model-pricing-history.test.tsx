@@ -386,7 +386,7 @@ describe('UnifiedModelPricingHistory', () => {
     expect(
       screen.getAllByText('124 Points / per second').length
     ).toBeGreaterThan(0)
-    expect(screen.getByText('100 points per RMB')).toBeVisible()
+    expect(screen.getByText('100.0000 points per RMB')).toBeVisible()
   })
 
   it('labels an empty default scope for the history list', async () => {
@@ -1415,13 +1415,22 @@ describe('UnifiedModelPricingHistory', () => {
       screen.queryByRole('button', { name: 'Cancel schedule' })
     ).not.toBeInTheDocument()
   })
-  it('requires confirmation before cancelling a scheduled unified publication', async () => {
+  it('requires confirmation before cancelling every pending price of a scheduled unified publication', async () => {
+    const scheduled = {
+      ...unified,
+      status: 'SCHEDULED',
+      scopeSummary: unified.scopeSummary.map((scope) => ({
+        ...scope,
+        status: 'SCHEDULED',
+      })),
+    }
     mocks.history.mockResolvedValue({
-      items: [{ ...unified, status: 'SCHEDULED' }],
+      items: [scheduled],
       total: 1,
       page: 1,
       pageSize: 20,
     })
+    mocks.publication.mockResolvedValue(scheduled)
     mocks.cancel.mockResolvedValue({ ...unified, status: 'CANCELLED' })
     renderHistory()
     fireEvent.click(
@@ -1429,11 +1438,54 @@ describe('UnifiedModelPricingHistory', () => {
     )
     expect(mocks.cancel).not.toHaveBeenCalled()
     const dialog = await screen.findByRole('alertdialog')
-    const confirm = dialog.querySelector('button:last-child')
-    if (!confirm) throw new Error('missing cancel confirmation')
-    fireEvent.click(confirm)
+    expect(dialog).toHaveTextContent('Cancel scheduled prices')
     await waitFor(() =>
-      expect(mocks.cancel).toHaveBeenCalledWith('publication-1')
+      expect(dialog).toHaveTextContent(
+        'Cancel every pending price of this schedule; current prices stay in effect.'
+      )
     )
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel schedule' })
+    )
+    await waitFor(() =>
+      expect(mocks.cancel).toHaveBeenCalledWith('publication-1', undefined)
+    )
+  })
+  it('keeps a partly cancelled publication scheduled and shows each item status in details', async () => {
+    const partly = {
+      ...unified,
+      status: 'SCHEDULED',
+      scopeSummary: [
+        { ...unified.scopeSummary[0], status: 'SCHEDULED' },
+        {
+          ...unified.scopeSummary[0],
+          combinationId: 'combination-2',
+          combinationKey: '2K',
+          parameters: { quality: '2K' },
+          priceVersionId: 'price-3',
+          status: 'CANCELLED',
+        },
+      ],
+      preview: {
+        ...unified.preview,
+        scopes: [
+          ...unified.preview.scopes,
+          {
+            ...unified.preview.scopes[0],
+            parameterCombinationId: 'combination-2',
+          },
+        ],
+      },
+    }
+    mocks.history.mockResolvedValue({
+      items: [partly],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+    })
+    renderHistory()
+    expect(await screen.findByText('Of which 1 cancelled')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }))
+    expect(await screen.findAllByText('Cancelled')).not.toHaveLength(0)
   })
 })

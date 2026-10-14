@@ -1082,6 +1082,8 @@ export interface CanvasModelPricingProviderRate {
   status?: string
   decisionSummary?: string
   effectiveAt?: string | null
+  /** Unified publication of a scheduled cost; null for a legacy schedule. */
+  publicationId?: string | null
 }
 
 export interface CanvasModelPricingPriceSnapshot {
@@ -1111,6 +1113,8 @@ export interface CanvasModelPricingPriceSnapshot {
   status?: string
   effectiveAt?: string | null
   providerRateVersionId?: string | null
+  /** Unified publication of a scheduled price; null for a legacy schedule. */
+  publicationId?: string | null
   originalInput:
     | {
         inputMode: 'POINTS'
@@ -1398,6 +1402,8 @@ export interface CanvasModelPricingPublication {
     priceVersionId: string | null
     rateCurrent: boolean | null
     priceCurrent: boolean | null
+    /** Unified entries: the item's own status; CANCELLED once its scope or the publication was cancelled. */
+    status?: 'SCHEDULED' | 'CANCELLED' | 'CURRENT' | 'SUPERSEDED' | null
   }>
   preview: CanvasModelPricingPreview | null
   before?: CanvasModelPricingLegacyFacts | null

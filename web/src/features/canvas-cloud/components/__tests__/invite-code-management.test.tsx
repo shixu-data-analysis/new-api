@@ -120,9 +120,12 @@ async function openChangedExtensionDrawer(item = inviteFixture()) {
   const expiryGroup = screen.getByRole('group', {
     name: /New expiration time/u,
   })
-  fireEvent.change(within(expiryGroup).getByDisplayValue('10:00'), {
-    target: { value: '11:00' },
-  })
+  fireEvent.change(
+    within(expiryGroup).getByRole('combobox', { name: 'Time' }),
+    {
+      target: { value: '11:00' },
+    }
+  )
   return { item, expiryGroup }
 }
 
@@ -185,8 +188,15 @@ describe('Canvas invite code management', () => {
     expect(screen.getByLabelText('Initial price plan')).toHaveValue('')
     const validFrom = screen.getByRole('group', { name: 'Valid from' })
     const expiresAt = screen.getByRole('group', { name: 'Expires at' })
-    expect(validFrom.querySelector('input[type="time"]')).toBeInTheDocument()
-    expect(expiresAt.querySelector('input[type="time"]')).toBeInTheDocument()
+    expect(
+      within(validFrom).getByRole('combobox', { name: 'Time' })
+    ).toBeInTheDocument()
+    expect(
+      within(expiresAt).getByRole('combobox', { name: 'Time' })
+    ).toBeInTheDocument()
+    expect(
+      validFrom.querySelector('input[type="time"]')
+    ).not.toBeInTheDocument()
     expect(
       validFrom.querySelector('input[type="datetime-local"]')
     ).not.toBeInTheDocument()
@@ -674,9 +684,12 @@ describe('Canvas invite code management', () => {
         })
     )
     fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
-    fireEvent.change(within(expiryGroup).getByDisplayValue('11:00'), {
-      target: { value: '12:00' },
-    })
+    fireEvent.change(
+      within(expiryGroup).getByRole('combobox', { name: 'Time' }),
+      {
+        target: { value: '12:00' },
+      }
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
     await waitFor(() => expect(requests).toHaveLength(2))
     requests[1]?.resolve({
@@ -1070,9 +1083,12 @@ describe('Canvas invite code management', () => {
     const expiryGroup = screen.getByRole('group', {
       name: /New expiration time/u,
     })
-    fireEvent.change(within(expiryGroup).getByDisplayValue('10:00'), {
-      target: { value: '11:00' },
-    })
+    fireEvent.change(
+      within(expiryGroup).getByRole('combobox', { name: 'Time' }),
+      {
+        target: { value: '11:00' },
+      }
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Preview extension' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Confirm extension' })

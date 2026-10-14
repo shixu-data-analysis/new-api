@@ -652,14 +652,18 @@ export async function getCanvasModelPricingHistory(
   ).data
 }
 
+/** Cancels the whole schedule, or only the given pricing scopes of it. */
 export async function cancelCanvasModelPricingSchedule(
   publicationId: string,
-  reason?: string
+  parameterCombinationIds?: string[]
 ): Promise<CanvasModelPricingPublicationResult> {
   return (
     await api.post(
       `${webBase}/admin/model-pricing/publications/${publicationId}/cancel-schedule`,
-      { confirmed: true, reason },
+      {
+        confirmed: true,
+        ...(parameterCombinationIds ? { parameterCombinationIds } : {}),
+      },
       {
         headers: {
           'Idempotency-Key': idempotencyKey('web-model-pricing-cancel'),
