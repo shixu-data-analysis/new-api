@@ -26,6 +26,9 @@ export function useCanvasSession(enabled = true) {
     enabled,
     retry: false,
     staleTime: 5 * 60 * 1000,
+    // An administrator can disable or restore the agent while this page stays loaded (the Desktop
+    // customer center is kept while the Canvas view is shown), so a page shown again reloads it.
+    refetchOnWindowFocus: 'always',
   })
 }
 
