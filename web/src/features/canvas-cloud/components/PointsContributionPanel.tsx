@@ -1502,6 +1502,9 @@ function GroupTable(props: {
       ? [
           {
             id: 'expiredCash',
+            accessorFn: (row: DashboardGroupRow) =>
+              consumptionEquation(row).expiredCash,
+            meta: { label: t('Recharge amount of expiry') },
             header: ({ column }) => (
               <DataTableColumnHeader
                 column={column}
@@ -1516,6 +1519,8 @@ function GroupTable(props: {
       : []),
     {
       id: 'agentEarnings',
+      accessorFn: (row) => consumptionEquation(row).agentEarnings,
+      meta: { label: t('Agent earnings total') },
       header: ({ column }) => (
         <DataTableColumnHeader
           column={column}

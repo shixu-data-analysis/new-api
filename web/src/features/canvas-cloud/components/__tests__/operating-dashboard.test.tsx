@@ -410,12 +410,41 @@ describe('ADMIN-REWORK-008 operating dashboard', () => {
         screen.getByRole('menuitemcheckbox', { name: hidden })
       ).toHaveAttribute('aria-checked', 'false')
     }
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Agent earnings total' })
+    ).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(
       screen.getByRole('menuitemcheckbox', { name: 'Model count' })
     )
     expect(
       await within(card).findByRole('columnheader', { name: 'Model count' })
     ).toBeInTheDocument()
+  })
+
+  it('lets the owner groups hide and restore the expiry column', async () => {
+    mount(<PointsContributionPanel />)
+    const card = (await screen.findByText('Grouped view')).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement
+    fireEvent.click(within(card).getByRole('tab', { name: 'By customer' }))
+    expect(
+      await within(card).findByRole('columnheader', {
+        name: /Recharge amount of expiry/u,
+      })
+    ).toBeInTheDocument()
+    fireEvent.click(within(card).getByRole('button', { name: 'View' }))
+    const expiry = await screen.findByRole('menuitemcheckbox', {
+      name: 'Recharge amount of expiry',
+    })
+    expect(expiry).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(expiry)
+    await waitFor(() =>
+      expect(
+        within(card).queryByRole('columnheader', {
+          name: /Recharge amount of expiry/u,
+        })
+      ).toBeNull()
+    )
   })
 
   it('distinguishes a query timeout from a general failure', async () => {
