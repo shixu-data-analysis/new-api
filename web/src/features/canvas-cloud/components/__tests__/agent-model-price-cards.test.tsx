@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -61,14 +61,15 @@ describe('Agent model price cards', () => {
     await i18next.changeLanguage('en')
   })
 
-  it('shows the customer points and the model price the agent pays for a per-request price', () => {
+  it('writes a per-request price like the model center, with the model price after the points', () => {
     render(<AgentModelPriceCards models={[model('Per request', {})]} />)
     const card = within(cardOf('Per request'))
-    expect(card.getByText('Customer points')).toBeVisible()
+    expect(card.getByText('Default')).toBeVisible()
     expect(card.getByText('5')).toBeVisible()
-    expect(card.getByText('Model price')).toBeVisible()
-    expect(card.getByText('¥0.25')).toBeVisible()
-    expect(card.getByText('Default scope · Per request')).toBeVisible()
+    expect(card.getByText('points per request')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent(
+      '· Model price ¥0.25'
+    )
   })
 
   it('shows the model icon and badges after the title', () => {
@@ -96,7 +97,7 @@ describe('Agent model price cards', () => {
     )
   })
 
-  it('keeps every token category with both its customer rate and its model price', () => {
+  it('keeps every token category of the customer rates and of the model price', () => {
     render(
       <AgentModelPriceCards
         models={[
@@ -110,9 +111,9 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('Tokens'))
-    expect(card.getByText('Input').parentElement).toHaveTextContent('30 / ¥3')
-    expect(card.getByText('Output').parentElement).toHaveTextContent(
-      '150 / ¥15'
+    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent(
+      'Model price Input ¥3 · Output ¥15'
     )
   })
 
@@ -129,16 +130,13 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('One side'))
-    expect(card.getByText('Input').parentElement).toHaveTextContent('30 / ¥3')
-    expect(card.getByText('Cache read').parentElement).toHaveTextContent(
-      '3 / —'
-    )
-    expect(card.getByText('Cache write').parentElement).toHaveTextContent(
-      '— / ¥4'
+    expect(card.getByText('Input 30 · Cache read 3')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent(
+      'Model price Input ¥3 · Cache write ¥4'
     )
   })
 
-  it('shows the customer rates when the model price is unavailable', () => {
+  it('shows the customer rates and a dash when the model price is unavailable', () => {
     render(
       <AgentModelPriceCards
         models={[
@@ -151,11 +149,11 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('No cost'))
-    expect(card.getByText('Input').parentElement).toHaveTextContent('30 / —')
-    expect(card.getByText('Output').parentElement).toHaveTextContent('150 / —')
+    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent('· Model price —')
   })
 
-  it('keeps the joined text when token rates meet a single model price', () => {
+  it('keeps a single model price after token rates', () => {
     render(
       <AgentModelPriceCards
         models={[
@@ -168,11 +166,13 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('Mixed'))
-    expect(card.getByText('Input: 30 · Output: 150')).toBeVisible()
-    expect(card.getByText('¥0.25')).toBeVisible()
+    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent(
+      '· Model price ¥0.25'
+    )
   })
 
-  it('keeps the joined text when a scalar customer price meets token model prices', () => {
+  it('keeps token model prices under a scalar customer price', () => {
     render(
       <AgentModelPriceCards
         models={[
@@ -185,15 +185,17 @@ describe('Agent model price cards', () => {
     )
     const card = within(cardOf('Scalar'))
     expect(card.getByText('7')).toBeVisible()
-    expect(card.getByText('Input: ¥3 · Output: ¥15')).toBeVisible()
+    expect(card.getByTitle('Model price')).toHaveTextContent(
+      'Model price Input ¥3 · Output ¥15'
+    )
   })
 
-  it('reaches prices beyond the card through the full view without losing the card figures', async () => {
+  it('shows every price of every plan on the card, like the model center', () => {
     const base = model('Wide', {})
     const [group] = base.priceGroups
     const extra = [1, 2, 3].map((n) => ({
       combinationKey: `scope-${n}`,
-      parameters: {},
+      parameters: { quality: `${n}K` },
       billingUnit: 'REQUEST' as const,
       customerPoints: String(10 + n),
       customerTokenRates: null,
@@ -201,16 +203,19 @@ describe('Agent model price cards', () => {
     }))
     const wide = {
       ...base,
+      description: 'Client description',
       priceGroups: [
         { ...group, prices: [...(group?.prices ?? []), ...extra] },
+        { ...group, priceGroupId: 'g2', priceGroupName: 'Partner plan' },
       ] as CanvasAgentModelPrice['priceGroups'],
     }
     render(<AgentModelPriceCards models={[wide]} />)
     const card = within(cardOf('Wide'))
-    expect(card.getByText('Price plans: 1 · Prices: 4')).toBeVisible()
-    expect(card.getAllByText('Model price')).toHaveLength(2)
-    fireEvent.click(card.getByRole('button', { name: 'View all prices' }))
-    expect(await screen.findByText('13')).toBeVisible()
-    expect(screen.getByText('¥0.3')).toBeVisible()
+    expect(card.getByText('Standard')).toBeVisible()
+    expect(card.getByText('Partner plan')).toBeVisible()
+    expect(card.getByText('3K')).toBeVisible()
+    expect(card.getByText('13')).toBeVisible()
+    expect(card.getAllByTitle('Model price')).toHaveLength(5)
+    expect(card.getByText('Client description')).toBeVisible()
   })
 })

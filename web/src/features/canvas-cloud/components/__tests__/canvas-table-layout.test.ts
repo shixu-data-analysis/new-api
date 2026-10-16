@@ -39,6 +39,8 @@ describe('Canvas table column alignment', () => {
     )
 
     expect(className('points', 'header')).toContain('[&>div]:justify-end')
+    // The sort button gives back its end padding, as it already does at the start, so its icon ends where the values end.
+    expect(className('points', 'header')).toContain('[&_button]:-me-3')
     expect(className('points', 'header')).toContain('text-right')
     expect(className('points', 'cell')).toBe(
       'font-medium text-right tabular-nums'

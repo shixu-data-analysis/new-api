@@ -61,15 +61,9 @@ import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
-  formatAgentTaskTimePrice,
-  formatAgentUsage,
-} from '../agent-usage-format'
-import {
   getCanvasAdminCustomerTasks,
   getCanvasAdminAgentStatistics,
   getCanvasAdminAgentModelPrices,
-  getCanvasAdminAgentCustomers,
-  getCanvasAdminAgentCustomerModelUsage,
   getCanvasAdminInviteCodes,
   searchCanvasAdminInviteCodes,
   revealCanvasCode,
@@ -79,14 +73,7 @@ import {
 import { copyText } from '../copy-text'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
-import {
-  formatExactPointQuantity,
-  formatExactRmbReference,
-} from '../number-format'
-import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
-  CanvasAdminAgentCustomer,
-  CanvasAdminAgentModelUsageRow,
   CanvasAdminInviteCode,
   CanvasAdminInviteCodeQuery,
   CanvasAdminCustomerTask,
@@ -94,6 +81,7 @@ import type {
   CanvasOrderPointReturnRecord,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { AgentCustomerList } from './AgentCustomerList'
 import { AgentModelPricePanel } from './AgentModelPricePanel'
 import { AgentStatisticsOverview } from './AgentStatisticsOverview'
 import { BusinessTerm } from './BusinessTerm'
@@ -1025,43 +1013,20 @@ function CustomerTasks({
 }
 
 function AgentStatistics({ customerId }: { customerId: string }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.language)
+  const { t } = useTranslation()
   const statistics = useQuery({
     queryKey: ['canvas-cloud', 'admin-agent-statistics', customerId],
     queryFn: ({ signal }) => getCanvasAdminAgentStatistics(customerId, signal),
   })
   const inviteState =
     useServerTableState<CanvasAdminInviteCodeQuery['sortBy']>('createdAt')
-  const customerState = useServerTableState<'activatedAt'>('activatedAt')
-  const setCustomerPagination = customerState.setPagination
-  const customerSearch = customerState.query.search
-  const customerPage = customerState.query.page
-  const customerPageSize = customerState.query.pageSize
-  const usageState = useServerTableState<'priceGroupName'>('priceGroupName')
+  const [tab, setTab] = useState('customers')
+  // Current model prices are read the first time their tab is shown, then kept with their filters.
+  const [pricesShown, setPricesShown] = useState(false)
   const [exactCodeInput, setExactCodeInput] = useState('')
   const [inviteStatus, setInviteStatus] = useState('')
   const exactCodeRef = useRef('')
   const [searchVersion, setSearchVersion] = useState(0)
-  const [expandedCustomerId, setExpandedCustomerId] = useState<string>()
-  const [agentCustomerStatus, setAgentCustomerStatus] = useState('')
-  const [agentCustomerPriceGroup, setAgentCustomerPriceGroup] = useState('')
-  useEffect(() => {
-    setExpandedCustomerId(undefined)
-    setCustomerPagination((value) =>
-      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
-    )
-  }, [
-    agentCustomerStatus,
-    agentCustomerPriceGroup,
-    customerSearch,
-    customerId,
-    setCustomerPagination,
-  ])
-  useEffect(
-    () => setExpandedCustomerId(undefined),
-    [customerPage, customerPageSize]
-  )
   const [revealedCodes, setRevealedCodes] = useState<Record<string, string>>({})
   const revealInvite = useMutation({
     mutationFn: (input: { id: string; action: 'DISPLAY' | 'COPY' }) =>
@@ -1118,72 +1083,6 @@ function AgentStatistics({ customerId }: { customerId: string }) {
         : getCanvasAdminInviteCodes(query, signal)
     },
   })
-  const customers = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin-agent-customers',
-      customerId,
-      customerState.query,
-      agentCustomerStatus,
-      agentCustomerPriceGroup,
-    ],
-    queryFn: ({ signal }) =>
-      getCanvasAdminAgentCustomers(
-        customerId,
-        {
-          page: customerState.query.page,
-          pageSize: customerState.query.pageSize,
-          sortBy: 'activatedAt',
-          sortOrder: customerState.query.sortOrder,
-          ...(customerState.query.search
-            ? { username: customerState.query.search }
-            : {}),
-          ...(agentCustomerStatus
-            ? {
-                status:
-                  agentCustomerStatus as CanvasAdminAgentCustomer['status'],
-              }
-            : {}),
-          ...(agentCustomerPriceGroup
-            ? { priceGroupId: agentCustomerPriceGroup }
-            : {}),
-        },
-        signal
-      ),
-  })
-  const usage = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'admin-agent-model-usage',
-      customerId,
-      expandedCustomerId,
-      usageState.query.page,
-      usageState.query.pageSize,
-    ],
-    enabled: Boolean(expandedCustomerId),
-    queryFn: ({ signal }) => {
-      if (!expandedCustomerId) throw new Error('Customer unavailable')
-      return getCanvasAdminAgentCustomerModelUsage(
-        customerId,
-        expandedCustomerId,
-        { page: usageState.query.page, pageSize: usageState.query.pageSize },
-        signal
-      )
-    },
-  })
-  const amount = (value: string | null, incomplete: boolean) => (
-    <span>
-      {value === null ? '—' : `¥${formatExactRmbReference(value, locale)}`}
-      {incomplete
-        ? t('{{label}} ({{detail}})', {
-            label: '',
-            detail: t('Amount incomplete'),
-          })
-        : ''}
-    </span>
-  )
-  const count = (value: string | number) =>
-    formatExactPointQuantity(String(value), locale)
   const inviteColumns: ColumnDef<CanvasAdminInviteCode, unknown>[] = [
     {
       id: 'maskedCode',
@@ -1264,135 +1163,11 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       cell: ({ row }) => formatCanvasDateTime(row.original.createdAt),
     },
   ]
-  const customerColumns: ColumnDef<CanvasAdminAgentCustomer, unknown>[] = [
-    { id: 'username', accessorKey: 'username', header: t('Username') },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: t('Status'),
-      cell: ({ row }) => (
-        <BusinessTerm kind='customerStatus' value={row.original.status} />
-      ),
-    },
-    {
-      id: 'activatedAt',
-      accessorKey: 'activatedAt',
-      header: t('Activated at'),
-      cell: ({ row }) => formatCanvasDateTime(row.original.activatedAt),
-    },
-    {
-      id: 'currentPriceGroup',
-      header: t('Current price group'),
-      cell: ({ row }) => row.original.currentPriceGroup?.name ?? '—',
-    },
-    {
-      id: 'successfulTasks',
-      accessorKey: 'successfulTasks',
-      header: t('Successful tasks'),
-      cell: ({ row }) => count(row.original.successfulTasks),
-    },
-    {
-      id: 'settledPoints',
-      accessorKey: 'settledPoints',
-      header: t('Consumed points'),
-      cell: ({ row }) => count(row.original.settledPoints),
-    },
-    {
-      id: 'modelUsageAmount',
-      meta: { label: t('Agent display amount') },
-      header: () => (
-        <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
-      ),
-      cell: ({ row }) =>
-        amount(row.original.modelUsageAmount, row.original.amountIncomplete),
-    },
-    {
-      id: 'action',
-      header: t('Action'),
-      cell: ({ row }) => (
-        <Button
-          size='sm'
-          variant='outline'
-          aria-expanded={expandedCustomerId === row.original.id}
-          onClick={() => {
-            setExpandedCustomerId(
-              expandedCustomerId === row.original.id
-                ? undefined
-                : row.original.id
-            )
-            usageState.setPagination((value) => ({ ...value, pageIndex: 0 }))
-          }}
-        >
-          {t('Model usage')}
-        </Button>
-      ),
-    },
-  ]
-  const usageColumns: ColumnDef<CanvasAdminAgentModelUsageRow, unknown>[] = [
-    {
-      id: 'priceGroupName',
-      accessorKey: 'priceGroupName',
-      header: t('Task-time price group'),
-    },
-    {
-      id: 'effectiveDisplayName',
-      accessorKey: 'effectiveDisplayName',
-      header: t('Model / specification'),
-      cell: ({ row }) =>
-        `${row.original.effectiveDisplayName} / ${pricingScopeLabel({ key: row.original.combinationKey, parameters: row.original.parameters }, t)}`,
-    },
-    {
-      id: 'usage',
-      header: t('Usage'),
-      cell: ({ row }) =>
-        formatAgentUsage(
-          row.original,
-          row.original.agentPriceSnapshot,
-          t,
-          locale
-        ),
-    },
-    {
-      id: 'successfulTasks',
-      accessorKey: 'successfulTasks',
-      header: t('Successful tasks'),
-      cell: ({ row }) => count(row.original.successfulTasks),
-    },
-    {
-      id: 'settledPoints',
-      accessorKey: 'settledPoints',
-      header: t('Consumed points'),
-      cell: ({ row }) => count(row.original.settledPoints),
-    },
-    {
-      id: 'agentPriceSnapshot',
-      header: t('Task-time agent display price'),
-      cell: ({ row }) =>
-        formatAgentTaskTimePrice(
-          row.original,
-          row.original.agentPriceSnapshot,
-          row.original.agentPriceSnapshotStatus,
-          t,
-          locale
-        ),
-    },
-    {
-      id: 'modelUsageAmount',
-      meta: { label: t('Agent display amount') },
-      header: () => (
-        <BusinessTerm kind='dashboardMetric' value='AGENT_DISPLAY_AMOUNT' />
-      ),
-      cell: ({ row }) =>
-        amount(row.original.modelUsageAmount, row.original.amountIncomplete),
-    },
-  ]
   if (statistics.isPending) return <LoadingState />
   if (statistics.isError) {
     return <ErrorState onRetry={() => void statistics.refetch()} />
   }
   const { summary, priceGroups } = statistics.data
-  const priceGroupName = (id: string) =>
-    priceGroups.find((group) => group.priceGroupId === id)?.priceGroupName ?? id
   const inviteFilters = (
     <>
       <DataTableColumnFilterField label={t('Exact invite code')}>
@@ -1447,179 +1222,79 @@ function AgentStatistics({ customerId }: { customerId: string }) {
       </DataTableColumnFilterField>
     </>
   )
+  // The agent's 我的客户, seen by the administrator: the same overview and customer list, plus the earnings, the masked
+  // email, the agent display amount and the agent's invite codes.
   return (
-    <div className='space-y-5'>
+    <div className='space-y-4'>
       <AgentStatisticsOverview
         agentPrincipalId={statistics.data.profile.principalId}
         summary={summary}
       />
-      <AgentModelPricePanel
-        key={customerId}
-        variant='section'
-        queryKey={['canvas-cloud', 'admin-agent-model-prices', customerId]}
-        fetchPrices={(query, signal) =>
-          getCanvasAdminAgentModelPrices(customerId, query, signal)
-        }
-        enabled={Boolean(statistics.data)}
-      />
-      <section className='space-y-2'>
-        <h3 className='font-semibold'>{t('Invite codes')}</h3>
-        <CanvasServerTable
-          data={invites.data?.items ?? []}
-          columns={inviteColumns}
-          total={invites.data?.total ?? 0}
-          state={inviteState}
-          loading={
-            (invites.isPending &&
-              (exactCodeRef.current.length === 0 ||
-                exactCodeRef.current.length >= 4)) ||
-            invites.isFetching
-          }
-          error={invites.isError}
-          onRetry={() => void invites.refetch()}
-          emptyTitle={t('No invite codes')}
-          additionalFilters={inviteFilters}
-          hasActiveFilters={Boolean(exactCodeRef.current || inviteStatus)}
-          onResetFilters={() => {
-            exactCodeRef.current = ''
-            setExactCodeInput('')
-            setInviteStatus('')
-            setSearchVersion((value) => value + 1)
-          }}
-          getRowId={(row) => row.id}
-        />
-      </section>
-      <section className='space-y-2'>
-        <h3 className='font-semibold'>{t('Agent customers')}</h3>
-        <CanvasServerTable
-          data={customers.data?.items ?? []}
-          columns={customerColumns}
-          total={customers.data?.total ?? 0}
-          state={customerState}
-          searchLabel={t('Username')}
-          additionalFilters={
-            <>
-              <DataTableColumnFilterField label={t('Status')}>
-                <Select
-                  value={agentCustomerStatus || 'ALL'}
-                  onValueChange={(value) =>
-                    setAgentCustomerStatus(value === 'ALL' ? '' : (value ?? ''))
-                  }
-                >
-                  <SelectTrigger className='w-full' aria-label={t('Status')}>
-                    <CanvasLocalizedSelectValue
-                      value={agentCustomerStatus}
-                      emptyLabelKey='All statuses'
-                      termKind='customerStatus'
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All statuses')}</SelectItem>
-                    {['ACTIVE', 'SUSPENDED', 'CLOSED'].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        <BusinessTerm kind='customerStatus' value={value} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-              <DataTableColumnFilterField label={t('Current price group')}>
-                <Select
-                  value={agentCustomerPriceGroup || 'ALL'}
-                  onValueChange={(value) =>
-                    setAgentCustomerPriceGroup(
-                      value === 'ALL' ? '' : (value ?? '')
-                    )
-                  }
-                >
-                  <SelectTrigger
-                    className='w-full'
-                    aria-label={t('Current price group')}
-                  >
-                    <CanvasLocalizedSelectValue
-                      value={agentCustomerPriceGroup}
-                      emptyLabelKey='All price groups'
-                      displayValue={priceGroupName(agentCustomerPriceGroup)}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value='ALL'>{t('All price groups')}</SelectItem>
-                    {priceGroups.map((group) => (
-                      <SelectItem
-                        key={group.priceGroupId}
-                        value={group.priceGroupId}
-                      >
-                        {group.priceGroupName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </DataTableColumnFilterField>
-            </>
-          }
-          hasActiveFilters={Boolean(
-            agentCustomerStatus || agentCustomerPriceGroup
-          )}
-          onResetFilters={() => {
-            setAgentCustomerStatus('')
-            setAgentCustomerPriceGroup('')
-          }}
-          loading={customers.isPending || customers.isFetching}
-          error={customers.isError}
-          onRetry={() => void customers.refetch()}
-          emptyTitle={t('No customers')}
-          getRowId={(row) => row.id}
-          renderRow={(row, getColumnClassName) => (
-            <Fragment key={row.id}>
-              <DataTableRow
-                getColumnClassName={getColumnClassName}
-                row={row}
-                cellRenderColumns={customerColumns}
-                aria-expanded={expandedCustomerId === row.original.id}
-              />
-              {expandedCustomerId === row.original.id ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={row.getVisibleCells().length}
-                    className='bg-muted/20 p-4'
-                  >
-                    <CanvasServerTable
-                      data={usage.data?.items ?? []}
-                      columns={usageColumns}
-                      total={usage.data?.total ?? 0}
-                      state={usageState}
-                      loading={usage.isPending || usage.isFetching}
-                      error={usage.isError}
-                      onRetry={() => void usage.refetch()}
-                      emptyTitle={t('No model usage')}
-                      getRowId={(item) =>
-                        `${item.priceGroupId}:${item.modelKey}:${item.combinationKey}:${item.billingUnit}`
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </Fragment>
-          )}
-          renderExpandedContent={(row) =>
-            expandedCustomerId === row.original.id ? (
-              <CanvasServerTable
-                data={usage.data?.items ?? []}
-                columns={usageColumns}
-                total={usage.data?.total ?? 0}
-                state={usageState}
-                loading={usage.isPending || usage.isFetching}
-                error={usage.isError}
-                onRetry={() => void usage.refetch()}
-                emptyTitle={t('No model usage')}
-                getRowId={(item) =>
-                  `${item.priceGroupId}:${item.modelKey}:${item.combinationKey}:${item.billingUnit}`
-                }
-              />
-            ) : null
-          }
-        />
-      </section>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(String(value))
+          if (value === 'prices') setPricesShown(true)
+        }}
+      >
+        <CanvasManagementTabsList>
+          <CanvasManagementTabsTrigger value='customers'>
+            {t('Customer')}
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='invites'>
+            {t('Invite codes')}
+          </CanvasManagementTabsTrigger>
+          <CanvasManagementTabsTrigger value='prices'>
+            {t('Current model prices')}
+          </CanvasManagementTabsTrigger>
+        </CanvasManagementTabsList>
+        <TabsContent value='customers' keepMounted>
+          <AgentCustomerList
+            key={customerId}
+            source={{
+              kind: 'admin',
+              agentCustomerId: customerId,
+              priceGroups,
+            }}
+          />
+        </TabsContent>
+        <TabsContent value='invites' keepMounted>
+          <CanvasServerTable
+            data={invites.data?.items ?? []}
+            columns={inviteColumns}
+            total={invites.data?.total ?? 0}
+            state={inviteState}
+            loading={
+              (invites.isPending &&
+                (exactCodeRef.current.length === 0 ||
+                  exactCodeRef.current.length >= 4)) ||
+              invites.isFetching
+            }
+            error={invites.isError}
+            onRetry={() => void invites.refetch()}
+            emptyTitle={t('No invite codes')}
+            additionalFilters={inviteFilters}
+            hasActiveFilters={Boolean(exactCodeRef.current || inviteStatus)}
+            onResetFilters={() => {
+              exactCodeRef.current = ''
+              setExactCodeInput('')
+              setInviteStatus('')
+              setSearchVersion((value) => value + 1)
+            }}
+            getRowId={(row) => row.id}
+          />
+        </TabsContent>
+        <TabsContent value='prices' keepMounted>
+          <AgentModelPricePanel
+            key={customerId}
+            queryKey={['canvas-cloud', 'admin-agent-model-prices', customerId]}
+            fetchPrices={(query, signal) =>
+              getCanvasAdminAgentModelPrices(customerId, query, signal)
+            }
+            enabled={pricesShown}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

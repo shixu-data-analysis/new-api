@@ -94,18 +94,25 @@ function pricePage(items: unknown[]) {
     page: 1,
     pageSize: 20,
     total: items.length,
-    filters: { capabilities: ['image.generate'], tags: [] },
+    filters: {
+      capabilities: ['image.generate'],
+      tags: [],
+      totalCount: items.length,
+      untaggedCount: items.length,
+    },
     items,
   }
 }
 
-// The model price section starts collapsed; open it the way a user would.
+// Inactive tabs stay mounted but hidden, so only the selected panel is in the accessibility tree.
+async function openTab(name: string) {
+  fireEvent.click(await screen.findByRole('tab', { name }))
+  return screen.getByRole('tabpanel')
+}
+
+// Current model prices load the first time their tab is opened.
 async function openModelPrices() {
-  const card = (await screen.findByText('Current model prices')).closest(
-    '[data-slot=card]'
-  ) as HTMLElement
-  fireEvent.click(within(card).getByRole('button', { name: 'Expand' }))
-  return card
+  return openTab('Current model prices')
 }
 
 describe('Canvas Agent and provider pricing governance', () => {
@@ -131,19 +138,10 @@ describe('Canvas Agent and provider pricing governance', () => {
       },
       summary: {
         activatedCustomers: 1,
-        customersWithSuccessfulTasks: 1,
-        successfulTasks: 2,
-        settledPoints: '20',
+        customersWithConsumption: 1,
+        rechargedPoints: '1000',
+        consumedPoints: '20',
       },
-      priceGroups: [
-        {
-          priceGroupId: 'group-v1',
-          priceGroupName: 'Standard',
-          currentCustomers: 1,
-          successfulTasks: 2,
-          settledPoints: '20',
-        },
-      ],
     })
     apiMocks.getCanvasAgentInviteCodes.mockResolvedValue({
       page: 1,
@@ -173,13 +171,23 @@ describe('Canvas Agent and provider pricing governance', () => {
         {
           id: 'customer-v1',
           username: 'invited-user',
-          emailMasked: 'i***@example.com',
           status: 'ACTIVE',
           activatedAt: '2026-08-30T00:00:00.000Z',
           currentPriceGroup: { id: 'group-v1', name: 'Standard' },
           successfulTasks: 2,
-          settledPoints: '20',
+          rechargedPoints: '1000',
+          consumedPoints: '20',
+          activeDays: [],
         },
+      ],
+      recentDays: [
+        '2026-10-10',
+        '2026-10-11',
+        '2026-10-12',
+        '2026-10-13',
+        '2026-10-14',
+        '2026-10-15',
+        '2026-10-16',
       ],
     })
   })
@@ -288,44 +296,76 @@ describe('Canvas Agent and provider pricing governance', () => {
     )
   })
 
-  it('shows only customers attributed to the inviter', async () => {
+  it('opens on the overview and the customer tab without emails or money', async () => {
     renderWithClient(<AgentCenter />)
 
-    expect(await screen.findByText('My customers')).toBeVisible()
-    expect(screen.getByText('invited-user')).toBeVisible()
-    expect(screen.getByText('i***@example.com')).toBeVisible()
+    const overview = (await screen.findByText('Summary')).closest(
+      '[data-slot=card]'
+    ) as HTMLElement
+    expect(within(overview).getByText('Activated customers')).toBeVisible()
+    expect(within(overview).getByText('1,000')).toBeVisible()
+    expect(within(overview).getByText('20')).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'My customers' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(await screen.findByText('invited-user')).toBeVisible()
     expect(screen.getByText('Valid')).toBeVisible()
     expect(screen.queryByText('ACTIVE')).not.toBeInTheDocument()
-    expect(screen.queryByText('My models')).not.toBeInTheDocument()
-    expect(screen.getByText('Cumulative overview')).toBeVisible()
+    expect(screen.queryByText('Email')).not.toBeInTheDocument()
+    expect(screen.queryByText('Price group summary')).not.toBeInTheDocument()
     // Money moved to "My earnings"; My customers shows counts and points only.
     expect(
       screen.queryByText(/Amount incomplete|Model usage amount/u)
     ).not.toBeInTheDocument()
   })
 
-  it('keeps the current model prices collapsed and unqueried until opened', async () => {
+  it('reads the current model prices only once their tab is opened', async () => {
     apiMocks.getCanvasAgentModelPrices.mockResolvedValue(
       pricePage([modelPrice()])
     )
     renderWithClient(<AgentCenter />)
-    expect(await screen.findByText('Cumulative overview')).toBeVisible()
+    expect(await screen.findByText('Summary')).toBeVisible()
     expect(apiMocks.getCanvasAgentModelPrices).not.toHaveBeenCalled()
-    expect(screen.queryByText('Image Model')).not.toBeInTheDocument()
 
-    const card = await openModelPrices()
-    expect(await screen.findByText('Image Model')).toBeVisible()
+    const panel = await openModelPrices()
+    expect(await within(panel).findByText('Image Model')).toBeVisible()
     expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenCalledWith(
       expect.objectContaining({ page: 1, pageSize: 20 }),
       expect.anything()
     )
-    fireEvent.click(within(card).getByRole('button', { name: 'Collapse' }))
-    expect(screen.queryByText('Image Model')).not.toBeInTheDocument()
+    // Like the model center: no collapse control and no repeated title over the tab.
+    expect(
+      within(panel).queryByRole('button', { name: /Collapse|Expand/u })
+    ).not.toBeInTheDocument()
+    expect(
+      within(panel).queryByText(
+        'Prices for the price groups of your current customers.'
+      )
+    ).not.toBeInTheDocument()
   })
 
-  it('localizes the current model specification and billing unit', async () => {
+  it('writes each price like the model center, with the model price after the points', async () => {
     apiMocks.getCanvasAgentModelPrices.mockResolvedValue(
       pricePage([
+        modelPrice({
+          priceGroups: [
+            {
+              priceGroupId: 'group-v1',
+              priceGroupName: 'Standard',
+              prices: [
+                {
+                  combinationKey: 'quality=720P',
+                  parameters: { quality: '720P' },
+                  billingUnit: 'REQUEST',
+                  customerPoints: '30',
+                  customerTokenRates: null,
+                  modelPriceCny: '0.4',
+                },
+              ],
+            },
+          ],
+        }),
         modelPrice({
           customerModelId: 'text-v1',
           effectiveDisplayName: 'Text Model',
@@ -341,8 +381,8 @@ describe('Canvas Agent and provider pricing governance', () => {
                   parameters: {},
                   billingUnit: 'MILLION_TOKENS',
                   customerPoints: '0',
-                  customerTokenRates: { input: '0', output: '1' },
-                  modelPriceCny: { input: '0', output: '0.25' },
+                  customerTokenRates: { input: '2', output: '4' },
+                  modelPriceCny: { input: '1', output: '2' },
                 },
               ],
             },
@@ -351,20 +391,18 @@ describe('Canvas Agent and provider pricing governance', () => {
       ])
     )
     renderWithClient(<AgentCenter />)
-    await openModelPrices()
-    expect(
-      await screen.findByText('Default scope · Per million tokens')
-    ).toBeVisible()
-    expect(screen.getByText('Input')).toBeVisible()
-    expect(screen.getByText('Output')).toBeVisible()
-    expect(screen.getByText(/¥0\.25/u)).toBeVisible()
-    // The description is part of the full view, not the fixed-height card.
-    expect(screen.queryByText('Client description')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'View all prices' }))
-    expect(await screen.findByText('Client description')).toBeVisible()
+    const panel = await openModelPrices()
+    expect(await within(panel).findByText('720P')).toBeVisible()
+    expect(within(panel).getByText('30')).toBeVisible()
+    expect(within(panel).getAllByTitle('Model price')).toHaveLength(2)
+    expect(within(panel).getByText(/· ¥0\.4/u)).toBeVisible()
+    expect(within(panel).getByText('Input 2 · Output 4')).toBeVisible()
+    expect(within(panel).getByText('Input ¥1 · Output ¥2')).toBeVisible()
+    // The description shows on the card, as in the model center.
+    expect(within(panel).getByText('Client description')).toBeVisible()
   })
 
-  it('shows only the first price plan on a card and the rest in the full view', async () => {
+  it('shows every price plan on the card under its own name', async () => {
     const prices = (points: string) => [
       {
         combinationKey: 'default',
@@ -389,47 +427,73 @@ describe('Canvas Agent and provider pricing governance', () => {
               priceGroupName: 'Partner plan',
               prices: prices('4'),
             },
-            {
-              priceGroupId: 'g3',
-              priceGroupName: 'Internal plan',
-              prices: prices('3'),
-            },
           ],
         }),
       ])
     )
     renderWithClient(<AgentCenter />)
-    const card = await openModelPrices()
-    expect(await within(card).findByText('Standard')).toBeVisible()
-    expect(within(card).getByText('Price plans: 3 · Prices: 3')).toBeVisible()
-    expect(within(card).queryByText('Partner plan')).not.toBeInTheDocument()
-    expect(within(card).queryByText('Internal plan')).not.toBeInTheDocument()
-
-    fireEvent.click(
-      within(card).getByRole('button', { name: 'View all prices' })
-    )
-    expect(await screen.findByText('Partner plan')).toBeVisible()
-    expect(screen.getByText('Internal plan')).toBeVisible()
+    const panel = await openModelPrices()
+    expect(await within(panel).findByText('Standard')).toBeVisible()
+    expect(within(panel).getByText('Partner plan')).toBeVisible()
+    expect(
+      within(panel).queryByRole('button', { name: 'View all prices' })
+    ).not.toBeInTheDocument()
   })
 
-  it('filters the current model prices from the column filters', async () => {
-    apiMocks.getCanvasAgentModelPrices.mockResolvedValue(
-      pricePage([modelPrice()])
-    )
+  it('filters by type, counted category and name like the model center', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAgentModelPrices.mockResolvedValue({
+      ...pricePage([modelPrice()]),
+      filters: {
+        capabilities: ['image.generate', 'video.generate'],
+        tags: [{ id: 'tag-v1', name: 'Portrait', count: 3 }],
+        totalCount: 13,
+        untaggedCount: 9,
+      },
+    })
     renderWithClient(<AgentCenter />)
-    const card = await openModelPrices()
-    expect(await screen.findByText('Image Model')).toBeVisible()
+    const panel = await openModelPrices()
+    await within(panel).findByText('Image Model')
 
-    fireEvent.click(within(card).getByRole('button', { name: /^Filters/u }))
-    fireEvent.change(
-      await screen.findByRole('textbox', { name: 'Model name' }),
-      {
-        target: { value: 'img' },
-      }
+    expect(
+      within(panel).getByRole('button', { name: 'All categories 13' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await user.click(within(panel).getByRole('button', { name: 'Portrait 3' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, tagId: 'tag-v1' }),
+        expect.anything()
+      )
+    )
+    await user.click(
+      within(panel).getByRole('button', { name: 'No category 9' })
     )
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 1, search: 'img' }),
+        expect.objectContaining({ tagId: 'UNTAGGED' }),
+        expect.anything()
+      )
+    )
+    // Choosing a type starts again from all of its categories.
+    await user.click(
+      within(panel).getByRole('button', { name: 'Video generation' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ tagId: expect.anything() }),
+        expect.anything()
+      )
+    )
+    await user.type(
+      within(panel).getByRole('textbox', { name: 'Search model name' }),
+      'img'
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          capability: 'video.generate',
+          search: 'img',
+        }),
         expect.anything()
       )
     )
@@ -449,14 +513,14 @@ describe('Canvas Agent and provider pricing governance', () => {
       })
     )
     renderWithClient(<AgentCenter />)
-    const card = await openModelPrices()
-    expect(await screen.findByText('Image Model page 1')).toBeVisible()
-    expect(within(card).getByText('Page 1 of 3')).toBeVisible()
+    const panel = await openModelPrices()
+    expect(await within(panel).findByText('Image Model page 1')).toBeVisible()
+    expect(within(panel).getByText('Page 1 of 3')).toBeVisible()
 
     fireEvent.click(
-      within(card).getByRole('button', { name: 'Go to next page' })
+      within(panel).getByRole('button', { name: 'Go to next page' })
     )
-    expect(await screen.findByText('Image Model page 2')).toBeVisible()
+    expect(await within(panel).findByText('Image Model page 2')).toBeVisible()
     expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2, pageSize: 20 }),
       expect.anything()
@@ -502,6 +566,7 @@ describe('Canvas Agent and provider pricing governance', () => {
       filters: { priceGroups: [{ id: 'group-v1', name: 'Standard' }] },
     })
     renderWithClient(<AgentCenter />)
+    await openTab('My invite codes')
     expect(await screen.findByText('CANVAS-U••••••••CRET')).toBeVisible()
     fireEvent.click(
       (await screen.findAllByRole('button', { name: 'Filters' }))[0]
@@ -535,6 +600,7 @@ describe('Canvas Agent and provider pricing governance', () => {
   it('filters owned invite codes by the selected price plan', async () => {
     const user = userEvent.setup()
     renderWithClient(<AgentCenter />)
+    await openTab('My invite codes')
     await user.click(
       (await screen.findAllByRole('button', { name: 'Filters' }))[0]
     )
@@ -648,6 +714,7 @@ describe('Canvas Agent and provider pricing governance', () => {
       code: 'CANVAS-SECRET',
     })
     const { container } = renderWithClient(<AgentCenter />)
+    await openTab('My invite codes')
 
     const show = await screen.findByRole('button', {
       name: 'Show invite code',

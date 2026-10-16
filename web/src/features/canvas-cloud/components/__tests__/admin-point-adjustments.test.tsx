@@ -265,11 +265,9 @@ describe('ADMIN-REWORK-004 customer management', () => {
       },
       summary: {
         activatedCustomers: 0,
-        customersWithSuccessfulTasks: 0,
-        successfulTasks: 0,
-        settledPoints: '0',
-        modelUsageAmount: null,
-        amountIncomplete: true,
+        customersWithConsumption: 0,
+        rechargedPoints: '0',
+        consumedPoints: '0',
       },
       priceGroups: [],
     })
@@ -311,6 +309,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       pageSize: 20,
       total: 0,
       items: [],
+      recentDays: [],
     })
     apiMocks.getCanvasAdminInviteCodes.mockResolvedValue({
       page: 1,
@@ -334,29 +333,48 @@ describe('ADMIN-REWORK-004 customer management', () => {
     apiMocks.revealCanvasCode.mockResolvedValue({ code: 'CANVAS-SECRET' })
     renderWithQuery(<AdminPointAdjustments customerId={customer.customerId} />)
     expect(await screen.findByText('Agent: Disabled')).toBeVisible()
+    // Current model prices load with the agent statistics tab, not with the customer detail.
+    expect(apiMocks.getCanvasAdminAgentModelPrices).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('tab', { name: 'Agent statistics' }))
-    expect(await screen.findByText('Overview')).toBeVisible()
-    // An incomplete amount comes back as null; the hint still shows.
-    expect(screen.getByText('Amount incomplete')).toBeVisible()
-    // One overview card; no price group summary and no list amount on this tab.
+    // The agent's own overview, plus the earnings and the link to statements; no task totals, price group summary or
+    // list amount.
+    expect(await screen.findByText('Summary')).toBeVisible()
+    expect(screen.getByText('Customers with consumption')).toBeVisible()
     expect(
       screen.getByRole('button', {
         name: 'View statements and withdrawal requests',
       })
     ).toBeVisible()
+    expect(
+      screen.queryByText('Customers with successful tasks')
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('Price group summary')).not.toBeInTheDocument()
     expect(screen.queryByText('List amount')).not.toBeInTheDocument()
-    // The price section starts collapsed and only queries once opened.
-    expect(apiMocks.getCanvasAdminAgentModelPrices).not.toHaveBeenCalled()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Expand', expanded: false })
+
+    // Customers first, filtered like the agent's own list.
+    expect(screen.getByRole('tab', { name: 'Customer' })).toHaveAttribute(
+      'aria-selected',
+      'true'
     )
-    expect(await screen.findByText('Latest Image Model')).toBeVisible()
-    expect(apiMocks.getCanvasAdminAgentModelPrices).toHaveBeenCalledWith(
-      customer.customerId,
-      expect.objectContaining({ page: 1, pageSize: 20 }),
-      expect.anything()
+    await user.click(
+      within(screen.getByRole('tabpanel', { name: 'Customer' })).getByRole(
+        'button',
+        { name: /^Filters/u }
+      )
     )
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.click(await screen.findByRole('option', { name: 'Valid' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminAgentCustomers).toHaveBeenCalledWith(
+        customer.customerId,
+        expect.objectContaining({ status: 'ACTIVE', page: 1 }),
+        expect.anything()
+      )
+    )
+
+    // Invite codes keep their reveal action in their own tab.
+    await user.keyboard('{Escape}')
+    fireEvent.click(screen.getByRole('tab', { name: 'Invite codes' }))
     expect(apiMocks.getCanvasAdminInviteCodes).toHaveBeenCalledWith(
       expect.objectContaining({ inviterPrincipalId: 'agent-v1' }),
       expect.anything()
@@ -371,21 +389,18 @@ describe('ADMIN-REWORK-004 customer management', () => {
         'DISPLAY'
       )
     )
-    const customersSection = screen
-      .getByText('Agent customers')
-      .closest('section')
-    if (!customersSection) throw new Error('Agent customers section missing')
-    await user.click(
-      within(customersSection).getByRole('button', { name: 'Filters' })
-    )
-    await user.click(screen.getByRole('combobox', { name: 'Status' }))
-    await user.click(await screen.findByRole('option', { name: 'Valid' }))
-    await waitFor(() =>
-      expect(apiMocks.getCanvasAdminAgentCustomers).toHaveBeenCalledWith(
-        customer.customerId,
-        expect.objectContaining({ status: 'ACTIVE', page: 1 }),
-        expect.anything()
-      )
+
+    // Current model prices load once their tab is opened, laid out like the model center without a collapse control.
+    expect(apiMocks.getCanvasAdminAgentModelPrices).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('tab', { name: 'Current model prices' }))
+    expect(await screen.findByText('Latest Image Model')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: /^(Expand|Collapse)$/u })
+    ).not.toBeInTheDocument()
+    expect(apiMocks.getCanvasAdminAgentModelPrices).toHaveBeenCalledWith(
+      customer.customerId,
+      expect.objectContaining({ page: 1, pageSize: 20 }),
+      expect.anything()
     )
   })
 

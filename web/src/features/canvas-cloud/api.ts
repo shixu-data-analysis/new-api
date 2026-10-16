@@ -57,12 +57,12 @@ import type {
   CanvasAgentWorkspace,
   CanvasAgentInviteCodePage,
   CanvasAgentInviteCodeQuery,
-  CanvasAgentCustomer,
+  CanvasAgentCustomerPage,
   CanvasAgentCustomerQuery,
   CanvasAgentModelUsageRow,
   CanvasAdminAgentModelUsageRow,
   CanvasAgentModelPricePage,
-  CanvasAdminAgentCustomer,
+  CanvasAdminAgentCustomerPage,
   CanvasAdminAgentCustomerQuery,
   CanvasAdminAgentStatistics,
   CanvasAdminPointLot,
@@ -1031,12 +1031,12 @@ export async function searchCanvasAgentInviteCodes(
 export async function getCanvasAgentCustomers(
   query: CanvasAgentCustomerQuery,
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAgentCustomer>> {
+): Promise<CanvasAgentCustomerPage> {
   return (
-    await api.get<CanvasPage<CanvasAgentCustomer>>(
-      `${webBase}/agent/customers`,
-      { params: query, signal }
-    )
+    await api.get<CanvasAgentCustomerPage>(`${webBase}/agent/customers`, {
+      params: query,
+      signal,
+    })
   ).data
 }
 
@@ -1106,9 +1106,9 @@ export async function getCanvasAdminAgentCustomers(
   customerId: string,
   query: CanvasAdminAgentCustomerQuery,
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAdminAgentCustomer>> {
+): Promise<CanvasAdminAgentCustomerPage> {
   return (
-    await api.get<CanvasPage<CanvasAdminAgentCustomer>>(
+    await api.get<CanvasAdminAgentCustomerPage>(
       `${webBase}/admin/customers/${customerId}/agent-customers`,
       { params: query, signal }
     )

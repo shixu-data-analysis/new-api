@@ -17,27 +17,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
-import { pointsUnitKey } from '../lib/billing-unit-labels'
-import type {
-  CanvasCatalogModel,
-  CanvasTokenCategory,
-  CanvasTokenRateVector,
-} from '../types'
-import { ModelBadges } from './ModelBadges'
-import { ModelIconTile } from './ModelIconTile'
-import { ModelTagFilterButton } from './ModelTagFilterButton'
+import type { CanvasCatalogModel } from '../types'
+import { ModelCatalogCard, ModelPriceRow } from './ModelCatalogCard'
+import { ModelFilterBar, UNTAGGED_TAG_ID } from './ModelFilterBar'
 
 export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
   const { t } = useTranslation()
@@ -71,11 +55,11 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
     ).values(),
   ]
   const effectiveTagId =
-    tags.some((tag) => tag.id === tagId) || tagId === '__untagged__'
+    tags.some((tag) => tag.id === tagId) || tagId === UNTAGGED_TAG_ID
       ? tagId
       : ''
   const scoped = typeModels.filter((model) => {
-    if (effectiveTagId === '__untagged__') return model.tags.length === 0
+    if (effectiveTagId === UNTAGGED_TAG_ID) return model.tags.length === 0
     return (
       !effectiveTagId || model.tags.some((tag) => tag.id === effectiveTagId)
     )
@@ -94,85 +78,31 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
     }
   }
   const visible = tagCountModels.filter((model) => {
-    if (effectiveTagId === '__untagged__') return model.tags.length === 0
+    if (effectiveTagId === UNTAGGED_TAG_ID) return model.tags.length === 0
     return (
       !effectiveTagId || model.tags.some((tag) => tag.id === effectiveTagId)
     )
   })
   return (
     <div className='space-y-4'>
-      <section
-        className='space-y-3 border-b pb-4'
-        aria-label={t('Filter models')}
-      >
-        <div
-          className='flex flex-wrap gap-2'
-          role='group'
-          aria-label={t('Generation type')}
-        >
-          <Button
-            variant={!effectiveCapability ? 'default' : 'outline'}
-            aria-pressed={!effectiveCapability}
-            onClick={() => {
-              setCapability('')
-              setTagId('')
-            }}
-          >
-            {t('All types')}
-          </Button>
-          {capabilities.map((value) => (
-            <Button
-              key={value}
-              variant={effectiveCapability === value ? 'default' : 'outline'}
-              aria-pressed={effectiveCapability === value}
-              onClick={() => {
-                setCapability(value)
-                setTagId('')
-              }}
-            >
-              {t(value)}
-            </Button>
-          ))}
-        </div>
-        <div
-          className='flex flex-wrap gap-2'
-          role='group'
-          aria-label={t('Categories')}
-        >
-          <ModelTagFilterButton
-            label={t('All categories')}
-            count={tagCountModels.length}
-            selected={!effectiveTagId}
-            onClick={() => setTagId('')}
-          />
-          {tags.map((tag) => (
-            <ModelTagFilterButton
-              key={tag.id}
-              label={tag.name}
-              count={tagCountById.get(tag.id) ?? 0}
-              selected={effectiveTagId === tag.id}
-              onClick={() => setTagId(tag.id)}
-            />
-          ))}
-          <ModelTagFilterButton
-            label={t('No category')}
-            count={untaggedCount}
-            selected={effectiveTagId === '__untagged__'}
-            onClick={() => setTagId('__untagged__')}
-          />
-        </div>
-        <div className='max-w-sm space-y-1'>
-          <Label htmlFor='customer-model-search'>
-            {t('Search model name')}
-          </Label>
-          <Input
-            id='customer-model-search'
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t('Search model name')}
-          />
-        </div>
-      </section>
+      <ModelFilterBar
+        capabilities={capabilities}
+        capability={effectiveCapability}
+        onCapabilityChange={(value) => {
+          setCapability(value)
+          setTagId('')
+        }}
+        tags={tags.map((tag) => ({
+          ...tag,
+          count: tagCountById.get(tag.id) ?? 0,
+        }))}
+        totalCount={tagCountModels.length}
+        untaggedCount={untaggedCount}
+        tagId={effectiveTagId}
+        onTagChange={setTagId}
+        search={search}
+        onSearchChange={setSearch}
+      />
       {visible.length === 0 ? (
         <div className='space-y-2 text-sm' role='status'>
           <p>
@@ -189,87 +119,33 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
       ) : (
         <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
           {visible.map((model) => (
-            <Card
+            <ModelCatalogCard
               key={model.id}
-              className='ring-foreground/15 hover:ring-primary/55 shadow-xs transition-shadow motion-reduce:transition-none'
+              name={model.effectiveDisplayName}
+              capability={model.catalog.capability}
+              iconKey={model.iconKey}
+              iconColor={model.iconColor}
+              badges={model.badges}
+              tags={model.tags}
+              description={
+                typeof model.catalog.description === 'string'
+                  ? model.catalog.description
+                  : undefined
+              }
             >
-              <CardHeader className='grid-cols-[auto_minmax(0,1fr)] gap-x-3'>
-                <ModelIconTile
-                  iconKey={model.iconKey}
-                  iconColor={model.iconColor}
-                  capability={model.catalog.capability}
-                  className='row-span-2'
+              {model.parameterCombinations.map((combination) => (
+                <ModelPriceRow
+                  key={combination.id}
+                  parameters={combination.parameters}
+                  billingUnit={combination.billingUnit}
+                  points={combination.points}
+                  tokenRates={combination.tokenRates}
                 />
-                <CardTitle className='flex min-w-0 flex-wrap items-center gap-1.5 break-words'>
-                  <span className='min-w-0 break-words'>
-                    {model.effectiveDisplayName}
-                  </span>
-                  <ModelBadges badges={model.badges} />
-                </CardTitle>
-                <CardDescription className='flex min-w-0 flex-wrap items-center gap-1.5'>
-                  <span>
-                    {model.catalog.capability
-                      ? t(String(model.catalog.capability))
-                      : t('Canvas model')}
-                  </span>
-                  {model.tags.map((tag) => (
-                    <Badge key={tag.id} variant='secondary'>
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-2'>
-                {model.parameterCombinations.map((combination) => (
-                  <div
-                    key={combination.id}
-                    className='bg-muted flex items-center justify-between gap-2 rounded-lg border px-3 py-2'
-                  >
-                    <span className='truncate font-medium'>
-                      {Object.values(combination.parameters).join(' · ') ||
-                        t('Default')}
-                    </span>
-                    <span className='shrink-0 tabular-nums'>
-                      <span className='text-[15px] font-bold'>
-                        {combination.billingUnit === 'MILLION_TOKENS' &&
-                        combination.tokenRates
-                          ? tokenRateSummary(combination.tokenRates, t)
-                          : combination.points}
-                      </span>
-                      <span className='text-muted-foreground ms-1 text-xs'>
-                        {t(pointsUnitKey(combination.billingUnit))}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-                {typeof model.catalog.description === 'string' &&
-                  model.catalog.description.trim() && (
-                    <p className='text-muted-foreground text-[13px] break-words whitespace-pre-wrap'>
-                      {model.catalog.description}
-                    </p>
-                  )}
-              </CardContent>
-            </Card>
+              ))}
+            </ModelCatalogCard>
           ))}
         </div>
       )}
     </div>
   )
-}
-
-const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
-  input: 'Input',
-  output: 'Output',
-  cacheRead: 'Cache read',
-  cacheWrite: 'Cache write',
-}
-
-function tokenRateSummary(
-  rates: Partial<CanvasTokenRateVector>,
-  t: (key: string) => string
-) {
-  return (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
-    .filter((category) => typeof rates[category] === 'string')
-    .map((category) => `${t(tokenCategoryLabel[category])} ${rates[category]}`)
-    .join(' · ')
 }

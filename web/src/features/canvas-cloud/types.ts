@@ -377,23 +377,22 @@ export interface CanvasAgentWorkspace {
     username: string
     status: 'ACTIVE'
   }
-  summary: CanvasAgentSummary
-  priceGroups: CanvasAgentPriceGroupSummary[]
+  summary: CanvasAgentCustomerSummary
 }
 
-export interface CanvasAgentSummary {
+/** The overview of an agent's customers, the same for the agent and the administrator. */
+export interface CanvasAgentCustomerSummary {
   activatedCustomers: number
-  customersWithSuccessfulTasks: number
-  successfulTasks: number
-  settledPoints: string
+  customersWithConsumption: number
+  rechargedPoints: string
+  consumedPoints: string
 }
 
+/** A current price group of the agent's customers: an option of the administrator's customer filter. */
 export interface CanvasAgentPriceGroupSummary {
   priceGroupId: string
   priceGroupName: string
   currentCustomers: number
-  successfulTasks: number
-  settledPoints: string
 }
 
 export interface CanvasAgentModelUsageRow {
@@ -472,12 +471,20 @@ export interface CanvasAgentInviteCodePage extends CanvasPage<CanvasAgentInviteC
 export interface CanvasAgentCustomer {
   id: string
   username: string | null
-  emailMasked: string | null
   status: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
   activatedAt: string | null
-  currentPriceGroup: { id: string; name: string } | null
+  currentPriceGroup: { id: string; name: string }
+  /** Counted for the returned page only, so the column cannot be sorted. */
   successfulTasks: number
-  settledPoints: string
+  rechargedPoints: string
+  consumedPoints: string
+  /** Dates within the page's `recentDays` on which the customer submitted a task. */
+  activeDays: string[]
+}
+
+export interface CanvasAgentCustomerPage extends CanvasPage<CanvasAgentCustomer> {
+  /** Today and the six days before it as Beijing dates, oldest first. */
+  recentDays: string[]
 }
 
 export interface CanvasAgentInviteCodeQuery {
@@ -499,38 +506,49 @@ export interface CanvasAgentCustomerQuery {
   page: number
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
   username?: string
-  email?: string
   status?: CanvasAgentCustomer['status']
-  sortBy: 'customer' | 'status' | 'activatedAt'
+  sortBy:
+    | 'customer'
+    | 'status'
+    | 'rechargedPoints'
+    | 'consumedPoints'
+    | 'activeDays'
+    | 'activatedAt'
+    | 'currentPriceGroup'
   sortOrder: 'asc' | 'desc'
 }
 
-export interface CanvasAdminAgentSummary extends CanvasAgentSummary {
-  modelUsageAmount: string | null
-  amountIncomplete: boolean
-}
-
+/** The administrator's row of an agent's customer: the agent's row plus the masked email and the agent display amount. */
 export interface CanvasAdminAgentCustomer extends CanvasAgentCustomer {
+  emailMasked: string | null
   modelUsageAmount: string | null
   amountIncomplete: boolean
 }
 
-/** The administrator's customer list also narrows to the customers currently on one price group. */
+export interface CanvasAdminAgentCustomerPage extends CanvasPage<CanvasAdminAgentCustomer> {
+  recentDays: string[]
+}
+
+/** The administrator's customer list also filters by email and by the customers currently on one price group. */
 export interface CanvasAdminAgentCustomerQuery extends CanvasAgentCustomerQuery {
+  email?: string
   priceGroupId?: string
 }
 
 export interface CanvasAdminAgentStatistics {
   profile: CanvasAgentProfile
-  summary: CanvasAdminAgentSummary
+  summary: CanvasAgentCustomerSummary
   /** Options of the customer filter by current price group. */
   priceGroups: CanvasAgentPriceGroupSummary[]
 }
 
 export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPrice> {
+  /** Categories of the selected type; every count follows the type and the search. */
   filters: {
     capabilities: string[]
-    tags: Array<{ id: string; name: string }>
+    tags: Array<{ id: string; name: string; count: number }>
+    totalCount: number
+    untaggedCount: number
   }
 }
 

@@ -62,6 +62,7 @@ import type {
   CanvasModelPricingCnyValue,
   CanvasModelPricingDetail,
 } from '../types'
+import { END_ALIGNED_HEADER } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
   PendingPriceCell,
@@ -543,9 +544,7 @@ export function ModelPricingEditorTable(props: {
         getColumnClassName={(columnId, section) => {
           const numeric = NUMERIC_COLUMNS.has(columnId)
           if (section === 'header') {
-            return numeric
-              ? 'px-2 text-right [&>div]:justify-end [&_button]:justify-end'
-              : 'px-2'
+            return numeric ? cn('px-2', END_ALIGNED_HEADER) : 'px-2'
           }
           // Inputs share one line per row; text cells drop 6px to the input's center line.
           return cn(

@@ -46,9 +46,10 @@ export function withCanvasTableColumnSizes<TData>(
   })
 }
 
-// Same header treatment the pricing tables use: sortable and plain headers both move right.
-const END_ALIGNED_HEADER =
-  'text-right [&>div]:justify-end [&_button]:justify-end'
+// Same header treatment the pricing tables use: sortable and plain headers both move right. A sort button gives back its
+// end padding (-me-3), as it already gives back its start padding, so its icon ends where the values end.
+export const END_ALIGNED_HEADER =
+  'text-right [&>div]:justify-end [&_button]:justify-end [&_button]:-me-3'
 const END_ALIGNED_CELL = 'text-right tabular-nums'
 
 // Columns with meta.align 'end' get matching header and cell alignment, so numeric headers sit
