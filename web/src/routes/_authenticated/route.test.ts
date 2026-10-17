@@ -22,7 +22,6 @@ import { Route } from './route'
 
 const mocks = vi.hoisted(() => ({
   getCanvasSession: vi.fn(),
-  getCanvasSessionFailureRoute: vi.fn(),
   isCanvasInviteRegistrationRequired: vi.fn(() => false),
   getAuthState: vi.fn(),
 }))
@@ -39,7 +38,6 @@ vi.mock('@/features/canvas-cloud/access', () => ({
 }))
 vi.mock('@/features/canvas-cloud/api', () => ({
   getCanvasSession: mocks.getCanvasSession,
-  getCanvasSessionFailureRoute: mocks.getCanvasSessionFailureRoute,
   isCanvasInviteRegistrationRequired: mocks.isCanvasInviteRegistrationRequired,
 }))
 vi.mock('@/stores/auth-store', () => ({
@@ -62,7 +60,6 @@ async function runBeforeLoad(pathname = location.pathname) {
 describe('authenticated Canvas session boundary', () => {
   beforeEach(() => {
     mocks.getCanvasSession.mockReset()
-    mocks.getCanvasSessionFailureRoute.mockReset()
     mocks.isCanvasInviteRegistrationRequired.mockReset()
     mocks.isCanvasInviteRegistrationRequired.mockReturnValue(false)
     mocks.getAuthState.mockReturnValue({
@@ -70,25 +67,16 @@ describe('authenticated Canvas session boundary', () => {
     })
   })
 
-  it('redirects Cloud transport failures to service unavailable', async () => {
-    const failure = new Error('upstream unavailable')
-    mocks.getCanvasSession.mockRejectedValue(failure)
-    mocks.getCanvasSessionFailureRoute.mockReturnValue('/503')
+  it('leaves a Cloud outage on a Canvas path to the page route', async () => {
+    mocks.getCanvasSession.mockRejectedValue(new Error('upstream unavailable'))
 
-    await expect(runBeforeLoad()).resolves.toMatchObject({
-      options: { to: '/503' },
-    })
-    expect(mocks.getCanvasSessionFailureRoute).toHaveBeenCalledWith(failure)
+    await expect(runBeforeLoad()).resolves.toBeUndefined()
   })
 
-  it('keeps actual session authorization failures on the forbidden route', async () => {
-    const failure = { response: { status: 403 } }
-    mocks.getCanvasSession.mockRejectedValue(failure)
-    mocks.getCanvasSessionFailureRoute.mockReturnValue('/403')
+  it('leaves a Canvas authorization failure to the page route', async () => {
+    mocks.getCanvasSession.mockRejectedValue({ response: { status: 403 } })
 
-    await expect(runBeforeLoad()).resolves.toMatchObject({
-      options: { to: '/403' },
-    })
+    await expect(runBeforeLoad()).resolves.toBeUndefined()
   })
 
   it('keeps an unregistered ordinary user inside Canvas activation', async () => {
@@ -105,7 +93,6 @@ describe('authenticated Canvas session boundary', () => {
     mocks.isCanvasInviteRegistrationRequired.mockReturnValue(true)
 
     await expect(runBeforeLoad('/canvas-cloud/points')).resolves.toBeUndefined()
-    expect(mocks.getCanvasSessionFailureRoute).not.toHaveBeenCalled()
   })
 
   it('does not recursively query Canvas session from the service unavailable route', async () => {
@@ -150,18 +137,15 @@ describe('authenticated Canvas session boundary', () => {
   })
 
   it('keeps the New API dashboard usable when no Canvas principal exists', async () => {
-    const failure = { response: { status: 401 } }
+    const failure = { response: { status: 403 } }
     mocks.getCanvasSession.mockRejectedValue(failure)
-    mocks.getCanvasSessionFailureRoute.mockReturnValue('/403')
 
     await expect(runBeforeLoad('/dashboard')).resolves.toBeUndefined()
-    expect(mocks.getCanvasSessionFailureRoute).toHaveBeenCalledWith(failure)
   })
 
   it('does not let a Cloud outage block the New API dashboard', async () => {
     const failure = new Error('upstream unavailable')
     mocks.getCanvasSession.mockRejectedValue(failure)
-    mocks.getCanvasSessionFailureRoute.mockReturnValue('/503')
 
     await expect(runBeforeLoad('/dashboard')).resolves.toBeUndefined()
   })

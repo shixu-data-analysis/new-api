@@ -180,7 +180,7 @@ export function PointIssuanceRateSettings() {
         description = t(
           'The submitted rate change did not pass server validation. Check the field requirements and try again.'
         )
-      } else if (failure.code === 'UNAUTHORIZED') {
+      } else if (failure.code === 'FORBIDDEN') {
         description = t(
           'You are not authorized to manage point issuance rates.'
         )

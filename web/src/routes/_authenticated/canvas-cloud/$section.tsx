@@ -22,10 +22,14 @@ import z from 'zod'
 import { CanvasCloud } from '@/features/canvas-cloud'
 import { isCanvasSectionAllowed } from '@/features/canvas-cloud/access'
 import {
-  getCanvasSessionFailureRoute,
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
+import { CanvasRouteError } from '@/features/canvas-cloud/components/CanvasRouteStates'
+import {
+  denyCanvasRoute,
+  rejectCanvasRoute,
+} from '@/features/canvas-cloud/session-failure'
 
 export const invalidCanvasCloudUuidSearchValue = '__invalid_canvas_cloud_uuid__'
 export const invalidCanvasCloudRuntimeView =
@@ -114,7 +118,7 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
       session = await getCanvasSession()
     } catch (error) {
       if (isCanvasInviteRegistrationRequired(error)) return
-      throw redirect({ to: getCanvasSessionFailureRoute(error) })
+      rejectCanvasRoute(error)
     }
 
     if (params.section === 'channels') {
@@ -145,7 +149,7 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
         session.inviterStatus
       )
     ) {
-      throw redirect({ to: '/403' })
+      denyCanvasRoute()
     }
     if (params.section === 'agents' || params.section === 'invite-codes') {
       throw redirect({
@@ -217,5 +221,6 @@ export const Route = createFileRoute('/_authenticated/canvas-cloud/$section')({
     })
   },
   validateSearch: canvasCloudSearchSchema,
+  errorComponent: CanvasRouteError,
   component: CanvasCloud,
 })

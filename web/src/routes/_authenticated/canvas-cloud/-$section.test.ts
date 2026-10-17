@@ -8,6 +8,8 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it, vi } from 'vitest'
 
+import { CanvasRouteFailure } from '@/features/canvas-cloud/session-failure'
+
 import {
   canvasCloudSearchSchema,
   invalidCanvasCloudRuntimeView,
@@ -16,17 +18,18 @@ import {
 } from './$section'
 
 const mocks = vi.hoisted(() => ({
-  getCanvasSessionFailureRoute: vi.fn(() => '/503'),
   getCanvasSession: vi.fn(),
+  isCanvasSectionAllowed: vi.fn(() => true),
 }))
 
 vi.mock('@/features/canvas-cloud/api', () => ({
-  getCanvasSessionFailureRoute: mocks.getCanvasSessionFailureRoute,
   getCanvasSession: mocks.getCanvasSession,
+  isCanvasAccessForbidden: (error: { response?: { status?: number } }) =>
+    error.response?.status === 403,
   isCanvasInviteRegistrationRequired: vi.fn(() => false),
 }))
 vi.mock('@/features/canvas-cloud/access', () => ({
-  isCanvasSectionAllowed: vi.fn(() => true),
+  isCanvasSectionAllowed: mocks.isCanvasSectionAllowed,
 }))
 
 async function beforeLoad(
@@ -48,16 +51,31 @@ async function beforeLoad(
 }
 
 describe('Canvas Cloud legacy route search', () => {
-  it('redirects an unavailable Cloud session boundary to service unavailable', async () => {
-    const failure = new Error('upstream unavailable')
+  it.each([
+    [
+      'an unavailable Cloud session',
+      new Error('upstream unavailable'),
+      'unavailable',
+    ],
+    ['a withdrawn Canvas access', { response: { status: 403 } }, 'forbidden'],
+  ])('keeps %s inside the Canvas layout', async (_, failure, kind) => {
     mocks.getCanvasSession.mockRejectedValueOnce(failure)
 
     const result = await Route.options
       .beforeLoad?.({ params: { section: 'runtime' }, search: {} } as never)
       .catch((error: unknown) => error)
 
-    expect(mocks.getCanvasSessionFailureRoute).toHaveBeenCalledWith(failure)
-    expect(result).toMatchObject({ options: { to: '/503' } })
+    expect(result).toBeInstanceOf(CanvasRouteFailure)
+    expect(result).toMatchObject({ kind })
+  })
+
+  it('keeps a section the account may not open inside the Canvas layout', async () => {
+    mocks.isCanvasSectionAllowed.mockReturnValueOnce(false)
+
+    const result = await beforeLoad('runtime', {})
+
+    expect(result).toBeInstanceOf(CanvasRouteFailure)
+    expect(result).toMatchObject({ kind: 'forbidden' })
   })
 
   it('keeps an invalid runtime view for the route-localized recovery state', () => {

@@ -88,7 +88,7 @@ describe('server error message mapping', () => {
       'INVALID_STATE_TRANSITION',
       'NOT_FOUND',
       'VALIDATION_FAILED',
-      'UNAUTHORIZED',
+      'FORBIDDEN',
     ]) {
       expect(
         getModelPricingServerErrorMessageKey({

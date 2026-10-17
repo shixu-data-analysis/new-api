@@ -39,6 +39,8 @@ import {
   getCanvasAdminWorkspace,
   getCanvasCatalog,
   getCanvasSession,
+  isCanvasAccessForbidden,
+  isCanvasInviteRegistrationRequired,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
@@ -47,6 +49,10 @@ import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentEarnings } from './components/AgentEarnings'
+import {
+  CanvasAccessDenied,
+  CanvasSessionUnavailable,
+} from './components/CanvasRouteStates'
 import { CustomerModelCenter } from './components/CustomerModelCenter'
 import {
   CustomerPointsCenter,
@@ -265,22 +271,18 @@ export function CanvasCloud() {
     )
   }
   if (session.isError) {
-    return (
-      <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Content>
-          <div className='space-y-4'>
-            <ErrorState
-              title={t('Canvas access unavailable')}
-              description={t(
-                'Complete Canvas invite registration or contact an administrator.'
-              )}
-              onRetry={() => void session.refetch()}
-            />
+    if (isCanvasInviteRegistrationRequired(session.error)) {
+      return (
+        <SectionPageLayout fluid={false}>
+          <SectionPageLayout.Content>
             <InviteActivation />
-          </div>
-        </SectionPageLayout.Content>
-      </SectionPageLayout>
-    )
+          </SectionPageLayout.Content>
+        </SectionPageLayout>
+      )
+    }
+    // A 403 here means access was withdrawn while the page stayed open; retrying cannot restore it.
+    if (isCanvasAccessForbidden(session.error)) return <CanvasAccessDenied />
+    return <CanvasSessionUnavailable onRetry={() => void session.refetch()} />
   }
   if (
     !isCanvasSectionAllowed(
@@ -289,16 +291,7 @@ export function CanvasCloud() {
       session.data.inviterStatus
     )
   ) {
-    return (
-      <SectionPageLayout fluid={false}>
-        <SectionPageLayout.Content>
-          <ErrorState
-            title={t('Access denied')}
-            description={t('You do not have access to this Canvas section.')}
-          />
-        </SectionPageLayout.Content>
-      </SectionPageLayout>
-    )
+    return <CanvasAccessDenied />
   }
   if (
     params.section === 'runtime' &&

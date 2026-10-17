@@ -25,7 +25,6 @@ import {
   isCanvasDefaultLandingPath,
 } from '@/features/canvas-cloud/access'
 import {
-  getCanvasSessionFailureRoute,
   getCanvasSession,
   isCanvasInviteRegistrationRequired,
 } from '@/features/canvas-cloud/api'
@@ -80,9 +79,8 @@ export const Route = createFileRoute('/_authenticated')({
         }
         canvasSession = null
       } else {
-        const failureRoute = getCanvasSessionFailureRoute(error)
-        if (!isCanvasPath) return
-        throw redirect({ to: failureRoute })
+        // Every Canvas route checks the session again and shows the failure inside the layout.
+        return
       }
     }
     if (canvasSession) {

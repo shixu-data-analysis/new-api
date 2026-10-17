@@ -6,18 +6,21 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
-import {
-  getCanvasSession,
-  getCanvasSessionFailureRoute,
-} from '@/features/canvas-cloud/api'
+import { getCanvasSession } from '@/features/canvas-cloud/api'
+import { CanvasRouteError } from '@/features/canvas-cloud/components/CanvasRouteStates'
 import { InvitationManagement } from '@/features/canvas-cloud/components/InvitationManagement'
+import {
+  denyCanvasRoute,
+  rejectCanvasRoute,
+} from '@/features/canvas-cloud/session-failure'
+import type { CanvasSession } from '@/features/canvas-cloud/types'
 
 export const invalidInvitationPrincipalId =
   '__invalid_invitation_principal_id__'
@@ -41,14 +44,15 @@ export const Route = createFileRoute(
 )({
   validateSearch: invitationSearchSchema,
   beforeLoad: async () => {
+    let session: CanvasSession
     try {
-      const session = await getCanvasSession()
-      if (isCanvasAdministrator(session.principalType)) return
+      session = await getCanvasSession()
     } catch (error) {
-      throw redirect({ to: getCanvasSessionFailureRoute(error) })
+      rejectCanvasRoute(error)
     }
-    throw redirect({ to: '/403' })
+    if (!isCanvasAdministrator(session.principalType)) denyCanvasRoute()
   },
+  errorComponent: CanvasRouteError,
   component: InvitationManagementRoute,
 })
 

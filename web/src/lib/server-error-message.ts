@@ -52,8 +52,7 @@ const modelPricingErrorMessageKeys = {
     'The pricing record no longer exists. Refresh the model pricing and try again.',
   VALIDATION_FAILED:
     'The pricing request is no longer valid. Review the fields and create a new preview.',
-  UNAUTHORIZED:
-    'Your administrator session is no longer authorized. Refresh the page and sign in again.',
+  FORBIDDEN: 'No permission to perform this action',
 } as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {

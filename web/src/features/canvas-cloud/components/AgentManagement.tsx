@@ -225,10 +225,8 @@ export function AgentManagement(props: {
             return t(
               'The user could not be verified right now. Confirm the username exists, then try again later.'
             )
-          case 'UNAUTHORIZED':
-            return t(
-              'Your administrator session is no longer authorized. Refresh the page and sign in again.'
-            )
+          case 'FORBIDDEN':
+            return t('No permission to perform this action')
           case 'IDEMPOTENCY_CONFLICT':
             return t(
               'This creation request conflicts with an earlier attempt. Refresh the page before trying again.'

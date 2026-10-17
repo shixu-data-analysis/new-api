@@ -136,14 +136,7 @@ function batchItemsFailureKind(
   const data = response?.data
   const code =
     data && typeof data === 'object' ? (data as { code?: unknown }).code : null
-  if (
-    response?.status === 401 ||
-    response?.status === 403 ||
-    code === 'UNAUTHORIZED' ||
-    code === 'FORBIDDEN'
-  ) {
-    return 'forbidden'
-  }
+  if (response?.status === 403 || code === 'FORBIDDEN') return 'forbidden'
   if (response?.status === 404 || code === 'NOT_FOUND') return 'missing'
   return 'failed'
 }
@@ -458,10 +451,8 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         failure.code === 'PROMOTION_GATE_CLOSED'
       ) {
         message = t('The selected bonus campaign is no longer available.')
-      } else if (failure.code === 'UNAUTHORIZED') {
-        message = t(
-          'Your administrator session is no longer authorized. Refresh the page and sign in again.'
-        )
+      } else if (failure.code === 'FORBIDDEN') {
+        message = t('No permission to perform this action')
       }
       if (field) issueForm.setError(field, { type: 'server', message })
       setIssueError(message)

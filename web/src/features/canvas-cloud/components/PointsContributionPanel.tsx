@@ -130,7 +130,7 @@ function failureKind(error: unknown): 'timeout' | 'denied' | 'failed' {
     error as { response?: { status?: number; data?: { code?: string } } }
   ).response
   if (response?.data?.code === 'QUERY_TIMEOUT') return 'timeout'
-  if (response?.status === 401 || response?.status === 403) return 'denied'
+  if (response?.status === 403) return 'denied'
   return 'failed'
 }
 

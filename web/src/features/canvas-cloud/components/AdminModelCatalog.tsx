@@ -205,8 +205,8 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
   if (code === 'IDEMPOTENCY_CONFLICT') {
     return t('This publication request conflicts with an earlier request.')
   }
-  if (status === 401 || status === 403 || code === 'UNAUTHORIZED') {
-    return t('Your administrator session is no longer authorized.')
+  if (status === 403 || code === 'FORBIDDEN') {
+    return t('No permission to perform this action')
   }
   if (code === 'VALIDATION_FAILED') {
     return t('The Bundle publication request is no longer valid.')

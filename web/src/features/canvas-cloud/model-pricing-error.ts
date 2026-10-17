@@ -16,7 +16,7 @@ export function pricingLoadErrorTitle(
   t: (key: string) => string
 ): string {
   const status = getServerErrorStatus(error)
-  if (status === 401 || status === 403) {
+  if (status === 403) {
     return t('You are not allowed to view this model pricing.')
   }
   if (status === 404) {

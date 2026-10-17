@@ -1193,12 +1193,12 @@ describe('Canvas model catalog folder upload', () => {
     expect(mocks.publish).toHaveBeenCalledTimes(1)
   })
 
-  it.each([401, 403])(
+  it.each([403])(
     'clears the frozen import after a %s publication response',
     async (status) => {
       mocks.plan.mockResolvedValue(catalogPlan())
       mocks.publish.mockRejectedValue({
-        response: { status, data: { code: 'UNAUTHORIZED' } },
+        response: { status, data: { code: 'FORBIDDEN' } },
       })
       render(
         <QueryClientProvider client={new QueryClient()}>
@@ -1217,9 +1217,7 @@ describe('Canvas model catalog folder upload', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
 
       expect(
-        await screen.findByText(
-          'Your administrator session is no longer authorized.'
-        )
+        await screen.findByText('No permission to perform this action')
       ).toBeVisible()
       expect(
         screen.queryByRole('button', { name: 'Review publication content' })

@@ -18,7 +18,7 @@ const t = (key: string) => key
 describe('model pricing direct-link errors', () => {
   it('distinguishes authentication and authorization failures', () => {
     expect(pricingLoadErrorTitle({ response: { status: 401 } }, t)).toBe(
-      'You are not allowed to view this model pricing.'
+      'Model pricing could not be loaded'
     )
     expect(pricingLoadErrorTitle({ response: { status: 403 } }, t)).toBe(
       'You are not allowed to view this model pricing.'

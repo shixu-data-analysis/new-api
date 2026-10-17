@@ -23,6 +23,16 @@
         },
         "description": "Frozen business guard rejected the request"
       },
+      "Forbidden": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        },
+        "description": "The verified identity is not provisioned or lacks access to this PixMiao Studio resource"
+      },
       "IdempotencyConflict": {
         "content": {
           "application/json": {
@@ -51,7 +61,7 @@
             }
           }
         },
-        "description": "Authentication or authorization failed"
+        "description": "The bearer credential is missing, invalid, or expired. A verified identity that lacks access receives 403 instead."
       }
     },
     "schemas": {
@@ -128,6 +138,7 @@
           "code": {
             "enum": [
               "UNAUTHORIZED",
+              "FORBIDDEN",
               "INVITE_REGISTRATION_REQUIRED",
               "NOT_FOUND",
               "NOT_AN_INVITER",
@@ -958,6 +969,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -1010,6 +1024,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "$ref": "#/components/responses/IdempotencyConflict"
@@ -1070,6 +1087,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -1122,6 +1142,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "409": {
             "$ref": "#/components/responses/IdempotencyConflict"

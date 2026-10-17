@@ -553,10 +553,8 @@ export function InviteCodeManagement(props: {
         code === 'PROMOTION_CHANGED'
       ) {
         message = t('The selected bonus campaign is no longer available.')
-      } else if (code === 'UNAUTHORIZED') {
-        message = t(
-          'Your administrator session is no longer authorized. Refresh the page and sign in again.'
-        )
+      } else if (code === 'FORBIDDEN') {
+        message = t('No permission to perform this action')
       } else if (
         code === 'INVITE_CODE_UNAVAILABLE' ||
         code === 'INVITE_CODE_INVALID'

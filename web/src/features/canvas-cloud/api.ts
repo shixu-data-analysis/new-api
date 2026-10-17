@@ -157,7 +157,6 @@ export async function getCanvasSession(): Promise<CanvasSession> {
   return (
     await api.get<CanvasSession>(`${webBase}/session`, {
       skipErrorHandler: true,
-      skipAuthRefresh: true,
     })
   ).data
 }
@@ -219,12 +218,14 @@ export function isCanvasInviteRegistrationRequired(error: unknown): boolean {
   )
 }
 
-export function getCanvasSessionFailureRoute(error: unknown): '/403' | '/503' {
+// A verified identity without Canvas access. INVITE_REGISTRATION_REQUIRED is also a 403, so callers that offer
+// activation check it first. A 401 never means this: the shared client has already refreshed it, leaving for
+// sign-in when the session is gone, and one that still arrives is a refresh that could not finish.
+export function isCanvasAccessForbidden(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('response' in error)) {
-    return '/503'
+    return false
   }
-  const status = (error as { response?: { status?: unknown } }).response?.status
-  return status === 401 || status === 403 ? '/403' : '/503'
+  return (error as { response?: { status?: unknown } }).response?.status === 403
 }
 
 export async function getCanvasCustomerPointSummary(

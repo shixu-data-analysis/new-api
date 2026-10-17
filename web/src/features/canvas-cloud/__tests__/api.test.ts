@@ -44,7 +44,7 @@ import {
   getCanvasCustomerTasks,
   getCanvasTaskAssetBlob,
   getCanvasTaskAssetDownload,
-  getCanvasSessionFailureRoute,
+  isCanvasAccessForbidden,
   getCanvasSession,
   getCanvasAdminProvisioningPrincipals,
   getCanvasAdminProvisioningStatus,
@@ -116,7 +116,6 @@ describe('Canvas Cloud API boundary', () => {
 
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/session', {
       skipErrorHandler: true,
-      skipAuthRefresh: true,
     })
   })
 
@@ -193,7 +192,6 @@ describe('Canvas Cloud API boundary', () => {
     await getCanvasSession()
     expect(mocks.get).toHaveBeenCalledWith('/canvas-api/v1/web/session', {
       skipErrorHandler: true,
-      skipAuthRefresh: true,
     })
 
     expect(
@@ -206,7 +204,7 @@ describe('Canvas Cloud API boundary', () => {
     ).toBe(true)
     expect(
       isCanvasInviteRegistrationRequired({
-        response: { status: 403, data: { code: 'UNAUTHORIZED' } },
+        response: { status: 403, data: { code: 'FORBIDDEN' } },
       })
     ).toBe(false)
     expect(
@@ -280,18 +278,12 @@ describe('Canvas Cloud API boundary', () => {
     )
   })
 
-  it('distinguishes session authorization failures from Cloud unavailability', () => {
-    expect(getCanvasSessionFailureRoute({ response: { status: 401 } })).toBe(
-      '/403'
-    )
-    expect(getCanvasSessionFailureRoute({ response: { status: 403 } })).toBe(
-      '/403'
-    )
-    expect(getCanvasSessionFailureRoute({ response: { status: 502 } })).toBe(
-      '/503'
-    )
-    expect(getCanvasSessionFailureRoute(new Error('network unavailable'))).toBe(
-      '/503'
+  it('treats only a 403 as missing Canvas access', () => {
+    expect(isCanvasAccessForbidden({ response: { status: 403 } })).toBe(true)
+    expect(isCanvasAccessForbidden({ response: { status: 401 } })).toBe(false)
+    expect(isCanvasAccessForbidden({ response: { status: 502 } })).toBe(false)
+    expect(isCanvasAccessForbidden(new Error('network unavailable'))).toBe(
+      false
     )
   })
 
