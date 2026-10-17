@@ -23,7 +23,7 @@ import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { GeneralError } from '@/features/errors/general-error'
 
-import { CanvasRouteFailure } from '../session-failure'
+import { CanvasRouteFailure } from '../route-access'
 
 export function CanvasAccessDenied() {
   const { t } = useTranslation()
@@ -58,7 +58,8 @@ export function CanvasSessionUnavailable(props: { onRetry: () => void }) {
 export function CanvasRouteError(props: ErrorComponentProps) {
   const router = useRouter()
   if (!(props.error instanceof CanvasRouteFailure)) {
-    return <GeneralError error={props.error} />
+    // Rendered inside the application layout, so it fills the content area instead of the viewport.
+    return <GeneralError className='h-full' error={props.error} />
   }
   if (props.error.kind === 'forbidden') return <CanvasAccessDenied />
   return <CanvasSessionUnavailable onRetry={() => void router.invalidate()} />

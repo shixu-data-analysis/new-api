@@ -45,7 +45,9 @@ vi.mock('../UnifiedModelPricing', () => ({
 vi.mock('../ModelMonitoringOverview', () => ({
   ModelMonitoringOverview: () => <div>Logical model monitoring overview</div>,
 }))
-vi.mock('../../api', () => ({
+vi.mock('../../api', async (original) => ({
+  isCanvasAccessForbidden: (await original<typeof import('../../api')>())
+    .isCanvasAccessForbidden,
   planCanvasModelCatalogImport: mocks.plan,
   publishCanvasModelCatalogImport: mocks.publish,
   getCanvasAdminTestingModels: mocks.published,

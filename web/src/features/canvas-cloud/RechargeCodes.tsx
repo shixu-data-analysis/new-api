@@ -66,6 +66,7 @@ import {
   getCanvasAdminRechargeCodes,
   getCanvasAdminRechargeCodeBatchItems,
   downloadCanvasUnusedRechargeCodes,
+  isCanvasAccessForbidden,
   issueCanvasAdminRechargeCodes,
   searchCanvasAdminRechargeCodeBatch,
 } from './api'
@@ -136,7 +137,7 @@ function batchItemsFailureKind(
   const data = response?.data
   const code =
     data && typeof data === 'object' ? (data as { code?: unknown }).code : null
-  if (response?.status === 403 || code === 'FORBIDDEN') return 'forbidden'
+  if (isCanvasAccessForbidden(error)) return 'forbidden'
   if (response?.status === 404 || code === 'NOT_FOUND') return 'missing'
   return 'failed'
 }

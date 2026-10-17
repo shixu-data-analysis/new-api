@@ -41,6 +41,7 @@ import {
 } from '@/lib/server-error-message'
 
 import {
+  isCanvasAccessForbidden,
   planCanvasModelCatalogImport,
   publishCanvasModelCatalogImport,
 } from '../api'
@@ -205,7 +206,7 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
   if (code === 'IDEMPOTENCY_CONFLICT') {
     return t('This publication request conflicts with an earlier request.')
   }
-  if (status === 403 || code === 'FORBIDDEN') {
+  if (isCanvasAccessForbidden(error)) {
     return t('No permission to perform this action')
   }
   if (code === 'VALIDATION_FAILED') {

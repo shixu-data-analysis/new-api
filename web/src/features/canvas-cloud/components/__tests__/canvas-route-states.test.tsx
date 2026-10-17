@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { CanvasRouteFailure } from '../../session-failure'
+import { CanvasRouteFailure } from '../../route-access'
 import { CanvasRouteError } from '../CanvasRouteStates'
 
 const mocks = vi.hoisted(() => ({ invalidate: vi.fn() }))

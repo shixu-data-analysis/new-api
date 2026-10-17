@@ -234,6 +234,11 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	// Refreshing needs the unguessable refresh cookie, so it gets its own looser IP bucket instead of sharing the
+	// sign-in one: customers behind one office address refresh far more often than they sign in.
+	AuthRefreshRateLimitNum            = 120
+	AuthRefreshRateLimitDuration int64 = 20 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 

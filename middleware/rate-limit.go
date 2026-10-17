@@ -178,6 +178,15 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AuthRefreshRateLimit follows the critical switch but counts in its own bucket, so office-wide refreshes do not
+// use up the sign-in attempts of everyone behind the same address.
+func AuthRefreshRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.AuthRefreshRateLimitNum, common.AuthRefreshRateLimitDuration, "AR")
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

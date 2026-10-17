@@ -29,7 +29,7 @@ import { CanvasRouteError } from '@/features/canvas-cloud/components/CanvasRoute
 import {
   denyCanvasRoute,
   rejectCanvasRoute,
-} from '@/features/canvas-cloud/session-failure'
+} from '@/features/canvas-cloud/route-access'
 
 export const invalidCanvasCloudUuidSearchValue = '__invalid_canvas_cloud_uuid__'
 export const invalidCanvasCloudRuntimeView =

@@ -72,16 +72,12 @@ export const Route = createFileRoute('/_authenticated')({
     try {
       canvasSession = await getCanvasSession()
     } catch (error) {
-      if (isCanvasInviteRegistrationRequired(error)) {
-        if (!isCanvasPath) return
-        if (!canCanvasPrincipalAccessPath(location.pathname)) {
-          throw redirect({ to: '/403' })
-        }
-        canvasSession = null
-      } else {
-        // Every Canvas route checks the session again and shows the failure inside the layout.
-        return
+      // Every Canvas route checks the session again and shows any other failure inside the layout.
+      if (!isCanvasInviteRegistrationRequired(error) || !isCanvasPath) return
+      if (!canCanvasPrincipalAccessPath(location.pathname)) {
+        throw redirect({ to: '/403' })
       }
+      canvasSession = null
     }
     if (canvasSession) {
       if (isDefaultLandingPath) {

@@ -8,7 +8,7 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it, vi } from 'vitest'
 
-import { CanvasRouteFailure } from '@/features/canvas-cloud/session-failure'
+import { CanvasRouteFailure } from '@/features/canvas-cloud/route-access'
 
 import {
   canvasCloudSearchSchema,

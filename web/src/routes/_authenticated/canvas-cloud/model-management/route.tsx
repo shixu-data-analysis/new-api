@@ -8,28 +8,14 @@ License, or (at your option) any later version.
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
-import { getCanvasSession } from '@/features/canvas-cloud/api'
 import { CanvasRouteError } from '@/features/canvas-cloud/components/CanvasRouteStates'
 import { ModelManagementLayout } from '@/features/canvas-cloud/components/ModelManagementLayout'
-import {
-  denyCanvasRoute,
-  rejectCanvasRoute,
-} from '@/features/canvas-cloud/session-failure'
-import type { CanvasSession } from '@/features/canvas-cloud/types'
+import { requireCanvasAdministratorRoute } from '@/features/canvas-cloud/route-access'
 
 export const Route = createFileRoute(
   '/_authenticated/canvas-cloud/model-management'
 )({
-  beforeLoad: async () => {
-    let session: CanvasSession
-    try {
-      session = await getCanvasSession()
-    } catch (error) {
-      rejectCanvasRoute(error)
-    }
-    if (!isCanvasAdministrator(session.principalType)) denyCanvasRoute()
-  },
+  beforeLoad: requireCanvasAdministratorRoute,
   errorComponent: CanvasRouteError,
   component: ModelManagementLayout,
 })

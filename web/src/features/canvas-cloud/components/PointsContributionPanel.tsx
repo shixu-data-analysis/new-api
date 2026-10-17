@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { beijingMonthOf } from '../agent-earnings-format'
+import { isCanvasAccessForbidden } from '../api'
 import { getCanvasBusinessTerm } from '../business-terms'
 import { getOperatingDashboard } from '../operating-dashboard-api'
 import {
@@ -130,7 +131,7 @@ function failureKind(error: unknown): 'timeout' | 'denied' | 'failed' {
     error as { response?: { status?: number; data?: { code?: string } } }
   ).response
   if (response?.data?.code === 'QUERY_TIMEOUT') return 'timeout'
-  if (response?.status === 403) return 'denied'
+  if (isCanvasAccessForbidden(error)) return 'denied'
   return 'failed'
 }
 

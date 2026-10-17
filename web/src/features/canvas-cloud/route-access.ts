@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { isCanvasAccessForbidden } from './api'
+import { isCanvasAdministrator } from './access'
+import { getCanvasSession, isCanvasAccessForbidden } from './api'
+import type { CanvasSession } from './types'
 
 // Why a Canvas route cannot open. Canvas pages show both inside the application layout instead of leaving for
 // the full-screen 403 or 503 pages: "forbidden" means the account lacks access, so retrying cannot help;
@@ -41,4 +43,15 @@ export function rejectCanvasRoute(error: unknown): never {
     isCanvasAccessForbidden(error) ? 'forbidden' : 'unavailable',
     { cause: error }
   )
+}
+
+// beforeLoad of the Canvas pages only administrators may open.
+export async function requireCanvasAdministratorRoute(): Promise<void> {
+  let session: CanvasSession
+  try {
+    session = await getCanvasSession()
+  } catch (error) {
+    rejectCanvasRoute(error)
+  }
+  if (!isCanvasAdministrator(session.principalType)) denyCanvasRoute()
 }

@@ -223,3 +223,45 @@ func TestRedisFailurePolicies(t *testing.T) {
 	assert.Empty(t, userResponse.Body.String())
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/email", "192.0.2.62:12345").Code)
 }
+
+func TestAuthRefreshDoesNotShareTheSignInBucket(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousEnabled := common.CriticalRateLimitEnable
+	common.CriticalRateLimitEnable = true
+	t.Cleanup(func() { common.CriticalRateLimitEnable = previousEnabled })
+
+	for _, backend := range []struct {
+		name   string
+		office string
+		redis  bool
+	}{
+		{name: "redis", office: "192.0.2.20:443", redis: true},
+		{name: "memory", office: "192.0.2.21:443"},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			if backend.redis {
+				useRateLimitMiniRedis(t)
+			} else {
+				previousRedisEnabled := common.RedisEnabled
+				common.RedisEnabled = false
+				t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+			}
+
+			router := gin.New()
+			require.NoError(t, router.SetTrustedProxies(nil))
+			ok := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+			router.GET("/login", CriticalRateLimit(), ok)
+			router.GET("/refresh", AuthRefreshRateLimit(), ok)
+
+			for range common.CriticalRateLimitNum {
+				require.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/login", backend.office).Code)
+			}
+			assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/login", backend.office).Code)
+
+			for range common.AuthRefreshRateLimitNum {
+				require.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/refresh", backend.office).Code)
+			}
+			assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/refresh", backend.office).Code)
+		})
+	}
+}

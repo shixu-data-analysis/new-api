@@ -11,14 +11,16 @@ import {
   getServerErrorStatus,
 } from '@/lib/server-error-message'
 
+import { isCanvasAccessForbidden } from './api'
+
 export function pricingLoadErrorTitle(
   error: unknown,
   t: (key: string) => string
 ): string {
-  const status = getServerErrorStatus(error)
-  if (status === 403) {
+  if (isCanvasAccessForbidden(error)) {
     return t('You are not allowed to view this model pricing.')
   }
+  const status = getServerErrorStatus(error)
   if (status === 404) {
     return t('The requested model was not found or is unavailable.')
   }

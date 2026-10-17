@@ -67,7 +67,11 @@ vi.mock('@/components/layout', () => {
   return { SectionPageLayout }
 })
 
-vi.mock('../api', () => apiMocks)
+vi.mock('../api', async (original) => ({
+  ...apiMocks,
+  isCanvasAccessForbidden: (await original<typeof import('../api')>())
+    .isCanvasAccessForbidden,
+}))
 vi.mock('../activity-api', () => campaignMocks)
 vi.mock('@/features/system-settings/components/form-navigation-guard', () => ({
   FormNavigationGuard: () => null,

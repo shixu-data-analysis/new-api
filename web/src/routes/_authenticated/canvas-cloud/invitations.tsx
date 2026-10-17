@@ -12,15 +12,9 @@ import z from 'zod'
 
 import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
-import { isCanvasAdministrator } from '@/features/canvas-cloud/access'
-import { getCanvasSession } from '@/features/canvas-cloud/api'
 import { CanvasRouteError } from '@/features/canvas-cloud/components/CanvasRouteStates'
 import { InvitationManagement } from '@/features/canvas-cloud/components/InvitationManagement'
-import {
-  denyCanvasRoute,
-  rejectCanvasRoute,
-} from '@/features/canvas-cloud/session-failure'
-import type { CanvasSession } from '@/features/canvas-cloud/types'
+import { requireCanvasAdministratorRoute } from '@/features/canvas-cloud/route-access'
 
 export const invalidInvitationPrincipalId =
   '__invalid_invitation_principal_id__'
@@ -43,15 +37,7 @@ export const Route = createFileRoute(
   '/_authenticated/canvas-cloud/invitations'
 )({
   validateSearch: invitationSearchSchema,
-  beforeLoad: async () => {
-    let session: CanvasSession
-    try {
-      session = await getCanvasSession()
-    } catch (error) {
-      rejectCanvasRoute(error)
-    }
-    if (!isCanvasAdministrator(session.principalType)) denyCanvasRoute()
-  },
+  beforeLoad: requireCanvasAdministratorRoute,
   errorComponent: CanvasRouteError,
   component: InvitationManagementRoute,
 })
