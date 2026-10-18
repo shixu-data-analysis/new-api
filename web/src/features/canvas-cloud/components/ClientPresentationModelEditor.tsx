@@ -15,9 +15,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 import type {
+  DraftCategory,
   DraftModel,
   PresentationDraftAction,
 } from '../lib/client-presentation-draft'
+import { orderCategories } from '../lib/model-categories'
 import { MODEL_BADGE_LIMIT, MODEL_ICON_KEYS } from '../lib/model-icons'
 import {
   DEFAULT_MODEL_ICON_LABEL_KEY,
@@ -25,6 +27,7 @@ import {
   MODEL_ICON_LABEL_KEYS,
 } from '../lib/model-presentation-labels'
 import type { CanvasClientPresentationBadge } from '../types'
+import { CategoryIconTile } from './CategoryIconTile'
 import { ModelColorSwatches } from './ModelColorSwatches'
 import { ModelIconTile } from './ModelIconTile'
 
@@ -32,8 +35,8 @@ import { ModelIconTile } from './ModelIconTile'
 export function ClientPresentationModelEditor(props: {
   model: DraftModel
   badges: CanvasClientPresentationBadge[]
+  categories: DraftCategory[]
   dispatch: Dispatch<PresentationDraftAction>
-  onOpenModelCategories: () => void
 }) {
   const { t } = useTranslation()
   const { model } = props
@@ -153,37 +156,51 @@ export function ClientPresentationModelEditor(props: {
           </span>
         </div>
       </fieldset>
-      <div className='grid min-w-0 gap-1.5'>
-        <span className='flex items-baseline gap-2 text-sm font-semibold'>
+      <fieldset className='grid min-w-0 gap-2'>
+        <legend className='flex items-baseline gap-2 text-sm font-semibold'>
           {t('Model categories')}{' '}
           <span className='text-muted-foreground text-xs font-normal'>
-            {t('Read-only')}
+            {t('Pick any number; create and edit categories in the "Categories" view')}
           </span>
-        </span>
-        <div className='flex flex-wrap items-center gap-x-2.5 gap-y-1.5'>
-          {model.tags.length ? (
-            model.tags.map((tag) => (
-              <span
-                key={tag.id}
-                className='bg-muted text-muted-foreground inline-flex h-5 items-center rounded-full px-[7px] text-[11.5px]'
-              >
-                {tag.name}
-              </span>
-            ))
-          ) : (
+        </legend>
+        <div className='flex flex-wrap gap-1.5'>
+          {props.categories.length === 0 && (
             <span className='text-muted-foreground text-xs'>
               {t('No model category')}
             </span>
           )}
-          <button
-            type='button'
-            className='text-primary cursor-pointer border-0 bg-transparent p-0 text-[12.5px] hover:underline'
-            onClick={props.onOpenModelCategories}
-          >
-            {t('Change in "Model list › Manage model categories"')}
-          </button>
+          {orderCategories(props.categories, []).map((category) => {
+            const pressed = model.tagIds.includes(category.id)
+            return (
+              <button
+                key={category.id}
+                type='button'
+                aria-pressed={pressed}
+                className={cn(
+                  'bg-background inline-flex h-[30px] cursor-pointer items-center gap-[5px] rounded-lg border ps-1 pe-2.5',
+                  pressed &&
+                    'border-primary shadow-[inset_0_0_0_1px_var(--primary)]'
+                )}
+                onClick={() =>
+                  props.dispatch({
+                    type: 'toggleModelCategory',
+                    modelKey: model.modelKey,
+                    tagId: category.id,
+                  })
+                }
+              >
+                <CategoryIconTile
+                  category={category}
+                  className='size-5 rounded-[5px] [&>svg]:size-[13px]'
+                />
+                <span className='text-[12.5px]'>
+                  {category.name.trim() || t('(No name)')}
+                </span>
+              </button>
+            )
+          })}
         </div>
-      </div>
+      </fieldset>
       <fieldset className='grid min-w-0 gap-2'>
         <legend className='flex items-baseline gap-2 text-sm font-semibold'>
           {t('Badges')}{' '}

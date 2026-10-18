@@ -17,9 +17,13 @@ import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { useDebounce } from '@/hooks'
 
+import { UNTAGGED_CATEGORY } from '../lib/model-categories'
 import type { CanvasAgentModelPrice, CanvasAgentModelPricePage } from '../types'
 import { AgentModelPriceCards } from './AgentModelPriceCards'
 import { ModelFilterBar, UNTAGGED_TAG_ID } from './ModelFilterBar'
+
+/** `tagId` that asks Cloud for the category the requested type opens on. */
+const DEFAULT_TAG_QUERY = 'DEFAULT'
 
 export type AgentModelPriceQuery = {
   capability?: string
@@ -46,8 +50,9 @@ export function AgentModelPricePanel(props: {
 }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
+  // '' lets the server open the first type in client order; DEFAULT asks it for the category the type opens on.
   const [capability, setCapability] = useState('')
-  const [tagId, setTagId] = useState('')
+  const [tagId, setTagId] = useState<string>(DEFAULT_TAG_QUERY)
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -73,7 +78,7 @@ export function AgentModelPricePanel(props: {
           pageSize: pagination.pageSize as AgentModelPriceQuery['pageSize'],
           ...(capability ? { capability } : {}),
           ...(tagId
-            ? { tagId: tagId === UNTAGGED_TAG_ID ? 'UNTAGGED' : tagId }
+            ? { tagId: tagId === UNTAGGED_TAG_ID ? UNTAGGED_CATEGORY : tagId }
             : {}),
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
         },
@@ -85,6 +90,15 @@ export function AgentModelPricePanel(props: {
   const items: CanvasAgentModelPrice[] = prices.data?.items ?? []
   const total = prices.data?.total ?? 0
   const filters = prices.data?.filters
+  // The type and category the server applied, so the filter bar shows the resolved defaults.
+  const shownCapability = capability || filters?.selectedCapability || ''
+  let shownTagId = tagId
+  if (tagId === DEFAULT_TAG_QUERY) {
+    shownTagId =
+      filters?.selectedTagId === UNTAGGED_CATEGORY
+        ? UNTAGGED_TAG_ID
+        : (filters?.selectedTagId ?? '')
+  }
   const { table } = useDataTable({
     data: items,
     columns: NO_COLUMNS,
@@ -97,7 +111,7 @@ export function AgentModelPricePanel(props: {
     manualSorting: true,
     getRowId: (row) => row.customerModelId,
   })
-  const filtered = Boolean(search.trim() || capability || tagId)
+  const filtered = Boolean(search.trim() || shownTagId)
 
   let content
   if (prices.isError) {
@@ -118,16 +132,20 @@ export function AgentModelPricePanel(props: {
     <div className='space-y-4'>
       <ModelFilterBar
         capabilities={filters?.capabilities ?? []}
-        capability={capability}
+        capability={shownCapability}
         onCapabilityChange={(value) => {
           setCapability(value)
-          setTagId('')
+          setTagId(DEFAULT_TAG_QUERY)
         }}
         tags={filters?.tags ?? []}
         totalCount={filters?.totalCount ?? 0}
         untaggedCount={filters?.untaggedCount ?? 0}
-        tagId={tagId}
-        onTagChange={setTagId}
+        tagId={shownTagId}
+        onTagChange={(value) => {
+          // The first page lets the server pick the type; a category choice keeps that type.
+          setCapability(shownCapability)
+          setTagId(value)
+        }}
         search={search}
         onSearchChange={setSearch}
       />

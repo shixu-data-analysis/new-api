@@ -41,6 +41,7 @@ import {
   type DraftModel,
   PRESENTATION_CAPABILITIES,
   buildPublication,
+  categoriesWithInvalidName,
   hasPresentationChanges,
   initialDraftState,
   modelsWithoutName,
@@ -56,6 +57,7 @@ import {
 } from '../lib/model-presentation-labels'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { ClientPresentationBatchBar } from './ClientPresentationBatchBar'
+import { ClientPresentationCategories } from './ClientPresentationCategories'
 import { ClientPresentationLeaveGuard } from './ClientPresentationLeaveGuard'
 import { ClientPresentationModelEditor } from './ClientPresentationModelEditor'
 import {
@@ -112,10 +114,15 @@ function draftReducer(
   return state ? presentationDraftReducer(state, action) : state
 }
 
-/** "模型管理 › 客户端展示": icons, colors, badges, order, names and descriptions, published together. */
+export type PresentationView = 'models' | 'categories'
+
+/**
+ * "模型管理 › 展示与分类": model icons, colors, badges, order, names and descriptions, and the categories with
+ * their presentation, order, default and models, all published together.
+ */
 export function ClientPresentationManager(props: {
   initialModelKey?: string
-  onOpenModelCategories: () => void
+  initialView?: PresentationView
 }) {
   const { t } = useTranslation()
   const query = useQuery({
@@ -127,6 +134,7 @@ export function ClientPresentationManager(props: {
   const [state, dispatch] = useReducer(draftReducer, null)
   const [capability, setCapability] =
     useState<PresentationCapability>('image.generate')
+  const [view, setView] = useState<PresentationView>(props.initialView ?? 'models')
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [visibility, setVisibility] = useState<VisibilityFilter>('ALL')
@@ -241,6 +249,11 @@ export function ClientPresentationManager(props: {
     setLocateTarget({ modelKey: model.modelKey, focusName })
   }
 
+  useEffect(() => {
+    // The categories link of the model list opens this tab on the categories view.
+    if (props.initialView) setView(props.initialView)
+  }, [props.initialView])
+
   const loaded = Boolean(state)
   useEffect(() => {
     // "编辑展示信息" in the model list opens this tab with that model selected and focused.
@@ -280,6 +293,7 @@ export function ClientPresentationManager(props: {
   )
   const dirty = Boolean(changes && hasPresentationChanges(changes))
   const unnamed = state ? modelsWithoutName(state.draft) : []
+  const invalidCategories = state ? categoriesWithInvalidName(state.draft) : []
 
   useLayoutEffect(() => {
     const focus = pendingFocus.current
@@ -321,6 +335,11 @@ export function ClientPresentationManager(props: {
       : []),
     ...changes.capabilities.map((item) => t(typeOrderKeys[item])),
     ...(changes.badges ? [t('Badges')] : []),
+    ...(changes.categories ||
+    changes.categoryCapabilities.length ||
+    changes.defaultCapabilities.length
+      ? [t('Categories')]
+      : []),
   ].join(separator)
 
   let status = {
@@ -343,6 +362,14 @@ export function ClientPresentationManager(props: {
   } else if (unnamed.length) {
     status = {
       text: t('{{count}} models have no name', { count: unnamed.length }),
+      title: t('Fill in the names before publishing.'),
+      tone: 'bad',
+    }
+  } else if (invalidCategories.length) {
+    status = {
+      text: t('{{count}} categories need a unique name', {
+        count: invalidCategories.length,
+      }),
       title: t('Fill in the names before publishing.'),
       tone: 'bad',
     }
@@ -414,7 +441,7 @@ export function ClientPresentationManager(props: {
       if (await reload()) {
         toast.success(
           t(
-            'Published: {{changes}}. It takes effect after the client reloads the model catalog.',
+            'Changes to {{changes}} are published. Customers see them after reopening the canvas or reloading the page.',
             { changes: summary }
           )
         )
@@ -485,8 +512,8 @@ export function ClientPresentationManager(props: {
           <ClientPresentationModelEditor
             model={model}
             badges={draft.badges}
+            categories={draft.categories}
             dispatch={editDispatch}
-            onOpenModelCategories={props.onOpenModelCategories}
           />
         )}
       </ClientPresentationModelRow>
@@ -531,6 +558,15 @@ export function ClientPresentationManager(props: {
             }}
           />
         )}
+        <PresentationSegmented
+          label={t('Presentation settings')}
+          value={view}
+          options={[
+            { value: 'models', label: t('Models') },
+            { value: 'categories', label: t('Categories') },
+          ]}
+          onChange={setView}
+        />
         <div className='ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2'>
           <span
             role='status'
@@ -555,7 +591,13 @@ export function ClientPresentationManager(props: {
           </Button>
           <Button
             type='button'
-            disabled={conflict || !dirty || unnamed.length > 0 || locked}
+            disabled={
+              conflict ||
+              !dirty ||
+              unnamed.length > 0 ||
+              invalidCategories.length > 0 ||
+              locked
+            }
             onClick={() => void publish()}
           >
             {t('Save and publish')}
@@ -563,10 +605,23 @@ export function ClientPresentationManager(props: {
         </div>
       </div>
       <p className='text-muted-foreground -mt-1 text-xs leading-normal'>
-        {t(
-          'Drag the handle or use the arrows to change the order; click a model to edit it. Each generation type keeps one order. When you are done, click "Save and publish" at the top right to publish everything; no approval is needed.'
-        )}
+        {view === 'categories'
+          ? t(
+              'Categories are managed here: create, rename, delete, associate models, description, icon, color and order. Drag the handle or use the arrows to change the order; click a category to edit it. When you are done, click "Save and publish" at the top right to publish everything; no approval is needed.'
+            )
+          : t(
+              'Drag the handle or use the arrows to change the order; click a model to edit it. Each generation type keeps one order. When you are done, click "Save and publish" at the top right to publish everything; no approval is needed.'
+            )}
       </p>
+      {view === 'categories' ? (
+        <div inert={locked} aria-busy={locked}>
+          <ClientPresentationCategories
+            state={state}
+            capability={capability}
+            dispatch={editDispatch}
+          />
+        </div>
+      ) : (
       <div
         className='grid max-w-[1240px] items-start gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_482px]'
         inert={locked}
@@ -632,6 +687,7 @@ export function ClientPresentationManager(props: {
           <ClientPresentationPreview
             key={capability}
             snapshot={draft}
+            capability={capability}
             keys={keys}
             selected={selected}
             onSelect={(modelKey) => {
@@ -641,6 +697,7 @@ export function ClientPresentationManager(props: {
           />
         </div>
       </div>
+      )}
     </div>
   )
 }

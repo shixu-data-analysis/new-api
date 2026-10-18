@@ -37,7 +37,7 @@ import {
 import { agentEarningsQueryKeys } from './agent-earnings-api'
 import {
   getCanvasAdminWorkspace,
-  getCanvasCatalog,
+  getCanvasCatalogSnapshot,
   getCanvasSession,
   isCanvasAccessForbidden,
   isCanvasInviteRegistrationRequired,
@@ -120,7 +120,7 @@ function CustomerContent(props: {
 }) {
   const catalog = useQuery({
     queryKey: ['canvas-cloud', 'catalog'],
-    queryFn: getCanvasCatalog,
+    queryFn: getCanvasCatalogSnapshot,
     enabled: props.section === 'models',
   })
   if (props.section === 'points') {
@@ -139,7 +139,12 @@ function CustomerContent(props: {
     if (catalog.isError) {
       return <ErrorState onRetry={() => void catalog.refetch()} />
     }
-    return <CustomerModelCenter models={catalog.data} />
+    return (
+      <CustomerModelCenter
+        models={catalog.data.models}
+        categories={catalog.data.categories}
+      />
+    )
   }
   if (props.section === 'tasks') return <CustomerTasks />
   return null

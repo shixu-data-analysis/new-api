@@ -30,13 +30,13 @@ import type {
   CanvasAuditEventQuery,
   CanvasAdminTestingModel,
   CanvasAdminModelTag,
+  CanvasCatalogSnapshot,
   CanvasAdminRechargeCodePage,
   CanvasAdminRechargeCodeBatchItems,
   CanvasAdminRechargeCodeBatchItem,
   CanvasAdminRechargeCodeExactSearch,
   CanvasAdminRechargeCodeExactSearchPage,
   CanvasAdminRechargeCodeQuery,
-  CanvasCatalogModel,
   CanvasClientPresentation,
   CanvasClientPresentationPublicationRequest,
   CanvasSession,
@@ -317,8 +317,10 @@ export async function getCanvasTaskAssetBlob(
   ).data
 }
 
-export async function getCanvasCatalog(): Promise<CanvasCatalogModel[]> {
-  return (await api.get<CanvasCatalogModel[]>('/canvas-api/v1/catalog')).data
+/** The visible models with their category icons, colors, descriptions, orders and defaults, computed once by Cloud. */
+export async function getCanvasCatalogSnapshot(): Promise<CanvasCatalogSnapshot> {
+  return (await api.get<CanvasCatalogSnapshot>('/canvas-api/v1/catalog/snapshot'))
+    .data
 }
 
 export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
@@ -1217,77 +1219,6 @@ export async function getCanvasAdminModelTags(): Promise<
 > {
   return (await api.get<CanvasAdminModelTag[]>(`${webBase}/admin/model-tags`))
     .data
-}
-
-export async function createCanvasAdminModelTag(name: string) {
-  return (
-    await api.post(
-      `${webBase}/admin/model-tags`,
-      { name, confirmed: true },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-model-tag-create') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function renameCanvasAdminModelTag(input: {
-  id: string
-  name: string
-  expectedName: string
-}) {
-  return (
-    await api.patch(
-      `${webBase}/admin/model-tags/${encodeURIComponent(input.id)}`,
-      {
-        name: input.name,
-        expectedName: input.expectedName,
-        confirmed: true,
-      },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-model-tag-rename') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function deleteCanvasAdminModelTag(input: {
-  id: string
-  expectedModelKeys: string[]
-}) {
-  return (
-    await api.delete(
-      `${webBase}/admin/model-tags/${encodeURIComponent(input.id)}`,
-      {
-        data: { expectedModelKeys: input.expectedModelKeys, confirmed: true },
-        headers: { 'Idempotency-Key': idempotencyKey('web-model-tag-delete') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
-}
-
-export async function setCanvasAdminModelTagModels(input: {
-  id: string
-  modelKeys: string[]
-  expectedModelKeys: string[]
-}) {
-  return (
-    await api.put(
-      `${webBase}/admin/model-tags/${encodeURIComponent(input.id)}/models`,
-      {
-        modelKeys: input.modelKeys,
-        expectedModelKeys: input.expectedModelKeys,
-        confirmed: true,
-      },
-      {
-        headers: { 'Idempotency-Key': idempotencyKey('web-model-tag-models') },
-        skipErrorHandler: true,
-      }
-    )
-  ).data
 }
 
 export async function publishCanvasExecutionTargetPresentation(input: {

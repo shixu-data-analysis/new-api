@@ -17,7 +17,6 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -43,7 +42,6 @@ export function ModelCatalogCard(props: {
   iconKey: string | null
   iconColor: string | null
   badges: CanvasCatalogModelBadge[]
-  tags: Array<{ id: string; name: string }>
   description?: string
   children: ReactNode
 }) {
@@ -65,11 +63,6 @@ export function ModelCatalogCard(props: {
           <span>
             {props.capability ? t(String(props.capability)) : t('Canvas model')}
           </span>
-          {props.tags.map((tag) => (
-            <Badge key={tag.id} variant='secondary'>
-              {tag.name}
-            </Badge>
-          ))}
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-2'>

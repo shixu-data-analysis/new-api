@@ -12,6 +12,8 @@ import {
   applyBatch,
   badgeNameError,
   buildPublication,
+  categoriesWithInvalidName,
+  typeCategories,
   hasPresentationChanges,
   initialDraftState,
   moveModels,
@@ -63,6 +65,9 @@ const data: CanvasClientPresentation = {
       displayName: 'Delta',
     }),
   ],
+  categories: [],
+  categoryOrders: [],
+  categoryDefaults: [],
 }
 
 describe('client presentation draft', () => {
@@ -104,6 +109,9 @@ describe('client presentation draft', () => {
       modelKeys: ['image.b'],
       capabilities: ['image.generate'],
       badges: true,
+      categories: false,
+      categoryCapabilities: [],
+      defaultCapabilities: [],
     })
     expect(buildPublication(state, changes)).toEqual({
       expectedRevision: 7,
@@ -113,6 +121,7 @@ describe('client presentation draft', () => {
           iconKey: 'gemini',
           iconColor: 'blue',
           badges: [],
+          tags: [],
         },
       ],
       orders: [
@@ -126,6 +135,9 @@ describe('client presentation draft', () => {
         updated: [],
         deletedIds: [],
       },
+      categories: { created: [], updated: [], deletedIds: [] },
+      categoryOrders: [],
+      categoryDefaults: [],
     })
   })
 
@@ -154,6 +166,7 @@ describe('client presentation draft', () => {
         iconKey: null,
         iconColor: null,
         badges: [],
+        tags: [],
       },
       {
         modelKey: 'video.a',
@@ -161,6 +174,7 @@ describe('client presentation draft', () => {
         iconKey: null,
         iconColor: null,
         badges: [],
+        tags: [],
       },
     ])
   })
@@ -301,5 +315,106 @@ describe('client presentation draft', () => {
     expect(moveModels(order, ['e', 'a'], 2)).toEqual(['b', 'a', 'e', 'c', 'd'])
     expect(moveModels(order, ['b'], 99)).toEqual(['a', 'c', 'd', 'e', 'b'])
     expect(moveModels(order, ['c'], 1)).toEqual(['c', 'a', 'b', 'd', 'e'])
+  })
+})
+
+describe('client presentation draft categories', () => {
+  const portrait = { id: 'c-portrait', name: '人像', iconKey: 'seedance', iconColor: 'blue', description: '人像说明' }
+  const scenery = { id: 'c-scenery', name: '风景', iconKey: null, iconColor: 'gray', description: null }
+  const motion = { id: 'c-motion', name: 'Motion', iconKey: 'wan', iconColor: 'purple', description: null }
+  const categorized: CanvasClientPresentation = {
+    ...data,
+    models: [
+      model({ modelKey: 'image.a', tags: [portrait] }),
+      model({ modelKey: 'image.b', displayName: 'Beta', position: 2, tags: [portrait, scenery] }),
+      model({ modelKey: 'image.c', displayName: 'Gamma', position: 3, customerVisible: false, tags: [motion] }),
+      model({ modelKey: 'video.a', capability: 'video.generate', displayName: 'Delta', tags: [scenery] }),
+    ],
+    categories: [motion, portrait, scenery],
+    categoryOrders: [{ capability: 'image.generate', tagIds: ['c-scenery'] }],
+    categoryDefaults: [{ capability: 'image.generate', tagId: 'c-portrait', untagged: false }],
+  }
+
+  it('orders each type by the administrator order, then its unsorted categories by name', () => {
+    const state = initialDraftState(categorized)
+    expect(state.draft.categoryOrders['image.generate']).toEqual(['c-scenery', 'c-portrait', 'c-motion'])
+    expect(state.draft.categoryOrders['video.generate']).toEqual(['c-scenery'])
+    expect(state.draft.models['image.b']?.tagIds).toEqual(['c-portrait', 'c-scenery'])
+    expect(state.draft.categories.find((category) => category.id === 'c-scenery')?.description).toBe('')
+    expect(hasPresentationChanges(presentationChanges(state))).toBe(false)
+  })
+
+  it('publishes a new category with its models, order position and default', () => {
+    let state = initialDraftState(categorized)
+    state = presentationDraftReducer(state, { type: 'createCategory', capability: 'video.generate' })
+    state = presentationDraftReducer(state, { type: 'updateCategory', id: 'new-1', patch: { name: ' 运镜 ', description: ' 镜头 ', iconKey: 'wan', iconColor: 'orange' } })
+    state = presentationDraftReducer(state, { type: 'toggleModelCategory', modelKey: 'video.a', tagId: 'new-1' })
+    state = presentationDraftReducer(state, { type: 'moveCategory', capability: 'video.generate', id: 'new-1', target: 'top' })
+    state = presentationDraftReducer(state, { type: 'setDefaultCategory', capability: 'video.generate', value: 'new-1' })
+    const changes = presentationChanges(state)
+    expect([changes.modelKeys, changes.categories, changes.categoryCapabilities, changes.defaultCapabilities]).toEqual([['video.a'], true, ['video.generate'], ['video.generate']])
+    const body = buildPublication(state, changes)
+    expect(body.categories).toEqual({ created: [{ ref: 'new-1', name: '运镜', iconKey: 'wan', iconColor: 'orange', description: '镜头' }], updated: [], deletedIds: [] })
+    expect(body.models.map((item) => [item.modelKey, item.tags])).toEqual([['video.a', ['c-scenery', 'new-1']]])
+    expect(body.categoryOrders).toEqual([{ capability: 'video.generate', tagIds: ['new-1', 'c-scenery'] }])
+    expect(body.categoryDefaults).toEqual([{ capability: 'video.generate', tagId: 'new-1', untagged: false }])
+  })
+
+  it('lists a new category without models under every type, although it got a position in one', () => {
+    let state = initialDraftState(categorized)
+    state = presentationDraftReducer(state, { type: 'createCategory', capability: 'image.generate' })
+    expect(state.draft.categoryOrders['image.generate']).toContain('new-1')
+    for (const capability of ['image.generate', 'video.generate', 'chat.generate'] as const) {
+      expect(typeCategories(state.draft, capability, { visibleOnly: false }).categories.map((category) => category.id)).toContain('new-1')
+    }
+    // The client preview still leaves it out: no customer-visible model is in it.
+    expect(typeCategories(state.draft, 'video.generate', { visibleOnly: true }).categories.map((category) => category.id)).not.toContain('new-1')
+  })
+
+  it('adds a category to the end of a type order when it gets its first model of that type', () => {
+    let state = initialDraftState(categorized)
+    state = presentationDraftReducer(state, { type: 'toggleModelCategory', modelKey: 'video.a', tagId: 'c-portrait' })
+    expect(state.draft.categoryOrders['video.generate']).toEqual(['c-scenery', 'c-portrait'])
+  })
+
+  it('deletes a category everywhere without reporting the order or default the server drops by itself', () => {
+    let state = initialDraftState(categorized)
+    state = presentationDraftReducer(state, { type: 'deleteCategory', id: 'c-portrait' })
+    expect(state.draft.models['image.b']?.tagIds).toEqual(['c-scenery'])
+    expect(state.draft.categoryDefaults['image.generate']).toEqual({ tagId: null, untagged: false })
+    const changes = presentationChanges(state)
+    expect([changes.modelKeys, changes.categories, changes.categoryCapabilities, changes.defaultCapabilities]).toEqual([[], true, [], []])
+    expect(buildPublication(state, changes).categories?.deletedIds).toEqual(['c-portrait'])
+  })
+
+  it('reports a renamed or recolored category as updated and blocks an empty or repeated name', () => {
+    let state = initialDraftState(categorized)
+    state = presentationDraftReducer(state, { type: 'updateCategory', id: 'c-motion', patch: { name: '人像 ' } })
+    expect(categoriesWithInvalidName(state.draft).map((category) => category.id).sort()).toEqual(['c-motion', 'c-portrait'])
+    state = presentationDraftReducer(state, { type: 'updateCategory', id: 'c-motion', patch: { name: '动作', iconColor: 'red' } })
+    expect(categoriesWithInvalidName(state.draft)).toEqual([])
+    expect(buildPublication(state, presentationChanges(state)).categories?.updated).toEqual([{ id: 'c-motion', name: '动作', iconKey: 'wan', iconColor: 'red', description: null }])
+    state = presentationDraftReducer(state, { type: 'createCategory', capability: 'image.generate' })
+    expect(categoriesWithInvalidName(state.draft).map((category) => category.id)).toEqual(['new-1'])
+  })
+
+  it('counts and resolves the default of a type for the preview from customer-visible models', () => {
+    const state = initialDraftState(categorized)
+    const preview = typeCategories(state.draft, 'image.generate', { visibleOnly: true })
+    expect(preview.categories.map((category) => [category.id, category.count])).toEqual([['c-scenery', 1], ['c-portrait', 2]])
+    expect([preview.untaggedCount, preview.defaultId]).toEqual([0, 'c-portrait'])
+    const admin = typeCategories(state.draft, 'image.generate', { visibleOnly: false })
+    expect(admin.categories.map((category) => category.id)).toEqual(['c-scenery', 'c-portrait', 'c-motion'])
+    const untagged = presentationDraftReducer(state, { type: 'setDefaultCategory', capability: 'video.generate', value: 'UNTAGGED' })
+    expect(typeCategories(untagged.draft, 'video.generate', { visibleOnly: true }).defaultId).toBe('c-scenery')
+  })
+
+  it('lists a category without any model or position under every type so it stays editable', () => {
+    const unused = { id: 'c-unused', name: 'Unused', iconKey: null, iconColor: 'gray', description: null }
+    const state = initialDraftState({ ...categorized, categories: [...categorized.categories, unused] })
+    for (const capability of ['image.generate', 'video.generate', 'chat.generate'] as const) {
+      expect(typeCategories(state.draft, capability, { visibleOnly: false }).categories.map((category) => category.id)).toContain('c-unused')
+    }
+    expect(typeCategories(state.draft, 'image.generate', { visibleOnly: true }).categories.map((category) => category.id)).not.toContain('c-unused')
   })
 })

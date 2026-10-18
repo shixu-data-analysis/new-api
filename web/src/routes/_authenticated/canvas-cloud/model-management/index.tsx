@@ -20,6 +20,7 @@ import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 const searchSchema = z.object({
   tab: z.string().optional(),
   modelKey: z.string().optional(),
+  view: z.enum(['models', 'categories']).optional(),
   legacyError: z
     .enum(['invalid-model', 'invalid-publication', 'missing-model'])
     .optional(),
@@ -59,6 +60,7 @@ function ModelManagementIndex() {
       principalId={session.data.principalId}
       tab={tab}
       presentationModelKey={tab === 'display' ? search.modelKey : undefined}
+      presentationView={tab === 'display' ? search.view : undefined}
       onTabChange={(next, options) =>
         void navigate({
           to: '/canvas-cloud/model-management',
@@ -68,6 +70,7 @@ function ModelManagementIndex() {
               : {
                   tab: next,
                   ...(options?.modelKey ? { modelKey: options.modelKey } : {}),
+                  ...(options?.view ? { view: options.view } : {}),
                 },
         })
       }

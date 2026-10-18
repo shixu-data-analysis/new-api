@@ -11,8 +11,14 @@ import type {
   CanvasClientPresentationBadge,
   CanvasClientPresentationModel,
   CanvasClientPresentationPublicationRequest,
-  CanvasModelTag,
 } from '../types'
+import {
+  UNTAGGED_CATEGORY,
+  categoryNameError,
+  orderCategories,
+  resolveDefaultCategory,
+  type CategoryDefaultSetting,
+} from './model-categories'
 import {
   MODEL_BADGE_LIMIT,
   MODEL_BADGE_NAME_MAX_LENGTH,
@@ -33,7 +39,8 @@ export interface DraftModel {
   modelKey: string
   capability: PresentationCapability
   providerName: string
-  tags: CanvasModelTag[]
+  /** Category ids, including `new-N` ids of categories created in the draft. */
+  tagIds: string[]
   customerVisible: boolean
   displayName: string
   description: string
@@ -44,10 +51,25 @@ export interface DraftModel {
   badgeIds: string[]
 }
 
+export interface DraftCategory {
+  /** A category id, or `new-N` for a category created in the draft. */
+  id: string
+  name: string
+  /** null shows the default category icon. */
+  iconKey: ModelIconKey | null
+  /** Kept while the default icon is shown; it only takes effect with an icon. */
+  iconColor: ModelPresentationColor
+  description: string
+}
+
 export interface PresentationSnapshot {
   models: Record<string, DraftModel>
   orders: Record<PresentationCapability, string[]>
   badges: CanvasClientPresentationBadge[]
+  categories: DraftCategory[]
+  /** Category ids of each generation type: the administrator order, then categories of its models that have no position, by name. */
+  categoryOrders: Record<PresentationCapability, string[]>
+  categoryDefaults: Record<PresentationCapability, CategoryDefaultSetting>
 }
 
 /**
@@ -61,6 +83,7 @@ export interface PresentationDraftState {
   /** Models that have never been ordered in the published state. */
   unsorted: Set<string>
   nextBadgeRef: number
+  nextCategoryRef: number
 }
 
 export type BatchKind = 'icon' | 'color' | 'add' | 'remove'
@@ -88,8 +111,28 @@ export function moveModels(
   return [...rest.slice(0, index), ...moved, ...rest.slice(index)]
 }
 
+export type CategoryPatch = Partial<
+  Pick<DraftCategory, 'name' | 'description' | 'iconKey' | 'iconColor'>
+>
+
 export type PresentationDraftAction =
   | { type: 'load'; data: CanvasClientPresentation }
+  | { type: 'createCategory'; capability: PresentationCapability }
+  | { type: 'updateCategory'; id: string; patch: CategoryPatch }
+  | { type: 'deleteCategory'; id: string }
+  | {
+      type: 'moveCategory'
+      capability: PresentationCapability
+      id: string
+      target: MoveTarget
+    }
+  | {
+      type: 'setDefaultCategory'
+      capability: PresentationCapability
+      /** A category id, `UNTAGGED`, or null for no default. */
+      value: string | null
+    }
+  | { type: 'toggleModelCategory'; modelKey: string; tagId: string }
   | { type: 'discard' }
   | {
       type: 'updateModel'
@@ -131,11 +174,7 @@ export function snapshotFromServer(
   data: CanvasClientPresentation
 ): PresentationSnapshot {
   const models: Record<string, DraftModel> = {}
-  const orders: Record<PresentationCapability, string[]> = {
-    'image.generate': [],
-    'video.generate': [],
-    'chat.generate': [],
-  }
+  const orders = emptyByCapability<string[]>(() => [])
   // The server lists ordered models first, then unsorted ones by display name.
   for (const model of data.models) {
     const iconKey = isIconKey(model.iconKey) ? model.iconKey : null
@@ -143,7 +182,7 @@ export function snapshotFromServer(
       modelKey: model.modelKey,
       capability: model.capability,
       providerName: model.providerName,
-      tags: model.tags,
+      tagIds: model.tags.map((tag) => tag.id),
       customerVisible: model.customerVisible,
       displayName: model.displayName,
       description: model.description,
@@ -156,7 +195,72 @@ export function snapshotFromServer(
     }
     orders[model.capability]?.push(model.modelKey)
   }
-  return { models, orders, badges: data.badges }
+  const categories: DraftCategory[] = data.categories.map((category) => {
+    const iconKey = isIconKey(category.iconKey) ? category.iconKey : null
+    return {
+      id: category.id,
+      name: category.name,
+      iconKey,
+      iconColor: isModelPresentationColor(category.iconColor)
+        ? category.iconColor
+        : 'gray',
+      description: category.description ?? '',
+    }
+  })
+  const categoryOrders = emptyByCapability<string[]>(() => [])
+  for (const order of data.categoryOrders) {
+    if (order.capability in categoryOrders) {
+      categoryOrders[order.capability] = order.tagIds.filter((id) =>
+        categories.some((category) => category.id === id)
+      )
+    }
+  }
+  for (const capability of PRESENTATION_CAPABILITIES) {
+    const used = new Set(
+      Object.values(models)
+        .filter((model) => model.capability === capability)
+        .flatMap((model) => model.tagIds)
+    )
+    const unsorted = categories.filter(
+      (category) =>
+        used.has(category.id) &&
+        !categoryOrders[capability].includes(category.id)
+    )
+    categoryOrders[capability] = [
+      ...categoryOrders[capability],
+      ...orderCategories(unsorted, []).map((category) => category.id),
+    ]
+  }
+  const categoryDefaults = emptyByCapability<CategoryDefaultSetting>(() => ({
+    tagId: null,
+    untagged: false,
+  }))
+  for (const setting of data.categoryDefaults) {
+    if (setting.capability in categoryDefaults) {
+      categoryDefaults[setting.capability] = {
+        tagId: setting.tagId,
+        untagged: setting.untagged,
+      }
+    }
+  }
+  return {
+    models,
+    orders,
+    badges: data.badges,
+    categories,
+    categoryOrders,
+    categoryDefaults,
+  }
+}
+
+function emptyByCapability<T>(
+  create: () => T
+): Record<PresentationCapability, T> {
+  return {
+    'image.generate': create(),
+    'video.generate': create(),
+    'chat.generate': create(),
+  }
 }
 
 export function initialDraftState(
@@ -173,6 +277,7 @@ export function initialDraftState(
         .map((model) => model.modelKey)
     ),
     nextBadgeRef: 1,
+    nextCategoryRef: 1,
   }
 }
 
@@ -241,6 +346,39 @@ function withModel(
   return { ...state, draft: { ...state.draft, models } }
 }
 
+/** Removes a category from the library, every model, every order and every default, as the server does. */
+function withoutCategory(
+  snapshot: PresentationSnapshot,
+  id: string
+): PresentationSnapshot {
+  const models = { ...snapshot.models }
+  for (const model of Object.values(snapshot.models)) {
+    if (model.tagIds.includes(id)) {
+      models[model.modelKey] = {
+        ...model,
+        tagIds: model.tagIds.filter((tagId) => tagId !== id),
+      }
+    }
+  }
+  const categoryOrders = emptyByCapability<string[]>(() => [])
+  const categoryDefaults = { ...snapshot.categoryDefaults }
+  for (const capability of PRESENTATION_CAPABILITIES) {
+    categoryOrders[capability] = snapshot.categoryOrders[capability].filter(
+      (tagId) => tagId !== id
+    )
+    if (categoryDefaults[capability].tagId === id) {
+      categoryDefaults[capability] = { tagId: null, untagged: false }
+    }
+  }
+  return {
+    ...snapshot,
+    models,
+    categories: snapshot.categories.filter((category) => category.id !== id),
+    categoryOrders,
+    categoryDefaults,
+  }
+}
+
 export function presentationDraftReducer(
   state: PresentationDraftState,
   action: PresentationDraftAction
@@ -250,7 +388,108 @@ export function presentationDraftReducer(
     case 'load':
       return initialDraftState(action.data)
     case 'discard':
-      return { ...state, draft: state.published, nextBadgeRef: 1 }
+      return {
+        ...state,
+        draft: state.published,
+        nextBadgeRef: 1,
+        nextCategoryRef: 1,
+      }
+    case 'createCategory': {
+      const id = `new-${state.nextCategoryRef}`
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          categories: [
+            ...draft.categories,
+            {
+              id,
+              name: '',
+              iconKey: null,
+              iconColor: 'gray',
+              description: '',
+            },
+          ],
+          categoryOrders: {
+            ...draft.categoryOrders,
+            [action.capability]: [...draft.categoryOrders[action.capability], id],
+          },
+        },
+        nextCategoryRef: state.nextCategoryRef + 1,
+      }
+    }
+    case 'updateCategory': {
+      if (!draft.categories.some((category) => category.id === action.id)) {
+        return state
+      }
+      const categories = draft.categories.map((category) =>
+        category.id === action.id ? { ...category, ...action.patch } : category
+      )
+      return { ...state, draft: { ...draft, categories } }
+    }
+    case 'deleteCategory':
+      return { ...state, draft: withoutCategory(draft, action.id) }
+    case 'moveCategory':
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          categoryOrders: {
+            ...draft.categoryOrders,
+            [action.capability]: moveModels(
+              draft.categoryOrders[action.capability],
+              [action.id],
+              action.target
+            ),
+          },
+        },
+      }
+    case 'setDefaultCategory':
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          categoryDefaults: {
+            ...draft.categoryDefaults,
+            [action.capability]: {
+              tagId:
+                action.value && action.value !== UNTAGGED_CATEGORY
+                  ? action.value
+                  : null,
+              untagged: action.value === UNTAGGED_CATEGORY,
+            },
+          },
+        },
+      }
+    case 'toggleModelCategory': {
+      const next = withModel(state, action.modelKey, (model) => ({
+        tagIds: model.tagIds.includes(action.tagId)
+          ? model.tagIds.filter((id) => id !== action.tagId)
+          : [...model.tagIds, action.tagId],
+      }))
+      // A category that gains its first model of a type joins the end of that type's order.
+      const model = next.draft.models[action.modelKey]
+      if (
+        !model ||
+        !model.tagIds.includes(action.tagId) ||
+        next.draft.categoryOrders[model.capability].includes(action.tagId)
+      ) {
+        return next
+      }
+      return {
+        ...next,
+        draft: {
+          ...next.draft,
+          categoryOrders: {
+            ...next.draft.categoryOrders,
+            [model.capability]: [
+              ...next.draft.categoryOrders[model.capability],
+              action.tagId,
+            ],
+          },
+        },
+      }
+    }
     case 'updateModel':
       return withModel(state, action.modelKey, () => action.patch)
     case 'toggleBadge':
@@ -341,13 +580,22 @@ const sameKeys = (left: string[], right: string[]) =>
   (left.length === right.length &&
     left.every((key, index) => key === right[index]))
 
+const sameSet = (left: string[], right: string[]) =>
+  left.length === right.length && left.every((key) => right.includes(key))
+
 function sameModel(
   published: DraftModel,
   draft: DraftModel,
-  deleted: Set<string>
+  deleted: Set<string>,
+  deletedCategories: Set<string>
 ) {
   if (published === draft) return true
   return (
+    // A deleted category leaves the published model on the server too.
+    sameSet(
+      published.tagIds.filter((id) => !deletedCategories.has(id)),
+      draft.tagIds
+    ) &&
     published.displayName.trim() === draft.displayName.trim() &&
     published.description.trim() === draft.description.trim() &&
     published.iconKey === draft.iconKey &&
@@ -364,6 +612,29 @@ export interface PresentationChanges {
   modelKeys: string[]
   capabilities: PresentationCapability[]
   badges: boolean
+  /** The category library changed: a category was created, edited or deleted. */
+  categories: boolean
+  categoryCapabilities: PresentationCapability[]
+  defaultCapabilities: PresentationCapability[]
+}
+
+function sameCategory(published: DraftCategory, draft: DraftCategory) {
+  return (
+    published === draft ||
+    (published.name.trim() === draft.name.trim() &&
+      published.description.trim() === draft.description.trim() &&
+      published.iconKey === draft.iconKey &&
+      (draft.iconKey === null || published.iconColor === draft.iconColor))
+  )
+}
+
+function deletedCategoryIds(state: PresentationDraftState): Set<string> {
+  const draftIds = new Set(state.draft.categories.map((category) => category.id))
+  return new Set(
+    state.published.categories
+      .map((category) => category.id)
+      .filter((id) => !draftIds.has(id))
+  )
 }
 
 export function presentationChanges(
@@ -375,13 +646,49 @@ export function presentationChanges(
       .map((badge) => badge.id)
       .filter((id) => !draftBadgeIds.has(id))
   )
+  const deletedCategories = deletedCategoryIds(state)
+  const publishedCategories = new Map(
+    state.published.categories.map((category) => [category.id, category])
+  )
+  // The server drops a deleted category from orders and defaults, so that alone is no order or default change.
+  const publishedDefault = (capability: PresentationCapability) => {
+    const setting = state.published.categoryDefaults[capability]
+    return setting.tagId && deletedCategories.has(setting.tagId)
+      ? { tagId: null, untagged: false }
+      : setting
+  }
   return {
     modelKeys: Object.values(state.draft.models)
       .filter((model) => {
         const published = state.published.models[model.modelKey]
-        return !published || !sameModel(published, model, deleted)
+        return (
+          !published ||
+          !sameModel(published, model, deleted, deletedCategories)
+        )
       })
       .map((model) => model.modelKey),
+    categories:
+      deletedCategories.size > 0 ||
+      state.draft.categories.some((category) => {
+        const published = publishedCategories.get(category.id)
+        return !published || !sameCategory(published, category)
+      }),
+    categoryCapabilities: PRESENTATION_CAPABILITIES.filter(
+      (capability) =>
+        !sameKeys(
+          state.draft.categoryOrders[capability],
+          state.published.categoryOrders[capability].filter(
+            (id) => !deletedCategories.has(id)
+          )
+        )
+    ),
+    defaultCapabilities: PRESENTATION_CAPABILITIES.filter((capability) => {
+      const draft = state.draft.categoryDefaults[capability]
+      const published = publishedDefault(capability)
+      return (
+        draft.tagId !== published.tagId || draft.untagged !== published.untagged
+      )
+    }),
     capabilities: PRESENTATION_CAPABILITIES.filter(
       (capability) =>
         !sameKeys(
@@ -400,8 +707,67 @@ export function hasPresentationChanges(changes: PresentationChanges): boolean {
   return (
     changes.modelKeys.length > 0 ||
     changes.capabilities.length > 0 ||
-    changes.badges
+    changes.badges ||
+    changes.categories ||
+    changes.categoryCapabilities.length > 0 ||
+    changes.defaultCapabilities.length > 0
   )
+}
+
+/** Categories whose name is empty, too long or used twice; publishing waits until every name is valid. */
+export function categoriesWithInvalidName(
+  snapshot: PresentationSnapshot
+): DraftCategory[] {
+  return snapshot.categories.filter((category) =>
+    categoryNameError(snapshot.categories, category.name, category.id)
+  )
+}
+
+export interface TypeCategory extends DraftCategory {
+  /** Models of the type in the category; only customer-visible models when the counts are for the preview. */
+  count: number
+}
+
+/**
+ * The categories a generation type lists, in its order: in the admin list every category of the type's order,
+ * in the client preview only categories with customer-visible models, plus the category the type opens on.
+ */
+export function typeCategories(
+  snapshot: PresentationSnapshot,
+  capability: PresentationCapability,
+  options: { visibleOnly: boolean }
+): { categories: TypeCategory[]; untaggedCount: number; defaultId: string | null } {
+  const models = Object.values(snapshot.models).filter(
+    (model) =>
+      model.capability === capability &&
+      (!options.visibleOnly || model.customerVisible)
+  )
+  const count = (id: string) =>
+    models.filter((model) => model.tagIds.includes(id)).length
+  // A category without any model belongs to no type yet, so every type lists it to keep it editable; positions
+  // only arrange the list.
+  const orphan = (id: string) =>
+    !Object.values(snapshot.models).some((model) => model.tagIds.includes(id))
+  const listed = orderCategories(
+    snapshot.categories.filter((category) =>
+      options.visibleOnly
+        ? count(category.id) > 0
+        : snapshot.categoryOrders[capability].includes(category.id) ||
+          count(category.id) > 0 ||
+          orphan(category.id)
+    ),
+    snapshot.categoryOrders[capability]
+  ).map((category) => ({ ...category, count: count(category.id) }))
+  const untaggedCount = models.filter((model) => !model.tagIds.length).length
+  return {
+    categories: listed,
+    untaggedCount,
+    defaultId: resolveDefaultCategory(
+      listed.filter((category) => category.count > 0),
+      untaggedCount > 0,
+      snapshot.categoryDefaults[capability]
+    ),
+  }
 }
 
 /** Models whose client display name is empty; publishing waits until they have one. */
@@ -437,6 +803,7 @@ export function buildPublication(
         iconKey: model.iconKey,
         iconColor: model.iconKey ? model.iconColor : null,
         badges: model.badgeIds,
+        tags: model.tagIds,
       }
     }),
     orders: changes.capabilities.map((capability) => ({
@@ -462,6 +829,50 @@ export function buildPublication(
         .map((badge) => badge.id)
         .filter((id) => !draftBadgeIds.has(id)),
     },
+    ...categoryPublication(state, changes),
+  }
+}
+
+function categoryInput(category: DraftCategory) {
+  return {
+    name: category.name.trim(),
+    iconKey: category.iconKey,
+    iconColor: category.iconColor,
+    description: category.description.trim() || null,
+  }
+}
+
+function categoryPublication(
+  state: PresentationDraftState,
+  changes: PresentationChanges
+): Pick<
+  CanvasClientPresentationPublicationRequest,
+  'categories' | 'categoryOrders' | 'categoryDefaults'
+> {
+  const published = new Map(
+    state.published.categories.map((category) => [category.id, category])
+  )
+  return {
+    categories: {
+      created: state.draft.categories
+        .filter((category) => !published.has(category.id))
+        .map((category) => ({ ref: category.id, ...categoryInput(category) })),
+      updated: state.draft.categories
+        .filter((category) => {
+          const before = published.get(category.id)
+          return before && !sameCategory(before, category)
+        })
+        .map((category) => ({ id: category.id, ...categoryInput(category) })),
+      deletedIds: [...deletedCategoryIds(state)],
+    },
+    categoryOrders: changes.categoryCapabilities.map((capability) => ({
+      capability,
+      tagIds: state.draft.categoryOrders[capability],
+    })),
+    categoryDefaults: changes.defaultCapabilities.map((capability) => ({
+      capability,
+      ...state.draft.categoryDefaults[capability],
+    })),
   }
 }
 

@@ -313,27 +313,32 @@ export function ModelMonitoringOverview() {
                     resetPage()
                   }}
                 />
-                {data?.tags.map((tag) => (
+                {/* Categories without a model in the current filters stay hidden unless chosen. */}
+                {data?.tags
+                  .filter((tag) => tag.count > 0 || tagId === tag.id)
+                  .map((tag) => (
+                    <ModelTagFilterButton
+                      key={tag.id}
+                      label={tag.name}
+                      count={tag.count}
+                      selected={tagId === tag.id}
+                      onClick={() => {
+                        setTagId(tag.id)
+                        resetPage()
+                      }}
+                    />
+                  ))}
+                {((data?.untaggedCount ?? 0) > 0 || tagId === 'untagged') && (
                   <ModelTagFilterButton
-                    key={tag.id}
-                    label={tag.name}
-                    count={tag.count}
-                    selected={tagId === tag.id}
+                    label={t('No category')}
+                    count={data?.untaggedCount ?? 0}
+                    selected={tagId === 'untagged'}
                     onClick={() => {
-                      setTagId(tag.id)
+                      setTagId('untagged')
                       resetPage()
                     }}
                   />
-                ))}
-                <ModelTagFilterButton
-                  label={t('No category')}
-                  count={data?.untaggedCount ?? 0}
-                  selected={tagId === 'untagged'}
-                  onClick={() => {
-                    setTagId('untagged')
-                    resetPage()
-                  }}
-                />
+                )}
               </div>
             ) : null}
           </div>

@@ -15,6 +15,7 @@ import {
   within,
 } from '@testing-library/react'
 import type { ComponentProps } from 'react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CanvasAdminTestingModel } from '../../types'
@@ -137,7 +138,8 @@ function renderCatalog(
   onManageBindings?: ComponentProps<
     typeof PublishedModelCatalog
   >['onManageBindings'],
-  onEditPresentation = vi.fn()
+  onEditPresentation = vi.fn(),
+  onManageCategories = vi.fn()
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -148,6 +150,7 @@ function renderCatalog(
         onManagePricing={vi.fn()}
         onManageBindings={onManageBindings}
         onEditPresentation={onEditPresentation}
+        onManageCategories={onManageCategories}
       />
     </QueryClientProvider>
   )
@@ -166,6 +169,23 @@ describe('Published model catalog', () => {
     mocks.publishParameterCombinationControl.mockResolvedValue({
       status: 'PUBLISHED',
     })
+  })
+
+  it('opens the categories view to manage categories, keeps the filters text-only and hides empty ones', async () => {
+    const user = userEvent.setup()
+    const onManageCategories = vi.fn()
+    mocks.tags.mockResolvedValue([
+      { id: '55555555-5555-4555-8555-555555555555', name: 'Portrait', modelCount: 0, modelKeys: [] },
+      { id: 'photo', name: 'Photography', modelCount: 1, modelKeys: ['canvas.image.alpha'] },
+    ])
+    mocks.list.mockResolvedValue([model({ tags: [{ id: 'photo', name: 'Photography' }] })])
+    renderCatalog(undefined, vi.fn(), onManageCategories)
+    const filter = await screen.findByRole('button', { name: 'Photography 1' })
+    expect(filter.querySelector('.model-icon-tile')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Portrait/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Manage model categories' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Manage categories in "Display & categories"' }))
+    expect(onManageCategories).toHaveBeenCalledTimes(1)
   })
 
   it('uses backend labels rather than internal parameter keys for target labels', () => {
@@ -272,11 +292,10 @@ describe('Published model catalog', () => {
     expect(
       screen.getByRole('button', { name: 'All categories 1' })
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'No category 0' })).toBeVisible()
+    // A category with no model left in the current filters is hidden.
+    expect(screen.queryByRole('button', { name: /^No category/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Photography 1' }))
     expect(screen.getByText('Alpha model')).toBeVisible()
-    expect(screen.queryByText('Second model')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'No category 0' }))
     expect(screen.queryByText('Second model')).not.toBeInTheDocument()
   })
 

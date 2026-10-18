@@ -75,7 +75,10 @@ import {
   CatalogSharedResources,
   type CatalogSharedFocus,
 } from './CatalogSharedResources'
-import { ClientPresentationManager } from './ClientPresentationManager'
+import {
+  ClientPresentationManager,
+  type PresentationView,
+} from './ClientPresentationManager'
 import {
   isModelManagementTab,
   type ModelManagementTab,
@@ -234,11 +237,13 @@ export function AdminModelCatalog(props: {
   initialPricingModelId?: string
   initialPricingPublicationId?: string
   tab?: ModelManagementTab
-  /** Model selected when the 客户端展示 tab opens. */
+  /** Model selected when the 展示与分类 tab opens. */
   presentationModelKey?: string
+  /** View the 展示与分类 tab opens on. */
+  presentationView?: PresentationView
   onTabChange?: (
     tab: ModelManagementTab,
-    options?: { modelKey?: string }
+    options?: { modelKey?: string; view?: PresentationView }
   ) => void
   onManagePricing?: (
     modelId: string,
@@ -264,16 +269,23 @@ export function AdminModelCatalog(props: {
   const [uncontrolledActiveTab, setUncontrolledActiveTab] =
     useState<ModelManagementTab>('published')
   const [uncontrolledModelKey, setUncontrolledModelKey] = useState<string>()
+  const [uncontrolledView, setUncontrolledView] = useState<PresentationView>()
   const activeTab = props.tab ?? uncontrolledActiveTab
   const presentationModelKey =
     props.tab === undefined ? uncontrolledModelKey : props.presentationModelKey
-  // The 客户端展示 tab loads on first visit and then stays mounted, so its draft survives tab switches.
+  const presentationView =
+    props.tab === undefined ? uncontrolledView : props.presentationView
+  // The 展示与分类 tab loads on first visit and then stays mounted, so its draft survives tab switches.
   const [displayVisited, setDisplayVisited] = useState(activeTab === 'display')
   if (activeTab === 'display' && !displayVisited) setDisplayVisited(true)
-  function changeTab(tab: ModelManagementTab, options?: { modelKey?: string }) {
+  function changeTab(
+    tab: ModelManagementTab,
+    options?: { modelKey?: string; view?: PresentationView }
+  ) {
     if (props.tab === undefined) {
       setUncontrolledActiveTab(tab)
       setUncontrolledModelKey(options?.modelKey)
+      setUncontrolledView(options?.view)
     }
     props.onTabChange?.(tab, options)
   }
@@ -525,7 +537,7 @@ export function AdminModelCatalog(props: {
               {t('Model list')}
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='display'>
-              {t('Client presentation')}
+              {t('Display & categories')}
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='import'>
               {t('Import and publish')}
@@ -551,13 +563,16 @@ export function AdminModelCatalog(props: {
               onEditPresentation={(modelKey) =>
                 changeTab('display', { modelKey })
               }
+              onManageCategories={() =>
+                changeTab('display', { view: 'categories' })
+              }
             />
           </TabsContent>
           <TabsContent value='display' className='mt-4' keepMounted>
             {displayVisited && (
               <ClientPresentationManager
                 initialModelKey={presentationModelKey}
-                onOpenModelCategories={() => changeTab('published')}
+                initialView={presentationView}
               />
             )}
           </TabsContent>

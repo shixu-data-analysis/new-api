@@ -25,6 +25,8 @@ export function ModelIconTile(props: {
   iconColor: string | null | undefined
   capability: unknown
   className?: string
+  /** Only the glyph, without the tinted tile, for use inside a button that has its own hover fill. */
+  bare?: boolean
 }) {
   const icon = resolveModelIcon(
     props.iconKey,
@@ -46,6 +48,7 @@ export function ModelIconTile(props: {
     <span
       className={cn('model-icon-tile', props.className)}
       data-model-color={icon.color ?? 'none'}
+      style={props.bare ? { background: 'transparent' } : undefined}
       aria-hidden='true'
     >
       {glyph}

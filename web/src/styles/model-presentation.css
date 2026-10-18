@@ -111,6 +111,16 @@ License, or (at your option) any later version.
   width: 18px;
   height: 18px;
 }
+/* Category and model menu rows: a 36px icon beside the name and its second line. */
+.model-icon-tile.model-icon-tile--large {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+.model-icon-tile.model-icon-tile--large > svg {
+  width: 20px;
+  height: 20px;
+}
 
 .model-badge {
   display: inline-flex;

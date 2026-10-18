@@ -83,7 +83,6 @@ import {
 import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
-import { ModelTagManager } from './ModelTagManager'
 import { ParameterCombinationControlDialog } from './ParameterCombinationControlDialog'
 import { PublishedModelDetails } from './PublishedModelDetails'
 
@@ -100,8 +99,10 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
-  /** Opens the 客户端展示 tab with this model selected. */
+  /** Opens the 展示与分类 tab with this model selected. */
   onEditPresentation: (modelKey: string) => void
+  /** Opens the categories view of the 展示与分类 tab, where categories are managed. */
+  onManageCategories: () => void
   onManageBindings?: (
     target: ModelBindingNavigationTarget,
     returnContext?: { nonce: string }
@@ -126,7 +127,6 @@ export function PublishedModelCatalog(props: {
   )
   const [tagId, setTagId] = useState(() => navigation?.listState.tagId ?? '')
   const [tagsExpanded, setTagsExpanded] = useState(true)
-  const [managingTags, setManagingTags] = useState(false)
   const [pagination, setPagination] = useState<PaginationState>(
     () => navigation?.listState.pagination ?? { pageIndex: 0, pageSize: 20 }
   )
@@ -773,12 +773,8 @@ export function PublishedModelCatalog(props: {
             >
               {t('Model categories')}
             </Button>
-            <Button
-              variant='outline'
-              disabled={tags.isPending || tags.isError}
-              onClick={() => setManagingTags(true)}
-            >
-              {t('Manage model categories')}
+            <Button variant='link' onClick={props.onManageCategories}>
+              {t('Manage categories in "Display & categories"')}
             </Button>
           </div>
           {tags.isError && (
@@ -797,21 +793,30 @@ export function PublishedModelCatalog(props: {
                 selected={!tagId}
                 onClick={() => setTagId('')}
               />
-              {(tags.data ?? []).map((tag) => (
+              {/* Categories without a model in the current filters stay hidden unless chosen. */}
+              {(tags.data ?? [])
+                .filter(
+                  (tag) =>
+                    (tagFilterCounts.byId.get(tag.id) ?? 0) > 0 ||
+                    tagId === tag.id
+                )
+                .map((tag) => (
+                  <ModelTagFilterButton
+                    key={tag.id}
+                    label={tag.name}
+                    count={tagFilterCounts.byId.get(tag.id) ?? 0}
+                    selected={tagId === tag.id}
+                    onClick={() => setTagId(tag.id)}
+                  />
+                ))}
+              {(tagFilterCounts.untagged > 0 || tagId === '__untagged__') && (
                 <ModelTagFilterButton
-                  key={tag.id}
-                  label={tag.name}
-                  count={tagFilterCounts.byId.get(tag.id) ?? 0}
-                  selected={tagId === tag.id}
-                  onClick={() => setTagId(tag.id)}
+                  label={t('No category')}
+                  count={tagFilterCounts.untagged}
+                  selected={tagId === '__untagged__'}
+                  onClick={() => setTagId('__untagged__')}
                 />
-              ))}
-              <ModelTagFilterButton
-                label={t('No category')}
-                count={tagFilterCounts.untagged}
-                selected={tagId === '__untagged__'}
-                onClick={() => setTagId('__untagged__')}
-              />
+              )}
             </div>
           )}
         </section>
@@ -946,12 +951,6 @@ export function PublishedModelCatalog(props: {
           }
         />
       </CardContent>
-      <ModelTagManager
-        open={managingTags}
-        onOpenChange={setManagingTags}
-        tags={tags.data ?? []}
-        models={models.data ?? []}
-      />
       {toggling && (
         <AlertDialog
           open

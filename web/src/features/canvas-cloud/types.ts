@@ -543,12 +543,16 @@ export interface CanvasAdminAgentStatistics {
 }
 
 export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPrice> {
-  /** Categories of the selected type; every count follows the type and the search. */
+  /** Categories of the selected type in its administrator order; every count follows the type and the search. */
   filters: {
     capabilities: string[]
     tags: Array<{ id: string; name: string; count: number }>
     totalCount: number
     untaggedCount: number
+    /** The generation type applied; with DEFAULT and no type, the first type with models in client order. */
+    selectedCapability: string | null
+    /** The category filter applied: a category id, UNTAGGED, or null for all; DEFAULT is resolved here. */
+    selectedTagId: string | null
   }
 }
 
@@ -711,7 +715,7 @@ export interface CanvasClientPresentationModel {
   providerName: string
   displayName: string
   description: string
-  tags: CanvasModelTag[]
+  tags: CanvasModelCategory[]
   customerVisible: boolean
   iconKey: string | null
   iconColor: string | null
@@ -720,10 +724,33 @@ export interface CanvasClientPresentationModel {
   position: number | null
 }
 
+export interface CanvasClientPresentationCategoryDefault {
+  capability: CanvasClientPresentationModel['capability']
+  /** null with untagged false means no default is set. */
+  tagId: string | null
+  /** The default is "no category". */
+  untagged: boolean
+}
+
 export interface CanvasClientPresentation {
   revision: number
   badges: CanvasClientPresentationBadge[]
+  /** Every category by name, including categories without models. */
+  categories: CanvasModelCategory[]
+  categoryOrders: Array<{
+    capability: CanvasClientPresentationModel['capability']
+    tagIds: string[]
+  }>
+  categoryDefaults: CanvasClientPresentationCategoryDefault[]
   models: CanvasClientPresentationModel[]
+}
+
+/** Category fields a publication creates or updates; an empty description clears it. */
+export interface CanvasClientPresentationCategoryInput {
+  name: string
+  iconKey: string | null
+  iconColor: string
+  description: string | null
 }
 
 export interface CanvasClientPresentationPublicationRequest {
@@ -737,6 +764,8 @@ export interface CanvasClientPresentationPublicationRequest {
     iconKey: string | null
     iconColor: string | null
     badges: string[]
+    /** The complete category list: category ids or new-category refs; omitted keeps the current categories. */
+    tags?: string[]
   }>
   orders: Array<{
     capability: CanvasClientPresentationModel['capability']
@@ -747,11 +776,45 @@ export interface CanvasClientPresentationPublicationRequest {
     updated: CanvasClientPresentationBadge[]
     deletedIds: string[]
   }
+  categories?: {
+    created: Array<CanvasClientPresentationCategoryInput & { ref: string }>
+    updated: Array<CanvasClientPresentationCategoryInput & { id: string }>
+    deletedIds: string[]
+  }
+  categoryOrders?: Array<{
+    capability: CanvasClientPresentationModel['capability']
+    tagIds: string[]
+  }>
+  categoryDefaults?: CanvasClientPresentationCategoryDefault[]
 }
 
 export interface CanvasModelTag {
   id: string
   name: string
+}
+
+/** A model category with its client presentation. */
+export interface CanvasModelCategory extends CanvasModelTag {
+  /** null shows the default category icon. */
+  iconKey: string | null
+  iconColor: string
+  /** Shown when the category is hovered, focused or selected. */
+  description: string | null
+}
+
+/** Category presentation of the customer-visible models, given once beside the models. */
+export interface CanvasCatalogCategories {
+  categories: CanvasModelCategory[]
+  /** Category ids of each generation type in the administrator order. */
+  orders: Record<string, string[]>
+  /** The category each generation type opens on: a category id or UNTAGGED. */
+  defaults: Record<string, string>
+}
+
+/** Cloud `GET /v1/catalog/snapshot`: the models of `/v1/catalog` and their category presentation. */
+export interface CanvasCatalogSnapshot {
+  models: CanvasCatalogModel[]
+  categories: CanvasCatalogCategories
 }
 
 export interface CanvasAdminModelTag extends CanvasModelTag {
@@ -1720,7 +1783,7 @@ export interface CanvasModelMonitoringOverview {
     catalogDefaultName: string
     capability: string | null
     provider: { id: string; name: string }
-    tags: Array<{ id: string; name: string }>
+    tags: CanvasModelTag[]
     manualEnabled: boolean
     controlVersion: number
     summary: CanvasModelMonitoringStats

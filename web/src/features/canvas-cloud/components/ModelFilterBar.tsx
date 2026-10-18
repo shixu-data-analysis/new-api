@@ -21,12 +21,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { orderCapabilities } from '../lib/model-categories'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 
 /** `tagId` of the "No category" choice. */
 export const UNTAGGED_TAG_ID = '__untagged__'
 
-/** The model center's filters: generation type, category with counts, and model name search. */
+/**
+ * The model center's filters: one generation type at a time in client order (no "all types"), categories with icons
+ * and counts, and model name search. The caller chooses the type and category a page opens on.
+ */
 export function ModelFilterBar(props: {
   capabilities: string[]
   capability: string
@@ -51,14 +55,7 @@ export function ModelFilterBar(props: {
         role='group'
         aria-label={t('Generation type')}
       >
-        <Button
-          variant={!props.capability ? 'default' : 'outline'}
-          aria-pressed={!props.capability}
-          onClick={() => props.onCapabilityChange('')}
-        >
-          {t('All types')}
-        </Button>
-        {props.capabilities.map((value) => (
+        {orderCapabilities(props.capabilities).map((value) => (
           <Button
             key={value}
             variant={props.capability === value ? 'default' : 'outline'}
@@ -80,21 +77,26 @@ export function ModelFilterBar(props: {
           selected={!props.tagId}
           onClick={() => props.onTagChange('')}
         />
-        {props.tags.map((tag) => (
+        {/* Categories without a model in the current filters stay hidden unless chosen. */}
+        {props.tags
+          .filter((tag) => tag.count > 0 || props.tagId === tag.id)
+          .map((tag) => (
+            <ModelTagFilterButton
+              key={tag.id}
+              label={tag.name}
+              count={tag.count}
+              selected={props.tagId === tag.id}
+              onClick={() => props.onTagChange(tag.id)}
+            />
+          ))}
+        {(props.untaggedCount > 0 || props.tagId === UNTAGGED_TAG_ID) && (
           <ModelTagFilterButton
-            key={tag.id}
-            label={tag.name}
-            count={tag.count}
-            selected={props.tagId === tag.id}
-            onClick={() => props.onTagChange(tag.id)}
+            label={t('No category')}
+            count={props.untaggedCount}
+            selected={props.tagId === UNTAGGED_TAG_ID}
+            onClick={() => props.onTagChange(UNTAGGED_TAG_ID)}
           />
-        ))}
-        <ModelTagFilterButton
-          label={t('No category')}
-          count={props.untaggedCount}
-          selected={props.tagId === UNTAGGED_TAG_ID}
-          onClick={() => props.onTagChange(UNTAGGED_TAG_ID)}
-        />
+        )}
       </div>
       <div className='max-w-sm space-y-1'>
         <Label htmlFor={searchId}>{t('Search model name')}</Label>

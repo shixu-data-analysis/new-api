@@ -88,7 +88,6 @@ export function AgentModelPriceCards(props: {
           iconKey={model.iconKey}
           iconColor={model.iconColor}
           badges={model.badges}
-          tags={model.tags}
           description={model.description ?? undefined}
         >
           {model.priceGroups.map((group) => (

@@ -19,18 +19,27 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
-import type { CanvasCatalogModel } from '../types'
+import {
+  UNTAGGED_CATEGORY,
+  orderCapabilities,
+  orderCategories,
+} from '../lib/model-categories'
+import type { CanvasCatalogCategories, CanvasCatalogModel } from '../types'
 import { ModelCatalogCard, ModelPriceRow } from './ModelCatalogCard'
 import { ModelFilterBar, UNTAGGED_TAG_ID } from './ModelFilterBar'
 
-export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
+export function CustomerModelCenter(props: {
+  models: CanvasCatalogModel[]
+  categories: CanvasCatalogCategories
+}) {
   const { t } = useTranslation()
+  // '' opens the first type in client order; null follows the category the type opens on.
   const [capability, setCapability] = useState('')
-  const [tagId, setTagId] = useState('')
+  const [tagId, setTagId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const capabilities = useMemo(
-    () => [
-      ...new Set(
+    () =>
+      orderCapabilities(
         props.models
           .map((model) =>
             typeof model.catalog.capability === 'string'
@@ -39,24 +48,31 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
           )
           .filter(Boolean)
       ),
-    ],
     [props.models]
   )
   const effectiveCapability = capabilities.includes(capability)
     ? capability
-    : ''
+    : (capabilities[0] ?? '')
   const typeModels = props.models.filter(
-    (model) =>
-      !effectiveCapability || model.catalog.capability === effectiveCapability
+    (model) => model.catalog.capability === effectiveCapability
   )
-  const tags = [
-    ...new Map(
-      typeModels.flatMap((model) => model.tags).map((tag) => [tag.id, tag])
-    ).values(),
-  ]
+  const tags = orderCategories(
+    [
+      ...new Map(
+        typeModels.flatMap((model) => model.tags).map((tag) => [tag.id, tag])
+      ).values(),
+    ],
+    props.categories.orders[effectiveCapability] ?? []
+  )
+  const serverDefault = props.categories.defaults[effectiveCapability]
+  let defaultTagId = ''
+  if (serverDefault === UNTAGGED_CATEGORY) defaultTagId = UNTAGGED_TAG_ID
+  else if (serverDefault) defaultTagId = serverDefault
+  const requestedTagId = tagId ?? defaultTagId
   const effectiveTagId =
-    tags.some((tag) => tag.id === tagId) || tagId === UNTAGGED_TAG_ID
-      ? tagId
+    tags.some((tag) => tag.id === requestedTagId) ||
+    requestedTagId === UNTAGGED_TAG_ID
+      ? requestedTagId
       : ''
   const scoped = typeModels.filter((model) => {
     if (effectiveTagId === UNTAGGED_TAG_ID) return model.tags.length === 0
@@ -90,7 +106,7 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
         capability={effectiveCapability}
         onCapabilityChange={(value) => {
           setCapability(value)
-          setTagId('')
+          setTagId(null)
         }}
         tags={tags.map((tag) => ({
           ...tag,
@@ -126,7 +142,6 @@ export function CustomerModelCenter(props: { models: CanvasCatalogModel[] }) {
               iconKey={model.iconKey}
               iconColor={model.iconColor}
               badges={model.badges}
-              tags={model.tags}
               description={
                 typeof model.catalog.description === 'string'
                   ? model.catalog.description

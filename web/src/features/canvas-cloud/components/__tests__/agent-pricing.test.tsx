@@ -99,6 +99,8 @@ function pricePage(items: unknown[]) {
       tags: [],
       totalCount: items.length,
       untaggedCount: items.length,
+      selectedCapability: 'image.generate',
+      selectedTagId: null,
     },
     items,
   }
@@ -440,60 +442,59 @@ describe('Canvas Agent and provider pricing governance', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('filters by type, counted category and name like the model center', async () => {
+  it('opens on the default type and category resolved by Cloud, then filters by category, type and name', async () => {
     const user = userEvent.setup()
     apiMocks.getCanvasAgentModelPrices.mockResolvedValue({
       ...pricePage([modelPrice()]),
       filters: {
-        capabilities: ['image.generate', 'video.generate'],
+        capabilities: ['video.generate', 'image.generate'],
         tags: [{ id: 'tag-v1', name: 'Portrait', count: 3 }],
         totalCount: 13,
         untaggedCount: 9,
+        selectedCapability: 'image.generate',
+        selectedTagId: 'tag-v1',
       },
     })
     renderWithClient(<AgentCenter />)
     const panel = await openModelPrices()
     await within(panel).findByText('Image Model')
 
-    expect(
-      within(panel).getByRole('button', { name: 'All categories 13' })
-    ).toHaveAttribute('aria-pressed', 'true')
-    await user.click(within(panel).getByRole('button', { name: 'Portrait 3' }))
+    expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, tagId: 'DEFAULT' }),
+      expect.anything()
+    )
+    expect(apiMocks.getCanvasAgentModelPrices.mock.calls[0]![0]).not.toHaveProperty('capability')
+    expect(within(panel).queryByRole('button', { name: 'All types' })).toBeNull()
+    expect(within(panel).getByRole('button', { name: 'Image generation' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(panel).getByRole('button', { name: 'Portrait 3' })).toHaveAttribute('aria-pressed', 'true')
+    // A category choice keeps the type Cloud resolved for the first page instead of mixing types.
+    await user.click(within(panel).getByRole('button', { name: 'All categories 13' }))
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ page: 1, tagId: 'tag-v1' }),
+        expect.objectContaining({ capability: 'image.generate' }),
         expect.anything()
       )
     )
-    await user.click(
-      within(panel).getByRole('button', { name: 'No category 9' })
-    )
+    expect(apiMocks.getCanvasAgentModelPrices.mock.lastCall![0]).not.toHaveProperty('tagId')
+    await user.click(within(panel).getByRole('button', { name: 'No category 9' }))
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ tagId: 'UNTAGGED' }),
+        expect.objectContaining({ capability: 'image.generate', tagId: 'UNTAGGED' }),
         expect.anything()
       )
     )
-    // Choosing a type starts again from all of its categories.
-    await user.click(
-      within(panel).getByRole('button', { name: 'Video generation' })
-    )
+    // Choosing a type opens it on its own default category again.
+    await user.click(within(panel).getByRole('button', { name: 'Video generation' }))
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.not.objectContaining({ tagId: expect.anything() }),
+        expect.objectContaining({ capability: 'video.generate', tagId: 'DEFAULT' }),
         expect.anything()
       )
     )
-    await user.type(
-      within(panel).getByRole('textbox', { name: 'Search model name' }),
-      'img'
-    )
+    await user.type(within(panel).getByRole('textbox', { name: 'Search model name' }), 'img')
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          capability: 'video.generate',
-          search: 'img',
-        }),
+        expect.objectContaining({ capability: 'video.generate', search: 'img' }),
         expect.anything()
       )
     )
