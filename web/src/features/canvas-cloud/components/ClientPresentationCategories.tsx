@@ -53,7 +53,11 @@ export function ClientPresentationCategories(props: {
   const [selected, setSelected] = useState<string | null>(null)
   const listRef = useRef<HTMLOListElement>(null)
   const dragFrom = useRef<{ id: string; index: number } | null>(null)
-  const pendingFocus = useRef<{ id: string; action?: MoveAction; name?: boolean } | null>(null)
+  const pendingFocus = useRef<{
+    id: string
+    action?: MoveAction
+    name?: boolean
+  } | null>(null)
   const listed = typeCategories(draft, capability, { visibleOnly: false })
   const setting = draft.categoryDefaults[capability]
   let defaultValue = listed.defaultId
@@ -62,10 +66,17 @@ export function ClientPresentationCategories(props: {
   const defaultOptions = [
     ...listed.categories
       .filter((category) => category.count > 0)
-      .map((category) => ({ value: category.id, label: category.name.trim() || t('(No name)') })),
-    ...(listed.untaggedCount > 0 ? [{ value: UNTAGGED_CATEGORY, label: t('No category') }] : []),
+      .map((category) => ({
+        value: category.id,
+        label: category.name.trim() || t('(No name)'),
+      })),
+    ...(listed.untaggedCount > 0
+      ? [{ value: UNTAGGED_CATEGORY, label: t('No category') }]
+      : []),
   ]
-  const defaultLabel = defaultOptions.find((option) => option.value === defaultValue)?.label ?? t('Not set')
+  const defaultLabel =
+    defaultOptions.find((option) => option.value === defaultValue)?.label ??
+    t('Not set')
 
   const move = (id: string, to: number, action?: MoveAction) => {
     pendingFocus.current = action ? { id, action } : null
@@ -76,16 +87,23 @@ export function ClientPresentationCategories(props: {
     const focus = pendingFocus.current
     if (!focus) return
     pendingFocus.current = null
-    const row = listRef.current?.querySelector<HTMLElement>(`[data-category-id="${CSS.escape(focus.id)}"]`)
+    const row = listRef.current?.querySelector<HTMLElement>(
+      `[data-category-id="${CSS.escape(focus.id)}"]`
+    )
     row?.scrollIntoView({ block: 'nearest' })
     if (focus.name) {
-      row?.querySelector<HTMLInputElement>('input[id^="client-presentation-category-name-"]')?.focus()
+      row
+        ?.querySelector<HTMLInputElement>(
+          'input[id^="client-presentation-category-name-"]'
+        )
+        ?.focus()
       return
     }
     if (!focus.action) return
     const button =
-      row?.querySelector<HTMLButtonElement>(`[data-move="${focus.action}"]:not(:disabled)`) ??
-      row?.querySelector<HTMLButtonElement>('[data-move]:not(:disabled)')
+      row?.querySelector<HTMLButtonElement>(
+        `[data-move="${focus.action}"]:not(:disabled)`
+      ) ?? row?.querySelector<HTMLButtonElement>('[data-move]:not(:disabled)')
     button?.focus()
   })
 
@@ -93,16 +111,28 @@ export function ClientPresentationCategories(props: {
     <div className='grid max-w-[1240px] items-start gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_482px]'>
       <Card className='min-w-0 overflow-visible p-2'>
         <div className='flex flex-wrap items-center gap-2 px-1 pt-1 pb-2'>
-          <Label className='text-muted-foreground text-sm font-normal'>{t('Default category')}</Label>
+          <Label className='text-muted-foreground text-sm font-normal'>
+            {t('Default category')}
+          </Label>
           <Select
             value={defaultValue ?? ''}
             onValueChange={(value) =>
-              props.dispatch({ type: 'setDefaultCategory', capability, value: value || null })
+              props.dispatch({
+                type: 'setDefaultCategory',
+                capability,
+                value: value || null,
+              })
             }
             disabled={!defaultOptions.length}
           >
-            <SelectTrigger className='w-auto min-w-[160px]' aria-label={t('Default category')}>
-              <CanvasLocalizedSelectValue value={defaultValue ?? ''} displayValue={defaultLabel} />
+            <SelectTrigger
+              className='w-auto min-w-[160px]'
+              aria-label={t('Default category')}
+            >
+              <CanvasLocalizedSelectValue
+                value={defaultValue ?? ''}
+                displayValue={defaultLabel}
+              />
             </SelectTrigger>
             <SelectContent>
               {defaultOptions.map((option) => (
@@ -146,7 +176,9 @@ export function ClientPresentationCategories(props: {
               total={listed.categories.length}
               isDefault={category.id === listed.defaultId}
               expanded={selected === category.id}
-              onToggle={(id) => setSelected((current) => (current === id ? null : id))}
+              onToggle={(id) =>
+                setSelected((current) => (current === id ? null : id))
+              }
               onMove={move}
               onDragStart={(id, from) => {
                 dragFrom.current = { id, index: from }

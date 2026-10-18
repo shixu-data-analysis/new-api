@@ -34,7 +34,11 @@ export function CategoryIconTile(props: {
   bare?: boolean
 }) {
   const iconKey = props.category?.iconKey
-  if (!props.kind && iconKey && (MODEL_ICON_KEYS as readonly string[]).includes(iconKey)) {
+  if (
+    !props.kind &&
+    iconKey &&
+    (MODEL_ICON_KEYS as readonly string[]).includes(iconKey)
+  ) {
     return (
       <ModelIconTile
         iconKey={iconKey}

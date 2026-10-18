@@ -72,7 +72,11 @@ export function ClientPresentationCategoryEditor(props: {
     props.dispatch({ type: 'updateCategory', id: category.id, patch })
   const nameId = `client-presentation-category-name-${category.id}`
   const descriptionId = `client-presentation-category-description-${category.id}`
-  const nameError = categoryNameError(snapshot.categories, category.name, category.id)
+  const nameError = categoryNameError(
+    snapshot.categories,
+    category.name,
+    category.id
+  )
   const models = snapshot.orders[props.capability]
     .flatMap((modelKey) => snapshot.models[modelKey] ?? [])
     .filter((model) => model.tagIds.includes(category.id))
@@ -124,7 +128,10 @@ export function ClientPresentationCategoryEditor(props: {
           aria-describedby={`${descriptionId}-hint`}
           onChange={(event) => update({ description: event.target.value })}
         />
-        <p id={`${descriptionId}-hint`} className='text-muted-foreground text-xs'>
+        <p
+          id={`${descriptionId}-hint`}
+          className='text-muted-foreground text-xs'
+        >
           {t(
             'Shown in the canvas category menu when the category is hovered or selected. At most {{count}} characters.',
             { count: MODEL_CATEGORY_DESCRIPTION_MAX_LENGTH }
@@ -145,7 +152,9 @@ export function ClientPresentationCategoryEditor(props: {
         >
           {[null, ...MODEL_ICON_KEYS].map((iconKey) => {
             const label = t(
-              iconKey ? MODEL_ICON_LABEL_KEYS[iconKey] : DEFAULT_CATEGORY_ICON_LABEL_KEY
+              iconKey
+                ? MODEL_ICON_LABEL_KEYS[iconKey]
+                : DEFAULT_CATEGORY_ICON_LABEL_KEY
             )
             const checked = category.iconKey === iconKey
             return (
@@ -193,7 +202,9 @@ export function ClientPresentationCategoryEditor(props: {
         <span className='flex items-baseline gap-2 text-sm font-semibold'>
           {t('Associated models')}{' '}
           <span className='text-muted-foreground text-xs font-normal'>
-            {t(TYPE_MODEL_COUNT_KEYS[props.capability]!, { count: models.length })}
+            {t(TYPE_MODEL_COUNT_KEYS[props.capability], {
+              count: models.length,
+            })}
           </span>
         </span>
         <div className='flex flex-wrap items-center gap-x-2.5 gap-y-1.5'>

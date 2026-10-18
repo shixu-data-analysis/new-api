@@ -134,7 +134,9 @@ export function ClientPresentationManager(props: {
   const [state, dispatch] = useReducer(draftReducer, null)
   const [capability, setCapability] =
     useState<PresentationCapability>('image.generate')
-  const [view, setView] = useState<PresentationView>(props.initialView ?? 'models')
+  const [view, setView] = useState<PresentationView>(
+    props.initialView ?? 'models'
+  )
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [visibility, setVisibility] = useState<VisibilityFilter>('ALL')
@@ -622,81 +624,84 @@ export function ClientPresentationManager(props: {
           />
         </div>
       ) : (
-      <div
-        className='grid max-w-[1240px] items-start gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_482px]'
-        inert={locked}
-        aria-busy={locked}
-      >
-        <Card className='min-w-0 overflow-visible p-2'>
-          <div className='flex flex-wrap items-center gap-2 px-1 pt-1 pb-2'>
-            <Input
-              className='min-w-0 flex-[1_1_220px]'
-              value={search}
-              placeholder={t('Search model name or modelKey')}
-              aria-label={t('Search models')}
-              autoComplete='off'
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <Select
-              value={visibility}
-              onValueChange={(value) =>
-                setVisibility(isVisibilityFilter(value) ? value : 'ALL')
-              }
-            >
-              <SelectTrigger
-                className='w-auto min-w-[120px]'
-                aria-label={t('Customer display')}
+        <div
+          className='grid max-w-[1240px] items-start gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_482px]'
+          inert={locked}
+          aria-busy={locked}
+        >
+          <Card className='min-w-0 overflow-visible p-2'>
+            <div className='flex flex-wrap items-center gap-2 px-1 pt-1 pb-2'>
+              <Input
+                className='min-w-0 flex-[1_1_220px]'
+                value={search}
+                placeholder={t('Search model name or modelKey')}
+                aria-label={t('Search models')}
+                autoComplete='off'
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Select
+                value={visibility}
+                onValueChange={(value) =>
+                  setVisibility(isVisibilityFilter(value) ? value : 'ALL')
+                }
               >
-                <CanvasLocalizedSelectValue
-                  value={visibility}
-                  displayValue={t(visibilityLabelKeys[visibility])}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {visibilityFilters.map((filter) => (
-                  <SelectItem key={filter} value={filter}>
-                    {t(visibilityLabelKeys[filter])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <ModelBadgeManager draft={draft} dispatch={editDispatch} />
-            <span className='text-muted-foreground basis-full text-xs'>
-              {filtering
-                ? t('{{count}} found. Numbers are positions among all models', {
-                    count: shown.length,
-                  })
-                : t('{{count}} in total', { count: keys.length })}
-            </span>
-            <ClientPresentationBatchBar
+                <SelectTrigger
+                  className='w-auto min-w-[120px]'
+                  aria-label={t('Customer display')}
+                >
+                  <CanvasLocalizedSelectValue
+                    value={visibility}
+                    displayValue={t(visibilityLabelKeys[visibility])}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibilityFilters.map((filter) => (
+                    <SelectItem key={filter} value={filter}>
+                      {t(visibilityLabelKeys[filter])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ModelBadgeManager draft={draft} dispatch={editDispatch} />
+              <span className='text-muted-foreground basis-full text-xs'>
+                {filtering
+                  ? t(
+                      '{{count}} found. Numbers are positions among all models',
+                      {
+                        count: shown.length,
+                      }
+                    )
+                  : t('{{count}} in total', { count: keys.length })}
+              </span>
+              <ClientPresentationBatchBar
+                capability={capability}
+                shownKeys={shown.map(({ model }) => model.modelKey)}
+                searching={filtering}
+                picked={picked}
+                onPickedChange={setPicked}
+                draft={draft}
+                dispatch={editDispatch}
+              />
+            </div>
+            <ol ref={listRef} className='m-0 grid list-none gap-1 p-0'>
+              {listContent}
+            </ol>
+          </Card>
+          {/* Side by side, the preview stays in view while the model list scrolls. */}
+          <div className='min-[1200px]:sticky min-[1200px]:top-[calc(var(--presentation-toolbar-height,0px)+1rem)] min-[1200px]:max-h-[calc(var(--presentation-scroll-area-height,100dvh)-var(--presentation-toolbar-height,0px)-2.5rem)] min-[1200px]:overflow-y-auto'>
+            <ClientPresentationPreview
+              key={capability}
+              snapshot={draft}
               capability={capability}
-              shownKeys={shown.map(({ model }) => model.modelKey)}
-              searching={filtering}
-              picked={picked}
-              onPickedChange={setPicked}
-              draft={draft}
-              dispatch={editDispatch}
+              keys={keys}
+              selected={selected}
+              onSelect={(modelKey) => {
+                const model = draft.models[modelKey]
+                if (model) locate(model, false)
+              }}
             />
           </div>
-          <ol ref={listRef} className='m-0 grid list-none gap-1 p-0'>
-            {listContent}
-          </ol>
-        </Card>
-        {/* Side by side, the preview stays in view while the model list scrolls. */}
-        <div className='min-[1200px]:sticky min-[1200px]:top-[calc(var(--presentation-toolbar-height,0px)+1rem)] min-[1200px]:max-h-[calc(var(--presentation-scroll-area-height,100dvh)-var(--presentation-toolbar-height,0px)-2.5rem)] min-[1200px]:overflow-y-auto'>
-          <ClientPresentationPreview
-            key={capability}
-            snapshot={draft}
-            capability={capability}
-            keys={keys}
-            selected={selected}
-            onSelect={(modelKey) => {
-              const model = draft.models[modelKey]
-              if (model) locate(model, false)
-            }}
-          />
         </div>
-      </div>
       )}
     </div>
   )

@@ -160,7 +160,9 @@ export function ClientPresentationModelEditor(props: {
         <legend className='flex items-baseline gap-2 text-sm font-semibold'>
           {t('Model categories')}{' '}
           <span className='text-muted-foreground text-xs font-normal'>
-            {t('Pick any number; create and edit categories in the "Categories" view')}
+            {t(
+              'Pick any number; create and edit categories in the "Categories" view'
+            )}
           </span>
         </legend>
         <div className='flex flex-wrap gap-1.5'>

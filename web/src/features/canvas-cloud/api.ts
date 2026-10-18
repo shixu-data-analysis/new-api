@@ -75,8 +75,14 @@ import type {
   CanvasAdminTaskRecordDetail,
   CanvasTaskLogOptions,
   CanvasAdminTaskPointRecord,
+  CanvasAdminAnnouncement,
+  CanvasAdminAnnouncementQuery,
+  CanvasAnnouncementInput,
+  CanvasAnnouncementRetention,
+  CanvasAnnouncementTag,
   CanvasCustomerPointSummary,
   CanvasCustomerRechargeRedemption,
+  CanvasRechargeCodeRedemptionResult,
   CanvasCustomerTask,
   CanvasTaskAssetDownload,
   CanvasPage,
@@ -319,8 +325,9 @@ export async function getCanvasTaskAssetBlob(
 
 /** The visible models with their category icons, colors, descriptions, orders and defaults, computed once by Cloud. */
 export async function getCanvasCatalogSnapshot(): Promise<CanvasCatalogSnapshot> {
-  return (await api.get<CanvasCatalogSnapshot>('/canvas-api/v1/catalog/snapshot'))
-    .data
+  return (
+    await api.get<CanvasCatalogSnapshot>('/canvas-api/v1/catalog/snapshot')
+  ).data
 }
 
 export async function getCanvasRechargePurchaseLink(): Promise<string | null> {
@@ -346,6 +353,109 @@ export async function getCanvasAuditEvents(
       params: query,
       signal,
     })
+  ).data
+}
+
+export const announcementQueryKeys = {
+  all: ['canvas-cloud', 'admin', 'announcements'] as const,
+  tags: ['canvas-cloud', 'admin', 'announcement-tags'] as const,
+  retention: ['canvas-cloud', 'admin', 'announcement-retention'] as const,
+}
+
+export async function getCanvasAdminAnnouncements(
+  query: CanvasAdminAnnouncementQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminAnnouncement>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminAnnouncement>>(
+      `${webBase}/admin/announcements`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+/** The caller keeps the idempotency key of one publish attempt so a retry replays it. */
+export async function createCanvasAdminAnnouncement(request: {
+  input: CanvasAnnouncementInput & { publishAt: string | null }
+  idempotencyKey: string
+}): Promise<CanvasAdminAnnouncement> {
+  return (
+    await api.post<CanvasAdminAnnouncement>(
+      `${webBase}/admin/announcements`,
+      request.input,
+      {
+        headers: { 'Idempotency-Key': request.idempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function updateCanvasAdminAnnouncement(
+  id: string,
+  input: CanvasAnnouncementInput
+): Promise<CanvasAdminAnnouncement> {
+  return (
+    await api.patch<CanvasAdminAnnouncement>(
+      `${webBase}/admin/announcements/${encodeURIComponent(id)}`,
+      input,
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function deleteCanvasAdminAnnouncements(
+  ids: string[]
+): Promise<{ deleted: number }> {
+  return (
+    await api.post<{ deleted: number }>(
+      `${webBase}/admin/announcements/deletion`,
+      { ids, confirmed: true }
+    )
+  ).data
+}
+
+export async function getCanvasAnnouncementTags(): Promise<{
+  items: CanvasAnnouncementTag[]
+}> {
+  return (
+    await api.get<{ items: CanvasAnnouncementTag[] }>(
+      `${webBase}/admin/announcement-tags`
+    )
+  ).data
+}
+
+export async function replaceCanvasAnnouncementTags(
+  tags: Array<Omit<CanvasAnnouncementTag, 'id'> & { id?: string }>
+): Promise<{ items: CanvasAnnouncementTag[] }> {
+  return (
+    await api.put<{ items: CanvasAnnouncementTag[] }>(
+      `${webBase}/admin/announcement-tags`,
+      { tags },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasAnnouncementRetention(): Promise<CanvasAnnouncementRetention> {
+  return (
+    await api.get<CanvasAnnouncementRetention>(
+      `${webBase}/admin/announcement-retention`
+    )
+  ).data
+}
+
+export async function setCanvasAnnouncementRetention(
+  input: Pick<
+    CanvasAnnouncementRetention,
+    'visibleDays' | 'deleteAfterOfflineDays'
+  >
+): Promise<CanvasAnnouncementRetention> {
+  return (
+    await api.put<CanvasAnnouncementRetention>(
+      `${webBase}/admin/announcement-retention`,
+      input
+    )
   ).data
 }
 
@@ -1271,14 +1381,9 @@ export async function publishCanvasParameterCombinationControl(input: {
   ).data
 }
 
-export async function redeemCanvasRechargeCode(code: string): Promise<{
-  rechargeCodeId: string
-  orderNumber: string
-  redeemedAt: string
-  purchasedPoints: string
-  bonusPoints: string
-  issuedLots: Array<{ id: string }>
-}> {
+export async function redeemCanvasRechargeCode(
+  code: string
+): Promise<CanvasRechargeCodeRedemptionResult> {
   return (
     await api.post(
       '/canvas-api/v1/recharge-code-redemptions',

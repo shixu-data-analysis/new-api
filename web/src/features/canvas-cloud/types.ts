@@ -606,11 +606,72 @@ export interface CanvasInviteCodeExtensionPreview {
   unavailableReasons: CanvasAdminInviteCode['unavailableReasons']
 }
 
+export type CanvasAnnouncementStatus = 'PUBLISHED' | 'SCHEDULED' | 'OFFLINE'
+
+export interface CanvasAnnouncementTag {
+  id: string
+  name: string
+  color: string
+  defaultAutoPopup: boolean
+}
+
+export interface CanvasAdminAnnouncement {
+  id: string
+  title: string
+  body: string
+  tag: Omit<CanvasAnnouncementTag, 'defaultAutoPopup'> | null
+  autoPopup: boolean
+  publishedAt: string
+  status: CanvasAnnouncementStatus
+}
+
+export interface CanvasAdminAnnouncementQuery {
+  status?: string
+  tagId?: string
+  search?: string
+  sortBy: 'publishedAt' | 'status'
+  sortOrder: 'asc' | 'desc'
+  page: number
+  pageSize: number
+}
+
+export interface CanvasAnnouncementInput {
+  title: string
+  body: string
+  tagId: string | null
+  autoPopup: boolean
+  /** null publishes now; a future time schedules it; omitted on edit keeps the time. */
+  publishAt?: string | null
+}
+
+export interface CanvasAnnouncementRetention {
+  visibleDays: number
+  deleteAfterOfflineDays: 30 | 90 | null
+  version: number | null
+  effectiveAt: string | null
+}
+
 export interface CanvasCustomerPointSummary {
   availablePoints: string
   paidAvailablePoints: string
   bonusAvailablePoints: string
   debtPoints: string
+  paidExpiryDays: number
+  /** Usable points whose lots expire within 30 days, computed by Cloud. */
+  expiringSoonPoints: string
+}
+
+export interface CanvasRechargeCodeRedemptionResult {
+  rechargeCodeId: string
+  orderNumber: string
+  redeemedAt: string
+  purchasedPoints: string
+  bonusPoints: string
+  issuedLots: Array<{
+    id: string
+    type: 'PAID' | 'BONUS' | 'GRACE_BONUS'
+    expiresAt: string | null
+  }>
 }
 
 export interface CanvasCustomerRechargeRedemption {

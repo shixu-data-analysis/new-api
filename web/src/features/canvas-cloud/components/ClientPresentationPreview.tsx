@@ -137,9 +137,15 @@ export function ClientPresentationPreview(props: {
   const sentences =
     mode === 'categories'
       ? [
-          t('Same as the canvas category menu; hover a row to preview its description.'),
-          t('Categories without customer-visible models are not shown to customers.'),
-          t('Clicking a category in the preview also opens its settings on the left.'),
+          t(
+            'Same as the canvas category menu; hover a row to preview its description.'
+          ),
+          t(
+            'Categories without customer-visible models are not shown to customers.'
+          ),
+          t(
+            'Clicking a category in the preview also opens its settings on the left.'
+          ),
         ]
       : [
           t(
@@ -152,7 +158,9 @@ export function ClientPresentationPreview(props: {
             'Showing {{shown}} / {{total}} (models hidden from customers excluded).',
             { shown: shown.length, total: visible.length }
           ),
-          t('The category button opens on the default category, as on the canvas.'),
+          t(
+            'The category button opens on the default category, as on the canvas.'
+          ),
           t(
             'Clicking a model in the preview also opens its settings on the left.'
           ),
@@ -189,7 +197,9 @@ export function ClientPresentationPreview(props: {
             categories={typed.categories}
             untaggedCount={typed.untaggedCount}
             selected={props.selectedCategory ?? typed.defaultId}
-            onSelect={(id) => id !== UNTAGGED_CATEGORY && props.onSelectCategory?.(id)}
+            onSelect={(id) =>
+              id !== UNTAGGED_CATEGORY && props.onSelectCategory?.(id)
+            }
           />
         ) : (
           <div

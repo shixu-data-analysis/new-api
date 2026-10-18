@@ -412,7 +412,10 @@ export function presentationDraftReducer(
           ],
           categoryOrders: {
             ...draft.categoryOrders,
-            [action.capability]: [...draft.categoryOrders[action.capability], id],
+            [action.capability]: [
+              ...draft.categoryOrders[action.capability],
+              id,
+            ],
           },
         },
         nextCategoryRef: state.nextCategoryRef + 1,
@@ -629,7 +632,9 @@ function sameCategory(published: DraftCategory, draft: DraftCategory) {
 }
 
 function deletedCategoryIds(state: PresentationDraftState): Set<string> {
-  const draftIds = new Set(state.draft.categories.map((category) => category.id))
+  const draftIds = new Set(
+    state.draft.categories.map((category) => category.id)
+  )
   return new Set(
     state.published.categories
       .map((category) => category.id)
@@ -662,8 +667,7 @@ export function presentationChanges(
       .filter((model) => {
         const published = state.published.models[model.modelKey]
         return (
-          !published ||
-          !sameModel(published, model, deleted, deletedCategories)
+          !published || !sameModel(published, model, deleted, deletedCategories)
         )
       })
       .map((model) => model.modelKey),
@@ -736,7 +740,11 @@ export function typeCategories(
   snapshot: PresentationSnapshot,
   capability: PresentationCapability,
   options: { visibleOnly: boolean }
-): { categories: TypeCategory[]; untaggedCount: number; defaultId: string | null } {
+): {
+  categories: TypeCategory[]
+  untaggedCount: number
+  defaultId: string | null
+} {
   const models = Object.values(snapshot.models).filter(
     (model) =>
       model.capability === capability &&

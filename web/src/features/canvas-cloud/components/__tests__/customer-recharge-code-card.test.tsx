@@ -34,10 +34,7 @@ describe('Canvas customer recharge card', () => {
       'Redeem recharge code': 'Redeem recharge code',
       'Points are issued only after a valid code is redeemed.':
         'Points are issued only after a valid code is redeemed.',
-      'Need a recharge code?': 'Need a recharge code?',
-      'Purchase a one-time code from the configured store, then return here to redeem it.':
-        'Purchase a one-time code from the configured store, then return here to redeem it.',
-      'Purchase recharge code': 'Purchase recharge code',
+      'No recharge code? Purchase one': 'No recharge code? Purchase one',
       'Recharge code': 'Recharge code',
       Redeem: 'Redeem',
     })
@@ -58,12 +55,15 @@ describe('Canvas customer recharge card', () => {
           onCodeChange={vi.fn()}
           onRedeem={vi.fn()}
           redeeming={false}
+          onViewLots={vi.fn()}
         />
       </QueryClientProvider>
     )
 
     expect(
-      await screen.findByRole('link', { name: 'Purchase recharge code' })
+      await screen.findByRole('link', {
+        name: 'No recharge code? Purchase one',
+      })
     ).toHaveAttribute('href', 'https://shop.example.com/canvas-codes')
   })
 
@@ -80,12 +80,13 @@ describe('Canvas customer recharge card', () => {
           onCodeChange={vi.fn()}
           onRedeem={vi.fn()}
           redeeming={false}
+          onViewLots={vi.fn()}
         />
       </QueryClientProvider>
     )
 
     expect(
-      screen.queryByRole('link', { name: 'Purchase recharge code' })
+      screen.queryByRole('link', { name: 'No recharge code? Purchase one' })
     ).not.toBeInTheDocument()
   })
 })

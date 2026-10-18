@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
@@ -21,7 +20,10 @@ import {
   redeemCanvasRechargeCode,
 } from '../api'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
-import type { CanvasCustomerRechargeRedemption } from '../types'
+import type {
+  CanvasCustomerRechargeRedemption,
+  CanvasRechargeCodeRedemptionResult,
+} from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import {
   CanvasManagementTabsList,
@@ -44,6 +46,8 @@ export function CustomerPointsCenter(props: {
   const queryClient = useQueryClient()
   const [code, setCode] = useState('')
   const [codeError, setCodeError] = useState<string | null>(null)
+  const [redemption, setRedemption] =
+    useState<CanvasRechargeCodeRedemptionResult | null>(null)
   const [orderNumber, setOrderNumber] = useState(props.initialOrderNumber ?? '')
   const [pendingHighlightOrderNumber, setPendingHighlightOrderNumber] =
     useState<string>()
@@ -128,12 +132,7 @@ export function CustomerPointsCenter(props: {
         }),
       ])
       setPendingHighlightOrderNumber(result.orderNumber)
-      toast.success(
-        t(
-          'Redeemed successfully, paid points +{{paid}}, bonus points +{{bonus}}',
-          { paid: result.purchasedPoints, bonus: result.bonusPoints }
-        )
-      )
+      setRedemption(result)
     },
     onError: (error) => {
       const messageKey = getServerErrorMessageKey(error)
@@ -270,8 +269,12 @@ export function CustomerPointsCenter(props: {
             code={code}
             error={codeError}
             redeeming={redeem.isPending}
+            summary={summary.data}
+            redemption={redemption}
+            onViewLots={() => props.onViewChange('lots')}
             onCodeChange={(value) => {
               setCode(value)
+              setRedemption(null)
               setCodeError(
                 value.trim().length > 191
                   ? t('Use no more than 191 characters')

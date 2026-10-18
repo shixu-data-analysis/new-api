@@ -110,7 +110,9 @@ export function ClientPresentationCategoryModelsDialog(props: {
           {models.map((model) => (
             <Label key={model.modelKey} className='flex items-center gap-2'>
               <Checkbox
-                checked={Boolean(category && model.tagIds.includes(category.id))}
+                checked={Boolean(
+                  category && model.tagIds.includes(category.id)
+                )}
                 onCheckedChange={() =>
                   category &&
                   props.dispatch({

@@ -43,6 +43,7 @@ import {
   isCanvasInviteRegistrationRequired,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
+import { AdminAnnouncements } from './components/AdminAnnouncements'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
@@ -104,6 +105,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   execution: 'Runtime management',
   'provider-configuration': 'Provider configuration',
   audit: 'Operation log',
+  announcements: 'System announcements',
   'agent-center': 'My customers',
   'agent-earnings': 'My earnings',
 }
@@ -180,6 +182,7 @@ export function AdminContent(props: {
       'catalog',
       'pricing',
       'point-campaigns',
+      'announcements',
     ].includes(props.section),
   })
   if (props.section === 'customers') {
@@ -193,6 +196,9 @@ export function AdminContent(props: {
     )
   }
   if (props.section === 'audit') return <AdminAuditLog />
+  if (props.section === 'announcements') {
+    return <AdminAnnouncements titleActionSlot={props.titleActionSlot} />
+  }
   if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {
     return (

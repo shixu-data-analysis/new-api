@@ -53,6 +53,7 @@ function variantForStatus(
       'DISABLED',
       'EXHAUSTED',
       'EXPIRED',
+      'OFFLINE',
       'REDEEMED',
       'REFUNDED',
       'RETIRED',

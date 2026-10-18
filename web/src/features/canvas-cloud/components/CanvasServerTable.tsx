@@ -68,6 +68,7 @@ export function CanvasServerTable<TData>({
   filteredEmptyTitle,
   additionalFilters,
   filterTags,
+  selectionActions,
   hasActiveFilters = false,
   activeFilterCount,
   onResetFilters,
@@ -96,6 +97,8 @@ export function CanvasServerTable<TData>({
   additionalFilters?: React.ReactNode
   /** Removable tags of the active filters, shown beside the column-filter button. */
   filterTags?: ReactNode
+  /** Actions on the selected rows, after the filter button (for example 删除所选). */
+  selectionActions?: ReactNode
   hasActiveFilters?: boolean
   activeFilterCount?: number
   onResetFilters?: () => void
@@ -235,6 +238,7 @@ export function CanvasServerTable<TData>({
                   </DataTableColumnFilterPanel>
                 ) : null}
                 {filterTags}
+                {selectionActions}
               </div>
             }
             onReset={() => {

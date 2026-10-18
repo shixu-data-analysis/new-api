@@ -27,7 +27,10 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import type { PresentationCapability, TypeCategory } from '../lib/client-presentation-draft'
+import type {
+  PresentationCapability,
+  TypeCategory,
+} from '../lib/client-presentation-draft'
 import { TYPE_MODEL_COUNT_KEYS } from '../lib/model-categories'
 import { CategoryIconTile } from './CategoryIconTile'
 import type { MoveAction } from './ClientPresentationModelRow'
@@ -53,10 +56,30 @@ export function ClientPresentationCategoryRow(props: {
   const [dragging, setDragging] = useState(false)
   const { category } = props
   const name = category.name.trim() || t('(No name)')
-  const moves: Array<[MoveAction, string, string, ReactNode, number | undefined]> = [
-    ['top', t('Move to top'), t('Move {{name}} to top', { name }), <ArrowUpToLine key='top' aria-hidden='true' />, props.index > 0 ? 0 : undefined],
-    ['up', t('Move up'), t('Move {{name}} up', { name }), <ChevronUp key='up' aria-hidden='true' />, props.index > 0 ? props.index - 1 : undefined],
-    ['down', t('Move down'), t('Move {{name}} down', { name }), <ChevronDown key='down' aria-hidden='true' />, props.index < props.total - 1 ? props.index + 1 : undefined],
+  const moves: Array<
+    [MoveAction, string, string, ReactNode, number | undefined]
+  > = [
+    [
+      'top',
+      t('Move to top'),
+      t('Move {{name}} to top', { name }),
+      <ArrowUpToLine key='top' aria-hidden='true' />,
+      props.index > 0 ? 0 : undefined,
+    ],
+    [
+      'up',
+      t('Move up'),
+      t('Move {{name}} up', { name }),
+      <ChevronUp key='up' aria-hidden='true' />,
+      props.index > 0 ? props.index - 1 : undefined,
+    ],
+    [
+      'down',
+      t('Move down'),
+      t('Move {{name}} down', { name }),
+      <ChevronDown key='down' aria-hidden='true' />,
+      props.index < props.total - 1 ? props.index + 1 : undefined,
+    ],
   ]
   return (
     <li
@@ -85,7 +108,9 @@ export function ClientPresentationCategoryRow(props: {
           !props.expanded && 'hover:bg-muted'
         )}
         onClick={(event) => {
-          if ((event.target as HTMLElement).closest('[data-row-control]')) return
+          if ((event.target as HTMLElement).closest('[data-row-control]')) {
+            return
+          }
           props.onToggle(category.id)
         }}
         onDragStart={(event) => {
@@ -125,7 +150,9 @@ export function ClientPresentationCategoryRow(props: {
             )}
           </div>
           <div className='text-muted-foreground truncate text-xs'>
-            {t(TYPE_MODEL_COUNT_KEYS[props.capability]!, { count: category.count })}
+            {t(TYPE_MODEL_COUNT_KEYS[props.capability], {
+              count: category.count,
+            })}
           </div>
         </div>
         <div data-row-control className='flex flex-none gap-0.5 max-sm:hidden'>
@@ -153,12 +180,19 @@ export function ClientPresentationCategoryRow(props: {
           size='icon-sm'
           variant='ghost'
           aria-expanded={props.expanded}
-          aria-label={props.expanded ? t('Collapse {{name}}', { name }) : t('Edit {{name}}', { name })}
+          aria-label={
+            props.expanded
+              ? t('Collapse {{name}}', { name })
+              : t('Edit {{name}}', { name })
+          }
           onClick={() => props.onToggle(category.id)}
         >
           <ChevronDown
             aria-hidden='true'
-            className={cn('transition-transform motion-reduce:transition-none', props.expanded && 'rotate-180')}
+            className={cn(
+              'transition-transform motion-reduce:transition-none',
+              props.expanded && 'rotate-180'
+            )}
           />
         </Button>
       </div>

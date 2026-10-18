@@ -33,6 +33,7 @@ export const canvasAdminSections = [
   'execution',
   'provider-configuration',
   'audit',
+  'announcements',
 ] as const
 
 export function isCanvasAdministrator(

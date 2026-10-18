@@ -27,6 +27,8 @@ import {
 } from './agent-earnings-format'
 import { attentionMessageKeys } from './execution-attention-messages'
 import { formatCanvasDateTime, formatMoneyMinor } from './formatters'
+import { ANNOUNCEMENT_DELETE_AFTER_LABEL_KEYS } from './lib/announcement-labels'
+import { MODEL_COLOR_LABEL_KEYS } from './lib/model-presentation-labels'
 import {
   formatBusinessNumber,
   formatBusinessPercentFromRate,
@@ -268,6 +270,19 @@ const limitedSpecial = (
 
 const { reason: _pricingReason, ...pricingModelWithoutReason } = pricingModel
 
+const announcementFields: FieldSpec[] = [
+  { key: 'title', label: 'Title' },
+  { key: 'body', label: 'Body' },
+  { key: 'tagName', label: 'Tag' },
+  { key: 'autoPopup', label: 'Pop up once', kind: 'bool' },
+  { key: 'publishedAt', label: 'Publish time', kind: 'time' },
+]
+const announcementTagFields: FieldSpec[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'color', label: 'Color', kind: 'enum' },
+  { key: 'defaultAutoPopup', label: 'Pop up once by default', kind: 'bool' },
+]
+
 const SPECS: Record<string, ActionSpec> = {
   'admin.super_admin.provisioned': {
     objectType: 'Super Admin',
@@ -390,6 +405,64 @@ const SPECS: Record<string, ActionSpec> = {
     objectType: 'Model category',
     objectName: meta('name'),
     fields: [{ key: 'name', label: 'Name' }],
+  },
+  'announcement.published': {
+    objectType: 'System announcement',
+    objectName: meta('title'),
+    fields: announcementFields,
+  },
+  'announcement.updated': {
+    objectType: 'System announcement',
+    objectName: meta('title'),
+    fields: announcementFields.map((field) => ({
+      ...field,
+      previous: `previous${field.key.charAt(0).toUpperCase()}${field.key.slice(1)}`,
+    })),
+  },
+  'announcement.deleted': {
+    objectType: 'System announcement',
+    objectName: meta('title'),
+    fields: [
+      { key: 'title', label: 'Title' },
+      { key: 'body', label: 'Body' },
+      { key: 'publishedAt', label: 'Publish time', kind: 'time' },
+      { key: 'deletedAt', label: 'Deleted at', kind: 'time' },
+    ],
+  },
+  'announcement.tag.created': {
+    objectType: 'Announcement tag',
+    objectName: meta('name'),
+    fields: announcementTagFields,
+  },
+  'announcement.tag.updated': {
+    objectType: 'Announcement tag',
+    objectName: meta('name'),
+    fields: announcementTagFields.map((field) => ({
+      ...field,
+      previous: `previous${field.key.charAt(0).toUpperCase()}${field.key.slice(1)}`,
+    })),
+  },
+  'announcement.tag.deleted': {
+    objectType: 'Announcement tag',
+    objectName: meta('name'),
+    fields: [{ key: 'name', label: 'Name' }],
+  },
+  'announcement.retention.updated': {
+    objectType: 'Visible time and cleanup',
+    fields: [
+      {
+        key: 'visibleDays',
+        previous: 'previousVisibleDays',
+        label: 'Visible days',
+        kind: 'number',
+      },
+      {
+        key: 'deleteAfterOfflineDays',
+        previous: 'previousDeleteAfterOfflineDays',
+        label: 'Delete after going offline',
+        kind: 'enum',
+      },
+    ],
   },
   'model.tag.renamed': {
     objectType: 'Model category',
@@ -1079,6 +1152,13 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'model.key.monitoring.disabled': 'Disable model',
   'model.tag.created': 'New category',
   'model.tag.renamed': 'Rename category',
+  'announcement.published': 'Publish announcement',
+  'announcement.updated': 'Edit announcement',
+  'announcement.deleted': 'Delete announcement',
+  'announcement.tag.created': 'Add tag',
+  'announcement.tag.updated': 'Edit tag',
+  'announcement.tag.deleted': 'Delete tag',
+  'announcement.retention.updated': 'Change visible time and cleanup',
   'model.tag.assignments.updated': 'Associate models',
   'pricing.provider_rate.risk_decided': 'Record risk decision',
   'points.activity.stopped': 'Stop activity',
@@ -1261,6 +1341,10 @@ const ENUM_LABEL_KEYS: Record<string, Record<string, string>> = {
   customerBillingStatus: billingLabels,
   enabled: { true: 'Enabled', false: 'Disabled' },
   previousEnabled: { true: 'Enabled', false: 'Disabled' },
+  color: MODEL_COLOR_LABEL_KEYS,
+  previousColor: MODEL_COLOR_LABEL_KEYS,
+  deleteAfterOfflineDays: ANNOUNCEMENT_DELETE_AFTER_LABEL_KEYS,
+  previousDeleteAfterOfflineDays: ANNOUNCEMENT_DELETE_AFTER_LABEL_KEYS,
   keyChange: { UNCHANGED: 'Unchanged' },
   principalType: ACTOR_LABEL_KEYS,
   recordType: { BALANCE: 'Back-office balance', TOP_UP: 'Top-up' },

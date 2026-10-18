@@ -19,6 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 
 import { getCanvasRechargePurchaseLink } from '../api'
+import type {
+  CanvasCustomerPointSummary,
+  CanvasRechargeCodeRedemptionResult,
+} from '../types'
 import { RechargeCodeCard } from './RechargeCodeCard'
 
 interface CustomerRechargeCodeCardProps {
@@ -27,6 +31,9 @@ interface CustomerRechargeCodeCardProps {
   onRedeem: () => void
   redeeming: boolean
   error?: string | null
+  summary?: CanvasCustomerPointSummary
+  redemption?: CanvasRechargeCodeRedemptionResult | null
+  onViewLots: () => void
 }
 
 export function CustomerRechargeCodeCard(props: CustomerRechargeCodeCardProps) {
@@ -43,6 +50,9 @@ export function CustomerRechargeCodeCard(props: CustomerRechargeCodeCardProps) {
       purchaseUrl={purchaseLink.data ?? null}
       redeeming={props.redeeming}
       error={props.error}
+      summary={props.summary}
+      redemption={props.redemption}
+      onViewLots={props.onViewLots}
     />
   )
 }

@@ -16,10 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ExternalLink } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { AlarmClock, CircleCheck, Clock, ExternalLink } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -29,7 +29,13 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { toIntlLocale } from '@/i18n/languages'
+
+import { formatCanvasDateTimeMinutes } from '../formatters'
+import type {
+  CanvasCustomerPointSummary,
+  CanvasRechargeCodeRedemptionResult,
+} from '../types'
 
 interface RechargeCodeCardProps {
   code: string
@@ -38,12 +44,32 @@ interface RechargeCodeCardProps {
   purchaseUrl: string | null
   redeeming: boolean
   error?: string | null
+  summary?: CanvasCustomerPointSummary
+  redemption?: CanvasRechargeCodeRedemptionResult | null
+  onViewLots: () => void
+}
+
+const emphasis = {
+  b: <b className='text-foreground font-semibold' />,
 }
 
 export function RechargeCodeCard(props: RechargeCodeCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const externalPurchase =
     props.purchaseUrl !== null && !props.purchaseUrl.startsWith('/')
+  const formatPoints = (value: string) =>
+    new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))
+  const expiringSoonPoints = props.summary?.expiringSoonPoints ?? '0'
+  const lotExpiry = (type: 'PAID' | 'BONUS') => {
+    const expiresAt = props.redemption?.issuedLots.find(
+      (lot) => lot.type === type
+    )?.expiresAt
+    if (!expiresAt) return ''
+    return t('(expires {{date}})', {
+      date: formatCanvasDateTimeMinutes(expiresAt),
+      interpolation: { escapeValue: false },
+    })
+  }
 
   return (
     <Card>
@@ -54,34 +80,46 @@ export function RechargeCodeCard(props: RechargeCodeCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
-        {props.purchaseUrl && (
-          <div className='bg-muted/50 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'>
-            <div className='space-y-1'>
-              <p className='text-sm font-medium'>
-                {t('Need a recharge code?')}
-              </p>
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'Purchase a one-time code from the configured store, then return here to redeem it.'
-                )}
-              </p>
-            </div>
-            <a
-              className={cn(
-                buttonVariants({ variant: 'outline' }),
-                'w-full shrink-0 border-transparent bg-[#f3c969] text-[#27220f] hover:bg-[#f7d681] hover:text-[#27220f] sm:w-auto dark:border-transparent dark:bg-[#f3c969] dark:text-[#27220f] dark:hover:bg-[#f7d681]'
-              )}
-              href={props.purchaseUrl}
-              target={externalPurchase ? '_blank' : undefined}
-              rel={externalPurchase ? 'noopener noreferrer' : undefined}
+        {BigInt(expiringSoonPoints) > 0n ? (
+          <p
+            role='status'
+            className='border-destructive/35 bg-destructive/5 text-muted-foreground flex flex-wrap items-start gap-x-2 gap-y-1.5 rounded-lg border px-3 py-2.5 text-sm'
+          >
+            <AlarmClock
+              className='text-destructive mt-0.5 size-4 shrink-0'
+              aria-hidden='true'
+            />
+            <span className='min-w-0 flex-[1_1_260px]'>
+              <Trans
+                i18nKey='<b>{{points}} points will expire within 30 days</b>. Please use them soon.'
+                values={{ points: formatPoints(expiringSoonPoints) }}
+                components={emphasis}
+              />
+            </span>
+            <button
+              type='button'
+              className='text-destructive font-semibold whitespace-nowrap hover:underline'
+              onClick={props.onViewLots}
             >
-              <span>{t('Purchase recharge code')}</span>
-              <ExternalLink className='size-4' aria-hidden='true' />
-            </a>
+              {t('View point lots')}
+            </button>
+          </p>
+        ) : null}
+        <div>
+          <div className='mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1'>
+            <Label htmlFor='canvas-recharge-code'>{t('Recharge code')}</Label>
+            {props.purchaseUrl ? (
+              <a
+                className='inline-flex items-center gap-1 text-sm font-semibold text-amber-700 hover:underline dark:text-amber-400'
+                href={props.purchaseUrl}
+                target={externalPurchase ? '_blank' : undefined}
+                rel={externalPurchase ? 'noopener noreferrer' : undefined}
+              >
+                <span>{t('No recharge code? Purchase one')}</span>
+                <ExternalLink className='size-3.5' aria-hidden='true' />
+              </a>
+            ) : null}
           </div>
-        )}
-        <div className='space-y-2'>
-          <Label htmlFor='canvas-recharge-code'>{t('Recharge code')}</Label>
           <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
             <Input
               id='canvas-recharge-code'
@@ -108,11 +146,69 @@ export function RechargeCodeCard(props: RechargeCodeCardProps) {
           {props.error ? (
             <p
               id='canvas-recharge-code-error'
-              className='text-destructive text-sm'
+              className='text-destructive mt-2 text-sm'
             >
               {props.error}
             </p>
           ) : null}
+          {/* One line under the field: the validity rule, replaced by the result after a redemption. */}
+          {props.redemption ? (
+            <p
+              role='status'
+              className='text-muted-foreground mt-2.5 flex items-start gap-2 text-sm tabular-nums'
+            >
+              <CircleCheck
+                className='mt-0.5 size-4 shrink-0 text-green-600 dark:text-green-400'
+                aria-hidden='true'
+              />
+              <span>
+                <Trans
+                  i18nKey={
+                    props.redemption.bonusPoints === '0'
+                      ? '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> have been credited.'
+                      : '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> and <b>{{bonus}}</b> bonus points <b>{{bonusExpiry}}</b> have been credited.'
+                  }
+                  tOptions={{ interpolation: { escapeValue: false } }}
+                  values={{
+                    paid: formatPoints(props.redemption.purchasedPoints),
+                    paidExpiry: lotExpiry('PAID'),
+                    bonus: formatPoints(props.redemption.bonusPoints),
+                    bonusExpiry: lotExpiry('BONUS'),
+                  }}
+                  components={{
+                    ...emphasis,
+                    ok: (
+                      <b className='font-semibold text-green-700 dark:text-green-400' />
+                    ),
+                  }}
+                />
+              </span>
+            </p>
+          ) : (
+            <p className='text-muted-foreground mt-2.5 flex items-start gap-2 text-sm'>
+              <Clock
+                className='mt-0.5 size-3.5 shrink-0 text-amber-700 dark:text-amber-400'
+                aria-hidden='true'
+              />
+              <span>
+                {props.summary ? (
+                  <Trans
+                    i18nKey='Paid points are <b>valid for {{days}} days</b> after redemption; any unused part expires automatically. Each recharge code can be used only once.'
+                    values={{ days: props.summary.paidExpiryDays }}
+                    components={{
+                      b: (
+                        <b className='font-semibold text-amber-700 dark:text-amber-400' />
+                      ),
+                    }}
+                  />
+                ) : (
+                  t(
+                    'Each recharge code can be used only once. Check it before redeeming.'
+                  )
+                )}
+              </span>
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -38,15 +38,31 @@ export function ClientPresentationPreviewCategoryMenu(props: {
   const rows = [
     ...props.categories,
     ...(props.untaggedCount > 0
-      ? [{ id: UNTAGGED_CATEGORY, name: t('No category'), description: '', count: props.untaggedCount, iconKey: null, iconColor: 'gray' as const }]
+      ? [
+          {
+            id: UNTAGGED_CATEGORY,
+            name: t('No category'),
+            description: '',
+            count: props.untaggedCount,
+            iconKey: null,
+            iconColor: 'gray' as const,
+          },
+        ]
       : []),
   ]
   return (
     <div
       role='menu'
       aria-label={t('Categories')}
-      className={cn('box-border grid gap-0.5 overflow-y-auto rounded-xl border p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.25)]', props.className)}
-      style={{ borderColor: 'var(--model-preview-border)', background: 'var(--model-preview-surface)', color: 'var(--model-preview-text)' }}
+      className={cn(
+        'box-border grid gap-0.5 overflow-y-auto rounded-xl border p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.25)]',
+        props.className
+      )}
+      style={{
+        borderColor: 'var(--model-preview-border)',
+        background: 'var(--model-preview-surface)',
+        color: 'var(--model-preview-text)',
+      }}
     >
       {rows.map((category) => {
         const checked = category.id === props.selected
@@ -74,7 +90,10 @@ export function ClientPresentationPreviewCategoryMenu(props: {
             </span>
             <span
               className='rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums'
-              style={{ background: 'var(--model-preview-hover)', color: 'var(--model-preview-muted)' }}
+              style={{
+                background: 'var(--model-preview-hover)',
+                color: 'var(--model-preview-muted)',
+              }}
             >
               {category.count}
             </span>

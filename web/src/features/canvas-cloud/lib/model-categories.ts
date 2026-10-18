@@ -25,10 +25,17 @@ export const MODEL_CATEGORY_NAME_MAX_LENGTH = 191
 export const MODEL_CATEGORY_DESCRIPTION_MAX_LENGTH = 40
 
 /** Generation types in client order (image, video, chat); pages without "all types" open on the first one present. */
-export const CLIENT_CAPABILITY_ORDER = ['image.generate', 'video.generate', 'chat.generate'] as const
+export const CLIENT_CAPABILITY_ORDER = [
+  'image.generate',
+  'video.generate',
+  'chat.generate',
+] as const
 
 /** Translation key of "N image / video / text models", the model count of a category under one generation type. */
-export const TYPE_MODEL_COUNT_KEYS: Record<string, string> = {
+export const TYPE_MODEL_COUNT_KEYS: Record<
+  (typeof CLIENT_CAPABILITY_ORDER)[number],
+  string
+> = {
   'image.generate': '{{count}} image models',
   'video.generate': '{{count}} video models',
   'chat.generate': '{{count}} text models',
@@ -39,7 +46,9 @@ export function orderCapabilities(capabilities: string[]): string[] {
     const index = (CLIENT_CAPABILITY_ORDER as readonly string[]).indexOf(value)
     return index < 0 ? CLIENT_CAPABILITY_ORDER.length : index
   }
-  return [...new Set(capabilities)].sort((left, right) => rank(left) - rank(right) || left.localeCompare(right))
+  return [...new Set(capabilities)].sort(
+    (left, right) => rank(left) - rank(right) || left.localeCompare(right)
+  )
 }
 
 export interface CategoryDefaultSetting {
@@ -58,11 +67,15 @@ export function resolveDefaultCategory(
   hasUntaggedModels: boolean,
   setting: CategoryDefaultSetting | undefined
 ): string | null {
-  if (setting?.tagId && ordered.some((category) => category.id === setting.tagId)) {
+  if (
+    setting?.tagId &&
+    ordered.some((category) => category.id === setting.tagId)
+  ) {
     return setting.tagId
   }
   if (setting?.untagged && hasUntaggedModels) return UNTAGGED_CATEGORY
-  if (ordered.length) return ordered[0]!.id
+  const first = ordered[0]
+  if (first) return first.id
   return hasUntaggedModels ? UNTAGGED_CATEGORY : null
 }
 
@@ -97,7 +110,9 @@ export function categoryNameError(
 ): CategoryNameError | null {
   const trimmed = name.trim()
   if (!trimmed) return { kind: 'empty' }
-  if (trimmed.length > MODEL_CATEGORY_NAME_MAX_LENGTH) return { kind: 'tooLong' }
+  if (trimmed.length > MODEL_CATEGORY_NAME_MAX_LENGTH) {
+    return { kind: 'tooLong' }
+  }
   const normalized = trimmed.toLowerCase()
   if (
     categories.some(

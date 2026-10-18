@@ -47,6 +47,8 @@ function fixtureSummary() {
     paidAvailablePoints: '400',
     bonusAvailablePoints: '79',
     debtPoints: '0',
+    paidExpiryDays: 90,
+    expiringSoonPoints: '0',
   }
 }
 
@@ -110,6 +112,7 @@ describe('Canvas customer point center', () => {
       orderNumber: 'RC-NEW-002',
       purchasedPoints: '500',
       bonusPoints: '50',
+      issuedLots: [],
     })
   })
 
@@ -134,6 +137,24 @@ describe('Canvas customer point center', () => {
       expect(
         apiMocks.getCanvasCustomerRechargeRedemptions
       ).toHaveBeenCalledTimes(1)
+    )
+  })
+
+  it('opens the point lots from the expiry notice', async () => {
+    apiMocks.getCanvasCustomerPointSummary.mockResolvedValue({
+      ...fixtureSummary(),
+      expiringSoonPoints: '1200',
+    })
+    renderCenter()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View point lots' })
+    )
+    expect(screen.getByRole('tab', { name: 'Point lots' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasCustomerPointLots).toHaveBeenCalledTimes(1)
     )
   })
 
@@ -232,6 +253,7 @@ describe('Canvas customer point center', () => {
         orderNumber: 'RC-NEW-002',
         purchasedPoints: '500',
         bonusPoints: '50',
+        issuedLots: [],
       }
     })
     const timeoutSpy = vi.spyOn(window, 'setTimeout')
@@ -258,6 +280,9 @@ describe('Canvas customer point center', () => {
       )
     )
     await waitFor(() => expect(input).toHaveValue(''))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Redeemed successfully: 500 paid points and 50 bonus points have been credited.'
+    )
     expect(apiMocks.getCanvasCustomerPointLots).not.toHaveBeenCalled()
     expect(apiMocks.getCanvasCustomerPointLedger).not.toHaveBeenCalled()
     expect(invalidate).toHaveBeenCalledWith({
@@ -299,6 +324,7 @@ describe('Canvas customer point center', () => {
       orderNumber: 'RC-NOT-IN-FILTER',
       purchasedPoints: '500',
       bonusPoints: '50',
+      issuedLots: [],
     })
     const client = new QueryClient({
       defaultOptions: {
