@@ -325,8 +325,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const promotionVersionId = selectedPromotionVersionId
   // Whether a 0-yuan amount is valid depends on the campaign, so a checked amount is checked again when it changes.
   useEffect(() => {
-    if (issueForm.getFieldState('amount').isTouched)
+    if (issueForm.getFieldState('amount').isTouched) {
       void issueForm.trigger('amount')
+    }
   }, [selectedPromotionVersionId, issueForm])
   const promotionField = useController({
     control: issueForm.control,
