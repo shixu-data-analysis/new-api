@@ -53,6 +53,20 @@ const emphasis = {
   b: <b className='text-foreground font-semibold' />,
 }
 
+// A 0-yuan code issues only bonus points, so its message names no paid points.
+function redemptionMessageKey(redemption: {
+  purchasedPoints: string
+  bonusPoints: string
+}) {
+  if (redemption.purchasedPoints === '0') {
+    return '<ok>Redeemed successfully</ok>: <b>{{bonus}}</b> bonus points <b>{{bonusExpiry}}</b> have been credited.'
+  }
+  if (redemption.bonusPoints === '0') {
+    return '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> have been credited.'
+  }
+  return '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> and <b>{{bonus}}</b> bonus points <b>{{bonusExpiry}}</b> have been credited.'
+}
+
 export function RechargeCodeCard(props: RechargeCodeCardProps) {
   const { t, i18n } = useTranslation()
   const externalPurchase =
@@ -163,11 +177,7 @@ export function RechargeCodeCard(props: RechargeCodeCardProps) {
               />
               <span>
                 <Trans
-                  i18nKey={
-                    props.redemption.bonusPoints === '0'
-                      ? '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> have been credited.'
-                      : '<ok>Redeemed successfully</ok>: <b>{{paid}}</b> paid points <b>{{paidExpiry}}</b> and <b>{{bonus}}</b> bonus points <b>{{bonusExpiry}}</b> have been credited.'
-                  }
+                  i18nKey={redemptionMessageKey(props.redemption)}
                   tOptions={{ interpolation: { escapeValue: false } }}
                   values={{
                     paid: formatPoints(props.redemption.purchasedPoints),
