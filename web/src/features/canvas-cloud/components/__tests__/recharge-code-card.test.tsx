@@ -164,6 +164,33 @@ describe('Canvas recharge point expiry notice', () => {
     expect(screen.getAllByRole('status')[1]).toHaveTextContent(
       `兑换成功，已到账 2,500 充值积分（${paidExpiry} 到期）。`
     )
+
+    // A 0-yuan gift code issues only bonus points, so the message names none paid.
+    rendered.rerender(
+      <RechargeCodeCard
+        code=''
+        onCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+        purchaseUrl={null}
+        redeeming={false}
+        onViewLots={vi.fn()}
+        summary={summary}
+        redemption={{
+          ...redemption('2000'),
+          purchasedPoints: '0',
+          issuedLots: [
+            {
+              id: 'lot-2',
+              type: 'BONUS',
+              expiresAt: '2026-11-17T02:12:00.000Z',
+            },
+          ],
+        }}
+      />
+    )
+    expect(screen.getAllByRole('status')[1]).toHaveTextContent(
+      `兑换成功，已到账 2,000 赠送积分（${bonusExpiry} 到期）。`
+    )
   })
 
   it.each(Object.entries(locales))(

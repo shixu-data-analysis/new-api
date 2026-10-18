@@ -65,6 +65,7 @@ import { getCanvasBindableBonusActivities } from './activity-api'
 import {
   getCanvasAdminRechargeCodes,
   getCanvasAdminRechargeCodeBatchItems,
+  getCanvasPointIssuanceRates,
   downloadCanvasUnusedRechargeCodes,
   isCanvasAccessForbidden,
   issueCanvasAdminRechargeCodes,
@@ -81,6 +82,7 @@ import { isCanvasDateRangeValid } from './date-range'
 import {
   cnyToMinor,
   normalizeRechargeCodeInventorySearch,
+  rechargeCodePaidPoints,
 } from './recharge-code-amount'
 import type {
   CanvasAdminRechargeCode,
@@ -111,19 +113,25 @@ function formatDate(value: string | null, language: string): string {
 function rechargeFailure(error: unknown): {
   code: string | null
   field: string | null
+  reason: string | null
 } {
-  if (!error || typeof error !== 'object') return { code: null, field: null }
+  const none = { code: null, field: null, reason: null }
+  if (!error || typeof error !== 'object') return none
   const data = (error as { response?: { data?: unknown } }).response?.data
-  if (!data || typeof data !== 'object') return { code: null, field: null }
+  if (!data || typeof data !== 'object') return none
   const code = (data as { code?: unknown }).code
   const details = (data as { details?: unknown }).details
-  const field =
-    details && typeof details === 'object'
-      ? (details as { field?: unknown }).field
-      : null
+  const detail = (key: 'field' | 'reason') => {
+    const value =
+      details && typeof details === 'object'
+        ? (details as Record<string, unknown>)[key]
+        : null
+    return typeof value === 'string' ? value : null
+  }
   return {
     code: typeof code === 'string' ? code : null,
-    field: typeof field === 'string' ? field : null,
+    field: detail('field'),
+    reason: detail('reason'),
   }
 }
 
@@ -251,6 +259,16 @@ function RechargeCodeBatchDetails(props: {
 export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const [selectedPromotionVersionId, setSelectedPromotionVersionId] =
+    useState('')
+  // The amount must buy whole points at the published issuance rate; until the rate loads, Cloud checks it alone.
+  const issuanceRates = useQuery({
+    queryKey: ['canvas-cloud', 'point-issuance-rates'],
+    queryFn: getCanvasPointIssuanceRates,
+  })
+  const publishedPointsPerRmb = issuanceRates.data?.find(
+    (rate) => rate.status === 'PUBLISHED'
+  )?.pointsPerRmb
   const issueForm = useForm<{
     remark: string
     amount: string
@@ -261,8 +279,34 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     resolver: zodResolver(
       z.object({
         remark: z.string().trim().max(255),
-        amount: z.string().refine((value) => cnyToMinor(value) !== null, {
-          message: t('Enter a valid recharge amount'),
+        amount: z.string().superRefine((value, context) => {
+          const amountMinor = cnyToMinor(value)
+          if (amountMinor === null) {
+            context.addIssue({
+              code: 'custom',
+              message: t('Enter a valid recharge amount'),
+            })
+            return
+          }
+          // A 0-yuan code gives only the selected campaign's bonus points.
+          if (amountMinor === '0') {
+            if (!selectedPromotionVersionId) {
+              context.addIssue({
+                code: 'custom',
+                message: t('A 0-yuan code needs a recharge bonus campaign'),
+              })
+            }
+            return
+          }
+          if (
+            publishedPointsPerRmb &&
+            rechargeCodePaidPoints(amountMinor, publishedPointsPerRmb) === null
+          ) {
+            context.addIssue({
+              code: 'custom',
+              message: t('Enter a valid recharge amount'),
+            })
+          }
         }),
         count: z
           .string()
@@ -278,9 +322,12 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
     },
   })
   const { remark, amount, count } = issueForm.watch()
-  const [selectedPromotionVersionId, setSelectedPromotionVersionId] =
-    useState('')
   const promotionVersionId = selectedPromotionVersionId
+  // Whether a 0-yuan amount is valid depends on the campaign, so a checked amount is checked again when it changes.
+  useEffect(() => {
+    if (issueForm.getFieldState('amount').isTouched)
+      void issueForm.trigger('amount')
+  }, [selectedPromotionVersionId, issueForm])
   const promotionField = useController({
     control: issueForm.control,
     name: 'promotionVersionId',
@@ -444,6 +491,11 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       let message = t('Recharge codes could not be created')
       if (failure.code === 'INVALID_RECHARGE_COUNT') {
         message = t('Enter a quantity from 1 to 100')
+      } else if (
+        failure.code === 'AMOUNT_NOT_REDEEMABLE' &&
+        failure.reason === 'bonusActivityRequired'
+      ) {
+        message = t('A 0-yuan code needs a recharge bonus campaign')
       } else if (failure.code === 'AMOUNT_NOT_REDEEMABLE') {
         message = t('Enter a valid recharge amount')
       } else if (

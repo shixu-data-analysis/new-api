@@ -46,6 +46,7 @@ const apiMocks = vi.hoisted(() => ({
   downloadCanvasUnusedRechargeCodes: vi.fn(),
   getCanvasAdminRechargeCodeBatchItems: vi.fn(),
   searchCanvasAdminRechargeCodeBatch: vi.fn(),
+  getCanvasPointIssuanceRates: vi.fn(),
 }))
 const campaignMocks = vi.hoisted(() => ({
   getCanvasBindableBonusActivities: vi.fn(),
@@ -172,6 +173,10 @@ describe('Canvas recharge-code creation form', () => {
   })
 
   beforeEach(() => {
+    apiMocks.getCanvasPointIssuanceRates.mockResolvedValue([
+      { id: 'rate-v1', version: 1, status: 'RETIRED', pointsPerRmb: '50' },
+      { id: 'rate-v2', version: 2, status: 'PUBLISHED', pointsPerRmb: '12.5' },
+    ])
     apiMocks.getCanvasAdminRechargeCodes.mockResolvedValue({
       items: [],
       matchedCode: null,
@@ -461,6 +466,82 @@ describe('Canvas recharge-code creation form', () => {
       )
     }
   )
+
+  it('checks the amount against the published issuance rate, not a fixed one', async () => {
+    renderRechargeCodes()
+    const amount = screen.getByLabelText('Amount (CNY)')
+    await waitFor(() =>
+      expect(apiMocks.getCanvasPointIssuanceRates).toHaveBeenCalled()
+    )
+    // At 12.5 points per yuan 0.10 yuan buys 1.25 points; at the retired 50 it would buy 5.
+    fireEvent.change(amount, { target: { value: '0.1' } })
+    fireEvent.blur(amount)
+    expect(
+      await screen.findByText('Enter a valid recharge amount')
+    ).toBeVisible()
+    fireEvent.change(amount, { target: { value: '0.08' } })
+    await waitFor(() =>
+      expect(screen.queryByText('Enter a valid recharge amount')).toBeNull()
+    )
+  })
+
+  it('accepts a 0-yuan code only with a recharge bonus campaign, which then gives the points', async () => {
+    campaignMocks.getCanvasBindableBonusActivities.mockResolvedValue([
+      {
+        id: 'gift-v1',
+        version: 1,
+        name: 'Agent gift',
+        points: '2000',
+        ttlDays: 30,
+      },
+    ])
+    apiMocks.issueCanvasAdminRechargeCodes.mockRejectedValueOnce({
+      response: {
+        data: {
+          code: 'AMOUNT_NOT_REDEEMABLE',
+          details: { field: 'amountMinor', reason: 'bonusActivityRequired' },
+        },
+      },
+    })
+    renderRechargeCodes()
+    const amount = screen.getByLabelText('Amount (CNY)')
+    fireEvent.change(amount, { target: { value: '0' } })
+    fireEvent.blur(amount)
+    expect(
+      await screen.findByText('A 0-yuan code needs a recharge bonus campaign')
+    ).toBeVisible()
+
+    await screen.findByRole('option', { name: /Agent gift/u })
+    fireEvent.change(screen.getByLabelText('Recharge bonus campaign'), {
+      target: { value: 'gift-v1' },
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByText('A 0-yuan code needs a recharge bonus campaign')
+      ).toBeNull()
+    )
+    fireEvent.change(screen.getByLabelText('Quantity'), {
+      target: { value: '5' },
+    })
+    fireEvent.submit(
+      screen.getByRole('form', { name: 'Create recharge codes' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.issueCanvasAdminRechargeCodes.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          amountMinor: '0',
+          count: 5,
+          promotionVersionId: 'gift-v1',
+        })
+      )
+    )
+    // Should the campaign go between the form's check and Cloud's, Cloud's answer names the same rule.
+    expect(
+      await screen.findAllByText(
+        'A 0-yuan code needs a recharge bonus campaign'
+      )
+    ).not.toHaveLength(0)
+  })
 
   it('shows campaign option query errors', async () => {
     campaignMocks.getCanvasBindableBonusActivities.mockRejectedValue(
