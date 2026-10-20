@@ -44,7 +44,7 @@ func TestRegisterReturnsStableConflictCodes(t *testing.T) {
 		common.EmailVerificationEnabled = false
 		response := registerRequest(t, `{"username":"registered-user","password":"another-password"}`)
 		require.Equal(t, "REGISTRATION_IDENTITY_UNAVAILABLE", response.Code)
-		require.Equal(t, "注册信息不可用，请更换后重试或直接登录。", response.Message)
+		require.Equal(t, "当前注册信息无法使用，请尝试其他用户名或邮箱；如果已有账号，请直接登录。", response.Message)
 	})
 
 	t.Run("email", func(t *testing.T) {
@@ -52,8 +52,37 @@ func TestRegisterReturnsStableConflictCodes(t *testing.T) {
 		common.RegisterVerificationCodeWithKey("registered@example.test", "123456", common.EmailVerificationPurpose)
 		response := registerRequest(t, `{"username":"new-user","password":"another-password","email":"REGISTERED@example.test","verification_code":"123456"}`)
 		require.Equal(t, "REGISTRATION_IDENTITY_UNAVAILABLE", response.Code)
-		require.Equal(t, "注册信息不可用，请更换后重试或直接登录。", response.Message)
+		require.Equal(t, "当前注册信息无法使用，请尝试其他用户名或邮箱；如果已有账号，请直接登录。", response.Message)
 	})
+
+	t.Run("wrong verification code", func(t *testing.T) {
+		common.EmailVerificationEnabled = true
+		common.RegisterVerificationCodeWithKey("new@example.test", "123456", common.EmailVerificationPurpose)
+		response := registerRequest(t, `{"username":"new-user","password":"another-password","email":"new@example.test","verification_code":"654321"}`)
+		require.Equal(t, "VERIFICATION_CODE_INVALID", response.Code)
+		require.Equal(t, "验证码错误或已过期", response.Message)
+	})
+
+	for _, disabled := range []struct {
+		name    string
+		apply   func()
+		message string
+	}{
+		{"registration", func() { common.RegisterEnabled = false }, "管理员关闭了新用户注册"},
+		{"password registration", func() { common.PasswordRegisterEnabled = false }, "管理员关闭了通过密码进行注册，请使用第三方账户验证的形式进行注册"},
+	} {
+		t.Run(disabled.name+" disabled", func(t *testing.T) {
+			common.EmailVerificationEnabled = false
+			disabled.apply()
+			t.Cleanup(func() {
+				common.RegisterEnabled = true
+				common.PasswordRegisterEnabled = true
+			})
+			response := registerRequest(t, `{"username":"new-user","password":"another-password"}`)
+			require.Equal(t, "REGISTRATION_DISABLED", response.Code)
+			require.Equal(t, disabled.message, response.Message)
+		})
+	}
 
 	t.Run("username containing at sign", func(t *testing.T) {
 		common.EmailVerificationEnabled = false

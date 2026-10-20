@@ -91,6 +91,8 @@ const (
 	MsgUserVerificationCodeError             = "user.verification_code_error"
 	MsgUserEmailAlreadyTaken                 = "user.email_already_taken"
 	MsgUserRegistrationIdentityUnavailable   = "user.registration_identity_unavailable"
+	MsgUserEmailVerificationUnavailable      = "user.email_verification_unavailable"
+	MsgUserEmailVerificationSendFailed       = "user.email_verification_send_failed"
 	MsgUserPasswordUnset                     = "user.password_unset"
 	MsgUserPasswordResetLinkInvalid          = "user.password_reset_link_invalid"
 	MsgUserInputInvalid                      = "user.input_invalid"

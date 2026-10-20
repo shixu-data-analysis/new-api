@@ -420,8 +420,22 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "成功；失败时 success 为 false，带有 code 的失败见 EmailVerificationError",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EmailVerificationError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
@@ -551,8 +565,22 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "成功；失败时 success 为 false，带有 code 的失败见 RegistrationError",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RegistrationError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5243,6 +5271,63 @@
             "type": "string"
           },
           "data": {}
+        }
+      },
+      "EmailVerificationError": {
+        "type": "object",
+        "description": "EMAIL_NOT_ELIGIBLE 合并邮箱已占用、域名白名单和别名限制；EMAIL_DELIVERY_FAILED 表示邮件发送失败，不返回邮件服务器错误",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "EMAIL_NOT_ELIGIBLE",
+              "EMAIL_DELIVERY_FAILED"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "按请求语言本地化的安全提示，不包含具体拒绝原因"
+          }
+        }
+      },
+      "RegistrationError": {
+        "type": "object",
+        "description": "REGISTRATION_IDENTITY_UNAVAILABLE 合并用户名或邮箱已存在、已注销等身份冲突",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "REGISTRATION_DISABLED",
+              "VERIFICATION_CODE_INVALID",
+              "REGISTRATION_IDENTITY_UNAVAILABLE"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "按请求语言本地化的安全提示，不包含具体拒绝原因"
+          }
         }
       },
       "AuthSessionIssuanceError": {

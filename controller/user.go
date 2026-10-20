@@ -205,11 +205,11 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
-		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		common.ApiErrorI18nCode(c, "REGISTRATION_DISABLED", i18n.MsgUserRegisterDisabled)
 		return
 	}
 	if !common.PasswordRegisterEnabled {
-		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
+		common.ApiErrorI18nCode(c, "REGISTRATION_DISABLED", i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
 	var user model.User
@@ -238,7 +238,7 @@ func Register(c *gin.Context) {
 			return
 		}
 		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
-			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			common.ApiErrorI18nCode(c, "VERIFICATION_CODE_INVALID", i18n.MsgUserVerificationCodeError)
 			return
 		}
 		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
@@ -327,12 +327,10 @@ func Register(c *gin.Context) {
 	return
 }
 
+// registrationIdentityUnavailable answers a taken or deleted username or email the same way, so the
+// response does not reveal which identity already exists.
 func registrationIdentityUnavailable(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"success": false,
-		"message": i18n.T(c, i18n.MsgUserRegistrationIdentityUnavailable),
-		"code":    "REGISTRATION_IDENTITY_UNAVAILABLE",
-	})
+	common.ApiErrorI18nCode(c, "REGISTRATION_IDENTITY_UNAVAILABLE", i18n.MsgUserRegistrationIdentityUnavailable)
 }
 
 func GetAllUsers(c *gin.Context) {

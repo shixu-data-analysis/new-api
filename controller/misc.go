@@ -262,26 +262,20 @@ func SendEmailVerification(c *gin.Context) {
 			}
 		}
 		if !allowed {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-			})
+			emailVerificationUnavailable(c)
 			return
 		}
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
 		if containsSpecialSymbols {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
-			})
+			emailVerificationUnavailable(c)
 			return
 		}
 	}
 
 	if model.IsEmailAlreadyTaken(email) {
-		common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+		emailVerificationUnavailable(c)
 		return
 	}
 	code := common.GenerateVerificationCode(6)
@@ -289,7 +283,9 @@ func SendEmailVerification(c *gin.Context) {
 	subject, content := buildEmailVerificationMessage(common.NormalizeSystemName(common.SystemName), code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
-		common.ApiError(c, err)
+		// SMTP errors can name the mail host or account, so they stay in the server log.
+		common.SysError("failed to send email verification: " + err.Error())
+		common.ApiErrorI18nCode(c, "EMAIL_DELIVERY_FAILED", i18n.MsgUserEmailVerificationSendFailed)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -297,6 +293,12 @@ func SendEmailVerification(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// emailVerificationUnavailable gives a domain-whitelist, alias, or already-registered
+// address the same public answer, so the response does not reveal which rule refused it.
+func emailVerificationUnavailable(c *gin.Context) {
+	common.ApiErrorI18nCode(c, "EMAIL_NOT_ELIGIBLE", i18n.MsgUserEmailVerificationUnavailable)
 }
 
 func SendPasswordResetEmail(c *gin.Context) {
