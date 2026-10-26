@@ -319,6 +319,7 @@ docker run --name new-api -d --restart always \
 | `SESSION_COOKIE_TRUSTED_URL` | Obligatoire en mode Secure : Origins HTTPS exactes autorisées pour refresh/logout, séparées par des virgules ; ce n’est pas une liste CORS relay | - |
 | `TRUSTED_PROXIES` | Variable absente/vide : approuve le bouclage, les réseaux RFC 1918 et l’ULA IPv6 avec un avertissement au démarrage ; `none` n’approuve aucun proxy ; une liste IP/CIDR explicite remplace les valeurs par défaut | `127.0.0.0/8, ::1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7` |
 | `CLOUDFLARE_EDGE_CIDRS` | CIDR des nœuds Cloudflare séparés par des virgules ; si le client résolu en fait partie, `CF-Connecting-IP` devient l’IP client. Absente : résolution par défaut | - |
+| `CANVAS_EDGE_ORIGIN_SECRET` | Secret d’origine envoyé par EdgeOne dans `X-Canvas-Origin-Auth` ; seule une requête qui le porte prend `EO-Connecting-IP` comme IP client, et l’en-tête est retiré après vérification ; une fois défini, une requête passée par le proxy (`X-Forwarded-Server`) sans venir d’une des deux bordures reçoit 403. Absente : en-têtes EdgeOne ignorés | - |
 | `USER_SESSION_ACTIVE_LIMIT` | Nombre maximal de Sessions de connexion actives par utilisateur | `50` |
 | `USER_SESSION_ISSUANCE_LIMIT` | Nombre maximal de Sessions créées par utilisateur dans la fenêtre, y compris les Sessions révoquées | `100` |
 | `USER_SESSION_ISSUANCE_WINDOW_SECONDS` | Fenêtre de comptage des Sessions ; limitée à la durée de conservation des Sessions révoquées si elle est supérieure | `86400` |

@@ -134,6 +134,8 @@ Gin 只在请求的直连来源属于可信代理时解析客户端 IP 请求头
 
 经 Cloudflare 接入时，反向代理看到的直连来源是 Cloudflare 节点，按上述规则解析出的客户端 IP 也是节点地址。配置 `CLOUDFLARE_EDGE_CIDRS`（逗号分隔的 Cloudflare 公布节点 CIDR）后，解析出的客户端属于这些网段时改用 `CF-Connecting-IP`，并以该地址替换请求的 `RemoteAddr`，不改写任何请求头。绕过 Cloudflare 直连源站的请求不属于这些网段，其伪造的 `CF-Connecting-IP` 被忽略。非法 CIDR 会阻止服务启动；未配置时行为不变。网段列表须随 Cloudflare 公布变化更新。
 
+经 EdgeOne 接入时，EdgeOne 用 `EO-Connecting-IP` 传递客户端地址，并覆盖客户端自带的同名请求头；但任何人都能直连源站并自带这个请求头，所以只在请求带有正确的回源密钥时才信任它。配置 `CANVAS_EDGE_ORIGIN_SECRET` 后，`X-Canvas-Origin-Auth` 与之相等（常量时间比较）的请求改用 `EO-Connecting-IP`，同样替换 `RemoteAddr`；校验后删除该请求头，路由和上游转发都看不到它。EdgeOne 会原样透传客户端自带的 `EO-Client-IP`、`CF-Connecting-IP`、`True-Client-IP`，这些都不采用。配置了该密钥后，带 `X-Forwarded-Server`（Traefik 为每个转发的请求设置并覆盖客户端自带的值）的请求必须来自 Cloudflare 网段或带正确密钥，否则返回 403 `EDGE_ORIGIN_FORBIDDEN`；不经 Traefik 的内部调用不受影响。EdgeOne 回源网段由所有 EdgeOne 站点共用，这一层防止别人的站点借道。实现见 `middleware/edge_real_ip.go`（`ConfigureEdgeRealIP`）。
+
 Redis 限流使用原子 Lua 固定窗口，替代旧的近似滑动窗口 List 实现。这是有意的语义变化：窗口边界两侧可分别打满一次，极短时间内通过量最高约为配置值的两倍。例如 `20 次/20 分钟` 在边界可通过约 40 次。帐户级 Session 上限和签发窗口继续控制数据库增长；如未来需要严格抑制边界突发，需单独迁移为 ZSET 滑动窗口。
 
 用户级模型成功请求限流仍使用原有 Redis List 近似滑动窗口，但列表时间戳统一写为 UTC。滚动升级期间，旧节点写入的本地时间字符串和新节点写入的 UTC 字符串无法从格式上区分，可能在一个模型限流窗口内临时误放行或误拒绝。所有节点升级完成并经过一个完整窗口后会自然收敛；本次升级不会切换 Key 或主动删除现有列表。

@@ -318,6 +318,7 @@ docker run --name new-api -d --restart always \
 | `SESSION_COOKIE_TRUSTED_URL` | Secure 模式必填：允許呼叫 refresh/logout 的精確 HTTPS Origin，多個值以英文逗號分隔；不是 relay CORS 白名單 | - |
 | `TRUSTED_PROXIES` | 未設定/留空時信任本機回送、RFC1918 和 IPv6 ULA 並輸出啟動警告；`none` 不信任任何代理；明確指定的代理 IP/CIDR 清單會完整取代預設值 | `127.0.0.0/8, ::1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7` |
 | `CLOUDFLARE_EDGE_CIDRS` | 以逗號分隔的 Cloudflare 節點 CIDR；解析出的用戶端屬於其中時，改用 `CF-Connecting-IP` 作為用戶端 IP。未設定時維持預設解析 | - |
+| `CANVAS_EDGE_ORIGIN_SECRET` | EdgeOne 入口在 `X-Canvas-Origin-Auth` 中傳送的回源密鑰；只有帶該密鑰的請求才以 `EO-Connecting-IP` 作為用戶端 IP，校驗後刪除該請求標頭；設定後，經代理（`X-Forwarded-Server`）且不來自任一邊緣的請求回傳 403。未設定時忽略 EdgeOne 請求標頭 | - |
 | `USER_SESSION_ACTIVE_LIMIT` | 單一用戶最大活躍登入 Session 數 | `50` |
 | `USER_SESSION_ISSUANCE_LIMIT` | 單一用戶在簽發視窗內可建立的 Session 總數，包含已撤銷 Session | `100` |
 | `USER_SESSION_ISSUANCE_WINDOW_SECONDS` | Session 簽發計數視窗（秒）；高於 revoked 保留期時自動限制 | `86400` |

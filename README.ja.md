@@ -321,6 +321,7 @@ docker run --name new-api -d --restart always \
 | `SESSION_COOKIE_TRUSTED_URL` | Secure モードでは必須。refresh/logout を許可する完全一致の HTTPS Origin をカンマ区切りで指定。relay CORS 設定ではありません | - |
 | `TRUSTED_PROXIES` | 未設定/空ではループバック、RFC 1918、IPv6 ULA を信頼して起動時に警告し、`none` ではすべて無効、明示的なプロキシ IP/CIDR リストは既定値を完全に置き換えます | `127.0.0.0/8, ::1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7` |
 | `CLOUDFLARE_EDGE_CIDRS` | Cloudflare エッジの CIDR（カンマ区切り）。解決したクライアントがその範囲内なら `CF-Connecting-IP` をクライアント IP とします。未設定では既定の解決のまま | - |
+| `CANVAS_EDGE_ORIGIN_SECRET` | EdgeOne が `X-Canvas-Origin-Auth` で送るオリジン用シークレット。これを持つリクエストだけ `EO-Connecting-IP` をクライアント IP とし、確認後にヘッダーを削除します。設定時、プロキシ経由（`X-Forwarded-Server`）でどちらのエッジからでもないリクエストは 403。未設定では EdgeOne のヘッダーを無視 | - |
 | `USER_SESSION_ACTIVE_LIMIT` | 1 ユーザーあたりの有効なログイン Session 上限 | `50` |
 | `USER_SESSION_ISSUANCE_LIMIT` | カウント期間内に作成できる Session 数の上限（取り消し済みを含む） | `100` |
 | `USER_SESSION_ISSUANCE_WINDOW_SECONDS` | Session 発行のカウント期間（秒）。取り消し済み Session の保持期間を超える場合は自動的に制限 | `86400` |

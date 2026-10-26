@@ -176,8 +176,8 @@ func main() {
 		common.FatalLog("failed to configure trusted proxies: " + err.Error())
 		return
 	}
-	if err := middleware.ConfigureCloudflareRealIP(server); err != nil {
-		common.FatalLog("failed to configure Cloudflare real IP: " + err.Error())
+	if err := middleware.ConfigureEdgeRealIP(server); err != nil {
+		common.FatalLog("failed to configure edge real IP: " + err.Error())
 		return
 	}
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
