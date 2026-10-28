@@ -708,6 +708,7 @@
     "Weekend": "Выходные",
     "e.g. 1.5": "напр. 1,5",
     "hh:mm": "чч:мм",
+    "{{days}} {{start}}–{{end}}": "{{days}} {{start}}–{{end}}",
     "{{days}} {{start}}–{{end}} ×{{multiplier}}": "{{days}} {{start}}–{{end}} ×{{multiplier}}",
     "{{periods}}; other periods ×1 ({{zone}})": "{{periods}}; остальное время ×1 ({{zone}})",
     "{{points}} points · cost {{cost}} yuan": "{{points}} баллов · себестоимость {{cost}} юаней",

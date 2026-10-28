@@ -708,6 +708,7 @@
     "Weekend": "Weekend",
     "e.g. 1.5": "e.g. 1.5",
     "hh:mm": "hh:mm",
+    "{{days}} {{start}}–{{end}}": "{{days}} {{start}}–{{end}}",
     "{{days}} {{start}}–{{end}} ×{{multiplier}}": "{{days}} {{start}}–{{end}} ×{{multiplier}}",
     "{{periods}}; other periods ×1 ({{zone}})": "{{periods}}; other periods ×1 ({{zone}})",
     "{{points}} points · cost {{cost}} yuan": "{{points}} points · cost {{cost}} yuan",
