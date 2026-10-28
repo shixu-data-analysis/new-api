@@ -10,6 +10,7 @@ import type {
   CellContext,
   ColumnDef,
   ColumnFiltersState,
+  PaginationState,
 } from '@tanstack/react-table'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,6 +26,8 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
+import { MultiSelect } from '@/components/multi-select'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -52,6 +55,14 @@ import {
   type PricingEditorState,
   type PricingSide,
 } from '../lib/model-pricing-editor'
+import {
+  ALL_PRICING_PLANS,
+  effectivePriceGroupIds,
+  matchesPricingPlanFilter,
+  pagesByGroup,
+  usePricingPlanFilter,
+  type PricingStatusFilter,
+} from '../lib/model-pricing-filter'
 import {
   pricingRowCombination,
   pricingRowLabel,
@@ -110,6 +121,15 @@ type TableRowData = {
 // Rows of one group share these cells, merged over the group's consecutive rows on the page.
 const MERGED_COLUMNS = new Set(['combination', 'cost'])
 const NUMERIC_COLUMNS = new Set(['cost', 'inviter', 'price', 'scheduled'])
+const PAGE_SIZE = 20
+const NO_COLUMN_FILTERS: ColumnFiltersState = []
+const ALL = 'ALL'
+const STATUS_OPTIONS: Array<{ value: PricingStatusFilter; labelKey: string }> =
+  [
+    { value: 'ALL', labelKey: 'All pricing statuses' },
+    { value: 'PRICED', labelKey: 'Priced' },
+    { value: 'UNPRICED', labelKey: 'Not priced' },
+  ]
 
 const fieldValue = (
   value: CanvasModelPricingCnyValue | null | undefined,
@@ -118,7 +138,8 @@ const fieldValue = (
 
 /**
  * The current-pricing table with every price editable in place. Filtered or paged-out rows keep their drafts; the
- * page decides what is published.
+ * page decides what is published. The price plan and pricing status filters are shared by every model's page; the
+ * combination filter belongs to this model. Pages hold whole groups, so a merged provider cost is never split.
  */
 export function ModelPricingEditorTable(props: {
   detail: CanvasModelPricingDetail
@@ -132,8 +153,12 @@ export function ModelPricingEditorTable(props: {
 }) {
   const { t } = useTranslation()
   const { detail, state } = props
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [combinationFilter, setCombinationFilter] = useState(ALL)
+  const [planFilter, setPlanFilter] = usePricingPlanFilter()
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  })
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
   const token = state.billingUnit === 'MILLION_TOKENS'
   const labeling = useMemo(
@@ -158,6 +183,45 @@ export function ModelPricingEditorTable(props: {
     [state.rows]
   )
   const grouped = groups.size !== state.rows.length
+  const planIds = useMemo(
+    () =>
+      effectivePriceGroupIds(
+        planFilter,
+        detail.priceGroups.map((plan) => plan.id)
+      ),
+    [planFilter, detail.priceGroups]
+  )
+  const activeFilters =
+    (combinationFilter !== ALL ? 1 : 0) +
+    (planIds.length ? 1 : 0) +
+    (planFilter.status !== ALL ? 1 : 0)
+  const visible = useMemo(
+    () =>
+      data.filter(
+        (item) =>
+          (combinationFilter === ALL ||
+            item.combination === combinationFilter) &&
+          matchesPricingPlanFilter(item.row, planFilter, planIds)
+      ),
+    [data, combinationFilter, planFilter, planIds]
+  )
+  const pages = useMemo(
+    () => pagesByGroup(visible, (item) => item.row.groupKey, PAGE_SIZE),
+    [visible]
+  )
+  const pageIndex = Math.min(
+    pagination.pageIndex,
+    Math.max(pages.length - 1, 0)
+  )
+  const changeFilters = (change: () => void) => {
+    change()
+    setPagination((value) => ({ ...value, pageIndex: 0 }))
+  }
+  const clearFilters = () =>
+    changeFilters(() => {
+      setCombinationFilter(ALL)
+      setPlanFilter(ALL_PRICING_PLANS)
+    })
   const pointsUnit = t(pointsUnitKey(state.billingUnit))
   const calculated = (row: PricingEditorRow) =>
     props.calculation?.scopes
@@ -308,8 +372,6 @@ export function ModelPricingEditorTable(props: {
         <DataTableColumnHeader column={column} title={combinationTitle} />
       ),
       meta: { label: combinationTitle },
-      filterFn: (row, id, values: string[]) =>
-        values.includes(row.getValue(id)),
       cell: ({ row }) => (
         <div>
           {row.original.combination}
@@ -332,8 +394,6 @@ export function ModelPricingEditorTable(props: {
         <DataTableColumnHeader column={column} title={t('Price plan')} />
       ),
       meta: { label: t('Price plan') },
-      filterFn: (row, id, values: string[]) =>
-        values.includes(row.getValue(id)),
       cell: ({ row }) => (
         <span className='break-words whitespace-normal'>
           {row.original.plan}
@@ -409,14 +469,17 @@ export function ModelPricingEditorTable(props: {
     },
   ]
   const { table } = useDataTable({
-    data,
+    data: pages[pageIndex] ?? [],
     columns,
-    columnFilters,
-    onColumnFiltersChange: setColumnFilters,
-    globalFilter,
-    onGlobalFilterChange: setGlobalFilter,
     getRowId: (row) => row.id,
-    initialPagination: { pageIndex: 0, pageSize: 20 },
+    // The rows are filtered here; the toolbar still reads the (empty) column filter state.
+    columnFilters: NO_COLUMN_FILTERS,
+    manualFiltering: true,
+    manualPagination: true,
+    totalCount: visible.length,
+    pageCount: Math.max(pages.length, 1),
+    pagination: { ...pagination, pageIndex },
+    onPaginationChange: setPagination,
   })
   const visibleColumns = table.getVisibleLeafColumns()
   const pageRows = table.getRowModel().rows
@@ -425,17 +488,17 @@ export function ModelPricingEditorTable(props: {
   const { reveal } = props
   useEffect(() => {
     if (!reveal || revealed.current === reveal.seq) return
-    const index = table
-      .getPrePaginationRowModel()
-      .rows.findIndex((row) => row.id === reveal.rowId)
-    if (index < 0 && (columnFilters.length || globalFilter)) {
-      setColumnFilters([])
-      setGlobalFilter('')
+    const page = pages.findIndex((items) =>
+      items.some((item) => item.id === reveal.rowId)
+    )
+    if (page < 0 && activeFilters) {
+      setCombinationFilter(ALL)
+      setPlanFilter(ALL_PRICING_PLANS)
       return
     }
     revealed.current = reveal.seq
-    if (index < 0) return
-    table.setPageIndex(Math.floor(index / table.getState().pagination.pageSize))
+    if (page < 0) return
+    setPagination((value) => ({ ...value, pageIndex: page }))
     const row = state.rows.find((item) => item.id === reveal.rowId)
     if (!row) return
     requestAnimationFrame(() => {
@@ -446,82 +509,128 @@ export function ModelPricingEditorTable(props: {
       scrollIntoPane(input)
       if (reveal.focus) input.focus({ preventScroll: true })
     })
-  }, [reveal, columnFilters, globalFilter, table, state.rows])
+  }, [reveal, pages, activeFilters, setPlanFilter, state.rows])
   return (
     <div className='min-w-0 space-y-3'>
       <DataTableToolbar
         table={table}
         filterPanel={
-          <DataTableColumnFilterPanel activeCount={columnFilters.length}>
-            {[
-              {
-                columnId: 'combination',
-                title: combinationTitle,
-                allLabel: t('All combinations'),
-                options: [...new Set(data.map((row) => row.combination))].map(
-                  (value) => ({ value, label: value })
-                ),
-              },
-              {
-                columnId: 'plan',
-                title: t('Price plan'),
-                allLabel: t('All price plans'),
-                options: detail.priceGroups.map((plan) => ({
-                  value: plan.internalName,
-                  label: plan.internalName,
-                })),
-              },
-            ].map((filter) => {
-              const column = table.getColumn(filter.columnId)
-              const value =
-                (column?.getFilterValue() as string[] | undefined)?.[0] ?? 'ALL'
-              return (
-                <DataTableColumnFilterField
-                  key={filter.columnId}
-                  label={filter.title}
-                  htmlFor={`current-pricing-filter-${filter.columnId}`}
+          <DataTableColumnFilterPanel activeCount={activeFilters}>
+            <DataTableColumnFilterField
+              label={combinationTitle}
+              htmlFor='current-pricing-filter-combination'
+            >
+              <Select
+                value={combinationFilter}
+                onValueChange={(next) =>
+                  changeFilters(() => setCombinationFilter(next || ALL))
+                }
+              >
+                <SelectTrigger
+                  id='current-pricing-filter-combination'
+                  className='w-full'
                 >
-                  <Select
-                    value={value}
-                    onValueChange={(next) =>
-                      column?.setFilterValue(
-                        next && next !== 'ALL' ? [next] : undefined
-                      )
+                  <CanvasLocalizedSelectValue
+                    value={combinationFilter}
+                    displayValue={
+                      combinationFilter === ALL
+                        ? t('All combinations')
+                        : combinationFilter
                     }
-                  >
-                    <SelectTrigger
-                      id={`current-pricing-filter-${filter.columnId}`}
-                      className='w-full'
-                    >
-                      <CanvasLocalizedSelectValue
-                        value={value}
-                        displayValue={
-                          filter.options.find(
-                            (option) => option.value === value
-                          )?.label ?? filter.allLabel
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='ALL'>{filter.allLabel}</SelectItem>
-                      {filter.options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </DataTableColumnFilterField>
-              )
-            })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('All combinations')}</SelectItem>
+                  {[...new Set(data.map((row) => row.combination))].map(
+                    (value) => (
+                      <SelectItem key={value} value={value}>
+                        {value}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField
+              label={t('Price plan')}
+              htmlFor='current-pricing-filter-plan'
+            >
+              <MultiSelect
+                id='current-pricing-filter-plan'
+                options={[
+                  ...detail.priceGroups.map((plan) => ({
+                    value: plan.id,
+                    label: plan.internalName,
+                  })),
+                  // Picking it shows every plan again.
+                  ...(planIds.length
+                    ? [{ value: ALL, label: t('All price plans') }]
+                    : []),
+                ]}
+                selected={planIds}
+                onChange={(values) =>
+                  changeFilters(() =>
+                    setPlanFilter({
+                      ...planFilter,
+                      priceGroupIds: values.includes(ALL) ? [] : values,
+                    })
+                  )
+                }
+                placeholder={t('All price plans')}
+                renderSelectedSummary={(values) =>
+                  t('{{count}} price plans selected', { count: values.length })
+                }
+              />
+              <p className='text-muted-foreground mt-1 text-xs'>
+                {t('Applies to every model and is kept in this browser only.')}
+              </p>
+            </DataTableColumnFilterField>
+            <DataTableColumnFilterField
+              label={t('Pricing status')}
+              htmlFor='current-pricing-filter-status'
+            >
+              <Select
+                value={planFilter.status}
+                onValueChange={(next) =>
+                  changeFilters(() =>
+                    setPlanFilter({
+                      ...planFilter,
+                      status: (next as PricingStatusFilter) || 'ALL',
+                    })
+                  )
+                }
+              >
+                <SelectTrigger
+                  id='current-pricing-filter-status'
+                  className='w-full'
+                >
+                  <CanvasLocalizedSelectValue
+                    value={planFilter.status}
+                    displayValue={t(
+                      STATUS_OPTIONS.find(
+                        (option) => option.value === planFilter.status
+                      )?.labelKey ?? 'All pricing statuses'
+                    )}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.labelKey)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground mt-1 text-xs'>
+                {t(
+                  'Hidden rows keep their changes and are published with them.'
+                )}
+              </p>
+            </DataTableColumnFilterField>
           </DataTableColumnFilterPanel>
         }
-        hasAdditionalFilters={columnFilters.length > 0}
-        onReset={() => {
-          setColumnFilters([])
-          setGlobalFilter('')
-          table.setPageIndex(0)
-        }}
+        hasAdditionalFilters={activeFilters > 0}
+        onReset={clearFilters}
       />
       {/* The wrappers stop clipping so the header sticks to the page scroller. */}
       <DataTableView
@@ -554,7 +663,18 @@ export function ModelPricingEditorTable(props: {
           )
         }}
         tableBodyClassName='[&>tr]:h-auto'
-        emptyTitle={t('No records found. Try adjusting your filters.')}
+        emptyTitle={
+          activeFilters
+            ? t('No prices match the filters')
+            : t('No records found. Try adjusting your filters.')
+        }
+        emptyAction={
+          activeFilters ? (
+            <Button type='button' variant='outline' onClick={clearFilters}>
+              {t('Clear filters')}
+            </Button>
+          ) : undefined
+        }
         renderRow={(tableRow, helpers) => {
           const index = pageRows.indexOf(tableRow)
           const groupKey = tableRow.original.row.groupKey
