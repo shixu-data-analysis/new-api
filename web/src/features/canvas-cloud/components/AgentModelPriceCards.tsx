@@ -45,7 +45,7 @@ const PLANS_SHOWN_FOLDED = 1
 function agentPrices(
   prices: AgentPrice[],
   t: Translate,
-  locale: string
+  locale: string | undefined
 ): ModelCardPrice[] {
   const rmb = (amount: string) => `¥${formatExactRmbReference(amount, locale)}`
   return prices.map((price) => {
