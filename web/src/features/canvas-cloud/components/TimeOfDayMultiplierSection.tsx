@@ -60,16 +60,21 @@ import {
   type TimeOfDayRuleDraft,
   type TimeOfDayRuleError,
 } from '../lib/time-of-day'
-import { pointsAtRate, rateAtMultiplier } from '../lib/time-of-day-display'
+import { rateAtMultiplier } from '../lib/time-of-day-display'
 import type { CanvasTimeOfDaySchedule } from '../types'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { timeOfDayScheduleText, weekdayName } from './time-of-day-text'
 
-/** A row of the "prices by period" table: a Token category of one price plan, priced from the table's drafts. */
+/**
+ * A row of the "prices by period" table: a Token category of one price plan, from the table's drafts. Amounts are set
+ * only while their drafts are valid; points are Cloud's base rate per million, set while its calculation is valid.
+ */
 export interface TimeOfDayPriceRow {
   id: string
   label: string
+  priced: boolean
   customerCny: string | null
+  points: string | null
   costCny: string | null
 }
 
@@ -106,7 +111,6 @@ export function TimeOfDayMultiplierSection(props: {
     effectiveAt: string
   } | null
   priceRows: TimeOfDayPriceRow[]
-  pointsPerRmb: string | undefined
   onChange: (draft: TimeOfDayDraft) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -451,7 +455,6 @@ export function TimeOfDayMultiplierSection(props: {
           <TimeOfDayPrices
             draft={draft}
             rows={props.priceRows}
-            pointsPerRmb={props.pointsPerRmb}
             open={previewOpen}
             onOpenChange={setPreviewOpen}
           />
@@ -570,7 +573,6 @@ function TimeOfDayWeek({ draft }: { draft: TimeOfDayDraft }) {
 function TimeOfDayPrices(props: {
   draft: TimeOfDayDraft
   rows: TimeOfDayPriceRow[]
-  pointsPerRmb: string | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -636,13 +638,13 @@ function TimeOfDayPrices(props: {
                     {row.label}
                   </TableHead>
                   {multipliers.map((multiplier) => {
-                    if (row.customerCny === null) {
+                    if (!row.priced || row.customerCny === null) {
                       return (
                         <TableCell
                           key={multiplier}
                           className='text-muted-foreground text-right'
                         >
-                          {t('Not priced')}
+                          {row.priced ? '—' : t('Not priced')}
                         </TableCell>
                       )
                     }
@@ -660,9 +662,10 @@ function TimeOfDayPrices(props: {
                         </span>
                         <span className='text-muted-foreground block text-xs'>
                           {t('{{points}} points · cost {{cost}} yuan', {
-                            points: props.pointsPerRmb
-                              ? pointsAtRate(customer, props.pointsPerRmb)
-                              : '—',
+                            points:
+                              row.points === null
+                                ? '—'
+                                : rateAtMultiplier(row.points, multiplier),
                             cost:
                               row.costCny === null
                                 ? '—'

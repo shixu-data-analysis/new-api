@@ -45,11 +45,12 @@ function Harness(props: { initial: TimeOfDayDraft; attempted?: boolean }) {
         {
           id: 'input',
           label: 'Input · Standard',
+          priced: true,
           customerCny: '1.0000',
+          points: '100',
           costCny: '0.5000',
         },
       ]}
-      pointsPerRmb='100.00000000'
       onChange={setDraft}
     />
   )

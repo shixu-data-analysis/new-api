@@ -676,7 +676,9 @@ describe('UnifiedModelPricing inline editing', () => {
     mocks.detail.mockResolvedValue(tokenDetail('price-1'))
     const { client } = renderPricing()
     fireEvent.click(await screen.findByRole('switch'))
-    expect(await screen.findByLabelText('Start time of period 1')).toHaveValue('09:00')
+    expect(await screen.findByLabelText('Start time of period 1')).toHaveValue(
+      '09:00'
+    )
     expect(footer().getByText('Time-of-day multipliers changed')).toBeVisible()
 
     mocks.detail.mockResolvedValue(tokenDetail('price-2'))
@@ -689,6 +691,48 @@ describe('UnifiedModelPricing inline editing', () => {
     ).toBeVisible()
     expect(screen.getByLabelText('Start time of period 1')).toHaveValue('09:00')
     expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+  })
+
+  it('prices periods from the points Cloud calculated and pauses them for an invalid draft', async () => {
+    const token = tokenDetail('price-1')
+    const values = (
+      token.pricingScopes[0].prices[0].current as never as {
+        originalCnyValues: { customerPriceCny: Record<string, string> }
+      }
+    ).originalCnyValues
+    values.customerPriceCny.input = '1.2345'
+    mocks.detail.mockResolvedValue(token)
+    const tokenCalculation = structuredClone(calculation)
+    Object.assign(tokenCalculation, {
+      billingUnit: 'MILLION_TOKENS',
+      unitChange: {
+        from: 'MILLION_TOKENS',
+        to: 'MILLION_TOKENS',
+        changed: false,
+      },
+    })
+    Object.assign(tokenCalculation.scopes[0].prices[0], {
+      normalizedPoints: '124',
+      normalizedTokenRates: { input: '124', output: '240' },
+    })
+    mocks.calculate.mockResolvedValue(tokenCalculation)
+    renderPricing()
+    fireEvent.click(await screen.findByRole('switch'))
+    fireEvent.click(screen.getByText('Prices by period'))
+    // 1.2345 yuan at 100 points per yuan is a base rate of 124 points; the peak is 124 × 2, not ceil(2.469 × 100).
+    expect(await screen.findByText('248 points · cost 0.96 yuan')).toBeVisible()
+    expect(screen.getByText('2.469 yuan')).toBeVisible()
+
+    const [inputPrice] = screen.getAllByLabelText(/Customer sale price/u)
+    fireEvent.change(inputPrice as HTMLElement, { target: { value: '1,2' } })
+    expect(inputPrice).toHaveValue('1,2')
+    // The invalid draft keeps its field error in the table and is not priced at any period.
+    expect(
+      screen.getByText('Enter an amount above 0 with up to 4 decimals')
+    ).toBeVisible()
+    expect(screen.queryByText(/1,2 yuan/u)).toBeNull()
+    expect(screen.queryByText('248 points · cost 0.96 yuan')).toBeNull()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('shows the pricing rate snapshot before a model has any price', async () => {
@@ -746,17 +790,36 @@ function tokenDetail(priceId: string) {
     publishedBillingUnits: ['MILLION_TOKENS'],
     allowedBillingUnits: ['MILLION_TOKENS'],
     tokenCategories: ['input', 'output'],
-    combinations: [{ id: 'scope-1', key: 'default', parameters: {}, enabled: true }],
+    combinations: [
+      { id: 'scope-1', key: 'default', parameters: {}, enabled: true },
+    ],
   })
   const [scope] = next.pricingScopes
   Object.assign(scope, {
     combinationKey: 'default',
     parameters: {},
     originalProviderSuccessPriceCny: rates,
-    currentProviderRate: { ...scope.currentProviderRate, billingUnit: 'MILLION_TOKENS', tokenRates: rates, normalizedTokenRates: rates, timeOfDaySchedule: null },
+    currentProviderRate: {
+      ...scope.currentProviderRate,
+      billingUnit: 'MILLION_TOKENS',
+      tokenRates: rates,
+      normalizedTokenRates: rates,
+      timeOfDaySchedule: null,
+    },
   })
-  const values = { providerSuccessPriceCny: rates, inviterDisplayPriceCny: { input: '0.5000', output: '2.0000' }, customerPriceCny: { input: '0.6000', output: '2.4000' } }
-  scope.prices[0].current = { ...scope.prices[0].current, id: priceId, billingUnit: 'MILLION_TOKENS', tokenRates: { input: '60', output: '240' }, originalCnyValues: values, originalInput: { inputMode: 'CNY', ...values } } as never
+  const values = {
+    providerSuccessPriceCny: rates,
+    inviterDisplayPriceCny: { input: '0.5000', output: '2.0000' },
+    customerPriceCny: { input: '0.6000', output: '2.4000' },
+  }
+  scope.prices[0].current = {
+    ...scope.prices[0].current,
+    id: priceId,
+    billingUnit: 'MILLION_TOKENS',
+    tokenRates: { input: '60', output: '240' },
+    originalCnyValues: values,
+    originalInput: { inputMode: 'CNY', ...values },
+  } as never
   return next
 }
 

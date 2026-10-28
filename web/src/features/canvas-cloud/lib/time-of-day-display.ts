@@ -106,9 +106,9 @@ export function timeOfDayPeriods(schedule: CanvasTimeOfDaySchedule) {
   }))
 }
 
-// rate × multiplier, exact to 8 places then trimmed.
+// rate × multiplier, exact to 8 places then trimmed; callers pass Cloud's decimals or validated drafts only.
 export function rateAtMultiplier(rate: string, multiplier: string): string {
-  if (Number(multiplier) === 1 || !/^\d+(\.\d+)?$/.test(rate)) return rate
+  if (Number(multiplier) === 1) return rate
   const [whole, fraction = ''] = rate.split('.')
   const value =
     BigInt(whole as string) * RATE_SCALE +
@@ -146,18 +146,4 @@ export function sharedTimeOfDaySchedule(
     (schedule) => JSON.stringify(schedule) === JSON.stringify(first)
   )
   return first && same ? first : null
-}
-
-/** Customer points of a yuan price at the issuance rate, rounded up like a published price (exact decimals). */
-export function pointsAtRate(yuan: string, pointsPerRmb: string): string {
-  const scaled = (value: string) => {
-    const [whole, fraction = ''] = value.split('.')
-    return (
-      BigInt(whole as string) * RATE_SCALE +
-      BigInt(fraction.padEnd(8, '0').slice(0, 8))
-    )
-  }
-  const product = scaled(yuan) * scaled(pointsPerRmb)
-  const unit = RATE_SCALE * RATE_SCALE
-  return ((product + unit - 1n) / unit).toString()
 }

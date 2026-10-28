@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 import type {
   CanvasBillingUnit,
+  CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyScope,
   CanvasModelPricingCnyValue,
   CanvasModelPricingDetail,
@@ -399,6 +400,42 @@ export function pricingRowErrors(
     errors.customer = PRICING_MESSAGES.customer
   }
   return errors
+}
+
+type CalculatedPrice =
+  CanvasModelPricingCnyCalculation['scopes'][number]['prices'][number]
+
+/**
+ * The API calculation of a row's price while its drafts are valid and no conflict marks it; every figure derived from
+ * it (points, margins, prices by period) is shown only then.
+ */
+export function validCalculatedPrice(
+  state: PricingEditorState,
+  row: PricingEditorRow,
+  calculation: CanvasModelPricingCnyCalculation | null,
+  conflict: string | undefined,
+  attempted: boolean
+): CalculatedPrice | null {
+  const result = calculation?.scopes
+    .find(
+      (scope) =>
+        scope.parameterCombinationId === row.scope.parameterCombinationId
+    )
+    ?.prices.find((price) => price.priceGroupId === row.price.priceGroupId)
+  if (!result || conflict) return null
+  if (Object.keys(pricingRowErrors(state, row, attempted)).length > 0) {
+    return null
+  }
+  return result
+}
+
+/** The customer points Cloud calculated for a row: per request or second, or the Token category's rate per million. */
+export function calculatedPoints(
+  result: CalculatedPrice,
+  row: PricingEditorRow
+): string {
+  if (row.field === 'scalar') return result.normalizedPoints
+  return result.normalizedTokenRates?.[row.field] ?? ''
 }
 
 /** The shared cost error of a cost cell, shown when any row of its group is published. */

@@ -40,16 +40,19 @@ import {
 } from '../api'
 import { billingUnitLabelKey } from '../lib/billing-unit-labels'
 import {
+  calculatedPoints,
   calculationScopes,
   conflictsByRow,
   currentPricingIdentity,
   draftValue,
   firstPricingError,
+  isPositiveRmbAmount,
   isRowIncluded,
   originalPricingDrafts,
   pricingEditorRows,
   pricingFields,
   publicationScopes,
+  validCalculatedPrice,
   withDraftValue,
   type PricingDrafts,
   type PricingEditorRow,
@@ -297,6 +300,8 @@ export function UnifiedModelPricing(props: {
   const labeling = pricing
     ? pricingRowLabeling(pricing, billingUnit === 'MILLION_TOKENS')
     : null
+  // Preview conflicts by row, for the table's notes and the prices by period.
+  const rowConflicts = conflictsByRow(state, conflicts)
 
   // The snapshot shows before any price can be calculated, such as on a model's first pricing.
   const issuanceRates = useQuery({
@@ -447,9 +452,7 @@ export function UnifiedModelPricing(props: {
 
   const isDirty = Boolean(
     pricing &&
-    (hasPricingEdits ||
-      decisionSummary.trim() ||
-      effectiveMode === 'SCHEDULED')
+    (hasPricingEdits || decisionSummary.trim() || effectiveMode === 'SCHEDULED')
   )
 
   function changeDraft(
@@ -753,16 +756,27 @@ export function UnifiedModelPricing(props: {
                     )
                   )
                 )
-                .map((row) => ({
-                  id: row.id,
-                  label: pricingRowLabel(row, labeling, t),
-                  customerCny: draftValue(state, row, 'customer') || null,
-                  costCny: draftValue(state, row, 'provider') || null,
-                }))}
-              pointsPerRmb={
-                calculation?.pointIssuanceRate.pointsPerRmb ??
-                publishedIssuanceRate?.pointsPerRmb
-              }
+                .map((row) => {
+                  const customer = draftValue(state, row, 'customer')
+                  const cost = draftValue(state, row, 'provider')
+                  const result = validCalculatedPrice(
+                    state,
+                    row,
+                    calculation,
+                    rowConflicts.get(row.id),
+                    attempted
+                  )
+                  return {
+                    id: row.id,
+                    label: pricingRowLabel(row, labeling, t),
+                    priced: customer !== '',
+                    customerCny: isPositiveRmbAmount(customer)
+                      ? customer
+                      : null,
+                    points: result ? calculatedPoints(result, row) : null,
+                    costCny: isPositiveRmbAmount(cost) ? cost : null,
+                  }
+                })}
               onChange={(next) => {
                 invalidatePreview()
                 setTimeOfDay(next)
@@ -774,7 +788,7 @@ export function UnifiedModelPricing(props: {
             state={state}
             attempted={attempted}
             calculation={calculation}
-            conflicts={conflictsByRow(state, conflicts)}
+            conflicts={rowConflicts}
             onChange={changeDraft}
             onCancelSchedule={(publicationId, scopeId) =>
               setCancelTarget({ publicationId, scopeId })

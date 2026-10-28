@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
 import {
+  calculatedPoints,
   draftValue,
   groupBy,
   isCostLocked,
@@ -51,6 +52,7 @@ import {
   pricingInputId,
   pricingRowErrors,
   PRICING_SIDE_LABEL_KEYS,
+  validCalculatedPrice,
   type PricingEditorRow,
   type PricingEditorState,
   type PricingSide,
@@ -226,13 +228,6 @@ export function ModelPricingEditorTable(props: {
       setPlanFilter(ALL_PRICING_PLANS)
     })
   const pointsUnit = t(pointsUnitKey(state.billingUnit))
-  const calculated = (row: PricingEditorRow) =>
-    props.calculation?.scopes
-      .find(
-        (scope) =>
-          scope.parameterCombinationId === row.scope.parameterCombinationId
-      )
-      ?.prices.find((price) => price.priceGroupId === row.price.priceGroupId)
 
   const input = (
     row: PricingEditorRow,
@@ -308,11 +303,15 @@ export function ModelPricingEditorTable(props: {
     const error =
       side === 'customer' ? (conflict ?? errors.customer) : errors.inviter
     if (error) notes.push({ text: t(error), error: true })
-    const result = calculated(row)
-    const valid =
-      Boolean(result) && !conflict && Object.keys(errors).length === 0
+    const result = validCalculatedPrice(
+      state,
+      row,
+      props.calculation,
+      conflict,
+      props.attempted
+    )
     if (side === 'inviter') {
-      if (valid && result) {
+      if (result) {
         notes.push({
           text: t('Above provider cost by {{amount}} yuan', {
             amount: fieldValue(result.inviterMinusProviderCny, row.field),
@@ -339,12 +338,8 @@ export function ModelPricingEditorTable(props: {
     ) {
       notes.push({ text: t('Current active version is legacy points pricing') })
     }
-    if (valid && result) {
-      const points =
-        row.field === 'scalar'
-          ? result.normalizedPoints
-          : (result.normalizedTokenRates?.[row.field] ?? '')
-      notes.push({ text: `${points} ${pointsUnit}` })
+    if (result) {
+      notes.push({ text: `${calculatedPoints(result, row)} ${pointsUnit}` })
       notes.push({
         text: t('Above inviter display price by {{amount}} yuan', {
           amount: fieldValue(result.customerMinusInviterCny, row.field),
