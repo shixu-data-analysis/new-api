@@ -75,6 +75,8 @@ export function ClientPresentationPreview(props: {
     ...typed.categories.map((category) => category.id),
     ...(typed.untaggedCount > 0 ? [UNTAGGED_CATEGORY] : []),
   ]
+  // As on the canvas, a type without any category to pick shows "No category" on a disabled button.
+  const hasCategories = listedIds.length > 0
   const categoryId =
     chosenCategory && listedIds.includes(chosenCategory)
       ? chosenCategory
@@ -113,9 +115,12 @@ export function ClientPresentationPreview(props: {
   const categoryButton = (
     <button
       type='button'
-      aria-expanded={mode === 'categories' || categoryMenuOpen}
+      aria-expanded={
+        hasCategories && (mode === 'categories' || categoryMenuOpen)
+      }
       aria-haspopup='menu'
-      className='inline-flex h-8 max-w-[170px] cursor-pointer items-center gap-1.5 rounded-[6px] border-0 px-2 text-[13px] font-semibold hover:bg-[var(--model-preview-hover)] aria-expanded:bg-[var(--model-preview-hover)]'
+      disabled={!hasCategories}
+      className='inline-flex h-8 max-w-[170px] cursor-pointer items-center gap-1.5 rounded-[6px] border-0 px-2 text-[13px] font-semibold hover:bg-[var(--model-preview-hover)] disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent aria-expanded:bg-[var(--model-preview-hover)]'
       style={{ color: 'var(--model-preview-text)' }}
       onClick={() => mode === 'models' && setCategoryMenuOpen((open) => !open)}
     >
@@ -126,9 +131,9 @@ export function ClientPresentationPreview(props: {
         bare
       />
       <span className='truncate'>
-        {categoryId === UNTAGGED_CATEGORY
+        {categoryId === UNTAGGED_CATEGORY || !currentCategory
           ? t('No category')
-          : currentCategory?.name.trim() || t('(No name)')}
+          : currentCategory.name.trim() || t('(No name)')}
       </span>
       <ChevronDown aria-hidden='true' className='size-3.5 flex-none' />
     </button>
@@ -224,7 +229,9 @@ export function ClientPresentationPreview(props: {
                   className='m-2 text-xs'
                   style={{ color: 'var(--model-preview-muted)' }}
                 >
-                  {t('No models match the selected categories')}
+                  {visible.length === 0
+                    ? t('No models of this type are visible to customers')
+                    : t('No models match the selected categories')}
                 </p>
               )}
               {shown.map((model) => {
@@ -293,7 +300,7 @@ export function ClientPresentationPreview(props: {
         )}
         <div className='relative flex w-full items-center gap-1.5'>
           {categoryButton}
-          {mode === 'models' && categoryMenuOpen && (
+          {mode === 'models' && hasCategories && categoryMenuOpen && (
             <ClientPresentationPreviewCategoryMenu
               className='absolute bottom-[calc(100%+6px)] left-0 z-[2] max-h-60 w-[min(320px,100%)]'
               categories={typed.categories}

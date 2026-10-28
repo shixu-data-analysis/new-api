@@ -64,6 +64,14 @@ export function ClientPresentationPreviewCategoryMenu(props: {
         color: 'var(--model-preview-text)',
       }}
     >
+      {rows.length === 0 && (
+        <p
+          className='m-1.5 text-xs'
+          style={{ color: 'var(--model-preview-muted)' }}
+        >
+          {t('No models of this type are visible to customers')}
+        </p>
+      )}
       {rows.map((category) => {
         const checked = category.id === props.selected
         const description = category.description.trim()

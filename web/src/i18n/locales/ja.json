@@ -9416,6 +9416,7 @@
     "No model category": "モデルカテゴリなし",
     "No models match \"{{search}}\"": "「{{search}}」に一致するモデルはありません",
     "No models match the selected categories": "選択したカテゴリに一致するモデルはありません",
+    "No models of this type are visible to customers": "この種類には顧客に表示されるモデルがありません",
     "No published chat models": "公開済みのチャットモデルはありません",
     "No published image models": "公開済みの画像モデルはありません",
     "No published video models": "公開済みの動画モデルはありません",

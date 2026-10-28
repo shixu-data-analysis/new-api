@@ -9416,6 +9416,7 @@
     "No model category": "無模型分類",
     "No models match \"{{search}}\"": "沒有符合「{{search}}」的模型",
     "No models match the selected categories": "沒有符合所選分類的模型",
+    "No models of this type are visible to customers": "該類型沒有客戶可見的模型",
     "No published chat models": "暫無已發布的對話模型",
     "No published image models": "暫無已發布的圖像模型",
     "No published video models": "暫無已發布的影片模型",
