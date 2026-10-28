@@ -25,8 +25,10 @@ import {
   orderCategories,
 } from '../lib/model-categories'
 import type { CanvasCatalogCategories, CanvasCatalogModel } from '../types'
-import { ModelCatalogCard, ModelPriceRow } from './ModelCatalogCard'
+import { ModelCardPrices } from './ModelCardPrices'
+import { ModelCatalogCard } from './ModelCatalogCard'
 import { ModelFilterBar, UNTAGGED_TAG_ID } from './ModelFilterBar'
+import { useMinuteNow } from './time-of-day-text'
 
 export function CustomerModelCenter(props: {
   models: CanvasCatalogModel[]
@@ -99,6 +101,11 @@ export function CustomerModelCenter(props: {
       !effectiveTagId || model.tags.some((tag) => tag.id === effectiveTagId)
     )
   })
+  const now = useMinuteNow(
+    visible.some((model) =>
+      model.parameterCombinations.some((item) => item.timeOfDaySchedule)
+    )
+  )
   return (
     <div className='space-y-4'>
       <ModelFilterBar
@@ -148,15 +155,13 @@ export function CustomerModelCenter(props: {
                   : undefined
               }
             >
-              {model.parameterCombinations.map((combination) => (
-                <ModelPriceRow
-                  key={combination.id}
-                  parameters={combination.parameters}
-                  billingUnit={combination.billingUnit}
-                  points={combination.points}
-                  tokenRates={combination.tokenRates}
-                />
-              ))}
+              <ModelCardPrices
+                prices={model.parameterCombinations.map((combination) => ({
+                  ...combination,
+                  key: combination.id,
+                }))}
+                now={now}
+              />
             </ModelCatalogCard>
           ))}
         </div>

@@ -26,6 +26,7 @@ import {
   pricingFields,
   type PricingEditorState,
 } from '../lib/model-pricing-editor'
+import { usePricingPlanFilter } from '../lib/model-pricing-filter'
 import type { CanvasModelPricingDetail } from '../types'
 
 vi.mock('react-i18next', () => ({
@@ -106,9 +107,11 @@ function state(value: CanvasModelPricingDetail): PricingEditorState {
   }
 }
 
-function table() {
+// The page owns the shared filter, as UnifiedModelPricing does.
+function Page() {
   const value = detail()
-  return render(
+  const [planFilter, setPlanFilter] = usePricingPlanFilter()
+  return (
     <ModelPricingEditorTable
       detail={value}
       state={state(value)}
@@ -118,8 +121,14 @@ function table() {
       onChange={() => undefined}
       onCancelSchedule={() => undefined}
       reveal={null}
+      planFilter={planFilter}
+      onPlanFilterChange={setPlanFilter}
     />
   )
+}
+
+function table() {
+  return render(<Page />)
 }
 
 const planCells = () =>

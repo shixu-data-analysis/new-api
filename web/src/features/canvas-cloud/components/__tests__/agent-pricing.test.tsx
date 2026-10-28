@@ -396,10 +396,14 @@ describe('Canvas Agent and provider pricing governance', () => {
     const panel = await openModelPrices()
     expect(await within(panel).findByText('720P')).toBeVisible()
     expect(within(panel).getByText('30')).toBeVisible()
-    expect(within(panel).getAllByTitle('Model price')).toHaveLength(2)
-    expect(within(panel).getByText(/· ¥0\.4/u)).toBeVisible()
-    expect(within(panel).getByText('Input 2 · Output 4')).toBeVisible()
-    expect(within(panel).getByText('Input ¥1 · Output ¥2')).toBeVisible()
+    // Token prices show one row per category, each with its model price after the points.
+    expect(
+      within(panel)
+        .getAllByTitle('Model price')
+        .map((item) => item.textContent)
+    ).toEqual(['· Model price ¥0.4', '· Model price ¥1', '· Model price ¥2'])
+    expect(within(panel).getByText('Input')).toBeVisible()
+    expect(within(panel).getByText('Output')).toBeVisible()
     // The description shows on the card, as in the model center.
     expect(within(panel).getByText('Client description')).toBeVisible()
   })

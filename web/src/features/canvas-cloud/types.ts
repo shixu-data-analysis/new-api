@@ -444,6 +444,7 @@ export interface CanvasAgentModelPrice {
       customerPoints: string
       customerTokenRates: Partial<CanvasTokenRateVector> | null
       modelPriceCny: string | Partial<CanvasTokenRateVector> | null
+      timeOfDaySchedule?: CanvasTimeOfDaySchedule
     }>
   }>
 }
@@ -756,6 +757,7 @@ export interface CanvasCatalogModel {
     billingUnit: CanvasBillingUnit
     tokenRates: Partial<CanvasTokenRateVector> | null
     points: string
+    timeOfDaySchedule?: CanvasTimeOfDaySchedule
   }>
 }
 
@@ -1210,7 +1212,24 @@ export interface CanvasModelPricingCalculation {
   actualMarginRate?: string | null
 }
 
+/**
+ * A Token spec's time-of-day multiplier schedule, in the Provider's time zone (Cloud TimeOfDaySchedule). Days are ISO
+ * weekdays (1 = Monday); an end before the start runs into the next day; uncovered time is priced at 1.
+ */
+export interface CanvasTimeOfDaySchedule {
+  schemaVersion: 1
+  timeZone: string
+  rules: Array<{
+    days: number[]
+    start: string
+    end: string
+    multiplier: string
+  }>
+}
+
 export interface CanvasModelPricingProviderRate {
+  /** The spec's published time-of-day schedule; null without one. */
+  timeOfDaySchedule?: CanvasTimeOfDaySchedule | null
   billingUnit: CanvasBillingUnit
   nativeAmount: string
   tokenRates: CanvasModelPricingTokenRateVector | null
@@ -1322,6 +1341,8 @@ export type CanvasModelPricingCnyValue =
 export interface CanvasModelPricingCnyScope {
   parameterCombinationId: string
   providerSuccessPriceCny: CanvasModelPricingCnyValue
+  /** Sent only when the schedule changes: null removes it; omitted keeps the published one. */
+  timeOfDaySchedule?: CanvasTimeOfDaySchedule | null
   prices: Array<{
     priceGroupId: string
     sourcePriceVersionId?: string

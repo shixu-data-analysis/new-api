@@ -140,6 +140,45 @@ const row = (state: PricingEditorState, id: string) =>
 const included = (state: PricingEditorState) =>
   state.rows.filter((item) => isRowIncluded(state, item)).map((item) => item.id)
 
+describe('time-of-day schedule publication', () => {
+  it('publishes every priced plan of every spec with a changed schedule, and nothing else', () => {
+    const schedule = {
+      schemaVersion: 1 as const,
+      timeZone: 'Asia/Shanghai',
+      rules: [
+        {
+          days: [1, 2, 3, 4, 5],
+          start: '09:00',
+          end: '12:00',
+          multiplier: '2',
+        },
+      ],
+    }
+    const state = {
+      ...editor(multiPlanDetail()),
+      timeOfDayChange: { schedule },
+    }
+    const scopes = publicationScopes(state)
+    expect(
+      scopes.map((scope) => [
+        scope.parameterCombinationId,
+        scope.prices.map((price) => price.priceGroupId),
+        scope.timeOfDaySchedule,
+      ])
+    ).toEqual([
+      ['2K', ['standard'], schedule],
+      ['4K', ['standard', 'vip'], schedule],
+    ])
+    expect(publicationScopes(editor(multiPlanDetail()))).toEqual([])
+    expect(
+      publicationScopes({
+        ...editor(multiPlanDetail()),
+        timeOfDayChange: { schedule: null },
+      })[0]?.timeOfDaySchedule
+    ).toBeNull()
+  })
+})
+
 describe('model pricing editor rules', () => {
   it('publishes every priced plan of a scope whose shared cost changed, but not its unpriced plan', () => {
     const state = edit(

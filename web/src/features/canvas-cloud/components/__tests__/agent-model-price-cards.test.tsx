@@ -6,9 +6,17 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
@@ -61,6 +69,56 @@ describe('Agent model price cards', () => {
     await i18next.changeLanguage('en')
   })
 
+  afterEach(() => vi.useRealTimers())
+
+  it('lists Token categories one per line at the multiplier now, with the model price of each, and folds plans past two', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-28T02:24:00Z')) // Wednesday 10:24 in Beijing
+    const timeOfDaySchedule = {
+      schemaVersion: 1 as const,
+      timeZone: 'Asia/Shanghai',
+      rules: [
+        {
+          days: [1, 2, 3, 4, 5],
+          start: '09:00',
+          end: '12:00',
+          multiplier: '2',
+        },
+      ],
+    }
+    const token = model('DeepSeek', {
+      billingUnit: 'MILLION_TOKENS',
+      customerTokenRates: { input: '60', output: '240' },
+      modelPriceCny: { input: '0.48', output: '1.92' },
+      timeOfDaySchedule,
+    })
+    const plans = ['Standard', 'VIP', 'Enterprise'].map((name, index) => ({
+      ...(token.priceGroups[0] as CanvasAgentModelPrice['priceGroups'][number]),
+      priceGroupId: `g${index}`,
+      priceGroupName: name,
+    }))
+    render(
+      <AgentModelPriceCards
+        models={[{ ...token, capability: 'chat.generate', priceGroups: plans }]}
+      />
+    )
+    const card = within(cardOf('DeepSeek'))
+    expect(card.getByText('Standard')).toBeVisible()
+    expect(card.queryByText('VIP')).toBeNull()
+    expect(card.getByText('120')).toBeVisible()
+    expect(card.getByText('480')).toBeVisible()
+    expect(
+      card.getAllByTitle('Model price').map((item) => item.textContent)
+    ).toEqual(['· Model price ¥0.96', '· Model price ¥3.84'])
+    expect(card.getByText('Now at 2× price, ends 12:00')).toBeVisible()
+    fireEvent.click(card.getByRole('button', { name: 'Other 2 price plans' }))
+    expect(card.getByText('VIP')).toBeVisible()
+    expect(card.getAllByText('Now at 2× price, ends 12:00')).toHaveLength(1)
+    fireEvent.click(card.getByRole('button', { name: /All periods/ }))
+    expect(card.getByText('Time-of-day pricing (Beijing time)')).toBeVisible()
+    expect(card.getByText('Monday to Friday 09:00–12:00')).toBeVisible()
+  })
+
   it('writes a per-request price like the model center, with the model price after the points', () => {
     render(<AgentModelPriceCards models={[model('Per request', {})]} />)
     const card = within(cardOf('Per request'))
@@ -111,10 +169,11 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('Tokens'))
-    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
-    expect(card.getByTitle('Model price')).toHaveTextContent(
-      'Model price Input ¥3 · Output ¥15'
-    )
+    expect(card.getByText('30')).toBeVisible()
+    expect(card.getByText('150')).toBeVisible()
+    expect(
+      card.getAllByTitle('Model price').map((item) => item.textContent)
+    ).toEqual(['· Model price ¥3', '· Model price ¥15'])
   })
 
   it('does not drop a category priced on only one side', () => {
@@ -130,10 +189,11 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('One side'))
-    expect(card.getByText('Input 30 · Cache read 3')).toBeVisible()
-    expect(card.getByTitle('Model price')).toHaveTextContent(
-      'Model price Input ¥3 · Cache write ¥4'
-    )
+    expect(card.getByText('Cache read')).toBeVisible()
+    expect(card.getByText('Cache write')).toBeVisible()
+    expect(
+      card.getAllByTitle('Model price').map((item) => item.textContent)
+    ).toEqual(['· Model price ¥3', '· Model price —', '· Model price ¥4'])
   })
 
   it('shows the customer rates and a dash when the model price is unavailable', () => {
@@ -149,7 +209,7 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('No cost'))
-    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
+    expect(card.getByText('150')).toBeVisible()
     expect(card.getByTitle('Model price')).toHaveTextContent('· Model price —')
   })
 
@@ -166,7 +226,7 @@ describe('Agent model price cards', () => {
       />
     )
     const card = within(cardOf('Mixed'))
-    expect(card.getByText('Input 30 · Output 150')).toBeVisible()
+    expect(card.getByText('150')).toBeVisible()
     expect(card.getByTitle('Model price')).toHaveTextContent(
       '· Model price ¥0.25'
     )

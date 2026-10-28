@@ -60,7 +60,7 @@ import {
   effectivePriceGroupIds,
   matchesPricingPlanFilter,
   pagesByGroup,
-  usePricingPlanFilter,
+  type PricingPlanFilter,
   type PricingStatusFilter,
 } from '../lib/model-pricing-filter'
 import {
@@ -150,11 +150,14 @@ export function ModelPricingEditorTable(props: {
   onChange: (row: PricingEditorRow, side: PricingSide, value: string) => void
   onCancelSchedule: (publicationId: string, scopeId: string) => void
   reveal: PricingRevealRequest | null
+  /** The shared price plan and status choice; the page also filters the time-of-day price table by it. */
+  planFilter: PricingPlanFilter
+  onPlanFilterChange: (filter: PricingPlanFilter) => void
 }) {
   const { t } = useTranslation()
   const { detail, state } = props
   const [combinationFilter, setCombinationFilter] = useState(ALL)
-  const [planFilter, setPlanFilter] = usePricingPlanFilter()
+  const { planFilter, onPlanFilterChange: setPlanFilter } = props
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: PAGE_SIZE,

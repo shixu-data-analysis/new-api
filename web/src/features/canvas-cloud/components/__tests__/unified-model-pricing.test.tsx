@@ -672,6 +672,25 @@ describe('UnifiedModelPricing inline editing', () => {
     expect(mocks.preview).not.toHaveBeenCalled()
   })
 
+  it('keeps an edited time-of-day schedule and blocks publishing after another admin republishes', async () => {
+    mocks.detail.mockResolvedValue(tokenDetail('price-1'))
+    const { client } = renderPricing()
+    fireEvent.click(await screen.findByRole('switch'))
+    expect(await screen.findByLabelText('Start time of period 1')).toHaveValue('09:00')
+    expect(footer().getByText('Time-of-day multipliers changed')).toBeVisible()
+
+    mocks.detail.mockResolvedValue(tokenDetail('price-2'))
+    await act(() => client.invalidateQueries())
+
+    expect(
+      await screen.findByText(
+        'Prices changed after you started editing. These changes cannot be published; discard them to load the latest prices.'
+      )
+    ).toBeVisible()
+    expect(screen.getByLabelText('Start time of period 1')).toHaveValue('09:00')
+    expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
+  })
+
   it('shows the pricing rate snapshot before a model has any price', async () => {
     const unpriced = structuredClone(detail)
     const [scope] = unpriced.pricingScopes
@@ -716,6 +735,30 @@ describe('UnifiedModelPricing inline editing', () => {
     expect(footer().getByRole('button', { name: 'Publish' })).toBeDisabled()
   })
 })
+
+// A text model priced per million Tokens; the price version id marks another admin's republication.
+function tokenDetail(priceId: string) {
+  const rates = { input: '0.4800', output: '1.9200' }
+  const next = structuredClone(detail)
+  Object.assign(next.model, {
+    capability: 'chat.generate',
+    billingUnit: 'MILLION_TOKENS',
+    publishedBillingUnits: ['MILLION_TOKENS'],
+    allowedBillingUnits: ['MILLION_TOKENS'],
+    tokenCategories: ['input', 'output'],
+    combinations: [{ id: 'scope-1', key: 'default', parameters: {}, enabled: true }],
+  })
+  const [scope] = next.pricingScopes
+  Object.assign(scope, {
+    combinationKey: 'default',
+    parameters: {},
+    originalProviderSuccessPriceCny: rates,
+    currentProviderRate: { ...scope.currentProviderRate, billingUnit: 'MILLION_TOKENS', tokenRates: rates, normalizedTokenRates: rates, timeOfDaySchedule: null },
+  })
+  const values = { providerSuccessPriceCny: rates, inviterDisplayPriceCny: { input: '0.5000', output: '2.0000' }, customerPriceCny: { input: '0.6000', output: '2.4000' } }
+  scope.prices[0].current = { ...scope.prices[0].current, id: priceId, billingUnit: 'MILLION_TOKENS', tokenRates: { input: '60', output: '240' }, originalCnyValues: values, originalInput: { inputMode: 'CNY', ...values } } as never
+  return next
+}
 
 function republishedDetail() {
   const next = structuredClone(detail)

@@ -13,6 +13,7 @@ import type {
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
   CanvasModelPricingTokenRateVector,
+  CanvasTimeOfDaySchedule,
   CanvasTokenCategory,
 } from '../types'
 
@@ -51,6 +52,11 @@ export interface PricingEditorState {
   unitChange: boolean
   /** Mixed published units and no unit chosen yet: inputs stay locked. */
   unitPending: boolean
+  /**
+   * A changed time-of-day schedule (null switches it off). It is part of the cost and every price, so every priced
+   * plan of every spec is published with it.
+   */
+  timeOfDayChange?: { schedule: CanvasTimeOfDaySchedule | null }
 }
 
 export const PRICING_SIDE_LABEL_KEYS: Record<PricingSide, string> = {
@@ -337,6 +343,7 @@ export function isRowIncluded(
   // A newly priced plan needs every Token category, so filling one category brings in the whole plan.
   if (!row.price.current) return isPlanFilled(state, row)
   return (
+    Boolean(state.timeOfDayChange) ||
     isSideChanged(state, row, 'provider') ||
     isSideChanged(state, row, 'inviter') ||
     isSideChanged(state, row, 'customer')
@@ -529,12 +536,14 @@ function scopesOf(
     const rows = [first, ...others]
     const scope = first.scope
     const scopeId = scope.parameterCombinationId
-    const costChanged = state.fields.some(
-      (field) =>
-        state.unitChange ||
-        (state.drafts[scopeId]?.provider[field] ?? '') !==
-          (state.originals[scopeId]?.provider[field] ?? '')
-    )
+    const costChanged =
+      Boolean(state.timeOfDayChange) ||
+      state.fields.some(
+        (field) =>
+          state.unitChange ||
+          (state.drafts[scopeId]?.provider[field] ?? '') !==
+            (state.originals[scopeId]?.provider[field] ?? '')
+      )
     const groupIds = new Set(rows.map((row) => row.price.priceGroupId))
     const prices = scope.prices.filter(
       (price) =>
@@ -546,6 +555,9 @@ function scopesOf(
       {
         parameterCombinationId: scopeId,
         providerSuccessPriceCny: cnyValue(draft?.provider, state),
+        ...(state.timeOfDayChange
+          ? { timeOfDaySchedule: state.timeOfDayChange.schedule }
+          : {}),
         prices: prices.map((price) => ({
           priceGroupId: price.priceGroupId,
           ...(price.current?.id

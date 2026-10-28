@@ -43,6 +43,7 @@ import {
   calculationScopes,
   conflictsByRow,
   currentPricingIdentity,
+  draftValue,
   firstPricingError,
   isRowIncluded,
   originalPricingDrafts,
@@ -55,7 +56,23 @@ import {
   type PricingEditorState,
   type PricingSide,
 } from '../lib/model-pricing-editor'
-import { pricingRowLabeling } from '../lib/model-pricing-row-label'
+import {
+  effectivePriceGroupIds,
+  matchesPricingPlanFilter,
+  usePricingPlanFilter,
+} from '../lib/model-pricing-filter'
+import {
+  pricingRowLabel,
+  pricingRowLabeling,
+} from '../lib/model-pricing-row-label'
+import {
+  draftFromSchedule,
+  draftHasErrors,
+  publishedTimeOfDaySchedule,
+  sameSchedule,
+  scheduleFromDraft,
+  type TimeOfDayDraft,
+} from '../lib/time-of-day'
 import { pricingLoadErrorTitle } from '../model-pricing-error'
 import type {
   CanvasBillingUnit,
@@ -80,6 +97,8 @@ import {
 import { ModelPricingPublishConfirmation } from './ModelPricingPublishConfirmation'
 import { ModelPricingScheduleCancelDialog } from './ModelPricingScheduleCancelDialog'
 import { ModelPricingUnitSummary } from './ModelPricingUnitSummary'
+import { timeOfDayScheduleText } from './time-of-day-text'
+import { TimeOfDayMultiplierSection } from './TimeOfDayMultiplierSection'
 import { UnifiedModelPricingHistory } from './UnifiedModelPricingHistory'
 
 type PricingTab = 'current' | 'history'
@@ -127,7 +146,7 @@ export function UnifiedModelPricing(props: {
   tab?: PricingTab
   onTabChange?: (tab: PricingTab) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const workspace = useQuery({
     queryKey: ['canvas-cloud', 'model-pricing'],
@@ -153,6 +172,10 @@ export function UnifiedModelPricing(props: {
   } | null>(null)
   const [initializedModelId, setInitializedModelId] = useState<string | null>(
     null
+  )
+  const [planFilter, setPlanFilter] = usePricingPlanFilter()
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDayDraft>(() =>
+    draftFromSchedule(null)
   )
   const form = useForm<PricingMetaValues>({
     resolver: zodResolver(pricingMetaSchema),
@@ -196,6 +219,7 @@ export function UnifiedModelPricing(props: {
     setPricing(latest)
     setPricingChanged(false)
     setDrafts(originalPricingDrafts(latest))
+    setTimeOfDay(draftFromSchedule(publishedTimeOfDaySchedule(latest)))
     setBillingUnit(
       model.billingUnit ?? model.allowedBillingUnits[0] ?? 'REQUEST'
     )
@@ -249,9 +273,26 @@ export function UnifiedModelPricing(props: {
     ),
     unitPending: !unitChosen,
   }
+  // The schedule is page-wide for a Token model and published with every priced plan of every spec.
+  const timeOfDayAvailable =
+    billingUnit === 'MILLION_TOKENS' && unitChosen && !state.unitChange
+  const publishedSchedule = pricing ? publishedTimeOfDaySchedule(pricing) : null
+  const draftSchedule = scheduleFromDraft(timeOfDay)
+  const timeOfDayChanged =
+    timeOfDayAvailable && !sameSchedule(draftSchedule, publishedSchedule)
+  const timeOfDayInvalid = timeOfDayChanged && draftHasErrors(timeOfDay)
+  // Price edits alone: the table, the summary and the confirmation list them; the schedule is named on its own.
   const includedRows = rows.filter((row) => isRowIncluded(state, row))
+  const publicationState: PricingEditorState =
+    timeOfDayChanged && !timeOfDayInvalid
+      ? { ...state, timeOfDayChange: { schedule: draftSchedule } }
+      : state
+  // Unpublished pricing edits: prices, a unit change or the time-of-day schedule. A refresh to newer versions then keeps
+  // them and asks to discard instead of replacing them, and the publish bar counts them.
+  const hasPricingEdits =
+    includedRows.length > 0 || state.unitChange || timeOfDayChanged
   useEffect(() => {
-    hasEdits.current = includedRows.length > 0 || state.unitChange
+    hasEdits.current = hasPricingEdits
   })
   const labeling = pricing
     ? pricingRowLabeling(pricing, billingUnit === 'MILLION_TOKENS')
@@ -273,7 +314,7 @@ export function UnifiedModelPricing(props: {
   const [calculationFailed, setCalculationFailed] = useState(false)
   const [calculationRetry, setCalculationRetry] = useState(0)
   const scopesForCalculation =
-    pricing && unitChosen ? calculationScopes(state) : null
+    pricing && unitChosen ? calculationScopes(publicationState) : null
   // Serialized, so the request only repeats when the priced values change.
   const calculationKey = JSON.stringify(scopesForCalculation)
   useEffect(() => {
@@ -398,6 +439,7 @@ export function UnifiedModelPricing(props: {
     setAttempted(false)
     const latest = detail.data ?? pricing
     if (latest) adoptPricing(latest)
+    else setTimeOfDay(draftFromSchedule(publishedSchedule))
     form.reset(EMPTY_META)
     preview.reset()
     publication.reset()
@@ -405,10 +447,9 @@ export function UnifiedModelPricing(props: {
 
   const isDirty = Boolean(
     pricing &&
-    (includedRows.length > 0 ||
+    (hasPricingEdits ||
       decisionSummary.trim() ||
-      effectiveMode === 'SCHEDULED' ||
-      state.unitChange)
+      effectiveMode === 'SCHEDULED')
   )
 
   function changeDraft(
@@ -439,6 +480,17 @@ export function UnifiedModelPricing(props: {
     setAttempted(true)
     const revision = ++previewRevision.current
     setConflicts([])
+    if (timeOfDayInvalid) {
+      setBarError(t('Fix the time-of-day multipliers marked in red first'))
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLElement>(
+            '[data-time-of-day] [aria-invalid="true"]'
+          )
+          ?.focus()
+      )
+      return
+    }
     const firstError = firstPricingError(state)
     if (firstError) {
       setBarError(t('Fix the prices marked in red first'))
@@ -456,7 +508,7 @@ export function UnifiedModelPricing(props: {
       return
     }
     setBarError('')
-    const scopes = publicationScopes(state)
+    const scopes = publicationScopes(publicationState)
     let identity: CanvasModelPricingCnyCalculation['inputIdentity']
     try {
       identity = (
@@ -569,6 +621,23 @@ export function UnifiedModelPricing(props: {
   } else if (includedRows.length) {
     summary = t('Changed {{count}} pricing scopes', { count: scopeCount })
   }
+  if (timeOfDayChanged) {
+    summary = includedRows.length
+      ? t('{{summary}}; time-of-day multipliers changed', { summary })
+      : t('Time-of-day multipliers changed')
+  }
+  const scheduledRate = pricing.pricingScopes.find(
+    (scope) => scope.scheduledProviderRate
+  )?.scheduledProviderRate
+  const scheduledSchedule =
+    timeOfDayAvailable &&
+    scheduledRate?.effectiveAt &&
+    !sameSchedule(scheduledRate.timeOfDaySchedule ?? null, publishedSchedule)
+      ? {
+          schedule: scheduledRate.timeOfDaySchedule ?? null,
+          effectiveAt: scheduledRate.effectiveAt,
+        }
+      : null
 
   return (
     <div className='space-y-4'>
@@ -667,6 +736,39 @@ export function UnifiedModelPricing(props: {
               )}
             </p>
           ) : null}
+          {timeOfDayAvailable ? (
+            <TimeOfDayMultiplierSection
+              draft={timeOfDay}
+              changed={timeOfDayChanged}
+              attempted={attempted}
+              scheduled={scheduledSchedule}
+              priceRows={rows
+                .filter((row) =>
+                  matchesPricingPlanFilter(
+                    row,
+                    planFilter,
+                    effectivePriceGroupIds(
+                      planFilter,
+                      pricing.priceGroups.map((plan) => plan.id)
+                    )
+                  )
+                )
+                .map((row) => ({
+                  id: row.id,
+                  label: pricingRowLabel(row, labeling, t),
+                  customerCny: draftValue(state, row, 'customer') || null,
+                  costCny: draftValue(state, row, 'provider') || null,
+                }))}
+              pointsPerRmb={
+                calculation?.pointIssuanceRate.pointsPerRmb ??
+                publishedIssuanceRate?.pointsPerRmb
+              }
+              onChange={(next) => {
+                invalidatePreview()
+                setTimeOfDay(next)
+              }}
+            />
+          ) : null}
           <ModelPricingEditorTable
             detail={pricing}
             state={state}
@@ -678,6 +780,8 @@ export function UnifiedModelPricing(props: {
               setCancelTarget({ publicationId, scopeId })
             }
             reveal={reveal}
+            planFilter={planFilter}
+            onPlanFilterChange={setPlanFilter}
           />
         </TabsContent>
         <TabsContent value='history' className='mt-4'>
@@ -692,7 +796,7 @@ export function UnifiedModelPricing(props: {
         <PageFooterPortal>
           <ModelPricingPublishBar
             summary={summary}
-            dirty={includedRows.length > 0}
+            dirty={hasPricingEdits}
             error={barError}
             effectiveMode={effectiveMode}
             scheduleDisabled={selected.billingUnitState === 'MIXED'}
@@ -704,7 +808,7 @@ export function UnifiedModelPricing(props: {
                 : undefined
             }
             publishDisabled={
-              includedRows.length === 0 ||
+              !hasPricingEdits ||
               pricingChanged ||
               !unitChosen ||
               preview.isPending ||
@@ -740,6 +844,11 @@ export function UnifiedModelPricing(props: {
         effectiveAt={effectiveAt}
         reason={decisionSummary}
         pending={publication.isPending}
+        timeOfDayChange={
+          timeOfDayChanged
+            ? `${timeOfDayScheduleText(publishedSchedule, t, i18n.language)} → ${timeOfDayScheduleText(draftSchedule, t, i18n.language)}`
+            : undefined
+        }
         onConfirm={() => {
           if (!preview.data?.canPublish || !previewId || !publishKey) return
           if (

@@ -16,14 +16,3 @@ export const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   cacheRead: 'Cache read',
   cacheWrite: 'Cache write',
 }
-
-/** "Input 2 · Output 4": the priced categories in display order. */
-export function tokenRateSummary(
-  rates: Partial<Record<CanvasTokenCategory, string>>,
-  t: (key: string) => string
-) {
-  return (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
-    .filter((category) => typeof rates[category] === 'string')
-    .map((category) => `${t(tokenCategoryLabel[category])} ${rates[category]}`)
-    .join(' · ')
-}

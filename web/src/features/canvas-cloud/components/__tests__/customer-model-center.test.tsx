@@ -209,7 +209,7 @@ describe('customer model center', () => {
     expect(cards()[0]).toHaveTextContent('22points per second')
     expect(cards()[0]).toHaveTextContent('150points per request')
     fireEvent.click(screen.getByRole('button', { name: 'chat.generate' }))
-    expect(cards()[0]).toHaveTextContent('Input 12 · Output 48points per million tokens')
+    expect(cards()[0]).toHaveTextContent('Input12points per million tokensOutput48points per million tokens')
     expect(cards()[0]).not.toHaveTextContent('0points')
   })
 })

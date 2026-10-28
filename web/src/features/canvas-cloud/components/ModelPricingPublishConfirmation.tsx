@@ -58,6 +58,8 @@ export function ModelPricingPublishConfirmation(props: {
   effectiveAt: string
   reason: string
   pending: boolean
+  /** "old → new" of a changed time-of-day schedule. */
+  timeOfDayChange?: string
   onConfirm: () => void
 }) {
   const { t } = useTranslation()
@@ -138,6 +140,9 @@ export function ModelPricingPublishConfirmation(props: {
           </span>
         ),
       })),
+    ...(props.timeOfDayChange
+      ? [{ label: t('Time-of-day multipliers'), value: props.timeOfDayChange }]
+      : []),
     {
       label: t('Effective mode'),
       value:
