@@ -2000,7 +2000,8 @@ export interface CanvasAdminTaskRecordDetail {
   manualResults: CanvasAdminTaskManualResult[]
   providerCost?: CanvasAdminTaskProviderCost
   parameters: Record<string, string | number | boolean | null> | null
-  multiResultMode: 'NATIVE' | 'FANOUT'
+  /** How several results are produced; null for a text task, which has one answer. */
+  multiResultMode: 'NATIVE' | 'FANOUT' | null
   failureLocation:
     | 'EXECUTOR_PREFLIGHT'
     | 'PROVIDER_NETWORK'

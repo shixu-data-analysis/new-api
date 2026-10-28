@@ -471,6 +471,18 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows a text task with the output limit it sent and no multi-result mode', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      billingUnit: 'MILLION_TOKENS',
+      parameters: { maxTokens: 393216 },
+      multiResultMode: null,
+    })
+    mount()
+    const parameters = await screen.findByText(/"maxTokens": 393216/)
+    expect(parameters).not.toHaveTextContent('multiResultMode')
+  })
+
   it('keeps unknown failure location hidden and opens details of an unfinished task', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,

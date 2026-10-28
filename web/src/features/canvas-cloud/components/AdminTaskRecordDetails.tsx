@@ -373,7 +373,9 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
         <h3 className='text-sm font-medium'>{t('Actual task parameters')}</h3>
         <JsonSnapshot
           value={{
-            multiResultMode: task.multiResultMode.toLowerCase(),
+            ...(task.multiResultMode
+              ? { multiResultMode: task.multiResultMode.toLowerCase() }
+              : {}),
             ...Object.fromEntries(parameters),
           }}
           description={t(
