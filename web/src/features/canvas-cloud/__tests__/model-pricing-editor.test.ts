@@ -251,6 +251,24 @@ describe('model pricing editor rules', () => {
     )
   })
 
+  it('accepts CNY prices with up to 8 decimals and compares them exactly', () => {
+    let state = edit(
+      editor(multiPlanDetail()),
+      '4K:scalar:vip',
+      'inviter',
+      '0.12000001'
+    )
+    const errors = (customer: string) => {
+      state = edit(state, '4K:scalar:vip', 'customer', customer)
+      return pricingRowErrors(state, row(state, '4K:scalar:vip'), true)
+    }
+
+    expect(errors('0.481035')).toEqual({})
+    expect(errors('0.12000001')).toEqual({})
+    expect(errors('0.12')).toEqual({ customer: PRICING_MESSAGES.customer })
+    expect(errors('0.120000015')).toEqual({ customer: PRICING_MESSAGES.amount })
+  })
+
   it('requires every Token category of a newly priced plan once one is filled', () => {
     const detail = multiPlanDetail()
     const [scope] = detail.pricingScopes

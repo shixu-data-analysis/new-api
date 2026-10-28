@@ -67,9 +67,9 @@ export const PRICING_SIDE_LABEL_KEYS: Record<PricingSide, string> = {
 }
 
 export const PRICING_MESSAGES = {
-  amount: 'Enter an amount above 0 with up to 4 decimals',
+  amount: 'Enter an amount above 0 with up to 8 decimals',
   inviter:
-    'Inviter display price must be at least provider cost, with up to 4 decimals.',
+    'Inviter display price must be at least provider cost, with up to 8 decimals.',
   customer: 'Customer sale price must be at least inviter display price.',
   scheduled: 'A price is scheduled. Cancel the schedule first.',
 } as const
@@ -351,17 +351,18 @@ export function isRowIncluded(
   )
 }
 
-export function isRmbAmount4(value: string) {
-  return /^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/.test(value)
+/** A CNY price as Cloud accepts it: up to 8 decimals, the precision of Token rates and costs. */
+export function isRmbAmount(value: string) {
+  return /^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/.test(value)
 }
 
 export function isPositiveRmbAmount(value: string) {
-  return isRmbAmount4(value) && Number(value) > 0
+  return isRmbAmount(value) && Number(value) > 0
 }
 
 function cnyScaled(value: string): bigint {
   const [whole, fraction = ''] = value.split('.')
-  return BigInt(whole) * 10000n + BigInt(fraction.padEnd(4, '0'))
+  return BigInt(whole) * 100_000_000n + BigInt(fraction.padEnd(8, '0'))
 }
 
 export type PricingRowErrors = Partial<Record<'inviter' | 'customer', string>>
@@ -384,7 +385,7 @@ export function pricingRowErrors(
   const errors: PricingRowErrors = {}
   if (
     (inviter !== '' || flagEmpty) &&
-    (!isRmbAmount4(inviter) ||
+    (!isRmbAmount(inviter) ||
       (isPositiveRmbAmount(provider) &&
         cnyScaled(inviter) < cnyScaled(provider)))
   ) {
@@ -394,7 +395,7 @@ export function pricingRowErrors(
     if (customer !== '' || flagEmpty) errors.customer = PRICING_MESSAGES.amount
   } else if (
     !errors.inviter &&
-    isRmbAmount4(inviter) &&
+    isRmbAmount(inviter) &&
     cnyScaled(customer) < cnyScaled(inviter)
   ) {
     errors.customer = PRICING_MESSAGES.customer
@@ -541,7 +542,7 @@ export function calculationScopes(
     const prices = []
     for (const price of scope.prices) {
       const complete =
-        cnyFieldsComplete(price.inviterDisplayPriceCny, isRmbAmount4) &&
+        cnyFieldsComplete(price.inviterDisplayPriceCny, isRmbAmount) &&
         cnyFieldsComplete(price.customerPriceCny, isPositiveRmbAmount)
       if (complete) prices.push(price)
       else if (required.has(price.priceGroupId)) return null

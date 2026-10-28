@@ -35,6 +35,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { toIntlLocale } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
@@ -70,6 +71,7 @@ import {
   pricingRowLabel,
   pricingRowLabeling,
 } from '../lib/model-pricing-row-label'
+import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyValue,
@@ -156,7 +158,11 @@ export function ModelPricingEditorTable(props: {
   planFilter: PricingPlanFilter
   onPlanFilterChange: (filter: PricingPlanFilter) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.language)
+  // Cloud returns CNY differences with 8 decimals; the note shows the amount without trailing zeros.
+  const difference = (value: CanvasModelPricingCnyValue, field: string) =>
+    formatExactRmbReference(fieldValue(value, field), locale)
   const { detail, state } = props
   const [combinationFilter, setCombinationFilter] = useState(ALL)
   const { planFilter, onPlanFilterChange: setPlanFilter } = props
@@ -314,7 +320,7 @@ export function ModelPricingEditorTable(props: {
       if (result) {
         notes.push({
           text: t('Above provider cost by {{amount}} yuan', {
-            amount: fieldValue(result.inviterMinusProviderCny, row.field),
+            amount: difference(result.inviterMinusProviderCny, row.field),
           }),
         })
       }
@@ -342,7 +348,7 @@ export function ModelPricingEditorTable(props: {
       notes.push({ text: `${calculatedPoints(result, row)} ${pointsUnit}` })
       notes.push({
         text: t('Above inviter display price by {{amount}} yuan', {
-          amount: fieldValue(result.customerMinusInviterCny, row.field),
+          amount: difference(result.customerMinusInviterCny, row.field),
         }),
       })
     }

@@ -152,8 +152,8 @@ const calculation = {
           sourcePriceVersion: 1,
           normalizedPoints: '124',
           normalizedTokenRates: null,
-          inviterMinusProviderCny: '0.5000',
-          customerMinusInviterCny: '0.2345',
+          inviterMinusProviderCny: '0.50000000',
+          customerMinusInviterCny: '0.23450000',
           fullCostCny: '0.5000',
           actualMarginRate: '0.59',
           canPublish: true,
@@ -193,8 +193,8 @@ const preview = {
             ...current,
             cnyCalculation: {
               ...original,
-              inviterMinusProviderCny: '0.5000',
-              customerMinusInviterCny: '0.2345',
+              inviterMinusProviderCny: '0.50000000',
+              customerMinusInviterCny: '0.23450000',
             },
           },
           calculation: null,
@@ -288,7 +288,7 @@ describe('UnifiedModelPricing inline editing', () => {
     ])
     expect(screen.queryByText('Adjust pricing')).not.toBeInTheDocument()
     expect(await screen.findByText('124 points per request')).toBeVisible()
-    expect(screen.getByText('Above provider cost by 0.5000 yuan')).toBeVisible()
+    expect(screen.getByText('Above provider cost by 0.5 yuan')).toBeVisible()
     expect(screen.getByText(/100\.0000 points per RMB/)).toBeVisible()
     expect(
       screen.getByText('Above inviter display price by 0.2345 yuan')
@@ -356,7 +356,7 @@ describe('UnifiedModelPricing inline editing', () => {
 
     expect(
       await screen.findByText(
-        'Inviter display price must be at least provider cost, with up to 4 decimals.'
+        'Inviter display price must be at least provider cost, with up to 8 decimals.'
       )
     ).toBeVisible()
     expect(
@@ -728,7 +728,7 @@ describe('UnifiedModelPricing inline editing', () => {
     expect(inputPrice).toHaveValue('1,2')
     // The invalid draft keeps its field error in the table and is not priced at any period.
     expect(
-      screen.getByText('Enter an amount above 0 with up to 4 decimals')
+      screen.getByText('Enter an amount above 0 with up to 8 decimals')
     ).toBeVisible()
     expect(screen.queryByText(/1,2 yuan/u)).toBeNull()
     expect(screen.queryByText('248 points · cost 0.96 yuan')).toBeNull()
