@@ -1966,6 +1966,19 @@ export interface CanvasAdminTaskManualResult {
   completedAt: string | null
 }
 
+/** What a Token task's points were worked out from, frozen with its Quote; null for other billing units. */
+export interface CanvasAdminTokenBilling {
+  tokenRates: Partial<CanvasTokenRateVector>
+  timeOfDay: {
+    multiplier: string
+    timeZone: string
+    ruleIndex: number | null
+  } | null
+  inputTokensEstimate: string | null
+  maxTokens: number | null
+  requestedMaxTokens: number | null
+}
+
 export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
@@ -2002,6 +2015,7 @@ export interface CanvasAdminTaskRecordDetail {
   parameters: Record<string, string | number | boolean | null> | null
   /** How several results are produced; null for a text task, which has one answer. */
   multiResultMode: 'NATIVE' | 'FANOUT' | null
+  tokenBilling: CanvasAdminTokenBilling | null
   failureLocation:
     | 'EXECUTOR_PREFLIGHT'
     | 'PROVIDER_NETWORK'

@@ -58,10 +58,13 @@ import {
   customerOutputLabelKey,
   customerPoints,
 } from '../customer-task-view'
+import { tokenCategoryLabel } from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
+  CanvasAdminTokenBilling,
+  CanvasTokenCategory,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -229,6 +232,71 @@ function settlementSummary(
   if (released) return t('Points released')
   return t('Settlement complete')
 }
+/** What a Token task's points were worked out from, as its Quote froze it: rates, multiplier, hold and output limit. */
+function TokenBillingSnapshot(props: {
+  billing: CanvasAdminTokenBilling
+  heldPoints: string
+  locale: string | undefined
+}) {
+  const { t } = useTranslation()
+  const { billing } = props
+  const count = (value: number | string) =>
+    new Intl.NumberFormat(props.locale).format(Number(value))
+  const rates = (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
+    .filter((category) => typeof billing.tokenRates[category] === 'string')
+    .map(
+      (category) =>
+        `${t(tokenCategoryLabel[category])} ${billing.tokenRates[category]}`
+    )
+    .join(' · ')
+  let multiplier = t('Not set')
+  if (billing.timeOfDay?.ruleIndex === null) {
+    multiplier = t('×1, outside every period')
+  } else if (billing.timeOfDay) {
+    multiplier = t('×{{multiplier}}, period {{period}}', {
+      multiplier: billing.timeOfDay.multiplier,
+      period: billing.timeOfDay.ruleIndex + 1,
+    })
+  }
+  let outputLimit = t('Output limit: not limited')
+  if (billing.maxTokens !== null && billing.requestedMaxTokens === null) {
+    outputLimit = t('Output limit: {{tokens}} Tokens (automatic)', {
+      tokens: count(billing.maxTokens),
+    })
+  } else if (
+    billing.maxTokens !== null &&
+    billing.requestedMaxTokens !== null
+  ) {
+    outputLimit =
+      billing.requestedMaxTokens === billing.maxTokens
+        ? t('Output limit: {{tokens}} Tokens (set by the customer)', {
+            tokens: count(billing.maxTokens),
+          })
+        : t(
+            'Output limit: {{tokens}} Tokens (customer set {{requested}}, reduced to the context left)',
+            {
+              tokens: count(billing.maxTokens),
+              requested: count(billing.requestedMaxTokens),
+            }
+          )
+  }
+  return (
+    <ul className='space-y-1'>
+      <li>{t('Rates: {{rates}} points per million Tokens', { rates })}</li>
+      <li>{t('Time-of-day multiplier: {{value}}', { value: multiplier })}</li>
+      {billing.inputTokensEstimate === null ? null : (
+        <li>
+          {t('Input estimate: {{tokens}} Tokens, held {{points}} points', {
+            tokens: count(billing.inputTokensEstimate),
+            points: props.heldPoints,
+          })}
+        </li>
+      )}
+      <li>{outputLimit}</li>
+    </ul>
+  )
+}
+
 const incompleteCostReasons: Record<string, string> = {
   MISSING_USAGE: 'Missing complete usage',
   MISSING_RATE: 'Missing purchase rate',
@@ -921,6 +989,15 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
         <DetailValue label='Point status'>
           {settlementSummary(task, t)}
         </DetailValue>
+        {task.tokenBilling ? (
+          <DetailValue label='Billing snapshot'>
+            <TokenBillingSnapshot
+              billing={task.tokenBilling}
+              heldPoints={task.quotedPoints}
+              locale={locale}
+            />
+          </DetailValue>
+        ) : null}
         {hasPendingFrozenOutput ? (
           <DetailValue label='Latest point release time'>
             {formatTime(locale, task.unknownDeadlineAt)}

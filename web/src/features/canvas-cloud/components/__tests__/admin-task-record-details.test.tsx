@@ -73,6 +73,7 @@ const task = {
     hiddenSecret: 'never',
   },
   multiResultMode: 'FANOUT',
+  tokenBilling: null,
   failureLocation: 'PROVIDER_RESPONSE',
   inputAssets: [],
   outputs: [],
@@ -475,12 +476,45 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,
       billingUnit: 'MILLION_TOKENS',
+      quotedPoints: '2',
       parameters: { maxTokens: 393216 },
       multiResultMode: null,
+      tokenBilling: {
+        tokenRates: { input: '30', output: '119', cacheRead: '1' },
+        timeOfDay: { multiplier: '2', timeZone: 'Asia/Shanghai', ruleIndex: 0 },
+        inputTokensEstimate: '16',
+        maxTokens: 393216,
+        requestedMaxTokens: null,
+      },
     })
     mount()
     const parameters = await screen.findByText(/"maxTokens": 393216/)
     expect(parameters).not.toHaveTextContent('multiResultMode')
+    // The billing snapshot explains the points: rates, the frozen multiplier, the hold and the output limit sent.
+    expect(
+      screen.getByText(
+        'Rates: Input 30 · Output 119 · Cache read 1 points per million Tokens'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText('Time-of-day multiplier: ×2, period 1')
+    ).toBeVisible()
+    expect(
+      screen.getByText('Input estimate: 16 Tokens, held 2 points')
+    ).toBeVisible()
+    expect(
+      screen.getByText('Output limit: 393,216 Tokens (automatic)')
+    ).toBeVisible()
+  })
+
+  it('shows no billing snapshot for a task billed per request', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      tokenBilling: null,
+    })
+    mount()
+    expect(await screen.findByText('Point status')).toBeVisible()
+    expect(screen.queryByText(/Billing snapshot/)).not.toBeInTheDocument()
   })
 
   it('keeps unknown failure location hidden and opens details of an unfinished task', async () => {
