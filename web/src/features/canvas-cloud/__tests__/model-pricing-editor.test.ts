@@ -569,3 +569,59 @@ describe('one Token price for a Token-billed image (IMAGE-TOKEN-BILLING-001)', (
     expect(sharedTokenPrice(single)).toBe(false)
   })
 })
+
+describe('Token-billed video pricing (VIDEO-TOKEN-BILLING-001)', () => {
+  it('sends exactly the two totals of every resolution, with no input or output', () => {
+    const scope = (id: string) => ({
+      parameterCombinationId: id,
+      combinationKey: `quality=${id}`,
+      parameters: { quality: id },
+      enabled: true,
+      controlEnabled: true,
+      currentProviderRate: null,
+      scheduledProviderRate: null,
+      originalProviderSuccessPriceCny: null,
+      prices: [price('standard', null)],
+    })
+    const detail = {
+      model: {
+        capability: 'video.generate',
+        billingUnit: 'MILLION_TOKENS',
+        billingUnitState: 'CONSISTENT',
+        allowedBillingUnits: ['REQUEST', 'SECOND', 'MILLION_TOKENS'],
+        oneTokenPrice: false,
+        tokenCategories: ['total', 'totalWithVideoInput'],
+      },
+      priceGroups: [
+        { id: 'standard', code: 'standard', internalName: 'standard' },
+      ],
+      pricingScopes: [scope('480p'), scope('720p')],
+    } as unknown as CanvasModelPricingDetail
+    let state = editor(detail, 'MILLION_TOKENS')
+    for (const quality of ['480p', '720p']) {
+      for (const [category, amount] of [
+        ['total', '65.763216'],
+        ['totalWithVideoInput', '39.335008'],
+      ] as const) {
+        for (const side of ['provider', 'inviter', 'customer'] as const) {
+          state = edit(state, `${quality}:${category}:standard`, side, amount)
+        }
+      }
+    }
+    const rates = { total: '65.763216', totalWithVideoInput: '39.335008' }
+
+    expect(calculationScopes(state)).toEqual(
+      ['480p', '720p'].map((quality) => ({
+        parameterCombinationId: quality,
+        providerSuccessPriceCny: rates,
+        prices: [
+          {
+            priceGroupId: 'standard',
+            inviterDisplayPriceCny: rates,
+            customerPriceCny: rates,
+          },
+        ],
+      }))
+    )
+  })
+})

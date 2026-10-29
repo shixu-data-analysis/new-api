@@ -61,3 +61,20 @@ describe('agent usage of a Token-billed image (IMAGE-TOKEN-BILLING-001)', () => 
     ).toBe('Input 1,130 · Output 1,292 Tokens')
   })
 })
+
+describe('agent usage of a Token-billed video (VIDEO-TOKEN-BILLING-001)', () => {
+  it('lists only the measured totals when the period has no single price', () => {
+    const usage = row({ totalTokens: '108900', totalWithVideoInputTokens: '0' })
+    expect(formatAgentUsage(usage, null, t, 'en-US')).toBe(
+      'Without video input 108,900 Tokens'
+    )
+    expect(
+      formatAgentUsage(
+        usage,
+        { total: '48', totalWithVideoInput: '29.5' },
+        t,
+        'en-US'
+      )
+    ).toBe('Without video input 108,900 · With video input 0 Tokens')
+  })
+})

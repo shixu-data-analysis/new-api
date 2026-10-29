@@ -49,7 +49,8 @@ const usageFields: Record<
   totalWithVideoInput: 'totalWithVideoInputTokens',
 }
 
-// A Token model lists only the categories it prices; without one frozen price, the measured categories stand in.
+// A Token model lists only the categories it prices; without one frozen price, the measured categories stand in
+// (a video measures only its totals), and a row that measured nothing shows a text model's input and output.
 function supportedCategories(
   row: CanvasAgentModelUsageRow,
   price: PriceSnapshot
@@ -57,12 +58,10 @@ function supportedCategories(
   if (price && typeof price === 'object') {
     return tokenCategories.filter((category) => price[category] !== undefined)
   }
-  return tokenCategories.filter(
-    (category) =>
-      category === 'input' ||
-      category === 'output' ||
-      (row.usage[usageFields[category]] ?? '0') !== '0'
+  const measured = tokenCategories.filter(
+    (category) => (row.usage[usageFields[category]] ?? '0') !== '0'
   )
+  return measured.length > 0 ? measured : ['input', 'output']
 }
 
 const unitKey: Record<Exclude<CanvasBillingUnit, 'MILLION_TOKENS'>, string> = {

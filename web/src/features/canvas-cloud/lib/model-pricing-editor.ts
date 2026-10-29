@@ -544,20 +544,13 @@ function cnyValue(
   state: PricingEditorState
 ): CanvasModelPricingCnyValue {
   if (state.billingUnit !== 'MILLION_TOKENS') return values?.scalar ?? ''
-  const result: CanvasModelPricingTokenRateVector = {
-    input: values?.input ?? '',
-    output: values?.output ?? '',
-  }
-  if (state.tokenCategories.includes('cacheRead')) {
-    result.cacheRead = values?.cacheRead ?? ''
-  }
-  if (state.tokenCategories.includes('cacheWrite')) {
-    result.cacheWrite = values?.cacheWrite ?? ''
-  }
-  if (state.tokenCategories.includes('imageInput')) {
-    result.imageInput = values?.imageInput ?? ''
-  }
-  return result
+  // Exactly the categories the model declares: a video has only its two totals, no input or output.
+  return Object.fromEntries(
+    state.tokenCategories.map((category) => [
+      category,
+      values?.[category] ?? '',
+    ])
+  ) as CanvasModelPricingTokenRateVector
 }
 
 /**
