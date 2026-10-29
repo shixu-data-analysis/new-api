@@ -25,7 +25,10 @@ import {
   rateAtMultiplier,
   sharedTimeOfDaySchedule,
 } from '../lib/time-of-day-display'
-import { tokenCategoryLabel } from '../lib/token-rate-summary'
+import {
+  tokenCategoryLabel,
+  tokenCategoryLabelKey,
+} from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
 import type { CanvasAgentModelPrice, CanvasTokenCategory } from '../types'
 import { ModelCardPrices, type ModelCardPrice } from './ModelCardPrices'
@@ -78,7 +81,7 @@ function agentPrices(
             .filter((category) => typeof perCategory[category] === 'string')
             .map(
               (category) =>
-                `${t(tokenCategoryLabel[category])} ${rmb(perCategory[category] as string)}`
+                `${t(tokenCategoryLabelKey(category, Object.keys(perCategory)))} ${rmb(perCategory[category] as string)}`
             )
             .join(' · ')}
         </span>
@@ -95,6 +98,7 @@ function agentPrices(
       categories: perCategory
         ? (Object.keys(perCategory) as CanvasTokenCategory[])
         : undefined,
+      priceIdentity: JSON.stringify(modelPrice),
       categoryExtra:
         perCategory && tokenRows
           ? (category, multiplier) => {
@@ -122,6 +126,7 @@ function agentPrices(
  */
 export function AgentModelPriceCards(props: {
   models: CanvasAgentModelPrice[]
+  showModelIcons: boolean
 }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.language)
@@ -155,6 +160,7 @@ export function AgentModelPriceCards(props: {
             capability={model.capability}
             iconKey={model.iconKey}
             iconColor={model.iconColor}
+            showIcon={props.showModelIcons}
             badges={model.badges}
             description={model.description ?? undefined}
           >

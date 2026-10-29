@@ -33,6 +33,7 @@ import { useMinuteNow } from './time-of-day-text'
 export function CustomerModelCenter(props: {
   models: CanvasCatalogModel[]
   categories: CanvasCatalogCategories
+  showModelIcons: boolean
 }) {
   const { t } = useTranslation()
   // '' opens the first type in client order; null follows the category the type opens on.
@@ -148,6 +149,7 @@ export function CustomerModelCenter(props: {
               capability={model.catalog.capability}
               iconKey={model.iconKey}
               iconColor={model.iconColor}
+              showIcon={props.showModelIcons}
               badges={model.badges}
               description={
                 typeof model.catalog.description === 'string'

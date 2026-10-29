@@ -22,7 +22,6 @@ export const MODEL_ICON_LABEL_KEYS: Record<ModelIconKey, string> = {
   video: 'Generic video icon',
   chat: 'Generic chat icon',
 }
-export const DEFAULT_MODEL_ICON_LABEL_KEY = 'Default (by type)'
 
 export const MODEL_COLOR_LABEL_KEYS: Record<ModelPresentationColor, string> = {
   gray: 'Color gray',

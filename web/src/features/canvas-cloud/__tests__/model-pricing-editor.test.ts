@@ -21,7 +21,10 @@ import {
   pricingFields,
   pricingRowErrors,
   publicationScopes,
+  sharedTokenPrice,
+  shownRows,
   withDraftValue,
+  withEditedValue,
   type PricingEditorRow,
   type PricingEditorState,
   type PricingSide,
@@ -400,5 +403,169 @@ describe('model pricing editor rules', () => {
     expect(currentPricingIdentity(republished)).not.toBe(
       currentPricingIdentity(before)
     )
+  })
+})
+
+describe('one Token price for a Token-billed image (IMAGE-TOKEN-BILLING-001)', () => {
+  const pricedValues = { provider: '1', inviter: '2', customer: '3' }
+  // 1K, 2K and 4K; `disabled4K` keeps 4K disabled with a current standard price.
+  function imageDetail(disabled4K = false): CanvasModelPricingDetail {
+    const scope = (id: string, enabled = true) => ({
+      parameterCombinationId: id,
+      combinationKey: `quality=${id}`,
+      parameters: { quality: id },
+      enabled,
+      controlEnabled: true,
+      currentProviderRate: enabled ? null : { id: `rate-${id}` },
+      scheduledProviderRate: null,
+      originalProviderSuccessPriceCny: null,
+      prices: enabled
+        ? [price('standard', null), price('vip', null)]
+        : [price('standard', pricedValues), price('vip', null)],
+    })
+    return {
+      model: {
+        capability: 'image.generate',
+        billingUnit: 'MILLION_TOKENS',
+        billingUnitState: 'CONSISTENT',
+        allowedBillingUnits: ['REQUEST', 'MILLION_TOKENS'],
+        oneTokenPrice: true,
+        tokenCategories: ['input', 'imageInput', 'output'],
+      },
+      priceGroups: [
+        { id: 'standard', code: 'standard', internalName: 'standard' },
+        { id: 'vip', code: 'vip', internalName: 'vip' },
+      ],
+      pricingScopes: [scope('1K'), scope('2K'), scope('4K', !disabled4K)],
+    } as unknown as CanvasModelPricingDetail
+  }
+
+  function oneTokenEditor(
+    detail: CanvasModelPricingDetail,
+    unit: 'MILLION_TOKENS' | 'REQUEST' = 'MILLION_TOKENS'
+  ) {
+    return {
+      ...editor(detail, 'MILLION_TOKENS'),
+      unitChange: unit !== 'MILLION_TOKENS',
+      oneTokenPrice: sharedTokenPrice(detail),
+    }
+  }
+
+  // Fills every category of both plans through the shown 1K rows.
+  function priceEverything(state: PricingEditorState) {
+    let next = state
+    for (const field of next.fields) {
+      for (const plan of ['standard', 'vip']) {
+        for (const [side, value] of [
+          ['provider', '1'],
+          ['inviter', '2'],
+          ['customer', '3'],
+        ] as const) {
+          next = {
+            ...next,
+            drafts: withEditedValue(
+              next,
+              next.drafts,
+              row(next, `1K:${field}:${plan}`),
+              side,
+              value
+            ),
+          }
+        }
+      }
+    }
+    return next
+  }
+
+  it('shows one spec of rows by category and plan and publishes every spec alike', () => {
+    const state = priceEverything(oneTokenEditor(imageDetail()))
+    expect(shownRows(state).map((item) => item.id)).toEqual([
+      '1K:input:standard',
+      '1K:input:vip',
+      '1K:imageInput:standard',
+      '1K:imageInput:vip',
+      '1K:output:standard',
+      '1K:output:vip',
+    ])
+    const scopes = publicationScopes(state)
+    expect(scopes.map((scope) => scope.parameterCombinationId)).toEqual([
+      '1K',
+      '2K',
+      '4K',
+    ])
+    expect(
+      new Set(
+        scopes.map((scope) =>
+          JSON.stringify({
+            cost: scope.providerSuccessPriceCny,
+            prices: scope.prices.map(
+              ({ priceGroupId, inviterDisplayPriceCny, customerPriceCny }) => ({
+                priceGroupId,
+                inviterDisplayPriceCny,
+                customerPriceCny,
+              })
+            ),
+          })
+        )
+      )
+    ).toHaveProperty('size', 1)
+    expect(scopes[0]?.providerSuccessPriceCny).toEqual({
+      input: '1',
+      imageInput: '1',
+      output: '1',
+    })
+  })
+
+  it('leaves a disabled spec out of a price change and re-prices only its plans on a unit switch, as Cloud requires', () => {
+    const detail = imageDetail(true)
+    const change = priceEverything(oneTokenEditor(detail))
+    expect(
+      publicationScopes(change).map((scope) => scope.parameterCombinationId)
+    ).toEqual(['1K', '2K'])
+    const unitSwitch = priceEverything(oneTokenEditor(detail, 'REQUEST'))
+    const scopes = publicationScopes(unitSwitch)
+    expect(scopes.map((scope) => scope.parameterCombinationId)).toEqual([
+      '1K',
+      '2K',
+      '4K',
+    ])
+    expect(
+      scopes
+        .find((scope) => scope.parameterCombinationId === '4K')
+        ?.prices.map((item) => item.priceGroupId)
+    ).toEqual(['standard'])
+  })
+
+  it('marks the shown rows of the plan with a conflict Cloud reports on another spec', () => {
+    const state = priceEverything(oneTokenEditor(imageDetail()))
+    const marked = conflictsByRow(state, [
+      {
+        code: 'SCHEDULED_PRICE',
+        message: '',
+        parameterCombinationId: '4K',
+        priceGroupId: 'vip',
+      },
+    ] as never)
+    // A scheduled price belongs to the plan, so every category of the plan is marked.
+    expect([...marked.keys()]).toEqual([
+      '1K:input:vip',
+      '1K:imageInput:vip',
+      '1K:output:vip',
+    ])
+  })
+
+  it('keeps every spec when Cloud does not price the model once', () => {
+    const perSpec = {
+      ...imageDetail(),
+      model: { ...imageDetail().model, oneTokenPrice: false },
+    } as unknown as CanvasModelPricingDetail
+    expect(sharedTokenPrice(perSpec)).toBe(false)
+    const state = oneTokenEditor(perSpec)
+    expect(shownRows(state)).toHaveLength(state.rows.length)
+    const single = {
+      ...imageDetail(),
+      pricingScopes: imageDetail().pricingScopes.slice(0, 1),
+    } as unknown as CanvasModelPricingDetail
+    expect(sharedTokenPrice(single)).toBe(false)
   })
 })

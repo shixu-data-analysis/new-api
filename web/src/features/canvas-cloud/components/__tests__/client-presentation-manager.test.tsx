@@ -96,6 +96,7 @@ function presentation(revision = 3): CanvasClientPresentation {
     categories: [],
     categoryOrders: [],
     categoryDefaults: [],
+    iconVisibility: { categories: true, models: true },
   }
 }
 
@@ -494,7 +495,7 @@ describe('Client presentation manager', () => {
     expect(badgeButton('New')).toBeDisabled()
   })
 
-  it('selects all search results and skips models with the default icon when setting a color', async () => {
+  it('selects all search results and colors every model, a model without an icon in its type icon', async () => {
     renderManager()
     await screen.findByRole('button', { name: 'Image 3' })
 
@@ -504,12 +505,10 @@ describe('Client presentation manager', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Color purple' }))
 
     expect(mocks.toast.success).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /for 1 models; 2 models use the default icon and were skipped\. Not published yet\.$/u
-      )
+      expect.stringMatching(/for 3 models\. Not published yet\.$/u)
     )
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Unpublished: 1 models'
+      'Unpublished: 3 models'
     )
   })
 
@@ -526,12 +525,20 @@ describe('Client presentation manager', () => {
 })
 
 describe('Client presentation categories', () => {
-  const portrait = { id: '44444444-4444-4444-8444-444444444444', name: 'Portrait', iconKey: 'seedance', iconColor: 'blue', description: 'People first' }
+  const portrait = {
+    id: '44444444-4444-4444-8444-444444444444',
+    name: 'Portrait',
+    iconKey: 'seedance',
+    iconColor: 'blue',
+    description: 'People first',
+  }
   function categorized(): CanvasClientPresentation {
     const base = presentation()
     return {
       ...base,
-      models: base.models.map((item) => (item.modelKey === 'image.a' ? { ...item, tags: [portrait] } : item)),
+      models: base.models.map((item) =>
+        item.modelKey === 'image.a' ? { ...item, tags: [portrait] } : item
+      ),
       categories: [portrait],
       categoryOrders: [{ capability: 'image.generate', tagIds: [portrait.id] }],
       categoryDefaults: [],
@@ -541,12 +548,20 @@ describe('Client presentation categories', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.get.mockResolvedValue(categorized())
-    mocks.publish.mockResolvedValue({ id: 'p1', revision: 4, effectiveAt: '2026-10-18T00:00:00.000Z' })
+    mocks.publish.mockResolvedValue({
+      id: 'p1',
+      revision: 4,
+      effectiveAt: '2026-10-18T00:00:00.000Z',
+    })
   })
 
   async function openCategories(user: ReturnType<typeof userEvent.setup>) {
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
         <ClientPresentationManager />
       </QueryClientProvider>
     )
@@ -561,25 +576,52 @@ describe('Client presentation categories', () => {
     await user.click(screen.getByRole('button', { name: 'New category' }))
     const name = screen.getByLabelText('Category name *')
     expect(name).toHaveFocus()
-    expect(screen.getByRole('button', { name: 'Save and publish' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Save and publish' })
+    ).toBeDisabled()
     await user.type(name, 'Scenery')
-    await user.type(screen.getByLabelText('Category description (optional)'), 'Wide shots')
+    await user.type(
+      screen.getByLabelText('Category description (optional)'),
+      'Wide shots'
+    )
     await user.click(screen.getByRole('radio', { name: 'Tongyi Wanxiang' }))
     await user.click(screen.getByRole('button', { name: 'Choose models' }))
     const dialog = await screen.findByRole('dialog')
-    await user.click(within(dialog).getByRole('checkbox', { name: 'GPT Image' }))
+    await user.click(
+      within(dialog).getByRole('checkbox', { name: 'GPT Image' })
+    )
     await user.click(within(dialog).getByRole('button', { name: 'Done' }))
     await user.click(screen.getByRole('combobox', { name: 'Default category' }))
     await user.click(await screen.findByRole('option', { name: 'Scenery' }))
-    expect(screen.getByRole('status')).toHaveTextContent(/Unpublished: 1 models.*Categories/u)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /Unpublished: 1 models.*Categories/u
+    )
 
     await user.click(screen.getByRole('button', { name: 'Save and publish' }))
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
     const body = mocks.publish.mock.calls[0]![0].body
-    expect(body.categories).toEqual({ created: [{ ref: 'new-1', name: 'Scenery', iconKey: 'wan', iconColor: 'gray', description: 'Wide shots' }], updated: [], deletedIds: [] })
-    expect(body.models).toEqual([expect.objectContaining({ modelKey: 'image.gpt', tags: ['new-1'] })])
-    expect(body.categoryOrders).toEqual([{ capability: 'image.generate', tagIds: [portrait.id, 'new-1'] }])
-    expect(body.categoryDefaults).toEqual([{ capability: 'image.generate', tagId: 'new-1', untagged: false }])
+    expect(body.categories).toEqual({
+      created: [
+        {
+          ref: 'new-1',
+          name: 'Scenery',
+          iconKey: 'wan',
+          iconColor: 'gray',
+          description: 'Wide shots',
+        },
+      ],
+      updated: [],
+      deletedIds: [],
+    })
+    expect(body.models).toEqual([
+      expect.objectContaining({ modelKey: 'image.gpt', tags: ['new-1'] }),
+    ])
+    expect(body.categoryOrders).toEqual([
+      { capability: 'image.generate', tagIds: [portrait.id, 'new-1'] },
+    ])
+    expect(body.categoryDefaults).toEqual([
+      { capability: 'image.generate', tagId: 'new-1', untagged: false },
+    ])
   })
 
   it('blocks publishing while a category name repeats another one ignoring case', async () => {
@@ -587,26 +629,41 @@ describe('Client presentation categories', () => {
     await openCategories(user)
     await user.click(screen.getByRole('button', { name: 'New category' }))
     await user.type(screen.getByLabelText('Category name *'), 'portrait ')
-    expect(screen.getByLabelText('Category name *')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Category name *')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    )
     expect(screen.getByText('Category "portrait" already exists')).toBeVisible()
-    expect(screen.getByRole('status')).toHaveTextContent('2 categories need a unique name')
-    expect(screen.getByRole('button', { name: 'Save and publish' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '2 categories need a unique name'
+    )
+    expect(
+      screen.getByRole('button', { name: 'Save and publish' })
+    ).toBeDisabled()
   })
 
   it('assigns a category from the model editor like a badge', async () => {
     const user = userEvent.setup()
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
         <ClientPresentationManager />
       </QueryClientProvider>
     )
     await screen.findByRole('button', { name: 'Image 3' })
-    const toggle = within(screen.getByRole('group', { name: /^Model categories/u })).getByRole('button', { name: 'Portrait' })
+    const toggle = within(
+      screen.getByRole('group', { name: /^Model categories/u })
+    ).getByRole('button', { name: 'Portrait' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     await user.click(toggle)
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
     await user.click(screen.getByRole('button', { name: 'Save and publish' }))
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
-    expect(mocks.publish.mock.calls[0]![0].body.models).toEqual([expect.objectContaining({ modelKey: 'image.a', tags: [] })])
+    expect(mocks.publish.mock.calls[0]![0].body.models).toEqual([
+      expect.objectContaining({ modelKey: 'image.a', tags: [] }),
+    ])
   })
 })

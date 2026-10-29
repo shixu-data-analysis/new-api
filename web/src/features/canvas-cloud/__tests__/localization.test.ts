@@ -53,7 +53,7 @@ const unifiedPricingKeys = [
   ...Object.values(PRICING_MESSAGES),
   ...Object.values(PRICING_CONFLICT_MESSAGES),
   'Image models are always billed per request',
-  'Text models are always billed per million tokens',
+  'This model is always billed per million tokens',
   'Initial',
   'Provider cost and customer sale price',
   'Customer sale price retained',
@@ -66,6 +66,8 @@ const unifiedPricingKeys = [
   'Output tokens',
   'Cache read',
   'Cache write',
+  'Text input',
+  'Image input',
   ...new Set(
     unifiedPricingSources.flatMap((file) => {
       const source = readFileSync(

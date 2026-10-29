@@ -6,6 +6,8 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type { PresentationCapability } from './client-presentation-draft'
+
 // Icon and color whitelists of the model client presentation. Cloud
 // client-presentation-options.ts and Canvas Web modelIcons.ts keep the same lists.
 export const MODEL_ICON_KEYS = [
@@ -76,6 +78,23 @@ function genericIconFor(capability: unknown): GenericModelIcon {
   if (capability === 'video.generate') return 'video'
   if (capability === 'chat.generate') return 'chat'
   return 'box'
+}
+
+const TYPE_ICON_KEYS: Record<PresentationCapability, ModelIconKey> = {
+  'image.generate': 'image',
+  'video.generate': 'video',
+  'chat.generate': 'chat',
+}
+
+/**
+ * The icon a model shows: its chosen icon, or the generic icon of its generation type, which the icon picker
+ * offers in place of a separate default.
+ */
+export function shownModelIconKey(
+  iconKey: ModelIconKey | null,
+  capability: PresentationCapability
+): ModelIconKey {
+  return iconKey ?? TYPE_ICON_KEYS[capability]
 }
 
 export type ResolvedModelIcon =

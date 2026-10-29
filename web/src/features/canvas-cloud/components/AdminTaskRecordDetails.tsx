@@ -58,7 +58,10 @@ import {
   customerOutputLabelKey,
   customerPoints,
 } from '../customer-task-view'
-import { tokenCategoryLabel } from '../lib/token-rate-summary'
+import {
+  tokenCategoryLabel,
+  tokenCategoryLabelKey,
+} from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasAdminTaskPointRecord,
@@ -232,7 +235,10 @@ function settlementSummary(
   if (released) return t('Points released')
   return t('Settlement complete')
 }
-/** What a Token task's points were worked out from, as its Quote froze it: rates, multiplier, hold and output limit. */
+/**
+ * What a Token task's points were worked out from, as its Quote froze it: rates, multiplier and the hold, from a text
+ * task's input estimate and output limit or from an image task's estimated Tokens of all its pictures.
+ */
 function TokenBillingSnapshot(props: {
   billing: CanvasAdminTokenBilling
   heldPoints: string
@@ -242,13 +248,17 @@ function TokenBillingSnapshot(props: {
   const { billing } = props
   const count = (value: number | string) =>
     new Intl.NumberFormat(props.locale).format(Number(value))
-  const rates = (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
-    .filter((category) => typeof billing.tokenRates[category] === 'string')
-    .map(
-      (category) =>
-        `${t(tokenCategoryLabel[category])} ${billing.tokenRates[category]}`
-    )
-    .join(' · ')
+  const priced = Object.keys(billing.tokenRates)
+  // Each category with a value, in the display order and by its name.
+  const byCategory = (values: Partial<Record<CanvasTokenCategory, string>>) =>
+    (Object.keys(tokenCategoryLabel) as CanvasTokenCategory[])
+      .filter((category) => typeof values[category] === 'string')
+      .map(
+        (category) =>
+          `${t(tokenCategoryLabelKey(category, priced))} ${values[category]}`
+      )
+      .join(' · ')
+  const rates = byCategory(billing.tokenRates)
   let multiplier = t('Not set')
   if (billing.timeOfDay?.ruleIndex === null) {
     multiplier = t('×1, outside every period')
@@ -292,7 +302,27 @@ function TokenBillingSnapshot(props: {
           })}
         </li>
       )}
-      <li>{outputLimit}</li>
+      {billing.imageEstimate ? (
+        <li>
+          {t(
+            'Estimated usage: {{usage}} Tokens for {{pictures}} pictures, held {{points}} points',
+            {
+              usage: byCategory(
+                Object.fromEntries(
+                  Object.entries(billing.imageEstimate.tokens).map(
+                    ([category, tokens]) => [category, count(tokens ?? '0')]
+                  )
+                )
+              ),
+              pictures: billing.imageEstimate.pictures,
+              points: props.heldPoints,
+            }
+          )}
+        </li>
+      ) : (
+        // An image has no output limit.
+        <li>{outputLimit}</li>
+      )}
     </ul>
   )
 }

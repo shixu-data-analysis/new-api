@@ -103,6 +103,7 @@ function pricePage(items: unknown[]) {
       selectedTagId: null,
     },
     items,
+    iconVisibility: { categories: true, models: true },
   }
 }
 
@@ -467,38 +468,66 @@ describe('Canvas Agent and provider pricing governance', () => {
       expect.objectContaining({ page: 1, tagId: 'DEFAULT' }),
       expect.anything()
     )
-    expect(apiMocks.getCanvasAgentModelPrices.mock.calls[0]![0]).not.toHaveProperty('capability')
-    expect(within(panel).queryByRole('button', { name: 'All types' })).toBeNull()
-    expect(within(panel).getByRole('button', { name: 'Image generation' })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(panel).getByRole('button', { name: 'Portrait 3' })).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      apiMocks.getCanvasAgentModelPrices.mock.calls[0]![0]
+    ).not.toHaveProperty('capability')
+    expect(
+      within(panel).queryByRole('button', { name: 'All types' })
+    ).toBeNull()
+    expect(
+      within(panel).getByRole('button', { name: 'Image generation' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(panel).getByRole('button', { name: 'Portrait 3' })
+    ).toHaveAttribute('aria-pressed', 'true')
     // A category choice keeps the type Cloud resolved for the first page instead of mixing types.
-    await user.click(within(panel).getByRole('button', { name: 'All categories 13' }))
+    await user.click(
+      within(panel).getByRole('button', { name: 'All categories 13' })
+    )
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
         expect.objectContaining({ capability: 'image.generate' }),
         expect.anything()
       )
     )
-    expect(apiMocks.getCanvasAgentModelPrices.mock.lastCall![0]).not.toHaveProperty('tagId')
-    await user.click(within(panel).getByRole('button', { name: 'No category 9' }))
+    expect(
+      apiMocks.getCanvasAgentModelPrices.mock.lastCall![0]
+    ).not.toHaveProperty('tagId')
+    await user.click(
+      within(panel).getByRole('button', { name: 'No category 9' })
+    )
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ capability: 'image.generate', tagId: 'UNTAGGED' }),
+        expect.objectContaining({
+          capability: 'image.generate',
+          tagId: 'UNTAGGED',
+        }),
         expect.anything()
       )
     )
     // Choosing a type opens it on its own default category again.
-    await user.click(within(panel).getByRole('button', { name: 'Video generation' }))
+    await user.click(
+      within(panel).getByRole('button', { name: 'Video generation' })
+    )
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ capability: 'video.generate', tagId: 'DEFAULT' }),
+        expect.objectContaining({
+          capability: 'video.generate',
+          tagId: 'DEFAULT',
+        }),
         expect.anything()
       )
     )
-    await user.type(within(panel).getByRole('textbox', { name: 'Search model name' }), 'img')
+    await user.type(
+      within(panel).getByRole('textbox', { name: 'Search model name' }),
+      'img'
+    )
     await waitFor(() =>
       expect(apiMocks.getCanvasAgentModelPrices).toHaveBeenLastCalledWith(
-        expect.objectContaining({ capability: 'video.generate', search: 'img' }),
+        expect.objectContaining({
+          capability: 'video.generate',
+          search: 'img',
+        }),
         expect.anything()
       )
     )

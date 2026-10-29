@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import type {
+  CanvasClientIconVisibility,
   CanvasClientPresentation,
   CanvasClientPresentationBadge,
   CanvasClientPresentationModel,
@@ -24,6 +25,7 @@ import {
   MODEL_BADGE_NAME_MAX_LENGTH,
   MODEL_ICON_KEYS,
   isModelPresentationColor,
+  shownModelIconKey,
   type ModelIconKey,
   type ModelPresentationColor,
 } from './model-icons'
@@ -44,9 +46,9 @@ export interface DraftModel {
   customerVisible: boolean
   displayName: string
   description: string
-  /** null shows the generation type icon. */
+  /** null, as the server sends a model never given an icon, shows the generic icon of its generation type in gray. */
   iconKey: ModelIconKey | null
-  /** Kept while the default icon is shown; published only together with an icon. */
+  /** Published only together with an icon. */
   iconColor: ModelPresentationColor
   badgeIds: string[]
 }
@@ -70,6 +72,7 @@ export interface PresentationSnapshot {
   /** Category ids of each generation type: the administrator order, then categories of its models that have no position, by name. */
   categoryOrders: Record<PresentationCapability, string[]>
   categoryDefaults: Record<PresentationCapability, CategoryDefaultSetting>
+  iconVisibility: CanvasClientIconVisibility
 }
 
 /**
@@ -133,6 +136,7 @@ export type PresentationDraftAction =
       value: string | null
     }
   | { type: 'toggleModelCategory'; modelKey: string; tagId: string }
+  | { type: 'setIconVisibility'; value: CanvasClientIconVisibility }
   | { type: 'discard' }
   | {
       type: 'updateModel'
@@ -250,6 +254,7 @@ export function snapshotFromServer(
     categories,
     categoryOrders,
     categoryDefaults,
+    iconVisibility: data.iconVisibility,
   }
 }
 
@@ -304,11 +309,15 @@ export function applyBatch(
     if (kind === 'icon') {
       patch = { iconKey: isIconKey(value) ? value : null }
     } else if (kind === 'color') {
-      if (!model.iconKey || !isModelPresentationColor(value)) {
+      if (!isModelPresentationColor(value)) {
         skipped += 1
         continue
       }
-      patch = { iconColor: value }
+      // A model without an icon takes the generic icon of its type in the color.
+      patch = {
+        iconKey: shownModelIconKey(model.iconKey, model.capability),
+        iconColor: value,
+      }
     } else if (kind === 'add') {
       if (
         !value ||
@@ -387,6 +396,8 @@ export function presentationDraftReducer(
   switch (action.type) {
     case 'load':
       return initialDraftState(action.data)
+    case 'setIconVisibility':
+      return { ...state, draft: { ...draft, iconVisibility: action.value } }
     case 'discard':
       return {
         ...state,
@@ -619,6 +630,7 @@ export interface PresentationChanges {
   categories: boolean
   categoryCapabilities: PresentationCapability[]
   defaultCapabilities: PresentationCapability[]
+  iconVisibility: boolean
 }
 
 function sameCategory(published: DraftCategory, draft: DraftCategory) {
@@ -704,6 +716,11 @@ export function presentationChanges(
       state.draft.badges !== state.published.badges &&
       JSON.stringify(state.draft.badges) !==
         JSON.stringify(state.published.badges),
+    iconVisibility:
+      state.draft.iconVisibility.categories !==
+        state.published.iconVisibility.categories ||
+      state.draft.iconVisibility.models !==
+        state.published.iconVisibility.models,
   }
 }
 
@@ -714,7 +731,8 @@ export function hasPresentationChanges(changes: PresentationChanges): boolean {
     changes.badges ||
     changes.categories ||
     changes.categoryCapabilities.length > 0 ||
-    changes.defaultCapabilities.length > 0
+    changes.defaultCapabilities.length > 0 ||
+    changes.iconVisibility
   )
 }
 
@@ -838,6 +856,9 @@ export function buildPublication(
         .filter((id) => !draftBadgeIds.has(id)),
     },
     ...categoryPublication(state, changes),
+    ...(changes.iconVisibility && {
+      iconVisibility: state.draft.iconVisibility,
+    }),
   }
 }
 

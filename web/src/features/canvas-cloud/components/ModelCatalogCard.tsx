@@ -24,9 +24,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
-import { tokenCategoryLabel } from '../lib/token-rate-summary'
+import {
+  tokenCategoryLabel,
+  tokenCategoryLabelKey,
+} from '../lib/token-rate-summary'
 import type {
   CanvasBillingUnit,
   CanvasCatalogModelBadge,
@@ -44,18 +48,29 @@ export function ModelCatalogCard(props: {
   iconColor: string | null
   badges: CanvasCatalogModelBadge[]
   description?: string
+  /** False while the administrator hides model icons; the header then has no icon column. */
+  showIcon: boolean
   children: ReactNode
 }) {
   const { t } = useTranslation()
   return (
     <Card className='ring-foreground/15 hover:ring-primary/55 shadow-xs transition-shadow motion-reduce:transition-none'>
-      <CardHeader className='grid-cols-[auto_minmax(0,1fr)] gap-x-3'>
-        <ModelIconTile
-          iconKey={props.iconKey}
-          iconColor={props.iconColor}
-          capability={props.capability}
-          className='row-span-2'
-        />
+      <CardHeader
+        className={cn(
+          'gap-x-3',
+          props.showIcon
+            ? 'grid-cols-[auto_minmax(0,1fr)]'
+            : 'grid-cols-[minmax(0,1fr)]'
+        )}
+      >
+        {props.showIcon && (
+          <ModelIconTile
+            iconKey={props.iconKey}
+            iconColor={props.iconColor}
+            capability={props.capability}
+            className='row-span-2'
+          />
+        )}
         <CardTitle className='flex min-w-0 flex-wrap items-center gap-1.5 break-words'>
           <span className='min-w-0 break-words'>{props.name}</span>
           <ModelBadges badges={props.badges} />
@@ -118,7 +133,7 @@ export function ModelPriceRow(props: {
             className='flex items-baseline justify-between gap-3'
           >
             <span className='font-medium'>
-              {t(tokenCategoryLabel[category])}
+              {t(tokenCategoryLabelKey(category, categories))}
             </span>
             <span className='tabular-nums'>
               <span className='text-[15px] font-bold'>

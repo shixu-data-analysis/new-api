@@ -125,7 +125,12 @@ export function AgentModelPricePanel(props: {
       </p>
     )
   } else {
-    content = <AgentModelPriceCards models={items} />
+    content = (
+      <AgentModelPriceCards
+        models={items}
+        showModelIcons={prices.data.iconVisibility.models}
+      />
+    )
   }
 
   return (

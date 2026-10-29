@@ -7,8 +7,9 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { pricingScopeLabel } from '../pricing-scope-label'
-import type { CanvasModelPricingDetail } from '../types'
-import type { PricingEditorRow } from './model-pricing-editor'
+import type { CanvasModelPricingDetail, CanvasTokenCategory } from '../types'
+import { sharedTokenPrice, type PricingEditorRow } from './model-pricing-editor'
+import { tokenCategoryLabelKey } from './token-rate-summary'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -19,6 +20,8 @@ export interface PricingRowLabeling {
   qualityOnly: boolean
   multipleScopes: boolean
   multiplePlans: boolean
+  /** The categories the model is priced by, which name its text input apart from image input. */
+  tokenCategories: CanvasTokenCategory[]
 }
 
 export function pricingRowLabeling(
@@ -33,7 +36,10 @@ export function pricingRowLabeling(
         const keys = Object.keys(scope.parameters)
         return keys.length === 1 && keys[0] === 'quality'
       }),
-    multipleScopes: detail.pricingScopes.length > 1,
+    // A Token-billed image has one price for the whole model, so its rows name no spec (IMAGE-TOKEN-BILLING-001).
+    multipleScopes:
+      detail.pricingScopes.length > 1 && !(token && sharedTokenPrice(detail)),
+    tokenCategories: detail.model.tokenCategories,
     multiplePlans: detail.priceGroups.length > 1,
   }
 }
@@ -51,7 +57,13 @@ export function pricingRowCombination(
         t
       )
   if (!labeling.token) return scope
-  return labeling.multipleScopes ? `${scope} · ${t(row.field)}` : t(row.field)
+  const category = t(
+    tokenCategoryLabelKey(
+      row.field as CanvasTokenCategory,
+      labeling.tokenCategories
+    )
+  )
+  return labeling.multipleScopes ? `${scope} · ${category}` : category
 }
 
 /** "范围 · 方案", or the scope alone when the model has one price plan. */

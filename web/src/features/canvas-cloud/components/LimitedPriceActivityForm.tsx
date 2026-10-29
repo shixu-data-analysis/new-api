@@ -24,6 +24,7 @@ import {
   getCanvasModelPricingWorkspace,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
+import { isTextInput, tokenCategoryLabelKey } from '../lib/token-rate-summary'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasModelPricingPriceSnapshot,
@@ -97,10 +98,16 @@ type PublishedPriceSource = {
   specificationDisabled: boolean
 }
 
-type TokenRateKey = 'input' | 'output' | 'cacheRead' | 'cacheWrite'
+type TokenRateKey =
+  | 'input'
+  | 'imageInput'
+  | 'output'
+  | 'cacheRead'
+  | 'cacheWrite'
 
 const tokenRateKeys: TokenRateKey[] = [
   'input',
+  'imageInput',
   'output',
   'cacheRead',
   'cacheWrite',
@@ -222,6 +229,7 @@ export function LimitedPriceActivityForm(props: {
   const [specialPoints, setSpecialPoints] = useState('')
   const [specialTokenRates, setSpecialTokenRates] = useState({
     input: '',
+    imageInput: '',
     output: '',
     cacheRead: '',
     cacheWrite: '',
@@ -327,6 +335,9 @@ export function LimitedPriceActivityForm(props: {
               : {}),
             ...(specialTokenRates.cacheWrite.trim()
               ? { cacheWrite: specialTokenRates.cacheWrite.trim() }
+              : {}),
+            ...(specialTokenRates.imageInput.trim()
+              ? { imageInput: specialTokenRates.imageInput.trim() }
               : {}),
           },
           startsAt: startsAt.toISOString(),
@@ -487,7 +498,7 @@ export function LimitedPriceActivityForm(props: {
                   {requiredTokenCategories
                     .map(
                       (category) =>
-                        `${t(tokenCategoryLabelKey[category])} ${source.tokenRates?.[category] ?? ''}`
+                        `${t(tokenCategoryLabelKey(category, requiredTokenCategories))} ${source.tokenRates?.[category] ?? ''}`
                     )
                     .join(' · ')}
                 </p>
@@ -496,7 +507,11 @@ export function LimitedPriceActivityForm(props: {
                 <LimitedPriceRateInput
                   key={category}
                   label={t('{{label}} ({{detail}})', {
-                    label: t(specialRateLabelKey[category]),
+                    label: t(
+                      isTextInput(category, requiredTokenCategories)
+                        ? 'Special text-input token rate'
+                        : specialRateLabelKey[category]
+                    ),
                     detail: t('points per million tokens'),
                   })}
                   value={specialTokenRates[category]}
@@ -671,15 +686,9 @@ const billingUnitPointsKey = {
   MILLION_TOKENS: 'points per million tokens',
 } as const
 
-const tokenCategoryLabelKey: Record<TokenRateKey, string> = {
-  input: 'Input',
-  output: 'Output',
-  cacheRead: 'Cache read',
-  cacheWrite: 'Cache write',
-}
-
 const specialRateLabelKey: Record<TokenRateKey, string> = {
   input: 'Special input token rate',
+  imageInput: 'Special image-input token rate',
   output: 'Special output token rate',
   cacheRead: 'Special cache-read token rate',
   cacheWrite: 'Special cache-write token rate',

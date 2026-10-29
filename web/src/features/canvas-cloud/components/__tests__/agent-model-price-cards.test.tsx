@@ -99,6 +99,7 @@ describe('Agent model price cards', () => {
     }))
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[{ ...token, capability: 'chat.generate', priceGroups: plans }]}
       />
     )
@@ -119,8 +120,23 @@ describe('Agent model price cards', () => {
     expect(card.getByText('Monday to Friday 09:00–12:00')).toBeVisible()
   })
 
+  it('shows no model icon while the administrator hides model icons', () => {
+    const { container } = render(
+      <AgentModelPriceCards
+        showModelIcons={false}
+        models={[model('Per request', {})]}
+      />
+    )
+    expect(container.querySelector('.model-icon-tile')).toBeNull()
+  })
+
   it('writes a per-request price like the model center, with the model price after the points', () => {
-    render(<AgentModelPriceCards models={[model('Per request', {})]} />)
+    render(
+      <AgentModelPriceCards
+        showModelIcons
+        models={[model('Per request', {})]}
+      />
+    )
     const card = within(cardOf('Per request'))
     expect(card.getByText('Default')).toBeVisible()
     expect(card.getByText('5')).toBeVisible()
@@ -133,6 +149,7 @@ describe('Agent model price cards', () => {
   it('shows the model icon and badges after the title', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           {
             ...model('Branded', {}),
@@ -158,6 +175,7 @@ describe('Agent model price cards', () => {
   it('keeps every token category of the customer rates and of the model price', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           model('Tokens', {
             billingUnit: 'MILLION_TOKENS',
@@ -179,6 +197,7 @@ describe('Agent model price cards', () => {
   it('does not drop a category priced on only one side', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           model('One side', {
             billingUnit: 'MILLION_TOKENS',
@@ -199,6 +218,7 @@ describe('Agent model price cards', () => {
   it('shows the customer rates and a dash when the model price is unavailable', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           model('No cost', {
             billingUnit: 'MILLION_TOKENS',
@@ -216,6 +236,7 @@ describe('Agent model price cards', () => {
   it('keeps a single model price after token rates', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           model('Mixed', {
             billingUnit: 'MILLION_TOKENS',
@@ -235,6 +256,7 @@ describe('Agent model price cards', () => {
   it('keeps token model prices under a scalar customer price', () => {
     render(
       <AgentModelPriceCards
+        showModelIcons
         models={[
           model('Scalar', {
             customerPoints: '7',
@@ -269,7 +291,7 @@ describe('Agent model price cards', () => {
         { ...group, priceGroupId: 'g2', priceGroupName: 'Partner plan' },
       ] as CanvasAgentModelPrice['priceGroups'],
     }
-    render(<AgentModelPriceCards models={[wide]} />)
+    render(<AgentModelPriceCards showModelIcons models={[wide]} />)
     const card = within(cardOf('Wide'))
     expect(card.getByText('Standard')).toBeVisible()
     expect(card.getByText('Partner plan')).toBeVisible()

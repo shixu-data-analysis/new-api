@@ -32,6 +32,7 @@ export function ClientPresentationPreviewCategoryMenu(props: {
   untaggedCount: number
   selected: string | null
   onSelect: (id: string) => void
+  showIcons: boolean
   className?: string
 }) {
   const { t } = useTranslation()
@@ -82,17 +83,24 @@ export function ClientPresentationPreviewCategoryMenu(props: {
             role='menuitemradio'
             aria-checked={checked}
             className={cn(
-              'group grid w-full cursor-pointer grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-x-3 rounded-[10px] border-0 bg-transparent p-2 text-start hover:bg-[var(--model-preview-hover)]',
+              'group grid w-full cursor-pointer items-center gap-x-3 rounded-[10px] border-0 bg-transparent p-2 text-start hover:bg-[var(--model-preview-hover)]',
+              props.showIcons
+                ? 'grid-cols-[36px_minmax(0,1fr)_auto]'
+                : 'grid-cols-[minmax(0,1fr)_auto]',
               checked && 'bg-[var(--model-preview-hover)]'
             )}
             style={{ color: 'var(--model-preview-text)' }}
             onClick={() => props.onSelect(category.id)}
           >
-            <CategoryIconTile
-              category={category}
-              kind={category.id === UNTAGGED_CATEGORY ? 'untagged' : undefined}
-              className='model-icon-tile--large row-span-2'
-            />
+            {props.showIcons && (
+              <CategoryIconTile
+                category={category}
+                kind={
+                  category.id === UNTAGGED_CATEGORY ? 'untagged' : undefined
+                }
+                className='model-icon-tile--large row-span-2'
+              />
+            )}
             <span className='min-w-0 truncate text-sm font-[640]'>
               {category.name.trim() || t('(No name)')}
             </span>
@@ -108,7 +116,8 @@ export function ClientPresentationPreviewCategoryMenu(props: {
             {description && (
               <span
                 className={cn(
-                  'col-start-2 col-end-4 row-start-2 mt-0.5 hidden text-xs leading-[1.45] group-hover:block group-focus-visible:block',
+                  'row-start-2 mt-0.5 hidden text-xs leading-[1.45] group-hover:block group-focus-visible:block',
+                  props.showIcons ? 'col-start-2 col-end-4' : 'col-span-full',
                   checked && 'block'
                 )}
                 style={{ color: 'var(--model-preview-muted)' }}

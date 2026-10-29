@@ -180,6 +180,7 @@ export async function createCanvasLimitedPriceActivity(input: {
     output: string
     cacheRead?: string
     cacheWrite?: string
+    imageInput?: string
   }
   startsAt: string
   endsAt: string

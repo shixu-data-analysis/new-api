@@ -20,6 +20,7 @@ import type { CanvasTokenCategory } from './types'
 
 export const providerTokenCategories = [
   'input',
+  'imageInput',
   'output',
   'cacheRead',
   'cacheWrite',
@@ -27,6 +28,7 @@ export const providerTokenCategories = [
 
 export const providerTokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   input: 'Input tokens',
+  imageInput: 'Image input',
   output: 'Output tokens',
   cacheRead: 'Cache read',
   cacheWrite: 'Cache write',

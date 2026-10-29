@@ -20,7 +20,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 // One text model that customers cannot see yet (no published price), filed under a category.
-function hiddenTextModel(): PresentationSnapshot {
+function hiddenTextModel(
+  iconVisibility = { categories: true, models: true }
+): PresentationSnapshot {
   const byType = <T,>(value: () => T) => ({
     'image.generate': value(),
     'video.generate': value(),
@@ -54,6 +56,7 @@ function hiddenTextModel(): PresentationSnapshot {
     ],
     categoryOrders: { ...byType(() => []), 'chat.generate': ['tag-deepseek'] },
     categoryDefaults: byType(() => ({})),
+    iconVisibility,
   } as unknown as PresentationSnapshot
 }
 
@@ -83,4 +86,31 @@ describe('Client presentation preview', () => {
       )
     }
   )
+
+  it('shows no category or model icon while the switches hide them', () => {
+    const preview = (iconVisibility: {
+      categories: boolean
+      models: boolean
+    }) =>
+      render(
+        <ClientPresentationPreview
+          mode='categories'
+          snapshot={hiddenTextModel(iconVisibility)}
+          capability='chat.generate'
+          keys={['deepseek']}
+          selected={null}
+          onSelect={() => {}}
+        />
+      ).container
+    expect(
+      preview({ categories: true, models: true }).querySelector(
+        '.model-icon-tile'
+      )
+    ).not.toBeNull()
+    expect(
+      preview({ categories: false, models: false }).querySelector(
+        '.model-icon-tile'
+      )
+    ).toBeNull()
+  })
 })

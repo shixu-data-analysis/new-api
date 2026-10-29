@@ -20,9 +20,12 @@ import type {
   PresentationDraftAction,
 } from '../lib/client-presentation-draft'
 import { orderCategories } from '../lib/model-categories'
-import { MODEL_BADGE_LIMIT, MODEL_ICON_KEYS } from '../lib/model-icons'
 import {
-  DEFAULT_MODEL_ICON_LABEL_KEY,
+  MODEL_BADGE_LIMIT,
+  MODEL_ICON_KEYS,
+  shownModelIconKey,
+} from '../lib/model-icons'
+import {
   MODEL_COLOR_LABEL_KEYS,
   MODEL_ICON_LABEL_KEYS,
 } from '../lib/model-presentation-labels'
@@ -48,11 +51,9 @@ export function ClientPresentationModelEditor(props: {
   const nameId = `client-presentation-name-${model.modelKey}`
   const descriptionId = `client-presentation-description-${model.modelKey}`
   const nameMissing = !model.displayName.trim()
-  const iconLabel = t(
-    model.iconKey
-      ? MODEL_ICON_LABEL_KEYS[model.iconKey]
-      : DEFAULT_MODEL_ICON_LABEL_KEY
-  )
+  // A model without an icon shows the generic icon of its type in gray; choosing a color keeps that icon.
+  const shownIcon = shownModelIconKey(model.iconKey, model.capability)
+  const iconLabel = t(MODEL_ICON_LABEL_KEYS[shownIcon])
   return (
     <div className='grid max-w-[560px] gap-3 ps-[58px] pe-3.5 pt-1 pb-3.5 max-sm:ps-3.5'>
       <div className='grid gap-1.5'>
@@ -106,16 +107,12 @@ export function ClientPresentationModelEditor(props: {
           aria-label={t('Icon')}
           className='flex flex-wrap items-center gap-1.5'
         >
-          {[null, ...MODEL_ICON_KEYS].map((iconKey) => {
-            const label = t(
-              iconKey
-                ? MODEL_ICON_LABEL_KEYS[iconKey]
-                : DEFAULT_MODEL_ICON_LABEL_KEY
-            )
-            const checked = model.iconKey === iconKey
+          {MODEL_ICON_KEYS.map((iconKey) => {
+            const label = t(MODEL_ICON_LABEL_KEYS[iconKey])
+            const checked = shownIcon === iconKey
             return (
               <button
-                key={iconKey ?? 'default'}
+                key={iconKey}
                 type='button'
                 role='radio'
                 aria-checked={checked}
@@ -126,7 +123,7 @@ export function ClientPresentationModelEditor(props: {
                   checked &&
                     'border-primary shadow-[inset_0_0_0_1px_var(--primary)]'
                 )}
-                onClick={() => update({ iconKey })}
+                onClick={() => !checked && update({ iconKey })}
               >
                 <ModelIconTile
                   iconKey={iconKey}
@@ -143,16 +140,11 @@ export function ClientPresentationModelEditor(props: {
         <div className='flex flex-wrap items-center gap-2'>
           <ModelColorSwatches
             label={t('Icon color')}
-            value={model.iconKey ? model.iconColor : ''}
-            disabled={!model.iconKey}
-            onChange={(iconColor) => update({ iconColor })}
+            value={model.iconColor}
+            onChange={(iconColor) => update({ iconKey: shownIcon, iconColor })}
           />
           <span className='text-muted-foreground text-xs'>
-            {model.iconKey
-              ? t(MODEL_COLOR_LABEL_KEYS[model.iconColor])
-              : t(
-                  'The default icon is neutral gray; choose an icon to set its color'
-                )}
+            {t(MODEL_COLOR_LABEL_KEYS[model.iconColor])}
           </span>
         </div>
       </fieldset>

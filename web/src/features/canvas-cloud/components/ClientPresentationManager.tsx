@@ -58,6 +58,7 @@ import {
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { ClientPresentationBatchBar } from './ClientPresentationBatchBar'
 import { ClientPresentationCategories } from './ClientPresentationCategories'
+import { ClientPresentationIconSwitches } from './ClientPresentationIconSwitches'
 import { ClientPresentationLeaveGuard } from './ClientPresentationLeaveGuard'
 import { ClientPresentationModelEditor } from './ClientPresentationModelEditor'
 import {
@@ -342,6 +343,7 @@ export function ClientPresentationManager(props: {
     changes.defaultCapabilities.length
       ? [t('Categories')]
       : []),
+    ...(changes.iconVisibility ? [t('Icon display')] : []),
   ].join(separator)
 
   let status = {
@@ -615,6 +617,14 @@ export function ClientPresentationManager(props: {
               'Drag the handle or use the arrows to change the order; click a model to edit it. Each generation type keeps one order. When you are done, click "Save and publish" at the top right to publish everything; no approval is needed.'
             )}
       </p>
+      <div inert={locked} aria-busy={locked}>
+        <ClientPresentationIconSwitches
+          value={draft.iconVisibility}
+          onChange={(value) =>
+            editDispatch({ type: 'setIconVisibility', value })
+          }
+        />
+      </div>
       {view === 'categories' ? (
         <div inert={locked} aria-busy={locked}>
           <ClientPresentationCategories

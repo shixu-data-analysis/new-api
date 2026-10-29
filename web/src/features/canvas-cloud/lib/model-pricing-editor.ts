@@ -58,6 +58,11 @@ export interface PricingEditorState {
    * plan of every spec is published with it.
    */
   timeOfDayChange?: { schedule: CanvasTimeOfDaySchedule | null }
+  /**
+   * A Token-billed image with one price for the whole model (IMAGE-TOKEN-BILLING-001): every edit is written for every
+   * spec, so the usual rules publish the specs alike, and the page shows one spec's rows (shownRows).
+   */
+  oneTokenPrice?: boolean
 }
 
 export const PRICING_SIDE_LABEL_KEYS: Record<PricingSide, string> = {
@@ -161,6 +166,11 @@ export function currentPricingIdentity(detail: CanvasModelPricingDetail) {
   ])
 }
 
+/** A Token-billed image with several specs: Cloud prices it once for the whole model (rules 4). */
+export function sharedTokenPrice(detail: CanvasModelPricingDetail): boolean {
+  return detail.model.oneTokenPrice === true && detail.pricingScopes.length > 1
+}
+
 export function pricingFields(
   billingUnit: CanvasBillingUnit,
   tokenCategories: CanvasTokenCategory[]
@@ -182,6 +192,60 @@ export function pricingEditorRows(
         field,
       }))
     )
+  )
+}
+
+// The spec whose rows stand for a model with one Token price: the first one the publication always carries.
+function shownScopeId(state: PricingEditorState): string | undefined {
+  const scopes = state.rows.map((row) => row.scope)
+  return (scopes.find((scope) => scope.enabled) ?? scopes[0])
+    ?.parameterCombinationId
+}
+
+/** The rows the page shows: one spec's for a model with one Token price, every row otherwise. */
+export function shownRows(state: PricingEditorState): PricingEditorRow[] {
+  if (!state.oneTokenPrice) return state.rows
+  const scopeId = shownScopeId(state)
+  return state.rows.filter(
+    (row) => row.scope.parameterCombinationId === scopeId
+  )
+}
+
+// The shown row that stands for a row of any spec: the same category and plan.
+function shownRowId(state: PricingEditorState, row: PricingEditorRow) {
+  return state.oneTokenPrice
+    ? `${shownScopeId(state)}:${row.field}:${row.price.priceGroupId}`
+    : row.id
+}
+
+/** Applies one edited cell, for every spec of a model with one Token price. */
+export function withEditedValue(
+  state: PricingEditorState,
+  drafts: PricingDrafts,
+  row: PricingEditorRow,
+  side: PricingSide,
+  value: string
+): PricingDrafts {
+  if (!state.oneTokenPrice) return withDraftValue(drafts, row, side, value)
+  const scopes = new Map(
+    state.rows.map((item) => [item.scope.parameterCombinationId, item.scope])
+  )
+  return [...scopes.values()].reduce(
+    (result, scope) =>
+      withDraftValue(
+        result,
+        {
+          ...row,
+          scope,
+          price:
+            scope.prices.find(
+              (price) => price.priceGroupId === row.price.priceGroupId
+            ) ?? row.price,
+        },
+        side,
+        value
+      ),
+    drafts
   )
 }
 
@@ -490,6 +554,9 @@ function cnyValue(
   if (state.tokenCategories.includes('cacheWrite')) {
     result.cacheWrite = values?.cacheWrite ?? ''
   }
+  if (state.tokenCategories.includes('imageInput')) {
+    result.imageInput = values?.imageInput ?? ''
+  }
   return result
 }
 
@@ -636,8 +703,10 @@ export function conflictsByRow(
       ) {
         continue
       }
-      if (isRowIncluded(state, row) && !marked.has(row.id)) {
-        marked.set(row.id, message)
+      // A model with one Token price marks the shown row of the same category and plan.
+      const shownId = shownRowId(state, row)
+      if (isRowIncluded(state, row) && !marked.has(shownId)) {
+        marked.set(shownId, message)
       }
     }
   }

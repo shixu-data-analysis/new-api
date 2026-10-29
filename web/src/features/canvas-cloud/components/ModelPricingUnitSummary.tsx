@@ -24,7 +24,7 @@ import type { CanvasBillingUnit, CanvasModelPricingModel } from '../types'
 
 const FIXED_UNIT_HINT_KEYS: Partial<Record<CanvasBillingUnit, string>> = {
   REQUEST: 'Image models are always billed per request',
-  MILLION_TOKENS: 'Text models are always billed per million tokens',
+  MILLION_TOKENS: 'This model is always billed per million tokens',
 }
 
 /** The line above the pricing table: billing unit, pricing rate snapshot and unit notices. */

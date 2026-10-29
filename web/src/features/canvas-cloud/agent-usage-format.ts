@@ -19,31 +19,29 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 
 import {
+  tokenCategoryLabel,
+  tokenCategoryLabelKey,
+} from './lib/token-rate-summary'
+import {
   formatExactPointQuantity,
   formatExactRmbReference,
 } from './number-format'
-import type { CanvasAgentModelUsageRow, CanvasBillingUnit } from './types'
+import type {
+  CanvasAgentModelUsageRow,
+  CanvasBillingUnit,
+  CanvasTokenCategory as TokenCategory,
+} from './types'
 
-type TokenCategory = 'input' | 'output' | 'cacheRead' | 'cacheWrite'
 type PriceSnapshot = CanvasAgentModelUsageRow['agentPriceSnapshot']
 
-const tokenCategories: TokenCategory[] = [
-  'input',
-  'output',
-  'cacheRead',
-  'cacheWrite',
-]
-const tokenLabels: Record<TokenCategory, string> = {
-  input: 'Input',
-  output: 'Output',
-  cacheRead: 'Cache read',
-  cacheWrite: 'Cache write',
-}
+// Categories in display order, from the shared labels.
+const tokenCategories = Object.keys(tokenCategoryLabel) as TokenCategory[]
 const usageFields: Record<
   TokenCategory,
   keyof CanvasAgentModelUsageRow['usage']
 > = {
   input: 'inputTokens',
+  imageInput: 'imageInputTokens',
   output: 'outputTokens',
   cacheRead: 'cacheReadTokens',
   cacheWrite: 'cacheWriteTokens',
@@ -80,9 +78,10 @@ export function formatAgentUsage(
   const quantity = (value: string | null) =>
     value === null ? '—' : formatExactPointQuantity(value, locale)
   if (row.billingUnit === 'MILLION_TOKENS') {
-    const parts = supportedCategories(row, price).map(
+    const categories = supportedCategories(row, price)
+    const parts = categories.map(
       (category) =>
-        `${t(tokenLabels[category])} ${quantity(row.usage[usageFields[category]])}`
+        `${t(tokenCategoryLabelKey(category, categories))} ${quantity(row.usage[usageFields[category]])}`
     )
     return `${parts.join(' · ')} ${t('Tokens')}`
   }
@@ -108,11 +107,14 @@ export function formatAgentTaskTimePrice(
     if (row.billingUnit === 'MILLION_TOKENS') return rmb(price)
     return `${rmb(price)} / ${t(unitKey[row.billingUnit])}`
   }
-  const parts = tokenCategories.flatMap((category) => {
+  const priced = tokenCategories.filter(
+    (category) => price[category] !== undefined
+  )
+  const parts = priced.flatMap((category) => {
     const value = price[category]
     return value === undefined
       ? []
-      : [`${t(tokenLabels[category])} ${rmb(value)}`]
+      : [`${t(tokenCategoryLabelKey(category, priced))} ${rmb(value)}`]
   })
   return `${parts.join(' · ')} / ${t('million Tokens')}`
 }

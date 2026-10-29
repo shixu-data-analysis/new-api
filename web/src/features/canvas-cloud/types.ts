@@ -411,6 +411,7 @@ export interface CanvasAgentModelUsageRow {
     outputTokens: string | null
     cacheReadTokens: string | null
     cacheWriteTokens: string | null
+    imageInputTokens: string | null
   }
   successfulTasks: number
   settledPoints: string
@@ -555,6 +556,7 @@ export interface CanvasAgentModelPricePage extends CanvasPage<CanvasAgentModelPr
     /** The category filter applied: a category id, UNTAGGED, or null for all; DEFAULT is resolved here. */
     selectedTagId: string | null
   }
+  iconVisibility: CanvasClientIconVisibility
 }
 
 export type CanvasBillingUnit = 'REQUEST' | 'SECOND' | 'MILLION_TOKENS'
@@ -563,12 +565,14 @@ export type CanvasTokenCategory =
   | 'output'
   | 'cacheRead'
   | 'cacheWrite'
+  | 'imageInput'
 export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
 export type CanvasModelPricingTokenRateVector = {
   input: string
   output: string
   cacheRead?: string
   cacheWrite?: string
+  imageInput?: string
 }
 export interface CanvasTokenCategoryRisk {
   category: CanvasTokenCategory
@@ -806,6 +810,13 @@ export interface CanvasClientPresentation {
   }>
   categoryDefaults: CanvasClientPresentationCategoryDefault[]
   models: CanvasClientPresentationModel[]
+  iconVisibility: CanvasClientIconVisibility
+}
+
+/** Whether client pages show category icons and model icons. */
+export interface CanvasClientIconVisibility {
+  categories: boolean
+  models: boolean
 }
 
 /** Category fields a publication creates or updates; an empty description clears it. */
@@ -849,6 +860,8 @@ export interface CanvasClientPresentationPublicationRequest {
     tagIds: string[]
   }>
   categoryDefaults?: CanvasClientPresentationCategoryDefault[]
+  /** Sent only when changed; omitted keeps the current switches. */
+  iconVisibility?: CanvasClientIconVisibility
 }
 
 export interface CanvasModelTag {
@@ -878,6 +891,7 @@ export interface CanvasCatalogCategories {
 export interface CanvasCatalogSnapshot {
   models: CanvasCatalogModel[]
   categories: CanvasCatalogCategories
+  iconVisibility: CanvasClientIconVisibility
 }
 
 export interface CanvasAdminModelTag extends CanvasModelTag {
@@ -1365,6 +1379,8 @@ export interface CanvasModelPricingModel {
   // Set when one Provider call always returns this many results; a REQUEST
   // price then covers the whole batch.
   fixedRequestBatchSize?: number | null
+  // A Token-billed image: per million Tokens one price for the whole model, published for every spec.
+  oneTokenPrice?: boolean
   tokenCategories: CanvasTokenCategory[]
   combinations: Array<{
     id: string
@@ -1977,6 +1993,11 @@ export interface CanvasAdminTokenBilling {
   inputTokensEstimate: string | null
   maxTokens: number | null
   requestedMaxTokens: number | null
+  /** Image tasks: the estimated Tokens of every category for all pictures, which the hold was worked out from. */
+  imageEstimate: {
+    tokens: Partial<Record<CanvasTokenCategory, string>>
+    pictures: number
+  } | null
 }
 
 export interface CanvasAdminTaskRecordDetail {

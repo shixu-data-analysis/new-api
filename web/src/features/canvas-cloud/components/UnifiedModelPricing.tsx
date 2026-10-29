@@ -50,10 +50,12 @@ import {
   isRowIncluded,
   originalPricingDrafts,
   pricingEditorRows,
+  sharedTokenPrice,
   pricingFields,
   publicationScopes,
   validCalculatedPrice,
-  withDraftValue,
+  shownRows,
+  withEditedValue,
   type PricingDrafts,
   type PricingEditorRow,
   type PricingEditorState,
@@ -275,7 +277,13 @@ export function UnifiedModelPricing(props: {
         (selected.billingUnit !== null && selected.billingUnit !== billingUnit))
     ),
     unitPending: !unitChosen,
+    // A Token-billed image has one price for the whole model: edits go to every spec, one spec's rows are shown.
+    oneTokenPrice:
+      billingUnit === 'MILLION_TOKENS' &&
+      Boolean(pricing && sharedTokenPrice(pricing)),
   }
+  // What the table, the summary and the confirmation show; the publication and the cell notes use every row.
+  const shown: PricingEditorState = { ...state, rows: shownRows(state) }
   // The schedule is page-wide for a Token model and published with every priced plan of every spec.
   const timeOfDayAvailable =
     billingUnit === 'MILLION_TOKENS' && unitChosen && !state.unitChange
@@ -285,7 +293,7 @@ export function UnifiedModelPricing(props: {
     timeOfDayAvailable && !sameSchedule(draftSchedule, publishedSchedule)
   const timeOfDayInvalid = timeOfDayChanged && draftHasErrors(timeOfDay)
   // Price edits alone: the table, the summary and the confirmation list them; the schedule is named on its own.
-  const includedRows = rows.filter((row) => isRowIncluded(state, row))
+  const includedRows = shown.rows.filter((row) => isRowIncluded(state, row))
   const publicationState: PricingEditorState =
     timeOfDayChanged && !timeOfDayInvalid
       ? { ...state, timeOfDayChange: { schedule: draftSchedule } }
@@ -379,7 +387,7 @@ export function UnifiedModelPricing(props: {
           })
         )
         const marked = conflictsByRow(state, result.conflicts)
-        const first = rows.find((row) => marked.has(row.id))
+        const first = shown.rows.find((row) => marked.has(row.id))
         if (first) {
           setReveal((current) => ({
             rowId: first.id,
@@ -461,7 +469,7 @@ export function UnifiedModelPricing(props: {
     value: string
   ) {
     invalidatePreview()
-    setDrafts((current) => withDraftValue(current, row, side, value))
+    setDrafts((current) => withEditedValue(state, current, row, side, value))
   }
 
   function changeBillingUnit(next: CanvasBillingUnit) {
@@ -745,7 +753,7 @@ export function UnifiedModelPricing(props: {
               changed={timeOfDayChanged}
               attempted={attempted}
               scheduled={scheduledSchedule}
-              priceRows={rows
+              priceRows={shown.rows
                 .filter((row) =>
                   matchesPricingPlanFilter(
                     row,
@@ -785,7 +793,7 @@ export function UnifiedModelPricing(props: {
           ) : null}
           <ModelPricingEditorTable
             detail={pricing}
-            state={state}
+            state={shown}
             attempted={attempted}
             calculation={calculation}
             conflicts={rowConflicts}
@@ -851,7 +859,7 @@ export function UnifiedModelPricing(props: {
         open={confirming}
         onOpenChange={setConfirming}
         detail={pricing}
-        state={state}
+        state={shown}
         labeling={labeling}
         preview={preview.data}
         effectiveMode={effectiveMode}

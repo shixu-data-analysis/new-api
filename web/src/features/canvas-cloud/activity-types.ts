@@ -285,10 +285,11 @@ export type CanvasTokenRateVector = {
   output: string
   cacheRead?: string
   cacheWrite?: string
+  imageInput?: string
 }
 
 export interface CanvasTokenCategoryCostReference {
-  category: 'input' | 'output' | 'cacheRead' | 'cacheWrite'
+  category: 'input' | 'output' | 'cacheRead' | 'cacheWrite' | 'imageInput'
   basePoints: string
   specialPoints: string
   baseRatePointsPerRmb: string | null

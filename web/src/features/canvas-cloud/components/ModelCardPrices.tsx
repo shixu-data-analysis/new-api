@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 
+import { oneTokenPrice } from '../lib/one-token-price'
 import {
   ratesAtMultiplier,
   sharedTimeOfDaySchedule,
@@ -47,6 +48,8 @@ export interface ModelCardPrice {
     category: CanvasTokenCategory,
     multiplier: string
   ) => ReactNode
+  /** What else must agree for specs to share one price block (the agent's model price). */
+  priceIdentity?: string
 }
 
 /**
@@ -59,7 +62,7 @@ export function ModelCardPrices(props: {
   /** False when the card shows the schedule once itself (the agent card, under every plan). */
   showSchedule?: boolean
 }) {
-  const { prices } = props
+  const prices = oneTokenPrice(props.prices)
   const showSchedule = props.showSchedule ?? true
   const shared = showSchedule ? sharedTimeOfDaySchedule(prices) : null
   return (

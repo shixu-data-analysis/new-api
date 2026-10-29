@@ -276,6 +276,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       pageSize: 10,
       total: 1,
       filters: { capabilities: ['IMAGE'], tags: [] },
+      iconVisibility: { categories: true, models: true },
       items: [
         {
           customerModelId: 'model-v3',

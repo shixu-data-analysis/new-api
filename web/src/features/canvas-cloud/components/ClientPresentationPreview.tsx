@@ -63,6 +63,8 @@ export function ClientPresentationPreview(props: {
 }) {
   const { t } = useTranslation()
   const mode = props.mode ?? 'models'
+  // The client hides the icons the administrator switches off.
+  const icons = props.snapshot.iconVisibility
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const typed = typeCategories(props.snapshot, props.capability, {
     visibleOnly: true,
@@ -124,12 +126,14 @@ export function ClientPresentationPreview(props: {
       style={{ color: 'var(--model-preview-text)' }}
       onClick={() => mode === 'models' && setCategoryMenuOpen((open) => !open)}
     >
-      <CategoryIconTile
-        category={currentCategory}
-        kind={categoryId === UNTAGGED_CATEGORY ? 'untagged' : undefined}
-        className='size-4 [&>svg]:size-[15px]'
-        bare
-      />
+      {icons.categories && (
+        <CategoryIconTile
+          category={currentCategory}
+          kind={categoryId === UNTAGGED_CATEGORY ? 'untagged' : undefined}
+          className='size-4 [&>svg]:size-[15px]'
+          bare
+        />
+      )}
       <span className='truncate'>
         {categoryId === UNTAGGED_CATEGORY || !currentCategory
           ? t('No category')
@@ -198,6 +202,7 @@ export function ClientPresentationPreview(props: {
       >
         {mode === 'categories' ? (
           <ClientPresentationPreviewCategoryMenu
+            showIcons={icons.categories}
             className='max-h-[480px] w-full'
             categories={typed.categories}
             untaggedCount={typed.untaggedCount}
@@ -253,12 +258,14 @@ export function ClientPresentationPreview(props: {
                       props.onSelect(model.modelKey)
                     }}
                   >
-                    <ModelIconTile
-                      iconKey={model.iconKey}
-                      iconColor={model.iconColor}
-                      capability={model.capability}
-                      className='model-icon-tile--large'
-                    />
+                    {icons.models && (
+                      <ModelIconTile
+                        iconKey={model.iconKey}
+                        iconColor={model.iconColor}
+                        capability={model.capability}
+                        className='model-icon-tile--large'
+                      />
+                    )}
                     <span className='grid min-w-0 flex-1 gap-[3px]'>
                       <span className='flex min-w-0 items-center gap-1.5'>
                         <span className='min-w-0 truncate text-sm leading-[18px] font-[640]'>
@@ -302,6 +309,7 @@ export function ClientPresentationPreview(props: {
           {categoryButton}
           {mode === 'models' && hasCategories && categoryMenuOpen && (
             <ClientPresentationPreviewCategoryMenu
+              showIcons={icons.categories}
               className='absolute bottom-[calc(100%+6px)] left-0 z-[2] max-h-60 w-[min(320px,100%)]'
               categories={typed.categories}
               untaggedCount={typed.untaggedCount}
@@ -321,12 +329,14 @@ export function ClientPresentationPreview(props: {
                 color: 'var(--model-preview-text)',
               }}
             >
-              <ModelIconTile
-                iconKey={current.iconKey}
-                iconColor={current.iconColor}
-                capability={current.capability}
-                className='size-6 [&>svg]:size-[15px]'
-              />
+              {icons.models && (
+                <ModelIconTile
+                  iconKey={current.iconKey}
+                  iconColor={current.iconColor}
+                  capability={current.capability}
+                  className='size-6 [&>svg]:size-[15px]'
+                />
+              )}
               <span className='truncate'>{modelName(current)}</span>
             </span>
           )}

@@ -485,6 +485,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         inputTokensEstimate: '16',
         maxTokens: 393216,
         requestedMaxTokens: null,
+        imageEstimate: null,
       },
     })
     mount()
@@ -505,6 +506,37 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       screen.getByText('Output limit: 393,216 Tokens (automatic)')
     ).toBeVisible()
+  })
+
+  it('shows an image task with the estimated Tokens of its pictures and no output limit', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      billingUnit: 'MILLION_TOKENS',
+      quotedPoints: '79',
+      tokenBilling: {
+        tokenRates: { input: '30', imageInput: '48', output: '180' },
+        timeOfDay: null,
+        inputTokensEstimate: null,
+        maxTokens: null,
+        requestedMaxTokens: null,
+        imageEstimate: {
+          tokens: { input: '36', imageInput: '3072', output: '3512' },
+          pictures: 2,
+        },
+      },
+    })
+    mount()
+    expect(
+      await screen.findByText(
+        'Rates: Text input 30 · Image input 48 · Output 180 points per million Tokens'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        'Estimated usage: Text input 36 · Image input 3,072 · Output 3,512 Tokens for 2 pictures, held 79 points'
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(/Output limit/)).not.toBeInTheDocument()
   })
 
   it('shows no billing snapshot for a task billed per request', async () => {

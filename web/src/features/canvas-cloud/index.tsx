@@ -145,6 +145,7 @@ function CustomerContent(props: {
       <CustomerModelCenter
         models={catalog.data.models}
         categories={catalog.data.categories}
+        showModelIcons={catalog.data.iconVisibility.models}
       />
     )
   }

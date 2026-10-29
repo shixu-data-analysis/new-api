@@ -28,7 +28,6 @@ import {
 } from '../lib/client-presentation-draft'
 import { MODEL_BADGE_LIMIT, MODEL_ICON_KEYS } from '../lib/model-icons'
 import {
-  DEFAULT_MODEL_ICON_LABEL_KEY,
   MODEL_COLOR_LABEL_KEYS,
   MODEL_ICON_LABEL_KEYS,
 } from '../lib/model-presentation-labels'
@@ -52,7 +51,7 @@ const doneKeys: Record<BatchKind, string> = {
 
 const skippedKeys: Record<BatchKind, string> = {
   icon: '',
-  color: '{{count}} models use the default icon and were skipped',
+  color: '',
   add: '{{count}} models already have this badge or are full and were skipped',
   remove: '{{count}} models do not have this badge and were skipped',
 }
@@ -99,15 +98,11 @@ export function ClientPresentationBatchBar(props: {
             {t('Set the icon of the {{count}} selected models', { count })}
           </span>
           <div className='flex flex-wrap items-center gap-1.5'>
-            {[null, ...MODEL_ICON_KEYS].map((iconKey) => {
-              const label = t(
-                iconKey
-                  ? MODEL_ICON_LABEL_KEYS[iconKey]
-                  : DEFAULT_MODEL_ICON_LABEL_KEY
-              )
+            {MODEL_ICON_KEYS.map((iconKey) => {
+              const label = t(MODEL_ICON_LABEL_KEYS[iconKey])
               return (
                 <button
-                  key={iconKey ?? 'default'}
+                  key={iconKey}
                   type='button'
                   aria-label={label}
                   title={label}
@@ -130,10 +125,9 @@ export function ClientPresentationBatchBar(props: {
       return (
         <>
           <span className='text-muted-foreground text-xs'>
-            {t(
-              'Set the icon color of the {{count}} selected models; models with the default icon are skipped',
-              { count }
-            )}
+            {t('Set the icon color of the {{count}} selected models', {
+              count,
+            })}
           </span>
           <ModelColorSwatches
             label={t('Set color')}
