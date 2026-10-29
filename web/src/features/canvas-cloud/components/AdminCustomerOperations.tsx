@@ -98,8 +98,9 @@ import {
   CustomerBusinessFacts,
   type CustomerFactTarget,
 } from './CustomerBusinessFacts'
+import { CustomerLotDetails } from './CustomerLotDetails'
 import { CustomerPointHistory } from './CustomerPointHistory'
-import { CustomerRecordDetails } from './CustomerRecordDetails'
+import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const orderStatuses = [
   'CREATED',
@@ -1335,9 +1336,11 @@ export function AdminCustomerOperations({
     selection?.customerId === customerId
       ? { kind: selection.kind, id: selection.id }
       : undefined
-  let detailTitle = t('Record details')
-  if (target?.kind === 'task') detailTitle = t('Task details')
-  if (target?.kind === 'lot') detailTitle = t('Point lot details')
+  // A task opens the same details as Task Records; other records use the customer drawer.
+  const taskId = target?.kind === 'task' ? target.id : undefined
+  const record = target?.kind === 'task' ? undefined : target
+  const detailTitle =
+    record?.kind === 'lot' ? t('Point lot details') : t('Record details')
   const inspect = (value: CustomerFactTarget) => {
     setSelection({ ...value, customerId })
   }
@@ -1453,8 +1456,12 @@ export function AdminCustomerOperations({
           </TabsContent>
         ) : null}
       </Tabs>
+      <TaskRecordDetailsSheet
+        taskId={taskId}
+        onClose={() => setSelection(undefined)}
+      />
       <Sheet
-        open={Boolean(target)}
+        open={Boolean(record)}
         onOpenChange={(open) => !open && setSelection(undefined)}
       >
         <SheetContent
@@ -1463,23 +1470,19 @@ export function AdminCustomerOperations({
           <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle>{detailTitle}</SheetTitle>
           </SheetHeader>
-          {target ? (
+          {record ? (
             <div className={sideDrawerFormClassName()}>
-              {target.kind === 'task' || target.kind === 'lot' ? (
-                <CustomerRecordDetails
+              {record.kind === 'lot' ? (
+                <CustomerLotDetails
                   customerId={customerId}
-                  target={
-                    target.kind === 'task'
-                      ? { kind: 'task', id: target.id }
-                      : { kind: 'lot', id: target.id }
-                  }
+                  lotId={record.id}
                   onOpenOrder={openOrder}
                 />
               ) : (
                 <CustomerBusinessFacts
-                  key={`${customerId}:${target.kind}:${target.id}`}
+                  key={`${customerId}:${record.kind}:${record.id}`}
                   customerId={customerId}
-                  initial={target}
+                  initial={record}
                   onDeductLot={
                     onDeductLot
                       ? (lot) => {

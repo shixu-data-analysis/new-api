@@ -40,6 +40,12 @@ const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 vi.mock('../../api', () => apiMocks)
 vi.mock('sonner', () => ({ toast: toastMocks }))
+// The shared task details have their own tests; here only which task opens matters.
+vi.mock('../AdminTaskRecordDetails', () => ({
+  AdminTaskRecordDetails: (props: { taskId: string }) => (
+    <p>Shared task record {props.taskId}</p>
+  ),
+}))
 
 function renderWithQuery(node: ReactNode) {
   const client = new QueryClient({
@@ -226,6 +232,42 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(
       screen.queryByRole('tab', { name: 'Business facts' })
     ).not.toBeInTheDocument()
+  })
+
+  it('opens a consumption task in the same details as Task Records', async () => {
+    const taskId = '85000000-0000-7000-8000-000000000077'
+    apiMocks.getCanvasAdminCustomerTasks.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: taskId,
+          displayNameSnapshot: 'Canvas Image',
+          quotedPoints: '20',
+          allocatedPoints: '20',
+          settledPoints: '12',
+          releasedPoints: '8',
+          executionStatus: 'SUCCEEDED',
+          customerBillingStatus: 'SETTLED',
+          providerReconcileStatus: 'RECONCILED',
+          upstreamTaskId: null,
+          acceptedAt: '2026-09-03T00:00:00.000Z',
+          completedAt: '2026-09-03T00:02:00.000Z',
+        },
+      ],
+    })
+    renderWithQuery(<AdminPointAdjustments customerId={customer.customerId} />)
+    const user = userEvent.setup()
+    await user.click(
+      await screen.findByRole('tab', { name: 'Consumption tasks' })
+    )
+    await user.click(await screen.findByRole('button', { name: taskId }))
+
+    const sheet = await screen.findByRole('dialog', { name: 'Task details' })
+    expect(
+      within(sheet).getByText(`Shared task record ${taskId}`)
+    ).toBeVisible()
   })
 
   it('filters agent identity while retaining disabled agents as agents', async () => {

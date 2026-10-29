@@ -46,6 +46,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
@@ -326,10 +327,14 @@ export function AdminTaskLogs() {
         cell: ({ row }) => (
           <div className='space-y-1'>
             <div>
-              {t(
-                executionLabels[row.original.derivedExecutionStatus] ??
-                  'Unknown'
-              )}
+              {/* Colored as in the customer task table: success, failure and pending confirmation read at a glance. */}
+              <CanvasStatusBadge
+                label={t(
+                  executionLabels[row.original.derivedExecutionStatus] ??
+                    'Unknown'
+                )}
+                status={row.original.derivedExecutionStatus}
+              />
             </div>
             {executionSummary(row.original.executionSummary, t) ? (
               <div className='text-muted-foreground text-xs'>

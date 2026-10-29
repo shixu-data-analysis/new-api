@@ -69,7 +69,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
-import { CustomerRecordDetails } from './CustomerRecordDetails'
+import { CustomerLotDetails } from './CustomerLotDetails'
 import {
   ALL_OPTION_VALUE,
   DashboardModelSelect,
@@ -1364,10 +1364,10 @@ export function OperatingDashboardDrawers(props: {
         ) : null}
         {detail?.kind === 'lot' ? (
           <div className={sideDrawerFormClassName()}>
-            <CustomerRecordDetails
+            <CustomerLotDetails
               key={detail.id}
               customerId={detail.customerId}
-              target={{ kind: 'lot', id: detail.id }}
+              lotId={detail.id}
               onOpenOrder={(orderId) =>
                 window.location.assign(
                   `/canvas-cloud/customers?${new URLSearchParams({

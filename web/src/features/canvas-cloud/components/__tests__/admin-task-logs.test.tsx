@@ -274,6 +274,33 @@ describe('Canvas administrator task records', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
+  it('colors the execution status as the customer task table does', async () => {
+    const statuses = ['SUCCEEDED', 'CONFIRMED_FAILED', 'UNKNOWN', 'PROCESSING']
+    apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: statuses.length,
+      items: statuses.map((status, index) => ({
+        ...task,
+        id: `85000000-0000-7000-8000-00000000010${index}`,
+        derivedExecutionStatus: status,
+      })),
+    })
+    mount()
+
+    await screen.findByRole('button', {
+      name: '85000000-0000-7000-8000-000000000100',
+    })
+    for (const [label, variant] of [
+      ['Succeeded', 'secondary'],
+      ['Confirmed failed', 'destructive'],
+      ['Result pending confirmation', 'outline'],
+      ['Processing', 'warning'],
+    ]) {
+      expect(screen.getByText(label)).toHaveAttribute('data-variant', variant)
+    }
+  })
+
   it('opens the task record sheet from its task identifier', async () => {
     mount()
 

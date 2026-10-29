@@ -77,7 +77,7 @@ import {
 } from './ActivityShared'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
-import { CustomerRecordDetails } from './CustomerRecordDetails'
+import { CustomerLotDetails } from './CustomerLotDetails'
 import { LimitedPriceActivityDetail } from './LimitedPriceActivityDetail'
 import {
   CancelActivityDialog,
@@ -872,9 +872,9 @@ function InviteBonusGrantRecords(props: { activityId: string }) {
           </SheetHeader>
           {lotTarget ? (
             <div className='p-4'>
-              <CustomerRecordDetails
+              <CustomerLotDetails
                 customerId={lotTarget.customerId}
-                target={{ kind: 'lot', id: lotTarget.pointLotId }}
+                lotId={lotTarget.pointLotId}
                 onOpenOrder={(orderId) => {
                   window.location.assign(
                     activityOrderHref(lotTarget.customerId, orderId)
