@@ -485,7 +485,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         inputTokensEstimate: '16',
         maxTokens: 393216,
         requestedMaxTokens: null,
-        imageEstimate: null,
+        resultEstimate: null,
       },
     })
     mount()
@@ -519,9 +519,10 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         inputTokensEstimate: null,
         maxTokens: null,
         requestedMaxTokens: null,
-        imageEstimate: {
+        resultEstimate: {
           tokens: { input: '36', imageInput: '3072', output: '3512' },
-          pictures: 2,
+          results: 2,
+          resultKind: 'IMAGE',
         },
       },
     })
@@ -534,6 +535,38 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       screen.getByText(
         'Estimated usage: Text input 36 · Image input 3,072 · Output 3,512 Tokens for 2 pictures, held 79 points'
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(/Output limit/)).not.toBeInTheDocument()
+  })
+
+  it('shows a video task with the estimated total of its videos and no output limit (VIDEO-TOKEN-BILLING-001)', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      billingUnit: 'MILLION_TOKENS',
+      quotedPoints: '1046',
+      tokenBilling: {
+        tokenRates: { total: '4800', totalWithVideoInput: '2950' },
+        timeOfDay: null,
+        inputTokensEstimate: null,
+        maxTokens: null,
+        requestedMaxTokens: null,
+        resultEstimate: {
+          tokens: { totalWithVideoInput: '217800' },
+          results: 2,
+          resultKind: 'VIDEO',
+        },
+      },
+    })
+    mount()
+    expect(
+      await screen.findByText(
+        'Rates: Without video input 4800 · With video input 2950 points per million Tokens'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        'Estimated usage: With video input 217,800 Tokens for 2 videos, held 1046 points'
       )
     ).toBeVisible()
     expect(screen.queryByText(/Output limit/)).not.toBeInTheDocument()

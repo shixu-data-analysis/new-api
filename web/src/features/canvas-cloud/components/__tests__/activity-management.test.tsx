@@ -1561,6 +1561,73 @@ describe('ADMIN-REWORK-007 activity management', () => {
     expect(applicablePrice).toHaveTextContent('Disabled')
   })
 
+  it('asks a special price for both totals of a video priced by Token (VIDEO-TOKEN-BILLING-001)', async () => {
+    pricingApi.getCanvasModelPricingWorkspace.mockResolvedValue({
+      models: [
+        {
+          id: 'model-video',
+          effectiveDisplayName: 'WT-Seedance 2.0',
+          catalogDefaultName: 'WT-Seedance 2.0',
+          modelKey: 'whatstoken.video.seedance-2.0-official',
+          hasPublishedPricing: true,
+        },
+      ],
+    })
+    pricingApi.getCanvasModelPricingModel.mockResolvedValue({
+      pricingScopes: [
+        {
+          combinationKey: 'quality=720p',
+          parameters: { quality: '720p' },
+          prices: [
+            {
+              priceGroupName: 'Standard',
+              current: {
+                id: 'price-video',
+                status: 'PUBLISHED',
+                billingUnit: 'MILLION_TOKENS',
+                points: '4800',
+                tokenRates: { total: '4800', totalWithVideoInput: '2950' },
+                calculation: { baseRatePointsPerRmb: '100' },
+                assumptions: { tokenCategoryRisks: [] },
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    mount(<ActivityManagementPage />)
+    await chooseCreateType('Limited-time special')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: 'Model' }))
+    await user.click(
+      await screen.findByRole('option', {
+        name: 'WT-Seedance 2.0 · whatstoken.video.seedance-2.0-official',
+      })
+    )
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Applicable price' })
+    )
+    await user.click(
+      await screen.findByRole('option', { name: 'Standard · Quality: 720p' })
+    )
+    expect(
+      screen.getByLabelText(
+        'Special without-video-input token rate (points per million tokens)'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByLabelText(
+        'Special with-video-input token rate (points per million tokens)'
+      )
+    ).toBeVisible()
+    expect(
+      screen.queryByLabelText(
+        'Special input token rate (points per million tokens)'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('renders the frozen Token-category cost snapshot without using current pricing facts', async () => {
     const activityId = '85000000-0000-7000-8000-000000000013'
     activityApi.getCanvasActivities.mockResolvedValue({

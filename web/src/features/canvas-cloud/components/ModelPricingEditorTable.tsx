@@ -72,6 +72,7 @@ import {
   pricingRowLabeling,
 } from '../lib/model-pricing-row-label'
 import { formatExactRmbReference } from '../number-format'
+import { videoTotalPricing } from '../pricing-scope-label'
 import type {
   CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyValue,
@@ -177,8 +178,13 @@ export function ModelPricingEditorTable(props: {
     [detail, token]
   )
   let combinationTitle = t('Parameter combination')
-  if (token) combinationTitle = t('Token category')
-  else if (labeling.qualityOnly) combinationTitle = t('Quality')
+  if (token && videoTotalPricing(labeling.tokenCategories)) {
+    combinationTitle = t('Pricing scope')
+  } else if (token) {
+    combinationTitle = t('Token category')
+  } else if (labeling.qualityOnly) {
+    combinationTitle = t('Quality')
+  }
   const data = useMemo<TableRowData[]>(
     () =>
       state.rows.map((row) => ({

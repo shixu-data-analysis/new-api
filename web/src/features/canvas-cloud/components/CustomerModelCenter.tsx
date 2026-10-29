@@ -162,6 +162,11 @@ export function CustomerModelCenter(props: {
                   ...combination,
                   key: combination.id,
                 }))}
+                capability={
+                  typeof model.catalog.capability === 'string'
+                    ? model.catalog.capability
+                    : undefined
+                }
                 now={now}
               />
             </ModelCatalogCard>

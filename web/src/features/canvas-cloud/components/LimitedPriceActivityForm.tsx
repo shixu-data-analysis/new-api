@@ -24,10 +24,15 @@ import {
   getCanvasModelPricingWorkspace,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
-import { isTextInput, tokenCategoryLabelKey } from '../lib/token-rate-summary'
+import {
+  isTextInput,
+  tokenCategoryLabel,
+  tokenCategoryLabelKey,
+} from '../lib/token-rate-summary'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
   CanvasModelPricingPriceSnapshot,
+  CanvasTokenCategory,
   CanvasTokenCategoryRisk,
 } from '../types'
 import {
@@ -98,20 +103,10 @@ type PublishedPriceSource = {
   specificationDisabled: boolean
 }
 
-type TokenRateKey =
-  | 'input'
-  | 'imageInput'
-  | 'output'
-  | 'cacheRead'
-  | 'cacheWrite'
+type TokenRateKey = CanvasTokenCategory
 
-const tokenRateKeys: TokenRateKey[] = [
-  'input',
-  'imageInput',
-  'output',
-  'cacheRead',
-  'cacheWrite',
-]
+// Every Token category a price may list, in display order: a special prices exactly the categories of its source price.
+const tokenRateKeys = Object.keys(tokenCategoryLabel) as TokenRateKey[]
 
 function fixedDecimal(value: string): bigint | undefined {
   const match = /^(0|[1-9]\d*)(?:\.(\d{1,8}))?$/u.exec(value)
@@ -227,13 +222,12 @@ export function LimitedPriceActivityForm(props: {
   const [modelId, setModelId] = useState('')
   const [sourcePriceVersionId, setSourcePriceVersionId] = useState('')
   const [specialPoints, setSpecialPoints] = useState('')
-  const [specialTokenRates, setSpecialTokenRates] = useState({
-    input: '',
-    imageInput: '',
-    output: '',
-    cacheRead: '',
-    cacheWrite: '',
-  })
+  const [specialTokenRates, setSpecialTokenRates] = useState(
+    () =>
+      Object.fromEntries(
+        tokenRateKeys.map((category) => [category, ''])
+      ) as Record<TokenRateKey, string>
+  )
   const [startsAt, setStartsAt] = useState<Date>()
   const [endsAt, setEndsAt] = useState<Date>()
   const [approvalReason, setApprovalReason] = useState('')
@@ -327,19 +321,13 @@ export function LimitedPriceActivityForm(props: {
         return createCanvasLimitedPriceActivity({
           name: name.trim(),
           sourcePriceVersionId: source.id,
-          specialTokenRates: {
-            input: specialTokenRates.input.trim(),
-            output: specialTokenRates.output.trim(),
-            ...(specialTokenRates.cacheRead.trim()
-              ? { cacheRead: specialTokenRates.cacheRead.trim() }
-              : {}),
-            ...(specialTokenRates.cacheWrite.trim()
-              ? { cacheWrite: specialTokenRates.cacheWrite.trim() }
-              : {}),
-            ...(specialTokenRates.imageInput.trim()
-              ? { imageInput: specialTokenRates.imageInput.trim() }
-              : {}),
-          },
+          // Exactly the categories of the source price: a value left from another model is not sent.
+          specialTokenRates: Object.fromEntries(
+            requiredTokenCategories.map((category) => [
+              category,
+              specialTokenRates[category].trim(),
+            ])
+          ),
           startsAt: startsAt.toISOString(),
           endsAt: endsAt.toISOString(),
           approvalReason: approvalReason.trim(),
@@ -692,6 +680,8 @@ const specialRateLabelKey: Record<TokenRateKey, string> = {
   output: 'Special output token rate',
   cacheRead: 'Special cache-read token rate',
   cacheWrite: 'Special cache-write token rate',
+  total: 'Special without-video-input token rate',
+  totalWithVideoInput: 'Special with-video-input token rate',
 }
 
 // A hint only: how the entered special price compares with the current regular price. It sets no price bounds.

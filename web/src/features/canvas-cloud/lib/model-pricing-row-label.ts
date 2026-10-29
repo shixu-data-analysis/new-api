@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { pricingScopeLabel } from '../pricing-scope-label'
+import { pricingScopeLabel, videoTotalPricing } from '../pricing-scope-label'
 import type { CanvasModelPricingDetail, CanvasTokenCategory } from '../types'
 import { sharedTokenPrice, type PricingEditorRow } from './model-pricing-editor'
 import { tokenCategoryLabelKey } from './token-rate-summary'
@@ -57,6 +57,12 @@ export function pricingRowCombination(
         t
       )
   if (!labeling.token) return scope
+  // A video's rows are its pricing scopes: "720p · 不含视频输入" (VIDEO-TOKEN-BILLING-001).
+  if (videoTotalPricing(labeling.tokenCategories)) {
+    return labeling.tokenCategories.length > 1
+      ? `${scope} · ${t(tokenCategoryLabelKey(row.field as CanvasTokenCategory, labeling.tokenCategories))}`
+      : scope
+  }
   const category = t(
     tokenCategoryLabelKey(
       row.field as CanvasTokenCategory,

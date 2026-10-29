@@ -31,6 +31,7 @@ import {
   tokenCategoryLabel,
   tokenCategoryLabelKey,
 } from '../lib/token-rate-summary'
+import { videoTotalPricing } from '../pricing-scope-label'
 import type {
   CanvasBillingUnit,
   CanvasCatalogModelBadge,
@@ -122,6 +123,40 @@ export function ModelPriceRow(props: {
       (category) =>
         typeof rates[category] === 'string' || listed.includes(category)
     )
+    // A video priced by its totals has one line per pricing scope: "720p · 不含视频输入" (VIDEO-TOKEN-BILLING-001).
+    if (videoTotalPricing(categories)) {
+      return (
+        <>
+          {categories.map((category) => (
+            <div
+              key={category}
+              className='bg-muted flex items-center justify-between gap-2 rounded-lg border px-3 py-2'
+            >
+              <span className='truncate font-medium'>
+                {[
+                  name || t('Default'),
+                  ...(categories.length > 1
+                    ? [t(tokenCategoryLabelKey(category, categories))]
+                    : []),
+                ].join(' · ')}
+              </span>
+              <span className='shrink-0 tabular-nums'>
+                <span className='text-[15px] font-bold'>
+                  {rates[category] ?? '—'}
+                </span>
+                <span className='text-muted-foreground ms-1 text-xs'>
+                  {t(pointsUnitKey(props.billingUnit))}
+                </span>
+                {props.categoryExtra?.(category)}
+              </span>
+            </div>
+          ))}
+          {props.extra ? (
+            <div className='text-right tabular-nums'>{props.extra}</div>
+          ) : null}
+        </>
+      )
+    }
     return (
       <div className='bg-muted grid gap-1 rounded-lg border px-3 py-2'>
         {name ? (

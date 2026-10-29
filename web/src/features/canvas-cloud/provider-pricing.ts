@@ -18,18 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { CanvasTokenCategory } from './types'
 
-export const providerTokenCategories = [
-  'input',
-  'imageInput',
-  'output',
-  'cacheRead',
-  'cacheWrite',
-] as const satisfies readonly CanvasTokenCategory[]
-
 export const providerTokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   input: 'Input tokens',
   imageInput: 'Image input',
   output: 'Output tokens',
   cacheRead: 'Cache read',
   cacheWrite: 'Cache write',
+  total: 'Without video input',
+  totalWithVideoInput: 'With video input',
 }
+
+// Every category in display order, from the labels the compiler checks for completeness.
+export const providerTokenCategories = Object.keys(
+  providerTokenCategoryLabel
+) as CanvasTokenCategory[]

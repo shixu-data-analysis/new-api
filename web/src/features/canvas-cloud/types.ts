@@ -412,6 +412,8 @@ export interface CanvasAgentModelUsageRow {
     cacheReadTokens: string | null
     cacheWriteTokens: string | null
     imageInputTokens: string | null
+    totalTokens: string | null
+    totalWithVideoInputTokens: string | null
   }
   successfulTasks: number
   settledPoints: string
@@ -566,13 +568,18 @@ export type CanvasTokenCategory =
   | 'cacheRead'
   | 'cacheWrite'
   | 'imageInput'
+  | 'total'
+  | 'totalWithVideoInput'
 export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
+// Text and image rates carry input and output, a video's only the total (VIDEO-TOKEN-BILLING-001).
 export type CanvasModelPricingTokenRateVector = {
-  input: string
-  output: string
+  input?: string
+  output?: string
   cacheRead?: string
   cacheWrite?: string
   imageInput?: string
+  total?: string
+  totalWithVideoInput?: string
 }
 export interface CanvasTokenCategoryRisk {
   category: CanvasTokenCategory
@@ -1993,10 +2000,11 @@ export interface CanvasAdminTokenBilling {
   inputTokensEstimate: string | null
   maxTokens: number | null
   requestedMaxTokens: number | null
-  /** Image tasks: the estimated Tokens of every category for all pictures, which the hold was worked out from. */
-  imageEstimate: {
+  /** Image and video tasks: the estimated Tokens of every category for all results, which the hold was worked out from. */
+  resultEstimate: {
     tokens: Partial<Record<CanvasTokenCategory, string>>
-    pictures: number
+    results: number
+    resultKind: 'IMAGE' | 'VIDEO'
   } | null
 }
 

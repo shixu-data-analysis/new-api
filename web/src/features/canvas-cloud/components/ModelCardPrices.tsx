@@ -58,11 +58,17 @@ export interface ModelCardPrice {
  */
 export function ModelCardPrices(props: {
   prices: ModelCardPrice[]
+  /** The model's generation type: only an image has one Token price for the whole model (IMAGE-TOKEN-BILLING-001). */
+  capability: string | undefined
   now: Date
   /** False when the card shows the schedule once itself (the agent card, under every plan). */
   showSchedule?: boolean
 }) {
-  const prices = oneTokenPrice(props.prices)
+  // A video's resolutions keep their rows even at equal rates (VIDEO-TOKEN-BILLING-001).
+  const prices =
+    props.capability === 'image.generate'
+      ? oneTokenPrice(props.prices)
+      : props.prices
   const showSchedule = props.showSchedule ?? true
   const shared = showSchedule ? sharedTimeOfDaySchedule(prices) : null
   return (

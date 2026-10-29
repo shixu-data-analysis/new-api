@@ -27,6 +27,7 @@ import type {
   CanvasRechargeBonusBindingRecord,
   CanvasRegistrationRankActivity,
   CanvasRegistrationRankGrantRecord,
+  CanvasTokenRateVector,
 } from './activity-types'
 
 const webBase = '/canvas-api/v1/web/admin/activities'
@@ -175,13 +176,8 @@ export async function createCanvasLimitedPriceActivity(input: {
   name: string
   sourcePriceVersionId: string
   specialPoints?: string
-  specialTokenRates?: {
-    input: string
-    output: string
-    cacheRead?: string
-    cacheWrite?: string
-    imageInput?: string
-  }
+  // The categories of the source price, as the model declares them (text and image input and output, a video's totals).
+  specialTokenRates?: CanvasTokenRateVector
   startsAt: string
   endsAt: string
   approvalReason: string

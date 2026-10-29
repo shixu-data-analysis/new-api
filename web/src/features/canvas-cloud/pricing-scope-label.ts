@@ -7,6 +7,16 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 
+/** Whether a model is priced by the video totals only, named by their video input in prices. */
+export function videoTotalPricing(categories: readonly string[]): boolean {
+  return (
+    categories.length > 0 &&
+    categories.every(
+      (category) => category === 'total' || category === 'totalWithVideoInput'
+    )
+  )
+}
+
 export function pricingScopeLabel(
   scope: { key: string; parameters: Record<string, unknown> } | undefined,
   t: (key: string, options?: Record<string, unknown>) => string

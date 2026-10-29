@@ -45,6 +45,8 @@ const usageFields: Record<
   output: 'outputTokens',
   cacheRead: 'cacheReadTokens',
   cacheWrite: 'cacheWriteTokens',
+  total: 'totalTokens',
+  totalWithVideoInput: 'totalWithVideoInputTokens',
 }
 
 // A Token model lists only the categories it prices; without one frozen price, the measured categories stand in.

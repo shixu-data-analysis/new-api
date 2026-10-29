@@ -259,6 +259,18 @@ function TokenBillingSnapshot(props: {
       )
       .join(' · ')
   const rates = byCategory(billing.tokenRates)
+  // Image and video tasks: the estimate of all results the hold was worked out from (VIDEO-TOKEN-BILLING-001).
+  const estimate = billing.resultEstimate
+  const estimatedUsage = estimate
+    ? byCategory(
+        Object.fromEntries(
+          Object.entries(estimate.tokens).map(([category, tokens]) => [
+            category,
+            count(tokens ?? '0'),
+          ])
+        )
+      )
+    : ''
   let multiplier = t('Not set')
   if (billing.timeOfDay?.ruleIndex === null) {
     multiplier = t('×1, outside every period')
@@ -302,25 +314,28 @@ function TokenBillingSnapshot(props: {
           })}
         </li>
       )}
-      {billing.imageEstimate ? (
+      {estimate ? (
         <li>
-          {t(
-            'Estimated usage: {{usage}} Tokens for {{pictures}} pictures, held {{points}} points',
-            {
-              usage: byCategory(
-                Object.fromEntries(
-                  Object.entries(billing.imageEstimate.tokens).map(
-                    ([category, tokens]) => [category, count(tokens ?? '0')]
-                  )
-                )
-              ),
-              pictures: billing.imageEstimate.pictures,
-              points: props.heldPoints,
-            }
-          )}
+          {estimate.resultKind === 'VIDEO'
+            ? t(
+                'Estimated usage: {{usage}} Tokens for {{results}} videos, held {{points}} points',
+                {
+                  usage: estimatedUsage,
+                  results: estimate.results,
+                  points: props.heldPoints,
+                }
+              )
+            : t(
+                'Estimated usage: {{usage}} Tokens for {{pictures}} pictures, held {{points}} points',
+                {
+                  usage: estimatedUsage,
+                  pictures: estimate.results,
+                  points: props.heldPoints,
+                }
+              )}
         </li>
       ) : (
-        // An image has no output limit.
+        // An image or video has no output limit.
         <li>{outputLimit}</li>
       )}
     </ul>

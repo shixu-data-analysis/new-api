@@ -16,6 +16,9 @@ export const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   output: 'Output',
   cacheRead: 'Cache read',
   cacheWrite: 'Cache write',
+  // A video's two totals are named by the video input wherever they show (VIDEO-TOKEN-BILLING-001).
+  total: 'Without video input',
+  totalWithVideoInput: 'With video input',
 }
 
 /**

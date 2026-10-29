@@ -6,6 +6,10 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type {
+  CanvasModelPricingTokenRateVector,
+  CanvasTokenCategory,
+} from './types'
 
 export type CanvasActivityType =
   | 'MANUAL_BONUS'
@@ -280,16 +284,11 @@ export interface CanvasLimitedPriceActivity {
   endsAt: string
 }
 
-export type CanvasTokenRateVector = {
-  input: string
-  output: string
-  cacheRead?: string
-  cacheWrite?: string
-  imageInput?: string
-}
+// The rates of a Token price: the categories its model declares (text and image input and output, a video's totals).
+export type CanvasTokenRateVector = CanvasModelPricingTokenRateVector
 
 export interface CanvasTokenCategoryCostReference {
-  category: 'input' | 'output' | 'cacheRead' | 'cacheWrite' | 'imageInput'
+  category: CanvasTokenCategory
   basePoints: string
   specialPoints: string
   baseRatePointsPerRmb: string | null

@@ -171,6 +171,7 @@ export function AgentModelPriceCards(props: {
                 </h4>
                 <ModelCardPrices
                   prices={agentPrices(group.prices, t, locale)}
+                  capability={model.capability}
                   now={now}
                   showSchedule={!schedule}
                 />
