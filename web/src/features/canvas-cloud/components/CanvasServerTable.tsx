@@ -199,6 +199,7 @@ export function CanvasServerTable<TData>({
         }
         emptyDescription={emptyDescription}
         fixedHeight={false}
+        viewportBoundedTable
         paginationInFooter={false}
         getRowClassName={getRowClassName}
         getColumnClassName={columnClassName}

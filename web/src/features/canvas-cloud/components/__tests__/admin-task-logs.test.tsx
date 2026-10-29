@@ -301,6 +301,20 @@ describe('Canvas administrator task records', () => {
     }
   })
 
+  it('keeps a long table within the screen, with its header and horizontal scrollbar in view', async () => {
+    mount()
+
+    await screen.findByRole('button', { name: task.id })
+    const table = screen.getByRole('table')
+    // The bordered frame caps its height; the table scrolls inside below a sticky header.
+    expect(table.closest('.rounded-lg.border')?.className).toContain(
+      'max-h-[max(20rem,calc(100svh-var(--app-header-height,3rem)-9rem))]'
+    )
+    // Its scrollbars stay visible and wide enough to drag, also with macOS overlay scrollbars.
+    expect(table.parentElement).toHaveClass('overflow-auto', 'table-scrollbar')
+    expect(table.querySelector('thead')).toHaveClass('sticky', 'top-0')
+  })
+
   it('opens the task record sheet from its task identifier', async () => {
     mount()
 

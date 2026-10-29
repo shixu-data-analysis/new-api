@@ -779,9 +779,10 @@ describe('execution settings', () => {
     const capacityRegion = screen.getByRole('region', {
       name: 'API Key group live capacity',
     })
-    expect(
-      capacityRegion.querySelector('[data-slot="table-container"]')
-    ).toHaveClass('overflow-x-auto')
+    // The table scrolls sideways and down inside its own bounded frame.
+    expect(capacityRegion.querySelector('table')?.parentElement).toHaveClass(
+      'overflow-auto'
+    )
     const workerScroll = screen
       .getAllByRole('region', { name: 'Running workers' })
       .find((region) => region.tabIndex === 0)
@@ -2763,7 +2764,9 @@ describe('execution settings', () => {
       within(card).getByText(/^These tasks keep querying as usual\./)
     ).toBeVisible()
     // The status is shown as the raw value, inside the translated sentence.
-    const row = within(card).getByText('sample_status').closest('li') as HTMLElement
+    const row = within(card)
+      .getByText('sample_status')
+      .closest('li') as HTMLElement
     expect(row).toHaveTextContent(
       'Example Provider / example.video: sample_status (2 tasks)'
     )

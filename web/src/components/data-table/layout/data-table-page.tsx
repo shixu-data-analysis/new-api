@@ -236,6 +236,12 @@ export type DataTablePageProps<TData> = {
   fixedHeight?: boolean
 
   /**
+   * With `fixedHeight={false}`, cap the desktop table at the visible content height so a long table scrolls inside,
+   * keeping its sticky header and horizontal scrollbar on screen (a mouse wheel cannot scroll sideways).
+   */
+  viewportBoundedTable?: boolean
+
+  /**
    * Desktop table container className (the bordered scroll wrapper).
    */
   tableClassName?: string
@@ -502,6 +508,9 @@ function renderDesktop<TData>(
 
   const isFetchingOnly = props.isFetching && !props.isLoading
   const fixedHeight = props.fixedHeight !== false
+  const boundedTable = !fixedHeight && props.viewportBoundedTable === true
+  // Both scroll the table inside its own container, below a sticky header.
+  const ownScroll = fixedHeight || boundedTable
 
   if (cardViewActive && viewMode === DATA_TABLE_VIEW_MODES.CARD) {
     return (
@@ -542,16 +551,20 @@ function renderDesktop<TData>(
       applyHeaderSize={props.applyHeaderSize}
       colgroup={props.colgroup}
       tableStyle={props.tableStyle}
-      splitHeader={fixedHeight}
-      tableContainerClassName={fixedHeight ? 'h-full min-h-0' : undefined}
+      splitHeader={ownScroll}
+      tableContainerClassName={ownScroll ? 'h-full min-h-0' : undefined}
+      bodyContainerClassName={boundedTable ? 'table-scrollbar' : undefined}
       tableHeaderClassName={cn(
-        fixedHeight && '[background-color:var(--table-header)]',
+        ownScroll && '[background-color:var(--table-header)]',
         props.tableHeaderClassName
       )}
       getColumnClassName={props.getColumnClassName}
       pinnedColumns={props.pinnedColumns}
       containerClassName={cn(
         fixedHeight && 'min-h-0 flex-1',
+        // The page header, title and pagination stay outside; a short screen still keeps 20rem of table.
+        boundedTable &&
+          'flex max-h-[max(20rem,calc(100svh-var(--app-header-height,3rem)-9rem))] flex-col',
         'transition-opacity duration-150',
         isFetchingOnly && 'pointer-events-none opacity-60',
         props.tableClassName
