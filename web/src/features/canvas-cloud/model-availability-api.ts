@@ -127,7 +127,7 @@ export interface AvailabilityOverview {
   }
   lastSuccessAt: string | null
   run: {
-    trigger: 'MANUAL' | 'SCHEDULED'
+    trigger: 'MANUAL' | 'SCHEDULED' | 'TEST'
     doneTargets: number
     totalTargets: number
     startedAt: string
@@ -201,6 +201,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
     'This request was sent and the rule did not pass with its answers. Send it again or change the rule.',
   VERSION_CONFLICT: 'The settings changed. Reload and try again.',
   PROBE_RUNNING: 'A probe round is already running.',
+  TEST_RUNNING: 'Another request test is running. Wait for it, then try again.',
   TEST_IN_PROGRESS:
     'This request was sent and has not answered yet. Wait for it, then try again.',
 }

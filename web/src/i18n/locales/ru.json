@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "Показать отключённые модели ({{count}})",
     "Hide disabled models ({{count}})": "Скрыть отключённые модели ({{count}})",
     "Disabled models ({{count}})": "Отключённые модели ({{count}})",
-    "No enabled models match": "Нет подходящих включённых моделей"
+    "No enabled models match": "Нет подходящих включённых моделей",
+    "Request test running": "Выполняется тест запроса",
+    "Another request test is running. Wait for it, then try again.": "Выполняется другой тест запроса. Дождитесь его завершения и повторите попытку."
   }
 }

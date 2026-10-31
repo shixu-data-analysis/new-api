@@ -204,7 +204,9 @@ export function ModelAvailabilityPanel() {
   let probeLabel = t('Probe now')
   // A round with no progress lost its process: the next one takes it over.
   const running = Boolean(run) && !run?.stale
-  if (run && running) {
+  if (run && running && run.trigger === 'TEST') {
+    probeLabel = t('Request test running')
+  } else if (run && running) {
     probeLabel = t(
       run.trigger === 'SCHEDULED'
         ? 'System probing ({{done}} / {{total}})'

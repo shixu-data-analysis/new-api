@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "停止済みモデルを表示（{{count}}）",
     "Hide disabled models ({{count}})": "停止済みモデルを隠す（{{count}}）",
     "Disabled models ({{count}})": "停止済みモデル（{{count}}）",
-    "No enabled models match": "一致する有効なモデルはありません"
+    "No enabled models match": "一致する有効なモデルはありません",
+    "Request test running": "リクエストをテスト中",
+    "Another request test is running. Wait for it, then try again.": "別のリクエストをテスト中です。完了してから再試行してください。"
   }
 }

@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "Hiện mô hình đã tắt ({{count}})",
     "Hide disabled models ({{count}})": "Ẩn mô hình đã tắt ({{count}})",
     "Disabled models ({{count}})": "Mô hình đã tắt ({{count}})",
-    "No enabled models match": "Không có mô hình đang bật nào phù hợp"
+    "No enabled models match": "Không có mô hình đang bật nào phù hợp",
+    "Request test running": "Đang kiểm tra yêu cầu",
+    "Another request test is running. Wait for it, then try again.": "Một yêu cầu khác đang được kiểm tra. Hãy đợi xong rồi thử lại."
   }
 }

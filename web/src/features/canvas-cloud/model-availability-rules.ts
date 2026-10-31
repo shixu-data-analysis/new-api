@@ -53,13 +53,23 @@ function namesCredentialField(value: unknown): boolean {
   )
 }
 
+// A provider reads the decoded text, so that is what is checked: an escape must not hide a credential.
+function decodedPath(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
 /** The checks Cloud makes on any rule path. The value is a translation key. */
 export function probePathIssue(value: string): string | undefined {
   const path = value.trim()
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('://')) {
     return 'The path must start with / and contain no host.'
   }
-  if (CREDENTIAL_TEXT.test(path) || CREDENTIAL_QUERY.test(path)) {
+  const decoded = decodedPath(path)
+  if (CREDENTIAL_TEXT.test(decoded) || CREDENTIAL_QUERY.test(decoded)) {
     return 'The path must not contain credentials.'
   }
   return undefined
@@ -78,13 +88,12 @@ function templateIssue(shape: ProbeRequestShape): string | undefined {
   if (shape.method !== 'POST') return undefined
   const template = shape.template ?? ''
   if (!parsesAsJson(template)) return 'The request content must be valid JSON.'
-  if (!template.includes(MODEL_PLACEHOLDER)) {
+  const parsed: unknown = JSON.parse(template)
+  const decoded = JSON.stringify(parsed)
+  if (!decoded.includes(MODEL_PLACEHOLDER)) {
     return 'The request content must contain {{model}}.'
   }
-  if (
-    CREDENTIAL_TEXT.test(template) ||
-    namesCredentialField(JSON.parse(template))
-  ) {
+  if (CREDENTIAL_TEXT.test(decoded) || namesCredentialField(parsed)) {
     return 'The request content must not contain credentials.'
   }
   return undefined

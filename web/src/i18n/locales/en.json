@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "Show disabled models ({{count}})",
     "Hide disabled models ({{count}})": "Hide disabled models ({{count}})",
     "Disabled models ({{count}})": "Disabled models ({{count}})",
-    "No enabled models match": "No enabled models match"
+    "No enabled models match": "No enabled models match",
+    "Request test running": "Request test running",
+    "Another request test is running. Wait for it, then try again.": "Another request test is running. Wait for it, then try again."
   }
 }

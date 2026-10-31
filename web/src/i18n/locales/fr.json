@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "Afficher les modèles désactivés ({{count}})",
     "Hide disabled models ({{count}})": "Masquer les modèles désactivés ({{count}})",
     "Disabled models ({{count}})": "Modèles désactivés ({{count}})",
-    "No enabled models match": "Aucun modèle activé ne correspond"
+    "No enabled models match": "Aucun modèle activé ne correspond",
+    "Request test running": "Test de requête en cours",
+    "Another request test is running. Wait for it, then try again.": "Un autre test de requête est en cours. Attendez sa fin, puis réessayez."
   }
 }

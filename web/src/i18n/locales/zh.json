@@ -9724,6 +9724,8 @@
     "Show disabled models ({{count}})": "展开已停用（{{count}}）",
     "Hide disabled models ({{count}})": "收起已停用（{{count}}）",
     "Disabled models ({{count}})": "已停用模型（{{count}}）",
-    "No enabled models match": "没有匹配的未停用模型"
+    "No enabled models match": "没有匹配的未停用模型",
+    "Request test running": "请求测试中",
+    "Another request test is running. Wait for it, then try again.": "另一个请求正在测试。请等待完成后再试。"
   }
 }

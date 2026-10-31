@@ -145,6 +145,23 @@ describe('ModelAvailabilityPanel', () => {
     ).toBeDisabled()
   })
 
+  it('blocks a probe while a request test runs, and says so', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({
+        run: {
+          trigger: 'TEST',
+          doneTargets: 0,
+          totalTargets: 0,
+          startedAt: 'x',
+        },
+      })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByRole('button', { name: 'Request test running' })
+    ).toBeDisabled()
+  })
+
   it('states that a failed probe does not mean a model is gone', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({

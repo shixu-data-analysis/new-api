@@ -122,6 +122,28 @@ describe('credentials in the request content', () => {
     }
   )
 
+  it.each(['"\\u0061pi_key"', '"authoriz\\u0061tion"', '"\\u0074oken"'])(
+    'sees through the escaped field name %s',
+    (field) => {
+      expect(issue(`{"model":"{{model}}","nested":{${field}:"x"}}`)).toBe(
+        'The request content must not contain credentials.'
+      )
+    }
+  )
+
+  it('sees through an escaped placeholder', () => {
+    expect(issue('{"model":"{{mod\\u0065l}}"}')).toBeUndefined()
+  })
+
+  it.each(['/m/{{model}}?%6bey=abc', '/m/%73k-abcdef/{{model}}'])(
+    'sees through the escaped path %s',
+    (path) => {
+      expect(probePathIssue(path)).toBe(
+        'The path must not contain credentials.'
+      )
+    }
+  )
+
   it('keeps an ordinary field that only resembles one', () => {
     expect(
       issue(JSON.stringify({ model: '{{model}}', max_tokens: 1 }))
