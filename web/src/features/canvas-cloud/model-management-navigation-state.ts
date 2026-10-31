@@ -25,8 +25,10 @@ export interface ModelManagementListState {
   provider: string
   capability: string
   visibility: string
+  showDisabled: boolean
   tagId: string
   pagination: PaginationState
+  disabledPagination: PaginationState
   sorting: SortingState
   columnVisibility: VisibilityState
   scrollY: number
@@ -43,8 +45,10 @@ const initialListState: ModelManagementListState = {
   provider: '',
   capability: '',
   visibility: 'ALL',
+  showDisabled: false,
   tagId: '',
   pagination: { pageIndex: 0, pageSize: 20 },
+  disabledPagination: { pageIndex: 0, pageSize: 20 },
   sorting: [{ id: 'name', desc: false }],
   columnVisibility: {},
   scrollY: 0,
@@ -111,11 +115,18 @@ export function normalizeModelManagementListState(
       typeof value.visibility === 'string'
         ? value.visibility
         : initialListState.visibility,
+    showDisabled:
+      typeof value.showDisabled === 'boolean'
+        ? value.showDisabled
+        : initialListState.showDisabled,
     tagId:
       typeof value.tagId === 'string' ? value.tagId : initialListState.tagId,
     pagination: isPaginationState(value.pagination)
       ? value.pagination
       : initialListState.pagination,
+    disabledPagination: isPaginationState(value.disabledPagination)
+      ? value.disabledPagination
+      : initialListState.disabledPagination,
     sorting: isSortingState(value.sorting)
       ? value.sorting
       : initialListState.sorting,

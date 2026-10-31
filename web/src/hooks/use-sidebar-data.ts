@@ -54,6 +54,10 @@ import {
   getAgentUnreadWithdrawalCount,
 } from '@/features/canvas-cloud/agent-earnings-api'
 import {
+  getModelAvailabilityBadge,
+  modelAvailabilityBadgeQueryKey,
+} from '@/features/canvas-cloud/model-availability-api'
+import {
   getProviderBalanceAlerts,
   providerBalanceAlertsQueryKey,
 } from '@/features/canvas-cloud/operating-dashboard-api'
@@ -81,6 +85,14 @@ export function useSidebarData(): SidebarData {
     refetchInterval: 5 * 60_000,
   })
   const alertCount = balanceAlerts.data?.alertCount ?? 0
+  // Missing models, failed probes and paused providers mark model management the same way.
+  const availabilityBadge = useQuery({
+    queryKey: modelAvailabilityBadgeQueryKey,
+    queryFn: ({ signal }) => getModelAvailabilityBadge(signal),
+    enabled: isAdministrator,
+    refetchInterval: 5 * 60_000,
+  })
+  const availabilityCount = availabilityBadge.data?.count ?? 0
   // Executor attention hints mark the runtime management entry the same way.
   const attentionCount = useExecutionAttentionCount(isAdministrator)
   // Pending withdrawal requests mark invitation management; processed results the agent has not seen mark "My earnings".
@@ -192,6 +204,15 @@ export function useSidebarData(): SidebarData {
                 url: '/canvas-cloud/model-management',
                 activeUrls: ['/canvas-cloud/model-management/'],
                 icon: Boxes,
+                ...(availabilityCount > 0
+                  ? {
+                      badge: String(availabilityCount),
+                      badgeTone: 'alert' as const,
+                      badgeLabel: t('{{count}} model availability alerts', {
+                        count: availabilityCount,
+                      }),
+                    }
+                  : {}),
               },
               {
                 title: t('Pricing and point rules'),

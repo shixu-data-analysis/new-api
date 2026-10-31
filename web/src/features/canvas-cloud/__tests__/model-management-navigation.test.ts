@@ -105,6 +105,7 @@ describe('model-management return state forwarding', () => {
           capability: 'IMAGE',
           visibility: 'CUSTOMER',
           pagination: { pageIndex: 2, pageSize: 50 },
+          disabledPagination: { pageIndex: 1, pageSize: 10 },
           sorting: [{ id: 'provider', desc: true }],
           scrollY: 480,
           focusModelId: 'model-1:monitoring:target-1',
@@ -118,6 +119,7 @@ describe('model-management return state forwarding', () => {
       capability: 'IMAGE',
       visibility: 'CUSTOMER',
       pagination: { pageIndex: 2, pageSize: 50 },
+      disabledPagination: { pageIndex: 1, pageSize: 10 },
       sorting: [{ id: 'provider', desc: true }],
       columnVisibility: {},
       scrollY: 480,
@@ -128,6 +130,7 @@ describe('model-management return state forwarding', () => {
     ).toMatchObject({
       search: '',
       pagination: { pageIndex: 0, pageSize: 20 },
+      disabledPagination: { pageIndex: 0, pageSize: 20 },
       columnVisibility: {},
     })
   })

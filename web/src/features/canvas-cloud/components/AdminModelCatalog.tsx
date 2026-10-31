@@ -83,6 +83,8 @@ import {
   isModelManagementTab,
   type ModelManagementTab,
 } from './model-management-tabs'
+import { ModelAvailabilityAlertBadge } from './ModelAvailabilityAlertBadge'
+import { ModelAvailabilityPanel } from './ModelAvailabilityPanel'
 import { ModelMonitoringOverview } from './ModelMonitoringOverview'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import {
@@ -545,6 +547,10 @@ export function AdminModelCatalog(props: {
             <CanvasManagementTabsTrigger value='monitoring'>
               {t('Runtime monitoring')}
             </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='availability'>
+              {t('Availability alert')}
+              <ModelAvailabilityAlertBadge />
+            </CanvasManagementTabsTrigger>
           </CanvasManagementTabsList>
           <TabsContent value='published' className='mt-4'>
             <PublishedModelCatalog
@@ -578,6 +584,9 @@ export function AdminModelCatalog(props: {
           </TabsContent>
           <TabsContent value='monitoring' className='mt-4'>
             <ModelMonitoringOverview />
+          </TabsContent>
+          <TabsContent value='availability' className='mt-4'>
+            <ModelAvailabilityPanel />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>
             {plan ? (

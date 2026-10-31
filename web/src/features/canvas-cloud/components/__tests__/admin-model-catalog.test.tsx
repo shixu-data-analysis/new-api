@@ -324,6 +324,7 @@ describe('Canvas model catalog folder upload', () => {
         catalogDefaultName: `Catalog Series ${String(index).padStart(2, '0')}`,
         description: '',
         resourceEnabled: true,
+        modelDisabled: false,
         presentationVersion: null,
         status: 'ACTIVE',
         customerVisible: false,

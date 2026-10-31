@@ -21,6 +21,7 @@ import {
   type ColumnDef,
   type PaginationState,
   type SortingState,
+  type Updater,
   type VisibilityState,
 } from '@tanstack/react-table'
 import {
@@ -84,6 +85,7 @@ import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 import { ParameterCombinationControlDialog } from './ParameterCombinationControlDialog'
+import { visibleInList } from './published-model-visibility'
 import { PublishedModelDetails } from './PublishedModelDetails'
 
 type ExecutionTarget = CanvasAdminTestingModel['executionTargets'][number]
@@ -95,6 +97,16 @@ export interface ModelBindingNavigationTarget {
 
 function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
   return enabled ? t('Turn off display switch') : t('Turn on display switch')
+}
+
+// Disabled models are only looked up here; they are restored from the alert and monitoring pages.
+const DISABLED_TABLE_COLUMNS = new Set(['name', 'provider', 'capability'])
+
+function pageWithinRange(pageCount: number) {
+  return (current: PaginationState) =>
+    current.pageIndex < Math.max(1, pageCount)
+      ? current
+      : { ...current, pageIndex: Math.max(0, pageCount - 1) }
 }
 
 export function PublishedModelCatalog(props: {
@@ -125,10 +137,20 @@ export function PublishedModelCatalog(props: {
   const [visibility, setVisibility] = useState(
     () => navigation?.listState.visibility ?? 'ALL'
   )
+  const [showDisabled, setShowDisabled] = useState(
+    () => navigation?.listState.showDisabled ?? false
+  )
   const [tagId, setTagId] = useState(() => navigation?.listState.tagId ?? '')
   const [tagsExpanded, setTagsExpanded] = useState(true)
   const [pagination, setPagination] = useState<PaginationState>(
     () => navigation?.listState.pagination ?? { pageIndex: 0, pageSize: 20 }
+  )
+  const [disabledPagination, setDisabledPagination] = useState<PaginationState>(
+    () =>
+      navigation?.listState.disabledPagination ?? {
+        pageIndex: 0,
+        pageSize: 20,
+      }
   )
   const [sorting, setSorting] = useState<SortingState>(
     () => navigation?.listState.sorting ?? [{ id: 'name', desc: false }]
@@ -146,9 +168,10 @@ export function PublishedModelCatalog(props: {
       hasAppliedInitialFilters.current = true
       return
     }
-    setPagination((current) =>
+    const toFirstPage = (current: PaginationState) =>
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
-    )
+    setPagination(toFirstPage)
+    setDisabledPagination(toFirstPage)
   }, [capability, modelId, provider, search, tagId, visibility])
   useEffect(() => {
     navigation?.updateListState({
@@ -157,13 +180,16 @@ export function PublishedModelCatalog(props: {
       provider,
       capability,
       visibility,
+      showDisabled,
       tagId,
       pagination,
+      disabledPagination,
       sorting,
       columnVisibility,
     })
   }, [
     capability,
+    disabledPagination,
     modelId,
     navigation,
     pagination,
@@ -172,14 +198,14 @@ export function PublishedModelCatalog(props: {
     sorting,
     tagId,
     columnVisibility,
+    showDisabled,
     visibility,
   ])
   const ensurePageInRange = useCallback((pageCount: number) => {
-    setPagination((current) =>
-      current.pageIndex < Math.max(1, pageCount)
-        ? current
-        : { ...current, pageIndex: Math.max(0, pageCount - 1) }
-    )
+    setPagination(pageWithinRange(pageCount))
+  }, [])
+  const ensureDisabledPageInRange = useCallback((pageCount: number) => {
+    setDisabledPagination(pageWithinRange(pageCount))
   }, [])
   const [toggling, setToggling] = useState<{
     model: CanvasAdminTestingModel
@@ -337,7 +363,7 @@ export function PublishedModelCatalog(props: {
   const selectedProvider = apiProviders.some((item) => item.id === provider)
     ? provider
     : ''
-  const modelsBeforeTag = useMemo(() => {
+  const matchingModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
     const idQuery = modelId.trim().toLocaleLowerCase()
     const matches = (models.data ?? []).filter((model) => {
@@ -372,16 +398,32 @@ export function PublishedModelCatalog(props: {
     selectedProvider,
     visibility,
   ])
-  const filtered = useMemo(
+  const searching = Boolean(search.trim() || modelId.trim())
+  const modelsBeforeTag = useMemo(
+    () => visibleInList(matchingModels, { showDisabled, searching }),
+    [matchingModels, searching, showDisabled]
+  )
+  const matchesTag = useCallback(
+    (model: CanvasAdminTestingModel) =>
+      !tagId ||
+      (tagId === '__untagged__'
+        ? model.tags.length === 0
+        : model.tags.some((tag) => tag.id === tagId)),
+    [tagId]
+  )
+  const enabledModels = useMemo(
     () =>
-      modelsBeforeTag.filter(
-        (model) =>
-          !tagId ||
-          (tagId === '__untagged__'
-            ? model.tags.length === 0
-            : model.tags.some((tag) => tag.id === tagId))
+      matchingModels.filter(
+        (model) => !model.modelDisabled && matchesTag(model)
       ),
-    [modelsBeforeTag, tagId]
+    [matchesTag, matchingModels]
+  )
+  const disabledModels = useMemo(
+    () =>
+      matchingModels.filter(
+        (model) => model.modelDisabled && matchesTag(model)
+      ),
+    [matchesTag, matchingModels]
   )
   const tagFilterCounts = useMemo(() => {
     const byId = new Map<string, number>()
@@ -560,23 +602,41 @@ export function PublishedModelCatalog(props: {
     () => withCanvasTableColumnSizes(columns),
     [columns]
   )
-  const { table } = useDataTable({
-    data: filtered,
-    columns: sizedColumns,
-    getRowId: (model) => model.id,
+  const disabledColumns = useMemo(
+    () =>
+      withCanvasTableColumnSizes(
+        columns.filter((column) => DISABLED_TABLE_COLUMNS.has(column.id ?? ''))
+      ),
+    [columns]
+  )
+  const sharedTableOptions = {
+    getRowId: (model: CanvasAdminTestingModel) => model.id,
     manualFiltering: true,
     columnFilters: [],
     globalFilter: '',
     initialSorting: [{ id: 'name', desc: false }],
     sorting,
     onSortingChange: setSorting,
+    columnVisibility,
+    onColumnVisibilityChange: (update: Updater<VisibilityState>) =>
+      setColumnVisibility((current) => functionalUpdate(update, current)),
+    autoResetPageIndex: false,
+  }
+  const { table } = useDataTable({
+    ...sharedTableOptions,
+    columns: sizedColumns,
+    data: enabledModels,
     pagination,
     onPaginationChange: setPagination,
-    columnVisibility,
-    onColumnVisibilityChange: (update) =>
-      setColumnVisibility((current) => functionalUpdate(update, current)),
     ensurePageInRange,
-    autoResetPageIndex: false,
+  })
+  const { table: disabledTable } = useDataTable({
+    ...sharedTableOptions,
+    columns: disabledColumns,
+    data: disabledModels,
+    pagination: disabledPagination,
+    onPaginationChange: setDisabledPagination,
+    ensurePageInRange: ensureDisabledPageInRange,
   })
   const renderTargetDetails = (
     model: CanvasAdminTestingModel,
@@ -822,14 +882,18 @@ export function PublishedModelCatalog(props: {
         </section>
         <DataTablePage
           table={table}
+          emptyTitle={t(
+            disabledModels.length > 0
+              ? 'No enabled models match'
+              : 'No matching models'
+          )}
+          emptyDescription={t('No records found. Try adjusting your filters.')}
           columns={sizedColumns}
           isLoading={models.isPending}
           fixedHeight={false}
           paginationInFooter={false}
           applyHeaderSize
           tableClassName='model-management-group-table [&_tbody>tr]:h-auto [&_tbody>tr]:border-b-0'
-          emptyTitle={t('No matching models')}
-          emptyDescription={t('No records found. Try adjusting your filters.')}
           getColumnClassName={(_, section) => {
             if (section === 'cell') {
               return 'px-2 py-2 align-top whitespace-normal'
@@ -950,6 +1014,39 @@ export function PublishedModelCatalog(props: {
             />
           }
         />
+        {disabledModels.length > 0 && (
+          <section className='mt-6 space-y-2'>
+            {searching ? (
+              <h3 className='text-sm font-medium'>
+                {t('Disabled models ({{count}})', {
+                  count: disabledModels.length,
+                })}
+              </h3>
+            ) : (
+              <Button
+                variant='ghost'
+                aria-expanded={showDisabled}
+                onClick={() => setShowDisabled((value) => !value)}
+              >
+                {t(
+                  showDisabled
+                    ? 'Hide disabled models ({{count}})'
+                    : 'Show disabled models ({{count}})',
+                  { count: disabledModels.length }
+                )}
+              </Button>
+            )}
+            {(showDisabled || searching) && (
+              <DataTablePage
+                table={disabledTable}
+                columns={disabledColumns}
+                fixedHeight={false}
+                paginationInFooter={false}
+                applyHeaderSize
+              />
+            )}
+          </section>
+        )}
       </CardContent>
       {toggling && (
         <AlertDialog

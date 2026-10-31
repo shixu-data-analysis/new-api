@@ -17,6 +17,7 @@ function model(
     catalogDefaultName: 'Catalog Alpha model',
     description: '',
     resourceEnabled: true,
+    modelDisabled: false,
     presentationVersion: null,
     status: 'ACTIVE',
     customerVisible: false,

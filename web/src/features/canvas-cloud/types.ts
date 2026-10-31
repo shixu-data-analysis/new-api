@@ -1157,6 +1157,7 @@ export interface CanvasAdminTestingModel {
   catalogDefaultName: string
   description: string
   resourceEnabled: boolean
+  modelDisabled: boolean
   presentationVersion: number | null
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
   customerVisible: boolean

@@ -12,12 +12,14 @@ export type ModelManagementTab =
   | 'display'
   | 'import'
   | 'monitoring'
+  | 'availability'
 
 const modelManagementTabs: ModelManagementTab[] = [
   'published',
   'display',
   'import',
   'monitoring',
+  'availability',
 ]
 
 export function isModelManagementTab(

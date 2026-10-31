@@ -71,6 +71,7 @@ describe('Model pricing route continuity', () => {
         version: 1,
         presentationVersion: null,
         resourceEnabled: true,
+        modelDisabled: false,
         customerVisible: false,
         pricedTargets: 0,
         totalTargets: 1,

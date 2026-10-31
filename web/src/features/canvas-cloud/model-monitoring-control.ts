@@ -15,6 +15,7 @@ export const modelDisableReasons = [
   'UPSTREAM',
   'NETWORK',
   'MAINTENANCE',
+  'MODEL_DELISTED',
   'OTHER',
 ] as const
 
@@ -35,6 +36,7 @@ export const modelMonitoringReasonLabels: Record<string, string> = {
   UPSTREAM: 'Upstream service error',
   NETWORK: 'Network error',
   MAINTENANCE: 'Planned maintenance',
+  MODEL_DELISTED: 'Removed by the provider',
   OTHER: 'Other',
   CREDENTIALS_UPDATED: 'Credentials updated',
   QUOTA_RESTORED: 'Balance or quota restored',

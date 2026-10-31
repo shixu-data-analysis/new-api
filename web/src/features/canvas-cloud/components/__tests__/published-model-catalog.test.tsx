@@ -14,12 +14,14 @@ import {
   waitFor,
   within,
 } from '@testing-library/react'
-import type { ComponentProps } from 'react'
 import userEvent from '@testing-library/user-event'
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CanvasAdminTestingModel } from '../../types'
 import { executionTargetLabel } from '../execution-target-label'
+import { ExecutionTargetCoverage } from '../ExecutionTargetCoverage'
+import { visibleInList } from '../published-model-visibility'
 import { PublishedModelCatalog } from '../PublishedModelCatalog'
 
 const mocks = vi.hoisted(() => ({
@@ -110,6 +112,7 @@ function model(
     catalogDefaultName: 'Catalog Alpha model',
     description: 'Client description',
     resourceEnabled: true,
+    modelDisabled: false,
     presentationVersion: 0,
     status: 'ACTIVE',
     customerVisible: true,
@@ -175,17 +178,250 @@ describe('Published model catalog', () => {
     const user = userEvent.setup()
     const onManageCategories = vi.fn()
     mocks.tags.mockResolvedValue([
-      { id: '55555555-5555-4555-8555-555555555555', name: 'Portrait', modelCount: 0, modelKeys: [] },
-      { id: 'photo', name: 'Photography', modelCount: 1, modelKeys: ['canvas.image.alpha'] },
+      {
+        id: '55555555-5555-4555-8555-555555555555',
+        name: 'Portrait',
+        modelCount: 0,
+        modelKeys: [],
+      },
+      {
+        id: 'photo',
+        name: 'Photography',
+        modelCount: 1,
+        modelKeys: ['canvas.image.alpha'],
+      },
     ])
-    mocks.list.mockResolvedValue([model({ tags: [{ id: 'photo', name: 'Photography' }] })])
+    mocks.list.mockResolvedValue([
+      model({ tags: [{ id: 'photo', name: 'Photography' }] }),
+    ])
     renderCatalog(undefined, vi.fn(), onManageCategories)
     const filter = await screen.findByRole('button', { name: 'Photography 1' })
     expect(filter.querySelector('.model-icon-tile')).toBeNull()
     expect(screen.queryByRole('button', { name: /^Portrait/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Manage model categories' })).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Manage categories in "Display & categories"' }))
+    expect(
+      screen.queryByRole('button', { name: 'Manage model categories' })
+    ).toBeNull()
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Manage categories in "Display & categories"',
+      })
+    )
     expect(onManageCategories).toHaveBeenCalledTimes(1)
+  })
+
+  describe('models disabled by hand', () => {
+    const disabledSection = () =>
+      (
+        screen.queryByRole('button', { name: /disabled models/ }) ??
+        screen.getByRole('heading', { name: /Disabled models/ })
+      ).closest('section') as HTMLElement
+    const disabledTable = () => within(disabledSection()).getByRole('table')
+    const models = () => [
+      model({
+        modelDisabled: true,
+        effectiveDisplayName: 'Stopped model',
+        catalogDefaultName: 'Stopped model',
+        modelKey: 'canvas.image.stopped',
+      }),
+      model({
+        id: '85000000-0000-7000-8000-000000000005',
+        modelKey: 'canvas.image.beta',
+        effectiveDisplayName: 'Beta model',
+        catalogDefaultName: 'Beta model',
+      }),
+    ]
+
+    it('are folded away by default, with their number on the toggle', async () => {
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      await screen.findAllByText('Beta model')
+      expect(screen.queryByText('Stopped model')).toBeNull()
+      expect(
+        screen.getByRole('button', { name: 'Show disabled models (1)' })
+      ).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('keep a table of their own below the pagination of the others', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      const toggle = await screen.findByRole('button', {
+        name: 'Show disabled models (1)',
+      })
+      const pagination = screen.getByText('Go to first page')
+      expect(
+        pagination.compareDocumentPosition(toggle) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+      expect(within(disabledSection()).queryByRole('table')).toBeNull()
+      await user.click(toggle)
+      expect(disabledTable()).toHaveTextContent('Stopped model')
+      expect(disabledTable()).not.toHaveTextContent('Beta model')
+      const [enabled] = screen.getAllByRole('table')
+      expect(enabled).toHaveTextContent('Beta model')
+      expect(enabled).not.toHaveTextContent('Stopped model')
+    })
+
+    it('unfold into a plain table, and fold again', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (1)' })
+      )
+      const disabled = within(disabledTable())
+      expect(
+        disabled.getAllByRole('columnheader').map((item) => item.textContent)
+      ).toEqual(['Model', 'API provider', 'Generation type'])
+      expect(disabled.getByText('Stopped model')).toBeInTheDocument()
+      expect(disabled.queryByText('Execution targets')).toBeNull()
+      expect(
+        disabled.queryByRole('button', { name: 'Manage prices' })
+      ).toBeNull()
+      await user.click(
+        screen.getByRole('button', { name: 'Hide disabled models (1)' })
+      )
+      expect(screen.queryByText('Stopped model')).toBeNull()
+    })
+
+    it('are still found by a search, so a model never seems to have vanished', () => {
+      const all = models()
+      expect(
+        visibleInList(all, { showDisabled: false, searching: true }).map(
+          (item) => item.modelKey
+        )
+      ).toEqual(['canvas.image.stopped', 'canvas.image.beta'])
+      expect(
+        visibleInList(all, { showDisabled: false, searching: false }).map(
+          (item) => item.modelKey
+        )
+      ).toEqual(['canvas.image.beta'])
+      expect(
+        visibleInList(all, { showDisabled: true, searching: false })
+      ).toHaveLength(2)
+    })
+
+    const numbered = (label: string, count: number, modelDisabled: boolean) =>
+      Array.from({ length: count }, (_, index) => {
+        const name = `${label} ${String(index + 1).padStart(2, '0')}`
+        return model({
+          id: `${label}-${index}`,
+          modelKey: `canvas.image.${label}.${index}`,
+          modelDisabled,
+          effectiveDisplayName: name,
+          catalogDefaultName: name,
+        })
+      })
+
+    it('page separately from the other models', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue([
+        ...numbered('Running', 25, false),
+        ...numbered('Stopped', 25, true),
+      ])
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (25)' })
+      )
+      const enabledTable = () => screen.getAllByRole('table')[0]
+      const nextPage = (index: number) =>
+        screen.getAllByRole('button', { name: 'Go to next page' })[
+          index
+        ] as HTMLElement
+      await user.click(nextPage(1))
+      await waitFor(() =>
+        expect(disabledTable()).toHaveTextContent('Stopped 21')
+      )
+      expect(enabledTable()).toHaveTextContent('Running 01')
+      await user.click(nextPage(0))
+      await waitFor(() =>
+        expect(enabledTable()).toHaveTextContent('Running 21')
+      )
+      expect(disabledTable()).toHaveTextContent('Stopped 21')
+    })
+
+    it('follow the sorting of the other models', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue([
+        ...numbered('Running', 1, false),
+        ...numbered('Stopped', 2, true),
+      ])
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (2)' })
+      )
+      const position = (name: string) =>
+        disabledTable().textContent?.indexOf(name) ?? -1
+      expect(position('Stopped 01')).toBeLessThan(position('Stopped 02'))
+      await user.click(
+        screen.getAllByRole('button', { name: 'Model' })[0] as HTMLElement
+      )
+      await user.click(await screen.findByRole('menuitem', { name: 'Desc' }))
+      await waitFor(() =>
+        expect(position('Stopped 01')).toBeGreaterThan(position('Stopped 02'))
+      )
+    })
+
+    it('appear under their own heading when only they match a search', async () => {
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      await screen.findAllByText('Beta model')
+      fireEvent.click(screen.getByRole('button', { name: 'Column filters' }))
+      fireEvent.change(screen.getByPlaceholderText('Model'), {
+        target: { value: 'Stopped' },
+      })
+      await screen.findByRole('heading', { name: 'Disabled models (1)' })
+      expect(disabledTable()).toHaveTextContent('Stopped model')
+      expect(screen.getByText('No enabled models match')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /disabled models/ })
+      ).toBeNull()
+    })
+
+    it('offer no toggle when there are none', async () => {
+      mocks.list.mockResolvedValue([model()])
+      renderCatalog()
+      await screen.findAllByText('Alpha model')
+      expect(
+        screen.queryByRole('button', { name: /disabled models/ })
+      ).toBeNull()
+    })
+  })
+
+  it('tells a model disabled by hand from the other reasons a customer cannot see it', () => {
+    const coverage = (invisibleReasons: string[]) => [
+      {
+        priceGroupId: 'g',
+        priceGroupCode: 'G',
+        priceGroupName: 'Standard',
+        requiredCount: 1,
+        pricedCount: 1,
+        complete: true,
+        customerVisible: false,
+        invisibleReasons,
+        missingCombinationIds: [],
+      },
+    ]
+    const reasonFor = (reason: string) => {
+      const view = render(
+        <ExecutionTargetCoverage
+          coverage={coverage([reason]) as never}
+          parameterCombinations={[]}
+        />
+      )
+      const text = view.container.textContent
+      view.unmount()
+      return text
+    }
+    expect(reasonFor('MODEL_DISABLED')).toContain('Model manually disabled')
+    expect(reasonFor('MANUALLY_DISABLED')).toContain(
+      'Execution target manually disabled'
+    )
+    expect(reasonFor('PRESENTATION_DISABLED')).toContain(
+      'Display switch is off'
+    )
+    expect(reasonFor('MISSING_PRICING')).toContain('Missing pricing')
+    expect(reasonFor('MODEL_UNAVAILABLE')).toContain('Model unavailable')
   })
 
   it('uses backend labels rather than internal parameter keys for target labels', () => {
