@@ -21,7 +21,6 @@ import {
   type ColumnDef,
   type PaginationState,
   type SortingState,
-  type Updater,
   type VisibilityState,
 } from '@tanstack/react-table'
 import {
@@ -602,14 +601,20 @@ export function PublishedModelCatalog(props: {
     () => withCanvasTableColumnSizes(columns),
     [columns]
   )
-  const disabledColumns = useMemo(
+  // Every column stays defined, so the disabled table can follow a sort by any of them; only three are shown.
+  const disabledColumnVisibility = useMemo<VisibilityState>(
     () =>
-      withCanvasTableColumnSizes(
-        columns.filter((column) => DISABLED_TABLE_COLUMNS.has(column.id ?? ''))
+      Object.fromEntries(
+        columns.flatMap((column) =>
+          column.id && !DISABLED_TABLE_COLUMNS.has(column.id)
+            ? [[column.id, false]]
+            : []
+        )
       ),
     [columns]
   )
   const sharedTableOptions = {
+    columns: sizedColumns,
     getRowId: (model: CanvasAdminTestingModel) => model.id,
     manualFiltering: true,
     columnFilters: [],
@@ -617,25 +622,24 @@ export function PublishedModelCatalog(props: {
     initialSorting: [{ id: 'name', desc: false }],
     sorting,
     onSortingChange: setSorting,
-    columnVisibility,
-    onColumnVisibilityChange: (update: Updater<VisibilityState>) =>
-      setColumnVisibility((current) => functionalUpdate(update, current)),
     autoResetPageIndex: false,
   }
   const { table } = useDataTable({
     ...sharedTableOptions,
-    columns: sizedColumns,
     data: enabledModels,
     pagination,
     onPaginationChange: setPagination,
+    columnVisibility,
+    onColumnVisibilityChange: (update) =>
+      setColumnVisibility((current) => functionalUpdate(update, current)),
     ensurePageInRange,
   })
   const { table: disabledTable } = useDataTable({
     ...sharedTableOptions,
-    columns: disabledColumns,
     data: disabledModels,
     pagination: disabledPagination,
     onPaginationChange: setDisabledPagination,
+    columnVisibility: disabledColumnVisibility,
     ensurePageInRange: ensureDisabledPageInRange,
   })
   const renderTargetDetails = (
@@ -1039,7 +1043,7 @@ export function PublishedModelCatalog(props: {
             {(showDisabled || searching) && (
               <DataTablePage
                 table={disabledTable}
-                columns={disabledColumns}
+                columns={sizedColumns}
                 fixedHeight={false}
                 paginationInFooter={false}
                 applyHeaderSize

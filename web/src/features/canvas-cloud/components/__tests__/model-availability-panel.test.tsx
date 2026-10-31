@@ -601,6 +601,46 @@ describe('ModelAvailabilityRuleDialog', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows at once that a test paused the provider', async () => {
+    api.testModelAvailabilityRequest.mockResolvedValue({
+      availableModel: 'up-a',
+      missingModel: 'no-such',
+      sentAt: 'x',
+      responses: [
+        { timedOut: true, status: null, body: '' },
+        { timedOut: false, status: null, body: '', notSent: true },
+      ],
+    })
+    const client = new QueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    render(
+      <QueryClientProvider client={client}>
+        <ModelAvailabilityRuleDialog
+          provider={provider}
+          rule={null}
+          intervalHours={3}
+          onCancel={vi.fn()}
+          onApply={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.change(screen.getByLabelText('Method'), {
+      target: { value: 'REQUEST' },
+    })
+    fireEvent.change(screen.getByLabelText('Path'), {
+      target: { value: '/v1/videos' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: /I understand/ }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Send requests and see the answers' })
+    )
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ['canvas-cloud', 'model-availability'],
+      })
+    )
+  })
+
   it('stops a list path that carries a credential before it is sent', () => {
     renderWithQuery(
       <ModelAvailabilityRuleDialog

@@ -24,6 +24,7 @@ import {
   probePathIssue,
   requestPreview,
   requestsPerDay,
+  requestIssues,
   ruleIssues,
 } from '../model-availability-rules'
 
@@ -92,6 +93,39 @@ describe('how many requests a rule sends', () => {
   it('multiplies by the rounds of a day', () => {
     expect(requestsPerDay(2, 3)).toBe(16)
     expect(requestsPerDay(2, 5)).toBe(10)
+  })
+})
+
+describe('credentials in the request content', () => {
+  const issue = (template: string) =>
+    requestIssues({
+      type: 'REQUEST',
+      method: 'POST',
+      path: '/v1/images',
+      auth: 'NONE',
+      template,
+      timeoutSeconds: 15,
+    }).template
+
+  it.each(['token', 'access_token', 'Access-Token', 'password', 'secret'])(
+    'refuses a %s field, however deep',
+    (field) => {
+      const refused = 'The request content must not contain credentials.'
+      expect(issue(JSON.stringify({ model: '{{model}}', [field]: 'x' }))).toBe(
+        refused
+      )
+      expect(
+        issue(
+          JSON.stringify({ model: '{{model}}', nested: [{ [field]: 'x' }] })
+        )
+      ).toBe(refused)
+    }
+  )
+
+  it('keeps an ordinary field that only resembles one', () => {
+    expect(
+      issue(JSON.stringify({ model: '{{model}}', max_tokens: 1 }))
+    ).toBeUndefined()
   })
 })
 

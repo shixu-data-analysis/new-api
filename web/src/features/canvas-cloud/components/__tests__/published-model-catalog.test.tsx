@@ -362,6 +362,68 @@ describe('Published model catalog', () => {
       )
     })
 
+    it('follow a sort by a column their table does not show', async () => {
+      const user = userEvent.setup()
+      const billed = (name: string, unit: string) =>
+        model({
+          id: name,
+          modelKey: `canvas.image.${name}`,
+          modelDisabled: true,
+          effectiveDisplayName: name,
+          catalogDefaultName: name,
+          billingUnits: [unit] as CanvasAdminTestingModel['billingUnits'],
+        })
+      mocks.list.mockResolvedValue([
+        ...numbered('Running', 1, false),
+        billed('First', 'B'),
+        billed('Second', 'A'),
+      ])
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (2)' })
+      )
+      const position = (name: string) =>
+        disabledTable().textContent?.indexOf(name) ?? -1
+      expect(position('First')).toBeLessThan(position('Second'))
+      await user.click(
+        screen.getAllByRole('button', {
+          name: 'Billing unit',
+        })[0] as HTMLElement
+      )
+      await user.click(await screen.findByRole('menuitem', { name: 'Asc' }))
+      await waitFor(() =>
+        expect(position('First')).toBeGreaterThan(position('Second'))
+      )
+    })
+
+    it('keep their three columns when the other table hides one', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (1)' })
+      )
+      await user.click(
+        screen.getAllByRole('button', {
+          name: 'API provider',
+        })[0] as HTMLElement
+      )
+      await user.click(await screen.findByRole('menuitem', { name: 'Hide' }))
+      await waitFor(() =>
+        expect(
+          within(screen.getAllByRole('table')[0] as HTMLElement).queryByRole(
+            'button',
+            { name: 'API provider' }
+          )
+        ).toBeNull()
+      )
+      expect(
+        within(disabledTable())
+          .getAllByRole('columnheader')
+          .map((item) => item.textContent)
+      ).toEqual(['Model', 'API provider', 'Generation type'])
+    })
+
     it('appear under their own heading when only they match a search', async () => {
       mocks.list.mockResolvedValue(models())
       renderCatalog()

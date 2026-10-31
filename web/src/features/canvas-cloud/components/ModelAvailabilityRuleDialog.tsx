@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,7 +37,9 @@ import { Textarea } from '@/components/ui/textarea'
 
 import {
   judgeModelAvailabilityRule,
+  modelAvailabilityBadgeQueryKey,
   modelAvailabilityErrorKey,
+  modelAvailabilityQueryKey,
   probeFailureKey,
   testModelAvailabilityList,
   testModelAvailabilityRequest,
@@ -224,6 +226,7 @@ export function ModelAvailabilityRuleDialog(props: {
     },
     onError: failed,
   })
+  const queryClient = useQueryClient()
   const send = useMutation({
     mutationFn: () =>
       testModelAvailabilityRequest({
@@ -237,6 +240,13 @@ export function ModelAvailabilityRuleDialog(props: {
       setEvidence(result)
       setJudged(null)
       setMessage('')
+      // A test of the request in use can pause the provider, which the page and the badge must show at once.
+      void queryClient.invalidateQueries({
+        queryKey: modelAvailabilityQueryKey,
+      })
+      void queryClient.invalidateQueries({
+        queryKey: modelAvailabilityBadgeQueryKey,
+      })
     },
     onError: failed,
   })

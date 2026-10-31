@@ -27,6 +27,10 @@ const MODEL_PLACEHOLDER = '{{model}}'
 const CREDENTIAL_TEXT = /authorization|api[_-]?key|bearer\s|\bsk-[a-z0-9]/i
 const CREDENTIAL_QUERY = /[?&](key|token|access[_-]?token|secret|password)=/i
 
+// A field name alone: `max_tokens` is a parameter, `token` is a credential.
+const CREDENTIAL_FIELD =
+  /^(token|accesstoken|refreshtoken|authtoken|idtoken|password|passwd|pwd|secret|clientsecret|secretkey|key|auth|credential|credentials)$/
+
 export type RequestField = 'path' | 'template' | 'timeoutSeconds' | 'rows'
 export type RequestIssues = Partial<Record<RequestField, string>>
 
@@ -37,6 +41,16 @@ function parsesAsJson(text: string): boolean {
   } catch {
     return false
   }
+}
+
+function namesCredentialField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(namesCredentialField)
+  if (!value || typeof value !== 'object') return false
+  return Object.entries(value).some(
+    ([field, item]) =>
+      CREDENTIAL_FIELD.test(field.toLowerCase().replaceAll(/[_-]/g, '')) ||
+      namesCredentialField(item)
+  )
 }
 
 /** The checks Cloud makes on any rule path. The value is a translation key. */
@@ -67,7 +81,10 @@ function templateIssue(shape: ProbeRequestShape): string | undefined {
   if (!template.includes(MODEL_PLACEHOLDER)) {
     return 'The request content must contain {{model}}.'
   }
-  if (CREDENTIAL_TEXT.test(template)) {
+  if (
+    CREDENTIAL_TEXT.test(template) ||
+    namesCredentialField(JSON.parse(template))
+  ) {
     return 'The request content must not contain credentials.'
   }
   return undefined
