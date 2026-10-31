@@ -6,6 +6,8 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type { SortingState } from '@tanstack/react-table'
+
 import type {
   CanvasBillingUnit,
   CanvasModelPricingCnyCalculation,
@@ -191,6 +193,25 @@ export function pricingEditorRows(
         price,
         field,
       }))
+    )
+  )
+}
+
+/**
+ * Orders the table's rows before they are paged, keeping each spec's rows together so a merged provider cost is never
+ * split: the quality column reverses whole specs, the price plan column sorts inside each spec.
+ */
+export function sortPricingRows<
+  T extends { row: { groupKey: string }; plan: string },
+>(items: T[], sorting: SortingState): T[] {
+  const sort = sorting[0]
+  if (!sort || (sort.id === 'combination' && !sort.desc)) return items
+  const specs = [...groupBy(items, (item) => item.row.groupKey).values()]
+  if (sort.id === 'combination') return specs.reverse().flat()
+  return specs.flatMap((rows) =>
+    [...rows].sort(
+      (left, right) =>
+        left.plan.localeCompare(right.plan) * (sort.desc ? -1 : 1)
     )
   )
 }

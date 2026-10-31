@@ -23,6 +23,7 @@ import {
   publicationScopes,
   sharedTokenPrice,
   shownRows,
+  sortPricingRows,
   withDraftValue,
   withEditedValue,
   type PricingEditorRow,
@@ -142,6 +143,56 @@ const row = (state: PricingEditorState, id: string) =>
   state.rows.find((item) => item.id === id) as PricingEditorRow
 const included = (state: PricingEditorState) =>
   state.rows.filter((item) => isRowIncluded(state, item)).map((item) => item.id)
+
+describe('sortPricingRows', () => {
+  const item = (groupKey: string, plan: string) => ({
+    row: { groupKey },
+    plan,
+  })
+  const items = [
+    item('480P', 'Agent'),
+    item('480P', 'Standard'),
+    item('720P', 'Agent'),
+    item('720P', 'Standard'),
+    item('1080P', 'Agent'),
+    item('1080P', 'Standard'),
+  ]
+  const order = (sorted: typeof items) =>
+    sorted.map((row) => `${row.row.groupKey} ${row.plan}`)
+
+  it('keeps the order Cloud returned when ascending or unsorted', () => {
+    expect(sortPricingRows(items, [])).toEqual(items)
+    expect(
+      sortPricingRows(items, [{ id: 'combination', desc: false }])
+    ).toEqual(items)
+  })
+
+  it('reverses whole specifications, so a merged provider cost stays together', () => {
+    expect(
+      order(sortPricingRows(items, [{ id: 'combination', desc: true }]))
+    ).toEqual([
+      '1080P Agent',
+      '1080P Standard',
+      '720P Agent',
+      '720P Standard',
+      '480P Agent',
+      '480P Standard',
+    ])
+  })
+
+  it('sorts price plans inside each specification', () => {
+    expect(order(sortPricingRows(items, [{ id: 'plan', desc: true }]))).toEqual(
+      [
+        '480P Standard',
+        '480P Agent',
+        '720P Standard',
+        '720P Agent',
+        '1080P Standard',
+        '1080P Agent',
+      ]
+    )
+  })
+})
 
 describe('time-of-day schedule publication', () => {
   it('publishes every priced plan of every spec with a changed schedule, and nothing else', () => {

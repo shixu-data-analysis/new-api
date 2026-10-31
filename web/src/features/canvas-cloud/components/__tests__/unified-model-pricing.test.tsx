@@ -344,6 +344,15 @@ describe('UnifiedModelPricing inline editing', () => {
     expect(footer().getByText('No unpublished changes')).toBeVisible()
   })
 
+  it('offers sorting on the specification and price plan headers', async () => {
+    renderPricing()
+
+    await customerInput()
+    expect(
+      screen.getByRole('button', { name: 'Price plan' })
+    ).toBeInTheDocument()
+  })
+
   it('marks invalid prices instead of previewing', async () => {
     renderPricing()
     fireEvent.change(

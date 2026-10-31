@@ -10,6 +10,7 @@ import type {
   CellContext,
   ColumnDef,
   ColumnFiltersState,
+  SortingState,
   PaginationState,
 } from '@tanstack/react-table'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -53,6 +54,7 @@ import {
   pricingInputId,
   pricingRowErrors,
   PRICING_SIDE_LABEL_KEYS,
+  sortPricingRows,
   validCalculatedPrice,
   type PricingEditorRow,
   type PricingEditorState,
@@ -166,6 +168,9 @@ export function ModelPricingEditorTable(props: {
     formatExactRmbReference(fieldValue(value, field), locale)
   const { detail, state } = props
   const [combinationFilter, setCombinationFilter] = useState(ALL)
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'combination', desc: false },
+  ])
   const { planFilter, onPlanFilterChange: setPlanFilter } = props
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -223,8 +228,13 @@ export function ModelPricingEditorTable(props: {
     [data, combinationFilter, planFilter, planIds]
   )
   const pages = useMemo(
-    () => pagesByGroup(visible, (item) => item.row.groupKey, PAGE_SIZE),
-    [visible]
+    () =>
+      pagesByGroup(
+        sortPricingRows(visible, sorting),
+        (item) => item.row.groupKey,
+        PAGE_SIZE
+      ),
+    [visible, sorting]
   )
   const pageIndex = Math.min(
     pagination.pageIndex,
@@ -490,6 +500,12 @@ export function ModelPricingEditorTable(props: {
     pageCount: Math.max(pages.length, 1),
     pagination: { ...pagination, pageIndex },
     onPaginationChange: setPagination,
+    // The rows are sorted here, before paging, because a page holds whole groups.
+    sorting,
+    onSortingChange: (change) => {
+      setSorting(change)
+      setPagination((value) => ({ ...value, pageIndex: 0 }))
+    },
   })
   const visibleColumns = table.getVisibleLeafColumns()
   const pageRows = table.getRowModel().rows
