@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
-import { FolderUp, ShieldAlert } from 'lucide-react'
+import { Download, FolderUp, ShieldAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -43,10 +43,11 @@ import {
 import {
   isCanvasAccessForbidden,
   planCanvasModelCatalogImport,
+  previewCanvasModelCatalogOverrides,
   publishCanvasModelCatalogImport,
 } from '../api'
 import {
-  catalogDiagnosticTarget,
+  catalogPlanStops,
   catalogModelTabCounts,
   catalogSharedChangeKind,
   catalogSharedChanges,
@@ -58,6 +59,7 @@ import {
   readCatalogSource,
 } from '../catalogSourceReader'
 import type {
+  ModelCatalogDecision,
   ModelCatalogDiagnostic,
   ModelCatalogImportPlan,
 } from '../generated/model-catalog-import'
@@ -66,7 +68,17 @@ import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
-import { catalogPlanDiagnosticText } from './catalog-plan-labels'
+import { CatalogDecisionProvider } from './CatalogDecisionCell'
+import { CatalogExportDialog } from './catalog-edit/CatalogExportDialog'
+import { useModelManagementEditing } from '../model-management-editor-page'
+import { ChannelsPanel } from './catalog-edit/ChannelsPanel'
+import { ProvidersPanel } from './catalog-edit/ProvidersPanel'
+import {
+  catalogDiagnosticDetails,
+  catalogDiagnosticKnown,
+  catalogDiagnosticSentence,
+  catalogPlanActionKnown,
+} from './catalog-plan-labels'
 import {
   CatalogModelPreview,
   type CatalogRowFocus,
@@ -93,63 +105,58 @@ import {
 } from './PublishedModelCatalog'
 import { UnifiedModelPricing } from './UnifiedModelPricing'
 
-function diagnosticDetails(
-  diagnostic: Partial<ModelCatalogDiagnostic>,
-  t: TFunction
-): string {
-  const fallback = [diagnostic.recommendation, diagnostic.valueSummary]
-    .filter(
-      (value, index, values) =>
-        Boolean(value) && values.indexOf(value) === index
-    )
-    .join(' · ')
-  const fallbackMessage = fallback || diagnostic.code || t('Unknown')
-  const message = diagnostic.messageKey
-    ? t(diagnostic.messageKey, {
-        ...diagnostic.params,
-        defaultValue: fallbackMessage,
-      })
-    : fallbackMessage
-  // A localized message replaces Cloud's English text; without one the Cloud text is the reason.
-  // A generic localized message (no parameters) would lose the specifics, such as the field
-  // name of a schema error, so Cloud's summary follows it as the details.
-  const localized = message !== fallbackMessage
-  const generic = Object.keys(diagnostic.params ?? {}).length === 0
-  const details =
-    localized && generic && diagnostic.valueSummary
-      ? t('Details: {{text}}', { text: diagnostic.valueSummary })
-      : null
-  return [
-    diagnostic.profileKey &&
-      `${t('{{label}}: ', { label: t('Adapter Profile') })}${diagnostic.profileKey}`,
-    diagnostic.operation &&
-      `${t('{{label}}: ', { label: t('Operation') })}${diagnostic.operation}`,
-    diagnostic.sourceFile,
-    diagnostic.jsonPath &&
-      diagnostic.jsonPath !== '$' &&
-      `${t('{{label}}: ', { label: t('Path') })}${diagnostic.jsonPath}`,
-    `${t('{{label}}: ', { label: t('Reason') })}${message}`,
-    details,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+interface BundleProblemGroup {
+  title: string
+  file: string
+  problems: string[]
 }
 
-function errorDetails(
-  error: unknown,
-  t: TFunction
-): { message: string; details: string[] } {
+// A Bundle that fails validation has no plan yet. Problems read per model; the common kinds as one sentence, others as the validator wrote them.
+function bundleProblemGroups(diagnostics: Array<Partial<ModelCatalogDiagnostic>>, t: TFunction): BundleProblemGroup[] {
+  const groups = new Map<string, BundleProblemGroup>()
+  for (const diagnostic of diagnostics) {
+    const { modelKey, modelIndex } = (diagnostic.params ?? {}) as { modelKey?: string; modelIndex?: number }
+    const sourceFile = diagnostic.sourceFile ?? ''
+    const position = modelIndex === undefined ? '' : t('{{file}}, model {{number}}', { file: sourceFile, number: modelIndex + 1 })
+    let title = t('Bundle')
+    if (modelKey) title = t('Model {{key}}', { key: modelKey })
+    else if (position) title = position
+    else if (sourceFile && diagnostic.jsonPath && diagnostic.jsonPath !== '$' && !sourceFile.startsWith('manifest')) title = sourceFile
+    const key = `${title}\u0000${position}`
+    const text = catalogDiagnosticSentence(diagnostic, t)
+      ?? (diagnostic.messageKey && diagnostic.messageKey !== 'catalog.schema.invalid' ? catalogDiagnosticDetails(diagnostic, t) : [diagnostic.jsonPath?.replace(/^\$?\.?models(?:\.|\[)\d+\]?\.?/, ''), diagnostic.valueSummary ?? diagnostic.code ?? t('Unknown')].filter(Boolean).join(': '))
+    const group = groups.get(key) ?? { title, file: modelKey ? position : '', problems: [] }
+    group.problems.push(text)
+    groups.set(key, group)
+  }
+  return [...groups.values()]
+}
+
+interface CatalogFailure {
+  message: string
+  details: string[]
+  problems?: BundleProblemGroup[]
+  raw?: unknown[]
+}
+
+function errorDetails(error: unknown, t: TFunction): CatalogFailure {
   if (error && typeof error === 'object') {
     const data = (error as { response?: { data?: unknown } }).response?.data as
       | { message?: unknown; diagnostics?: unknown }
       | undefined
     const details = Array.isArray(data?.diagnostics)
       ? data.diagnostics.map((item) =>
-          diagnosticDetails(item as Partial<ModelCatalogDiagnostic>, t)
+          catalogDiagnosticDetails(item as Partial<ModelCatalogDiagnostic>, t)
         )
       : []
     if (details.length > 0) {
-      return { message: t('Catalog source validation failed.'), details }
+      const raw = data!.diagnostics as Array<Partial<ModelCatalogDiagnostic>>
+      return {
+        message: t('Cannot import: this check found {{count}} problems', { count: raw.length }),
+        details,
+        problems: bundleProblemGroups(raw, t),
+        raw,
+      }
     }
     if (typeof data?.message === 'string') {
       return { message: data.message, details }
@@ -193,7 +200,7 @@ function publicationErrorReason(error: unknown, t: TFunction): string {
   )?.response?.data
   const message = response?.message
   if (Array.isArray(response?.diagnostics) && response.diagnostics.length > 0) {
-    return diagnosticDetails(
+    return catalogDiagnosticDetails(
       response.diagnostics[0] as Partial<ModelCatalogDiagnostic>,
       t
     )
@@ -257,16 +264,15 @@ export function AdminModelCatalog(props: {
   ) => void
 }) {
   const { t } = useTranslation()
+  const editing = useModelManagementEditing()
   const queryClient = useQueryClient()
   const [storedPlan, setPlan] = useState<ModelCatalogImportPlan | null>(null)
   const planActorPrincipalId = useRef<string | null>(null)
   const plan =
     planActorPrincipalId.current === props.principalId ? storedPlan : null
-  const [failure, setFailure] = useState<{
-    message: string
-    details: string[]
-  } | null>(null)
+  const [failure, setFailure] = useState<CatalogFailure | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const selectionGeneration = useRef(0)
   const [uncontrolledActiveTab, setUncontrolledActiveTab] =
     useState<ModelManagementTab>('published')
@@ -300,6 +306,19 @@ export function AdminModelCatalog(props: {
   const focusNonce = useRef(0)
   const folderInput = useRef<HTMLInputElement | null>(null)
   const planner = useMutation({ mutationFn: planCanvasModelCatalogImport })
+  // The server computes what each selected Bundle version does; its plan and token replace the current ones.
+  const overridePreview = useMutation({
+    mutationFn: previewCanvasModelCatalogOverrides,
+    onSuccess: (next) => setPlan(next),
+    onError: (error) => {
+      setPlan(null)
+      planActorPrincipalId.current = null
+      setFailure({
+        message: t('The preview changed. Select the catalog source folder again.'),
+        details: errorDetails(error, t).details,
+      })
+    },
+  })
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogImport,
     onSuccess: async () => {
@@ -392,9 +411,10 @@ export function AdminModelCatalog(props: {
   }, [plan, t])
   const reviews = useMemo(
     () =>
-      (plan?.models ?? []).map((model) =>
-        reviewCatalogModel(model, plan?.changes ?? [])
-      ),
+      (plan?.models ?? [])
+        // A live model the Bundle does not state only appears when its Channel forces a new version.
+        .filter((model) => model.inBundle || model.action !== 'NO_OP')
+        .map((model) => reviewCatalogModel(model, plan?.changes ?? [], plan?.diagnostics ?? [])),
     [plan]
   )
   const sharedChanges = useMemo(
@@ -408,22 +428,57 @@ export function AdminModelCatalog(props: {
   const sharedConflicts = sharedChanges.filter(
     (change) => catalogSharedChangeKind(change) === 'CONFLICT'
   ).length
+  const sharedStops = sharedConflicts + (plan ? catalogPlanStops(plan, catalogDiagnosticKnown).length : 0)
   const publishableChanges = (plan?.changes ?? []).filter(
     (change) => change.action === 'CREATE' || change.action === 'CREATE_VERSION'
   )
   const changedModels = (plan?.models ?? []).filter(
     (model) => model.action !== 'NO_OP'
   )
+  const channelVersionChanges = (plan?.changes ?? [])
+    .filter((change) => change.resourceType === 'PROVIDER_CHANNEL' && (change.action === 'CREATE' || change.action === 'CREATE_VERSION'))
+    .map((change) => `${change.key} ${change.currentVersion === null ? `v${change.proposedVersion}` : `v${change.currentVersion} → v${change.proposedVersion}`}`)
+  const versionDetail = (label: string, models: typeof changedModels) =>
+    models.length
+      ? [{ label, value: models.map((model) => `${model.displayName} ${model.currentVersion === null ? `v${model.proposedVersion}` : `v${model.currentVersion} → v${model.proposedVersion}`}`).join(t(', ')) }]
+      : []
   const recoveringExisting =
     plan?.action === 'RECOVER_PRICING' || plan?.action === 'RECOVER_CONTINUITY'
   const blockingDiagnostics = (plan?.diagnostics ?? []).filter(
     (diagnostic) =>
       diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
   )
+  // Decisions are explained on their own rows.
   const warningDiagnostics = (plan?.diagnostics ?? []).filter(
-    (diagnostic) => diagnostic.severity === 'WARNING'
+    (diagnostic) => diagnostic.severity === 'WARNING' && !diagnostic.code.endsWith('_ADMIN_EDITED')
   )
-  const planBlocked = Boolean(plan?.blocking || blockingDiagnostics.length > 0)
+  // What this page cannot explain is not published: Cloud may know a problem this build does not.
+  const unknownDiagnostics = (plan?.diagnostics ?? []).filter(
+    (diagnostic) => !catalogDiagnosticKnown(diagnostic.code)
+  )
+  const alertDiagnostics = [
+    ...blockingDiagnostics,
+    ...unknownDiagnostics.filter((diagnostic) => !blockingDiagnostics.includes(diagnostic)),
+  ]
+  const unknownAction = Boolean(plan) && !catalogPlanActionKnown(plan!.action)
+  const planBlocked = Boolean(
+    plan?.blocking ||
+    blockingDiagnostics.length > 0 ||
+    unknownDiagnostics.length > 0 ||
+    unknownAction
+  )
+  const overrides = (plan?.decisions ?? [])
+    .filter((decision) => decision.overridden)
+    .map(({ resourceType, key }) => ({ resourceType, key }))
+  const decisionState = {
+    decisions: plan?.decisions ?? [],
+    busy: overridePreview.isPending,
+    onToggle: (decision: ModelCatalogDecision, overridden: boolean) => {
+      if (!plan?.importId) return
+      const next = overrides.filter((entry) => entry.resourceType !== decision.resourceType || entry.key !== decision.key)
+      overridePreview.mutate({ importId: plan.importId, overrides: overridden ? [...next, { resourceType: decision.resourceType, key: decision.key }] : next })
+    },
+  }
   const canPublish =
     (plan?.action === 'PUBLISH' || recoveringExisting) &&
     !planBlocked &&
@@ -534,9 +589,15 @@ export function AdminModelCatalog(props: {
             changeTab(value)
           }}
         >
-          <CanvasManagementTabsList>
+          <CanvasManagementTabsList hidden={editing}>
             <CanvasManagementTabsTrigger value='published'>
               {t('Model list')}
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='channels'>
+              {t('Channel configurations')}
+            </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='providers'>
+              {t('API providers')}
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='display'>
               {t('Display & categories')}
@@ -574,6 +635,14 @@ export function AdminModelCatalog(props: {
               }
             />
           </TabsContent>
+          <TabsContent value='channels' className='mt-4'>
+            <ChannelsPanel
+              onEditPresentation={(modelKey) => changeTab('display', { modelKey })}
+            />
+          </TabsContent>
+          <TabsContent value='providers' className='mt-4'>
+            <ProvidersPanel />
+          </TabsContent>
           <TabsContent value='display' className='mt-4' keepMounted>
             {displayVisited && (
               <ClientPresentationManager
@@ -589,6 +658,7 @@ export function AdminModelCatalog(props: {
             <ModelAvailabilityPanel />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>
+            {exporting ? <CatalogExportDialog onClose={() => setExporting(false)} /> : null}
             {plan ? (
               <Card size='sm'>
                 <CardContent className='flex flex-wrap items-center gap-x-4 gap-y-2 text-sm'>
@@ -611,6 +681,10 @@ export function AdminModelCatalog(props: {
                     {t('Choose folder again')}
                   </Button>
                   {folderPicker}
+                  <Button type='button' variant='outline' size='sm' className='ml-auto' onClick={() => setExporting(true)}>
+                    <Download aria-hidden='true' />
+                    {t('Export the current catalog as a Bundle')}
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -622,6 +696,12 @@ export function AdminModelCatalog(props: {
                       'Upload the complete Bundle folder. Canvas Cloud validates every referenced JSON file before showing a publication plan.'
                     )}
                   </CardDescription>
+                  <CardAction>
+                    <Button type='button' variant='outline' onClick={() => setExporting(true)}>
+                      <Download aria-hidden='true' />
+                      {t('Export the current catalog as a Bundle')}
+                    </Button>
+                  </CardAction>
                 </CardHeader>
                 <CardContent className='space-y-4'>
                   <label className='hover:bg-muted/40 focus-within:ring-ring flex cursor-pointer flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center transition-colors focus-within:ring-2 sm:p-8'>
@@ -647,7 +727,28 @@ export function AdminModelCatalog(props: {
                       <ShieldAlert className='mt-0.5 size-4 shrink-0' />
                       <div>
                         <div>{t(failure.message)}</div>
-                        {failure.details.length > 0 && (
+                        {failure.problems ? (
+                          <>
+                            <ul className='text-foreground mt-3 space-y-3'>
+                              {failure.problems.map((group) => (
+                                <li key={`${group.title}:${group.file}`}>
+                                  <div className='font-medium [overflow-wrap:anywhere]'>
+                                    {group.title}
+                                    {group.file ? <span className='text-muted-foreground ml-2 text-xs font-normal'>{group.file}</span> : null}
+                                  </div>
+                                  <ul className='mt-1 list-disc space-y-1 pl-4 [overflow-wrap:anywhere]'>
+                                    {group.problems.map((problem, index) => <li key={index}>{problem}</li>)}
+                                  </ul>
+                                </li>
+                              ))}
+                            </ul>
+                            <p className='text-muted-foreground mt-3 text-xs'>{t('Change the model catalog files, then choose the folder again.')}</p>
+                            <details className='mt-3'>
+                              <summary className='text-primary cursor-pointer text-xs'>{t('View the original errors')}</summary>
+                              <pre className='bg-background mt-2 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]'>{JSON.stringify(failure.raw, null, 2)}</pre>
+                            </details>
+                          </>
+                        ) : failure.details.length > 0 && (
                           <ul className='mt-2 list-disc space-y-1 pl-4'>
                             {failure.details.map((detail) => (
                               <li key={detail}>{detail}</li>
@@ -707,42 +808,10 @@ export function AdminModelCatalog(props: {
                         {t(
                           'Cannot publish: {{count}} items must be resolved first',
                           {
-                            count: blockingDiagnostics.length,
+                            count: alertDiagnostics.length,
                           }
                         )}
                       </div>
-                      <ul className='mt-2 list-disc space-y-2 pl-4'>
-                        {blockingDiagnostics.map((diagnostic) => {
-                          const text = catalogPlanDiagnosticText(
-                            t,
-                            diagnostic,
-                            plan.models
-                          )
-                          const target = catalogDiagnosticTarget(diagnostic)
-                          return (
-                            <li
-                              key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
-                            >
-                              <div>
-                                {text?.message ??
-                                  diagnosticDetails(diagnostic, t)}
-                              </div>
-                              {text && <div>{text.remedy}</div>}
-                              {target && (
-                                <Button
-                                  type='button'
-                                  variant='link'
-                                  size='sm'
-                                  className='text-destructive h-auto p-0'
-                                  onClick={() => locate(target)}
-                                >
-                                  {t('View details')}
-                                </Button>
-                              )}
-                            </li>
-                          )
-                        })}
-                      </ul>
                     </div>
                   ) : (
                     <p className='text-sm'>{planDescription}</p>
@@ -753,7 +822,7 @@ export function AdminModelCatalog(props: {
                         <li
                           key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
                         >
-                          {diagnosticDetails(diagnostic, t)}
+                          {catalogDiagnosticDetails(diagnostic, t)}
                         </li>
                       ))}
                       {ignoredFiles.length > 0 && (
@@ -812,6 +881,14 @@ export function AdminModelCatalog(props: {
                             })}
                           </span>
                         )}
+                        {modelCounts.blocked > 0 && ' '}
+                        {modelCounts.blocked > 0 && (
+                          <span className={countBadgeClass.conflict}>
+                            {t('{{count}} block publication', {
+                              count: modelCounts.blocked,
+                            })}
+                          </span>
+                        )}
                       </TabsTrigger>
                       <TabsTrigger value='shared' className='flex-none'>
                         {t('Shared resources')}{' '}
@@ -820,17 +897,18 @@ export function AdminModelCatalog(props: {
                             count: sharedChanged,
                           })}
                         </span>
-                        {sharedConflicts > 0 && ' '}
-                        {sharedConflicts > 0 && (
+                        {sharedStops > 0 && ' '}
+                        {sharedStops > 0 && (
                           <span className={countBadgeClass.conflict}>
-                            {t('{{count}} resources in conflict', {
-                              count: sharedConflicts,
+                            {t('{{count}} block publication', {
+                              count: sharedStops,
                             })}
                           </span>
                         )}
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value='models' className='mt-2' keepMounted>
+                      <CatalogDecisionProvider value={decisionState}>
                       <CatalogModelPreview
                         reviews={reviews}
                         changes={plan.changes}
@@ -843,14 +921,17 @@ export function AdminModelCatalog(props: {
                           })
                         }
                       />
+                      </CatalogDecisionProvider>
                     </TabsContent>
                     <TabsContent value='shared' className='mt-2' keepMounted>
-                      <CatalogSharedResources
-                        plan={plan}
-                        changes={sharedChanges}
-                        reviews={reviews}
-                        focus={sharedFocus}
-                      />
+                      <CatalogDecisionProvider value={decisionState}>
+                        <CatalogSharedResources
+                          plan={plan}
+                          changes={sharedChanges}
+                          reviews={reviews}
+                          focus={sharedFocus}
+                        />
+                      </CatalogDecisionProvider>
                     </TabsContent>
                   </Tabs>
                 </CardContent>
@@ -874,6 +955,11 @@ export function AdminModelCatalog(props: {
                       label: t('Models to publish'),
                       value: String(changedModels.length),
                     },
+                    ...versionDetail(t('Model versions'), changedModels.filter((model) => model.inBundle)),
+                    ...versionDetail(t('Following a Channel configuration, content unchanged'), changedModels.filter((model) => !model.inBundle)),
+                    ...(channelVersionChanges.length
+                      ? [{ label: t('Channel configuration versions'), value: channelVersionChanges.join(t(', ')) }]
+                      : []),
                     {
                       label: t('Resource changes to publish'),
                       value: String(publishableChanges.length),
@@ -899,6 +985,7 @@ export function AdminModelCatalog(props: {
               publisher.mutate({
                 importId: plan.importId,
                 expectedPlanToken: plan.planToken,
+                overrides,
               })
             }
           />

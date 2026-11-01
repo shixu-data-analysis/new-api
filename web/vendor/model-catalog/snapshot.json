@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "generated": true,
+  "sourceRepository": "pixmiao/pixmiao-catalog",
+  "sourceCommit": "WORKTREE",
+  "validatorVersion": "1.7.0",
+  "vectorsSha256": "cb35d1a472ceafc6b2db3f62d3049345a7f66e971f99c928e7d45f645f8d2472",
+  "generatorSha256": "0944a2e30ab7076ae261705b602e51a25b08979eca3677e938d0da72c694cde4",
+  "runtimeSha256": "a7bd5f7806e3ea22ffc8fd101f326d1e03e7247deced6ddd18afba0cc75714df",
+  "files": {
+    "index.mjs": "4e29f5e4dea8aceb38eac0fd813d6f3bf149371e44c74cbd49cd41d0f380b5c6",
+    "package.json": "119f1eb50650c18c999ac1ebd23ef3afabaaa51575cb47a80210a4942850bfca",
+    "src/display-rules/index.d.ts": "c68646416d29e716d8c22349e3def358737c1ebf050f1443ecac884fa933b158",
+    "src/display-rules/index.mjs": "8eeff81bb9a36ecae7460032037929dcd3caa1be9e59816d0bdecea6d59e85a6",
+    "src/request-validator/catalog-definitions.d.ts": "9756101c8672c2dc0e8b135a9b1c0f70feb20199debd410d82d3d27a0c5e83a0",
+    "src/request-validator/catalog-definitions.mjs": "8b1c9cbaf0b25b0cf5583f2bb8722a64e4fb73a259cc38d49d844b8380fd0cb2",
+    "src/request-validator/index.d.ts": "3f000c9fff4eb1386f3e8f455d9ba30da30f94ac1f544950a0d57d3252b9ab3f",
+    "src/request-validator/index.mjs": "a7bd5f7806e3ea22ffc8fd101f326d1e03e7247deced6ddd18afba0cc75714df",
+    "test-vectors.mjs": "ba599a12a355d8b4f5fc361181bbe14b450bc64681d2d1ad65bbcf8203e139b0",
+    "tests/request-validator-vectors.json": "cb35d1a472ceafc6b2db3f62d3049345a7f66e971f99c928e7d45f645f8d2472",
+    "verify-snapshot.mjs": "2ba39ae10d58418ddd127589b878b06aa0fe4085cb329b71e64f720a3eaa65ba"
+  }
+}

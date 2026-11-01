@@ -1131,6 +1131,8 @@ export interface CanvasExecutionTargetPricingCoverage {
 export interface CanvasAdminTestingModel {
   id: string
   modelKey: string
+  catalogSource: 'BUNDLE' | 'ADMIN_EDIT' | 'ADMIN_NEW' | 'ADMIN_COPY'
+  copiedFromModelKey: string | null
   tags: CanvasModelTag[]
   executionTargets: Array<{
     id: string
@@ -1382,6 +1384,11 @@ export interface CanvasModelPricingModel {
   status: string
   billingUnit: CanvasBillingUnit | null
   billingUnitState: 'UNPRICED' | 'CONSISTENT' | 'MIXED'
+  // A copied model before its first price: how the source is billed, with no amount.
+  copiedPricingStructure?: {
+    billingUnit: CanvasBillingUnit | null
+    timeOfDaySchedule: CanvasTimeOfDaySchedule | null
+  } | null
   publishedBillingUnits: CanvasBillingUnit[]
   allowedBillingUnits: CanvasBillingUnit[]
   // Set when one Provider call always returns this many results; a REQUEST

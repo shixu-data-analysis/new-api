@@ -50,6 +50,7 @@ vi.mock('../../api', async (original) => ({
     .isCanvasAccessForbidden,
   planCanvasModelCatalogImport: mocks.plan,
   publishCanvasModelCatalogImport: mocks.publish,
+  previewCanvasModelCatalogOverrides: vi.fn(),
   getCanvasAdminTestingModels: mocks.published,
   getCanvasAdminModelTags: mocks.tags,
   getCanvasPriceGroups: mocks.priceGroups,
@@ -166,6 +167,8 @@ function planModel(overrides: Record<string, unknown> = {}) {
     proposedVersion: 1,
     currentModelId: null,
     currentBundleVersion: null,
+    inBundle: true,
+    followedRequest: null,
     customerVisibleAfterPublish: false,
     credential: unboundCredential,
     publicInteraction: {
@@ -435,7 +438,9 @@ describe('Canvas model catalog folder upload', () => {
       path: 'models.json',
       contentBase64: '/w==',
     })
-    const detail = await screen.findByText(/models.json/)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Cannot import: this check found 1 problems')
+    const detail = within(alert).getByText(/^models.json/)
     expect(detail).toHaveTextContent(
       'Reason: A catalog source file is not valid JSON.'
     )
@@ -615,7 +620,7 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
 
-    expect(await screen.findByText(/models.json/)).toHaveTextContent(
+    expect(await screen.findByRole('alert')).toHaveTextContent(
       'Reason: Cloud recommendation · Cloud value summary'
     )
     expect(mocks.publish).not.toHaveBeenCalled()
@@ -734,7 +739,7 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
     await waitFor(() =>
       expect(mocks.publish).toHaveBeenCalledWith(
-        { importId: IMPORT_ONE_ID, expectedPlanToken: PLAN_TOKEN_ONE },
+        { importId: IMPORT_ONE_ID, expectedPlanToken: PLAN_TOKEN_ONE, overrides: [] },
         expect.any(Object)
       )
     )
@@ -743,7 +748,7 @@ describe('Canvas model catalog folder upload', () => {
     ).toHaveTextContent('Reason: Fix the template')
   })
 
-  it('lists each blocking diagnostic with its remedy and locates its row', async () => {
+  it('counts blocking diagnostics in the alert and explains each on its row', async () => {
     mocks.plan.mockResolvedValue(
       catalogPlan({
         action: 'CONFLICT',
@@ -812,36 +817,16 @@ describe('Canvas model catalog folder upload', () => {
     expect(alert).toHaveTextContent(
       'Cannot publish: 2 items must be resolved first'
     )
-    expect(alert).toHaveTextContent(
-      'Model definition file test-profile@1.0.0 has different content under the same version.'
-    )
-    expect(alert).toHaveTextContent('Increase the version of this file.')
-    expect(alert).toHaveTextContent(
-      'The API Key binding of Client preview model cannot be kept: API provider changed.'
-    )
+    // Every problem is one row; the alert only says how many.
+    expect(alert).not.toHaveTextContent('Increase the version of this file.')
     expect(
       screen.getByRole('button', { name: 'Review publication content' })
     ).toBeDisabled()
-    const [artifactLink, modelLink] = within(alert).getAllByRole('button', {
-      name: 'View details',
-    })
-    fireEvent.click(artifactLink)
     expect(
-      screen.getByRole('tab', { name: /^Shared resources/ })
-    ).toHaveAttribute('aria-selected', 'true')
-    expect(
-      await screen.findByText('Published content compared with the Bundle')
-    ).toBeVisible()
-    fireEvent.click(modelLink)
-    expect(screen.getByRole('tab', { name: /^Models/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
-    expect(
-      await screen.findByText(
-        'New model with no current version; showing the full new version'
-      )
-    ).toBeVisible()
+      screen.getByText(/The API Key binding of Client preview model cannot be kept: API provider changed\./)
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: /^Shared resources/ }))
+    expect(await screen.findByText(/Increase the version of this file/)).toBeVisible()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
@@ -893,7 +878,9 @@ describe('Canvas model catalog folder upload', () => {
           action: 'NO_OP',
           currentVersion: 1,
           proposedVersion: 1,
-          customerVisibleAfterPublish: false,
+          inBundle: true,
+    followedRequest: null,
+    customerVisibleAfterPublish: false,
           credential: unboundCredential,
           publicInteraction: {
             defaultParams: {},
@@ -965,7 +952,9 @@ describe('Canvas model catalog folder upload', () => {
           action: 'NO_OP',
           currentVersion: 2,
           proposedVersion: 2,
-          customerVisibleAfterPublish: false,
+          inBundle: true,
+    followedRequest: null,
+    customerVisibleAfterPublish: false,
           credential: unboundCredential,
           publicInteraction: {
             defaultParams: { quality: '480P' },
@@ -1068,7 +1057,9 @@ describe('Canvas model catalog folder upload', () => {
           action: 'NO_OP',
           currentVersion: 2,
           proposedVersion: 2,
-          customerVisibleAfterPublish: false,
+          inBundle: true,
+    followedRequest: null,
+    customerVisibleAfterPublish: false,
           publicInteraction: {
             defaultParams: {},
             paramSchema: {},

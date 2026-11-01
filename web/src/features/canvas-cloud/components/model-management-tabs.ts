@@ -9,6 +9,8 @@ License, or (at your option) any later version.
 // Tabs of 模型管理, in display order.
 export type ModelManagementTab =
   | 'published'
+  | 'channels'
+  | 'providers'
   | 'display'
   | 'import'
   | 'monitoring'
@@ -16,6 +18,8 @@ export type ModelManagementTab =
 
 const modelManagementTabs: ModelManagementTab[] = [
   'published',
+  'channels',
+  'providers',
   'display',
   'import',
   'monitoring',

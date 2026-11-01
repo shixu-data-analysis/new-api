@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { unsupportedProfileFields } from './catalog-channel-draft'
 import type {
   ModelCatalogChange,
   ModelCatalogDiagnostic,
@@ -29,6 +30,7 @@ export type CatalogModelChangeKind =
   | 'CREATE'
   | 'NEW_VERSION'
   | 'DESCRIPTION'
+  | 'CONFLICT'
   | 'UNCHANGED'
 
 export type CatalogSharedChangeKind =
@@ -38,13 +40,15 @@ export type CatalogSharedChangeKind =
   | 'UNCHANGED'
 
 export type CatalogModelBlocker = {
-  source: 'credential' | 'pricing'
+  source: 'credential' | 'pricing' | 'diagnostic'
   reasonCode: string
 }
 
 export type CatalogModelReview = {
   model: CatalogPlanModel
   kind: CatalogModelChangeKind
+  /** What stops this model, explained on its own row. */
+  diagnostics: ModelCatalogDiagnostic[]
   /** Price items (specification × price plan) that need pricing, price conflicts excluded. */
   pricingCount: number
   needsBinding: boolean
@@ -75,12 +79,23 @@ export function catalogModelName(model: CatalogPlanModel): string {
   return model.presentationDisplayName ?? model.displayName
 }
 
+// Price and API Key problems are conditions on a new version; these make the model itself a conflict.
+const MODEL_PRECONDITION_CODES: ReadonlySet<string> = new Set(['PRICING_SOURCE_CONFLICT', 'CREDENTIAL_BINDING_BLOCKED'])
+
+function blocksPublication(diagnostic: ModelCatalogDiagnostic): boolean {
+  return diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
+}
+
 export function reviewCatalogModel(
   model: CatalogPlanModel,
-  changes: ModelCatalogChange[]
+  changes: ModelCatalogChange[],
+  planDiagnostics: ModelCatalogDiagnostic[] = []
 ): CatalogModelReview {
+  const diagnostics = planDiagnostics.filter((diagnostic) => blocksPublication(diagnostic) && diagnostic.params.modelKey === model.productKey)
+  const conflicts = diagnostics.filter((diagnostic) => !MODEL_PRECONDITION_CODES.has(diagnostic.code))
   let kind: CatalogModelChangeKind = 'UNCHANGED'
-  if (model.action === 'CREATE') kind = 'CREATE'
+  if (conflicts.length || model.action === 'CONFLICT') kind = 'CONFLICT'
+  else if (model.action === 'CREATE') kind = 'CREATE'
   else if (model.action === 'CREATE_VERSION') kind = 'NEW_VERSION'
   else if (
     changes.some(
@@ -105,9 +120,11 @@ export function reviewCatalogModel(
   )) {
     blockers.push({ source: 'pricing', reasonCode })
   }
+  for (const diagnostic of conflicts) blockers.push({ source: 'diagnostic', reasonCode: diagnostic.code })
   return {
     model,
     kind,
+    diagnostics,
     pricingCount: model.pricing.filter(
       (price) =>
         price.status === 'NEEDS_PRICING' &&
@@ -130,13 +147,16 @@ export function catalogModelHasChange(review: CatalogModelReview): boolean {
 
 /** Counts shown next to the "Models" tab. */
 export function catalogModelTabCounts(reviews: CatalogModelReview[]) {
+  const open = reviews.filter((review) => review.blockers.length === 0)
   return {
-    changed: reviews.filter(catalogModelHasChange).length,
-    pending: reviews.filter(catalogModelHasPending).length,
+    changed: open.filter(catalogModelHasChange).length,
+    pending: open.filter(catalogModelHasPending).length,
+    blocked: reviews.length - open.length,
   }
 }
 
 const modelKindRank: Record<CatalogModelChangeKind, number> = {
+  CONFLICT: 0,
   CREATE: 2,
   NEW_VERSION: 3,
   DESCRIPTION: 4,
@@ -363,6 +383,26 @@ export type CatalogDiagnosticTarget =
   | { tab: 'shared'; resourceType: CatalogSharedResourceType; key: string }
 
 /** Where a plan diagnostic can be shown in detail; null when it has no single row. */
+/** Profile fields a Bundle carries that the Channel form has no control for, on the row of the Profile or of its Channel. */
+export function catalogProfileUnsupported(change: CatalogSharedChange, changes: ModelCatalogChange[]): string[] {
+  if (change.resourceType === 'MODEL_DEFINITION_ARTIFACT') return change.detail.kind === 'ADAPTER_PROFILE' ? unsupportedProfileFields(change.definition?.proposed) : []
+  if (change.resourceType !== 'PROVIDER_CHANNEL') return []
+  const profile = changes.find((entry) => entry.resourceType === 'MODEL_DEFINITION_ARTIFACT' && entry.key === change.detail.adapterProfile)
+  return unsupportedProfileFields(profile?.definition?.proposed)
+}
+
+/**
+ * What stops the plan and has no row of its own: a Bundle-level conflict, or a problem this page does not know. They get a
+ * row in the shared resources table, so every problem is one row (design 12.5).
+ */
+export function catalogPlanStops(plan: Pick<ModelCatalogPlan, 'models' | 'diagnostics'>, known: (code: string) => boolean): ModelCatalogDiagnostic[] {
+  return plan.diagnostics.filter((diagnostic) => {
+    if (!blocksPublication(diagnostic) && known(diagnostic.code)) return false
+    if (plan.models.some((model) => model.productKey === diagnostic.params.modelKey)) return false
+    return catalogDiagnosticTarget(diagnostic) === null
+  })
+}
+
 export function catalogDiagnosticTarget(
   diagnostic: ModelCatalogDiagnostic
 ): CatalogDiagnosticTarget | null {

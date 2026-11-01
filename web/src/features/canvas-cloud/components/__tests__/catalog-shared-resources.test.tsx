@@ -65,7 +65,7 @@ const diagnostics = [
 function renderShared() {
   return render(
     <CatalogSharedResources
-      plan={{ changes, models, diagnostics }}
+      plan={{ changes, models, diagnostics, decisions: [] }}
       changes={catalogSharedChanges(changes)}
       reviews={models.map((model) => reviewCatalogModel(model, changes))}
       focus={null}

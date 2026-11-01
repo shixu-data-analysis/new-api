@@ -21,6 +21,7 @@ import { api } from '@/lib/api'
 import type {
   ModelCatalogImportPlan,
   ModelCatalogImportPublicationRequest,
+  ModelCatalogOverride,
   ModelCatalogImportSource,
   ModelCatalogPublication,
 } from './generated/model-catalog-import'
@@ -1279,13 +1280,28 @@ export async function planCanvasModelCatalogImport(
   ).data
 }
 
+export async function previewCanvasModelCatalogOverrides(input: {
+  importId: string
+  overrides: ModelCatalogOverride[]
+}): Promise<ModelCatalogImportPlan> {
+  return (
+    await api.post<ModelCatalogImportPlan>(
+      `${webBase}/admin/model-catalog-imports/${encodeURIComponent(input.importId)}/overrides`,
+      { overrides: input.overrides },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
 export async function publishCanvasModelCatalogImport(input: {
   importId: string
   expectedPlanToken: string
+  overrides?: ModelCatalogOverride[]
 }): Promise<ModelCatalogPublication> {
   const body = {
     confirmed: true,
     expectedPlanToken: input.expectedPlanToken,
+    ...(input.overrides?.length ? { overrides: input.overrides } : {}),
   } satisfies ModelCatalogImportPublicationRequest
   return (
     await api.post<ModelCatalogPublication>(

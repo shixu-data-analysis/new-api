@@ -746,7 +746,7 @@ describe('Canvas interface localization', () => {
     expect(zh.translation['Reservation released']).toBe('冻结释放')
     expect(zh.translation['Released from reservation']).toBe('已释放')
     expect(zh.translation['Invite registration']).toBe('邀请注册')
-    expect(zh.translation['Provider channel']).toBe('服务商渠道')
+    expect(zh.translation['Provider channel']).toBe('接口配置')
     expect(
       zh.translation[
         'The reviewed RMB Provider cost of one successful chargeable attempt. A confirmed change creates a new immutable published version.'

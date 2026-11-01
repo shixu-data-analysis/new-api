@@ -224,9 +224,19 @@ export function UnifiedModelPricing(props: {
     setPricing(latest)
     setPricingChanged(false)
     setDrafts(originalPricingDrafts(latest))
-    setTimeOfDay(draftFromSchedule(publishedTimeOfDaySchedule(latest)))
+    const copied = model.copiedPricingStructure
+    setTimeOfDay(
+      draftFromSchedule(
+        publishedTimeOfDaySchedule(latest) ?? copied?.timeOfDaySchedule ?? null
+      )
+    )
     setBillingUnit(
-      model.billingUnit ?? model.allowedBillingUnits[0] ?? 'REQUEST'
+      model.billingUnit ??
+        (copied?.billingUnit &&
+        model.allowedBillingUnits.includes(copied.billingUnit)
+          ? copied.billingUnit
+          : model.allowedBillingUnits[0]) ??
+        'REQUEST'
     )
     setUnitChosen(model.billingUnitState !== 'MIXED')
   }
@@ -292,6 +302,9 @@ export function UnifiedModelPricing(props: {
   const timeOfDayChanged =
     timeOfDayAvailable && !sameSchedule(draftSchedule, publishedSchedule)
   const timeOfDayInvalid = timeOfDayChanged && draftHasErrors(timeOfDay)
+  // A copied model starts from its source's schedule: published with the first price, but not an edit of the page.
+  const startingSchedule = publishedSchedule ?? (pricing?.model.billingUnitState === 'UNPRICED' ? pricing.model.copiedPricingStructure?.timeOfDaySchedule ?? null : null)
+  const timeOfDayEdited = timeOfDayAvailable && !sameSchedule(draftSchedule, startingSchedule)
   // Price edits alone: the table, the summary and the confirmation list them; the schedule is named on its own.
   const includedRows = shown.rows.filter((row) => isRowIncluded(state, row))
   const publicationState: PricingEditorState =
@@ -301,7 +314,7 @@ export function UnifiedModelPricing(props: {
   // Unpublished pricing edits: prices, a unit change or the time-of-day schedule. A refresh to newer versions then keeps
   // them and asks to discard instead of replacing them, and the publish bar counts them.
   const hasPricingEdits =
-    includedRows.length > 0 || state.unitChange || timeOfDayChanged
+    includedRows.length > 0 || state.unitChange || timeOfDayEdited
   useEffect(() => {
     hasEdits.current = hasPricingEdits
   })
@@ -452,7 +465,7 @@ export function UnifiedModelPricing(props: {
     setAttempted(false)
     const latest = detail.data ?? pricing
     if (latest) adoptPricing(latest)
-    else setTimeOfDay(draftFromSchedule(publishedSchedule))
+    else setTimeOfDay(draftFromSchedule(startingSchedule))
     form.reset(EMPTY_META)
     preview.reset()
     publication.reset()
@@ -632,7 +645,7 @@ export function UnifiedModelPricing(props: {
   } else if (includedRows.length) {
     summary = t('Changed {{count}} pricing scopes', { count: scopeCount })
   }
-  if (timeOfDayChanged) {
+  if (timeOfDayEdited) {
     summary = includedRows.length
       ? t('{{summary}}; time-of-day multipliers changed', { summary })
       : t('Time-of-day multipliers changed')
@@ -750,7 +763,7 @@ export function UnifiedModelPricing(props: {
           {timeOfDayAvailable ? (
             <TimeOfDayMultiplierSection
               draft={timeOfDay}
-              changed={timeOfDayChanged}
+              changed={timeOfDayEdited}
               attempted={attempted}
               scheduled={scheduledSchedule}
               priceRows={shown.rows

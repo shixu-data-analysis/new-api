@@ -1,0 +1,27 @@
+/* Replica of the canvas parameter panel: the default Midnight tokens and the rules of Canvas Web styles/base.css,
+   GenerationParamsPanel.vue and VideoDurationControl.vue. Keep them in step when those change. */
+.catalog-canvas-title { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+.catalog-canvas-note { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.catalog-canvas { --border: rgba(255, 255, 255, 0.1); --text: #f4f4f4; --text-muted: #a6a6a6; --accent: #8ad6ff; display: grid; gap: 10px; border-radius: 14px; background: #111111; padding: 14px; color: var(--text); font-size: 13px; }
+.catalog-canvas-model { font-size: 13px; font-weight: 640; }
+.catalog-canvas-hint { margin: 0; color: var(--text-muted); font-size: 12px; }
+.catalog-canvas section { display: grid; gap: 8px; }
+.catalog-canvas section > strong { color: var(--text-muted); font-size: 12px; font-weight: 600; }
+.catalog-canvas .toolbarSelectLike { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 28px; color: var(--text); font-size: 13px; font-weight: 640; line-height: 1; }
+.catalog-canvas .generationParamsPanel { display: grid; align-content: start; gap: 14px; box-sizing: border-box; max-height: 520px; overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(25, 25, 25, 0.96); }
+.catalog-canvas .aspectRatioGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
+.catalog-canvas .qualitySegmented { display: flex; flex-wrap: wrap; gap: 6px; }
+.catalog-canvas .qualitySegmented button { flex: 1 0 56px; white-space: nowrap; }
+.catalog-canvas .aspectRatioGrid button, .catalog-canvas .qualitySegmented button { display: grid; height: 32px; place-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; padding: 0 8px; font-size: 12px; font-weight: 600; }
+.catalog-canvas .aspectRatioGrid button { height: 54px; align-content: center; }
+.catalog-canvas .aspectRatioGrid button:hover, .catalog-canvas .qualitySegmented button:hover { border-color: color-mix(in srgb, var(--text) 28%, transparent); color: var(--text); }
+.catalog-canvas .aspectRatioGrid button.active, .catalog-canvas .qualitySegmented button.active { border-color: color-mix(in srgb, var(--text) 62%, transparent); background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.catalog-canvas .ratioIcon { display: inline-block; width: 24px; height: 16px; border: 2px solid currentColor; border-radius: 3px; }
+.catalog-canvas .videoDurationControl { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.catalog-canvas .videoDurationCurrent { color: var(--text); font-size: 14px; font-weight: 700; }
+.catalog-canvas-range { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+.catalog-canvas .checkboxLine { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.catalog-canvas-input { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.catalog-canvas-code { font-family: ui-monospace, monospace; color: var(--accent); overflow-wrap: anywhere; }
+.catalog-canvas-title { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+.catalog-canvas-note { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); overflow-wrap: anywhere; }

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CatalogDecisionCell } from './CatalogDecisionCell'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -51,8 +52,11 @@ import {
   type CatalogSharedChange,
   type CatalogSharedChangeKind,
   type CatalogSharedResourceType,
+  catalogPlanStops,
+  catalogProfileUnsupported,
 } from '../catalog-plan-review'
-import type { ModelCatalogPlan } from '../generated/model-catalog-import'
+import type { CatalogJson } from '../catalog-edit-types'
+import type { ModelCatalogDiagnostic, ModelCatalogPlan } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import {
@@ -61,6 +65,8 @@ import {
   catalogPlanDiagnosticText,
   catalogResourceTypeLabel,
   catalogSharedChangeLabel,
+  catalogDiagnosticDetails,
+  catalogDiagnosticKnown,
 } from './catalog-plan-labels'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
 import { TableRowPanel } from './TableRowPanel'
@@ -103,11 +109,15 @@ function sharedRowId(change: { resourceType: string; key: string }): string {
 
 function ImpactCell(props: {
   change: CatalogSharedChange
-  plan: Pick<ModelCatalogPlan, 'changes' | 'models' | 'diagnostics'>
+  plan: Pick<ModelCatalogPlan, 'changes' | 'models' | 'diagnostics' | 'decisions'>
   reviews: CatalogModelReview[]
 }) {
   const { t } = useTranslation()
   const impact = catalogSharedImpact(props.change, props.plan, props.reviews)
+  if (props.change.resourceType === 'PROVIDER' || props.change.resourceType === 'PROVIDER_CHANNEL') {
+    const decided = props.plan.decisions?.some((entry) => entry.resourceType === props.change.resourceType && entry.key === props.change.key)
+    if (decided) return <CatalogDecisionCell resourceType={props.change.resourceType} objectKey={props.change.key} />
+  }
   switch (impact.kind) {
     case 'CONFLICT': {
       const text = impact.diagnostic
@@ -196,8 +206,66 @@ function SharedResourceDetail(props: { change: CatalogSharedChange }) {
   )
 }
 
+function UnsupportedImportNote(props: { paths: string[] }) {
+  const { t } = useTranslation()
+  if (!props.paths.length) return null
+  return (
+    <div className='mt-1'>
+      <div>{t('Has fields this page does not support; imported as they are')}</div>
+      <div className='text-muted-foreground font-mono text-xs'>{props.paths.join(', ')}</div>
+    </div>
+  )
+}
+
+function PlanStopRow(props: {
+  diagnostic: ModelCatalogDiagnostic
+  plan: Pick<ModelCatalogPlan, 'models'>
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const { t } = useTranslation()
+  const { diagnostic } = props
+  const text = catalogPlanDiagnosticText(t, diagnostic, props.plan.models)
+  const { current, incoming } = diagnostic.params
+  const diff = useMemo(
+    () => (current && incoming ? diffCatalogJson(current as CatalogJson, incoming as CatalogJson) : null),
+    [current, incoming]
+  )
+  return (
+    <>
+      <TableRow className='align-top [&>td]:whitespace-normal'>
+        <TableCell className='align-top'>{t('Bundle')}</TableCell>
+        <TableCell className='max-w-0 align-top font-mono text-xs break-all'>{diagnostic.code}</TableCell>
+        <TableCell className='align-top'>
+          <Badge className={catalogChangeBadgeClass('CONFLICT')}>{catalogSharedChangeLabel(t, 'CONFLICT')}</Badge>
+        </TableCell>
+        <TableCell className='align-top text-sm [overflow-wrap:anywhere]'>
+          <div className='text-destructive font-semibold'>
+            {t('Blocks publication: {{reason}}', { reason: text?.message ?? (catalogDiagnosticKnown(diagnostic.code) ? catalogDiagnosticDetails(diagnostic, t) : t('This model catalog Bundle has a problem and cannot be published: {{code}}', { code: diagnostic.code })) })}
+          </div>
+          {text ? <div className='text-muted-foreground text-xs'>{text.remedy}</div> : null}
+        </TableCell>
+        <TableCell className='align-top'>
+          <Button variant='link' size='sm' className='h-auto p-0' aria-expanded={props.expanded} onClick={props.onToggle}>
+            {props.expanded ? t('Collapse') : t('View details')}
+          </Button>
+        </TableCell>
+      </TableRow>
+      {props.expanded ? (
+        <TableRow>
+          <TableCell colSpan={5} className='align-top'>
+            <TableRowPanel>
+              {diff ? <CatalogJsonDiff title={t('Bundle')} summary={t('Published version → this Bundle')} diff={diff} /> : <pre className='overflow-x-auto font-mono text-xs whitespace-pre-wrap'>{JSON.stringify(diagnostic, null, 2)}</pre>}
+            </TableRowPanel>
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
+  )
+}
+
 export function CatalogSharedResources(props: {
-  plan: Pick<ModelCatalogPlan, 'changes' | 'models' | 'diagnostics'>
+  plan: Pick<ModelCatalogPlan, 'changes' | 'models' | 'diagnostics' | 'decisions'>
   changes: CatalogSharedChange[]
   reviews: CatalogModelReview[]
   focus: CatalogSharedFocus | null
@@ -249,6 +317,7 @@ export function CatalogSharedResources(props: {
     getPaginationRowModel: getPaginationRowModel(),
   })
   const visible = table.getRowModel().rows.map((row) => row.original)
+  const stops = useMemo(() => catalogPlanStops(props.plan, catalogDiagnosticKnown), [props.plan])
   const focus = props.focus
   const focusedRow = useRef<HTMLTableRowElement>(null)
   const filtersRef = useRef(filters)
@@ -396,9 +465,14 @@ export function CatalogSharedResources(props: {
             header: t('Action'),
           },
         ]}
-        data={visible}
-        getRowKey={sharedRowKey}
-        renderRow={(change) => {
+        data={[...stops, ...visible]}
+        getRowKey={(row) => ('code' in row ? `stop:${row.code}:${row.jsonPath}` : sharedRowKey(row))}
+        renderRow={(row) => {
+          if ('code' in row) {
+            const stopKey = `stop:${row.code}:${row.jsonPath}`
+            return <PlanStopRow key={stopKey} diagnostic={row} plan={props.plan} expanded={expandedKey === stopKey} onToggle={() => setExpandedKey(expandedKey === stopKey ? null : stopKey)} />
+          }
+          const change = row
           const rowKey = sharedRowKey(change)
           const kind = catalogSharedChangeKind(change)
           const expanded = expandedKey === rowKey
@@ -438,6 +512,7 @@ export function CatalogSharedResources(props: {
                     plan={props.plan}
                     reviews={props.reviews}
                   />
+                  {kind === 'UNCHANGED' ? null : <UnsupportedImportNote paths={catalogProfileUnsupported(change, props.plan.changes)} />}
                 </TableCell>
                 <TableCell className='align-top'>
                   {kind === 'UNCHANGED' ? (

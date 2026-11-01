@@ -55,6 +55,8 @@ export function catalogPlanModel(
   const productKey = overrides.productKey ?? 'canvas.image.model'
   return {
     productKey,
+    inBundle: true,
+    followedRequest: null,
     displayName: 'Bundle model',
     presentationDisplayName: null,
     channelId: 'image-channel',

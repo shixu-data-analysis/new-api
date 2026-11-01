@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { CatalogDecisionCell, useCatalogDecision } from './CatalogDecisionCell'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -43,6 +45,8 @@ import {
 import { TableCell, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
+import { getCatalogEditorOptions } from '../catalog-edit-api'
+import { unsupportedFieldsOfPlan } from '../catalog-edit-logic'
 import { diffCatalogJson } from '../catalog-json-diff'
 import {
   catalogModelName,
@@ -62,6 +66,7 @@ import {
   catalogCredentialRemedy,
   catalogListText,
   catalogModelChangeLabel,
+  catalogPlanDiagnosticText,
   catalogPriceReasonLabel,
 } from './catalog-plan-labels'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
@@ -88,14 +93,17 @@ function ModelChangeCell(props: { review: CatalogModelReview }) {
       <Badge className={catalogChangeBadgeClass(kind)}>
         {catalogModelChangeLabel(t, kind)}
       </Badge>
-      <div className='text-muted-foreground text-xs tabular-nums'>
-        {version}
-      </div>
+      {kind === 'CONFLICT' ? null : (
+        <div className='text-muted-foreground text-xs tabular-nums'>
+          {version}
+        </div>
+      )}
     </div>
   )
 }
 
-function ModelPendingCell(props: { review: CatalogModelReview }) {
+function ModelPendingCell(props: { review: CatalogModelReview; unsupported: string[] }) {
+  const { decision } = useCatalogDecision('CUSTOMER_MODEL', props.review.model.productKey)
   const { t } = useTranslation()
   const { review } = props
   const pending = [
@@ -103,12 +111,40 @@ function ModelPendingCell(props: { review: CatalogModelReview }) {
       t('Pricing: {{count}} items', { count: review.pricingCount }),
     review.needsBinding && t('Bind API Key'),
   ].filter((value): value is string => Boolean(value))
-  if (!pending.length && !review.blockers.length) {
+  const followed = !review.model.inBundle && review.kind === 'NEW_VERSION'
+  if (!decision && !followed && !pending.length && !review.blockers.length && !props.unsupported.length) {
     return <span className='text-muted-foreground'>—</span>
   }
   return (
     <div className='space-y-1'>
-      {review.blockers.map((blocker) => (
+      <CatalogDecisionCell resourceType='CUSTOMER_MODEL' objectKey={review.model.productKey} />
+      {followed ? (
+        <div className='text-muted-foreground'>
+          {t('Not in this Bundle. Its Channel configuration changed, so it moves from v{{current}} to v{{next}} with the same content.', { current: review.model.currentVersion, next: review.model.proposedVersion })}
+        </div>
+      ) : null}
+      {review.model.followedRequest?.after.ok === false ? (
+        <div role='alert' className='text-destructive font-mono text-xs [overflow-wrap:anywhere]'>
+          {review.model.followedRequest.after.reason}: {review.model.followedRequest.after.message}
+        </div>
+      ) : null}
+      {review.model.currentModelId && review.blockers.some((blocker) => blocker.source === 'pricing') ? (
+        <a className='text-primary text-sm hover:underline' href={`/canvas-cloud/model-management/${review.model.currentModelId}/pricing`}>
+          {t('Open pricing')}
+        </a>
+      ) : null}
+      {review.diagnostics.map((diagnostic) => {
+        const text = catalogPlanDiagnosticText(t, diagnostic, [review.model])
+        return (
+          <div key={`${diagnostic.code}:${diagnostic.jsonPath}`}>
+            <div className='text-destructive font-semibold [overflow-wrap:anywhere]'>
+              {t('Blocks publication: {{reason}}', { reason: text?.message ?? diagnostic.valueSummary })}
+            </div>
+            {text ? <div className='text-muted-foreground text-xs'>{text.remedy}</div> : null}
+          </div>
+        )
+      })}
+      {review.blockers.filter((blocker) => !review.diagnostics.length && blocker.source !== 'diagnostic').map((blocker) => (
         <div
           key={`${blocker.source}:${blocker.reasonCode}`}
           className='text-destructive font-semibold'
@@ -124,6 +160,12 @@ function ModelPendingCell(props: { review: CatalogModelReview }) {
       {pending.length > 0 && (
         <div className='text-orange-700 dark:text-orange-300'>
           {catalogListText(t, pending)}
+        </div>
+      )}
+      {props.unsupported.length > 0 && (
+        <div>
+          <div className='[overflow-wrap:anywhere]'>{t('Has fields this page does not support; imported as they are')}</div>
+          <div className='text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]'>{props.unsupported.join(', ')}</div>
         </div>
       )}
     </div>
@@ -265,6 +307,8 @@ function bindingExplanation(
 }
 
 function CatalogModelDetail(props: {
+  request?: string
+  boundGroup?: string
   review: CatalogModelReview
   changes: ModelCatalogChange[]
   onViewChannel: (channelId: string) => void
@@ -320,6 +364,12 @@ function CatalogModelDetail(props: {
           diff={diff}
           copyText={diff.proposedText}
         />
+        {props.request ? (
+          <div className='mt-4 space-y-1 text-sm'>
+            <p className='font-medium'>{t('Request sent to the upstream')}</p>
+            <pre className='bg-muted overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs'>{props.request}</pre>
+          </div>
+        ) : null}
       </div>
       <div className='min-w-0 flex-[1_1_260px] space-y-4 text-sm [overflow-wrap:anywhere]'>
         {/* The table truncates these lines; the detail shows them in full. */}
@@ -374,24 +424,33 @@ function CatalogModelDetail(props: {
         <ModelPricingSummary review={review} />
         <div className='space-y-1'>
           <div className='font-medium'>{t('API Key binding')}</div>
-          <div className={bindingStatusClass[model.credential.status]}>
-            {catalogBindingStatusLabel(t, model.credential.status)}
-          </div>
-          {bindingExplanation(t, review).map((line) => (
-            <div key={line} className='text-muted-foreground'>
-              {line}
-            </div>
-          ))}
-          {model.credential.credentialGroupName && (
-            <div className='text-muted-foreground'>
-              {t('API Key group {{name}}', {
-                name: model.credential.credentialGroupName,
-              })}
-            </div>
+          {props.boundGroup ? (
+            <>
+              <div className='text-foreground'>{t('Bound on publication')}</div>
+              <div className='text-muted-foreground'>{t('API Key group {{name}}', { name: props.boundGroup })}</div>
+            </>
+          ) : (
+            <>
+              <div className={bindingStatusClass[model.credential.status]}>
+                {catalogBindingStatusLabel(t, model.credential.status)}
+              </div>
+              {bindingExplanation(t, review).map((line) => (
+                <div key={line} className='text-muted-foreground'>
+                  {line}
+                </div>
+              ))}
+              {model.credential.credentialGroupName && (
+                <div className='text-muted-foreground'>
+                  {t('API Key group {{name}}', {
+                    name: model.credential.credentialGroupName,
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className='space-y-1'>
-          <div className='font-medium'>{t('Channel')}</div>
+          <div className='font-medium'>{t('Channel configuration')}</div>
           <div className='font-mono text-xs break-all'>{model.channelId}</div>
         </div>
       </div>
@@ -403,9 +462,18 @@ export function CatalogModelPreview(props: {
   reviews: CatalogModelReview[]
   changes: ModelCatalogChange[]
   focus: CatalogRowFocus | null
+  /** The request each model sends with default parameters, when the page knows it (admin edits). */
+  requests?: Record<string, string>
+  /** The API Key group an admin draft binds when it is published. */
+  boundOnPublish?: Record<string, string>
   onViewChannel: (channelId: string) => void
 }) {
   const { t } = useTranslation()
+  const editorOptions = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'editor-options'], queryFn: getCatalogEditorOptions, staleTime: Infinity })
+  const unsupportedFields = useMemo(
+    () => (editorOptions.data ? unsupportedFieldsOfPlan(props.reviews.map((review) => review.model), props.changes, editorOptions.data.supportedFields) : new Map<string, string[]>()),
+    [editorOptions.data, props.reviews, props.changes]
+  )
   const [filters, setFilters] = useState<CatalogModelFilters>(
     emptyCatalogModelFilters
   )
@@ -497,6 +565,7 @@ export function CatalogModelPreview(props: {
     ['CREATE', t('New')],
     ['NEW_VERSION', t('New version')],
     ['DESCRIPTION', t('Description updated')],
+    ['CONFLICT', t('In conflict')],
     ['UNCHANGED', t('Unchanged')],
   ] as const
   const pendingOptions = [
@@ -715,7 +784,7 @@ export function CatalogModelPreview(props: {
                   <ModelChangeCell review={review} />
                 </TableCell>
                 <TableCell className='align-top text-sm'>
-                  <ModelPendingCell review={review} />
+                  <ModelPendingCell review={review} unsupported={unsupportedFields.get(review.model.productKey) ?? []} />
                 </TableCell>
                 <TableCell className='align-top'>
                   {model.customerVisibleAfterPublish
@@ -742,6 +811,8 @@ export function CatalogModelPreview(props: {
                   <TableCell colSpan={7} className='align-top'>
                     <TableRowPanel>
                       <CatalogModelDetail
+                        request={props.requests?.[review.model.productKey]}
+                        boundGroup={props.boundOnPublish?.[review.model.productKey]}
                         review={review}
                         changes={props.changes}
                         onViewChannel={props.onViewChannel}

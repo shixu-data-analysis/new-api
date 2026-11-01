@@ -1,0 +1,30 @@
+{
+  "name": "@pixmiao/model-catalog",
+  "version": "1.7.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/request-validator/index.d.ts",
+      "import": "./index.mjs"
+    },
+    "./request-validator": {
+      "types": "./src/request-validator/index.d.ts",
+      "import": "./src/request-validator/index.mjs"
+    },
+    "./catalog-definitions": {
+      "types": "./src/request-validator/catalog-definitions.d.ts",
+      "import": "./src/request-validator/catalog-definitions.mjs"
+    },
+    "./display-rules": {
+      "types": "./src/display-rules/index.d.ts",
+      "import": "./src/display-rules/index.mjs"
+    },
+    "./request-validator/test-vectors": "./tests/request-validator-vectors.json",
+    "./snapshot": "./snapshot.json"
+  },
+  "scripts": {
+    "snapshot:check": "node verify-snapshot.mjs",
+    "vectors:check": "node --test test-vectors.mjs"
+  }
+}

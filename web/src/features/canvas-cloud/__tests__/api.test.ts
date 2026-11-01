@@ -666,6 +666,7 @@ describe('Canvas Cloud API boundary', () => {
       currentBundle: null,
       diagnostics: [diagnostic],
       changes: [],
+      decisions: [],
       models: [],
     } satisfies ModelCatalogImportPlan
     mocks.post.mockResolvedValue({ data: importPlan })

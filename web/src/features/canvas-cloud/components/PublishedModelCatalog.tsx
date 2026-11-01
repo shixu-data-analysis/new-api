@@ -14,6 +14,18 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
+import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
+import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
+import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
+import { catalogSourceLabel } from './catalog-plan-labels'
+import { ModelRetireDialog } from './catalog-edit/ModelRetireDialog'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   flexRender,
@@ -108,6 +120,7 @@ function pageWithinRange(pageCount: number) {
       : { ...current, pageIndex: Math.max(0, pageCount - 1) }
 }
 
+
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
   /** Opens the 展示与分类 tab with this model selected. */
@@ -123,6 +136,9 @@ export function PublishedModelCatalog(props: {
   const navigation = useOptionalModelManagementNavigation()
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [editor, setEditor] = useState<ModelEditorMode | null>(null)
+  const [retiring, setRetiring] = useState<CanvasAdminTestingModel | null>(null)
+  const [catalogSource, setCatalogSource] = useState('ALL')
   const [search, setSearch] = useState(() => navigation?.listState.search ?? '')
   const [modelId, setModelId] = useState(
     () => navigation?.listState.modelId ?? ''
@@ -222,6 +238,12 @@ export function PublishedModelCatalog(props: {
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
   })
+  const editingCatalog = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'current'], queryFn: getCurrentCatalog, staleTime: Infinity })
+  const editorOptions = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'editor-options'], queryFn: getCatalogEditorOptions, staleTime: Infinity })
+  const unsupportedFields = useMemo(
+    () => (editingCatalog.data && editorOptions.data ? unsupportedFieldsOfCatalog(editingCatalog.data, editorOptions.data.supportedFields) : null),
+    [editingCatalog.data, editorOptions.data]
+  )
   const tags = useQuery({
     queryKey: ['canvas-cloud', 'admin-model-tags'],
     queryFn: getCanvasAdminModelTags,
@@ -371,10 +393,11 @@ export function PublishedModelCatalog(props: {
         .join('\n')
         .toLocaleLowerCase()
       const visible =
-        visibility === 'ALL' ||
+        (catalogSource === 'ALL' || model.catalogSource === catalogSource) &&
+        (visibility === 'ALL' ||
         (visibility === 'CUSTOMER'
           ? model.executionTargets.some((target) => target.customerVisible)
-          : model.executionTargets.some((target) => !target.customerVisible))
+          : model.executionTargets.some((target) => !target.customerVisible)))
       return (
         visible &&
         (!query ||
@@ -396,6 +419,7 @@ export function PublishedModelCatalog(props: {
     selectedCapability,
     selectedProvider,
     visibility,
+    catalogSource,
   ])
   const searching = Boolean(search.trim() || modelId.trim())
   const modelsBeforeTag = useMemo(
@@ -462,10 +486,19 @@ export function PublishedModelCatalog(props: {
                   catalogDefaultName={model.catalogDefaultName}
                   modelKey={model.modelKey}
                 />
+                <UnsupportedFieldsBadge paths={unsupportedFields?.get(model.modelKey) ?? []} />
               </div>
               {model.tags.length > 0 && (
                 <p className='text-muted-foreground text-xs break-words'>
                   {model.tags.map((tag) => tag.name).join(' · ')}
+                </p>
+              )}
+              {model.catalogSource !== 'BUNDLE' && (
+                <p className='text-muted-foreground text-xs [overflow-wrap:anywhere]'>
+                  {catalogSourceLabel(t, model.catalogSource)}
+                  {model.copiedFromModelKey
+                    ? ` · ${t('Copied from {{key}}', { key: model.copiedFromModelKey })}`
+                    : ''}
                 </p>
               )}
             </div>
@@ -589,13 +622,33 @@ export function PublishedModelCatalog(props: {
                 >
                   {t('Edit display information')}
                 </Button>
+                <Button
+                  variant='outline'
+                  disabled={presentationBusy}
+                  onClick={() => setEditor({ kind: 'edit', modelKey: model.modelKey })}
+                >
+                  {t('Edit model configuration')}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<Button variant='outline' disabled={presentationBusy} />}>
+                    {t('More')}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => setEditor({ kind: 'copy', modelKey: model.modelKey })}>
+                      {t('Copy as a new model')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant='destructive' onClick={() => setRetiring(model)}>
+                      {t('Delete the model')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           )
         },
       },
     ],
-    [navigation, onManagePricing, presentationBusy, props, t]
+    [navigation, onManagePricing, presentationBusy, props, t, unsupportedFields]
   )
   const sizedColumns = useMemo(
     () => withCanvasTableColumnSizes(columns),
@@ -773,8 +826,20 @@ export function PublishedModelCatalog(props: {
   if (models.isError) {
     return <ErrorState onRetry={() => void models.refetch()} />
   }
+  if (editor) {
+    return (
+      <ModelEditor
+        mode={editor}
+        onClose={() => setEditor(null)}
+        onEditPresentation={props.onEditPresentation}
+      />
+    )
+  }
   return (
     <Card>
+      {retiring ? (
+        <ModelRetireDialog model={retiring} onClose={() => setRetiring(null)} />
+      ) : null}
       <CardContent className='min-w-0'>
         <section className='mb-4 space-y-2' aria-label={t('Generation type')}>
           <p className='text-sm font-medium'>{t('Generation type')}</p>
@@ -961,6 +1026,7 @@ export function PublishedModelCatalog(props: {
                       search,
                       modelId,
                       visibility === 'ALL' ? '' : visibility,
+                      catalogSource === 'ALL' ? '' : catalogSource,
                     ].filter(Boolean).length
                   }
                 >
@@ -977,6 +1043,26 @@ export function PublishedModelCatalog(props: {
                       placeholder={t('Upstream model ID')}
                       onChange={(event) => setModelId(event.target.value)}
                     />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Source')}>
+                    <Select
+                      value={catalogSource}
+                      onValueChange={(value) => setCatalogSource(value ?? 'ALL')}
+                    >
+                      <SelectTrigger className='w-full' aria-label={t('Source')}>
+                        <CanvasLocalizedSelectValue
+                          value={catalogSource}
+                          displayValue={catalogSourceLabel(t, catalogSource)}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['ALL', 'BUNDLE', 'ADMIN_EDIT', 'ADMIN_NEW', 'ADMIN_COPY'].map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {catalogSourceLabel(t, value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </DataTableColumnFilterField>
                   <DataTableColumnFilterField label={t('Customer display')}>
                     <Select

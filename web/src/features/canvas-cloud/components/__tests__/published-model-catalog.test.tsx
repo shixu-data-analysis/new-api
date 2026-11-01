@@ -105,6 +105,8 @@ function model(
   return {
     id: '85000000-0000-7000-8000-000000000004',
     modelKey: 'canvas.image.alpha',
+    catalogSource: 'BUNDLE',
+    copiedFromModelKey: null,
     tags: [],
     executionTargets: [executionTarget()],
     version: 2,

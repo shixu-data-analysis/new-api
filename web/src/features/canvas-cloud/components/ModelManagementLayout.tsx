@@ -15,16 +15,27 @@ import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 
+import { ModelManagementEditorPageProvider, useModelManagementEditing } from '../model-management-editor-page'
 import { ModelManagementNavigationProvider } from '../model-management-navigation'
 
 export function ModelManagementLayout() {
+  return (
+    <ModelManagementEditorPageProvider>
+      <ModelManagementPage />
+    </ModelManagementEditorPageProvider>
+  )
+}
+
+function ModelManagementPage() {
   const { t } = useTranslation()
+  const editing = useModelManagementEditing()
   const queryClient = useQueryClient()
   const pathname = useLocation({ select: (location) => location.pathname })
   let title = t('Model management')
   if (pathname.endsWith('/pricing')) {
     title = t('Model pricing')
   }
+  if (editing) title = t('Model configuration')
   return (
     <ModelManagementNavigationProvider>
       <SectionPageLayout fluid={false}>
