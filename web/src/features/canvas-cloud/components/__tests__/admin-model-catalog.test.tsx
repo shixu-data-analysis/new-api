@@ -548,6 +548,46 @@ describe('Canvas model catalog folder upload', () => {
     expect(click).toHaveBeenCalled()
   })
 
+  it('shows a prompt reference rewrite as a warning that leaves publishing open', async () => {
+    i18next.addResource(
+      'en',
+      'translation',
+      'catalog.plan.promptReferencesRewritten',
+      '{{channelId}}: every mode rewrites references.'
+    )
+    mocks.plan.mockResolvedValue(
+      catalogPlan({
+        diagnostics: [
+          {
+            code: 'CATALOG_PROMPT_REFERENCES_REWRITTEN',
+            severity: 'WARNING',
+            sourceFile: 'database',
+            jsonPath: 'channels[acme.video].adapterProfile',
+            valueSummary: 'acme.video',
+            capability: 'catalog.import.publication',
+            ownerModule: 'model-catalog',
+            recommendation: 'References in prompts are rewritten in every mode after publishing.',
+            internalTestingAllowed: false,
+            messageKey: 'catalog.plan.promptReferencesRewritten',
+            params: { channelId: 'acme.video' },
+          },
+        ],
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(await screen.findByText(/acme\.video: every mode rewrites references/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('merges ignored-file warnings into one expandable line', async () => {
     const ignored = (sourceFile: string) => ({
       code: 'CATALOG_SOURCE_FILE_IGNORED',

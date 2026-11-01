@@ -12,6 +12,7 @@ import {
   replayChanges,
   replayConflicts,
   sentFieldsOf,
+  unsupportedFieldsOfPlan,
   unsupportedModelFields,
 } from '../catalog-edit-logic'
 import type { CatalogModelDefinition } from '../catalog-edit-types'
@@ -98,6 +99,28 @@ describe('fields without a form control', () => {
     const profile = { operations: { submit: 'x' }, advanced: { request: { body: { style: { $ref: 'request.rawParams.style' } } } } }
     const paths = unsupportedModelFields(model({ aspectRatios: ['1:1'], future: 1, options: [{ key: 'mood', label: 'm', type: 'boolean' }] }, { aspectRatio: '1:1', mood: true, style: 'a', other: 1 }), supported, profile)
     expect(paths).toEqual(['paramSchema.future', 'defaultParams.other'])
+  })
+})
+
+describe('fields without a form control, across a plan', () => {
+  const supported = { paramSchema: ['aspectRatios'], defaultParams: ['aspectRatio'], referenceLimits: [], mediaConstraints: [], profile: [] }
+  const definition = (paramSchema: Record<string, unknown>, defaultParams: Record<string, unknown>) => ({ release: { publicInteraction: { paramSchema, defaultParams, referenceLimits: {} }, execution: { providerModel: { modelId: 'u' } } } })
+  const channel = { resourceType: 'PROVIDER_CHANNEL', key: 'c.image', detail: { adapterProfile: 'c@1' } }
+  const artifact = (key: string, proposed: Record<string, unknown>) => ({ resourceType: 'MODEL_DEFINITION_ARTIFACT', key, detail: {}, definition: { proposed } })
+  const profile = artifact('c@1', { api: 'c-api@1', operations: { submit: 'x' }, advanced: { request: { body: { style: { $ref: 'request.rawParams.style' } } } } })
+
+  it('reads each model through the Profile of its Channel, and lists only models with such fields', () => {
+    const models = [
+      { productKey: 'plain', channelId: 'c.image', definition: { proposed: definition({ aspectRatios: ['1:1'] }, { aspectRatio: '1:1' }) } },
+      { productKey: 'marked', channelId: 'c.image', definition: { proposed: definition({ aspectRatios: ['1:1'], future: 1 }, { aspectRatio: '1:1', style: 'a' }) } },
+    ]
+    const marked = unsupportedFieldsOfPlan(models as never, [channel, profile, artifact('c-api@1', {})] as never, supported)
+    expect([...marked]).toEqual([['marked', ['paramSchema.future']]])
+  })
+
+  it('marks a value only the Profile could read when the plan does not carry the Profile', () => {
+    const models = [{ productKey: 'm', channelId: 'gone', definition: { proposed: definition({}, { style: 'a' }) } }]
+    expect([...unsupportedFieldsOfPlan(models as never, [] as never, supported)]).toEqual([['m', ['defaultParams.style']]])
   })
 })
 
