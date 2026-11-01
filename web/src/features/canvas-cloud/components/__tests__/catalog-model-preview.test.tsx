@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   catalogChange,
@@ -24,10 +24,11 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+const editorOptions = vi.hoisted(() => vi.fn())
+
 vi.mock('../../catalog-edit-api', async (original) => ({
   ...(await original<typeof import('../../catalog-edit-api')>()),
-  // Options still loading: the rows do not wait for them, and these cases are not about unsupported fields.
-  getCatalogEditorOptions: () => new Promise(() => undefined),
+  getCatalogEditorOptions: editorOptions,
 }))
 
 function withQueryClient({ children }: { children: ReactNode }) {
@@ -57,6 +58,35 @@ function rowFor(name: string) {
 }
 
 describe('Catalog model preview', () => {
+  // Options still loading: the rows do not wait for them, and most cases are not about unsupported fields.
+  beforeEach(() => {
+    editorOptions.mockImplementation(() => new Promise(() => undefined))
+  })
+
+  describe('with the editor options', () => {
+    const marked = catalogPlanModel({
+      definition: {
+        current: null,
+        proposed: { release: { channelId: 'image-channel', execution: { providerModel: { modelId: 'u' } }, publicInteraction: { paramSchema: { future: 1 }, defaultParams: {}, referenceLimits: {} } } },
+      },
+    })
+
+    it('marks fields the page does not support once they load', async () => {
+      editorOptions.mockResolvedValue({ supportedFields: { paramSchema: [], defaultParams: [], referenceLimits: [], mediaConstraints: [], profile: [] } })
+      renderPreview([marked])
+      expect(await screen.findByText('Has fields this page does not support; imported as they are')).toBeInTheDocument()
+      expect(screen.getByText('paramSchema.future')).toBeInTheDocument()
+    })
+
+    it('still lists the models when they fail to load', async () => {
+      editorOptions.mockRejectedValue(new Error('offline'))
+      renderPreview([marked])
+      await waitFor(() => expect(editorOptions).toHaveBeenCalled())
+      expect(rowFor(marked.displayName)).toBeInTheDocument()
+      expect(screen.queryByText('Has fields this page does not support; imported as they are')).toBeNull()
+    })
+  })
+
   it('names a model by its administrator-set name and keeps the Bundle name and model key', () => {
     renderPreview([
       catalogPlanModel({

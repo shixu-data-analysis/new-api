@@ -9976,6 +9976,7 @@
     "Prompt (may be empty)": "Prompt (may be empty)",
     "Public address": "Public address",
     "Publish only if the Bundle description should be shown to customers.": "Publish only if the Bundle description should be shown to customers.",
+    "Try a prompt with a reference image before publishing.": "Try a prompt with a reference image before publishing.",
     "Publish the Channel without models": "Publish the Channel without models",
     "Publish together": "Publish together",
     "Puts the file in the request; the request format must be a file form.": "Puts the file in the request; the request format must be a file form.",

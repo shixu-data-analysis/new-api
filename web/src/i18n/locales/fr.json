@@ -9977,6 +9977,7 @@
     "Prompt (may be empty)": "Prompt (peut être vide)",
     "Public address": "Adresse publique",
     "Publish only if the Bundle description should be shown to customers.": "Publiez seulement si la description du paquet doit être montrée aux clients.",
+    "Try a prompt with a reference image before publishing.": "Essayez un prompt avec une image de référence avant de publier.",
     "Publish the Channel without models": "Publier l'interface sans modèle",
     "Publish together": "Publier ensemble",
     "Puts the file in the request; the request format must be a file form.": "Met le fichier dans la requête ; le format doit être un formulaire de fichier.",

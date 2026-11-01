@@ -259,6 +259,11 @@ export function catalogPlanDiagnosticText(
         message: t('Product key {{key}} belongs to a deleted model.', { key: params.modelKey }),
         remedy: t('Use another product key.'),
       }
+    case 'CATALOG_PROMPT_REFERENCES_REWRITTEN':
+      return {
+        message: t('catalog.plan.promptReferencesRewritten', { channelId: params.channelId }),
+        remedy: t('Try a prompt with a reference image before publishing.'),
+      }
     case 'CATALOG_DESCRIPTION_REPLACES_PRESENTATION':
       return {
         message: t('The Bundle description of {{model}} replaces the current display description.', { model: modelName() }),
@@ -348,6 +353,16 @@ export function catalogPlanActionKnown(action: string): boolean {
 }
 
 /** Five common Bundle errors in the reader's language, from the facts Cloud reports; undefined keeps the original text. */
+/** A warning for an administrator: the plain sentence when there is one, otherwise the details for tracing it. */
+export function catalogPlanWarningText(
+  t: TFunction,
+  diagnostic: ModelCatalogDiagnostic,
+  models: CatalogPlanModel[]
+): string {
+  const text = catalogPlanDiagnosticText(t, diagnostic, models)
+  return text ? `${text.message} ${text.remedy}` : catalogDiagnosticDetails(diagnostic, t)
+}
+
 export function catalogDiagnosticSentence(
   diagnostic: Pick<ModelCatalogDiagnostic, 'params' | 'jsonPath'> | { params?: Record<string, unknown>; jsonPath?: string },
   t: TFunction

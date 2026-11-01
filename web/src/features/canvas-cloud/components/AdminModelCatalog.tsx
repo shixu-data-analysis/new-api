@@ -77,6 +77,7 @@ import {
   catalogDiagnosticDetails,
   catalogDiagnosticKnown,
   catalogDiagnosticSentence,
+  catalogPlanWarningText,
   catalogPlanActionKnown,
 } from './catalog-plan-labels'
 import {
@@ -833,7 +834,7 @@ export function AdminModelCatalog(props: {
                         <li
                           key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
                         >
-                          {catalogDiagnosticDetails(diagnostic, t)}
+                          {catalogPlanWarningText(t, diagnostic, plan?.models ?? [])}
                         </li>
                       ))}
                       {ignoredFiles.length > 0 && (

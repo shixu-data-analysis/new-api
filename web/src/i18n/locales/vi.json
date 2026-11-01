@@ -9977,6 +9977,7 @@
     "Prompt (may be empty)": "Prompt (có thể trống)",
     "Public address": "Địa chỉ công khai",
     "Publish only if the Bundle description should be shown to customers.": "Chỉ công bố nếu mô tả của gói nên hiển thị cho khách hàng.",
+    "Try a prompt with a reference image before publishing.": "Hãy thử một prompt có ảnh tham chiếu trước khi xuất bản.",
     "Publish the Channel without models": "Công bố giao diện không kèm mô hình",
     "Publish together": "Công bố cùng nhau",
     "Puts the file in the request; the request format must be a file form.": "Đưa tệp vào yêu cầu; định dạng phải là biểu mẫu tệp.",

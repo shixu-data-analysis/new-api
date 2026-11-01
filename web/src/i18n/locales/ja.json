@@ -9977,6 +9977,7 @@
     "Prompt (may be empty)": "プロンプト（空欄可）",
     "Public address": "公開アドレス",
     "Publish only if the Bundle description should be shown to customers.": "カタログパッケージの説明を顧客に表示してよい場合のみ公開してください。",
+    "Try a prompt with a reference image before publishing.": "公開前に、参照画像付きのプロンプトを試してください。",
     "Publish the Channel without models": "モデルなしでインターフェース設定だけを公開",
     "Publish together": "まとめて公開",
     "Puts the file in the request; the request format must be a file form.": "ファイルをリクエストに入れます。形式はファイルフォームにしてください。",

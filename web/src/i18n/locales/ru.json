@@ -9977,6 +9977,7 @@
     "Prompt (may be empty)": "Промпт (может быть пустым)",
     "Public address": "Публичный адрес",
     "Publish only if the Bundle description should be shown to customers.": "Публикуйте, только если описание пакета должно быть показано клиентам.",
+    "Try a prompt with a reference image before publishing.": "Перед публикацией проверьте промпт с референсным изображением.",
     "Publish the Channel without models": "Опубликовать интерфейс без моделей",
     "Publish together": "Опубликовать вместе",
     "Puts the file in the request; the request format must be a file form.": "Помещает файл в запрос; формат должен быть формой файла.",

@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { sameDocument } from '../../catalog-channel-draft'
 import type { CatalogEditPlan } from '../../catalog-edit-api'
 import type { CatalogJson } from '../../catalog-edit-types'
+import { PromptReferenceRewrites } from './PromptReferenceRewrites'
 
 /** Confirms a new version of a Channel: what versions change and what each model's request becomes. */
 export function ChannelPublishDialog(props: { plan: CatalogEditPlan; baseProfile: CatalogJson | null; profile: CatalogJson; contractChanged: boolean; busy: boolean; error?: string; onClose: () => void; onConfirm: () => void }) {
@@ -52,6 +53,7 @@ export function ChannelPublishDialog(props: { plan: CatalogEditPlan; baseProfile
                 ])}
               </dl>
             ) : <p className='text-muted-foreground text-xs'>{t('This Channel configuration has no models.')}</p>}
+            <PromptReferenceRewrites plan={plan} />
             <p className='text-muted-foreground text-xs'>{t('New tasks use the new version; quoted and running tasks keep the frozen old version.')}</p>
             {props.error ? <p role='alert' className='text-destructive'>{props.error}</p> : null}
           </div>

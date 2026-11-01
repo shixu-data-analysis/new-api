@@ -9976,6 +9976,7 @@
     "Prompt (may be empty)": "提示词（可留空）",
     "Public address": "公网地址",
     "Publish only if the Bundle description should be shown to customers.": "确认要向客户展示目录包的描述时才发布。",
+    "Try a prompt with a reference image before publishing.": "发布前，请用带参考图的提示词试一次。",
     "Publish the Channel without models": "不建模型，只发布接口配置",
     "Publish together": "一起发布",
     "Puts the file in the request; the request format must be a file form.": "把文件放进请求，请求格式要用文件表单。",

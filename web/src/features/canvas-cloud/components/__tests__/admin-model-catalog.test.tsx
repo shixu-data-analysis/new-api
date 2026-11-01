@@ -584,8 +584,9 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
 
-    expect(await screen.findByText(/acme\.video: every mode rewrites references/)).toBeInTheDocument()
+    expect(await screen.findByText(/^acme\.video: every mode rewrites references/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Review publication content' })).toBeEnabled()
   })
 
   it('merges ignored-file warnings into one expandable line', async () => {

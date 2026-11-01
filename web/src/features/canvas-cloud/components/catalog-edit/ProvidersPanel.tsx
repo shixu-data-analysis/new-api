@@ -24,6 +24,7 @@ import { channelDraftFrom } from '../../catalog-channel-draft'
 import { contractOfProfile, profileOfChannel } from '../../catalog-edit-logic'
 import type { CatalogEditDraft, CatalogProviderDefinition, CurrentCatalogView } from '../../catalog-edit-types'
 import { catalogEditErrorText, catalogEditFailure } from './catalog-edit-errors'
+import { PromptReferenceRewrites } from './PromptReferenceRewrites'
 
 function hostOf(url: string): string | null {
   try {
@@ -122,6 +123,7 @@ function ProviderEditDialog(props: { provider: CatalogProviderDefinition; catalo
                 <Label htmlFor='provider-host' className='font-normal'>{t('The domain changes. The API Key of this provider will be sent to {{host}}. I confirm this address belongs to the same provider.', { host: hostOf(baseUrl) })}</Label>
               </div>
             ) : null}
+            <PromptReferenceRewrites plan={plan} />
             {broken.length ? <p role='alert' className='text-destructive'>{t('Cannot publish: {{count}} models would not work', { count: broken.length })}</p> : null}
             {error ? <p role='alert' className='text-destructive'>{error}</p> : null}
           </div>

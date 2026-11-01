@@ -341,6 +341,7 @@ describe('catalog plan diagnostics', () => {
     ['PRICING_SOURCE_CONFLICT', { modelKey: 'm', reasonCode: 'SCHEDULED_PRICE' }],
     ['CREDENTIAL_BINDING_BLOCKED', { modelKey: 'm', reasonCode: 'BINDING_CONFLICT' }],
     ['CATALOG_DESCRIPTION_REPLACES_PRESENTATION', { modelKey: 'm' }],
+    ['CATALOG_PROMPT_REFERENCES_REWRITTEN', { channelId: 'c' }],
   ])('explains %s', (code, params) => {
     const text = catalogPlanDiagnosticText(((key: string) => key) as never, catalogDiagnostic({ code, params } as never), [])
     expect(text?.message).toBeTruthy()

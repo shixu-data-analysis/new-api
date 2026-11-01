@@ -49,7 +49,7 @@ describe('Publication preview of a prompt reference rewrite', () => {
 
   it('names the Channel and leaves publishing open', () => {
     open(plan({ diagnostics: [rewrite] } as never))
-    expect(screen.getByText(/acme\.video: After publishing, every mode writes @图片1/)).toBeInTheDocument()
+    expect(screen.getByText(/^acme\.video: After publishing, every mode writes @图片1/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Confirm publication' })).toBeEnabled()
     expect(screen.queryByRole('alert')).toBeNull()
   })
