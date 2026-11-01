@@ -9,7 +9,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
+	"mime/quotedprintable"
 	"net"
 	"net/smtp"
 	"strconv"
@@ -561,4 +563,59 @@ func TestSendEmailExplicitStartTLSRejectsUntrustedCertificateByDefault(t *testin
 	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
 	require.Error(t, err)
 	require.Contains(t, fmt.Sprint(err), "certificate")
+}
+
+func TestSendEmailKeepsLongLinesWithinTheSMTPLimit(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = true
+	SMTPInsecureSkipVerify = true
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "sender@example.com"
+	SMTPToken = "secret"
+	SystemName = "New API"
+	EmailPublicAddress = "https://app.example/"
+	t.Cleanup(func() { EmailPublicAddress = "" })
+
+	longBody := "<p>" + strings.Repeat("模型", 2000) + "</p>"
+	require.NoError(t, SendEmail("Verification", "receiver@example.com", longBody))
+
+	select {
+	case message := <-server.messages:
+		require.Contains(t, message, "Content-Transfer-Encoding: quoted-printable")
+		for _, line := range strings.Split(message, "\r\n") {
+			require.LessOrEqual(t, len(line), 998)
+		}
+		_, encoded, found := strings.Cut(message, "\r\n\r\n")
+		require.True(t, found)
+		decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(encoded)))
+		require.NoError(t, err)
+		require.Contains(t, string(decoded), longBody, "the body arrives whole")
+		require.Contains(t, string(decoded), "像素喵片场", "every mail has the brand of the shared frame")
+		require.Contains(t, string(decoded), `<img src="https://app.example/logo.png"`)
+		require.Contains(t, string(decoded), "此邮件由系统自动发送")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP DATA")
+	}
+}
+
+func TestEmailFrameLeavesOutTheLogoWithoutASiteAddress(t *testing.T) {
+	previous := EmailPublicAddress
+	t.Cleanup(func() { EmailPublicAddress = previous })
+	EmailPublicAddress = ""
+	frame := renderEmailFrame("<p>body</p>")
+	require.NotContains(t, frame, "<img")
+	require.Contains(t, frame, "<p>body</p>")
+}
+
+func TestEmailValuesAreEscaped(t *testing.T) {
+	require.Contains(t, EmailCode(`1<2`), "1&lt;2")
+	require.Contains(t, EmailLink(`https://a.example/?a=1&b="2"`), `href="https://a.example/?a=1&amp;b=&#34;2&#34;"`)
+	require.Contains(t, EmailButton(`a<b`, `https://a.example`), "a&lt;b")
 }

@@ -113,6 +113,7 @@ export interface AvailabilityOverview {
     autoProbeEnabled: boolean
     intervalHours: number
     threshold: number
+    alertEmails: string[]
     version: number
   }
   providers: AvailabilityProvider[]
@@ -184,6 +185,7 @@ export interface SaveSettingsInput {
   autoProbeEnabled: boolean
   intervalHours: number
   threshold: number
+  alertEmails: string[]
   providers: Record<
     string,
     { source: ListSource; rule: CustomRule | null; confirmUntested: boolean }
@@ -202,6 +204,7 @@ const SERVER_ERROR_KEYS: Record<string, string> = {
     'This request was sent and the rule did not pass with its answers. Send it again or change the rule.',
   VERSION_CONFLICT: 'The settings changed. Reload and try again.',
   PROBE_RUNNING: 'A probe round is already running.',
+  EMAIL_NOT_CONFIGURED: 'Mail is not available in this environment.',
   TEST_RUNNING: 'Another request test is running. Wait for it, then try again.',
   TEST_IN_PROGRESS:
     'This request was sent and has not answered yet. Wait for it, then try again.',
@@ -213,6 +216,19 @@ const PROBE_FAILURE_KEYS: Record<string, string> = {
   NETWORK: 'The network failed or timed out',
   SERVER: 'The provider returned an error',
   UNSUPPORTED: 'The list cannot be read from this provider',
+}
+
+const EMAIL_FAILURE_KEYS: Record<string, string> = {
+  NOT_CONFIGURED: 'The mail server is not configured',
+  RATE_LIMITED: 'Too many mails. Try again in a minute',
+  REJECTED: 'The mail server did not accept this mail',
+  UNREACHABLE: 'The mail service could not be reached',
+}
+
+export function emailFailureKey(reason: string | null): string {
+  return (
+    EMAIL_FAILURE_KEYS[reason ?? ''] ?? 'The mail service could not be reached'
+  )
 }
 
 /** An unknown reason shows as it is rather than as a reason it is not. */
@@ -264,6 +280,22 @@ export async function saveModelAvailabilitySettings(
     await api.put<{ version: number }>(`${base}/settings`, input, {
       skipErrorHandler: true,
     })
+  ).data
+}
+
+export interface EmailTestResult {
+  results: { to: string; ok: boolean; reason: string | null }[]
+}
+
+export async function testModelAvailabilityEmail(
+  emails: string[]
+): Promise<EmailTestResult> {
+  return (
+    await api.post<EmailTestResult>(
+      `${base}/test-email`,
+      { emails },
+      { skipErrorHandler: true }
+    )
   ).data
 }
 

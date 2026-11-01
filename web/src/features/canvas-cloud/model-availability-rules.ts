@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import * as z from 'zod'
+
 import type {
   AvailabilityProvider,
   ProbeAuth,
@@ -30,6 +32,9 @@ const CREDENTIAL_QUERY = /[?&](key|token|access[_-]?token|secret|password)=/i
 // A field name alone: `max_tokens` is a parameter, `token` is a credential.
 const CREDENTIAL_FIELD =
   /^(token|accesstoken|refreshtoken|authtoken|idtoken|password|passwd|pwd|secret|clientsecret|secretkey|key|auth|credential|credentials)$/
+
+const MAX_ALERT_EMAILS = 10
+const emailSchema = z.string().email().max(254)
 
 export type RequestField = 'path' | 'template' | 'timeoutSeconds' | 'rows'
 export type RequestIssues = Partial<Record<RequestField, string>>
@@ -134,6 +139,24 @@ export function ruleIssues(
       'At least one rule must mean gone and one must mean available.'
   }
   return issues
+}
+
+/** The addresses as Cloud keeps them: lower case, without repeats. Commas and semicolons also separate. */
+export function parseAlertEmails(text: string): string[] {
+  const emails = text
+    .split(/[\s,;，；]+/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+  return [...new Set(emails)]
+}
+
+/** The checks Cloud also makes on the addresses. The value is a translation key. */
+export function alertEmailsIssue(emails: string[]): string | undefined {
+  if (emails.length > MAX_ALERT_EMAILS) return 'Up to 10 email addresses.'
+  if (emails.some((email) => !emailSchema.safeParse(email).success)) {
+    return 'An email address is not valid.'
+  }
+  return undefined
 }
 
 /** A rule that sends a Key reaches only the models bound to a group; without one it reaches them all. */

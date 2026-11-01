@@ -20,6 +20,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { ProbeRequestShape, ResponseRow } from '../model-availability-api'
 import {
+  alertEmailsIssue,
+  parseAlertEmails,
   probedUpstreamIds,
   probePathIssue,
   requestPreview,
@@ -165,5 +167,27 @@ describe('a rule path', () => {
     expect(probePathIssue('https://x.example/v1')).toBe(
       'The path must start with / and contain no host.'
     )
+  })
+})
+
+describe('alert email addresses', () => {
+  it('are read as Cloud keeps them, however they are separated', () => {
+    expect(
+      parseAlertEmails(
+        ' A@Example.com\nb@example.com, c@example.com；a@example.com '
+      )
+    ).toEqual(['a@example.com', 'b@example.com', 'c@example.com'])
+    expect(parseAlertEmails('  \n ')).toEqual([])
+  })
+
+  it('refuse a wrong address and more than ten', () => {
+    expect(alertEmailsIssue([])).toBeUndefined()
+    expect(alertEmailsIssue(['a@example.com'])).toBeUndefined()
+    expect(alertEmailsIssue(['nope'])).toBe('An email address is not valid.')
+    expect(
+      alertEmailsIssue(
+        Array.from({ length: 11 }, (_, index) => `u${index}@example.com`)
+      )
+    ).toBe('Up to 10 email addresses.')
   })
 })

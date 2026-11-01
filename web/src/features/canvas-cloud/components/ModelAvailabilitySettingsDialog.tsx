@@ -48,6 +48,8 @@ import {
   type CustomRule,
   type ListSource,
 } from '../model-availability-api'
+import { alertEmailsIssue, parseAlertEmails } from '../model-availability-rules'
+import { ModelAvailabilityEmailField } from './ModelAvailabilityEmailField'
 import { ModelAvailabilityRuleDialog } from './ModelAvailabilityRuleDialog'
 
 const SOURCE_LABELS: Record<ListSource, string> = {
@@ -81,6 +83,7 @@ export function ModelAvailabilitySettingsDialog(props: {
   const [autoProbe, setAutoProbe] = useState(settings.autoProbeEnabled)
   const [interval, setInterval] = useState(String(settings.intervalHours))
   const [threshold, setThreshold] = useState(String(settings.threshold))
+  const [emailsText, setEmailsText] = useState(settings.alertEmails.join('\n'))
   const [drafts, setDrafts] = useState<Record<string, ProviderDraft>>(() =>
     Object.fromEntries(
       providers.map((provider) => [
@@ -108,11 +111,14 @@ export function ModelAvailabilitySettingsDialog(props: {
   )
   const intervalValid = wholeNumber(interval, 24)
   const thresholdValid = wholeNumber(threshold, 10)
+  const alertEmails = parseAlertEmails(emailsText)
+  const emailsValid = !alertEmailsIssue(alertEmails)
 
   const isDirty =
     autoProbe !== settings.autoProbeEnabled ||
     interval !== String(settings.intervalHours) ||
     threshold !== String(settings.threshold) ||
+    alertEmails.join() !== settings.alertEmails.join() ||
     providers.some((provider) => {
       const draft = drafts[provider.providerId]
       return (
@@ -128,6 +134,7 @@ export function ModelAvailabilitySettingsDialog(props: {
         autoProbeEnabled: autoProbe,
         intervalHours: Number(interval),
         threshold: Number(threshold),
+        alertEmails,
         providers: Object.fromEntries(
           Object.entries(drafts).map(([providerId, draft]) => [
             providerId,
@@ -350,6 +357,10 @@ export function ModelAvailabilitySettingsDialog(props: {
               </TableBody>
             </Table>
           </div>
+          <ModelAvailabilityEmailField
+            value={emailsText}
+            onChange={setEmailsText}
+          />
         </div>
         {save.isError ? (
           <p role='alert' className='text-destructive text-sm'>
@@ -389,6 +400,7 @@ export function ModelAvailabilitySettingsDialog(props: {
                 disabled={
                   !intervalValid ||
                   !thresholdValid ||
+                  !emailsValid ||
                   ruleMissing ||
                   save.isPending
                 }

@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 
@@ -328,19 +329,23 @@ func SendPasswordResetEmail(c *gin.Context) {
 func buildEmailVerificationMessage(systemName, code string, validMinutes int) (string, string) {
 	systemName = common.NormalizeSystemName(systemName)
 	subject := fmt.Sprintf("%s 邮箱验证码", systemName)
-	content := fmt.Sprintf("<p>您好，您正在验证%s账号的邮箱地址。</p>"+
-		"<p>您的验证码为：<strong>%s</strong></p>"+
-		"<p>验证码 %d 分钟内有效。如果不是本人操作，请忽略此邮件。</p>", systemName, code, validMinutes)
+	content := common.EmailParagraph("您好！") +
+		common.EmailParagraph(fmt.Sprintf("您正在验证%s账号的邮箱地址，验证码为：", html.EscapeString(systemName))) +
+		common.EmailCode(code) +
+		common.EmailNote(fmt.Sprintf("验证码 %d 分钟内有效，请勿泄露给他人。", validMinutes)) +
+		common.EmailNote("如非本人操作，请忽略此邮件。")
 	return subject, content
 }
 
 func buildPasswordResetMessage(systemName, link string, validMinutes int) (string, string) {
 	systemName = common.NormalizeSystemName(systemName)
 	subject := fmt.Sprintf("%s 密码重置", systemName)
-	content := fmt.Sprintf("<p>您好，您正在重置%s账号的密码。</p>"+
-		"<p>点击 <a href='%s'>此处</a> 设置新密码。</p>"+
-		"<p>如果链接无法点击，请将下面的链接复制到浏览器中打开：<br>%s</p>"+
-		"<p>重置链接 %d 分钟内有效。如果不是本人操作，请忽略此邮件。</p>", systemName, link, link, validMinutes)
+	content := common.EmailParagraph("您好！") +
+		common.EmailParagraph(fmt.Sprintf("您正在重置%s账号的密码。点击下面的按钮设置新密码：", html.EscapeString(systemName))) +
+		common.EmailButton("设置新密码", link) +
+		common.EmailNote("如果按钮无法点击，请将下面的链接复制到浏览器中打开：<br>"+common.EmailLink(link)) +
+		common.EmailNote(fmt.Sprintf("重置链接 %d 分钟内有效。", validMinutes)) +
+		common.EmailNote("如非本人操作，请忽略此邮件。")
 	return subject, content
 }
 

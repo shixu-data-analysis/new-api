@@ -38,6 +38,7 @@ const api = vi.hoisted(() => ({
   saveModelAvailabilitySettings: vi.fn(),
   testModelAvailabilityList: vi.fn(),
   testModelAvailabilityRequest: vi.fn(),
+  testModelAvailabilityEmail: vi.fn(),
   judgeModelAvailabilityRule: vi.fn(),
 }))
 const controlCanvasLogicalModel = vi.hoisted(() => vi.fn())
@@ -81,6 +82,7 @@ const overview = (change: object = {}) => ({
     autoProbeEnabled: false,
     intervalHours: 3,
     threshold: 2,
+    alertEmails: [],
     version: 4,
   },
   providers: [provider],
@@ -255,6 +257,7 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
           autoProbeEnabled: false,
           intervalHours: 3,
           threshold: 10,
+          alertEmails: [],
           version: 4,
         },
         targets: [
@@ -454,6 +457,81 @@ describe('ModelAvailabilityBulkDisableDialog', () => {
 })
 
 describe('ModelAvailabilitySettingsDialog', () => {
+  const openDialog = (settings: object = {}) =>
+    renderWithQuery(
+      <ModelAvailabilitySettingsDialog
+        overview={
+          overview({
+            settings: {
+              autoProbeEnabled: false,
+              intervalHours: 3,
+              threshold: 2,
+              alertEmails: [],
+              version: 4,
+              ...settings,
+            },
+          }) as never
+        }
+        initialRuleProviderId={null}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+  const emailField = () => screen.getByLabelText('Alert email addresses')
+
+  it('saves the alert addresses as Cloud keeps them', async () => {
+    api.saveModelAvailabilitySettings.mockResolvedValue({ version: 5 })
+    openDialog()
+    fireEvent.change(emailField(), {
+      target: { value: 'A@Example.com\nb@example.com' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.saveModelAvailabilitySettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alertEmails: ['a@example.com', 'b@example.com'],
+        })
+      )
+    )
+  })
+
+  it('shows a wrong address only once the field was left, and keeps it from being saved', () => {
+    openDialog()
+    fireEvent.change(emailField(), { target: { value: 'nope' } })
+    expect(screen.queryByText('An email address is not valid.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    fireEvent.blur(emailField())
+    expect(
+      screen.getByText('An email address is not valid.')
+    ).toBeInTheDocument()
+    expect(emailField()).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('tests what is typed and reports each address', async () => {
+    api.testModelAvailabilityEmail.mockResolvedValue({
+      results: [
+        { to: 'a@example.com', ok: true, reason: null },
+        { to: 'b@example.com', ok: false, reason: 'REJECTED' },
+      ],
+    })
+    openDialog()
+    const send = screen.getByRole('button', { name: 'Send a test email' })
+    expect(send).toBeDisabled()
+    fireEvent.change(emailField(), {
+      target: { value: 'a@example.com\nb@example.com' },
+    })
+    fireEvent.click(send)
+    expect(await screen.findByText(/a@example.com.*Sent/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/b@example.com.*did not accept/)
+    ).toBeInTheDocument()
+    expect(api.testModelAvailabilityEmail).toHaveBeenCalledWith([
+      'a@example.com',
+      'b@example.com',
+    ])
+    expect(api.saveModelAvailabilitySettings).not.toHaveBeenCalled()
+  })
+
   it('asks before discarding, and saves what was edited with the version it read', async () => {
     api.saveModelAvailabilitySettings.mockResolvedValue({ version: 5 })
     const onClose = vi.fn()
@@ -494,6 +572,7 @@ describe('ModelAvailabilitySettingsDialog', () => {
                 autoProbeEnabled: false,
                 intervalHours: 3,
                 threshold: 2,
+                alertEmails: [],
                 version,
               },
             }) as never

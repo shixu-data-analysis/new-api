@@ -32,6 +32,13 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
+		// Reached only by Canvas Cloud on the internal network.
+		canvasInternalRoute := apiRouter.Group("/internal/canvas")
+		canvasInternalRoute.Use(middleware.CanvasInternalService(), middleware.DisableCache())
+		{
+			canvasInternalRoute.POST("/email", controller.SendCanvasInternalEmail)
+		}
+
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
