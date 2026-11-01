@@ -10451,6 +10451,16 @@
     "All call methods": "Все способы вызова",
     "All Channel configurations": "Все конфигурации интерфейса",
     "View the {{count}} models of {{channel}}": "Показать модели {{channel}}: {{count}}",
-    "{{count}} models have no API Key group and are not probed: {{names}}.": "Моделей без группы API Key, не проверяются: {{count}}: {{names}}."
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "Моделей без группы API Key, не проверяются: {{count}}: {{names}}.",
+    "Retire": "Вывести из работы",
+    "Retire (delete its models first)": "Вывести (сначала удалите модели)",
+    "Retire the Channel configuration?": "Вывести эту конфигурацию из работы?",
+    "Retire the Channel configuration": "Вывести конфигурацию из работы",
+    "Retired: {{name}}": "Выведено: {{name}}",
+    "Reason for retirement": "Причина вывода",
+    "Type the complete code {{code}} to confirm": "Введите полный код {{code}} для подтверждения",
+    "The Channel configuration could not be retired. A model may be on it, or it may have changed; refresh and try again.": "Не удалось вывести конфигурацию. Возможно, на ней есть модель или она изменилась; обновите и повторите.",
+    "After retirement it leaves this list, the model forms and the export. Past and running tasks are not affected, and its history stays. The code cannot be used for a new Channel configuration here; a Bundle that states it brings it back.": "После вывода она исчезает из этого списка, форм моделей и экспорта. Завершённые и выполняющиеся задачи не затрагиваются, история сохраняется. Этот код нельзя снова использовать здесь; пакет, содержащий его, вернёт конфигурацию.",
+    "This Channel code belongs to a retired Channel; choose another": "Этот код принадлежит выведенной конфигурации; выберите другой"
   }
 }

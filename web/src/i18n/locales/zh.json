@@ -10451,6 +10451,16 @@
     "All call methods": "全部调用方式",
     "All Channel configurations": "全部接口配置",
     "View the {{count}} models of {{channel}}": "查看 {{channel}} 的 {{count}} 个模型",
-    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} 个模型没有绑定 API Key 组，未探测：{{names}}。"
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} 个模型没有绑定 API Key 组，未探测：{{names}}。",
+    "Retire": "退役",
+    "Retire (delete its models first)": "退役（先删除上面的模型）",
+    "Retire the Channel configuration?": "退役这个接口配置？",
+    "Retire the Channel configuration": "退役接口配置",
+    "Retired: {{name}}": "已退役：{{name}}",
+    "Reason for retirement": "退役原因",
+    "Type the complete code {{code}} to confirm": "输入完整编码 {{code}} 以确认",
+    "The Channel configuration could not be retired. A model may be on it, or it may have changed; refresh and try again.": "接口配置退役失败。上面可能还有模型，或者它已被修改；请刷新后重试。",
+    "After retirement it leaves this list, the model forms and the export. Past and running tasks are not affected, and its history stays. The code cannot be used for a new Channel configuration here; a Bundle that states it brings it back.": "退役后，它从这个列表、模型表单和导出中消失。已完成和进行中的任务不受影响，历史记录保留。这个编码不能在这里再用于新建；目录包如果包含它，会恢复。",
+    "This Channel code belongs to a retired Channel; choose another": "这个编码属于已退役的接口配置，请换一个"
   }
 }

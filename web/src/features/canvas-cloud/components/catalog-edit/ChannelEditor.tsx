@@ -170,6 +170,7 @@ function LoadedChannelEditor(props: { mode: ChannelEditorMode; catalog: CurrentC
       if (!effectiveProviderId) found.push({ path: 'provider', message: t('Choose an API provider') })
       if (!/^[a-z0-9][a-z0-9-]*$/.test(channelName)) found.push({ path: 'channelName', message: t('The Channel name can use lowercase letters, numbers and hyphens only') })
       if (catalog.bundle.channels.some((channel) => channel.id === channelId)) found.push({ path: 'channelName', message: t('This Channel code already exists') })
+      else if (catalog.retiredChannelCodes.includes(channelId)) found.push({ path: 'channelName', message: t('This Channel code belongs to a retired Channel; choose another') })
     }
     if (isEdit) {
       const tokenModels = onChannel.filter((model) => ((model.release.publicInteraction.paramSchema.tokenUsageCategories ?? []) as string[]).length).length

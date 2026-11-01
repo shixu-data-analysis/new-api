@@ -19,10 +19,12 @@ const catalog = {
   versions: { providers: {}, channels: {}, models: {} },
 }
 const navigation = vi.hoisted(() => ({ updateListState: vi.fn() }))
+const retire = vi.hoisted(() => vi.fn((_input: unknown) => Promise.resolve({})))
 
 vi.mock('../../catalog-edit-api', async (original) => ({
   ...(await original<typeof import('../../catalog-edit-api')>()),
   getCurrentCatalog: () => Promise.resolve(catalog),
+  retireCatalogChannel: retire,
 }))
 vi.mock('../../model-management-navigation-hooks', () => ({ useOptionalModelManagementNavigation: () => navigation }))
 
@@ -69,5 +71,19 @@ describe('Channels list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Acme' }))
     expect(shown()).toEqual(['acme.image', 'acme.video', 'beta.chat'])
     expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('retires a Channel with no model after the code is typed, and sends what Cloud checks', async () => {
+    const { ChannelRetireDialog } = await import('../catalog-edit/ChannelRetireDialog')
+    render(<QueryClientProvider client={new QueryClient()}><ChannelRetireDialog channelCode='beta.chat' providerName='Beta' version={3} onClose={vi.fn()} /></QueryClientProvider>)
+    const submit = screen.getByRole('button', { name: 'Retire the Channel configuration' })
+    expect(submit).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Reason for retirement'), { target: { value: 'OTHER' } })
+    fireEvent.change(screen.getByLabelText('Type the complete code beta.chat to confirm'), { target: { value: 'beta.cha' } })
+    expect(submit).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Type the complete code beta.chat to confirm'), { target: { value: 'beta.chat' } })
+    fireEvent.click(submit)
+    await vi.waitFor(() => expect(retire).toHaveBeenCalledOnce())
+    expect(retire.mock.calls[0]![0]).toMatchObject({ channelCode: 'beta.chat', expectedVersion: 3, reasonCode: 'OTHER', confirmedChannelCode: 'beta.chat' })
   })
 })

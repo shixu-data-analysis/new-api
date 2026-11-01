@@ -75,6 +75,7 @@ export interface CurrentCatalogView {
   /** The Bundle version a model's current version came from; absent for an admin version. */
   modelBundleVersions: Record<string, string>
   retiredModelKeys: string[]
+  retiredChannelCodes: string[]
   credentialGroups: Array<{ versionId: string; name: string; providerId: string }>
   modelCredentialGroups: Record<string, string>
   copiedModels: Record<string, string>

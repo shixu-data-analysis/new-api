@@ -123,6 +123,29 @@ export async function retireCatalogModel(input: {
   ).data
 }
 
+export async function retireCatalogChannel(input: {
+  channelCode: string
+  expectedVersion: number
+  reasonCode: string
+  confirmedChannelCode: string
+  idempotencyKey: string
+}) {
+  return (
+    await api.post(
+      `${base}/channels/${encodeURIComponent(input.channelCode)}/retirement`,
+      {
+        expectedVersion: input.expectedVersion,
+        reasonCode: input.reasonCode,
+        confirmedChannelCode: input.confirmedChannelCode,
+      },
+      {
+        headers: { 'Idempotency-Key': input.idempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
 export async function exportCurrentCatalog(): Promise<CatalogExportResult> {
   return (await api.get<CatalogExportResult>(`${base}/export`)).data
 }

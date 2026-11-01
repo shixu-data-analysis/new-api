@@ -21,6 +21,7 @@ import { unsupportedProfileFields } from '../../catalog-channel-draft'
 import { contractOfProfile, profileOfChannel } from '../../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../../model-management-navigation-hooks'
 import { ChannelEditor, type ChannelEditorMode } from './ChannelEditor'
+import { ChannelRetireDialog } from './ChannelRetireDialog'
 import { ModelEditor } from './ModelEditor'
 import { UnsupportedFieldsBadge, workflowShortLabel } from './EditFields'
 import { NewModelsPage } from './NewModelsPage'
@@ -47,6 +48,7 @@ export function ChannelsPanel(props: {
     document.querySelector(`[data-channel-row="${CSS.escape(focusChannel)}"]`)?.scrollIntoView({ block: 'center' })
   }, [focusChannel, loaded])
   const [viewing, setViewing] = useState<string | null>(null)
+  const [retiring, setRetiring] = useState<string | null>(null)
   const editPresentation = props.onEditPresentation ?? (() => undefined)
   if (editingModel) return <ModelEditor mode={{ kind: 'edit', modelKey: editingModel }} onClose={() => setEditingModel(null)} onEditPresentation={editPresentation} />
   if (editor) return <ChannelEditor mode={editor} onClose={() => setEditor(null)} onEditPresentation={editPresentation} onEditModel={(modelKey) => { setEditor(null); setEditingModel(modelKey) }} />
@@ -137,6 +139,7 @@ export function ChannelsPanel(props: {
                   <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => setViewing((current) => (current === channel.id ? null : channel.id))}>{viewing === channel.id ? t('Collapse') : t('Look at')}</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setEditor({ kind: 'copy', channelId: channel.id })}>{t('Copy as a new Channel configuration')}</DropdownMenuItem>
+                    <DropdownMenuItem variant='destructive' disabled={(modelCounts.get(channel.id) ?? 0) > 0} onClick={() => setRetiring(channel.id)}>{(modelCounts.get(channel.id) ?? 0) > 0 ? t('Retire (delete its models first)') : t('Retire')}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -144,6 +147,7 @@ export function ChannelsPanel(props: {
           },
         ]}
       />
+      {retiring ? <ChannelRetireDialog channelCode={retiring} providerName={bundle.providers.find((entry) => entry.id === bundle.channels.find((channel) => channel.id === retiring)?.providerId)?.internalName ?? ''} version={catalog.data.versions.channels[retiring] ?? 0} onClose={() => setRetiring(null)} /> : null}
       </CardContent>
     </Card>
   )

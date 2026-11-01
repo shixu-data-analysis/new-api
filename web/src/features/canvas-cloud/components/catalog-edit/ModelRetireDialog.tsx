@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 
 import { catalogSourceLabel } from '../catalog-plan-labels'
+import { RetireReasonSelect } from './EditFields'
 import { getModelRetirementImpact, retireCatalogModel } from '../../catalog-edit-api'
 import type { CanvasAdminTestingModel } from '../../types'
 
@@ -66,13 +66,7 @@ export function ModelRetireDialog(props: { model: CanvasAdminTestingModel; onClo
         <p className='text-sm'>{t('After deletion the model leaves the model list, pricing, API Key bindings, monitoring and the customer catalog, and no new quote or task is accepted; unexpired quotes cannot be submitted. Deletion cannot be undone, and the product key cannot be used again for a new model, a copy or a Bundle.')}</p>
         <div className='space-y-1'>
           <Label htmlFor='retire-reason'>{t('Reason for deletion')}</Label>
-          <NativeSelect id='retire-reason' value={reason} onChange={(event) => setReason(event.target.value)}>
-            <NativeSelectOption value=''>{t('Please select')}</NativeSelectOption>
-            <NativeSelectOption value='UPSTREAM_DISCONTINUED'>{t('Discontinued by the upstream')}</NativeSelectOption>
-            <NativeSelectOption value='REPLACED'>{t('Replaced by another model')}</NativeSelectOption>
-            <NativeSelectOption value='CONFIGURATION_MISTAKE'>{t('Set up by mistake')}</NativeSelectOption>
-            <NativeSelectOption value='OTHER'>{t('Other')}</NativeSelectOption>
-          </NativeSelect>
+          <RetireReasonSelect id='retire-reason' value={reason} onChange={setReason} />
         </div>
         <div className='space-y-1'>
           <Label htmlFor='retire-confirm'>{t('Type the complete product key {{key}} to confirm', { key: model.modelKey })}</Label>
