@@ -45,6 +45,7 @@ export function ModelManagementNavigationProvider(props: {
             current.search === next.search &&
             current.modelId === next.modelId &&
             current.provider === next.provider &&
+            current.channel === next.channel &&
             current.capability === next.capability &&
             current.visibility === next.visibility &&
             sameColumnVisibility(

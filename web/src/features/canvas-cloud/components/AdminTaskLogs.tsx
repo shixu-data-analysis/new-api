@@ -9,13 +9,11 @@ License, or (at your option) any later version.
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleContent,
@@ -43,6 +41,7 @@ import type {
   CanvasAdminTaskUpstreamFilter,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { ActiveFilterTags } from './ActiveFilterTags'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
@@ -830,33 +829,7 @@ export function AdminTaskLogs() {
         emptyTitle={t('No task records')}
         filteredEmptyTitle={t('No matching results')}
         additionalFilters={filters}
-        filterTags={
-          tags.length > 0 ? (
-            <ul
-              className='flex flex-wrap items-center gap-1'
-              aria-label={t('Active filters')}
-            >
-              {tags.map((tag) => (
-                <li key={tag.key}>
-                  <span className='bg-muted inline-flex items-center gap-1 rounded-md py-0.5 ps-2 pe-0.5 text-xs'>
-                    {tag.label}
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      size='icon-xs'
-                      aria-label={t('Remove filter {{filter}}', {
-                        filter: tag.label,
-                      })}
-                      onClick={tag.remove}
-                    >
-                      <X aria-hidden='true' />
-                    </Button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null
-        }
+        filterTags={<ActiveFilterTags tags={tags} />}
         hasActiveFilters={tags.length > 0}
         activeFilterCount={tags.length}
         onResetFilters={() => {

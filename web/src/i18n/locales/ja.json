@@ -10447,6 +10447,10 @@
     "View the original errors": "元のエラーを表示",
     "Publish only the Channel configuration?": "インターフェース設定だけを公開しますか？",
     "The {{count}} models filled in here are not saved.": "ここで入力した {{count}} 個のモデルは保存されません。",
-    "Publish only the Channel configuration": "インターフェース設定だけを公開"
+    "Publish only the Channel configuration": "インターフェース設定だけを公開",
+    "All call methods": "すべての呼び出し方式",
+    "All Channel configurations": "すべてのインターフェース設定",
+    "View the {{count}} models of {{channel}}": "{{channel}} の {{count}} 個のモデルを表示",
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} 個のモデルは API Key グループが未設定のため検出していません：{{names}}。"
   }
 }

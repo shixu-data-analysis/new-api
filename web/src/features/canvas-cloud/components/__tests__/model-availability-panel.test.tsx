@@ -92,6 +92,7 @@ const overview = (change: object = {}) => ({
     totalTargets: 1,
     offProviders: [],
     unboundProviders: [],
+    unboundModels: [],
   },
   lastSuccessAt: null,
   run: null,
@@ -215,6 +216,7 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
           totalTargets: 6,
           offProviders: ['AI666'],
           unboundProviders: ['Even', 'GWay'],
+          unboundModels: ['Z5-a', 'Z5-b'],
         },
       })
     )
@@ -225,6 +227,7 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
       )
     ).toBeInTheDocument()
     expect(screen.getByText(/set not to probe: AI666/)).toBeInTheDocument()
+    expect(screen.getByText(/are not probed: Z5-a, Z5-b/)).toBeInTheDocument()
   })
 
   it('offers to take over a round whose process died', async () => {

@@ -10447,6 +10447,10 @@
     "View the original errors": "Voir les erreurs d’origine",
     "Publish only the Channel configuration?": "Publier uniquement la configuration ?",
     "The {{count}} models filled in here are not saved.": "Les {{count}} modèles remplis ici ne seront pas enregistrés.",
-    "Publish only the Channel configuration": "Publier uniquement la configuration"
+    "Publish only the Channel configuration": "Publier uniquement la configuration",
+    "All call methods": "Toutes les méthodes d’appel",
+    "All Channel configurations": "Toutes les configurations",
+    "View the {{count}} models of {{channel}}": "Voir les {{count}} modèles de {{channel}}",
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} modèles n’ont pas de groupe de clés API et ne sont pas sondés : {{names}}."
   }
 }

@@ -124,6 +124,7 @@ export interface AvailabilityOverview {
     totalTargets: number
     offProviders: string[]
     unboundProviders: string[]
+    unboundModels: string[]
   }
   lastSuccessAt: string | null
   run: {

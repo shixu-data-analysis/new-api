@@ -10447,6 +10447,10 @@
     "View the original errors": "Показать исходные ошибки",
     "Publish only the Channel configuration?": "Опубликовать только конфигурацию интерфейса?",
     "The {{count}} models filled in here are not saved.": "Заполненные здесь модели ({{count}}) не будут сохранены.",
-    "Publish only the Channel configuration": "Опубликовать только конфигурацию"
+    "Publish only the Channel configuration": "Опубликовать только конфигурацию",
+    "All call methods": "Все способы вызова",
+    "All Channel configurations": "Все конфигурации интерфейса",
+    "View the {{count}} models of {{channel}}": "Показать модели {{channel}}: {{count}}",
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "Моделей без группы API Key, не проверяются: {{count}}: {{names}}."
   }
 }

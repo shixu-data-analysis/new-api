@@ -10447,6 +10447,10 @@
     "View the original errors": "查看原始错误",
     "Publish only the Channel configuration?": "只发布接口配置？",
     "The {{count}} models filled in here are not saved.": "这里已填写的 {{count}} 个模型不会保存。",
-    "Publish only the Channel configuration": "只发布接口配置"
+    "Publish only the Channel configuration": "只发布接口配置",
+    "All call methods": "全部调用方式",
+    "All Channel configurations": "全部接口配置",
+    "View the {{count}} models of {{channel}}": "查看 {{channel}} 的 {{count}} 个模型",
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} 个模型没有绑定 API Key 组，未探测：{{names}}。"
   }
 }

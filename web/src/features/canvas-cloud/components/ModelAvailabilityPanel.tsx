@@ -243,6 +243,9 @@ export function ModelAvailabilityPanel() {
             {coverage.unboundProviders.length
               ? `${t('{{count}} providers have no API Key group and cannot be probed: {{names}}.', { count: coverage.unboundProviders.length, names: coverage.unboundProviders.join(', ') })} `
               : ''}
+            {coverage.unboundModels.length
+              ? `${t('{{count}} models have no API Key group and are not probed: {{names}}.', { count: coverage.unboundModels.length, names: coverage.unboundModels.join(', ') })} `
+              : ''}
             {coverage.offProviders.length
               ? `${t('{{count}} providers are set not to probe: {{names}}.', { count: coverage.offProviders.length, names: coverage.offProviders.join(', ') })} `
               : ''}

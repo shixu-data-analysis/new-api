@@ -23,6 +23,7 @@ export interface ModelManagementListState {
   search: string
   modelId: string
   provider: string
+  channel: string
   capability: string
   visibility: string
   showDisabled: boolean
@@ -39,10 +40,11 @@ export interface ModelManagementReturnContext {
   nonce: string
 }
 
-const initialListState: ModelManagementListState = {
+export const initialListState: ModelManagementListState = {
   search: '',
   modelId: '',
   provider: '',
+  channel: '',
   capability: '',
   visibility: 'ALL',
   showDisabled: false,
@@ -107,6 +109,10 @@ export function normalizeModelManagementListState(
       typeof value.provider === 'string'
         ? value.provider
         : initialListState.provider,
+    channel:
+      typeof value.channel === 'string'
+        ? value.channel
+        : initialListState.channel,
     capability:
       typeof value.capability === 'string'
         ? value.capability

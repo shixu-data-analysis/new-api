@@ -18,6 +18,7 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { initialListState } from '../../model-management-navigation-state'
 import type { CanvasAdminTestingModel } from '../../types'
 import { executionTargetLabel } from '../execution-target-label'
 import { ExecutionTargetCoverage } from '../ExecutionTargetCoverage'
@@ -29,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   tags: vi.fn(),
   publishTargetPresentation: vi.fn(),
   publishParameterCombinationControl: vi.fn(),
+  catalog: vi.fn(),
+  navigation: { current: null as unknown },
 }))
 
 vi.mock('../../api', () => ({
@@ -39,6 +42,14 @@ vi.mock('../../api', () => ({
     mocks.publishParameterCombinationControl,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('../../catalog-edit-api', () => ({
+  getCurrentCatalog: mocks.catalog,
+  getCatalogEditorOptions: () => new Promise(() => undefined),
+  getModelRetirementImpact: () => new Promise(() => undefined),
+}))
+vi.mock('../../model-management-navigation-hooks', () => ({
+  useOptionalModelManagementNavigation: () => mocks.navigation.current,
+}))
 
 function executionTarget(
   overrides: Partial<CanvasAdminTestingModel['executionTargets'][number]> = {}
@@ -163,9 +174,49 @@ function renderCatalog(
 }
 
 describe('Published model catalog', () => {
+  const twoModels = [
+    model(),
+    model({ id: '85000000-0000-7000-8000-000000000005', modelKey: 'canvas.image.beta', effectiveDisplayName: 'Beta model' }),
+  ]
+  function renderWithChannelLink(onOpenChannel = vi.fn()) {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PublishedModelCatalog onManagePricing={vi.fn()} onEditPresentation={vi.fn()} onManageCategories={vi.fn()} onOpenChannel={onOpenChannel} />
+      </QueryClientProvider>
+    )
+    return onOpenChannel
+  }
+
+  it('shows the Channel of each model and opens it', async () => {
+    mocks.list.mockResolvedValue(twoModels)
+    const onOpenChannel = renderWithChannelLink()
+    fireEvent.click(await screen.findByRole('button', { name: 'beta.image' }))
+    expect(onOpenChannel).toHaveBeenCalledWith('beta.image')
+  })
+
+  it('lists only the models of a Channel brought in by a link, as a filter that can be removed', async () => {
+    mocks.list.mockResolvedValue(twoModels)
+    mocks.navigation.current = { listState: { ...initialListState, channel: 'beta.image' }, updateListState: vi.fn(), consumeReturnContext: vi.fn() }
+    renderWithChannelLink()
+    await screen.findByRole('button', { name: 'beta.image' })
+    expect(screen.queryByRole('button', { name: 'acme.image' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove filter beta.image' }))
+    expect(await screen.findByRole('button', { name: 'acme.image' })).toBeInTheDocument()
+  })
+
   beforeEach(() => {
     mocks.list.mockReset()
     mocks.tags.mockReset()
+    mocks.navigation.current = null
+    mocks.catalog.mockResolvedValue({
+      bundle: {
+        channels: [{ id: 'acme.image' }, { id: 'beta.image' }],
+        models: [
+          { productKey: 'canvas.image.alpha', release: { channelId: 'acme.image' } },
+          { productKey: 'canvas.image.beta', release: { channelId: 'beta.image' } },
+        ],
+      },
+    })
     mocks.publishTargetPresentation.mockReset()
     mocks.list.mockResolvedValue([model()])
     mocks.tags.mockResolvedValue([])
@@ -264,6 +315,19 @@ describe('Published model catalog', () => {
       expect(enabled).not.toHaveTextContent('Stopped model')
     })
 
+    it('can be deleted from their table, and only there', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue(models())
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (1)' })
+      )
+      const [enabled] = screen.getAllByRole('table')
+      expect(within(enabled!).queryByRole('button', { name: 'Delete the model' })).toBeNull()
+      await user.click(within(disabledTable()).getByRole('button', { name: 'Delete the model' }))
+      expect(await screen.findByRole('dialog')).toHaveTextContent('Stopped model')
+    })
+
     it('unfold into a plain table, and fold again', async () => {
       const user = userEvent.setup()
       mocks.list.mockResolvedValue(models())
@@ -274,7 +338,7 @@ describe('Published model catalog', () => {
       const disabled = within(disabledTable())
       expect(
         disabled.getAllByRole('columnheader').map((item) => item.textContent)
-      ).toEqual(['Model', 'API provider', 'Generation type'])
+      ).toEqual(['Model', 'API provider', 'Generation type', 'Model actions'])
       expect(disabled.getByText('Stopped model')).toBeInTheDocument()
       expect(disabled.queryByText('Execution targets')).toBeNull()
       expect(
@@ -423,7 +487,7 @@ describe('Published model catalog', () => {
         within(disabledTable())
           .getAllByRole('columnheader')
           .map((item) => item.textContent)
-      ).toEqual(['Model', 'API provider', 'Generation type'])
+      ).toEqual(['Model', 'API provider', 'Generation type', 'Model actions'])
     })
 
     it('appear under their own heading when only they match a search', async () => {

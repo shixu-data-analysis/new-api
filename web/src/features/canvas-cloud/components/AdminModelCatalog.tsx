@@ -298,6 +298,7 @@ export function AdminModelCatalog(props: {
     props.onTabChange?.(tab, options)
   }
   const navigate = useNavigate()
+  const [focusChannel, setFocusChannel] = useState<string | null>(null)
   const [reviewTab, setReviewTab] = useState<'models' | 'shared'>('models')
   const [modelFocus, setModelFocus] = useState<CatalogRowFocus | null>(null)
   const [sharedFocus, setSharedFocus] = useState<CatalogSharedFocus | null>(
@@ -586,6 +587,7 @@ export function AdminModelCatalog(props: {
           value={activeTab}
           onValueChange={(value) => {
             if (!isModelManagementTab(value)) return
+            setFocusChannel(null)
             changeTab(value)
           }}
         >
@@ -633,11 +635,20 @@ export function AdminModelCatalog(props: {
               onManageCategories={() =>
                 changeTab('display', { view: 'categories' })
               }
+              onOpenChannel={(channelId) => {
+                setFocusChannel(channelId)
+                changeTab('channels')
+              }}
             />
           </TabsContent>
           <TabsContent value='channels' className='mt-4'>
             <ChannelsPanel
               onEditPresentation={(modelKey) => changeTab('display', { modelKey })}
+              focusChannel={focusChannel}
+              onViewModels={() => {
+                setFocusChannel(null)
+                changeTab('published')
+              }}
             />
           </TabsContent>
           <TabsContent value='providers' className='mt-4'>

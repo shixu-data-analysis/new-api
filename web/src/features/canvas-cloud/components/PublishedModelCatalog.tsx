@@ -24,6 +24,7 @@ import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
 import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
 import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
 import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
+import { ActiveFilterTags } from './ActiveFilterTags'
 import { catalogSourceLabel } from './catalog-plan-labels'
 import { ModelRetireDialog } from './catalog-edit/ModelRetireDialog'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -111,7 +112,7 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
 }
 
 // Disabled models are only looked up here; they are restored from the alert and monitoring pages.
-const DISABLED_TABLE_COLUMNS = new Set(['name', 'provider', 'capability'])
+const DISABLED_TABLE_COLUMNS = new Set(['name', 'provider', 'capability', 'retire'])
 
 function pageWithinRange(pageCount: number) {
   return (current: PaginationState) =>
@@ -127,6 +128,8 @@ export function PublishedModelCatalog(props: {
   onEditPresentation: (modelKey: string) => void
   /** Opens the categories view of the 展示与分类 tab, where categories are managed. */
   onManageCategories: () => void
+  /** Opens the 接口配置 tab at this Channel. */
+  onOpenChannel?: (channelId: string) => void
   onManageBindings?: (
     target: ModelBindingNavigationTarget,
     returnContext?: { nonce: string }
@@ -145,6 +148,9 @@ export function PublishedModelCatalog(props: {
   )
   const [provider, setProvider] = useState(
     () => navigation?.listState.provider ?? ''
+  )
+  const [channel, setChannel] = useState(
+    () => navigation?.listState.channel ?? ''
   )
   const [capability, setCapability] = useState(
     () => navigation?.listState.capability ?? ''
@@ -187,12 +193,13 @@ export function PublishedModelCatalog(props: {
       current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
     setPagination(toFirstPage)
     setDisabledPagination(toFirstPage)
-  }, [capability, modelId, provider, search, tagId, visibility])
+  }, [capability, channel, modelId, provider, search, tagId, visibility])
   useEffect(() => {
     navigation?.updateListState({
       search,
       modelId,
       provider,
+      channel,
       capability,
       visibility,
       showDisabled,
@@ -204,6 +211,7 @@ export function PublishedModelCatalog(props: {
     })
   }, [
     capability,
+    channel,
     disabledPagination,
     modelId,
     navigation,
@@ -243,6 +251,15 @@ export function PublishedModelCatalog(props: {
   const unsupportedFields = useMemo(
     () => (editingCatalog.data && editorOptions.data ? unsupportedFieldsOfCatalog(editingCatalog.data, editorOptions.data.supportedFields) : null),
     [editingCatalog.data, editorOptions.data]
+  )
+  // The list reads models by version; which Channel a model is on comes from the current catalog.
+  const channelOfModel = useMemo(
+    () => new Map((editingCatalog.data?.bundle.models ?? []).map((model) => [model.productKey, model.release.channelId])),
+    [editingCatalog.data]
+  )
+  const channels = useMemo(
+    () => (editingCatalog.data?.bundle.channels ?? []).map((entry) => entry.id).sort((left, right) => left.localeCompare(right)),
+    [editingCatalog.data]
   )
   const tags = useQuery({
     queryKey: ['canvas-cloud', 'admin-model-tags'],
@@ -406,6 +423,7 @@ export function PublishedModelCatalog(props: {
           model.modelKey.toLocaleLowerCase().includes(query) ||
           upstreamModelIds.includes(query)) &&
         (!selectedProvider || model.provider.id === selectedProvider) &&
+        (!channel || channelOfModel.get(model.modelKey) === channel) &&
         (!selectedCapability ||
           model.publicCatalogSnapshot.capability === selectedCapability) &&
         (!idQuery || upstreamModelIds.includes(idQuery))
@@ -413,6 +431,8 @@ export function PublishedModelCatalog(props: {
     })
     return matches
   }, [
+    channel,
+    channelOfModel,
     modelId,
     models.data,
     search,
@@ -518,6 +538,24 @@ export function PublishedModelCatalog(props: {
         ),
       },
       {
+        id: 'channel',
+        size: 176,
+        accessorFn: (model) => channelOfModel.get(model.modelKey) ?? '',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Channel configuration')} />
+        ),
+        meta: { label: t('Channel configuration') },
+        cell: ({ getValue }) => {
+          const channelId = getValue() as string
+          if (!channelId) return <span className='text-muted-foreground'>—</span>
+          return (
+            <button type='button' className='text-primary font-mono text-xs [overflow-wrap:anywhere] hover:underline text-start' onClick={() => props.onOpenChannel?.(channelId)}>
+              {channelId}
+            </button>
+          )
+        },
+      },
+      {
         id: 'capability',
         size: 128,
         accessorFn: (model) =>
@@ -567,6 +605,20 @@ export function PublishedModelCatalog(props: {
         ),
         meta: { label: t('Original catalog configuration') },
         cell: ({ row }) => <PublishedModelDetails model={row.original} />,
+      },
+      {
+        // Only the disabled table shows it: a stopped model has no other actions, and it can still be deleted.
+        id: 'retire',
+        size: 128,
+        enableHiding: false,
+        enableSorting: false,
+        header: t('Model actions'),
+        meta: { label: t('Model actions') },
+        cell: ({ row }) => (
+          <Button variant='outline' size='sm' onClick={() => setRetiring(row.original)}>
+            {t('Delete the model')}
+          </Button>
+        ),
       },
       {
         id: 'actions',
@@ -648,7 +700,7 @@ export function PublishedModelCatalog(props: {
         },
       },
     ],
-    [navigation, onManagePricing, presentationBusy, props, t, unsupportedFields]
+    [channelOfModel, navigation, onManagePricing, presentationBusy, props, t, unsupportedFields]
   )
   const sizedColumns = useMemo(
     () => withCanvasTableColumnSizes(columns),
@@ -677,12 +729,16 @@ export function PublishedModelCatalog(props: {
     onSortingChange: setSorting,
     autoResetPageIndex: false,
   }
+  const enabledColumnVisibility = useMemo<VisibilityState>(
+    () => ({ ...columnVisibility, retire: false }),
+    [columnVisibility]
+  )
   const { table } = useDataTable({
     ...sharedTableOptions,
     data: enabledModels,
     pagination,
     onPaginationChange: setPagination,
-    columnVisibility,
+    columnVisibility: enabledColumnVisibility,
     onColumnVisibilityChange: (update) =>
       setColumnVisibility((current) => functionalUpdate(update, current)),
     ensurePageInRange,
@@ -1017,6 +1073,7 @@ export function PublishedModelCatalog(props: {
               renderTargetDetails(row.original, true),
           }}
           toolbar={
+            <>
             <DataTableToolbar
               table={table}
               filterPanel={
@@ -1025,6 +1082,7 @@ export function PublishedModelCatalog(props: {
                     [
                       search,
                       modelId,
+                      channel,
                       visibility === 'ALL' ? '' : visibility,
                       catalogSource === 'ALL' ? '' : catalogSource,
                     ].filter(Boolean).length
@@ -1043,6 +1101,28 @@ export function PublishedModelCatalog(props: {
                       placeholder={t('Upstream model ID')}
                       onChange={(event) => setModelId(event.target.value)}
                     />
+                  </DataTableColumnFilterField>
+                  <DataTableColumnFilterField label={t('Channel configuration')}>
+                    <Select
+                      value={channel || 'ALL'}
+                      onValueChange={(value) => setChannel(!value || value === 'ALL' ? '' : value)}
+                    >
+                      <SelectTrigger className='w-full' aria-label={t('Channel configuration')}>
+                        <CanvasLocalizedSelectValue
+                          value={channel}
+                          displayValue={channel || undefined}
+                          emptyLabelKey='All Channel configurations'
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='ALL'>{t('All Channel configurations')}</SelectItem>
+                        {channels.map((value) => (
+                          <SelectItem key={value} value={value}>
+                            <span className='font-mono'>{value}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </DataTableColumnFilterField>
                   <DataTableColumnFilterField label={t('Source')}>
                     <Select
@@ -1094,14 +1174,18 @@ export function PublishedModelCatalog(props: {
                 </DataTableColumnFilterPanel>
               }
               hasAdditionalFilters={Boolean(
-                search || modelId || visibility !== 'ALL'
+                search || modelId || channel || visibility !== 'ALL' || catalogSource !== 'ALL'
               )}
               onReset={() => {
                 setSearch('')
                 setModelId('')
+                setChannel('')
+                setCatalogSource('ALL')
                 setVisibility('ALL')
               }}
             />
+            <ActiveFilterTags tags={channel ? [{ key: 'channel', label: channel, remove: () => setChannel('') }] : []} />
+            </>
           }
         />
         {disabledModels.length > 0 && (

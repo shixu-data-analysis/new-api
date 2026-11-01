@@ -10447,6 +10447,10 @@
     "View the original errors": "Xem lỗi gốc",
     "Publish only the Channel configuration?": "Chỉ xuất bản cấu hình giao diện?",
     "The {{count}} models filled in here are not saved.": "{{count}} mô hình đã điền ở đây sẽ không được lưu.",
-    "Publish only the Channel configuration": "Chỉ xuất bản cấu hình"
+    "Publish only the Channel configuration": "Chỉ xuất bản cấu hình",
+    "All call methods": "Tất cả cách gọi",
+    "All Channel configurations": "Tất cả cấu hình giao diện",
+    "View the {{count}} models of {{channel}}": "Xem {{count}} mô hình của {{channel}}",
+    "{{count}} models have no API Key group and are not probed: {{names}}.": "{{count}} mô hình chưa có nhóm API Key nên không được dò: {{names}}."
   }
 }
