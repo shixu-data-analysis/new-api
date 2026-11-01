@@ -26,7 +26,7 @@ describe('Publication confirmations of a prompt reference rewrite', () => {
   })
 
   const openChannelDialog = (diagnostics: unknown[]) =>
-    render(<ChannelPublishDialog plan={plan(diagnostics)} baseProfile={null} profile={{}} contractChanged={false} busy={false} onClose={vi.fn()} onConfirm={vi.fn()} />)
+    render(<ChannelPublishDialog plan={plan(diagnostics)} baseProfile={null} contractChanged={false} busy={false} onClose={vi.fn()} onConfirm={vi.fn()} />)
 
   it('states it when a Channel is edited, and leaves publishing open', () => {
     openChannelDialog([rewrite])

@@ -693,7 +693,7 @@ function LoadedChannelEditor(props: { mode: ChannelEditorMode; catalog: CurrentC
         </TabsContent>
       </Tabs>
       <LeaveConfirm open={leaving} onOpenChange={(open) => { setLeaving(open); if (!open) setLeaveToModel(null) }} onLeave={() => (leaveToModel ? props.onEditModel(leaveToModel) : props.onClose())} />
-      {plan && isEdit ? <ChannelPublishDialog plan={plan} baseProfile={baseProfile} profile={builtProfileDocument} contractChanged={!sameDocument(baseContract, builtContractDocument)} busy={publish.isPending} error={error} onClose={() => setPlan(null)} onConfirm={() => publish.mutate()} /> : null}
+      {plan && isEdit ? <ChannelPublishDialog plan={plan} baseProfile={baseProfile} contractChanged={!sameDocument(baseContract, builtContractDocument)} busy={publish.isPending} error={error} onClose={() => setPlan(null)} onConfirm={() => publish.mutate()} /> : null}
       <EditorFooter>
         <span className={`min-w-0 flex-1 text-sm font-medium ${issues.length || error ? 'text-destructive' : 'text-muted-foreground'}`} role={issues.length || error ? 'alert' : undefined}>
           {error ?? (issues.length ? t('Correct the {{count}} marked fields first', { count: issues.length }) : '')}

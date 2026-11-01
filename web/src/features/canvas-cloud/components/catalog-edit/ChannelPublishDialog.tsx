@@ -17,7 +17,7 @@ import type { CatalogJson } from '../../catalog-edit-types'
 import { PromptReferenceRewrites } from './PromptReferenceRewrites'
 
 /** Confirms a new version of a Channel: what versions change and what each model's request becomes. */
-export function ChannelPublishDialog(props: { plan: CatalogEditPlan; baseProfile: CatalogJson | null; profile: CatalogJson; contractChanged: boolean; busy: boolean; error?: string; onClose: () => void; onConfirm: () => void }) {
+export function ChannelPublishDialog(props: { plan: CatalogEditPlan; baseProfile: CatalogJson | null; contractChanged: boolean; busy: boolean; error?: string; onClose: () => void; onConfirm: () => void }) {
   const { t } = useTranslation()
   const { plan } = props
   const blocked = plan.requestChanges.filter((change) => !change.after.ok)
