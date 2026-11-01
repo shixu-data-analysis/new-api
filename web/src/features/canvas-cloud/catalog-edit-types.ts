@@ -76,7 +76,11 @@ export interface CurrentCatalogView {
   modelBundleVersions: Record<string, string>
   retiredModelKeys: string[]
   retiredChannelCodes: string[]
-  credentialGroups: Array<{ versionId: string; name: string; providerId: string }>
+  credentialGroups: Array<{
+    versionId: string
+    name: string
+    providerId: string
+  }>
   modelCredentialGroups: Record<string, string>
   copiedModels: Record<string, string>
 }
@@ -95,7 +99,11 @@ export interface CatalogEditorOptions {
     assetRetentionSeconds: number
   }
   supportedFields: Record<
-    'paramSchema' | 'defaultParams' | 'referenceLimits' | 'mediaConstraints' | 'profile',
+    | 'paramSchema'
+    | 'defaultParams'
+    | 'referenceLimits'
+    | 'mediaConstraints'
+    | 'profile',
     string[]
   >
 }
@@ -181,7 +189,11 @@ export interface CatalogRetirementImpact {
 export interface CatalogRealCallResult {
   sent: boolean
   request: ProviderRequestPreview
-  response: { status: number | null; body: string | null; timedOut?: boolean } | null
+  response: {
+    status: number | null
+    body: string | null
+    timedOut?: boolean
+  } | null
   parsed: {
     state: string
     outputs: unknown[]

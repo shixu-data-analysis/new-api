@@ -80,7 +80,10 @@ export function catalogModelName(model: CatalogPlanModel): string {
 }
 
 // Price and API Key problems are conditions on a new version; these make the model itself a conflict.
-const MODEL_PRECONDITION_CODES: ReadonlySet<string> = new Set(['PRICING_SOURCE_CONFLICT', 'CREDENTIAL_BINDING_BLOCKED'])
+const MODEL_PRECONDITION_CODES: ReadonlySet<string> = new Set([
+  'PRICING_SOURCE_CONFLICT',
+  'CREDENTIAL_BINDING_BLOCKED',
+])
 
 function blocksPublication(diagnostic: ModelCatalogDiagnostic): boolean {
   return diagnostic.severity === 'BLOCKING' || diagnostic.severity === 'ERROR'
@@ -91,8 +94,14 @@ export function reviewCatalogModel(
   changes: ModelCatalogChange[],
   planDiagnostics: ModelCatalogDiagnostic[] = []
 ): CatalogModelReview {
-  const diagnostics = planDiagnostics.filter((diagnostic) => blocksPublication(diagnostic) && diagnostic.params.modelKey === model.productKey)
-  const conflicts = diagnostics.filter((diagnostic) => !MODEL_PRECONDITION_CODES.has(diagnostic.code))
+  const diagnostics = planDiagnostics.filter(
+    (diagnostic) =>
+      blocksPublication(diagnostic) &&
+      diagnostic.params.modelKey === model.productKey
+  )
+  const conflicts = diagnostics.filter(
+    (diagnostic) => !MODEL_PRECONDITION_CODES.has(diagnostic.code)
+  )
   let kind: CatalogModelChangeKind = 'UNCHANGED'
   if (conflicts.length || model.action === 'CONFLICT') kind = 'CONFLICT'
   else if (model.action === 'CREATE') kind = 'CREATE'
@@ -120,7 +129,9 @@ export function reviewCatalogModel(
   )) {
     blockers.push({ source: 'pricing', reasonCode })
   }
-  for (const diagnostic of conflicts) blockers.push({ source: 'diagnostic', reasonCode: diagnostic.code })
+  for (const diagnostic of conflicts) {
+    blockers.push({ source: 'diagnostic', reasonCode: diagnostic.code })
+  }
   return {
     model,
     kind,
@@ -384,10 +395,21 @@ export type CatalogDiagnosticTarget =
 
 /** Where a plan diagnostic can be shown in detail; null when it has no single row. */
 /** Profile fields a Bundle carries that the Channel form has no control for, on the row of the Profile or of its Channel. */
-export function catalogProfileUnsupported(change: CatalogSharedChange, changes: ModelCatalogChange[]): string[] {
-  if (change.resourceType === 'MODEL_DEFINITION_ARTIFACT') return change.detail.kind === 'ADAPTER_PROFILE' ? unsupportedProfileFields(change.definition?.proposed) : []
+export function catalogProfileUnsupported(
+  change: CatalogSharedChange,
+  changes: ModelCatalogChange[]
+): string[] {
+  if (change.resourceType === 'MODEL_DEFINITION_ARTIFACT') {
+    return change.detail.kind === 'ADAPTER_PROFILE'
+      ? unsupportedProfileFields(change.definition?.proposed)
+      : []
+  }
   if (change.resourceType !== 'PROVIDER_CHANNEL') return []
-  const profile = changes.find((entry) => entry.resourceType === 'MODEL_DEFINITION_ARTIFACT' && entry.key === change.detail.adapterProfile)
+  const profile = changes.find(
+    (entry) =>
+      entry.resourceType === 'MODEL_DEFINITION_ARTIFACT' &&
+      entry.key === change.detail.adapterProfile
+  )
   return unsupportedProfileFields(profile?.definition?.proposed)
 }
 
@@ -395,10 +417,19 @@ export function catalogProfileUnsupported(change: CatalogSharedChange, changes: 
  * What stops the plan and has no row of its own: a Bundle-level conflict, or a problem this page does not know. They get a
  * row in the shared resources table, so every problem is one row (design 12.5).
  */
-export function catalogPlanStops(plan: Pick<ModelCatalogPlan, 'models' | 'diagnostics'>, known: (code: string) => boolean): ModelCatalogDiagnostic[] {
+export function catalogPlanStops(
+  plan: Pick<ModelCatalogPlan, 'models' | 'diagnostics'>,
+  known: (code: string) => boolean
+): ModelCatalogDiagnostic[] {
   return plan.diagnostics.filter((diagnostic) => {
     if (!blocksPublication(diagnostic) && known(diagnostic.code)) return false
-    if (plan.models.some((model) => model.productKey === diagnostic.params.modelKey)) return false
+    if (
+      plan.models.some(
+        (model) => model.productKey === diagnostic.params.modelKey
+      )
+    ) {
+      return false
+    }
     return catalogDiagnosticTarget(diagnostic) === null
   })
 }

@@ -12,12 +12,17 @@ const locales = { en, fr, ja, ru, vi, 'zh-TW': zhTW, zh }
 
 describe('the prompt reference rewrite message', () => {
   // The tokens are literal: a Task sends @图片1 whatever the language of the page, so no locale may translate them.
-  it.each(Object.entries(locales))('names the Channel, the literal tokens and the two modes in %s', (_locale, resource) => {
-    const message = (resource.translation as Record<string, string>)['catalog.plan.promptReferencesRewritten']
-    expect(message).toContain('{{channelId}}')
-    expect(message).toContain('@图片1')
-    expect(message).toMatch(/(^|[^@])图片1/)
-    expect(message).toContain('image-reference')
-    expect(message).toContain('first-last-frame')
-  })
+  it.each(Object.entries(locales))(
+    'names the Channel, the literal tokens and the two modes in %s',
+    (_locale, resource) => {
+      const message = (resource.translation as Record<string, string>)[
+        'catalog.plan.promptReferencesRewritten'
+      ]
+      expect(message).toContain('{{channelId}}')
+      expect(message).toContain('@图片1')
+      expect(message).toMatch(/(^|[^@])图片1/)
+      expect(message).toContain('image-reference')
+      expect(message).toContain('first-last-frame')
+    }
+  )
 })

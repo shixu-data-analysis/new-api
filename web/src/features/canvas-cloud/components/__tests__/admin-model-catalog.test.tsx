@@ -439,7 +439,9 @@ describe('Canvas model catalog folder upload', () => {
       contentBase64: '/w==',
     })
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Cannot import: this check found 1 problems')
+    expect(alert).toHaveTextContent(
+      'Cannot import: this check found 1 problems'
+    )
     const detail = within(alert).getByText(/^models.json/)
     expect(detail).toHaveTextContent(
       'Reason: A catalog source file is not valid JSON.'
@@ -566,7 +568,8 @@ describe('Canvas model catalog folder upload', () => {
             valueSummary: 'acme.video',
             capability: 'catalog.import.publication',
             ownerModule: 'model-catalog',
-            recommendation: 'References in prompts are rewritten in every mode after publishing.',
+            recommendation:
+              'References in prompts are rewritten in every mode after publishing.',
             internalTestingAllowed: false,
             messageKey: 'catalog.plan.promptReferencesRewritten',
             params: { channelId: 'acme.video' },
@@ -584,9 +587,13 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
 
-    expect(await screen.findByText(/^acme\.video: every mode rewrites references/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/^acme\.video: every mode rewrites references/)
+    ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Review publication content' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Review publication content' })
+    ).toBeEnabled()
   })
 
   it('keeps both descriptions in the warning that a Bundle replaces the display description', async () => {
@@ -600,11 +607,15 @@ describe('Canvas model catalog folder upload', () => {
       catalogPlan({
         diagnostics: [
           {
-            ...planDiagnostic('CATALOG_DESCRIPTION_REPLACES_PRESENTATION', 'catalog.plan.descriptionReplacesPresentation', {
-              modelKey: 'canvas.image.model',
-              currentDescription: 'Set by the administrator',
-              proposedDescription: 'From the Bundle',
-            }),
+            ...planDiagnostic(
+              'CATALOG_DESCRIPTION_REPLACES_PRESENTATION',
+              'catalog.plan.descriptionReplacesPresentation',
+              {
+                modelKey: 'canvas.image.model',
+                currentDescription: 'Set by the administrator',
+                proposedDescription: 'From the Bundle',
+              }
+            ),
             severity: 'WARNING',
           },
         ],
@@ -620,7 +631,11 @@ describe('Canvas model catalog folder upload', () => {
       target: { files: bundleFiles(modelDefinition) },
     })
 
-    expect(await screen.findByText(/replaces “Set by the administrator” with “From the Bundle”/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        /replaces “Set by the administrator” with “From the Bundle”/
+      )
+    ).toBeInTheDocument()
   })
 
   it('merges ignored-file warnings into one expandable line', async () => {
@@ -814,7 +829,11 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
     await waitFor(() =>
       expect(mocks.publish).toHaveBeenCalledWith(
-        { importId: IMPORT_ONE_ID, expectedPlanToken: PLAN_TOKEN_ONE, overrides: [] },
+        {
+          importId: IMPORT_ONE_ID,
+          expectedPlanToken: PLAN_TOKEN_ONE,
+          overrides: [],
+        },
         expect.any(Object)
       )
     )
@@ -898,10 +917,14 @@ describe('Canvas model catalog folder upload', () => {
       screen.getByRole('button', { name: 'Review publication content' })
     ).toBeDisabled()
     expect(
-      screen.getByText(/The API Key binding of Client preview model cannot be kept: API provider changed\./)
+      screen.getByText(
+        /The API Key binding of Client preview model cannot be kept: API provider changed\./
+      )
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /^Shared resources/ }))
-    expect(await screen.findByText(/Increase the version of this file/)).toBeVisible()
+    expect(
+      await screen.findByText(/Increase the version of this file/)
+    ).toBeVisible()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
@@ -954,8 +977,8 @@ describe('Canvas model catalog folder upload', () => {
           currentVersion: 1,
           proposedVersion: 1,
           inBundle: true,
-    followedRequest: null,
-    customerVisibleAfterPublish: false,
+          followedRequest: null,
+          customerVisibleAfterPublish: false,
           credential: unboundCredential,
           publicInteraction: {
             defaultParams: {},
@@ -1028,8 +1051,8 @@ describe('Canvas model catalog folder upload', () => {
           currentVersion: 2,
           proposedVersion: 2,
           inBundle: true,
-    followedRequest: null,
-    customerVisibleAfterPublish: false,
+          followedRequest: null,
+          customerVisibleAfterPublish: false,
           credential: unboundCredential,
           publicInteraction: {
             defaultParams: { quality: '480P' },
@@ -1133,8 +1156,8 @@ describe('Canvas model catalog folder upload', () => {
           currentVersion: 2,
           proposedVersion: 2,
           inBundle: true,
-    followedRequest: null,
-    customerVisibleAfterPublish: false,
+          followedRequest: null,
+          customerVisibleAfterPublish: false,
           publicInteraction: {
             defaultParams: {},
             paramSchema: {},

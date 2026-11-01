@@ -12,12 +12,23 @@ import type { CatalogEditPlan } from '../../catalog-edit-api'
 import { catalogPlanDiagnosticText } from '../catalog-plan-labels'
 
 /** A sample request cannot show this change, so every page that confirms a publication states it. */
-export function PromptReferenceRewrites(props: { plan: Pick<CatalogEditPlan, 'diagnostics'> }) {
+export function PromptReferenceRewrites(props: {
+  plan: Pick<CatalogEditPlan, 'diagnostics'>
+}) {
   const { t } = useTranslation()
   return props.plan.diagnostics
-    .filter((diagnostic) => diagnostic.code === 'CATALOG_PROMPT_REFERENCES_REWRITTEN')
+    .filter(
+      (diagnostic) => diagnostic.code === 'CATALOG_PROMPT_REFERENCES_REWRITTEN'
+    )
     .map((diagnostic) => {
       const text = catalogPlanDiagnosticText(t, diagnostic, [])
-      return <p key={diagnostic.jsonPath} className='text-sm [overflow-wrap:anywhere]'>{text?.message} {text?.remedy}</p>
+      return (
+        <p
+          key={diagnostic.jsonPath}
+          className='text-sm [overflow-wrap:anywhere]'
+        >
+          {text?.message} {text?.remedy}
+        </p>
+      )
     })
 }

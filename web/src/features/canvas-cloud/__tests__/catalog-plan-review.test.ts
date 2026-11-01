@@ -31,7 +31,10 @@ import {
   sortCatalogModelReviews,
   sortCatalogSharedChanges,
 } from '../catalog-plan-review'
-import { catalogDiagnosticKnown, catalogPlanDiagnosticText } from '../components/catalog-plan-labels'
+import {
+  catalogDiagnosticKnown,
+  catalogPlanDiagnosticText,
+} from '../components/catalog-plan-labels'
 import {
   catalogChange,
   catalogDiagnostic,
@@ -338,12 +341,22 @@ describe('catalog plan diagnostics', () => {
     ['MODEL_ADMIN_EDITED', { key: 'm' }],
     ['MODEL_UPSTREAM_ID_DUPLICATE', { upstreamModelId: 'u', usedBy: 'o' }],
     ['MODEL_KEY_RETIRED', { modelKey: 'm' }],
-    ['PRICING_SOURCE_CONFLICT', { modelKey: 'm', reasonCode: 'SCHEDULED_PRICE' }],
-    ['CREDENTIAL_BINDING_BLOCKED', { modelKey: 'm', reasonCode: 'BINDING_CONFLICT' }],
+    [
+      'PRICING_SOURCE_CONFLICT',
+      { modelKey: 'm', reasonCode: 'SCHEDULED_PRICE' },
+    ],
+    [
+      'CREDENTIAL_BINDING_BLOCKED',
+      { modelKey: 'm', reasonCode: 'BINDING_CONFLICT' },
+    ],
     ['CATALOG_DESCRIPTION_REPLACES_PRESENTATION', { modelKey: 'm' }],
     ['CATALOG_PROMPT_REFERENCES_REWRITTEN', { channelId: 'c' }],
   ])('explains %s', (code, params) => {
-    const text = catalogPlanDiagnosticText(((key: string) => key) as never, catalogDiagnostic({ code, params } as never), [])
+    const text = catalogPlanDiagnosticText(
+      ((key: string) => key) as never,
+      catalogDiagnostic({ code, params } as never),
+      []
+    )
     expect(text?.message).toBeTruthy()
     expect(text?.remedy).toBeTruthy()
     expect(catalogDiagnosticKnown(code)).toBe(true)
@@ -351,31 +364,88 @@ describe('catalog plan diagnostics', () => {
 
   it('makes a retired key or a duplicated upstream ID a conflict on the model row, and a price problem only a blocker', () => {
     const model = catalogPlanModel({ productKey: 'm', action: 'CREATE' })
-    const conflict = reviewCatalogModel(model, [], [catalogDiagnostic({ code: 'MODEL_KEY_RETIRED', params: { modelKey: 'm' } })])
-    expect([conflict.kind, conflict.blockers.length, conflict.diagnostics.length]).toEqual(['CONFLICT', 1, 1])
-    const precondition = reviewCatalogModel(model, [], [catalogDiagnostic({ code: 'PRICING_SOURCE_CONFLICT', params: { modelKey: 'm', reasonCode: 'SCHEDULED_PRICE_CONFLICT' } })])
-    expect([precondition.kind, precondition.diagnostics.length]).toEqual(['CREATE', 1])
+    const conflict = reviewCatalogModel(
+      model,
+      [],
+      [
+        catalogDiagnostic({
+          code: 'MODEL_KEY_RETIRED',
+          params: { modelKey: 'm' },
+        }),
+      ]
+    )
+    expect([
+      conflict.kind,
+      conflict.blockers.length,
+      conflict.diagnostics.length,
+    ]).toEqual(['CONFLICT', 1, 1])
+    const precondition = reviewCatalogModel(
+      model,
+      [],
+      [
+        catalogDiagnostic({
+          code: 'PRICING_SOURCE_CONFLICT',
+          params: { modelKey: 'm', reasonCode: 'SCHEDULED_PRICE_CONFLICT' },
+        }),
+      ]
+    )
+    expect([precondition.kind, precondition.diagnostics.length]).toEqual([
+      'CREATE',
+      1,
+    ])
   })
 
   it('gives a row only to what no model or shared resource explains', () => {
     const plan = {
       models: [catalogPlanModel({ productKey: 'm' })],
       diagnostics: [
-        catalogDiagnostic({ code: 'BUNDLE_VERSION_CONFLICT', params: { bundleVersion: '1' } }),
-        catalogDiagnostic({ code: 'MODEL_KEY_RETIRED', params: { modelKey: 'm' } }),
-        catalogDiagnostic({ code: 'PROVIDER_CONFLICT', params: { providerId: 'p' } }),
-        catalogDiagnostic({ code: 'CATALOG_FUTURE_RULE' as never, severity: 'WARNING', params: {} }),
+        catalogDiagnostic({
+          code: 'BUNDLE_VERSION_CONFLICT',
+          params: { bundleVersion: '1' },
+        }),
+        catalogDiagnostic({
+          code: 'MODEL_KEY_RETIRED',
+          params: { modelKey: 'm' },
+        }),
+        catalogDiagnostic({
+          code: 'PROVIDER_CONFLICT',
+          params: { providerId: 'p' },
+        }),
+        catalogDiagnostic({
+          code: 'CATALOG_FUTURE_RULE' as never,
+          severity: 'WARNING',
+          params: {},
+        }),
       ],
     }
-    expect(catalogPlanStops(plan, catalogDiagnosticKnown).map((entry) => entry.code)).toEqual(['BUNDLE_VERSION_CONFLICT', 'CATALOG_FUTURE_RULE'])
+    expect(
+      catalogPlanStops(plan, catalogDiagnosticKnown).map((entry) => entry.code)
+    ).toEqual(['BUNDLE_VERSION_CONFLICT', 'CATALOG_FUTURE_RULE'])
   })
 
   it('names unsupported Profile fields on the rows of the Profile and of its Channel', () => {
-    const artifact = { ...catalogChange({ resourceType: 'MODEL_DEFINITION_ARTIFACT', key: 'p@1' }), detail: { kind: 'ADAPTER_PROFILE' }, definition: { current: null, proposed: { advanced: { request: { collapsePromptWhitespace: true } } } } }
-    const channel = { ...catalogChange({ resourceType: 'PROVIDER_CHANNEL', key: 'c' }), detail: { adapterProfile: 'p@1' } }
+    const artifact = {
+      ...catalogChange({
+        resourceType: 'MODEL_DEFINITION_ARTIFACT',
+        key: 'p@1',
+      }),
+      detail: { kind: 'ADAPTER_PROFILE' },
+      definition: {
+        current: null,
+        proposed: { advanced: { request: { collapsePromptWhitespace: true } } },
+      },
+    }
+    const channel = {
+      ...catalogChange({ resourceType: 'PROVIDER_CHANNEL', key: 'c' }),
+      detail: { adapterProfile: 'p@1' },
+    }
     const expected = ['advanced.request.collapsePromptWhitespace']
-    expect(catalogProfileUnsupported(artifact as never, [artifact, channel] as never)).toEqual(expected)
-    expect(catalogProfileUnsupported(channel as never, [artifact, channel] as never)).toEqual(expected)
+    expect(
+      catalogProfileUnsupported(artifact as never, [artifact, channel] as never)
+    ).toEqual(expected)
+    expect(
+      catalogProfileUnsupported(channel as never, [artifact, channel] as never)
+    ).toEqual(expected)
   })
 
   it('does not know a code from a newer Cloud', () => {

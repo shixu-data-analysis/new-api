@@ -303,8 +303,13 @@ export function UnifiedModelPricing(props: {
     timeOfDayAvailable && !sameSchedule(draftSchedule, publishedSchedule)
   const timeOfDayInvalid = timeOfDayChanged && draftHasErrors(timeOfDay)
   // A copied model starts from its source's schedule: published with the first price, but not an edit of the page.
-  const startingSchedule = publishedSchedule ?? (pricing?.model.billingUnitState === 'UNPRICED' ? pricing.model.copiedPricingStructure?.timeOfDaySchedule ?? null : null)
-  const timeOfDayEdited = timeOfDayAvailable && !sameSchedule(draftSchedule, startingSchedule)
+  const startingSchedule =
+    publishedSchedule ??
+    (pricing?.model.billingUnitState === 'UNPRICED'
+      ? (pricing.model.copiedPricingStructure?.timeOfDaySchedule ?? null)
+      : null)
+  const timeOfDayEdited =
+    timeOfDayAvailable && !sameSchedule(draftSchedule, startingSchedule)
   // Price edits alone: the table, the summary and the confirmation list them; the schedule is named on its own.
   const includedRows = shown.rows.filter((row) => isRowIncluded(state, row))
   const publicationState: PricingEditorState =

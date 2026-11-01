@@ -12,71 +12,244 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
-import { exportCurrentCatalog } from '../../catalog-edit-api'
+import { exportCurrentCatalog, getCurrentCatalog } from '../../catalog-edit-api'
+import { adminChangedFiles, type ExportedFile } from './catalog-export-changes'
 
-function downloadFile(path: string, content: unknown) {
-  const url = URL.createObjectURL(new Blob([`${JSON.stringify(content, null, 2)}\n`], { type: 'application/json' }))
+const fileText = (file: ExportedFile) =>
+  `${JSON.stringify(file.content, null, 2)}\n`
+
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = path.split('/').at(-1) ?? path
+  link.download = name
   link.click()
   URL.revokeObjectURL(url)
 }
 
-type DirectoryWriter = { getDirectoryHandle: (name: string, options: { create: boolean }) => Promise<DirectoryWriter>; getFileHandle: (name: string, options: { create: boolean }) => Promise<{ createWritable: () => Promise<{ write: (text: string) => Promise<void>; close: () => Promise<void> }> }> }
+const fileName = (path: string) => path.split('/').at(-1) ?? path
+const folderOf = (path: string) => path.split('/').slice(0, -1).join('/')
 
-/** Exports the live catalog as a Bundle folder; a browser without folder access downloads files one by one. */
+/** Files by the folder they sit in, the top level first, as the Bundle lays them out. */
+function byFolder(files: ExportedFile[]) {
+  const folders = new Map<string, ExportedFile[]>()
+  for (const file of files) {
+    folders.set(folderOf(file.path), [
+      ...(folders.get(folderOf(file.path)) ?? []),
+      file,
+    ])
+  }
+  return [...folders].sort(([left], [right]) => left.localeCompare(right))
+}
+
+/** The live catalog as a Bundle: all of it as a zip laid out like the Catalog repository, or one file at a time. */
 export function CatalogExportDialog(props: { onClose: () => void }) {
   const { t } = useTranslation()
   const [viewed, setViewed] = useState<string>()
-  const exported = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'export'], queryFn: exportCurrentCatalog, gcTime: 0, staleTime: 0 })
-  const picker = (window as unknown as { showDirectoryPicker?: () => Promise<DirectoryWriter> }).showDirectoryPicker
-  const save = useMutation({
-    mutationFn: async () => {
-      const root = await picker!()
-      for (const file of exported.data!.files) {
-        const parts = file.path.split('/')
-        let directory = root
-        for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part, { create: true })
-        const handle = await directory.getFileHandle(parts.at(-1)!, { create: true })
-        const writable = await handle.createWritable()
-        await writable.write(`${JSON.stringify(file.content, null, 2)}\n`)
-        await writable.close()
-      }
-    },
-    onSuccess: () => toast.success(t('Saved {{count}} files', { count: exported.data?.files.length ?? 0 })),
+  const exported = useQuery({
+    queryKey: ['canvas-cloud', 'model-catalog', 'export'],
+    queryFn: exportCurrentCatalog,
+    gcTime: 0,
+    staleTime: 0,
   })
-  const file = exported.data?.files.find((entry) => entry.path === viewed)
+  const catalog = useQuery({
+    queryKey: ['canvas-cloud', 'model-catalog', 'current'],
+    queryFn: getCurrentCatalog,
+  })
+  const download = useMutation({
+    mutationFn: async ({
+      bundleId,
+      bundleVersion,
+      files,
+    }: NonNullable<typeof exported.data>) => {
+      // Only this button needs it, so the page does not load it.
+      const { strToU8, zipSync } = await import('fflate')
+      const zip = zipSync(
+        Object.fromEntries(
+          files.map((file) => [file.path, strToU8(fileText(file))])
+        )
+      )
+      const name = `${bundleId}-${bundleVersion}.zip`
+      saveBlob(
+        new Blob([zip as Uint8Array<ArrayBuffer>], { type: 'application/zip' }),
+        name
+      )
+      return name
+    },
+    onSuccess: (name) => toast.success(t('Exported {{file}}', { file: name })),
+    onError: () => toast.error(t('The zip file could not be created.')),
+  })
+  const ready =
+    exported.data && catalog.data
+      ? { exported: exported.data, catalog: catalog.data }
+      : null
+  const changedFiles = ready
+    ? adminChangedFiles(ready.exported.files, ready.catalog)
+    : []
+  const current = ready
+    ? (ready.exported.files.find((entry) => entry.path === viewed) ??
+      ready.exported.files[0])
+    : undefined
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) props.onClose() }}>
-      <DialogContent className='max-w-3xl'>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) props.onClose()
+      }}
+    >
+      <DialogContent className='max-w-3xl sm:max-w-3xl'>
         <DialogHeader>
-          <DialogTitle>{t('Export the current catalog as a Bundle')}</DialogTitle>
+          <DialogTitle>
+            {t('Export the current catalog as a Bundle')}
+          </DialogTitle>
         </DialogHeader>
-        {exported.isPending ? <p className='text-sm'>{t('Loading')}</p> : null}
-        {exported.isError ? <p role='alert' className='text-destructive text-sm'>{t('The catalog could not be exported: it does not pass the Catalog checks.')}</p> : null}
-        {exported.data ? (
-          <div className='space-y-3 text-sm'>
-            <p className='text-muted-foreground'>{t('Version {{version}}. It holds the live catalog with admin changes; no deleted model and no API Key. Prices, customer visibility and categories stay in Cloud.', { version: exported.data.bundleVersion })}</p>
-            <ul className='max-h-60 space-y-1 overflow-auto rounded-lg border p-2 font-mono text-xs'>
-              {exported.data.files.map((entry) => (
-                <li key={entry.path} className='flex items-center justify-between gap-2'>
-                  <button type='button' className='hover:underline' onClick={() => setViewed(entry.path)}>{entry.path}</button>
-                  <button type='button' aria-label={t('Download {{file}}', { file: entry.path })} onClick={() => downloadFile(entry.path, entry.content)}>
-                    <Download aria-hidden='true' className='size-3.5' />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {file ? <pre className='max-h-72 overflow-auto rounded-lg border p-2 font-mono text-xs'>{JSON.stringify(file.content, null, 2)}</pre> : null}
+        {exported.isPending || catalog.isPending ? (
+          <p className='text-sm'>{t('Loading')}</p>
+        ) : null}
+        {exported.isError || catalog.isError ? (
+          <p role='alert' className='text-destructive text-sm'>
+            {t(
+              'The catalog could not be exported: it does not pass the Catalog checks.'
+            )}
+          </p>
+        ) : null}
+        {ready ? (
+          <div className='min-w-0 space-y-3 text-sm'>
+            <p>
+              {t(
+                '{{bundleId}} {{version}}: {{models}} models ({{edited}} changed or added in the admin), {{channels}} Channel configurations, {{providers}} API providers. Prices, customer visibility, API Keys and categories are not included.',
+                {
+                  bundleId: ready.exported.bundleId,
+                  version: ready.exported.bundleVersion,
+                  models: ready.catalog.bundle.models.length,
+                  edited: ready.catalog.bundle.models.filter(
+                    (model) =>
+                      ready.catalog.sources.models[model.productKey] === 'ADMIN'
+                  ).length,
+                  channels: ready.catalog.bundle.channels.length,
+                  providers: ready.catalog.bundle.providers.length,
+                }
+              )}
+            </p>
+            {changedFiles.length ? (
+              <div className='space-y-1'>
+                <div className='font-medium'>
+                  {t('Changed or added in the admin')}
+                </div>
+                <ul className='space-y-0.5 font-mono text-xs'>
+                  {changedFiles.map((entry) => (
+                    <li key={entry.path}>
+                      <button
+                        type='button'
+                        className='hover:bg-muted max-w-full rounded-md px-2 py-1 text-left [overflow-wrap:anywhere]'
+                        onClick={() => setViewed(entry.path)}
+                      >
+                        {entry.path}
+                        <span className='text-muted-foreground'>
+                          {' · '}
+                          {entry.items.join(t(', '))}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <div
+              role='status'
+              className='rounded-lg border px-3 py-2.5 font-medium'
+            >
+              {t('Validation passed')}
+            </div>
+            <div className='grid min-w-0 gap-3 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]'>
+              <div className='max-h-88 space-y-2 overflow-auto font-mono text-xs'>
+                {byFolder(ready.exported.files).map(([folder, files]) => (
+                  <div key={folder} className='space-y-0.5'>
+                    {folder ? (
+                      <div className='text-muted-foreground px-2 py-1 font-medium [overflow-wrap:anywhere]'>
+                        {folder}/
+                      </div>
+                    ) : null}
+                    <ul className='space-y-0.5'>
+                      {files.map((entry) => (
+                        <li key={entry.path} className='flex items-start gap-1'>
+                          <button
+                            type='button'
+                            aria-current={
+                              entry.path === current?.path ? 'true' : undefined
+                            }
+                            className={`hover:bg-muted min-w-0 flex-1 rounded-md px-2 py-1 text-left [overflow-wrap:anywhere] ${folder ? 'pl-4' : ''} ${entry.path === current?.path ? 'bg-muted font-semibold' : ''}`}
+                            onClick={() => setViewed(entry.path)}
+                          >
+                            {fileName(entry.path)}
+                          </button>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon-xs'
+                            className='shrink-0'
+                            aria-label={t('Download {{file}}', {
+                              file: entry.path,
+                            })}
+                            onClick={() =>
+                              saveBlob(
+                                new Blob([fileText(entry)], {
+                                  type: 'application/json',
+                                }),
+                                fileName(entry.path)
+                              )
+                            }
+                          >
+                            <Download aria-hidden='true' className='size-3.5' />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              {current ? (
+                <div className='relative min-w-0'>
+                  <pre
+                    tabIndex={0}
+                    aria-label={current.path}
+                    className='bg-muted max-h-88 overflow-auto rounded-lg p-2.5 font-mono text-xs/normal'
+                  >
+                    {fileText(current)}
+                  </pre>
+                  <CopyButton
+                    value={fileText(current)}
+                    className='absolute top-2 right-2 size-7'
+                    iconClassName='size-3.5'
+                    tooltip={t('Copy the current file')}
+                  />
+                </div>
+              ) : null}
+            </div>
           </div>
         ) : null}
         <DialogFooter>
-          <Button variant='outline' onClick={props.onClose}>{t('Close')}</Button>
-          {picker ? <Button disabled={!exported.data || save.isPending} onClick={() => save.mutate()}>{t('Save to a folder')}</Button> : null}
+          <Button variant='outline' onClick={props.onClose}>
+            {t('Close')}
+          </Button>
+          <Button
+            disabled={!ready || download.isPending}
+            onClick={() => {
+              if (ready) download.mutate(ready.exported)
+            }}
+          >
+            {t('Download zip')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

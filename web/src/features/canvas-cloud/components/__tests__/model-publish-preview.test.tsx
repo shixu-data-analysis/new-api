@@ -23,20 +23,42 @@ const rewrite = {
   valueSummary: 'acme.video',
   capability: 'catalog.import.publication',
   ownerModule: 'model-catalog',
-  recommendation: 'References in prompts are rewritten in every mode after publishing.',
+  recommendation:
+    'References in prompts are rewritten in every mode after publishing.',
   internalTestingAllowed: false,
   messageKey: MESSAGE_KEY,
   params: { channelId: 'acme.video' },
 }
 
 function plan(overrides: Partial<CatalogEditPlan> = {}): CatalogEditPlan {
-  return { action: 'PUBLISH', blocking: false, diagnostics: [], changes: [], models: [], decisions: [], requestChanges: [], editedModelKeys: [], ...overrides } as unknown as CatalogEditPlan
+  return {
+    action: 'PUBLISH',
+    blocking: false,
+    diagnostics: [],
+    changes: [],
+    models: [],
+    decisions: [],
+    requestChanges: [],
+    editedModelKeys: [],
+    ...overrides,
+  } as unknown as CatalogEditPlan
 }
 
 function open(value: CatalogEditPlan) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ModelPublishPreview plan={value} title='Model' capability='video.generate' sourceLabel='Edit' modelKey={null} changes={[]} copySource={null} busy={false} onBack={vi.fn()} onConfirm={vi.fn()} />
+      <ModelPublishPreview
+        plan={value}
+        title='Model'
+        capability='video.generate'
+        sourceLabel='Edit'
+        modelKey={null}
+        changes={[]}
+        copySource={null}
+        busy={false}
+        onBack={vi.fn()}
+        onConfirm={vi.fn()}
+      />
     </QueryClientProvider>
   )
 }
@@ -44,13 +66,24 @@ function open(value: CatalogEditPlan) {
 describe('Publication preview of a prompt reference rewrite', () => {
   beforeAll(async () => {
     await i18next.changeLanguage('en')
-    i18next.addResource('en', 'translation', MESSAGE_KEY, (en.translation as Record<string, string>)[MESSAGE_KEY]!)
+    i18next.addResource(
+      'en',
+      'translation',
+      MESSAGE_KEY,
+      (en.translation as Record<string, string>)[MESSAGE_KEY]
+    )
   })
 
   it('names the Channel and leaves publishing open', () => {
     open(plan({ diagnostics: [rewrite] } as never))
-    expect(screen.getByText(/^acme\.video: After publishing, every mode writes @图片1/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Confirm publication' })).toBeEnabled()
+    expect(
+      screen.getByText(
+        /^acme\.video: After publishing, every mode writes @图片1/
+      )
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Confirm publication' })
+    ).toBeEnabled()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -60,7 +93,11 @@ describe('Publication preview of a prompt reference rewrite', () => {
   })
 
   it('shows one line per Channel', () => {
-    const other = { ...rewrite, jsonPath: 'channels[beta.video].adapterProfile', params: { channelId: 'beta.video' } }
+    const other = {
+      ...rewrite,
+      jsonPath: 'channels[beta.video].adapterProfile',
+      params: { channelId: 'beta.video' },
+    }
     open(plan({ diagnostics: [rewrite, other] } as never))
     expect(screen.getAllByText(/every mode writes/)).toHaveLength(2)
   })

@@ -8,7 +8,6 @@ License, or (at your option) any later version.
 */
 import { api } from '@/lib/api'
 
-import type { ModelCatalogPlan } from './generated/model-catalog-import'
 import type {
   CatalogEditDraft,
   CatalogEditorOptions,
@@ -20,6 +19,7 @@ import type {
   CurrentCatalogView,
   NewCredentialGroup,
 } from './catalog-edit-types'
+import type { ModelCatalogPlan } from './generated/model-catalog-import'
 
 const base = '/canvas-api/v1/web/admin/model-catalog'
 

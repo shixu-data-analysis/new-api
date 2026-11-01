@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,7 +38,11 @@ vi.mock('../../catalog-edit-api', async (original) => ({
 }))
 
 function withQueryClient({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      {children}
+    </QueryClientProvider>
+  )
 }
 
 function renderPreview(
@@ -67,14 +77,36 @@ describe('Catalog model preview', () => {
     const marked = catalogPlanModel({
       definition: {
         current: null,
-        proposed: { release: { channelId: 'image-channel', execution: { providerModel: { modelId: 'u' } }, publicInteraction: { paramSchema: { future: 1 }, defaultParams: {}, referenceLimits: {} } } },
+        proposed: {
+          release: {
+            channelId: 'image-channel',
+            execution: { providerModel: { modelId: 'u' } },
+            publicInteraction: {
+              paramSchema: { future: 1 },
+              defaultParams: {},
+              referenceLimits: {},
+            },
+          },
+        },
       },
     })
 
     it('marks fields the page does not support once they load', async () => {
-      editorOptions.mockResolvedValue({ supportedFields: { paramSchema: [], defaultParams: [], referenceLimits: [], mediaConstraints: [], profile: [] } })
+      editorOptions.mockResolvedValue({
+        supportedFields: {
+          paramSchema: [],
+          defaultParams: [],
+          referenceLimits: [],
+          mediaConstraints: [],
+          profile: [],
+        },
+      })
       renderPreview([marked])
-      expect(await screen.findByText('Has fields this page does not support; imported as they are')).toBeInTheDocument()
+      expect(
+        await screen.findByText(
+          'Has fields this page does not support; imported as they are'
+        )
+      ).toBeInTheDocument()
       expect(screen.getByText('paramSchema.future')).toBeInTheDocument()
     })
 
@@ -83,7 +115,11 @@ describe('Catalog model preview', () => {
       renderPreview([marked])
       await waitFor(() => expect(editorOptions).toHaveBeenCalled())
       expect(rowFor(marked.displayName)).toBeInTheDocument()
-      expect(screen.queryByText('Has fields this page does not support; imported as they are')).toBeNull()
+      expect(
+        screen.queryByText(
+          'Has fields this page does not support; imported as they are'
+        )
+      ).toBeNull()
     })
   })
 

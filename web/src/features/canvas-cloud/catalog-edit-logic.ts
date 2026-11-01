@@ -12,6 +12,7 @@ import type {
   CatalogJson,
   CatalogModelDefinition,
   CurrentCatalogView,
+  ProviderRequestPreview,
 } from './catalog-edit-types'
 
 const CAPABILITY_TYPE: Record<CatalogCapability, string> = {
@@ -28,8 +29,8 @@ export function generatedProductKey(
 ): string {
   const id = upstreamModelId
     .toLowerCase()
-    .replace(/[^a-z0-9.-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replaceAll(/[^a-z0-9.-]+/g, '-')
+    .replaceAll(/^-+|-+$/g, '')
   return `${providerId}.${CAPABILITY_TYPE[capability]}.${id}`
 }
 
@@ -129,7 +130,9 @@ export function prefillSizeMap(
 }
 
 function sameMembers(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((entry) => right.includes(entry))
+  return (
+    left.length === right.length && left.every((entry) => right.includes(entry))
+  )
 }
 
 /**
@@ -139,37 +142,81 @@ function sameMembers(left: string[], right: string[]): boolean {
 export function followSelections(
   previous: CatalogModelDefinition,
   edited: CatalogModelDefinition,
-  context: { base: CatalogModelDefinition | null; autoDefaultQuality: boolean; lastModelId: string }
+  context: {
+    base: CatalogModelDefinition | null
+    autoDefaultQuality: boolean
+    lastModelId: string
+  }
 ): { model: CatalogModelDefinition; autoDefaultQuality: boolean } {
-  const list = (model: CatalogModelDefinition | null | undefined, field: string) => (model?.release.publicInteraction.paramSchema[field] ?? []) as string[]
+  const list = (
+    model: CatalogModelDefinition | null | undefined,
+    field: string
+  ) => (model?.release.publicInteraction.paramSchema[field] ?? []) as string[]
   const qualities = list(edited, 'qualities')
   const ratios = list(edited, 'aspectRatios')
-  const qualitiesChanged = JSON.stringify(list(previous, 'qualities')) !== JSON.stringify(qualities)
-  const ratiosChanged = JSON.stringify(list(previous, 'aspectRatios')) !== JSON.stringify(ratios)
+  const qualitiesChanged =
+    JSON.stringify(list(previous, 'qualities')) !== JSON.stringify(qualities)
+  const ratiosChanged =
+    JSON.stringify(list(previous, 'aspectRatios')) !== JSON.stringify(ratios)
   const providerModel = edited.release.execution.providerModel
   const defaultQuality = edited.release.publicInteraction.defaultParams.quality
   let autoDefaultQuality = context.autoDefaultQuality
-  if (!qualitiesChanged && previous.release.publicInteraction.defaultParams.quality !== defaultQuality) autoDefaultQuality = false
-  const staleDefaultQuality = 'modelIdByQuality' in providerModel && defaultQuality !== undefined && providerModel.defaultQuality !== defaultQuality
-  if (!qualitiesChanged && !ratiosChanged && !staleDefaultQuality) return { model: edited, autoDefaultQuality }
+  if (
+    !qualitiesChanged &&
+    previous.release.publicInteraction.defaultParams.quality !== defaultQuality
+  ) {
+    autoDefaultQuality = false
+  }
+  const staleDefaultQuality =
+    'modelIdByQuality' in providerModel &&
+    defaultQuality !== undefined &&
+    providerModel.defaultQuality !== defaultQuality
+  if (!qualitiesChanged && !ratiosChanged && !staleDefaultQuality) {
+    return { model: edited, autoDefaultQuality }
+  }
 
   const model = structuredClone(edited)
   const interaction = model.release.publicInteraction
   const schema = interaction.paramSchema
   const defaults = interaction.defaultParams
   const baseInteraction = context.base?.release.publicInteraction
-  if (qualitiesChanged && sameMembers(qualities, list(context.base, 'qualities'))) schema.qualities = [...list(context.base, 'qualities')]
-  if (ratiosChanged && sameMembers(ratios, list(context.base, 'aspectRatios'))) schema.aspectRatios = [...list(context.base, 'aspectRatios')]
+  if (
+    qualitiesChanged &&
+    sameMembers(qualities, list(context.base, 'qualities'))
+  ) {
+    schema.qualities = [...list(context.base, 'qualities')]
+  }
+  if (
+    ratiosChanged &&
+    sameMembers(ratios, list(context.base, 'aspectRatios'))
+  ) {
+    schema.aspectRatios = [...list(context.base, 'aspectRatios')]
+  }
 
   if (qualitiesChanged) {
-    const byQuality = schema.durationRangeByQuality as Record<string, unknown> | undefined
+    const byQuality = schema.durationRangeByQuality as
+      | Record<string, unknown>
+      | undefined
     if (byQuality) {
-      const baseRanges = (baseInteraction?.paramSchema.durationRangeByQuality ?? {}) as Record<string, unknown>
-      for (const quality of Object.keys(byQuality)) if (!qualities.includes(quality)) delete byQuality[quality]
-      for (const quality of qualities) if (baseRanges[quality] && !byQuality[quality]) byQuality[quality] = structuredClone(baseRanges[quality])
+      const baseRanges = (baseInteraction?.paramSchema.durationRangeByQuality ??
+        {}) as Record<string, unknown>
+      for (const quality of Object.keys(byQuality)) {
+        if (!qualities.includes(quality)) delete byQuality[quality]
+      }
+      for (const quality of qualities) {
+        if (baseRanges[quality] && !byQuality[quality]) {
+          byQuality[quality] = structuredClone(baseRanges[quality])
+        }
+      }
     }
-    const baseDefault = baseInteraction?.defaultParams.quality as string | undefined
-    if (autoDefaultQuality && baseDefault !== undefined && qualities.includes(baseDefault)) {
+    const baseDefault = baseInteraction?.defaultParams.quality as
+      | string
+      | undefined
+    if (
+      autoDefaultQuality &&
+      baseDefault !== undefined &&
+      qualities.includes(baseDefault)
+    ) {
       defaults.quality = baseDefault
       autoDefaultQuality = false
     } else if (!qualities.includes(defaults.quality as string)) {
@@ -182,12 +229,26 @@ export function followSelections(
   const followedModel = model.release.execution.providerModel
   if ('modelIdByQuality' in followedModel) {
     if (qualitiesChanged) {
-      const baseIds = (context.base?.release.execution.providerModel as { modelIdByQuality?: Record<string, string> } | undefined)?.modelIdByQuality ?? {}
+      const baseIds =
+        (
+          context.base?.release.execution.providerModel as
+            | { modelIdByQuality?: Record<string, string> }
+            | undefined
+        )?.modelIdByQuality ?? {}
       // Only the very first row reuses the fixed ID; a further resolution starts empty so it cannot be left unchanged by accident.
       const first = Object.keys(followedModel.modelIdByQuality).length === 0
-      followedModel.modelIdByQuality = Object.fromEntries(qualities.map((quality) => [quality, followedModel.modelIdByQuality[quality] ?? baseIds[quality] ?? (first ? context.lastModelId : '')]))
+      followedModel.modelIdByQuality = Object.fromEntries(
+        qualities.map((quality) => [
+          quality,
+          followedModel.modelIdByQuality[quality] ??
+            baseIds[quality] ??
+            (first ? context.lastModelId : ''),
+        ])
+      )
     }
-    if (typeof defaults.quality === 'string') followedModel.defaultQuality = defaults.quality
+    if (typeof defaults.quality === 'string') {
+      followedModel.defaultQuality = defaults.quality
+    }
   }
 
   const sizeMap = defaults.sizeMap as SizeMap | undefined
@@ -197,13 +258,17 @@ export function followSelections(
         delete sizeMap[ratio]
         continue
       }
-      for (const quality of Object.keys(sizeMap[ratio]!)) if (!qualities.includes(quality)) delete sizeMap[ratio]![quality]
+      for (const quality of Object.keys(sizeMap[ratio])) {
+        if (!qualities.includes(quality)) delete sizeMap[ratio][quality]
+      }
     }
     const baseSizes = (baseInteraction?.defaultParams.sizeMap ?? {}) as SizeMap
     for (const ratio of ratios) {
       for (const quality of qualities) {
         const size = baseSizes[ratio]?.[quality]
-        if (size !== undefined && sizeMap[ratio]?.[quality] === undefined) sizeMap[ratio] = { ...sizeMap[ratio], [quality]: size }
+        if (size !== undefined && sizeMap[ratio]?.[quality] === undefined) {
+          sizeMap[ratio] = { ...sizeMap[ratio], [quality]: size }
+        }
       }
     }
   }
@@ -248,12 +313,16 @@ function path(value: unknown, keys: string[]): unknown {
   return current
 }
 
-export function usageProtocolOf(profile: CatalogJson | undefined): string | undefined {
+export function usageProtocolOf(
+  profile: CatalogJson | undefined
+): string | undefined {
   const protocol = path(profile, ['advanced', 'response', 'usageProtocol'])
   return typeof protocol === 'string' ? protocol : undefined
 }
 
-export function sizeParamOf(profile: CatalogJson | undefined): string | undefined {
+export function sizeParamOf(
+  profile: CatalogJson | undefined
+): string | undefined {
   const param = path(profile, [
     'advanced',
     'request',
@@ -274,10 +343,16 @@ export interface SentFields {
   background: string[]
   media: { image: boolean; video: boolean; audio: boolean }
   /** Fields whose value each model sets: a direct reference to a request.rawParams key. */
-  modelFields: Array<{ key: string; field: string; type: 'string' | 'number' | 'boolean' }>
+  modelFields: Array<{
+    key: string
+    field: string
+    type: 'string' | 'number' | 'boolean'
+  }>
 }
 
-const REQUEST_PARAMS: Array<[keyof Omit<SentFields, 'media' | 'modelFields'>, string]> = [
+const REQUEST_PARAMS: Array<
+  [keyof Omit<SentFields, 'media' | 'modelFields'>, string]
+> = [
   ['aspectRatio', 'request.aspectRatio'],
   ['quality', 'request.quality'],
   ['apiQuality', 'request.apiQuality'],
@@ -288,18 +363,33 @@ const REQUEST_PARAMS: Array<[keyof Omit<SentFields, 'media' | 'modelFields'>, st
   ['background', 'request.background'],
 ]
 
-function dereferenced(contract: CatalogJson | undefined, schema: unknown): CatalogJson | undefined {
+function dereferenced(
+  contract: CatalogJson | undefined,
+  schema: unknown
+): CatalogJson | undefined {
   let current = schema as CatalogJson | undefined
-  while (typeof current?.$ref === 'string') current = path(contract, current.$ref.replace(/^#\//, '').split('/')) as CatalogJson | undefined
+  while (typeof current?.$ref === 'string') {
+    current = path(contract, current.$ref.replace(/^#\//, '').split('/')) as
+      | CatalogJson
+      | undefined
+  }
   return current
 }
 
-function requestSchema(contract: CatalogJson | undefined, operationId: unknown): CatalogJson | undefined {
-  const paths = (contract?.paths ?? {}) as Record<string, Record<string, CatalogJson>>
+function requestSchema(
+  contract: CatalogJson | undefined,
+  operationId: unknown
+): CatalogJson | undefined {
+  const paths = (contract?.paths ?? {}) as Record<
+    string,
+    Record<string, CatalogJson>
+  >
   for (const methods of Object.values(paths)) {
     for (const definition of Object.values(methods)) {
       if (definition?.operationId !== operationId) continue
-      const content = path(definition, ['requestBody', 'content']) as CatalogJson | undefined
+      const content = path(definition, ['requestBody', 'content']) as
+        | CatalogJson
+        | undefined
       const media = content && Object.values(content)[0]
       return dereferenced(contract, path(media, ['schema']))
     }
@@ -308,15 +398,24 @@ function requestSchema(contract: CatalogJson | undefined, operationId: unknown):
 }
 
 /** The type the contract declares for a field, following its dotted path through nested objects and references. */
-function contractFieldType(contract: CatalogJson | undefined, schema: CatalogJson | undefined, field: string): unknown {
+function contractFieldType(
+  contract: CatalogJson | undefined,
+  schema: CatalogJson | undefined,
+  field: string
+): unknown {
   let current = schema
-  for (const part of field.split('.')) current = dereferenced(contract, path(current, ['properties', part]))
+  for (const part of field.split('.')) {
+    current = dereferenced(contract, path(current, ['properties', part]))
+  }
   const type = current?.type
   return Array.isArray(type) ? type.find((entry) => entry !== 'null') : type
 }
 
 /** What this Channel sends, read from its templates: design 12.2 decides which form rows appear from this. */
-export function sentFieldsOf(profile: CatalogJson | undefined, contract?: CatalogJson): SentFields {
+export function sentFieldsOf(
+  profile: CatalogJson | undefined,
+  contract?: CatalogJson
+): SentFields {
   const sent: SentFields = {
     aspectRatio: [],
     quality: [],
@@ -329,11 +428,17 @@ export function sentFieldsOf(profile: CatalogJson | undefined, contract?: Catalo
     media: { image: false, video: false, audio: false },
     modelFields: [],
   }
-  const request = path(profile, ['advanced', 'request']) as CatalogJson | undefined
+  const request = path(profile, ['advanced', 'request']) as
+    | CatalogJson
+    | undefined
   if (!request) return sent
-  const schemas = ['submit', 'submitWithImages'].map((operation) => requestSchema(contract, path(profile, ['operations', operation])))
+  const schemas = ['submit', 'submitWithImages'].map((operation) =>
+    requestSchema(contract, path(profile, ['operations', operation]))
+  )
   const fieldType = (field: string): 'string' | 'number' | 'boolean' => {
-    const type = schemas.map((schema) => contractFieldType(contract, schema, field)).find(Boolean)
+    const type = schemas
+      .map((schema) => contractFieldType(contract, schema, field))
+      .find(Boolean)
     if (type === 'integer' || type === 'number') return 'number'
     return type === 'boolean' ? 'boolean' : 'string'
   }
@@ -346,16 +451,19 @@ export function sentFieldsOf(profile: CatalogJson | undefined, contract?: Catalo
     }
     const object = node as CatalogJson
     const call = object.$call
-    const ref = call === 'omitEmpty' ? path(object, ['args', '0', '$ref']) : object.$ref
+    const ref =
+      call === 'omitEmpty' ? path(object, ['args', '0', '$ref']) : object.$ref
     if (typeof ref === 'string') {
       const field = trail.join('.')
       for (const [param, reference] of REQUEST_PARAMS) {
-        if (ref === reference && !sent[param].includes(field)) sent[param].push(field)
+        if (ref === reference && !sent[param].includes(field)) {
+          sent[param].push(field)
+        }
       }
       const raw = /^request\.rawParams\.([A-Za-z][A-Za-z0-9_]*)$/.exec(ref)
-      if (raw && raw[1] !== 'size' && !seenModelFields.has(raw[1]!)) {
-        seenModelFields.add(raw[1]!)
-        sent.modelFields.push({ key: raw[1]!, field, type: fieldType(field) })
+      if (raw && raw[1] !== 'size' && !seenModelFields.has(raw[1])) {
+        seenModelFields.add(raw[1])
+        sent.modelFields.push({ key: raw[1], field, type: fieldType(field) })
       }
       return
     }
@@ -363,18 +471,27 @@ export function sentFieldsOf(profile: CatalogJson | undefined, contract?: Catalo
       const text = JSON.stringify(object)
       const field = trail.join('.')
       for (const [param, reference] of REQUEST_PARAMS) {
-        if (text.includes(`"${reference}"`) && !sent[param].includes(field)) sent[param].push(field)
+        if (text.includes(`"${reference}"`) && !sent[param].includes(field)) {
+          sent[param].push(field)
+        }
       }
       if ('$merge' in object) walk((object.$merge as unknown[]).at(-1), trail)
       return
     }
-    for (const [key, value] of Object.entries(object)) walk(value, [...trail, key])
+    for (const [key, value] of Object.entries(object)) {
+      walk(value, [...trail, key])
+    }
   }
   walk(request.body, [])
   walk(request.bodyWithImages, [])
   const policy = (request.parameterPolicy ?? {}) as CatalogJson
-  const add = (param: keyof Omit<SentFields, 'media' | 'modelFields'>, field: unknown) => {
-    if (typeof field === 'string' && !sent[param].includes(field)) sent[param].push(field)
+  const add = (
+    param: keyof Omit<SentFields, 'media' | 'modelFields'>,
+    field: unknown
+  ) => {
+    if (typeof field === 'string' && !sent[param].includes(field)) {
+      sent[param].push(field)
+    }
   }
   add('batchSize', policy.countParam)
   add('apiQuality', policy.qualityParam)
@@ -391,10 +508,14 @@ export function sentFieldsOf(profile: CatalogJson | undefined, contract?: Catalo
 }
 
 function leafPaths(value: unknown, prefix: string): string[] {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return [prefix]
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return [prefix]
+  }
   const entries = Object.entries(value as CatalogJson)
   if (entries.length === 0) return [prefix]
-  return entries.flatMap(([key, entry]) => leafPaths(entry, prefix ? `${prefix}\u0000${key}` : key))
+  return entries.flatMap(([key, entry]) =>
+    leafPaths(entry, prefix ? `${prefix}\u0000${key}` : key)
+  )
 }
 
 export function readPath(value: unknown, joined: string): unknown {
@@ -406,11 +527,14 @@ export function writePath<T>(value: T, joined: string, next: unknown): T {
   const keys = joined.split('\u0000')
   let cursor = copy
   for (const key of keys.slice(0, -1)) {
-    if (cursor[key] === null || typeof cursor[key] !== 'object') cursor[key] = {}
+    if (cursor[key] === null || typeof cursor[key] !== 'object') {
+      cursor[key] = {}
+    }
     cursor = cursor[key] as CatalogJson
   }
-  if (next === undefined) delete cursor[keys.at(-1)!]
-  else cursor[keys.at(-1)!] = next
+  const [leaf = ''] = keys.slice(-1)
+  if (next === undefined) delete cursor[leaf]
+  else cursor[leaf] = next
   return copy as T
 }
 
@@ -490,13 +614,25 @@ export function unsupportedModelFields(
   contract?: CatalogJson
 ): string[] {
   const interaction = model.release.publicInteraction
-  const optionKeys = ((interaction.paramSchema.options ?? []) as Array<{ key: string }>).map((option) => option.key)
-  const modelFieldKeys = sentFieldsOf(profile, contract).modelFields.map((field) => field.key)
+  const optionKeys = (
+    (interaction.paramSchema.options ?? []) as Array<{ key: string }>
+  ).map((option) => option.key)
+  const modelFieldKeys = sentFieldsOf(profile, contract).modelFields.map(
+    (field) => field.key
+  )
   const mediaConstraints = (interaction.mediaConstraints ?? {}) as CatalogJson
   return [
     ...unsupported(interaction.paramSchema, options.paramSchema, 'paramSchema'),
-    ...unsupported(interaction.defaultParams, [...options.defaultParams, ...optionKeys, ...modelFieldKeys], 'defaultParams'),
-    ...unsupported(interaction.referenceLimits, options.referenceLimits, 'referenceLimits'),
+    ...unsupported(
+      interaction.defaultParams,
+      [...options.defaultParams, ...optionKeys, ...modelFieldKeys],
+      'defaultParams'
+    ),
+    ...unsupported(
+      interaction.referenceLimits,
+      options.referenceLimits,
+      'referenceLimits'
+    ),
     ...Object.entries(mediaConstraints).flatMap(([kind, value]) =>
       unsupported(value, options.mediaConstraints, `mediaConstraints.${kind}`)
     ),
@@ -504,27 +640,66 @@ export function unsupportedModelFields(
 }
 
 /** Every live model with fields the form has no control for; it reads two documents per model, so callers memoize it. */
-export function unsupportedFieldsOfCatalog(catalog: CurrentCatalogView, options: CatalogEditorOptions['supportedFields']): Map<string, string[]> {
-  return new Map(catalog.bundle.models.flatMap((model) => {
-    const profile = profileOfChannel(catalog, model.release.channelId)
-    const paths = unsupportedModelFields(model, options, profile, profile ? contractOfProfile(catalog, profile) : undefined)
-    return paths.length ? [[model.productKey, paths] as [string, string[]]] : []
-  }))
+export function unsupportedFieldsOfCatalog(
+  catalog: CurrentCatalogView,
+  options: CatalogEditorOptions['supportedFields']
+): Map<string, string[]> {
+  return new Map(
+    catalog.bundle.models.flatMap((model) => {
+      const profile = profileOfChannel(catalog, model.release.channelId)
+      const paths = unsupportedModelFields(
+        model,
+        options,
+        profile,
+        profile ? contractOfProfile(catalog, profile) : undefined
+      )
+      return paths.length
+        ? [[model.productKey, paths] as [string, string[]]]
+        : []
+    })
+  )
 }
 
 /** The same for a plan: the documents a model will use are those of the plan, which the live catalog may not have yet. */
 export function unsupportedFieldsOfPlan(
-  models: Array<{ productKey: string; channelId: string; definition: { proposed: CatalogJson } }>,
-  changes: Array<{ resourceType: string; key: string; detail: CatalogJson; definition?: { proposed: CatalogJson } | null }>,
+  models: Array<{
+    productKey: string
+    channelId: string
+    definition: { proposed: CatalogJson }
+  }>,
+  changes: Array<{
+    resourceType: string
+    key: string
+    detail: CatalogJson
+    definition?: { proposed: CatalogJson } | null
+  }>,
   options: CatalogEditorOptions['supportedFields']
 ): Map<string, string[]> {
-  const artifact = (key: unknown) => changes.find((change) => change.resourceType === 'MODEL_DEFINITION_ARTIFACT' && change.key === key)?.definition?.proposed
-  return new Map(models.flatMap((model) => {
-    const channel = changes.find((change) => change.resourceType === 'PROVIDER_CHANNEL' && change.key === model.channelId)
-    const profile = artifact(channel?.detail.adapterProfile)
-    const paths = unsupportedModelFields(model.definition.proposed as unknown as CatalogModelDefinition, options, profile, profile ? artifact(profile.api) : undefined)
-    return paths.length ? [[model.productKey, paths] as [string, string[]]] : []
-  }))
+  const artifact = (key: unknown) =>
+    changes.find(
+      (change) =>
+        change.resourceType === 'MODEL_DEFINITION_ARTIFACT' &&
+        change.key === key
+    )?.definition?.proposed
+  return new Map(
+    models.flatMap((model) => {
+      const channel = changes.find(
+        (change) =>
+          change.resourceType === 'PROVIDER_CHANNEL' &&
+          change.key === model.channelId
+      )
+      const profile = artifact(channel?.detail.adapterProfile)
+      const paths = unsupportedModelFields(
+        model.definition.proposed as unknown as CatalogModelDefinition,
+        options,
+        profile,
+        profile ? artifact(profile.api) : undefined
+      )
+      return paths.length
+        ? [[model.productKey, paths] as [string, string[]]]
+        : []
+    })
+  )
 }
 
 export function upstreamModelIdsOf(model: CatalogModelDefinition): string[] {
@@ -532,4 +707,13 @@ export function upstreamModelIdsOf(model: CatalogModelDefinition): string[] {
   return 'modelId' in providerModel
     ? [providerModel.modelId]
     : Object.values(providerModel.modelIdByQuality)
+}
+
+export function requestText(
+  request: Extract<ProviderRequestPreview, { ok: true }>,
+  keyLabel: string
+): string {
+  const body =
+    request.body === null ? '' : `\n\n${JSON.stringify(request.body, null, 2)}`
+  return `${request.method} ${request.url}\nAuthorization: Bearer <${keyLabel}>\nContent-Type: ${request.contentType ?? '-'}${body}`
 }

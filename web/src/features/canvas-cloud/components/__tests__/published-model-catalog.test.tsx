@@ -176,12 +176,21 @@ function renderCatalog(
 describe('Published model catalog', () => {
   const twoModels = [
     model(),
-    model({ id: '85000000-0000-7000-8000-000000000005', modelKey: 'canvas.image.beta', effectiveDisplayName: 'Beta model' }),
+    model({
+      id: '85000000-0000-7000-8000-000000000005',
+      modelKey: 'canvas.image.beta',
+      effectiveDisplayName: 'Beta model',
+    }),
   ]
   function renderWithChannelLink(onOpenChannel = vi.fn()) {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <PublishedModelCatalog onManagePricing={vi.fn()} onEditPresentation={vi.fn()} onManageCategories={vi.fn()} onOpenChannel={onOpenChannel} />
+        <PublishedModelCatalog
+          onManagePricing={vi.fn()}
+          onEditPresentation={vi.fn()}
+          onManageCategories={vi.fn()}
+          onOpenChannel={onOpenChannel}
+        />
       </QueryClientProvider>
     )
     return onOpenChannel
@@ -196,12 +205,20 @@ describe('Published model catalog', () => {
 
   it('lists only the models of a Channel brought in by a link, as a filter that can be removed', async () => {
     mocks.list.mockResolvedValue(twoModels)
-    mocks.navigation.current = { listState: { ...initialListState, channel: 'beta.image' }, updateListState: vi.fn(), consumeReturnContext: vi.fn() }
+    mocks.navigation.current = {
+      listState: { ...initialListState, channel: 'beta.image' },
+      updateListState: vi.fn(),
+      consumeReturnContext: vi.fn(),
+    }
     renderWithChannelLink()
     await screen.findByRole('button', { name: 'beta.image' })
     expect(screen.queryByRole('button', { name: 'acme.image' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove filter beta.image' }))
-    expect(await screen.findByRole('button', { name: 'acme.image' })).toBeInTheDocument()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove filter beta.image' })
+    )
+    expect(
+      await screen.findByRole('button', { name: 'acme.image' })
+    ).toBeInTheDocument()
   })
 
   beforeEach(() => {
@@ -212,8 +229,14 @@ describe('Published model catalog', () => {
       bundle: {
         channels: [{ id: 'acme.image' }, { id: 'beta.image' }],
         models: [
-          { productKey: 'canvas.image.alpha', release: { channelId: 'acme.image' } },
-          { productKey: 'canvas.image.beta', release: { channelId: 'beta.image' } },
+          {
+            productKey: 'canvas.image.alpha',
+            release: { channelId: 'acme.image' },
+          },
+          {
+            productKey: 'canvas.image.beta',
+            release: { channelId: 'beta.image' },
+          },
         ],
       },
     })
@@ -323,9 +346,19 @@ describe('Published model catalog', () => {
         await screen.findByRole('button', { name: 'Show disabled models (1)' })
       )
       const [enabled] = screen.getAllByRole('table')
-      expect(within(enabled!).queryByRole('button', { name: 'Delete the model' })).toBeNull()
-      await user.click(within(disabledTable()).getByRole('button', { name: 'Delete the model' }))
-      expect(await screen.findByRole('dialog')).toHaveTextContent('Stopped model')
+      expect(
+        within(enabled as HTMLElement).queryByRole('button', {
+          name: 'Delete the model',
+        })
+      ).toBeNull()
+      await user.click(
+        within(disabledTable()).getByRole('button', {
+          name: 'Delete the model',
+        })
+      )
+      expect(await screen.findByRole('dialog')).toHaveTextContent(
+        'Stopped model'
+      )
     })
 
     it('unfold into a plain table, and fold again', async () => {

@@ -41,7 +41,10 @@ afterEach(() => window.sessionStorage.clear())
 const singleFieldUpdates = [
   ['showDisabled', { showDisabled: true }],
   ['tagId', { tagId: 'category' }],
-  ['disabledPagination', { disabledPagination: { pageIndex: 2, pageSize: 20 } }],
+  [
+    'disabledPagination',
+    { disabledPagination: { pageIndex: 2, pageSize: 20 } },
+  ],
 ] as const
 
 function StateProbe() {
@@ -91,12 +94,17 @@ function renderProviderWithReturnState(state: Record<string, unknown>) {
 }
 
 describe('model-management list state updates', () => {
-  it.each(singleFieldUpdates)('keeps an update of only %s', async (name, update) => {
-    renderProviderWithReturnState({})
-    fireEvent.click(await screen.findByRole('button', { name }))
-    const state = JSON.parse(screen.getByTestId('model-management-list-state').textContent ?? '{}')
-    expect(state).toMatchObject(update)
-  })
+  it.each(singleFieldUpdates)(
+    'keeps an update of only %s',
+    async (name, update) => {
+      renderProviderWithReturnState({})
+      fireEvent.click(await screen.findByRole('button', { name }))
+      const state = JSON.parse(
+        screen.getByTestId('model-management-list-state').textContent ?? '{}'
+      )
+      expect(state).toMatchObject(update)
+    }
+  )
 })
 
 describe('model-management return state forwarding', () => {

@@ -216,16 +216,35 @@ export function catalogPlanDiagnosticText(
     }
     case 'PRICING_SOURCE_CONFLICT':
       if (typeof params.modelKey !== 'string') return null
-      if (typeof params.specification === 'string' && params.reasonCode === 'PROMOTION_CONFLICT') {
+      if (
+        typeof params.specification === 'string' &&
+        params.reasonCode === 'PROMOTION_CONFLICT'
+      ) {
         return {
-          message: t('{{specification}} · {{plan}} has a running limited-price special.', { specification: params.specification, plan: params.priceGroupName }),
+          message: t(
+            '{{specification}} · {{plan}} has a running limited-price special.',
+            { specification: params.specification, plan: params.priceGroupName }
+          ),
           remedy: t('End the special on the pricing page first, then publish.'),
         }
       }
-      if (typeof params.specification === 'string' && typeof params.effectiveAt === 'string' && String(params.reasonCode).startsWith('SCHEDULED_')) {
+      if (
+        typeof params.specification === 'string' &&
+        typeof params.effectiveAt === 'string' &&
+        String(params.reasonCode).startsWith('SCHEDULED_')
+      ) {
         return {
-          message: t('{{specification}} · {{plan}} has a scheduled change (effective {{time}}).', { specification: params.specification, plan: params.priceGroupName, time: new Date(params.effectiveAt).toLocaleString() }),
-          remedy: t('Cancel it on the pricing page first, or publish after it takes effect.'),
+          message: t(
+            '{{specification}} · {{plan}} has a scheduled change (effective {{time}}).',
+            {
+              specification: params.specification,
+              plan: params.priceGroupName,
+              time: new Date(params.effectiveAt).toLocaleString(),
+            }
+          ),
+          remedy: t(
+            'Cancel it on the pricing page first, or publish after it takes effect.'
+          ),
         }
       }
       return {
@@ -241,37 +260,61 @@ export function catalogPlanDiagnosticText(
     case 'CHANNEL_ADMIN_EDITED':
     case 'MODEL_ADMIN_EDITED':
       return {
-        message: t('An administrator changed {{key}}; the current version stays by default.', { key: params.key }),
-        remedy: t('Select the Bundle version only if it should replace the change.'),
+        message: t(
+          'An administrator changed {{key}}; the current version stays by default.',
+          { key: params.key }
+        ),
+        remedy: t(
+          'Select the Bundle version only if it should replace the change.'
+        ),
       }
     case 'CHANNEL_OVERRIDE_BREAKS_MODEL':
       return {
-        message: t('The Bundle version cannot be used: the request of {{model}} would not match the contract.', { model: modelName() }),
+        message: t(
+          'The Bundle version cannot be used: the request of {{model}} would not match the contract.',
+          { model: modelName() }
+        ),
         remedy: t('Change the Bundle.'),
       }
     case 'MODEL_UPSTREAM_ID_DUPLICATE':
       return {
-        message: t('Upstream model ID {{upstream}} is already used by {{owner}} on this Channel.', { upstream: params.upstreamModelId, owner: params.usedBy }),
-        remedy: t('Use another upstream model ID, or delete the other model first.'),
+        message: t(
+          'Upstream model ID {{upstream}} is already used by {{owner}} on this Channel.',
+          { upstream: params.upstreamModelId, owner: params.usedBy }
+        ),
+        remedy: t(
+          'Use another upstream model ID, or delete the other model first.'
+        ),
       }
     case 'MODEL_KEY_RETIRED':
       return {
-        message: t('Product key {{key}} belongs to a deleted model.', { key: params.modelKey }),
+        message: t('Product key {{key}} belongs to a deleted model.', {
+          key: params.modelKey,
+        }),
         remedy: t('Use another product key.'),
       }
     case 'CATALOG_PROMPT_REFERENCES_REWRITTEN':
       return {
-        message: t('catalog.plan.promptReferencesRewritten', { channelId: params.channelId }),
+        message: t('catalog.plan.promptReferencesRewritten', {
+          channelId: params.channelId,
+        }),
         remedy: t('Try a prompt with a reference image before publishing.'),
       }
     case 'CATALOG_DESCRIPTION_REPLACES_PRESENTATION':
       return {
-        message: t('The Bundle description of {{model}} replaces the current display description.', { model: modelName() }),
-        remedy: t('Publish only if the Bundle description should be shown to customers.'),
+        message: t(
+          'The Bundle description of {{model}} replaces the current display description.',
+          { model: modelName() }
+        ),
+        remedy: t(
+          'Publish only if the Bundle description should be shown to customers.'
+        ),
       }
     case 'CATALOG_ADMIN_REQUEST_INVALID':
       return {
-        message: t('The request of {{model}} does not match the contract.', { model: modelName() }),
+        message: t('The request of {{model}} does not match the contract.', {
+          model: modelName(),
+        }),
         remedy: t('Correct the request fields or the model parameters.'),
       }
     default:
@@ -346,7 +389,14 @@ export function catalogDiagnosticKnown(code: string): boolean {
   return KNOWN_DIAGNOSTICS.has(code)
 }
 
-const KNOWN_PLAN_ACTIONS: ReadonlySet<string> = new Set(['PUBLISH', 'REPLAY', 'RECOVER_PRICING', 'RECOVER_CONTINUITY', 'NO_CHANGES', 'CONFLICT'])
+const KNOWN_PLAN_ACTIONS: ReadonlySet<string> = new Set([
+  'PUBLISH',
+  'REPLAY',
+  'RECOVER_PRICING',
+  'RECOVER_CONTINUITY',
+  'NO_CHANGES',
+  'CONFLICT',
+])
 
 export function catalogPlanActionKnown(action: string): boolean {
   return KNOWN_PLAN_ACTIONS.has(action)
@@ -354,7 +404,9 @@ export function catalogPlanActionKnown(action: string): boolean {
 
 /** Five common Bundle errors in the reader's language, from the facts Cloud reports; undefined keeps the original text. */
 export function catalogDiagnosticSentence(
-  diagnostic: Pick<ModelCatalogDiagnostic, 'params' | 'jsonPath'> | { params?: Record<string, unknown>; jsonPath?: string },
+  diagnostic:
+    | Pick<ModelCatalogDiagnostic, 'params' | 'jsonPath'>
+    | { params?: Record<string, unknown>; jsonPath?: string },
   t: TFunction
 ): string | undefined {
   const params = diagnostic.params ?? {}
@@ -363,9 +415,14 @@ export function catalogDiagnosticSentence(
     case 'MISSING_FIELD':
       return t('Field {{field}} is missing.', { field })
     case 'WRONG_TYPE':
-      return t('Field {{field}} has the wrong type; it should be {{expected}}.', { field, expected: params.expected })
+      return t(
+        'Field {{field}} has the wrong type; it should be {{expected}}.',
+        { field, expected: params.expected }
+      )
     case 'UNKNOWN_FIELD':
-      return t('Unknown field: {{fields}}.', { fields: Array.isArray(params.keys) ? params.keys.join(', ') : '' })
+      return t('Unknown field: {{fields}}.', {
+        fields: Array.isArray(params.keys) ? params.keys.join(', ') : '',
+      })
     case 'VALUE_NOT_ALLOWED':
       return t('The value of {{field}} is not allowed.', { field })
     case 'DUPLICATE_IDENTIFIER':
@@ -385,7 +442,9 @@ export function catalogDiagnosticDetails(
         Boolean(value) && values.indexOf(value) === index
     )
     .join(' · ')
-  const fallbackMessage = catalogDiagnosticSentence(diagnostic, t) ?? (fallback || diagnostic.code || t('Unknown'))
+  const fallbackMessage =
+    catalogDiagnosticSentence(diagnostic, t) ??
+    (fallback || diagnostic.code || t('Unknown'))
   const message = diagnostic.messageKey
     ? t(diagnostic.messageKey, {
         ...diagnostic.params,

@@ -15,7 +15,8 @@ import { toast } from 'sonner'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 
-import { ModelManagementEditorPageProvider, useModelManagementEditing } from '../model-management-editor-page'
+import { ModelManagementEditorPageProvider } from '../model-management-editor-page'
+import { useModelManagementEditing } from '../model-management-editor-page-context'
 import { ModelManagementNavigationProvider } from '../model-management-navigation'
 
 export function ModelManagementLayout() {

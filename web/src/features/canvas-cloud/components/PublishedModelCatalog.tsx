@@ -14,19 +14,6 @@ If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
-import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
-import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
-import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
-import { ActiveFilterTags } from './ActiveFilterTags'
-import { catalogSourceLabel } from './catalog-plan-labels'
-import { ModelRetireDialog } from './catalog-edit/ModelRetireDialog'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   flexRender,
@@ -70,6 +57,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -85,10 +78,18 @@ import {
   getCanvasAdminTestingModels,
   publishCanvasExecutionTargetPresentation,
 } from '../api'
+import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
+import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
 import type { CanvasAdminTestingModel } from '../types'
+import { ActiveFilterTags } from './ActiveFilterTags'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
+import { ModelBulkRetireDialog } from './catalog-edit/ModelBulkRetireDialog'
+import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
+import { ModelRetireDialog } from './catalog-edit/ModelRetireDialog'
+import { catalogSourceLabel } from './catalog-plan-labels'
 import {
   executionTargetLabel,
   executionTargetSpecifications,
@@ -112,7 +113,12 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
 }
 
 // Disabled models are only looked up here; they are restored from the alert and monitoring pages.
-const DISABLED_TABLE_COLUMNS = new Set(['name', 'provider', 'capability', 'retire'])
+const DISABLED_TABLE_COLUMNS = new Set([
+  'name',
+  'provider',
+  'capability',
+  'retire',
+])
 
 function pageWithinRange(pageCount: number) {
   return (current: PaginationState) =>
@@ -120,7 +126,6 @@ function pageWithinRange(pageCount: number) {
       ? current
       : { ...current, pageIndex: Math.max(0, pageCount - 1) }
 }
-
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
@@ -141,6 +146,7 @@ export function PublishedModelCatalog(props: {
   const queryClient = useQueryClient()
   const [editor, setEditor] = useState<ModelEditorMode | null>(null)
   const [retiring, setRetiring] = useState<CanvasAdminTestingModel | null>(null)
+  const [retiringAll, setRetiringAll] = useState(false)
   const [catalogSource, setCatalogSource] = useState('ALL')
   const [search, setSearch] = useState(() => navigation?.listState.search ?? '')
   const [modelId, setModelId] = useState(
@@ -246,19 +252,42 @@ export function PublishedModelCatalog(props: {
     queryKey: ['canvas-cloud', 'admin-testing-models'],
     queryFn: getCanvasAdminTestingModels,
   })
-  const editingCatalog = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'current'], queryFn: getCurrentCatalog, staleTime: Infinity })
-  const editorOptions = useQuery({ queryKey: ['canvas-cloud', 'model-catalog', 'editor-options'], queryFn: getCatalogEditorOptions, staleTime: Infinity })
+  const editingCatalog = useQuery({
+    queryKey: ['canvas-cloud', 'model-catalog', 'current'],
+    queryFn: getCurrentCatalog,
+    staleTime: Infinity,
+  })
+  const editorOptions = useQuery({
+    queryKey: ['canvas-cloud', 'model-catalog', 'editor-options'],
+    queryFn: getCatalogEditorOptions,
+    staleTime: Infinity,
+  })
   const unsupportedFields = useMemo(
-    () => (editingCatalog.data && editorOptions.data ? unsupportedFieldsOfCatalog(editingCatalog.data, editorOptions.data.supportedFields) : null),
+    () =>
+      editingCatalog.data && editorOptions.data
+        ? unsupportedFieldsOfCatalog(
+            editingCatalog.data,
+            editorOptions.data.supportedFields
+          )
+        : null,
     [editingCatalog.data, editorOptions.data]
   )
   // The list reads models by version; which Channel a model is on comes from the current catalog.
   const channelOfModel = useMemo(
-    () => new Map((editingCatalog.data?.bundle.models ?? []).map((model) => [model.productKey, model.release.channelId])),
+    () =>
+      new Map(
+        (editingCatalog.data?.bundle.models ?? []).map((model) => [
+          model.productKey,
+          model.release.channelId,
+        ])
+      ),
     [editingCatalog.data]
   )
   const channels = useMemo(
-    () => (editingCatalog.data?.bundle.channels ?? []).map((entry) => entry.id).sort((left, right) => left.localeCompare(right)),
+    () =>
+      (editingCatalog.data?.bundle.channels ?? [])
+        .map((entry) => entry.id)
+        .sort((left, right) => left.localeCompare(right)),
     [editingCatalog.data]
   )
   const tags = useQuery({
@@ -412,9 +441,9 @@ export function PublishedModelCatalog(props: {
       const visible =
         (catalogSource === 'ALL' || model.catalogSource === catalogSource) &&
         (visibility === 'ALL' ||
-        (visibility === 'CUSTOMER'
-          ? model.executionTargets.some((target) => target.customerVisible)
-          : model.executionTargets.some((target) => !target.customerVisible)))
+          (visibility === 'CUSTOMER'
+            ? model.executionTargets.some((target) => target.customerVisible)
+            : model.executionTargets.some((target) => !target.customerVisible)))
       return (
         visible &&
         (!query ||
@@ -506,7 +535,9 @@ export function PublishedModelCatalog(props: {
                   catalogDefaultName={model.catalogDefaultName}
                   modelKey={model.modelKey}
                 />
-                <UnsupportedFieldsBadge paths={unsupportedFields?.get(model.modelKey) ?? []} />
+                <UnsupportedFieldsBadge
+                  paths={unsupportedFields?.get(model.modelKey) ?? []}
+                />
               </div>
               {model.tags.length > 0 && (
                 <p className='text-muted-foreground text-xs break-words'>
@@ -542,14 +573,23 @@ export function PublishedModelCatalog(props: {
         size: 176,
         accessorFn: (model) => channelOfModel.get(model.modelKey) ?? '',
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Channel configuration')} />
+          <DataTableColumnHeader
+            column={column}
+            title={t('Channel configuration')}
+          />
         ),
         meta: { label: t('Channel configuration') },
         cell: ({ getValue }) => {
           const channelId = getValue() as string
-          if (!channelId) return <span className='text-muted-foreground'>—</span>
+          if (!channelId) {
+            return <span className='text-muted-foreground'>—</span>
+          }
           return (
-            <button type='button' className='text-primary font-mono text-xs [overflow-wrap:anywhere] hover:underline text-start' onClick={() => props.onOpenChannel?.(channelId)}>
+            <button
+              type='button'
+              className='text-primary text-start font-mono text-xs [overflow-wrap:anywhere] hover:underline'
+              onClick={() => props.onOpenChannel?.(channelId)}
+            >
               {channelId}
             </button>
           )
@@ -615,7 +655,12 @@ export function PublishedModelCatalog(props: {
         header: t('Model actions'),
         meta: { label: t('Model actions') },
         cell: ({ row }) => (
-          <Button variant='outline' size='sm' onClick={() => setRetiring(row.original)}>
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-destructive hover:text-destructive'
+            onClick={() => setRetiring(row.original)}
+          >
             {t('Delete the model')}
           </Button>
         ),
@@ -677,19 +722,32 @@ export function PublishedModelCatalog(props: {
                 <Button
                   variant='outline'
                   disabled={presentationBusy}
-                  onClick={() => setEditor({ kind: 'edit', modelKey: model.modelKey })}
+                  onClick={() =>
+                    setEditor({ kind: 'edit', modelKey: model.modelKey })
+                  }
                 >
                   {t('Edit model configuration')}
                 </Button>
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant='outline' disabled={presentationBusy} />}>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant='outline' disabled={presentationBusy} />
+                    }
+                  >
                     {t('More')}
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => setEditor({ kind: 'copy', modelKey: model.modelKey })}>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setEditor({ kind: 'copy', modelKey: model.modelKey })
+                      }
+                    >
                       {t('Copy as a new model')}
                     </DropdownMenuItem>
-                    <DropdownMenuItem variant='destructive' onClick={() => setRetiring(model)}>
+                    <DropdownMenuItem
+                      variant='destructive'
+                      onClick={() => setRetiring(model)}
+                    >
                       {t('Delete the model')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -700,7 +758,15 @@ export function PublishedModelCatalog(props: {
         },
       },
     ],
-    [channelOfModel, navigation, onManagePricing, presentationBusy, props, t, unsupportedFields]
+    [
+      channelOfModel,
+      navigation,
+      onManagePricing,
+      presentationBusy,
+      props,
+      t,
+      unsupportedFields,
+    ]
   )
   const sizedColumns = useMemo(
     () => withCanvasTableColumnSizes(columns),
@@ -1074,117 +1140,153 @@ export function PublishedModelCatalog(props: {
           }}
           toolbar={
             <>
-            <DataTableToolbar
-              table={table}
-              filterPanel={
-                <DataTableColumnFilterPanel
-                  activeCount={
-                    [
-                      search,
-                      modelId,
-                      channel,
-                      visibility === 'ALL' ? '' : visibility,
-                      catalogSource === 'ALL' ? '' : catalogSource,
-                    ].filter(Boolean).length
-                  }
-                >
-                  <DataTableColumnFilterField label={t('Model')}>
-                    <Input
-                      value={search}
-                      placeholder={t('Model')}
-                      onChange={(event) => setSearch(event.target.value)}
-                    />
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('Upstream model ID')}>
-                    <Input
-                      value={modelId}
-                      placeholder={t('Upstream model ID')}
-                      onChange={(event) => setModelId(event.target.value)}
-                    />
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('Channel configuration')}>
-                    <Select
-                      value={channel || 'ALL'}
-                      onValueChange={(value) => setChannel(!value || value === 'ALL' ? '' : value)}
+              <DataTableToolbar
+                table={table}
+                filterPanel={
+                  <DataTableColumnFilterPanel
+                    activeCount={
+                      [
+                        search,
+                        modelId,
+                        channel,
+                        visibility === 'ALL' ? '' : visibility,
+                        catalogSource === 'ALL' ? '' : catalogSource,
+                      ].filter(Boolean).length
+                    }
+                  >
+                    <DataTableColumnFilterField label={t('Model')}>
+                      <Input
+                        value={search}
+                        placeholder={t('Model')}
+                        onChange={(event) => setSearch(event.target.value)}
+                      />
+                    </DataTableColumnFilterField>
+                    <DataTableColumnFilterField label={t('Upstream model ID')}>
+                      <Input
+                        value={modelId}
+                        placeholder={t('Upstream model ID')}
+                        onChange={(event) => setModelId(event.target.value)}
+                      />
+                    </DataTableColumnFilterField>
+                    <DataTableColumnFilterField
+                      label={t('Channel configuration')}
                     >
-                      <SelectTrigger className='w-full' aria-label={t('Channel configuration')}>
-                        <CanvasLocalizedSelectValue
-                          value={channel}
-                          displayValue={channel || undefined}
-                          emptyLabelKey='All Channel configurations'
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='ALL'>{t('All Channel configurations')}</SelectItem>
-                        {channels.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            <span className='font-mono'>{value}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('Source')}>
-                    <Select
-                      value={catalogSource}
-                      onValueChange={(value) => setCatalogSource(value ?? 'ALL')}
-                    >
-                      <SelectTrigger className='w-full' aria-label={t('Source')}>
-                        <CanvasLocalizedSelectValue
-                          value={catalogSource}
-                          displayValue={catalogSourceLabel(t, catalogSource)}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['ALL', 'BUNDLE', 'ADMIN_EDIT', 'ADMIN_NEW', 'ADMIN_COPY'].map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {catalogSourceLabel(t, value)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </DataTableColumnFilterField>
-                  <DataTableColumnFilterField label={t('Customer display')}>
-                    <Select
-                      value={visibility}
-                      onValueChange={(value) => setVisibility(value ?? 'ALL')}
-                    >
-                      <SelectTrigger
-                        className='w-full'
-                        aria-label={t('Customer display')}
+                      <Select
+                        value={channel || 'ALL'}
+                        onValueChange={(value) =>
+                          setChannel(!value || value === 'ALL' ? '' : value)
+                        }
                       >
-                        <CanvasLocalizedSelectValue
-                          value={visibility}
-                          displayValue={visibilityFilterLabel}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value='ALL'>
-                          {t('All customer display states')}
-                        </SelectItem>
-                        <SelectItem value='CUSTOMER'>
-                          {t('Visible to customers')}
-                        </SelectItem>
-                        <SelectItem value='INTERNAL'>
-                          {t('Not shown to customers')}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </DataTableColumnFilterField>
-                </DataTableColumnFilterPanel>
-              }
-              hasAdditionalFilters={Boolean(
-                search || modelId || channel || visibility !== 'ALL' || catalogSource !== 'ALL'
-              )}
-              onReset={() => {
-                setSearch('')
-                setModelId('')
-                setChannel('')
-                setCatalogSource('ALL')
-                setVisibility('ALL')
-              }}
-            />
-            <ActiveFilterTags tags={channel ? [{ key: 'channel', label: channel, remove: () => setChannel('') }] : []} />
+                        <SelectTrigger
+                          className='w-full'
+                          aria-label={t('Channel configuration')}
+                        >
+                          <CanvasLocalizedSelectValue
+                            value={channel}
+                            displayValue={channel || undefined}
+                            emptyLabelKey='All Channel configurations'
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='ALL'>
+                            {t('All Channel configurations')}
+                          </SelectItem>
+                          {channels.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              <span className='font-mono'>{value}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </DataTableColumnFilterField>
+                    <DataTableColumnFilterField label={t('Source')}>
+                      <Select
+                        value={catalogSource}
+                        onValueChange={(value) =>
+                          setCatalogSource(value ?? 'ALL')
+                        }
+                      >
+                        <SelectTrigger
+                          className='w-full'
+                          aria-label={t('Source')}
+                        >
+                          <CanvasLocalizedSelectValue
+                            value={catalogSource}
+                            displayValue={catalogSourceLabel(t, catalogSource)}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            'ALL',
+                            'BUNDLE',
+                            'ADMIN_EDIT',
+                            'ADMIN_NEW',
+                            'ADMIN_COPY',
+                          ].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {catalogSourceLabel(t, value)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </DataTableColumnFilterField>
+                    <DataTableColumnFilterField label={t('Customer display')}>
+                      <Select
+                        value={visibility}
+                        onValueChange={(value) => setVisibility(value ?? 'ALL')}
+                      >
+                        <SelectTrigger
+                          className='w-full'
+                          aria-label={t('Customer display')}
+                        >
+                          <CanvasLocalizedSelectValue
+                            value={visibility}
+                            displayValue={visibilityFilterLabel}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value='ALL'>
+                            {t('All customer display states')}
+                          </SelectItem>
+                          <SelectItem value='CUSTOMER'>
+                            {t('Visible to customers')}
+                          </SelectItem>
+                          <SelectItem value='INTERNAL'>
+                            {t('Not shown to customers')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </DataTableColumnFilterField>
+                  </DataTableColumnFilterPanel>
+                }
+                hasAdditionalFilters={Boolean(
+                  search ||
+                  modelId ||
+                  channel ||
+                  visibility !== 'ALL' ||
+                  catalogSource !== 'ALL'
+                )}
+                onReset={() => {
+                  setSearch('')
+                  setModelId('')
+                  setChannel('')
+                  setCatalogSource('ALL')
+                  setVisibility('ALL')
+                }}
+              />
+              <ActiveFilterTags
+                tags={
+                  channel
+                    ? [
+                        {
+                          key: 'channel',
+                          label: channel,
+                          remove: () => setChannel(''),
+                        },
+                      ]
+                    : []
+                }
+              />
             </>
           }
         />
@@ -1210,6 +1312,13 @@ export function PublishedModelCatalog(props: {
                 )}
               </Button>
             )}
+            <Button
+              variant='ghost'
+              className='text-destructive hover:text-destructive'
+              onClick={() => setRetiringAll(true)}
+            >
+              {t('Delete all ({{count}})', { count: disabledModels.length })}
+            </Button>
             {(showDisabled || searching) && (
               <DataTablePage
                 table={disabledTable}
@@ -1222,6 +1331,12 @@ export function PublishedModelCatalog(props: {
           </section>
         )}
       </CardContent>
+      {retiringAll && (
+        <ModelBulkRetireDialog
+          models={disabledModels}
+          onClose={() => setRetiringAll(false)}
+        />
+      )}
       {toggling && (
         <AlertDialog
           open

@@ -63,14 +63,14 @@ import type {
   ModelCatalogDiagnostic,
   ModelCatalogImportPlan,
 } from '../generated/model-catalog-import'
+import { useModelManagementEditing } from '../model-management-editor-page-context'
 import type { ModelManagementReturnContext } from '../model-management-navigation-state'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
-import { CatalogDecisionProvider } from './CatalogDecisionCell'
+import { CatalogDecisionProvider } from './catalog-decision-context'
 import { CatalogExportDialog } from './catalog-edit/CatalogExportDialog'
-import { useModelManagementEditing } from '../model-management-editor-page'
 import { ChannelsPanel } from './catalog-edit/ChannelsPanel'
 import { PromptReferenceRewrites } from './catalog-edit/PromptReferenceRewrites'
 import { ProvidersPanel } from './catalog-edit/ProvidersPanel'
@@ -113,20 +113,52 @@ interface BundleProblemGroup {
 }
 
 // A Bundle that fails validation has no plan yet. Problems read per model; the common kinds as one sentence, others as the validator wrote them.
-function bundleProblemGroups(diagnostics: Array<Partial<ModelCatalogDiagnostic>>, t: TFunction): BundleProblemGroup[] {
+function bundleProblemGroups(
+  diagnostics: Array<Partial<ModelCatalogDiagnostic>>,
+  t: TFunction
+): BundleProblemGroup[] {
   const groups = new Map<string, BundleProblemGroup>()
   for (const diagnostic of diagnostics) {
-    const { modelKey, modelIndex } = (diagnostic.params ?? {}) as { modelKey?: string; modelIndex?: number }
+    const { modelKey, modelIndex } = (diagnostic.params ?? {}) as {
+      modelKey?: string
+      modelIndex?: number
+    }
     const sourceFile = diagnostic.sourceFile ?? ''
-    const position = modelIndex === undefined ? '' : t('{{file}}, model {{number}}', { file: sourceFile, number: modelIndex + 1 })
+    const position =
+      modelIndex === undefined
+        ? ''
+        : t('{{file}}, model {{number}}', {
+            file: sourceFile,
+            number: modelIndex + 1,
+          })
     let title = t('Bundle')
     if (modelKey) title = t('Model {{key}}', { key: modelKey })
     else if (position) title = position
-    else if (sourceFile && diagnostic.jsonPath && diagnostic.jsonPath !== '$' && !sourceFile.startsWith('manifest')) title = sourceFile
+    else if (
+      sourceFile &&
+      diagnostic.jsonPath &&
+      diagnostic.jsonPath !== '$' &&
+      !sourceFile.startsWith('manifest')
+    ) {
+      title = sourceFile
+    }
     const key = `${title}\u0000${position}`
-    const text = catalogDiagnosticSentence(diagnostic, t)
-      ?? (diagnostic.messageKey && diagnostic.messageKey !== 'catalog.schema.invalid' ? catalogDiagnosticDetails(diagnostic, t) : [diagnostic.jsonPath?.replace(/^\$?\.?models(?:\.|\[)\d+\]?\.?/, ''), diagnostic.valueSummary ?? diagnostic.code ?? t('Unknown')].filter(Boolean).join(': '))
-    const group = groups.get(key) ?? { title, file: modelKey ? position : '', problems: [] }
+    const text =
+      catalogDiagnosticSentence(diagnostic, t) ??
+      (diagnostic.messageKey &&
+      diagnostic.messageKey !== 'catalog.schema.invalid'
+        ? catalogDiagnosticDetails(diagnostic, t)
+        : [
+            diagnostic.jsonPath?.replace(/^\$?\.?models(?:\.|\[)\d+\]?\.?/, ''),
+            diagnostic.valueSummary ?? diagnostic.code ?? t('Unknown'),
+          ]
+            .filter(Boolean)
+            .join(': '))
+    const group = groups.get(key) ?? {
+      title,
+      file: modelKey ? position : '',
+      problems: [],
+    }
     group.problems.push(text)
     groups.set(key, group)
   }
@@ -145,15 +177,15 @@ function errorDetails(error: unknown, t: TFunction): CatalogFailure {
     const data = (error as { response?: { data?: unknown } }).response?.data as
       | { message?: unknown; diagnostics?: unknown }
       | undefined
-    const details = Array.isArray(data?.diagnostics)
-      ? data.diagnostics.map((item) =>
-          catalogDiagnosticDetails(item as Partial<ModelCatalogDiagnostic>, t)
-        )
-      : []
+    const raw = (
+      Array.isArray(data?.diagnostics) ? data.diagnostics : []
+    ) as Array<Partial<ModelCatalogDiagnostic>>
+    const details = raw.map((item) => catalogDiagnosticDetails(item, t))
     if (details.length > 0) {
-      const raw = data!.diagnostics as Array<Partial<ModelCatalogDiagnostic>>
       return {
-        message: t('Cannot import: this check found {{count}} problems', { count: raw.length }),
+        message: t('Cannot import: this check found {{count}} problems', {
+          count: raw.length,
+        }),
         details,
         problems: bundleProblemGroups(raw, t),
         raw,
@@ -316,7 +348,9 @@ export function AdminModelCatalog(props: {
       setPlan(null)
       planActorPrincipalId.current = null
       setFailure({
-        message: t('The preview changed. Select the catalog source folder again.'),
+        message: t(
+          'The preview changed. Select the catalog source folder again.'
+        ),
         details: errorDetails(error, t).details,
       })
     },
@@ -416,7 +450,13 @@ export function AdminModelCatalog(props: {
       (plan?.models ?? [])
         // A live model the Bundle does not state only appears when its Channel forces a new version.
         .filter((model) => model.inBundle || model.action !== 'NO_OP')
-        .map((model) => reviewCatalogModel(model, plan?.changes ?? [], plan?.diagnostics ?? [])),
+        .map((model) =>
+          reviewCatalogModel(
+            model,
+            plan?.changes ?? [],
+            plan?.diagnostics ?? []
+          )
+        ),
     [plan]
   )
   const sharedChanges = useMemo(
@@ -430,7 +470,9 @@ export function AdminModelCatalog(props: {
   const sharedConflicts = sharedChanges.filter(
     (change) => catalogSharedChangeKind(change) === 'CONFLICT'
   ).length
-  const sharedStops = sharedConflicts + (plan ? catalogPlanStops(plan, catalogDiagnosticKnown).length : 0)
+  const sharedStops =
+    sharedConflicts +
+    (plan ? catalogPlanStops(plan, catalogDiagnosticKnown).length : 0)
   const publishableChanges = (plan?.changes ?? []).filter(
     (change) => change.action === 'CREATE' || change.action === 'CREATE_VERSION'
   )
@@ -438,11 +480,28 @@ export function AdminModelCatalog(props: {
     (model) => model.action !== 'NO_OP'
   )
   const channelVersionChanges = (plan?.changes ?? [])
-    .filter((change) => change.resourceType === 'PROVIDER_CHANNEL' && (change.action === 'CREATE' || change.action === 'CREATE_VERSION'))
-    .map((change) => `${change.key} ${change.currentVersion === null ? `v${change.proposedVersion}` : `v${change.currentVersion} → v${change.proposedVersion}`}`)
+    .filter(
+      (change) =>
+        change.resourceType === 'PROVIDER_CHANNEL' &&
+        (change.action === 'CREATE' || change.action === 'CREATE_VERSION')
+    )
+    .map(
+      (change) =>
+        `${change.key} ${change.currentVersion === null ? `v${change.proposedVersion}` : `v${change.currentVersion} → v${change.proposedVersion}`}`
+    )
   const versionDetail = (label: string, models: typeof changedModels) =>
     models.length
-      ? [{ label, value: models.map((model) => `${model.displayName} ${model.currentVersion === null ? `v${model.proposedVersion}` : `v${model.currentVersion} → v${model.proposedVersion}`}`).join(t(', ')) }]
+      ? [
+          {
+            label,
+            value: models
+              .map(
+                (model) =>
+                  `${model.displayName} ${model.currentVersion === null ? `v${model.proposedVersion}` : `v${model.currentVersion} → v${model.proposedVersion}`}`
+              )
+              .join(t(', ')),
+          },
+        ]
       : []
   const recoveringExisting =
     plan?.action === 'RECOVER_PRICING' || plan?.action === 'RECOVER_CONTINUITY'
@@ -452,7 +511,9 @@ export function AdminModelCatalog(props: {
   )
   // Decisions are explained on their own rows.
   const warningDiagnostics = (plan?.diagnostics ?? []).filter(
-    (diagnostic) => diagnostic.severity === 'WARNING' && !diagnostic.code.endsWith('_ADMIN_EDITED')
+    (diagnostic) =>
+      diagnostic.severity === 'WARNING' &&
+      !diagnostic.code.endsWith('_ADMIN_EDITED')
   )
   // What this page cannot explain is not published: Cloud may know a problem this build does not.
   const unknownDiagnostics = (plan?.diagnostics ?? []).filter(
@@ -460,9 +521,11 @@ export function AdminModelCatalog(props: {
   )
   const alertDiagnostics = [
     ...blockingDiagnostics,
-    ...unknownDiagnostics.filter((diagnostic) => !blockingDiagnostics.includes(diagnostic)),
+    ...unknownDiagnostics.filter(
+      (diagnostic) => !blockingDiagnostics.includes(diagnostic)
+    ),
   ]
-  const unknownAction = Boolean(plan) && !catalogPlanActionKnown(plan!.action)
+  const unknownAction = Boolean(plan && !catalogPlanActionKnown(plan.action))
   const planBlocked = Boolean(
     plan?.blocking ||
     blockingDiagnostics.length > 0 ||
@@ -477,8 +540,20 @@ export function AdminModelCatalog(props: {
     busy: overridePreview.isPending,
     onToggle: (decision: ModelCatalogDecision, overridden: boolean) => {
       if (!plan?.importId) return
-      const next = overrides.filter((entry) => entry.resourceType !== decision.resourceType || entry.key !== decision.key)
-      overridePreview.mutate({ importId: plan.importId, overrides: overridden ? [...next, { resourceType: decision.resourceType, key: decision.key }] : next })
+      const next = overrides.filter(
+        (entry) =>
+          entry.resourceType !== decision.resourceType ||
+          entry.key !== decision.key
+      )
+      overridePreview.mutate({
+        importId: plan.importId,
+        overrides: overridden
+          ? [
+              ...next,
+              { resourceType: decision.resourceType, key: decision.key },
+            ]
+          : next,
+      })
     },
   }
   const canPublish =
@@ -563,7 +638,9 @@ export function AdminModelCatalog(props: {
     (diagnostic) => diagnostic.code === 'CATALOG_SOURCE_FILE_IGNORED'
   )
   const otherWarnings = warningDiagnostics.filter(
-    (diagnostic) => diagnostic.code !== 'CATALOG_SOURCE_FILE_IGNORED' && diagnostic.code !== 'CATALOG_PROMPT_REFERENCES_REWRITTEN'
+    (diagnostic) =>
+      diagnostic.code !== 'CATALOG_SOURCE_FILE_IGNORED' &&
+      diagnostic.code !== 'CATALOG_PROMPT_REFERENCES_REWRITTEN'
   )
   const countByType = (resourceType: string) =>
     sharedChanges.filter((change) => change.resourceType === resourceType)
@@ -644,7 +721,9 @@ export function AdminModelCatalog(props: {
           </TabsContent>
           <TabsContent value='channels' className='mt-4'>
             <ChannelsPanel
-              onEditPresentation={(modelKey) => changeTab('display', { modelKey })}
+              onEditPresentation={(modelKey) =>
+                changeTab('display', { modelKey })
+              }
               focusChannel={focusChannel}
               onViewModels={() => {
                 setFocusChannel(null)
@@ -670,7 +749,9 @@ export function AdminModelCatalog(props: {
             <ModelAvailabilityPanel />
           </TabsContent>
           <TabsContent value='import' className='mt-4 space-y-4'>
-            {exporting ? <CatalogExportDialog onClose={() => setExporting(false)} /> : null}
+            {exporting ? (
+              <CatalogExportDialog onClose={() => setExporting(false)} />
+            ) : null}
             {plan ? (
               <Card size='sm'>
                 <CardContent className='flex flex-wrap items-center gap-x-4 gap-y-2 text-sm'>
@@ -693,7 +774,13 @@ export function AdminModelCatalog(props: {
                     {t('Choose folder again')}
                   </Button>
                   {folderPicker}
-                  <Button type='button' variant='outline' size='sm' className='ml-auto' onClick={() => setExporting(true)}>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='ml-auto'
+                    onClick={() => setExporting(true)}
+                  >
                     <Download aria-hidden='true' />
                     {t('Export the current catalog as a Bundle')}
                   </Button>
@@ -709,7 +796,11 @@ export function AdminModelCatalog(props: {
                     )}
                   </CardDescription>
                   <CardAction>
-                    <Button type='button' variant='outline' onClick={() => setExporting(true)}>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => setExporting(true)}
+                    >
                       <Download aria-hidden='true' />
                       {t('Export the current catalog as a Bundle')}
                     </Button>
@@ -746,26 +837,44 @@ export function AdminModelCatalog(props: {
                                 <li key={`${group.title}:${group.file}`}>
                                   <div className='font-medium [overflow-wrap:anywhere]'>
                                     {group.title}
-                                    {group.file ? <span className='text-muted-foreground ml-2 text-xs font-normal'>{group.file}</span> : null}
+                                    {group.file ? (
+                                      <span className='text-muted-foreground ml-2 text-xs font-normal'>
+                                        {group.file}
+                                      </span>
+                                    ) : null}
                                   </div>
                                   <ul className='mt-1 list-disc space-y-1 pl-4 [overflow-wrap:anywhere]'>
-                                    {group.problems.map((problem, index) => <li key={index}>{problem}</li>)}
+                                    {[...new Set(group.problems)].map(
+                                      (problem) => (
+                                        <li key={problem}>{problem}</li>
+                                      )
+                                    )}
                                   </ul>
                                 </li>
                               ))}
                             </ul>
-                            <p className='text-muted-foreground mt-3 text-xs'>{t('Change the model catalog files, then choose the folder again.')}</p>
+                            <p className='text-muted-foreground mt-3 text-xs'>
+                              {t(
+                                'Change the model catalog files, then choose the folder again.'
+                              )}
+                            </p>
                             <details className='mt-3'>
-                              <summary className='text-primary cursor-pointer text-xs'>{t('View the original errors')}</summary>
-                              <pre className='bg-background mt-2 overflow-auto rounded-md p-3 font-mono text-xs whitespace-pre-wrap [overflow-wrap:anywhere]'>{JSON.stringify(failure.raw, null, 2)}</pre>
+                              <summary className='text-primary cursor-pointer text-xs'>
+                                {t('View the original errors')}
+                              </summary>
+                              <pre className='bg-background mt-2 overflow-auto rounded-md p-3 font-mono text-xs [overflow-wrap:anywhere] whitespace-pre-wrap'>
+                                {JSON.stringify(failure.raw, null, 2)}
+                              </pre>
                             </details>
                           </>
-                        ) : failure.details.length > 0 && (
-                          <ul className='mt-2 list-disc space-y-1 pl-4'>
-                            {failure.details.map((detail) => (
-                              <li key={detail}>{detail}</li>
-                            ))}
-                          </ul>
+                        ) : (
+                          failure.details.length > 0 && (
+                            <ul className='mt-2 list-disc space-y-1 pl-4'>
+                              {failure.details.map((detail) => (
+                                <li key={detail}>{detail}</li>
+                              ))}
+                            </ul>
+                          )
                         )}
                       </div>
                     </div>
@@ -922,18 +1031,18 @@ export function AdminModelCatalog(props: {
                     </TabsList>
                     <TabsContent value='models' className='mt-2' keepMounted>
                       <CatalogDecisionProvider value={decisionState}>
-                      <CatalogModelPreview
-                        reviews={reviews}
-                        changes={plan.changes}
-                        focus={modelFocus}
-                        onViewChannel={(channelId) =>
-                          locate({
-                            tab: 'shared',
-                            resourceType: 'PROVIDER_CHANNEL',
-                            key: channelId,
-                          })
-                        }
-                      />
+                        <CatalogModelPreview
+                          reviews={reviews}
+                          changes={plan.changes}
+                          focus={modelFocus}
+                          onViewChannel={(channelId) =>
+                            locate({
+                              tab: 'shared',
+                              resourceType: 'PROVIDER_CHANNEL',
+                              key: channelId,
+                            })
+                          }
+                        />
                       </CatalogDecisionProvider>
                     </TabsContent>
                     <TabsContent value='shared' className='mt-2' keepMounted>
@@ -968,10 +1077,21 @@ export function AdminModelCatalog(props: {
                       label: t('Models to publish'),
                       value: String(changedModels.length),
                     },
-                    ...versionDetail(t('Model versions'), changedModels.filter((model) => model.inBundle)),
-                    ...versionDetail(t('Following a Channel configuration, content unchanged'), changedModels.filter((model) => !model.inBundle)),
+                    ...versionDetail(
+                      t('Model versions'),
+                      changedModels.filter((model) => model.inBundle)
+                    ),
+                    ...versionDetail(
+                      t('Following a Channel configuration, content unchanged'),
+                      changedModels.filter((model) => !model.inBundle)
+                    ),
                     ...(channelVersionChanges.length
-                      ? [{ label: t('Channel configuration versions'), value: channelVersionChanges.join(t(', ')) }]
+                      ? [
+                          {
+                            label: t('Channel configuration versions'),
+                            value: channelVersionChanges.join(t(', ')),
+                          },
+                        ]
                       : []),
                     {
                       label: t('Resource changes to publish'),
