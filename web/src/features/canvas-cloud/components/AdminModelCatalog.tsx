@@ -72,12 +72,12 @@ import { CatalogDecisionProvider } from './CatalogDecisionCell'
 import { CatalogExportDialog } from './catalog-edit/CatalogExportDialog'
 import { useModelManagementEditing } from '../model-management-editor-page'
 import { ChannelsPanel } from './catalog-edit/ChannelsPanel'
+import { PromptReferenceRewrites } from './catalog-edit/PromptReferenceRewrites'
 import { ProvidersPanel } from './catalog-edit/ProvidersPanel'
 import {
   catalogDiagnosticDetails,
   catalogDiagnosticKnown,
   catalogDiagnosticSentence,
-  catalogPlanWarningText,
   catalogPlanActionKnown,
 } from './catalog-plan-labels'
 import {
@@ -563,7 +563,7 @@ export function AdminModelCatalog(props: {
     (diagnostic) => diagnostic.code === 'CATALOG_SOURCE_FILE_IGNORED'
   )
   const otherWarnings = warningDiagnostics.filter(
-    (diagnostic) => diagnostic.code !== 'CATALOG_SOURCE_FILE_IGNORED'
+    (diagnostic) => diagnostic.code !== 'CATALOG_SOURCE_FILE_IGNORED' && diagnostic.code !== 'CATALOG_PROMPT_REFERENCES_REWRITTEN'
   )
   const countByType = (resourceType: string) =>
     sharedChanges.filter((change) => change.resourceType === resourceType)
@@ -828,13 +828,14 @@ export function AdminModelCatalog(props: {
                   ) : (
                     <p className='text-sm'>{planDescription}</p>
                   )}
-                  {warningDiagnostics.length > 0 && (
+                  {plan && <PromptReferenceRewrites plan={plan} />}
+                  {otherWarnings.length + ignoredFiles.length > 0 && (
                     <ul className='bg-muted/30 list-disc space-y-1 rounded-lg border p-3 pl-7 text-sm'>
                       {otherWarnings.map((diagnostic) => (
                         <li
                           key={`${diagnostic.code}:${diagnostic.sourceFile}:${diagnostic.jsonPath}`}
                         >
-                          {catalogPlanWarningText(t, diagnostic, plan?.models ?? [])}
+                          {catalogDiagnosticDetails(diagnostic, t)}
                         </li>
                       ))}
                       {ignoredFiles.length > 0 && (

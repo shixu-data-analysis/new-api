@@ -353,16 +353,6 @@ export function catalogPlanActionKnown(action: string): boolean {
 }
 
 /** Five common Bundle errors in the reader's language, from the facts Cloud reports; undefined keeps the original text. */
-/** A warning for an administrator: the plain sentence when there is one, otherwise the details for tracing it. */
-export function catalogPlanWarningText(
-  t: TFunction,
-  diagnostic: ModelCatalogDiagnostic,
-  models: CatalogPlanModel[]
-): string {
-  const text = catalogPlanDiagnosticText(t, diagnostic, models)
-  return text ? `${text.message} ${text.remedy}` : catalogDiagnosticDetails(diagnostic, t)
-}
-
 export function catalogDiagnosticSentence(
   diagnostic: Pick<ModelCatalogDiagnostic, 'params' | 'jsonPath'> | { params?: Record<string, unknown>; jsonPath?: string },
   t: TFunction

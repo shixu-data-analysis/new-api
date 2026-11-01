@@ -589,6 +589,40 @@ describe('Canvas model catalog folder upload', () => {
     expect(screen.getByRole('button', { name: 'Review publication content' })).toBeEnabled()
   })
 
+  it('keeps both descriptions in the warning that a Bundle replaces the display description', async () => {
+    i18next.addResource(
+      'en',
+      'translation',
+      'catalog.plan.descriptionReplacesPresentation',
+      '{{modelKey}} replaces “{{currentDescription}}” with “{{proposedDescription}}”.'
+    )
+    mocks.plan.mockResolvedValue(
+      catalogPlan({
+        diagnostics: [
+          {
+            ...planDiagnostic('CATALOG_DESCRIPTION_REPLACES_PRESENTATION', 'catalog.plan.descriptionReplacesPresentation', {
+              modelKey: 'canvas.image.model',
+              currentDescription: 'Set by the administrator',
+              proposedDescription: 'From the Bundle',
+            }),
+            severity: 'WARNING',
+          },
+        ],
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+
+    expect(await screen.findByText(/replaces “Set by the administrator” with “From the Bundle”/)).toBeInTheDocument()
+  })
+
   it('merges ignored-file warnings into one expandable line', async () => {
     const ignored = (sourceFile: string) => ({
       code: 'CATALOG_SOURCE_FILE_IGNORED',
