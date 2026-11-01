@@ -9,7 +9,7 @@ fi
 web_root="$(cd "$(dirname "$0")/.." && pwd)"
 run_id="$(date +%Y%m%d%H%M%S)-$$"
 container_name="canvas-new-api-verify-$run_id"
-dependency_key="$(shasum -a 256 "$web_root/package.json" "$web_root/bun.lock" "$web_root/Dockerfile.verify" | awk '{print $1}' | shasum -a 256 | awk '{print $1}')"
+dependency_key="$(shasum -a 256 "$web_root/package.json" "$web_root/bun.lock" "$web_root/Dockerfile.verify" "$web_root/vendor/model-catalog/snapshot.json" | awk '{print $1}' | shasum -a 256 | awk '{print $1}')"
 dependency_image="canvas-new-api-verify-deps:$dependency_key"
 started_at="$(date +%s)"
 

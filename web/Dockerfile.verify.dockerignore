@@ -2,3 +2,5 @@
 !package.json
 !bun.lock
 !Dockerfile.verify
+!vendor
+!vendor/**
