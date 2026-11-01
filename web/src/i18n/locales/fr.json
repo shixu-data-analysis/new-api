@@ -9493,6 +9493,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "Couleur de {{name}}",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}} : la publication remplace la description définie sur la page Présentation client (« {{currentDescription}} ») par celle du Bundle (« {{proposedDescription}} »).",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}} : après la publication, tous les modes écrivent @图片1 du prompt sous la forme 图片1. Auparavant, seuls les modes image-reference et first-last-frame le faisaient.",
     "Past 24 hours": "Dernières 24 h",
     "Deselect": "Désélectionner",
     "Apply rename": "OK",

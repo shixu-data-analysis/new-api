@@ -9493,6 +9493,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "{{name}} の色",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}：公開すると、クライアント表示ページで設定した説明（「{{currentDescription}}」）が Bundle の説明（「{{proposedDescription}}」）に置き換わります。",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}：公開後、すべてのモードでプロンプト内の @图片1 を 图片1 と書き換えます。これまでは image-reference と first-last-frame モードだけでした。",
     "Past 24 hours": "直近 24 時間",
     "Deselect": "選択を解除",
     "Apply rename": "確定",

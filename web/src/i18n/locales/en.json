@@ -9492,6 +9492,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "{{name}} color",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}: Publishing replaces the description set on the client presentation page (“{{currentDescription}}”) with the Bundle description (“{{proposedDescription}}”).",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}: After publishing, every mode writes @图片1 in a prompt as 图片1. Before, only the image-reference and first-last-frame modes did.",
     "Past 24 hours": "Past 24 hours",
     "Deselect": "Deselect",
     "Apply rename": "OK",

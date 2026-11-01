@@ -17,6 +17,7 @@ import type { CatalogEditPlan } from '../../catalog-edit-api'
 import { catalogModelTabCounts, catalogSharedChanges, catalogSharedChangeKind, reviewCatalogModel } from '../../catalog-plan-review'
 import { CatalogModelPreview } from '../CatalogModelPreview'
 import { CatalogSharedResources } from '../CatalogSharedResources'
+import { catalogDiagnosticDetails } from '../catalog-plan-labels'
 import { PricingActionConfirmation, type ConfirmationDetail } from '../PricingActionConfirmation'
 import { requestText } from './ModelJsonView'
 
@@ -47,6 +48,7 @@ export function ModelPublishPreview(props: {
   const counts = catalogModelTabCounts(reviews)
   const sharedChanged = shared.filter((change) => catalogSharedChangeKind(change) !== 'UNCHANGED').length
   const blockers = plan.diagnostics.filter((diagnostic) => diagnostic.severity !== 'WARNING')
+  const rewrites = plan.diagnostics.filter((diagnostic) => diagnostic.code === 'CATALOG_PROMPT_REFERENCES_REWRITTEN')
   const nothing = plan.action === 'NO_CHANGES'
   const edited = reviews.find((review) => review.model.productKey === props.modelKey) ?? reviews[0]
   const versionText = edited ? (edited.model.currentVersion === null ? `v${edited.model.proposedVersion}` : `v${edited.model.currentVersion} → v${edited.model.proposedVersion}`) : ''
@@ -87,6 +89,7 @@ export function ModelPublishPreview(props: {
               {explanation ? <p className='text-muted-foreground text-sm'>{explanation}</p> : null}
             </>
           )}
+          {rewrites.map((diagnostic) => <p key={diagnostic.jsonPath} className='text-sm [overflow-wrap:anywhere]'>{catalogDiagnosticDetails(diagnostic, t)}</p>)}
           {props.error ? <p role='alert' className='text-destructive text-sm'>{props.error}</p> : null}
           {props.copySource ? <p className='text-sm'>{t('Technical configuration and the API Key group come from {{source}}; later changes of it do not affect the new model. Prices are not reused. After pricing, the customer display still has to be turned on by hand.', { source: props.copySource })}</p> : null}
           {channelVersions.length ? (

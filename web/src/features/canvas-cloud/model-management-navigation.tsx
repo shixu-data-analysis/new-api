@@ -48,6 +48,8 @@ export function ModelManagementNavigationProvider(props: {
             current.channel === next.channel &&
             current.capability === next.capability &&
             current.visibility === next.visibility &&
+            current.showDisabled === next.showDisabled &&
+            current.tagId === next.tagId &&
             sameColumnVisibility(
               current.columnVisibility,
               next.columnVisibility
@@ -56,6 +58,8 @@ export function ModelManagementNavigationProvider(props: {
             current.focusModelId === next.focusModelId &&
             current.pagination.pageIndex === next.pagination.pageIndex &&
             current.pagination.pageSize === next.pagination.pageSize &&
+            current.disabledPagination.pageIndex === next.disabledPagination.pageIndex &&
+            current.disabledPagination.pageSize === next.disabledPagination.pageSize &&
             current.sorting.length === next.sorting.length &&
             current.sorting.every(
               (item, index) =>

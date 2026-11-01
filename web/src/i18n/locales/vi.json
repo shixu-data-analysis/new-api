@@ -9493,6 +9493,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "Màu {{name}}",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}: khi xuất bản, mô tả đặt tại trang Hiển thị phía khách (“{{currentDescription}}”) sẽ được thay bằng mô tả trong Bundle (“{{proposedDescription}}”).",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}: Sau khi xuất bản, mọi chế độ đều viết @图片1 trong prompt thành 图片1. Trước đây chỉ có chế độ image-reference và first-last-frame làm vậy.",
     "Past 24 hours": "24 giờ qua",
     "Deselect": "Bỏ chọn",
     "Apply rename": "OK",

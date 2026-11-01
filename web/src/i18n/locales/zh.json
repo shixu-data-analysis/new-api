@@ -9492,6 +9492,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "{{name}} 颜色",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}：发布后，客户端说明将从客户端展示页设置的「{{currentDescription}}」改为目录包中的「{{proposedDescription}}」。",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}：发布后，所有模式都会把提示词里的 @图片1 写成 图片1；以前只有 image-reference 和 first-last-frame 模式这样写。",
     "Past 24 hours": "近 24 小时",
     "Deselect": "取消选择",
     "Apply rename": "确定",

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { initialListState } from '../../model-management-navigation-state'
 import { ChannelsPanel } from '../catalog-edit/ChannelsPanel'
 
 const channel = (id: string, providerId: string) => ({ id, providerId, adapterProfile: { id, version: '1' }, internalOnly: true })
@@ -18,7 +19,15 @@ const catalog = {
   sources: { providers: {}, channels: {}, models: {} },
   versions: { providers: {}, channels: {}, models: {} },
 }
-const navigation = vi.hoisted(() => ({ updateListState: vi.fn() }))
+const navigation = vi.hoisted(() => ({
+  updateListState: vi.fn(),
+  listState: {
+    pagination: { pageIndex: 3, pageSize: 50 },
+    disabledPagination: { pageIndex: 1, pageSize: 20 },
+    sorting: [{ id: 'name', desc: true }],
+    columnVisibility: { channel: false },
+  },
+}))
 const retire = vi.hoisted(() => vi.fn((_input: unknown) => Promise.resolve({})))
 
 vi.mock('../../catalog-edit-api', async (original) => ({
@@ -61,7 +70,15 @@ describe('Channels list', () => {
     const onViewModels = vi.fn()
     await open({ onViewModels })
     fireEvent.click(screen.getByRole('button', { name: 'View the 2 models of acme.image' }))
-    expect(navigation.updateListState).toHaveBeenCalledWith({ channel: 'acme.image' })
+    expect(navigation.updateListState).toHaveBeenCalledWith({
+      ...initialListState,
+      channel: 'acme.image',
+      showDisabled: true,
+      pagination: { pageIndex: 0, pageSize: 50 },
+      disabledPagination: { pageIndex: 0, pageSize: 20 },
+      sorting: [{ id: 'name', desc: true }],
+      columnVisibility: { channel: false },
+    })
     expect(onViewModels).toHaveBeenCalledOnce()
     expect(screen.queryByRole('button', { name: /of beta\.chat/ })).toBeNull()
   })

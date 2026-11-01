@@ -38,6 +38,12 @@ import {
 
 afterEach(() => window.sessionStorage.clear())
 
+const singleFieldUpdates = [
+  ['showDisabled', { showDisabled: true }],
+  ['tagId', { tagId: 'category' }],
+  ['disabledPagination', { disabledPagination: { pageIndex: 2, pageSize: 20 } }],
+] as const
+
 function StateProbe() {
   const { listState, updateListState } = useModelManagementNavigation()
   return createElement(
@@ -52,6 +58,13 @@ function StateProbe() {
       'button',
       { type: 'button', onClick: () => updateListState({}) },
       'Apply no-op update'
+    ),
+    ...singleFieldUpdates.map(([name, update]) =>
+      createElement(
+        'button',
+        { key: name, type: 'button', onClick: () => updateListState(update) },
+        name
+      )
     )
   )
 }
@@ -76,6 +89,15 @@ function renderProviderWithReturnState(state: Record<string, unknown>) {
   })
   return render(createElement(RouterProvider, { router }))
 }
+
+describe('model-management list state updates', () => {
+  it.each(singleFieldUpdates)('keeps an update of only %s', async (name, update) => {
+    renderProviderWithReturnState({})
+    fireEvent.click(await screen.findByRole('button', { name }))
+    const state = JSON.parse(screen.getByTestId('model-management-list-state').textContent ?? '{}')
+    expect(state).toMatchObject(update)
+  })
+})
 
 describe('model-management return state forwarding', () => {
   it('preserves the same return context for legacy target redirect, selection, and back navigation', () => {

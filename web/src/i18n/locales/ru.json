@@ -9493,6 +9493,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "Цвет {{name}}",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}: публикация заменит описание со страницы «Отображение у клиента» («{{currentDescription}}») описанием из Bundle («{{proposedDescription}}»).",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}: после публикации все режимы записывают @图片1 в промпте как 图片1. Раньше так делали только режимы image-reference и first-last-frame.",
     "Past 24 hours": "За 24 часа",
     "Deselect": "Снять выбор",
     "Apply rename": "ОК",

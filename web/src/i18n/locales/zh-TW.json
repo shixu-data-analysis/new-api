@@ -9493,6 +9493,7 @@
     "{{modelKey}} · {{provider}}": "{{modelKey}} · {{provider}}",
     "{{name}} color": "{{name}} 顏色",
     "catalog.plan.descriptionReplacesPresentation": "{{modelKey}}：發布後，客戶端說明將從客戶端展示頁設定的「{{currentDescription}}」改為 目錄包 中的「{{proposedDescription}}」。",
+    "catalog.plan.promptReferencesRewritten": "{{channelId}}：發布後，所有模式都會把提示詞裡的 @圖片1 寫成 圖片1；以前只有 image-reference 和 first-last-frame 模式這樣寫。",
     "Past 24 hours": "近 24 小時",
     "Deselect": "取消選擇",
     "Apply rename": "確定",

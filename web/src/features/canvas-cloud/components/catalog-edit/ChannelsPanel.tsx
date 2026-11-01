@@ -20,6 +20,7 @@ import { getCurrentCatalog } from '../../catalog-edit-api'
 import { unsupportedProfileFields } from '../../catalog-channel-draft'
 import { contractOfProfile, profileOfChannel } from '../../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../../model-management-navigation-hooks'
+import { initialListState } from '../../model-management-navigation-state'
 import { ChannelEditor, type ChannelEditorMode } from './ChannelEditor'
 import { ChannelRetireDialog } from './ChannelRetireDialog'
 import { ModelEditor } from './ModelEditor'
@@ -87,7 +88,19 @@ export function ChannelsPanel(props: {
   const modelCounts = new Map<string, number>()
   for (const model of bundle.models) modelCounts.set(model.release.channelId, (modelCounts.get(model.release.channelId) ?? 0) + 1)
   const viewModels = (channelId: string) => {
-    navigation?.updateListState({ channel: channelId })
+    if (navigation) {
+      // The count is of this Channel's models, so nothing from an earlier look at the list may narrow them; how the list is laid out stays.
+      const { pagination, disabledPagination, sorting, columnVisibility } = navigation.listState
+      navigation.updateListState({
+        ...initialListState,
+        channel: channelId,
+        showDisabled: true,
+        pagination: { ...pagination, pageIndex: 0 },
+        disabledPagination: { ...disabledPagination, pageIndex: 0 },
+        sorting,
+        columnVisibility,
+      })
+    }
     props.onViewModels?.()
   }
   return (
