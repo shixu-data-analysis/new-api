@@ -6,7 +6,6 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { defaultParamsIssues } from '@pixmiao/model-catalog/request-validator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -34,7 +33,6 @@ import {
   copiedGroupChoice,
   defaultGroupChoice,
   draftBinding,
-  groupIssues,
   groupsOfProvider,
   NEW_GROUP,
   NO_GROUP,
@@ -61,10 +59,7 @@ import {
   readPath,
   replayChanges,
   replayConflicts,
-  sentFieldsOf,
-  sizeParamOf,
   unsupportedModelFields,
-  upstreamModelIdsOf,
   usageProtocolOf,
   writePath,
 } from '../../catalog-edit-logic'
@@ -81,6 +76,10 @@ import {
   type JsonIssue,
   type ModelJsonPlace,
 } from '../../catalog-json-fill'
+import {
+  channelSendsOf,
+  modelFormIssues,
+} from '../../catalog-model-form-issues'
 import { useModelManagementEditorPage } from '../../model-management-editor-page-context'
 import {
   CanvasManagementTabsList,
@@ -204,29 +203,34 @@ function customKey(
   )
 }
 
+/** A model of a page that adds several, kept by the page while another one is on screen. */
+export interface PageModel {
+  definition: CatalogModelDefinition
+  /** Empty until its tab is opened: it then starts with the group a new model starts with. */
+  credentialGroup: GroupChoice
+  /** Its tab on the page. */
+  at: number
+}
+
 /** Inside the new Channel flow: the Channel is not published yet, so the parent keeps the draft and publishes all together. */
 export interface EmbeddedModelEditor {
   /** The group made on this page, typed once: every model on the page can bind it. */
   newGroup: NewGroupDraft
   onNewGroupChange: (next: NewGroupDraft) => void
   extraDraft: Pick<CatalogEditDraft, 'providers' | 'channels'>
-  /** `pending` counts what the form would mark, so the page can send the administrator to a model with problems. */
   onChange: (
     model: CatalogModelDefinition | null,
-    credentialGroup: GroupChoice,
-    pending: number
+    credentialGroup: GroupChoice
   ) => void
   initialDraft?: CatalogModelDefinition | null
   initialCredentialGroup?: GroupChoice
   /** The page moved here because this model has problems: they show at once. */
   showErrors?: boolean
-  /** The other models added on this page; they are published with this one. */
-  others?: CatalogEditDraftModel[]
+  /** The other models added on this page, with their tab; they are checked and published with this one. */
+  others?: PageModel[]
   slots?: {
     tabs: Array<{ id: string; name: string }>
     index: number
-    /** Another model of the page that still has problems. */
-    pendingAt: number | null
     onShow: (index: number, showErrors?: boolean) => void
     onAdd: () => void
     onFill: (models: CatalogModelDefinition[]) => void
@@ -331,13 +335,14 @@ function LoadedEditor(props: {
       (n) => t('{{name}} account {{n}}', { name, n })
     )
   }
+  const startingGroup = (channelId: string): GroupChoice =>
+    channelId
+      ? defaultGroupChoice(catalog, providerIdOf(channelId), channelId)
+      : ''
   const [groupChoice, setGroupChoice] = useState<GroupChoice>(() => {
     if (mode.kind === 'copy') return copiedGroupChoice(catalog, mode.modelKey)
     if (embedded?.initialCredentialGroup) return embedded.initialCredentialGroup
-    const channelId = draft.release.channelId
-    return channelId
-      ? defaultGroupChoice(catalog, providerIdOf(channelId), channelId)
-      : ''
+    return startingGroup(draft.release.channelId)
   })
   const [newGroup, setNewGroup] = useState<NewGroupDraft>(() => {
     const shared = embedded?.newGroup ?? { name: '', apiKey: '' }
@@ -369,15 +374,14 @@ function LoadedEditor(props: {
   )
   const profile = profileOfChannel(catalog, draft.release.channelId)
   const contract = profile ? contractOfProfile(catalog, profile) : undefined
-  const sent = useMemo(
-    () => sentFieldsOf(profile, contract),
-    [profile, contract]
+  const { sent, sizeParam } = useMemo(
+    () => channelSendsOf(catalog, draft.release.channelId),
+    [catalog, draft.release.channelId]
   )
   const accepted = useMemo(
     () => measuredForProfile(profile, contract),
     [profile, contract]
   )
-  const sizeParam = sizeParamOf(profile)
   const usageProtocol = usageProtocolOf(profile)
   const catalogValues = useMemo(() => {
     return (capability: CatalogCapability, field: string) => [
@@ -543,14 +547,10 @@ function LoadedEditor(props: {
   const onEmbeddedChange = embedded?.onChange
   useEffect(() => {
     const started = Boolean(draft.displayName || upstreamId)
-    onEmbeddedChange?.(
-      started ? withoutEmpty(draft) : null,
-      groupChoice,
-      started ? Object.keys(localErrors()).length : 0
-    )
+    onEmbeddedChange?.(started ? withoutEmpty(draft) : null, groupChoice)
     // The parent stores the latest draft; its callback identity does not matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, groupChoice, newGroup])
+  }, [draft, groupChoice])
 
   const groups = groupsOfProvider(catalog, provider?.id)
   const activeSlot = embedded?.slots?.index
@@ -566,10 +566,20 @@ function LoadedEditor(props: {
   }
   // A new group is made once for the page, however many of its models bind it; the key stays out of the draft.
   const others = embedded?.others ?? []
+  // A model not opened yet binds the group it would start with when opened, so publishing never skips that choice.
+  const groupOf = (entry: PageModel) =>
+    entry.credentialGroup || startingGroup(entry.definition.release.channelId)
+  const otherDrafts: CatalogEditDraftModel[] = others.map((entry) => ({
+    baseVersion: null,
+    definition: entry.definition,
+    ...(groupOf(entry)
+      ? { credentialGroup: draftBinding(groupOf(entry)) }
+      : {}),
+  }))
   const pageBindsNewGroup =
     mode.kind !== 'edit' &&
     (groupChoice === NEW_GROUP ||
-      others.some((entry) => entry.credentialGroup === 'NEW'))
+      others.some((entry) => groupOf(entry) === NEW_GROUP))
   const newCredentialGroup =
     pageBindsNewGroup && provider
       ? {
@@ -612,152 +622,25 @@ function LoadedEditor(props: {
             }
           : {}),
       },
-      ...others,
+      ...otherDrafts,
     ],
   })
 
-  const localErrors = (): Record<string, string> => {
-    const found: Record<string, string> = {}
-    const interaction = draft.release.publicInteraction
-    const qualityList = (interaction.paramSchema.qualities ?? []) as string[]
-    if (!draft.release.channelId) {
-      found.channel = t('Choose a Channel configuration')
-    }
-    const providerModel = draft.release.execution.providerModel
-    const upstreamIds =
-      'modelId' in providerModel
-        ? [providerModel.modelId]
-        : qualityList.map(
-            (quality) => providerModel.modelIdByQuality[quality] ?? ''
-          )
-    if (draft.release.channelId) {
-      const sameChannel = (model: CatalogModelDefinition) =>
-        model.release.channelId === draft.release.channelId &&
-        upstreamModelIdsOf(model).some((id) => upstreamIds.includes(id))
-      const clash = catalog.bundle.models.find(
-        (model) =>
-          !(mode.kind === 'edit' && model.productKey === mode.modelKey) &&
-          sameChannel(model)
-      )
-      if (!upstreamIds.length) found.upstream = t('Add at least one resolution')
-      else if (upstreamIds.some((id) => !id.trim())) {
-        found.upstream = t('Enter the upstream model ID')
-      } else if (clash) {
-        found.upstream = t(
-          'This Channel already has a model using this upstream model ID: {{name}} ({{key}})',
-          { name: clash.displayName, key: clash.productKey }
-        )
-      } else if (others.some((entry) => sameChannel(entry.definition))) {
-        found.upstream = t(
-          'Another model added this time has the same upstream model ID'
-        )
-      }
-    }
-    if (mode.kind !== 'edit') {
-      const name = draft.displayName.trim()
-      if (!name) found.displayName = t('Enter a display name')
-      else if (
-        mode.kind === 'copy' &&
-        source &&
-        (name === source.displayName ||
-          name === t('{{name}} copy', { name: source.displayName }))
-      ) {
-        found.displayName = t(
-          'Change the name: it cannot match the source model or the default copy name'
-        )
-      }
-      if (!draft.productKey) found.productKey = t('Enter a product key')
-      else if (
-        !/^[a-z0-9-]+\.(image|video|chat)\.[a-z0-9.-]+$/.test(draft.productKey)
-      ) {
-        found.productKey = t(
-          'Use lowercase letters, numbers, dots and hyphens, as API provider.type.name'
-        )
-      } else if (draft.productKey.length > 128) {
-        found.productKey = t('The product key can have at most 128 characters')
-      } else if (catalog.retiredModelKeys.includes(draft.productKey)) {
-        found.productKey = t('This product key belongs to a deleted model.')
-      } else if (
-        catalog.bundle.models.some(
-          (model) => model.productKey === draft.productKey
-        )
-      ) {
-        found.productKey = t('This product key already exists')
-      } else if (
-        others.some((entry) => entry.definition.productKey === draft.productKey)
-      ) {
-        found.productKey = t(
-          'Another model added this time has the same product key'
-        )
-      }
-      for (const [field, key] of Object.entries(
-        groupIssues(groupChoice, newGroup, groups)
-      )) {
-        found[field] = t(key)
-      }
-    }
-    const ratios = (interaction.paramSchema.aspectRatios ?? []) as string[]
-    if (draft.capability !== 'chat.generate') {
-      if (sent.aspectRatio.length && !ratios.length) {
-        found['paramSchema.aspectRatios'] = t(
-          'Choose at least one aspect ratio: the Channel sends it'
-        )
-      }
-      if (sizeParam) {
-        const sizeMap = (interaction.defaultParams.sizeMap ?? {}) as Record<
-          string,
-          Record<string, string>
-        >
-        const missing = ratios.flatMap((ratio) =>
-          qualityList
-            .filter((quality) => !sizeMap[ratio]?.[quality])
-            .map((quality) => `${ratio} × ${quality}`)
-        )
-        if (missing.length > 4) {
-          found['defaultParams.sizeMap'] = t(
-            'The size table has {{count}} empty cells: {{cells}} and more',
-            { count: missing.length, cells: missing.slice(0, 4).join(', ') }
-          )
-        } else if (missing.length) {
-          found['defaultParams.sizeMap'] = t(
-            'The size table has {{count}} empty cells: {{cells}}',
-            { count: missing.length, cells: missing.join(', ') }
-          )
-        }
-      }
-    }
-    for (const field of sent.modelFields) {
-      if (
-        !(
-          (interaction.paramSchema.options ?? []) as Array<{ key: string }>
-        ).some((option) => option.key === field.key) &&
-        interaction.defaultParams[field.key] === undefined
-      ) {
-        found[`defaultParams.${field.key}`] = t('Please fill in')
-      }
-    }
-    // The shared request validator, as the Cloud checks a task; only worth reading once the form itself is complete.
-    if (
-      draft.capability !== 'chat.generate' &&
-      Object.keys(found).length === 0
-    ) {
-      const labels: Record<string, string> = {
-        aspectRatio: t('Aspect ratio'),
-        quality: t('Quality tier'),
-        apiQuality: t('Image quality'),
-        durationSeconds: t('Length'),
-        batchSize: t('Count'),
-        generateAudio: t('Generate audio'),
-      }
-      for (const issue of defaultParamsIssues(interaction)) {
-        found[`defaultParams.${issue.field}`] = t(
-          'The default {{field}} is outside the parameter range',
-          { field: labels[issue.field] ?? issue.field }
-        )
-      }
-    }
-    return found
-  }
+  const localErrors = () =>
+    modelFormIssues(
+      {
+        draft,
+        kind: mode.kind,
+        source,
+        others: others.map((entry) => entry.definition),
+        groupChoice,
+        newGroup,
+        catalog,
+        sent,
+        sizeParam,
+      },
+      t
+    )
 
   const refused = (error: unknown) => {
     const failure = catalogEditFailure(error)
@@ -870,10 +753,46 @@ function LoadedEditor(props: {
     if (jsonError) found['paramSchema.usageEstimate'] = jsonError
     const count = Object.keys(found).length
     setErrors(found)
-    // Every model of the page is checked: the first one with problems is shown with them.
-    const pendingAt = embedded?.slots?.pendingAt ?? null
-    if (count === 0 && pendingAt !== null) {
-      embedded?.slots?.onShow(pendingAt, true)
+    // Every model of the page is checked, opened or not: the first one with problems is shown with them.
+    // The models of a page share their Channel, so what it sends is read once per Channel.
+    const sendsByChannel = new Map([
+      [draft.release.channelId, { sent, sizeParam }],
+    ])
+    const sendsOf = (channelId: string) => {
+      const known = sendsByChannel.get(channelId)
+      if (known) return known
+      const read = channelSendsOf(catalog, channelId)
+      sendsByChannel.set(channelId, read)
+      return read
+    }
+    const otherWithIssues =
+      count === 0
+        ? others.find(
+            (entry) =>
+              Object.keys(
+                modelFormIssues(
+                  {
+                    draft: entry.definition,
+                    kind: 'new',
+                    source: null,
+                    others: [
+                      draft,
+                      ...others
+                        .filter((other) => other !== entry)
+                        .map((other) => other.definition),
+                    ],
+                    groupChoice: groupOf(entry),
+                    newGroup,
+                    catalog,
+                    ...sendsOf(entry.definition.release.channelId),
+                  },
+                  t
+                )
+              ).length > 0
+          )
+        : undefined
+    if (otherWithIssues) {
+      embedded?.slots?.onShow(otherWithIssues.at, true)
       toast.error(t('Another model on this page has fields to correct'))
       return
     }
@@ -911,7 +830,7 @@ function LoadedEditor(props: {
     ...(mode.kind !== 'edit'
       ? [{ definition: draft, credentialGroup: thisBinding }]
       : []),
-    ...others,
+    ...otherDrafts,
   ]
   const boundOnPublish: Record<string, string> = Object.fromEntries(
     pageModels.flatMap((entry) => {

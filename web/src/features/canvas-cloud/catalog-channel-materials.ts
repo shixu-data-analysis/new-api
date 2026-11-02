@@ -15,6 +15,7 @@ import {
   requestRowTemplate,
   sampleRequest,
   type Accepts,
+  type BodyName,
   type ChannelIssue,
   type ChannelDraft,
   type MaterialKind,
@@ -38,7 +39,6 @@ import {
   validateTemplate,
 } from './executor-shared/templateLanguageV1'
 
-export type BodyName = 'rows' | 'imageRows'
 export type MediaMode = 'text' | 'first' | 'frames' | 'reference'
 export type SendStyle = 'fields' | 'list' | 'expr'
 type FrameSlot = 'first' | 'last'
@@ -321,7 +321,8 @@ export const isModeView = (capability: string) =>
 /** Every read and change of the materials of one request body; `x` is the working draft. */
 export function materialsOf(x: ChannelDraft, body: BodyName) {
   const imageView = x.capability === 'image.generate'
-  const memory = x.materials
+  const draftMemory = x.materials
+  const memory = draftMemory.bodies[body]
   const bodyRows = () => x[body]
   const textBodyWithImagesElsewhere = Boolean(x.images) && body === 'rows'
   // A text request beside an image request carries only what the image request does not.
@@ -394,7 +395,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
   const accepts = (): Accepts =>
     mediaStyle() === 'expr'
       ? measuredSupport(x)
-      : (memory.accepts ?? startingAccepts(x))
+      : (draftMemory.accepts ?? startingAccepts(x))
   const allowedModes = () =>
     bodyModes().filter((mode) => supportedModes(accepts()).includes(mode))
   const naturalMode = (): MediaMode =>
@@ -495,12 +496,12 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
   // Names replaced for that come back when nothing picks by role any more, so splitting and rejoining changes nothing.
   const nameRolesPickedBy = (picks = picksByRole()) => {
     if (!picks) {
-      if (!memory.roleMemory) return
-      for (const [role, name] of Object.entries(memory.roleMemory)) {
+      if (!draftMemory.roleMemory) return
+      for (const [role, name] of Object.entries(draftMemory.roleMemory)) {
         if (name === undefined) delete x.roleMap[role]
         else x.roleMap[role] = name
       }
-      memory.roleMemory = null
+      draftMemory.roleMemory = null
       return
     }
     const named = { ...x.roleMap }
@@ -520,7 +521,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     ) {
       return
     }
-    memory.roleMemory ??= Object.fromEntries(
+    draftMemory.roleMemory ??= Object.fromEntries(
       Object.keys(CONTENT_ROLES).map((role) => [role, x.roleMap[role]])
     )
     x.roleMap = named
@@ -839,11 +840,26 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
 
   const newListParts = (): ShapeParts =>
     defaultListParts(x.roleMap, imageView ? { reference: false } : undefined)
+  // The switches decide what a list of this body sends: a part turned off is set aside, one turned on comes back as it was.
+  const acceptedParts = (parts: ShapeParts): ShapeParts => {
+    const kept = { ...parts }
+    const defaults = newListParts()
+    for (const kind of bodyKinds()) {
+      if (draftMemory.accepts?.[kind]) {
+        kept[kind] ??= memory.partMemory[kind] ?? defaults[kind]
+        continue
+      }
+      if (kept[kind] === undefined) continue
+      memory.partMemory = { ...memory.partMemory, [kind]: kept[kind] }
+      delete kept[kind]
+    }
+    return kept
+  }
   const setMediaStyle = (style: SendStyle) => {
     const from = mediaStyle()
     if (style === from) return
     // Leaving an expression, its measured materials become the switches; a list starts with only the accepted parts.
-    memory.accepts =
+    draftMemory.accepts =
       from === 'expr' ? { ...measuredSupport(x) } : { ...accepts() }
     const exprs = mediaExprRows()
     const covered = () =>
@@ -887,6 +903,10 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
             ]
       )
       memory.fieldRows = []
+      // A material turned off while these rows were set aside leaves its field, as turning it off here does.
+      for (const kind of bodyKinds()) {
+        if (!draftMemory.accepts?.[kind]) setSlot(ACCEPT_SLOT[kind], '')
+      }
       followAllDelivery()
       nameRolesPickedBy()
       return
@@ -895,13 +915,9 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     memory.fieldRows = [...memory.fieldRows, ...take(covered())]
     // The list and the expression pick images by role, so the roles are named before the parts are written with them.
     nameRolesPickedBy(true)
-    const parts =
-      memory.listParts ??
-      (Object.fromEntries(
-        Object.entries(newListParts()).filter(
-          ([key]) => key === 'text' || memory.accepts?.[key as MaterialKind]
-        )
-      ) as ShapeParts)
+    const parts = acceptedParts(
+      memory.listParts ?? { text: newListParts().text }
+    )
     if (style === 'list') {
       put([
         {
@@ -933,19 +949,10 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
   }
 
   const setAccept = (kind: MaterialKind, on: boolean) => {
-    memory.accepts = { ...accepts(), [kind]: on }
+    draftMemory.accepts = { ...accepts(), [kind]: on }
     const list = contentRow()
     if (list) {
-      const { [kind]: removed, ...kept } = list.parts ?? {}
-      if (on) {
-        list.parts = {
-          ...list.parts,
-          [kind]: memory.partMemory[kind] ?? newListParts()[kind],
-        }
-        return
-      }
-      memory.partMemory = { ...memory.partMemory, [kind]: removed }
-      list.parts = kept
+      list.parts = acceptedParts(list.parts ?? {})
       return
     }
     if (!on) setSlot(ACCEPT_SLOT[kind], '')

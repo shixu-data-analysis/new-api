@@ -1,5 +1,5 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.7.0";
+export const REQUEST_VALIDATOR_VERSION = "1.8.0";
 export const REQUEST_VALIDATOR_VECTORS_SHA256 = "cb35d1a472ceafc6b2db3f62d3049345a7f66e971f99c928e7d45f645f8d2472";
 
 export const CatalogRequestIssueCode = Object.freeze({

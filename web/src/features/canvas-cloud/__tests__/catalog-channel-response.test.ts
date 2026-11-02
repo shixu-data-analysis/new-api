@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   blankChannelDraft,
+  buildProfile,
   channelIssues,
   movePollTaskId,
   type ChannelDraft,
@@ -35,6 +36,8 @@ function videoTask(): ChannelDraft {
   return draft
 }
 
+const profileOf = (draft: ChannelDraft) => buildProfile(draft, null, 'x')
+
 describe('answers of a task', () => {
   it('reads only the task ID from the submit answer, from its own path when it has one', () => {
     const draft = videoTask()
@@ -61,7 +64,7 @@ describe('answers of a task', () => {
 
   it('marks paths that read nothing and a status that matches no state value', () => {
     const readings = readResponseSample(
-      videoTask(),
+      profileOf(videoTask()),
       '{"data":{"id":"t1","status":"processing"}}'
     )
     expect(readings.map(({ what, bad }) => [what, bad])).toEqual([
@@ -72,7 +75,44 @@ describe('answers of a task', () => {
     ])
     expect(readings[1].state).toBeNull()
     expect(readings[2].tried).toEqual(['data.video_url'])
-    expect(() => readResponseSample(videoTask(), '{')).toThrow(SyntaxError)
+    expect(() => readResponseSample(profileOf(videoTask()), '{')).toThrow(
+      SyntaxError
+    )
+  })
+
+  it('reads result paths in lists as a real call does, and names a path it refuses', () => {
+    const pasted = '{"data":[{"url":"a"},{"url":"b"}],"id":7}'
+    const result = (outputPaths: string) => {
+      const draft = videoTask()
+      draft.outputPaths = outputPaths
+      return readResponseSample(profileOf(draft), pasted).find(
+        (reading) => reading.what === 'result'
+      )
+    }
+    expect(result('data.url')).toMatchObject({ found: [], bad: true })
+    expect(result('data[].url')).toMatchObject({
+      found: ['a', 'b'],
+      bad: false,
+    })
+    expect(result('data[1].url')).toMatchObject({ found: ['b'], bad: false })
+    expect(result('data[x].url')).toMatchObject({
+      refusedPath: 'data[x].url',
+      bad: true,
+    })
+    const failed = videoTask()
+    failed.errorPaths = 'error.message, error'
+    expect(
+      readResponseSample(profileOf(failed), '{"error":"prompt rejected"}').at(
+        -1
+      )
+    ).toMatchObject({ found: ['prompt rejected'], path: 'error', bad: false })
+    const draft = videoTask()
+    draft.taskIdPath = 'id'
+    expect(readResponseSample(profileOf(draft), pasted)[0]).toMatchObject({
+      what: 'taskId',
+      found: [7],
+      bad: true,
+    })
   })
 })
 

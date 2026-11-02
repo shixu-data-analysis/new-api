@@ -156,6 +156,30 @@ describe('materials of a video form', () => {
     )
   })
 
+  it('keeps a material turned off while its rows are set aside out of the request', () => {
+    const toList = (draft: ChannelDraft) =>
+      editMaterials(draft, (x) => materialsOf(x, 'rows').setMediaStyle('list'))
+    const toFields = (draft: ChannelDraft) =>
+      editMaterials(draft, (x) =>
+        materialsOf(x, 'rows').setMediaStyle('fields')
+      )
+    const videoOff = (draft: ChannelDraft) =>
+      editMaterials(draft, (x) =>
+        materialsOf(x, 'rows').setAccept('video', false)
+      )
+
+    const fields = toFields(videoOff(toList(oneImageList())))
+    expect(fields.rows.map((entry) => entry.source)).not.toContain('videos')
+    expect(bodyOf(fields, 'reference').body.videos).toBeUndefined()
+    expect(materialIssues(fields)).toEqual([])
+
+    const list = toList(videoOff(toFields(toList(oneImageList()))))
+    expect(materialsOf(list, 'rows').contentRow()?.parts?.video).toBeUndefined()
+    expect(JSON.stringify(bodyOf(list, 'reference').body)).not.toContain(
+      'video_url'
+    )
+  })
+
   it('reports a prompt sent twice and a received material without a field', () => {
     const draft = oneImageList()
     draft.rows.push(row('text', 'prompt'))
@@ -214,6 +238,32 @@ describe('materials of an image form', () => {
       },
     ])
     expect(measuredSupport(list)).toEqual({ reference: true })
+  })
+
+  // dklimage.gpt-image: a text request, and a second request that carries the images.
+  it('switches the send style of two request bodies apart, each back to its own rows', () => {
+    const draft = blankChannelDraft('image.generate')
+    draft.workflow = 'sync'
+    draft.submit.path = '/v1/images/generations'
+    draft.images = { method: 'POST', path: '/v1/images/edits' }
+    draft.rows = [row('model', 'upstreamId'), row('prompt', 'prompt')]
+    draft.imageRows = [
+      row('model', 'upstreamId'),
+      row('prompt', 'prompt'),
+      row('image[]', 'imagesAlways'),
+    ]
+    const switchTo =
+      (body: 'rows' | 'imageRows', style: 'fields' | 'list') =>
+      (x: ChannelDraft) =>
+        materialsOf(x, body).setMediaStyle(style)
+    const back = [
+      switchTo('rows', 'list'),
+      switchTo('imageRows', 'list'),
+      switchTo('rows', 'fields'),
+      switchTo('imageRows', 'fields'),
+    ].reduce((current, change) => editMaterials(current, change), draft)
+    expect(back.rows).toEqual(draft.rows)
+    expect(back.imageRows).toEqual(draft.imageRows)
   })
 })
 

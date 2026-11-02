@@ -28,13 +28,13 @@ import {
   unsupportedProfileFields,
   paramKeyOf,
   withChatStreaming,
+  type BodyName,
   type ChannelDraft,
 } from '../../catalog-channel-draft'
 import {
   isModeView,
   materialIssues,
   withMeasuredAccepts,
-  type BodyName,
   type MediaMode,
 } from '../../catalog-channel-materials'
 import {

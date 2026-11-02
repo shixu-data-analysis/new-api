@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
 import type {
+  BodyName,
   ChannelDraft,
   MaterialKind,
   Slot,
@@ -32,7 +33,6 @@ import {
   MODE_SLOT_KEYS,
   SHAPEABLE,
   segmentKind,
-  type BodyName,
   type MediaMode,
   type MediaSlot,
   type SegmentKind,

@@ -170,6 +170,21 @@ describe('a pasted model', () => {
       modelJsonIssue(model, catalog(), { channelId: 'acme.image' })
     ).toBeNull()
   })
+
+  it('is refused when a field holds the wrong kind of value, before the form reads it', () => {
+    const broken = {
+      ...model,
+      release: { ...model.release, publicInteraction: {} },
+    }
+    expect(modelJsonIssue(broken, catalog(), {})).toMatchObject({
+      key: 'Not a model of models.json: {{issue}}',
+      values: {
+        issue: expect.stringContaining(
+          'publicInteraction.defaultParams must be an object'
+        ),
+      },
+    })
+  })
 })
 
 describe('JSON that does not parse', () => {

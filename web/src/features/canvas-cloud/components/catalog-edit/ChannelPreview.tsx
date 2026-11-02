@@ -10,13 +10,13 @@ import { useTranslation } from 'react-i18next'
 
 import {
   sampleRequest,
+  type BodyName,
   type ChannelDraft,
   type SampleKind,
 } from '../../catalog-channel-draft'
 import {
   isModeView,
   materialsOf,
-  type BodyName,
   type MediaMode,
 } from '../../catalog-channel-materials'
 import type { CatalogJson } from '../../catalog-edit-types'
@@ -161,7 +161,7 @@ export function ChannelPreview(props: {
         )}
       </PreviewCard>
       {polls ? <PollRequestCard draft={draft} base={base} /> : null}
-      <ResponseCard draft={draft} />
+      <ResponseCard draft={draft} profile={props.profile} />
     </aside>
   )
 }

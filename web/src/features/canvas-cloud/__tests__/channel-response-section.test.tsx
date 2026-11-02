@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { blankChannelDraft, type ChannelDraft } from '../catalog-channel-draft'
+import {
+  blankChannelDraft,
+  buildProfile,
+  type ChannelDraft,
+} from '../catalog-channel-draft'
 import { ResponseCard } from '../components/catalog-edit/ChannelResponsePreview'
 import { ChannelResponseSection } from '../components/catalog-edit/ChannelResponseSection'
 
@@ -84,7 +88,12 @@ describe('submit response and polling', () => {
 describe('checking pasted responses', () => {
   it('marks a status that matches no state value', async () => {
     const user = userEvent.setup()
-    render(<ResponseCard draft={videoTask()} />)
+    render(
+      <ResponseCard
+        draft={videoTask()}
+        profile={buildProfile(videoTask(), null, 'x')}
+      />
+    )
     await user.click(
       screen.getByText('Paste a real upstream response to check the paths')
     )

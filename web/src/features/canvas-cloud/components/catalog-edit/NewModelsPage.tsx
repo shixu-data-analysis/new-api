@@ -9,31 +9,30 @@ License, or (at your option) any later version.
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  draftBinding,
-  type GroupChoice,
-  type NewGroupDraft,
+import type {
+  GroupChoice,
+  NewGroupDraft,
 } from '../../catalog-credential-groups'
 import type {
-  CatalogEditDraftModel,
   CatalogModelDefinition,
   CurrentCatalogView,
 } from '../../catalog-edit-types'
-import { ModelEditor, type EmbeddedModelEditor } from './ModelEditor'
+import {
+  ModelEditor,
+  type EmbeddedModelEditor,
+  type PageModel,
+} from './ModelEditor'
 
 interface ModelSlot {
   id: string
   model: CatalogModelDefinition | null
   credentialGroup: GroupChoice
-  /** Fields its form would mark, counted when it was last on screen. */
-  pending: number
 }
 
 const blankSlot = (): ModelSlot => ({
   id: crypto.randomUUID(),
   model: null,
   credentialGroup: '',
-  pending: 0,
 })
 
 /** One page for adding any number of models; only the model on screen is mounted, the others keep their draft here. */
@@ -56,12 +55,9 @@ export function NewModelsPage(props: {
   const [showErrors, setShowErrors] = useState(false)
   const current = slots[index]
   // The latest draft of the slot on screen, kept without rendering again on each keystroke.
-  const latest = useRef<
-    Pick<ModelSlot, 'model' | 'credentialGroup' | 'pending'>
-  >({
+  const latest = useRef<Pick<ModelSlot, 'model' | 'credentialGroup'>>({
     model: current.model,
     credentialGroup: current.credentialGroup,
-    pending: current.pending,
   })
   // One new API Key group per page: its name and key are typed once and every model can bind it.
   const newGroup = useRef<NewGroupDraft>({ name: '', apiKey: '' })
@@ -73,28 +69,21 @@ export function NewModelsPage(props: {
     latest.current = {
       model: list[next].model,
       credentialGroup: list[next].credentialGroup,
-      pending: list[next].pending,
     }
     setShowErrors(withErrors)
     setSlots(list)
     setIndex(next)
   }
-  const others: CatalogEditDraftModel[] = slots.flatMap((slot, position) =>
+  const others: PageModel[] = slots.flatMap((slot, position) =>
     position !== index && slot.model
       ? [
           {
-            baseVersion: null,
             definition: slot.model,
-            ...(slot.credentialGroup
-              ? { credentialGroup: draftBinding(slot.credentialGroup) }
-              : {}),
+            credentialGroup: slot.credentialGroup,
+            at: position,
           },
         ]
       : []
-  )
-  const pendingAt = slots.findIndex(
-    (slot, position) =>
-      position !== index && slot.model !== null && slot.pending > 0
   )
   return (
     <ModelEditor
@@ -116,8 +105,8 @@ export function NewModelsPage(props: {
         initialCredentialGroup: current.credentialGroup,
         showErrors,
         others,
-        onChange: (model, credentialGroup, pending) => {
-          latest.current = { model, credentialGroup, pending }
+        onChange: (model, credentialGroup) => {
+          latest.current = { model, credentialGroup }
         },
         slots: {
           tabs: slots.map((slot, position) => ({
@@ -128,7 +117,6 @@ export function NewModelsPage(props: {
                 : slot.model?.displayName) ?? '',
           })),
           index,
-          pendingAt: pendingAt < 0 ? null : pendingAt,
           onShow: (next, withErrors) => show(saved(slots), next, withErrors),
           onAdd: () => {
             const list = saved(slots)
@@ -170,7 +158,6 @@ export function NewModelsPage(props: {
                   id: crypto.randomUUID(),
                   model: copy,
                   credentialGroup: source.credentialGroup,
-                  pending: source.pending,
                 },
               ],
               list.length
@@ -178,7 +165,7 @@ export function NewModelsPage(props: {
           },
           onRemove: () => {
             if (slots.length === 1) {
-              latest.current = { model: null, credentialGroup: '', pending: 0 }
+              latest.current = { model: null, credentialGroup: '' }
               show([blankSlot()], 0)
               return
             }

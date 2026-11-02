@@ -334,10 +334,11 @@ export type MaterialKind = 'first' | 'last' | 'reference' | 'video' | 'audio'
 export type Accepts = Partial<Record<MaterialKind, boolean>>
 export type Slot = 'prompt' | 'first' | 'last' | 'images' | 'videos' | 'audios'
 
-/** What the form remembers while it edits materials by mode; none of it is stored in the Profile. */
-export interface MaterialsMemory {
-  /** The acceptance switches: a loaded interface starts from what it measurably sends, a blank one from nothing. */
-  accepts: Accepts | null
+/** The request bodies of a Channel: the submit request, and the one sent with images when the interface has it. */
+export type BodyName = 'rows' | 'imageRows'
+
+/** What the form sets aside of one request body while its send style changes. */
+export interface BodyMaterialsMemory {
   slotAbsent: Partial<Record<'first' | 'last', boolean>>
   shapeMemory: Partial<Record<Slot, string>>
   fieldRows: RequestRow[]
@@ -345,17 +346,29 @@ export interface MaterialsMemory {
   listField?: string
   listParts?: ShapeParts
   partMemory: Partial<Record<MaterialKind, string>>
+}
+
+/** What the form remembers while it edits materials by mode; none of it is stored in the Profile. */
+export interface MaterialsMemory {
+  /** The acceptance switches: a loaded interface starts from what it measurably sends, a blank one from nothing. */
+  accepts: Accepts | null
+  /** Each body switches its send style on its own, so rows one body set aside never return in the other. */
+  bodies: Record<BodyName, BodyMaterialsMemory>
   /** Role names replaced to tell frames from references, put back when nothing picks by role any more. */
   roleMemory: Record<string, string | undefined> | null
 }
 
-export const blankMaterialsMemory = (): MaterialsMemory => ({
-  accepts: null,
+const blankBodyMemory = (): BodyMaterialsMemory => ({
   slotAbsent: {},
   shapeMemory: {},
   fieldRows: [],
   exprRows: [],
   partMemory: {},
+})
+
+export const blankMaterialsMemory = (): MaterialsMemory => ({
+  accepts: null,
+  bodies: { rows: blankBodyMemory(), imageRows: blankBodyMemory() },
   roleMemory: null,
 })
 
@@ -982,6 +995,17 @@ export function buildProfile(
     else delete media.roleMap
   }
   const response = (advanced.response ??= {}) as CatalogJson
+  // The Executor reads mapped result pointers before the result paths, so once the form changes the paths they go.
+  if (
+    toList(((response.outputPaths ?? []) as string[]).join(', ')).join() !==
+    toList(draft.outputPaths).join()
+  ) {
+    delete (
+      (profile.map as CatalogJson | undefined)?.response as
+        | CatalogJson
+        | undefined
+    )?.outputs
+  }
   const paths = (key: 'outputPaths' | 'errorPaths', text: string) => {
     const next = toList(text)
     if (next.length || response[key] !== undefined) response[key] = next

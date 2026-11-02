@@ -24,6 +24,7 @@ import {
   type ResponseState,
   type TaskState,
 } from '../../catalog-channel-response'
+import type { CatalogJson } from '../../catalog-edit-types'
 import { FoldTrigger } from './EditFields'
 
 const CODE =
@@ -209,7 +210,7 @@ export function PollRequestCard(props: { draft: ChannelDraft; base: string }) {
   return <PreviewCard title={t('Query request')}>{content}</PreviewCard>
 }
 
-function ResponseCheck(props: { draft: ChannelDraft }) {
+function ResponseCheck(props: { profile: CatalogJson }) {
   const { t } = useTranslation()
   const [pasted, setPasted] = useState('')
   const [result, setResult] = useState<ResponseReading[] | 'invalid' | null>(
@@ -230,6 +231,11 @@ function ResponseCheck(props: { draft: ChannelDraft }) {
   const asText = (value: unknown) =>
     typeof value === 'object' ? JSON.stringify(value) : String(value)
   const valueOf = (reading: ResponseReading) => {
+    if (reading.refusedPath !== undefined) {
+      return t('A real call cannot read this path: {{path}}', {
+        path: reading.refusedPath,
+      })
+    }
     if (!reading.found.length) {
       return reading.tried.length
         ? t('Not read (tried {{paths}})', { paths: reading.tried.join(', ') })
@@ -245,7 +251,7 @@ function ResponseCheck(props: { draft: ChannelDraft }) {
   }
   const check = () => {
     try {
-      setResult(readResponseSample(props.draft, pasted))
+      setResult(readResponseSample(props.profile, pasted))
     } catch (error) {
       if (!(error instanceof SyntaxError)) throw error
       setResult('invalid')
@@ -304,7 +310,11 @@ function ResponseCheck(props: { draft: ChannelDraft }) {
 }
 
 /** The answers the paths expect, one tab per state, with where each value comes from on the left. */
-export function ResponseCard(props: { draft: ChannelDraft }) {
+export function ResponseCard(props: {
+  draft: ChannelDraft
+  /** The Profile the form builds, which a pasted response is read with. */
+  profile: CatalogJson
+}) {
   const { t } = useTranslation()
   const { draft } = props
   const polls = draft.workflow !== 'sync'
@@ -460,7 +470,7 @@ export function ResponseCard(props: { draft: ChannelDraft }) {
         </Muted>
       ))}
       {draft.capability === 'chat.generate' ? null : (
-        <ResponseCheck draft={draft} />
+        <ResponseCheck profile={props.profile} />
       )}
     </PreviewCard>
   )

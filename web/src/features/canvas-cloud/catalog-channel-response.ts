@@ -10,7 +10,7 @@ License, or (at your option) any later version.
 // upload and poll requests, the answers the paths expect, and a pasted answer
 // read with those paths. Nothing here calls the upstream.
 import {
-  pathToPointer,
+  pointerToPath,
   POLL_ID,
   sampleUpload,
   toList,
@@ -18,6 +18,13 @@ import {
   type MediaKind,
 } from './catalog-channel-draft'
 import type { CatalogJson } from './catalog-edit-types'
+import { dotted } from './executor-shared/providerRequestValues'
+import {
+  errorMessageMatch,
+  outputMatch,
+  pointerMatch,
+  restrictedJsonPath,
+} from './executor-shared/providerResponseValues'
 import {
   evaluateTemplate,
   TemplateLanguageError,
@@ -28,23 +35,6 @@ export type ResponseState = 'asset' | 'submit' | TaskState
 
 const TASK_STATES: TaskState[] = ['pending', 'running', 'succeeded', 'failed']
 const SAMPLE_TASK_ID = 'task_123'
-
-const readPath = (value: unknown, path: string): unknown[] =>
-  pathToPointer(path)
-    .split('/')
-    .filter(Boolean)
-    .reduce<unknown[]>(
-      (nodes, part) =>
-        nodes.flatMap((node) => {
-          const holder = Array.isArray(node) ? node : [node]
-          return holder.flatMap((entry) => {
-            if (part === '0') return Array.isArray(node) ? [node[0]] : []
-            const next = (entry as CatalogJson | null | undefined)?.[part]
-            return next === undefined ? [] : [next]
-          })
-        }),
-      [value]
-    )
 
 function setPath(target: CatalogJson, path: string, value: unknown) {
   const parts = path.replace(/^\//, '').replaceAll('/', '.').split('.')
@@ -257,49 +247,120 @@ export interface ResponseReading {
   found: unknown[]
   path?: string
   tried: string[]
+  /** A path the Executor refuses to read, so a task fails on it. */
+  refusedPath?: string
   /** The task state a read status means; null when it matches no state value. */
   state?: TaskState | null
   /** Nothing was read, or a status matched no state: a real task would go wrong here. */
   bad: boolean
 }
 
-/** Reads a pasted upstream response with the paths of the form. Throws on text that is not JSON. */
+const pathList = (value: unknown): string[] =>
+  [value ?? []]
+    .flat()
+    .filter((entry): entry is string => typeof entry === 'string')
+// The form shows pointers as paths; a restricted output path is shown as written.
+const shownPath = (path: string) =>
+  path.startsWith('/') ? pointerToPath(path) : path
+
+/**
+ * Reads a pasted upstream response as the Executor reads it, with the Profile the form builds: task ID and status by
+ * pointer, results by the mapped pointers and then the output paths. Throws on text that is not JSON.
+ */
 export function readResponseSample(
-  draft: ChannelDraft,
+  profile: CatalogJson,
   pasted: string
 ): ResponseReading[] {
   const value: unknown = JSON.parse(pasted)
-  const read = (
-    what: ResponseReading['what'],
-    paths: string
+  const response = (
+    value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  ) as CatalogJson
+  const byPointer = (
+    what: 'taskId' | 'status',
+    candidate: unknown,
+    usable: (found: unknown) => boolean
   ): ResponseReading => {
-    const tried = toList(paths)
-    for (const path of tried) {
-      const found = readPath(value, path).filter(
-        (entry) => entry !== undefined && entry !== null && entry !== ''
-      )
-      if (found.length) return { what, found, path, tried, bad: false }
+    const tried = pathList(candidate).map(shownPath)
+    const match = pointerMatch(response, candidate)
+    if (!match) return { what, found: [], tried, bad: true }
+    return {
+      what,
+      found: [match.value],
+      path: shownPath(match.path),
+      tried,
+      bad: !usable(match.value),
     }
-    return { what, found: [], tried, bad: true }
   }
   const readings: ResponseReading[] = []
-  if (draft.workflow !== 'sync') {
-    readings.push(read('taskId', draft.taskIdPath))
-    const status = read('status', draft.statusPath)
+  if (profile.workflow !== 'sync') {
+    // The Executor keeps a task ID only when it is text.
+    readings.push(
+      byPointer(
+        'taskId',
+        dotted(profile, 'map.response.taskId'),
+        (found) => typeof found === 'string'
+      )
+    )
+    const status = byPointer(
+      'status',
+      dotted(profile, 'map.response.status'),
+      () => true
+    )
     if (status.found.length) {
+      const states = (profile.states ?? {}) as CatalogJson
       status.state =
         TASK_STATES.find((group) =>
-          toList(draft.states[group]).includes(String(status.found[0]))
+          pathList(states[group]).includes(String(status.found[0]))
         ) ?? null
       status.bad = status.state === null
     }
     readings.push(status)
   }
-  readings.push(
-    read('result', draft.outputPaths),
-    read('error', draft.errorPaths)
-  )
+  const outputs = outputMatch(response, profile)
+  readings.push({
+    what: 'result',
+    found: outputs.values,
+    ...(outputs.path ? { path: shownPath(outputs.path) } : {}),
+    tried: [
+      ...pathList(dotted(profile, 'map.response.outputs')),
+      ...pathList(dotted(profile, 'advanced.response.outputPaths')),
+    ].map(shownPath),
+    ...(outputs.unsupportedPath === undefined
+      ? {}
+      : { refusedPath: outputs.unsupportedPath }),
+    bad: !outputs.values.length,
+  })
+  readings.push(errorReading(response, profile))
   return readings
+}
+
+// The failure reason the Executor reads first: the first error path that holds text.
+function errorReading(
+  response: CatalogJson,
+  profile: CatalogJson
+): ResponseReading {
+  const paths = dotted(profile, 'advanced.response.errorPaths')
+  const tried = pathList(paths)
+  const match = errorMessageMatch(response, paths)
+  if (match) {
+    return {
+      what: 'error',
+      found: [match.value],
+      path: match.path,
+      tried,
+      bad: false,
+    }
+  }
+  const refusedPath = tried.find(
+    (path) => restrictedJsonPath(response, path) === null
+  )
+  return {
+    what: 'error',
+    found: [],
+    tried,
+    ...(refusedPath === undefined ? {} : { refusedPath }),
+    bad: true,
+  }
 }
 
 /** The poll request as it goes out: the task ID from the submit answer, in the path or a query parameter. */

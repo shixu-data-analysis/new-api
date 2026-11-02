@@ -8,6 +8,8 @@ License, or (at your option) any later version.
 */
 // Fill from JSON: the Catalog's own objects, pasted, fill the form, which then checks and publishes them as usual.
 // An object comes after what it needs: API provider, then Channel configuration, then model.
+import { modelDefinitionIssue } from '@pixmiao/model-catalog/catalog-definitions'
+
 import { findOperation } from './catalog-channel-draft'
 import { contractOfProfile, profileOfChannel } from './catalog-edit-logic'
 import type {
@@ -58,17 +60,11 @@ function modelShapeIssue(model: unknown): JsonIssue | null {
   if (!isObject(model)) {
     return { key: 'Paste one model object: an item of models in models.json' }
   }
-  const release = model.release as CatalogJson | undefined
-  if (
-    !release?.channelId ||
-    !(release.execution as CatalogJson | undefined)?.providerModel ||
-    !release.publicInteraction
-  ) {
-    return {
-      key: 'Not a model of models.json: it needs release.channelId, release.execution.providerModel and release.publicInteraction',
-    }
-  }
-  return null
+  // The Catalog's own structure check: the form reads every field it defines, so a wrong kind of value is refused here.
+  const issue = modelDefinitionIssue(model)
+  return issue
+    ? { key: 'Not a model of models.json: {{issue}}', values: { issue } }
+    : null
 }
 
 export interface ChannelJson {

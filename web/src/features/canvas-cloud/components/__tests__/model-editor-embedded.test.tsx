@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { CurrentCatalogView } from '../../catalog-edit-types'
 import { ModelEditor } from '../catalog-edit/ModelEditor'
+import { NewModelsPage } from '../catalog-edit/NewModelsPage'
+
+const planCatalogEdit = vi.hoisted(() => vi.fn(() => new Promise(() => {})))
 
 vi.mock('@/components/layout/components/page-footer', async (original) => ({
   ...(await original<
@@ -39,7 +42,7 @@ vi.mock('../../catalog-edit-api', async (original) => ({
       },
     }),
   getCatalogModelVersion: () => new Promise(() => {}),
-  planCatalogEdit: () => new Promise(() => {}),
+  planCatalogEdit,
 }))
 
 const profile = {
@@ -264,7 +267,8 @@ describe('Model form checks', () => {
   it('refuses what another model of this page already uses', async () => {
     open([
       {
-        baseVersion: null,
+        credentialGroup: '',
+        at: 1,
         definition: {
           ...existing,
           productKey: 'draft.image.mine',
@@ -290,5 +294,74 @@ describe('Model form checks', () => {
     expect(
       screen.getByText('Another model added this time has the same product key')
     ).toBeInTheDocument()
+  })
+
+  it('checks and binds pasted models that were never opened before the page publishes', async () => {
+    const catalog = draftCatalog()
+    catalog.bundle.models = [existing] as never
+    catalog.credentialGroups = [
+      { providerId: 'draft', versionId: 'v1', name: 'Main' },
+    ] as never
+    catalog.modelCredentialGroups = { 'draft.image.taken': 'v1' }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NewModelsPage
+          channelId='draft.image'
+          catalogOverride={catalog}
+          onClose={() => {}}
+          onEditPresentation={() => {}}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByText('What the user sees')
+    const pasted = (key: string, name: string) => ({
+      ...existing,
+      productKey: `draft.image.${key}`,
+      displayName: name,
+      release: {
+        ...existing.release,
+        execution: { providerModel: { modelId: key } },
+      },
+    })
+    const fill = (models: unknown[]) => {
+      fireEvent.click(screen.getByRole('button', { name: 'Fill from JSON' }))
+      fireEvent.change(screen.getByLabelText('JSON to fill in'), {
+        target: { value: JSON.stringify(models) },
+      })
+      fireEvent.click(
+        screen.getByRole('button', {
+          name:
+            models.length > 1 ? `Fill in ${models.length} models` : 'Fill in',
+        })
+      )
+    }
+    fill([pasted('one', 'One'), pasted('two', '')])
+    expect(await screen.findByDisplayValue('One')).toBeInTheDocument()
+    validate()
+    expect(await screen.findByText('Enter a display name')).toBeInTheDocument()
+    expect(planCatalogEdit).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Display name'), {
+      target: { value: 'Two' },
+    })
+    fill([pasted('three', 'Three')])
+    expect(await screen.findByDisplayValue('Three')).toBeInTheDocument()
+    validate()
+    await vi.waitFor(() => expect(planCatalogEdit).toHaveBeenCalled())
+    const draft = (
+      planCatalogEdit.mock.calls[0] as unknown as [
+        { models: Array<{ definition: { productKey: string } }> },
+      ]
+    )[0]
+    expect(
+      draft.models.map((model) => [
+        model.definition.productKey,
+        (model as { credentialGroup?: unknown }).credentialGroup,
+      ])
+    ).toEqual([
+      ['draft.image.three', { versionId: 'v1' }],
+      ['draft.image.one', { versionId: 'v1' }],
+      ['draft.image.two', { versionId: 'v1' }],
+    ])
   })
 })

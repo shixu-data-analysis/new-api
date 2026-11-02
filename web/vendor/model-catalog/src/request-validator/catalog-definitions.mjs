@@ -406,6 +406,15 @@ const RESERVED_OPTION_KEYS = new Set([
 ]);
 
 // Cloud looks the size up by aspect ratio and quality, and a miss would send the provider a made-up value instead of failing.
+function validateSizeMapShape(raw, location) {
+  const sizeMap = object(raw, location);
+  for (const [ratio, rawSizes] of Object.entries(sizeMap)) {
+    for (const [quality, size] of Object.entries(object(rawSizes, `${location}.${ratio}`))) {
+      if (typeof size !== "string") fail(`${location}.${ratio}.${quality} must be a string`);
+    }
+  }
+}
+
 function validateSizeMap(raw, qualities, aspectRatios, location) {
   const sizeMap = object(raw, location);
   for (const ratio of Object.keys(sizeMap)) {
@@ -422,7 +431,7 @@ function validateSizeMap(raw, qualities, aspectRatios, location) {
   }
 }
 
-function validateOptions(raw, defaultParams, location) {
+function validateOptionShapes(raw, location) {
   const options = array(raw, location, 1);
   unique(options, (option) => option?.key, `${location} key`);
   options.forEach((rawOption, index) => {
@@ -433,10 +442,8 @@ function validateOptions(raw, defaultParams, location) {
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key) || RESERVED_OPTION_KEYS.has(key)) fail(`${optionLocation}.key must be a plain identifier that is not a reserved parameter`);
     string(option.label, `${optionLocation}.label`, 40);
     if (!REQUEST_VALIDATOR_OPTION_TYPES.includes(option.type)) fail(`${optionLocation}.type must be one of ${REQUEST_VALIDATOR_OPTION_TYPES.join(", ")}`);
-    if (!Object.hasOwn(defaultParams, key)) fail(`${optionLocation} requires defaultParams.${key}`);
     if (option.type === "boolean") {
       if (option.values !== undefined) fail(`${optionLocation}.values is only allowed for enum options`);
-      if (typeof defaultParams[key] !== "boolean") fail(`${optionLocation} default must be a boolean`);
       return;
     }
     const values = array(option.values, `${optionLocation}.values`, 2);
@@ -448,7 +455,19 @@ function validateOptions(raw, defaultParams, location) {
       string(entry.label, `${valueLocation}.label`, 40);
     });
     unique(values, (entry) => entry.value, `${optionLocation}.values`);
-    if (!values.some((entry) => entry.value === defaultParams[key])) fail(`${optionLocation} default must be one of its values`);
+  });
+  return options;
+}
+
+function validateOptionDefaults(options, defaultParams, location) {
+  options.forEach((option, index) => {
+    const optionLocation = `${location}[${index}]`;
+    if (!Object.hasOwn(defaultParams, option.key)) fail(`${optionLocation} requires defaultParams.${option.key}`);
+    if (option.type === "boolean") {
+      if (typeof defaultParams[option.key] !== "boolean") fail(`${optionLocation} default must be a boolean`);
+      return;
+    }
+    if (!option.values.some((entry) => entry.value === defaultParams[option.key])) fail(`${optionLocation} default must be one of its values`);
   });
 }
 
@@ -542,6 +561,64 @@ function operationPathIssue(endpoint, role, pollQuery = false) {
       : `${role} path must have exactly one placeholder besides {model}, found ${names.length}: ${endpoint}`;
   }
   return names.length === 0 ? null : `${role} path must have no placeholder besides {model}, found {${names.join("}, {")}}: ${endpoint}`;
+}
+
+const MODEL_FIELDS = ["productKey", "displayName", "description", "capability", "release", "sourceKind"];
+
+/**
+ * The structure of one model definition: every field holds the kind of value the Catalog defines and every limit is
+ * well formed. It leaves out what only a finished model needs (a valid product key and name, a Channel that exists, a
+ * size for every aspect ratio and quality, defaults within the limits), so an admin form can take a model that is still
+ * being written and mark what is missing. validateCatalogDefinitions runs it on every model first.
+ */
+function validateModelShape(raw, location) {
+  const value = object(raw, location);
+  exactKeys(value, MODEL_FIELDS, location);
+  const name = typeof value.productKey === "string" && value.productKey.trim() ? `Model ${value.productKey}` : location;
+  for (const field of ["productKey", "displayName", "description"]) {
+    if (value[field] !== undefined && typeof value[field] !== "string") fail(`${name}.${field} must be a string`);
+  }
+  if (!CAPABILITIES.has(value.capability)) fail(`${name} has unsupported capability`);
+  if (value.sourceKind !== undefined && !SOURCE_KINDS.has(value.sourceKind)) fail(`${name} has invalid sourceKind`);
+  const release = object(value.release, `${name}.release`);
+  exactKeys(release, ["channelId", "execution", "publicInteraction"], `${name}.release`);
+  if (typeof release.channelId !== "string") fail(`${name}.release.channelId must be a string`);
+  const execution = object(release.execution, `${name}.release.execution`);
+  exactKeys(execution, ["providerModel"], `${name}.release.execution`);
+  const providerModel = object(execution.providerModel, `${name}.release.execution.providerModel`);
+  if (Object.hasOwn(providerModel, "modelId")) {
+    exactKeys(providerModel, ["modelId"], `${name}.release.execution.providerModel`);
+    if (typeof providerModel.modelId !== "string") fail(`${name}.release.execution.providerModel.modelId must be a string`);
+  } else {
+    exactKeys(providerModel, ["defaultQuality", "modelIdByQuality"], `${name}.release.execution.providerModel`);
+    if (providerModel.defaultQuality !== undefined && typeof providerModel.defaultQuality !== "string") fail(`${name}.release.execution.providerModel.defaultQuality must be a string`);
+    for (const [quality, id] of Object.entries(object(providerModel.modelIdByQuality, `${name}.modelIdByQuality`))) {
+      if (typeof id !== "string") fail(`${name}.modelIdByQuality.${quality} must be a string`);
+    }
+  }
+  const interaction = object(release.publicInteraction, `${name}.release.publicInteraction`);
+  exactKeys(interaction, ["defaultParams", "paramSchema", "referenceLimits", "mediaConstraints"], `${name}.release.publicInteraction`);
+  const defaultParams = object(interaction.defaultParams, `${name}.publicInteraction.defaultParams`);
+  const paramSchema = validateParamSchema(interaction.paramSchema, `${name}.publicInteraction.paramSchema`, value.capability);
+  if (defaultParams.sizeMap !== undefined) validateSizeMapShape(defaultParams.sizeMap, `${name}.publicInteraction.defaultParams.sizeMap`);
+  validateReferenceLimits(interaction.referenceLimits, `${name}.publicInteraction.referenceLimits`);
+  if (paramSchema.options !== undefined) validateOptionShapes(paramSchema.options, `${name}.publicInteraction.paramSchema.options`);
+  if (interaction.mediaConstraints !== undefined) validateMediaConstraints(interaction.mediaConstraints, `${name}.publicInteraction.mediaConstraints`);
+  for (const [section, sectionValue] of Object.entries(interaction)) {
+    const data = object(sectionValue, `${name}.publicInteraction.${section}`);
+    for (const forbidden of ["billingUnit", "billing_unit", "tokenRates", "token_rates"]) if (Object.hasOwn(data, forbidden)) fail(`${name} contains commercial pricing field ${forbidden}`);
+  }
+  return value;
+}
+
+/** The first structural problem of one model definition of models.json, or undefined; see validateModelShape. */
+export function modelDefinitionIssue(model) {
+  try {
+    validateModelShape(model, "model");
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }
 
 /**
@@ -641,32 +718,25 @@ export function validateCatalogDefinitions(read, options = {}) {
   exactKeys(modelDocument, ["schemaVersion", "models"], modelPath);
   if (modelDocument.schemaVersion !== 2) fail(`${modelPath}.schemaVersion must be 2`);
   const models = array(modelDocument.models, `${modelPath}.models`, options.partial ? 0 : 1).map((raw, index) => {
-    const value = object(raw, `${modelPath}.models[${index}]`);
-    exactKeys(value, ["productKey", "displayName", "description", "capability", "release", "sourceKind"], `${modelPath}.models[${index}]`);
+    const value = validateModelShape(raw, `${modelPath}.models[${index}]`);
     const productKey = identifier(value.productKey, `${modelPath}.models[${index}].productKey`);
     string(value.displayName, `Model ${productKey}.displayName`, 191);
-    if (!CAPABILITIES.has(value.capability)) fail(`Model ${productKey} has unsupported capability`);
     if (!SOURCE_KINDS.has(value.sourceKind)) fail(`Model ${productKey} has invalid sourceKind`);
-    const release = object(value.release, `Model ${productKey}.release`);
-    exactKeys(release, ["channelId", "execution", "publicInteraction"], `Model ${productKey}.release`);
+    const release = value.release;
     const channel = channelById.get(identifier(release.channelId, `Model ${productKey}.release.channelId`, 64));
     if (!channel) fail(`Model ${productKey} references missing Channel ${release.channelId}`);
     if (providerById.get(channel.providerId).sourceKind !== value.sourceKind) fail(`Model ${productKey} crosses the official/relay source boundary`);
     if (channel.profile.kind !== value.capability) fail(`Model ${productKey} capability does not match Profile ${channel.profile.id}`);
-    const execution = object(release.execution, `Model ${productKey}.release.execution`);
-    exactKeys(execution, ["providerModel"], `Model ${productKey}.release.execution`);
-    const providerModel = object(execution.providerModel, `Model ${productKey}.release.execution.providerModel`);
+    const providerModel = release.execution.providerModel;
     const direct = typeof providerModel.modelId === "string" && providerModel.modelId.trim();
-    const quality = typeof providerModel.defaultQuality === "string" && object(providerModel.modelIdByQuality, `Model ${productKey}.modelIdByQuality`)[providerModel.defaultQuality];
+    const quality = typeof providerModel.defaultQuality === "string" && providerModel.modelIdByQuality[providerModel.defaultQuality];
     if (!direct && !quality) fail(`Model ${productKey} providerModel must define modelId or a valid defaultQuality/modelIdByQuality`);
-    exactKeys(providerModel, direct ? ["modelId"] : ["defaultQuality", "modelIdByQuality"], `Model ${productKey}.release.execution.providerModel`);
-    const interaction = object(release.publicInteraction, `Model ${productKey}.release.publicInteraction`);
-    exactKeys(interaction, ["defaultParams", "paramSchema", "referenceLimits", "mediaConstraints"], `Model ${productKey}.release.publicInteraction`);
-    const paramSchema = validateParamSchema(interaction.paramSchema, `Model ${productKey}.publicInteraction.paramSchema`, value.capability);
-    if (channel.profile.advanced?.request?.parameterPolicy?.sizeParam && interaction.defaultParams?.sizeMap === undefined) fail(`Model ${productKey} requires defaultParams.sizeMap: its Profile sends a size`);
-    if (interaction.defaultParams?.sizeMap !== undefined) validateSizeMap(interaction.defaultParams.sizeMap, array(paramSchema.qualities, `Model ${productKey}.publicInteraction.paramSchema.qualities`, 1), array(paramSchema.aspectRatios, `Model ${productKey}.publicInteraction.paramSchema.aspectRatios`, 1), `Model ${productKey}.publicInteraction.defaultParams.sizeMap`);
-    const referenceLimits = validateReferenceLimits(interaction.referenceLimits, `Model ${productKey}.publicInteraction.referenceLimits`);
-    if (paramSchema.options !== undefined) validateOptions(paramSchema.options, object(interaction.defaultParams, `Model ${productKey}.publicInteraction.defaultParams`), `Model ${productKey}.publicInteraction.paramSchema.options`);
+    const interaction = release.publicInteraction;
+    const paramSchema = interaction.paramSchema;
+    if (channel.profile.advanced?.request?.parameterPolicy?.sizeParam && interaction.defaultParams.sizeMap === undefined) fail(`Model ${productKey} requires defaultParams.sizeMap: its Profile sends a size`);
+    if (interaction.defaultParams.sizeMap !== undefined) validateSizeMap(interaction.defaultParams.sizeMap, array(paramSchema.qualities, `Model ${productKey}.publicInteraction.paramSchema.qualities`, 1), array(paramSchema.aspectRatios, `Model ${productKey}.publicInteraction.paramSchema.aspectRatios`, 1), `Model ${productKey}.publicInteraction.defaultParams.sizeMap`);
+    const referenceLimits = interaction.referenceLimits;
+    if (paramSchema.options !== undefined) validateOptionDefaults(paramSchema.options, interaction.defaultParams, `Model ${productKey}.publicInteraction.paramSchema.options`);
     const defaultIssues = defaultParamsIssues(interaction);
     if (defaultIssues.length) fail(`Model ${productKey} default parameters are refused by its own limits: ${defaultIssues.map((issue) => issue.field).join(", ")}`);
     const contractApi = openApiByKey.get(`${channel.profile.apiId}@${channel.profile.apiVersion}`);
@@ -682,11 +752,6 @@ export function validateCatalogDefinitions(read, options = {}) {
     }
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
-    if (interaction.mediaConstraints !== undefined) validateMediaConstraints(interaction.mediaConstraints, `Model ${productKey}.publicInteraction.mediaConstraints`);
-    for (const [section, sectionValue] of Object.entries(interaction)) {
-      const data = object(sectionValue, `Model ${productKey}.publicInteraction.${section}`);
-      for (const forbidden of ["billingUnit", "billing_unit", "tokenRates", "token_rates"]) if (Object.hasOwn(data, forbidden)) fail(`Model ${productKey} contains commercial pricing field ${forbidden}`);
-    }
     return value;
   });
   unique(models, (value) => value.productKey, "Model productKey");

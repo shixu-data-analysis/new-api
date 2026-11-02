@@ -25,7 +25,7 @@ export const STATIC_I18N_KEYS = [
   'Channel configuration {{id}} does not exist. A model needs its Channel configuration first: create it (its JSON can hold the models too), or use an existing one',
   'Missing: {{keys}}',
   'Model {{n}} of models: {{issue}}',
-  'Not a model of models.json: it needs release.channelId, release.execution.providerModel and release.publicInteraction',
+  'Not a model of models.json: {{issue}}',
   'Paste one model object: an item of models in models.json',
   'Paste one object holding channel, profile and openapi',
   'The JSON is not valid at line {{line}}, near character {{column}}: {{message}}',
