@@ -19,6 +19,9 @@ const invisibleReasonLabels: Record<string, string> = {
   MODEL_UNAVAILABLE: 'Model unavailable',
   PROVIDER_UNAVAILABLE: 'Provider unavailable',
   INTERNAL_ROUTING_UNAVAILABLE: 'Internal routing unavailable',
+  CREDENTIAL_UNBOUND: 'Not bound to an API Key group',
+  CREDENTIAL_UNUSABLE:
+    'API Key group unusable: archived, or not the authentication this Channel sends',
 }
 
 export function ExecutionTargetCoverage(props: {

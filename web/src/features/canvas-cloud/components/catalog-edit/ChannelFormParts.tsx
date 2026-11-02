@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 
 import type { OperationDraft, RequestRow } from '../../catalog-channel-draft'
+import { MATERIAL_SOURCES } from '../../catalog-channel-materials'
 import type { CatalogModelDefinition } from '../../catalog-edit-types'
 import { EditField } from './EditFields'
 
@@ -153,9 +155,15 @@ export function RowsEditor(props: {
   name: 'rows' | 'imageRows'
   errorOf: (path: string) => string | undefined
   models?: CatalogModelDefinition[]
+  /** A video or image form edits the prompt and materials by mode in place of the user-input group. */
+  materials?: { title: string; note: string; content: ReactNode }
   onChange: (rows: RequestRow[]) => void
 }) {
   const { t } = useTranslation()
+  const materialRow = (row: RequestRow) =>
+    Boolean(props.materials) &&
+    (MATERIAL_SOURCES.includes(row.source) ||
+      (row.source === 'expr' && /"media\./.test(row.expr ?? '')))
   const labels: Record<string, string> = {
     upstreamId: t('Upstream model ID'),
     prompt: t('Prompt text'),
@@ -202,17 +210,17 @@ export function RowsEditor(props: {
     ],
     number: [
       ['', t('Number (as it is)')],
-      ['trim', t('Text')],
+      ['trim', t('String')],
       ['integer', t('Integer')],
     ],
     integer: [
       ['', t('Integer (as it is)')],
-      ['trim', t('Text')],
+      ['trim', t('String')],
       ['number', t('Number')],
     ],
     boolean: [
       ['', t('Boolean (as it is)')],
-      ['trim', t('Text')],
+      ['trim', t('String')],
     ],
   }
   const transformLabels: Record<string, string> = {
@@ -225,9 +233,9 @@ export function RowsEditor(props: {
   }
   const shownType: Record<string, string> = {
     messages: t('List of objects'),
-    negativePrompt: t('Text'),
-    orientation: t('Text'),
-    modelSize: t('Text'),
+    negativePrompt: t('String'),
+    orientation: t('String'),
+    modelSize: t('String'),
     imageFiles: t('List of files'),
     imagesBase64: t('List of text'),
     videoFiles: t('List of files'),
@@ -239,14 +247,14 @@ export function RowsEditor(props: {
     videos: t('List of text'),
     audios: t('List of text'),
     imagesByRole: t('List of text'),
-    imageOne: t('Text'),
-    firstFrame: t('Text'),
-    lastFrame: t('Text'),
-    promptOptional: t('Text'),
-    size: t('Text'),
-    apiQuality: t('Text'),
+    imageOne: t('String'),
+    firstFrame: t('String'),
+    lastFrame: t('String'),
+    promptOptional: t('String'),
+    size: t('String'),
+    apiQuality: t('String'),
     count: t('Integer'),
-    ratio: t('Text'),
+    ratio: t('String'),
   }
   const groups: Array<{
     id: Group
@@ -258,7 +266,7 @@ export function RowsEditor(props: {
       id: 'model',
       title: t('Model settings'),
       note: t(
-        'Only the field name is set here; the value is filled in on each model. Each model must fill in a custom parameter once it is added.'
+        'The values come from the parameters of the model or the choice of the user. Each model must fill in a custom parameter once it is added.'
       ),
       add: { field: '', source: 'option', transform: '', paramType: 'string' },
     },
@@ -304,9 +312,27 @@ export function RowsEditor(props: {
   return (
     <div className='space-y-3 md:col-span-2'>
       {groups.map((group) => {
+        if (group.id === 'user' && props.materials) {
+          return (
+            <div
+              key={group.id}
+              className='grid justify-items-stretch gap-2 border-t pt-3'
+            >
+              <div className='grid gap-0.5'>
+                <strong className='font-medium'>{props.materials.title}</strong>
+                <p className='text-muted-foreground text-xs'>
+                  {props.materials.note}
+                </p>
+              </div>
+              {props.materials.content}
+            </div>
+          )
+        }
         const own = props.rows
           .map((row, index) => ({ row, index }))
-          .filter(({ row }) => groupOf(row.source) === group.id)
+          .filter(
+            ({ row }) => groupOf(row.source) === group.id && !materialRow(row)
+          )
         return (
           <div
             key={group.id}
@@ -322,7 +348,9 @@ export function RowsEditor(props: {
                 className={`text-muted-foreground hidden text-xs sm:grid ${MAP_ROW}`}
               >
                 <span>{t('Upstream field')}</span>
-                <span>{t('Value')}</span>
+                <span>
+                  {group.id === 'fixed' ? t('Value') : t('Value from')}
+                </span>
                 <span>{t('Type')}</span>
                 <span />
               </div>
@@ -394,7 +422,7 @@ export function RowsEditor(props: {
                     ['upstreamId', 'prompt'].includes(row.source) &&
                     !row.transform ? (
                       <div className='text-muted-foreground min-h-8 py-1.5 text-sm'>
-                        {t('Text')}
+                        {t('String')}
                       </div>
                     ) : null}
                     {scalarType &&
@@ -444,7 +472,7 @@ export function RowsEditor(props: {
                         }
                       >
                         <NativeSelectOption value='string'>
-                          {t('Text')}
+                          {t('String')}
                         </NativeSelectOption>
                         <NativeSelectOption value='number'>
                           {t('Number')}
@@ -571,7 +599,9 @@ export function RowsEditor(props: {
               className='justify-self-start'
               onClick={() => props.onChange([...props.rows, group.add])}
             >
-              {t('Add a field')}
+              {group.id === 'model' && props.capability !== 'chat.generate'
+                ? t('Add a custom parameter')
+                : t('Add a field')}
             </Button>
           </div>
         )

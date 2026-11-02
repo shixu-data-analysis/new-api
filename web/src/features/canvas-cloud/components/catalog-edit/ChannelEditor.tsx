@@ -27,10 +27,16 @@ import {
   sameDocument,
   unsupportedProfileFields,
   paramKeyOf,
-  readResponseSample,
   withChatStreaming,
   type ChannelDraft,
 } from '../../catalog-channel-draft'
+import {
+  isModeView,
+  materialIssues,
+  withMeasuredAccepts,
+  type BodyName,
+  type MediaMode,
+} from '../../catalog-channel-materials'
 import {
   getCatalogEditorOptions,
   getCurrentCatalog,
@@ -48,6 +54,13 @@ import type {
   CurrentCatalogView,
 } from '../../catalog-edit-types'
 import { diffCatalogJson } from '../../catalog-json-diff'
+import {
+  channelJsonExample,
+  channelJsonIssue,
+  pastedNotes,
+  type ChannelJson,
+  type JsonIssue,
+} from '../../catalog-json-fill'
 import { useModelManagementEditorPage } from '../../model-management-editor-page-context'
 import {
   CanvasManagementTabsList,
@@ -56,8 +69,10 @@ import {
 import { CatalogJsonDiff } from '../CatalogJsonDiff'
 import { catalogEditErrorText, catalogEditFailure } from './catalog-edit-errors'
 import { RowsEditor, OperationFields } from './ChannelFormParts'
+import { ChannelMaterialsSection } from './ChannelMaterialsSection'
 import { ChannelPreview } from './ChannelPreview'
 import { ChannelPublishDialog } from './ChannelPublishDialog'
+import { ChannelResponseSection } from './ChannelResponseSection'
 import {
   EditField,
   EditorFooter,
@@ -65,9 +80,12 @@ import {
   LeaveConfirm,
   SwitchField,
 } from './EditFields'
+import { JsonFillDialog } from './JsonFillDialog'
 import { UnsupportedFieldsNotice } from './ModelEditorSections'
 import { ModelPublishPreview } from './ModelPublishPreview'
 import { NewModelsPage } from './NewModelsPage'
+import { useJsonIssueText } from './use-json-issue-text'
+import { WizardSteps } from './WizardSteps'
 import { workflowLabel } from './workflow-labels'
 
 export type ChannelEditorMode =
@@ -134,20 +152,32 @@ function LoadedChannelEditor(props: {
   const [sourceId, setSourceId] = useState(
     mode.kind === 'new' ? '' : mode.channelId
   )
-  const [createMode, setCreateMode] = useState<'copy' | 'blank'>('copy')
-  const baseProfile = sourceId
+  const [createMode, setCreateMode] = useState<'copy' | 'blank' | 'json'>(
+    'copy'
+  )
+  // A pasted Channel configuration is the base the form builds on, the way a copied one is.
+  const [pasted, setPasted] = useState<{
+    profile: CatalogJson
+    contract: CatalogJson
+    models: CatalogModelDefinition[]
+    notes: JsonIssue[]
+  } | null>(null)
+  const [jsonOpen, setJsonOpen] = useState(false)
+  const issueText = useJsonIssueText()
+  const sourceProfile = sourceId
     ? (profileOfChannel(catalog, sourceId) ?? null)
     : null
-  const baseContract = baseProfile
-    ? (contractOfProfile(catalog, baseProfile) ?? null)
-    : null
+  const baseProfile = sourceProfile ?? pasted?.profile ?? null
+  const baseContract = sourceProfile
+    ? (contractOfProfile(catalog, sourceProfile) ?? null)
+    : (pasted?.contract ?? null)
   const sourceChannel = catalog.bundle.channels.find(
     (channel) => channel.id === sourceId
   )
   const [draft, setDraft] = useState<ChannelDraft>(() =>
     baseProfile && baseContract
-      ? channelDraftFrom(baseProfile, baseContract)
-      : blankChannelDraft('video.generate')
+      ? withMeasuredAccepts(channelDraftFrom(baseProfile, baseContract))
+      : withMeasuredAccepts(blankChannelDraft('video.generate'))
   )
   const [providerId, setProviderId] = useState(sourceChannel?.providerId ?? '')
   const [newProvider, setNewProvider] = useState<CatalogEditDraftProvider>({
@@ -160,12 +190,9 @@ function LoadedChannelEditor(props: {
   })
   const [channelName, setChannelName] = useState('')
   const [tab, setTab] = useState<'form' | 'json'>('form')
-  const [showRoles, setShowRoles] = useState(false)
+  // The canvas mode the materials section and the preview show; each body falls back to a mode it has.
+  const [mediaMode, setMediaMode] = useState<MediaMode>()
   const [leaving, setLeaving] = useState(false)
-  const [testResponse, setTestResponse] = useState('')
-  const [testResult, setTestResult] = useState<
-    { error: string } | { rows: Array<[string, string]> } | null
-  >(null)
   const [step, setStep] = useState<1 | 2>(1)
   const [activeTab, setActiveTab] = useState<'body' | 'bodyWithImages'>('body')
   const [issues, setIssues] = useState<
@@ -329,7 +356,22 @@ function LoadedChannelEditor(props: {
         },
       ]
     }
-    const found = channelIssues(draft, baseProfile).map((issue) => ({
+    if (!isEdit && createMode === 'json' && !pasted) {
+      return [{ path: 'json', message: t('Paste the JSON first') }]
+    }
+    // The models on an edited Channel need the materials their modes take.
+    const modelsOnChannel = isEdit
+      ? onChannel.map((model) => ({
+          key: model.productKey,
+          limits: model.release.publicInteraction.referenceLimits as
+            | Record<string, unknown>
+            | undefined,
+        }))
+      : []
+    const found = [
+      ...channelIssues(draft, baseProfile),
+      ...materialIssues(draft, modelsOnChannel),
+    ].map((issue) => ({
       path: issue.path,
       message: t(issue.key, issue.values ?? {}),
     }))
@@ -587,8 +629,22 @@ function LoadedChannelEditor(props: {
   if (step === 2) {
     return (
       <div className='space-y-4'>
+        <WizardSteps
+          current={2}
+          channelPasted={Boolean(pasted)}
+          pastedModels={pasted?.models.length ?? 0}
+        />
         <NewModelsPage
           channelId={channelId}
+          {...(pasted?.models.length
+            ? {
+                // The page owns the Channel's identity, so a code changed after the paste carries its models along.
+                initialModels: pasted.models.map((model) => ({
+                  ...model,
+                  release: { ...model.release, channelId },
+                })),
+              }
+            : {})}
           catalogOverride={overlay}
           shared={{
             extraDraft: {
@@ -633,7 +689,11 @@ function LoadedChannelEditor(props: {
     : capabilityNames[draft.capability]
   const isChat = draft.capability === 'chat.generate'
   const polls = draft.workflow !== 'sync'
-  const ready = isEdit || createMode === 'blank' || Boolean(sourceId)
+  const ready =
+    isEdit ||
+    createMode === 'blank' ||
+    Boolean(sourceId) ||
+    (createMode === 'json' && Boolean(pasted))
   const pathExamples: Record<string, Record<string, string>> = {
     'video.generate': {
       submit: '/v1/videos',
@@ -660,7 +720,10 @@ function LoadedChannelEditor(props: {
     'Choose the request format from the upstream documents: application/json is JSON; multipart/form-data, or a required file upload, is a file form.'
   )
   const taskPathHelp = t(
-    'Use . for levels, such as data.id. Separate several with commas.'
+    'Use . for levels and [0] for an item of a list, such as data.id or data[0].id. Separate several with commas; the first that has a value is used.'
+  )
+  const statusPathHelp = t(
+    'Use . for levels, such as data.status. Separate several with commas; the first that has a value is used.'
   )
   const dottedHelp = t(
     'Use . for levels and [] for lists, such as data[].url. Separate several with commas.'
@@ -688,21 +751,6 @@ function LoadedChannelEditor(props: {
   }
   const mediaKinds = MEDIA_KINDS[draft.capability] ?? []
   const kindLabels = { image: t('Image'), video: t('Video'), audio: t('Audio') }
-  const roleLabels: Record<string, string> = {
-    'first-frame': t('First frame'),
-    'last-frame': t('Last frame'),
-    'image-reference': t('Reference image'),
-    'video-reference': t('Reference video'),
-    'audio-reference': t('Reference audio'),
-    'connected-input': t('Connected input'),
-    'prompt-reference': t('Prompt reference'),
-  }
-  const setRoles = Object.values(draft.roleMap).filter((value) =>
-    String(value).trim()
-  ).length
-  const shownRolesLabel = setRoles
-    ? t('Upstream role names ({{count}} set)', { count: setRoles })
-    : t('Upstream role names')
   const assetKinds = (['image', 'video', 'audio'] as const).filter(
     (kind) => draft.media[kind] === 'provider-asset'
   )
@@ -733,7 +781,7 @@ function LoadedChannelEditor(props: {
     const profile = next ? profileOfChannel(catalog, next) : undefined
     const contract = profile ? contractOfProfile(catalog, profile) : undefined
     if (profile && contract) {
-      setDraft(channelDraftFrom(profile, contract))
+      setDraft(withMeasuredAccepts(channelDraftFrom(profile, contract)))
       setProviderId(
         catalog.bundle.channels.find((channel) => channel.id === next)
           ?.providerId ?? ''
@@ -742,54 +790,68 @@ function LoadedChannelEditor(props: {
   }
   const chooseCapability = (capability: string) => {
     setSourceId('')
-    setDraft(blankChannelDraft(capability))
+    setPasted(null)
+    setDraft(withMeasuredAccepts(blankChannelDraft(capability)))
     setPlan(null)
   }
-  const chooseCreateMode = (next: 'copy' | 'blank') => {
+  const chooseCreateMode = (next: 'copy' | 'blank' | 'json') => {
     setCreateMode(next)
     setSourceId('')
-    setDraft(blankChannelDraft(draft.capability))
+    setPasted(null)
+    // Filling from JSON starts with the paste, so its dialog opens at once.
+    setJsonOpen(next === 'json')
+    setDraft(withMeasuredAccepts(blankChannelDraft(draft.capability)))
     setPlan(null)
+  }
+  // Read the way copying a Channel configuration reads one; the form then checks and publishes it as usual.
+  const fillFromJson = (json: unknown): JsonIssue | null => {
+    const issue = channelJsonIssue(json, catalog, options.capabilities)
+    if (issue) return issue
+    const { provider, channel, profile, openapi, models } = json as ChannelJson
+    let filled: ChannelDraft
+    try {
+      filled = withMeasuredAccepts(channelDraftFrom(profile, openapi))
+    } catch (error) {
+      return {
+        key: 'This configuration cannot be read: {{message}}',
+        values: { message: error instanceof Error ? error.message : '' },
+      }
+    }
+    const known = catalog.bundle.providers.some(
+      (entry) => entry.id === channel.providerId
+    )
+    setDraft(filled)
+    setSourceId('')
+    setPlan(null)
+    setProviderId(known ? channel.providerId : '__new')
+    if (!known && provider) {
+      setNewProvider((current) => ({
+        ...current,
+        id: channel.providerId,
+        internalName: String(provider.internalName ?? ''),
+        baseUrl: String(provider.baseUrl ?? ''),
+        sourceKind: provider.sourceKind === 'official' ? 'official' : 'relay',
+      }))
+    }
+    setChannelName(channel.id.slice(channel.providerId.length + 1))
+    setPasted({
+      profile,
+      contract: openapi,
+      models: models ?? [],
+      notes: pastedNotes(json as ChannelJson, catalog),
+    })
+    toast.success(
+      models?.length
+        ? t(
+            'Filled in the Channel configuration; {{count}} models are filled in at the next step',
+            { count: models.length }
+          )
+        : t('Filled in; check it, then validate and publish')
+    )
+    return null
   }
   const setChatStreaming = (streaming: boolean) =>
     set(withChatStreaming(draft, streaming))
-  const runResponseTest = () => {
-    try {
-      const read = readResponseSample(draft, testResponse)
-      const text = (value: unknown) => {
-        if (value === undefined || value === null) return t('Not read')
-        return typeof value === 'object' ? JSON.stringify(value) : String(value)
-      }
-      const stateNames = {
-        pending: t('Queued'),
-        running: t('Generating'),
-        succeeded: t('Success'),
-        failed: t('Failure'),
-      }
-      const rows: Array<[string, string]> = []
-      if (polls) {
-        rows.push(
-          [t('Task ID'), text(read.taskId)],
-          [
-            t('Status'),
-            read.status === undefined
-              ? t('Not read')
-              : `${text(read.status)} → ${read.state ? stateNames[read.state] : t('Matches no state')}`,
-          ]
-        )
-      }
-      rows.push(
-        [
-          t('Result'),
-          read.outputs.length ? read.outputs.join(t(', ')) : t('Not read'),
-        ],
-        [t('Error'), text(read.error)]
-      )
-      setTestResult({ rows })
-    } catch {
-      setTestResult({ error: t('Not valid JSON') })
-    }
-  }
   const unsaved =
     isEdit &&
     baseProfile &&
@@ -810,14 +872,39 @@ function LoadedChannelEditor(props: {
     setLeaving(true)
   }
   const rowModels = isEdit ? { models: onChannel } : {}
+  // Video and image forms send the prompt and materials by canvas mode; text forms keep the user-input group.
+  const materialsFor = (body: BodyName) =>
+    isModeView(draft.capability)
+      ? {
+          title: t('Prompt and materials'),
+          note: t('The user provides them for each generation.'),
+          content: (
+            <ChannelMaterialsSection
+              draft={draft}
+              body={body}
+              mode={mediaMode}
+              onMode={setMediaMode}
+              onChange={(next) => set(next)}
+              errorOf={errorOf}
+            />
+          ),
+        }
+      : undefined
   const errorOf = (path: string) =>
     issues.find((issue) => issue.path === path)?.message
   const rowIssues = (name: 'rows' | 'imageRows') =>
     issues.filter(
       (issue) => issue.path === name || issue.path.startsWith(`${name}.`)
     ).length
-  // What the Channel really sends: the example uses its first model.
+  // What the Channel really sends: the example uses its first model, with the values changed on this page.
   const firstModel = onChannel[0]?.release.execution.providerModel
+  const previewDefaults = onChannel[0]
+    ? (
+        modelsWithValues().find(
+          (entry) => entry.definition.productKey === onChannel[0].productKey
+        )?.definition ?? onChannel[0]
+      ).release.publicInteraction.defaultParams
+    : undefined
   const firstUpstreamId =
     firstModel &&
     ('modelId' in firstModel
@@ -858,7 +945,9 @@ function LoadedChannelEditor(props: {
             title={t('Adapter profile')}
             summary={
               baseProfile
-                ? t('Compared with {{source}}', { source: sourceId })
+                ? t('Compared with {{source}}', {
+                    source: sourceId || t('the pasted JSON'),
+                  })
                 : t('New')
             }
             diff={diffCatalogJson(baseProfile, builtForPreview)}
@@ -879,6 +968,117 @@ function LoadedChannelEditor(props: {
         <h3 className='text-sm font-medium'>{title}</h3>
         <span className='text-muted-foreground text-sm'>{summary}</span>
       </div>
+      {isEdit ? null : (
+        <WizardSteps
+          current={1}
+          channelPasted={Boolean(pasted)}
+          pastedModels={pasted?.models.length ?? 0}
+        />
+      )}
+      {jsonOpen ? (
+        <JsonFillDialog
+          title={t('Fill the Channel configuration from JSON')}
+          summary={
+            <>
+              {t(
+                'channel, profile and openapi are required; add provider for a new API provider, and models to add models with it. An API provider comes first, then the Channel configuration, then models.'
+              )}
+            </>
+          }
+          heads={[
+            t('Key'),
+            t('What it holds'),
+            t('Where to get it'),
+            t('Required'),
+          ]}
+          rows={[
+            [
+              'provider',
+              t('API provider'),
+              t('An item of providers.json'),
+              t(
+                'Only for a new API provider; its id equals channel.providerId'
+              ),
+            ],
+            [
+              'channel',
+              t('Channel configuration'),
+              t('An item of channels.json'),
+              t(
+                'Required. id is "provider code.Channel name"; adapterProfile.id equals profile.id'
+              ),
+            ],
+            [
+              'profile',
+              t('Adapter profile'),
+              t('A whole profiles/*.profile.json file'),
+              t('Required'),
+            ],
+            [
+              'openapi',
+              t('API contract'),
+              t('A whole openapi/*.openapi.json file'),
+              t('Required, with every operationId of profile.operations'),
+            ],
+            [
+              'models',
+              t('Models'),
+              t('Items of models in models.json'),
+              t('Optional; filled in at the next step'),
+            ],
+          ].map(([key, ...cells]) => ({
+            key,
+            cells: [
+              <code key='key' className='font-mono'>
+                {key}
+              </code>,
+              ...cells,
+            ],
+          }))}
+          notes={[
+            t(
+              'Write the content as the files of a Bundle: export the current catalog as a Bundle and use the files of the same name, or change an example below. JSON given by the filling guide is already in this format.'
+            ),
+            t(
+              'The Channel code, version numbers and operationIds are assigned by the page; the pasted ones are not used.'
+            ),
+          ]}
+          placeholder={`{
+  "provider": { … },      ← ${t('only for a new API provider')}
+  "channel": {
+    "id": "acme.wan-video",
+    "providerId": "acme",
+    "adapterProfile": { "id": "acme.wan-video", "version": "1.0.0" }
+  },
+  "profile": { … },       ← ${t('the whole adapter profile file')}
+  "openapi": { … },       ← ${t('the whole API contract file')}
+  "models": [ … ]         ← ${t('optional, filled in at the next step')}
+}`}
+          example={{
+            label: t('Make an example from a Channel configuration'),
+            options: catalog.bundle.channels.map((channel) => ({
+              value: channel.id,
+              label: `${channel.id}${t('({{note}})', {
+                note:
+                  capabilityNames[
+                    String(profileOfChannel(catalog, channel.id)?.kind)
+                  ] ?? '',
+              })}`,
+            })),
+            make: (id) => channelJsonExample(catalog, id),
+          }}
+          confirmFor={(parsed) => {
+            const count = (parsed as { models?: unknown[] } | null)?.models
+            return Array.isArray(count) && count.length
+              ? t('Fill in the Channel configuration and {{count}} models', {
+                  count: count.length,
+                })
+              : t('Fill in')
+          }}
+          fill={fillFromJson}
+          onClose={() => setJsonOpen(false)}
+        />
+      ) : null}
       <Tabs
         value={tab}
         onValueChange={(next) => setTab(next as 'form' | 'json')}
@@ -936,7 +1136,7 @@ function LoadedChannelEditor(props: {
                         value={createMode}
                         onChange={(event) =>
                           chooseCreateMode(
-                            event.target.value as 'copy' | 'blank'
+                            event.target.value as 'copy' | 'blank' | 'json'
                           )
                         }
                       >
@@ -945,6 +1145,9 @@ function LoadedChannelEditor(props: {
                         </NativeSelectOption>
                         <NativeSelectOption value='blank'>
                           {t('Start from blank')}
+                        </NativeSelectOption>
+                        <NativeSelectOption value='json'>
+                          {t('Fill from JSON')}
                         </NativeSelectOption>
                       </NativeSelect>
                     )}
@@ -982,6 +1185,72 @@ function LoadedChannelEditor(props: {
                         </NativeSelect>
                       )}
                     </EditField>
+                  ) : null}
+                  {createMode === 'json' ? (
+                    <div className='space-y-2 md:col-span-2'>
+                      {pasted ? (
+                        <div
+                          role='note'
+                          className='bg-muted/50 space-y-1 rounded-lg border p-3 text-sm'
+                        >
+                          <strong className='font-medium'>
+                            {t('Filled from JSON')}
+                          </strong>
+                          <ul className='list-disc space-y-0.5 pl-5'>
+                            <li>
+                              {t('API provider: {{name}}', {
+                                name: isNewProvider
+                                  ? t('{{name}} ({{id}}, new)', {
+                                      name:
+                                        newProvider.internalName ||
+                                        newProvider.id,
+                                      id: newProvider.id,
+                                    })
+                                  : t('{{name}} ({{id}}, existing)', {
+                                      name:
+                                        provider?.internalName ?? providerId,
+                                      id: providerId,
+                                    }),
+                              })}
+                            </li>
+                            <li>
+                              {t('Channel configuration:')}{' '}
+                              <code className='font-mono'>{channelId}</code>
+                            </li>
+                          </ul>
+                          {pasted.notes.map((note) => (
+                            <p
+                              key={note.key}
+                              className='text-muted-foreground text-xs [overflow-wrap:anywhere]'
+                            >
+                              {issueText(note)}
+                            </p>
+                          ))}
+                          <p className='text-muted-foreground text-xs'>
+                            {t('The form below can still be changed.')}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className='text-muted-foreground text-xs'>
+                          {t(
+                            'Paste the Channel configuration, adapter profile and API contract in the Bundle format; they fill the form below.'
+                          )}
+                        </p>
+                      )}
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setJsonOpen(true)}
+                      >
+                        {pasted ? t('Paste JSON again') : t('Paste JSON')}
+                      </Button>
+                      {errorOf('json') ? (
+                        <p role='alert' className='text-destructive text-xs'>
+                          {errorOf('json')}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </EditSection>
               ) : null}
@@ -1329,6 +1598,7 @@ function LoadedChannelEditor(props: {
                             name='rows'
                             errorOf={errorOf}
                             {...rowModels}
+                            materials={materialsFor('rows')}
                             rows={draft.rows}
                             capability={draft.capability}
                             onChange={(rows) => set({ rows })}
@@ -1339,6 +1609,7 @@ function LoadedChannelEditor(props: {
                             name='imageRows'
                             errorOf={errorOf}
                             {...rowModels}
+                            materials={materialsFor('imageRows')}
                             rows={draft.imageRows}
                             capability={draft.capability}
                             onChange={(imageRows) => set({ imageRows })}
@@ -1350,6 +1621,7 @@ function LoadedChannelEditor(props: {
                         name='rows'
                         errorOf={errorOf}
                         {...rowModels}
+                        materials={materialsFor('rows')}
                         rows={draft.rows}
                         capability={draft.capability}
                         onChange={(rows) => set({ rows })}
@@ -1407,42 +1679,6 @@ function LoadedChannelEditor(props: {
                           )}
                         </EditField>
                       ))}
-                      {draft.capability === 'video.generate' ? (
-                        <div className='md:col-span-2'>
-                          <Button
-                            type='button'
-                            variant='outline'
-                            size='sm'
-                            onClick={() => setShowRoles((current) => !current)}
-                          >
-                            {showRoles
-                              ? t('Hide upstream role names')
-                              : shownRolesLabel}
-                          </Button>
-                        </div>
-                      ) : null}
-                      {draft.capability === 'video.generate' && showRoles
-                        ? Object.entries(roleLabels).map(([role, label]) => (
-                            <EditField key={role} label={label}>
-                              {(id) => (
-                                <Input
-                                  id={id}
-                                  className='font-mono'
-                                  placeholder={role}
-                                  value={draft.roleMap[role] ?? ''}
-                                  onChange={(event) =>
-                                    set({
-                                      roleMap: {
-                                        ...draft.roleMap,
-                                        [role]: event.target.value,
-                                      },
-                                    })
-                                  }
-                                />
-                              )}
-                            </EditField>
-                          ))
-                        : null}
                     </EditSection>
                   ) : null}
                   {draft.workflow === 'asset-async' ? (
@@ -1492,10 +1728,14 @@ function LoadedChannelEditor(props: {
                               error={errorOf(`asset.${kind}.body`)}
                               label={t('Upload request body (JSON)')}
                               wide
+                              help={t(
+                                'Can use the material address request.mediaPublicUrl, the file name request.mediaSafeName and the type request.mediaAssetType (Image, Video, Audio). The upload materials request on the right shows what is sent.'
+                              )}
                             >
-                              {(id) => (
+                              {(id, describedBy) => (
                                 <Textarea
                                   id={id}
+                                  aria-describedby={describedBy}
                                   rows={3}
                                   className='font-mono text-xs'
                                   value={asset.body}
@@ -1527,7 +1767,7 @@ function LoadedChannelEditor(props: {
                             </EditField>
                             <EditField
                               label={t('Status path')}
-                              help={taskPathHelp}
+                              help={statusPathHelp}
                             >
                               {(id, describedBy) => (
                                 <Input
@@ -1620,367 +1860,18 @@ function LoadedChannelEditor(props: {
                       })}
                     </EditSection>
                   ) : null}
-                  {polls ? (
-                    <EditSection
-                      title={t('Submit response')}
-                      description={t(
-                        'After a successful submit, the task ID is read from the response. Leave these empty when it has the same structure as the query response.'
-                      )}
-                    >
-                      <EditField label={t('Task ID path')} help={taskPathHelp}>
-                        {(id, describedBy) => (
-                          <Input
-                            id={id}
-                            aria-describedby={describedBy}
-                            className='font-mono'
-                            placeholder='data.id'
-                            value={draft.submitTaskId}
-                            onChange={(event) =>
-                              set({ submitTaskId: event.target.value })
-                            }
-                          />
-                        )}
-                      </EditField>
-                      <EditField label={t('Status path')} help={taskPathHelp}>
-                        {(id, describedBy) => (
-                          <Input
-                            id={id}
-                            aria-describedby={describedBy}
-                            className='font-mono'
-                            placeholder='data.status'
-                            value={draft.submitStatus}
-                            onChange={(event) =>
-                              set({ submitStatus: event.target.value })
-                            }
-                          />
-                        )}
-                      </EditField>
-                    </EditSection>
-                  ) : null}
-                  <EditSection
-                    title={polls ? t('Query (polling)') : t('Response')}
-                    description={
-                      polls
-                        ? t(
-                            'After submit, this path is queried again and again until the task ends.'
-                          )
-                        : t(
-                            'Results and errors are read from the upstream response.'
-                          )
-                    }
-                  >
-                    {polls ? (
-                      <>
-                        <OperationFields
-                          error={errorOf('poll.path')}
-                          label={t('Query path')}
-                          operation={draft.poll}
-                          placeholder={paths.poll ?? ''}
-                          withFormat={false}
-                          onChange={(poll) =>
-                            set({ poll: { ...draft.poll, ...poll } })
-                          }
-                        />
-                        <EditField
-                          label={t('Task ID goes in')}
-                          help={
-                            draft.poll.taskIdIn === 'path'
-                              ? t(
-                                  'Write a placeholder in the path, such as /v1/videos/{taskId}'
-                                )
-                              : undefined
-                          }
-                        >
-                          {(id, describedBy) => (
-                            <NativeSelect
-                              id={id}
-                              className='w-full'
-                              aria-describedby={describedBy}
-                              value={draft.poll.taskIdIn}
-                              onChange={(event) =>
-                                set({
-                                  poll: {
-                                    ...draft.poll,
-                                    taskIdIn: event.target.value as 'path',
-                                  },
-                                })
-                              }
-                            >
-                              <NativeSelectOption value='path'>
-                                {t('The path')}
-                              </NativeSelectOption>
-                              <NativeSelectOption value='query'>
-                                {t('A query parameter')}
-                              </NativeSelectOption>
-                            </NativeSelect>
-                          )}
-                        </EditField>
-                        {draft.poll.taskIdIn === 'query' ? (
-                          <EditField
-                            error={errorOf('poll.queryName')}
-                            label={t('Query parameter')}
-                            help={t(
-                              'For example id; the request is /v1/tasks?id=the task ID'
-                            )}
-                          >
-                            {(id, describedBy) => (
-                              <Input
-                                id={id}
-                                aria-describedby={describedBy}
-                                className='font-mono'
-                                placeholder='id'
-                                value={draft.poll.queryName}
-                                onChange={(event) =>
-                                  set({
-                                    poll: {
-                                      ...draft.poll,
-                                      queryName: event.target.value,
-                                    },
-                                  })
-                                }
-                              />
-                            )}
-                          </EditField>
-                        ) : null}
-                        <EditField
-                          error={errorOf('pollIntervalMs')}
-                          label={t('Poll interval (ms)')}
-                          help={t(
-                            'Empty uses the system default ({{ms}} ms). Fill it in only when the upstream demands one.',
-                            { ms: options.defaults.pollIntervalMs }
-                          )}
-                        >
-                          {(id, describedBy) => (
-                            <Input
-                              id={id}
-                              type='number'
-                              aria-describedby={describedBy}
-                              placeholder={String(
-                                options.defaults.pollIntervalMs
-                              )}
-                              value={draft.pollIntervalMs}
-                              onChange={(event) =>
-                                set({ pollIntervalMs: event.target.value })
-                              }
-                            />
-                          )}
-                        </EditField>
-                        <div className='md:col-span-2'>
-                          <strong className='font-medium'>
-                            {t('Query response')}
-                          </strong>
-                          <p className='text-muted-foreground text-xs'>
-                            {t(
-                              'Every query reads the status; success reads the result and failure reads the error. State values are the raw values of the upstream; separate several with commas.'
-                            )}
-                          </p>
-                        </div>
-                        <EditField
-                          error={errorOf('taskIdPath')}
-                          label={t('Task ID path')}
-                          help={taskPathHelp}
-                        >
-                          {(id, describedBy) => (
-                            <Input
-                              id={id}
-                              aria-describedby={describedBy}
-                              className='font-mono'
-                              placeholder='data.id'
-                              value={draft.taskIdPath}
-                              onChange={(event) =>
-                                set({ taskIdPath: event.target.value })
-                              }
-                            />
-                          )}
-                        </EditField>
-                        <EditField
-                          error={errorOf('statusPath')}
-                          label={t('Status path')}
-                          help={taskPathHelp}
-                        >
-                          {(id, describedBy) => (
-                            <Input
-                              id={id}
-                              aria-describedby={describedBy}
-                              className='font-mono'
-                              placeholder='data.status'
-                              value={draft.statusPath}
-                              onChange={(event) =>
-                                set({ statusPath: event.target.value })
-                              }
-                            />
-                          )}
-                        </EditField>
-                        {(
-                          ['pending', 'running', 'succeeded', 'failed'] as const
-                        ).map((group) => (
-                          <EditField
-                            key={group}
-                            error={errorOf(`states.${group}`)}
-                            label={
-                              {
-                                pending: t('Queued values'),
-                                running: t('Generating values'),
-                                succeeded: t('Success values'),
-                                failed: t('Failure values'),
-                              }[group]
-                            }
-                          >
-                            {(id) => (
-                              <Input
-                                id={id}
-                                className='font-mono'
-                                placeholder={
-                                  {
-                                    pending: 'queued, pending',
-                                    running: 'processing',
-                                    succeeded: 'completed',
-                                    failed: 'failed',
-                                  }[group]
-                                }
-                                value={draft.states[group]}
-                                onChange={(event) =>
-                                  set({
-                                    states: {
-                                      ...draft.states,
-                                      [group]: event.target.value,
-                                    },
-                                  })
-                                }
-                              />
-                            )}
-                          </EditField>
-                        ))}
-                      </>
-                    ) : null}
-                    <EditField
-                      label={t('Usage format')}
-                      error={errorOf('usage')}
-                      help={
-                        isChat
-                          ? t(
-                              'Decides how usage is read and billed. An OpenAI-compatible upstream usually uses OpenAI Chat.'
-                            )
-                          : t(
-                              'Choose a format when the upstream returns Token usage and a model bills by Token; per request and per second need nothing here.'
-                            )
-                      }
-                    >
-                      {(id, describedBy) => (
-                        <NativeSelect
-                          id={id}
-                          className='w-full'
-                          aria-describedby={describedBy}
-                          value={draft.usageProtocol}
-                          onChange={(event) =>
-                            set({ usageProtocol: event.target.value })
-                          }
-                        >
-                          {isChat ? null : (
-                            <NativeSelectOption value=''>
-                              {t('Does not read usage')}
-                            </NativeSelectOption>
-                          )}
-                          {usageChoices.map((protocol) => (
-                            <NativeSelectOption key={protocol} value={protocol}>
-                              {protocol}
-                            </NativeSelectOption>
-                          ))}
-                        </NativeSelect>
-                      )}
-                    </EditField>
-                    {isChat && draft.streaming ? null : (
-                      <EditField
-                        error={errorOf('outputPaths')}
-                        label={t('Result paths')}
-                        help={dottedHelp}
-                      >
-                        {(id, describedBy) => (
-                          <Input
-                            id={id}
-                            aria-describedby={describedBy}
-                            className='font-mono'
-                            placeholder={
-                              isChat
-                                ? 'choices[].message.content'
-                                : 'data[].url'
-                            }
-                            value={draft.outputPaths}
-                            onChange={(event) =>
-                              set({ outputPaths: event.target.value })
-                            }
-                          />
-                        )}
-                      </EditField>
-                    )}
-                    <EditField label={t('Error paths')} help={dottedHelp}>
-                      {(id, describedBy) => (
-                        <Input
-                          id={id}
-                          aria-describedby={describedBy}
-                          className='font-mono'
-                          placeholder='error.message'
-                          value={draft.errorPaths}
-                          onChange={(event) =>
-                            set({ errorPaths: event.target.value })
-                          }
-                        />
-                      )}
-                    </EditField>
-                    {isChat ? null : (
-                      <div className='space-y-2 md:col-span-2'>
-                        <strong className='font-medium'>
-                          {t('Try reading a response')}
-                        </strong>
-                        <p className='text-muted-foreground text-xs'>
-                          {t(
-                            'Paste a response example from the upstream documents to check that the paths above can read it. Nothing calls the upstream and nothing costs money.'
-                          )}
-                        </p>
-                        <Textarea
-                          aria-label={t('Pasted response JSON')}
-                          rows={4}
-                          className='font-mono text-xs'
-                          placeholder='{ "data": [{ "url": "https://example.com/out.png" }] }'
-                          value={testResponse}
-                          onChange={(event) =>
-                            setTestResponse(event.target.value)
-                          }
-                        />
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={runResponseTest}
-                        >
-                          {t('Read')}
-                        </Button>
-                        {testResult && 'error' in testResult ? (
-                          <p role='alert' className='text-destructive text-xs'>
-                            {testResult.error}
-                          </p>
-                        ) : null}
-                        {testResult && 'rows' in testResult ? (
-                          <dl className='grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs'>
-                            {testResult.rows.flatMap(([name, value]) => [
-                              <dt
-                                key={`${name}-name`}
-                                className='text-muted-foreground'
-                              >
-                                {name}
-                              </dt>,
-                              <dd
-                                key={`${name}-value`}
-                                className='m-0 font-mono [overflow-wrap:anywhere]'
-                              >
-                                {value}
-                              </dd>,
-                            ])}
-                          </dl>
-                        ) : null}
-                      </div>
-                    )}
-                  </EditSection>
+                  <ChannelResponseSection
+                    key={`${sourceId}:${createMode}:${draft.capability}`}
+                    draft={draft}
+                    set={set}
+                    errorOf={errorOf}
+                    pollPlaceholder={paths.poll ?? ''}
+                    defaultPollIntervalMs={options.defaults.pollIntervalMs}
+                    usageChoices={usageChoices}
+                    taskPathHelp={taskPathHelp}
+                    statusPathHelp={statusPathHelp}
+                    dottedHelp={dottedHelp}
+                  />
                   {isEdit && optionRows.length && onChannel.length ? (
                     <EditSection
                       title={t('Values of each model')}
@@ -2260,9 +2151,17 @@ function LoadedChannelEditor(props: {
             {ready ? (
               <ChannelPreview
                 draft={draft}
+                body={
+                  draft.images && activeTab === 'bodyWithImages'
+                    ? 'imageRows'
+                    : 'rows'
+                }
+                mode={mediaMode}
+                onMode={setMediaMode}
                 profile={builtForPreview}
                 baseUrl={baseUrl}
                 upstreamId={firstUpstreamId}
+                {...(previewDefaults ? { defaults: previewDefaults } : {})}
               />
             ) : null}
           </div>

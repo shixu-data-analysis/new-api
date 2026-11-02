@@ -29,6 +29,19 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 
+import { measuredForProfile } from '../../catalog-channel-materials'
+import {
+  copiedGroupChoice,
+  defaultGroupChoice,
+  draftBinding,
+  groupIssues,
+  groupsOfProvider,
+  NEW_GROUP,
+  NO_GROUP,
+  suggestedGroupName,
+  type GroupChoice,
+  type NewGroupDraft,
+} from '../../catalog-credential-groups'
 import {
   getCatalogEditorOptions,
   getCatalogModelVersion,
@@ -63,6 +76,11 @@ import type {
   CatalogModelVersionFact,
   CurrentCatalogView,
 } from '../../catalog-edit-types'
+import {
+  modelJsonIssue,
+  type JsonIssue,
+  type ModelJsonPlace,
+} from '../../catalog-json-fill'
 import { useModelManagementEditorPage } from '../../model-management-editor-page-context'
 import {
   CanvasManagementTabsList,
@@ -75,6 +93,7 @@ import {
   catalogErrorField,
 } from './catalog-edit-errors'
 import { ComparedWithContext } from './compared-with-context'
+import { CredentialGroupFields } from './CredentialGroupFields'
 import {
   EditField,
   EditorFooter,
@@ -90,6 +109,7 @@ import {
   ModelTokenSection,
   UnsupportedFieldsNotice,
 } from './ModelEditorSections'
+import { ModelJsonFill } from './ModelJsonFill'
 import { ModelJsonView } from './ModelJsonView'
 import { ModelPublishPreview } from './ModelPublishPreview'
 
@@ -150,25 +170,66 @@ function withoutEmpty(model: CatalogModelDefinition): CatalogModelDefinition {
   return model
 }
 
+/** A page for one Channel configuration fills only its models; an edited model keeps its key. */
+function jsonPlaceOf(
+  mode: ModelEditorMode,
+  source: CatalogModelDefinition | null
+): ModelJsonPlace {
+  if (mode.kind === 'new') {
+    return mode.channelId ? { channelId: mode.channelId } : {}
+  }
+  const channelId = source?.release.channelId
+  if (mode.kind === 'copy') return channelId ? { channelId } : {}
+  return { ...(channelId ? { channelId } : {}), productKey: mode.modelKey }
+}
+
+function customKey(
+  catalog: CurrentCatalogView,
+  model: CatalogModelDefinition
+): boolean {
+  if (!model.productKey) return false
+  const providerId = catalog.bundle.channels.find(
+    (entry) => entry.id === model.release.channelId
+  )?.providerId
+  const providerModel = model.release.execution.providerModel
+  const firstId =
+    'modelId' in providerModel
+      ? providerModel.modelId
+      : (Object.values(providerModel.modelIdByQuality)[0] ?? '')
+  return (
+    !providerId ||
+    !firstId ||
+    model.productKey !==
+      generatedProductKey(providerId, model.capability, firstId)
+  )
+}
+
 /** Inside the new Channel flow: the Channel is not published yet, so the parent keeps the draft and publishes all together. */
 export interface EmbeddedModelEditor {
-  /** Typed once on this page: every model added here shares the API Key of a provider that has none. */
-  apiKey: string
-  onApiKeyChange: (apiKey: string) => void
+  /** The group made on this page, typed once: every model on the page can bind it. */
+  newGroup: NewGroupDraft
+  onNewGroupChange: (next: NewGroupDraft) => void
   extraDraft: Pick<CatalogEditDraft, 'providers' | 'channels'>
+  /** `pending` counts what the form would mark, so the page can send the administrator to a model with problems. */
   onChange: (
     model: CatalogModelDefinition | null,
-    credentialGroup: string
+    credentialGroup: GroupChoice,
+    pending: number
   ) => void
   initialDraft?: CatalogModelDefinition | null
-  initialCredentialGroup?: string
+  initialCredentialGroup?: GroupChoice
+  /** The page moved here because this model has problems: they show at once. */
+  showErrors?: boolean
   /** The other models added on this page; they are published with this one. */
   others?: CatalogEditDraftModel[]
   slots?: {
     tabs: Array<{ id: string; name: string }>
     index: number
-    onShow: (index: number) => void
+    /** Another model of the page that still has problems. */
+    pendingAt: number | null
+    onShow: (index: number, showErrors?: boolean) => void
     onAdd: () => void
+    onFill: (models: CatalogModelDefinition[]) => void
     onCopy: () => void
     onRemove: () => void
   }
@@ -252,22 +313,46 @@ function LoadedEditor(props: {
     draft.capability
   )
   const [chosenProvider, setChosenProvider] = useState('')
-  const [keyEdited, setKeyEdited] = useState(false)
+  // A key that differs from the generated one was set on purpose, as a pasted one may be, so it stays.
+  const [keyEdited, setKeyEdited] = useState(() => customKey(catalog, draft))
   const [tab, setTab] = useState<'form' | 'json'>('form')
   const [plan, setPlan] = useState<CatalogEditPlan | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [jsonError, setJsonError] = useState<string>()
-  const [typedKey, setTypedKey] = useState(embedded?.apiKey ?? '')
-  const [credentialGroup, setCredentialGroup] = useState<string>(
-    sourceKey
-      ? (catalog.modelCredentialGroups[sourceKey] ?? '')
-      : (embedded?.initialCredentialGroup ?? '')
-  )
+  const providerIdOf = (channelId: string) =>
+    catalog.bundle.channels.find((entry) => entry.id === channelId)?.providerId
+  const suggestGroupName = (providerId: string | undefined) => {
+    const name =
+      catalog.bundle.providers.find((entry) => entry.id === providerId)
+        ?.internalName ?? ''
+    return suggestedGroupName(
+      groupsOfProvider(catalog, providerId),
+      t('{{name}} main account', { name }),
+      (n) => t('{{name}} account {{n}}', { name, n })
+    )
+  }
+  const [groupChoice, setGroupChoice] = useState<GroupChoice>(() => {
+    if (mode.kind === 'copy') return copiedGroupChoice(catalog, mode.modelKey)
+    if (embedded?.initialCredentialGroup) return embedded.initialCredentialGroup
+    const channelId = draft.release.channelId
+    return channelId
+      ? defaultGroupChoice(catalog, providerIdOf(channelId), channelId)
+      : ''
+  })
+  const [newGroup, setNewGroup] = useState<NewGroupDraft>(() => {
+    const shared = embedded?.newGroup ?? { name: '', apiKey: '' }
+    if (groupChoice !== NEW_GROUP || shared.name.trim()) return shared
+    return {
+      ...shared,
+      name: suggestGroupName(providerIdOf(draft.release.channelId)),
+    }
+  })
   const [inherit, setInherit] = useState({ category: true, icon: true })
   const [latest, setLatest] = useState<CatalogModelVersionFact | null>(null)
   const [choices, setChoices] = useState<Record<string, 'mine' | 'theirs'>>({})
   const [showSizeTable, setShowSizeTable] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const [jsonOpen, setJsonOpen] = useState(false)
   const [channelOnly, setChannelOnly] = useState(false)
   const offered = useRef(new Set<string>())
   const [prefilled, setPrefilled] = useState(0)
@@ -286,6 +371,10 @@ function LoadedEditor(props: {
   const contract = profile ? contractOfProfile(catalog, profile) : undefined
   const sent = useMemo(
     () => sentFieldsOf(profile, contract),
+    [profile, contract]
+  )
+  const accepted = useMemo(
+    () => measuredForProfile(profile, contract),
     [profile, contract]
   )
   const sizeParam = sizeParamOf(profile)
@@ -453,33 +542,55 @@ function LoadedEditor(props: {
 
   const onEmbeddedChange = embedded?.onChange
   useEffect(() => {
+    const started = Boolean(draft.displayName || upstreamId)
     onEmbeddedChange?.(
-      draft.displayName || upstreamId ? withoutEmpty(draft) : null,
-      credentialGroup
+      started ? withoutEmpty(draft) : null,
+      groupChoice,
+      started ? Object.keys(localErrors()).length : 0
     )
     // The parent stores the latest draft; its callback identity does not matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, credentialGroup])
+  }, [draft, groupChoice, newGroup])
 
-  const groups = catalog.credentialGroups.filter(
-    (group) => group.providerId === provider?.id
-  )
-  // A provider without an API Key gets one here; the value stays out of the draft and is saved with the publication.
+  const groups = groupsOfProvider(catalog, provider?.id)
   const activeSlot = embedded?.slots?.index
-  const keyProvider =
-    mode.kind !== 'edit' && groups.length === 0 ? provider : undefined
-  const needsKey = Boolean(keyProvider)
+  const pickGroup = (choice: GroupChoice, providerId = provider?.id) => {
+    setGroupChoice(choice)
+    if (choice === NEW_GROUP && !newGroup.name.trim()) {
+      changeNewGroup({ ...newGroup, name: suggestGroupName(providerId) })
+    }
+  }
+  const changeNewGroup = (next: NewGroupDraft) => {
+    setNewGroup(next)
+    embedded?.onNewGroupChange(next)
+  }
+  // A new group is made once for the page, however many of its models bind it; the key stays out of the draft.
+  const others = embedded?.others ?? []
+  const pageBindsNewGroup =
+    mode.kind !== 'edit' &&
+    (groupChoice === NEW_GROUP ||
+      others.some((entry) => entry.credentialGroup === 'NEW'))
   const newCredentialGroup =
-    keyProvider && typedKey
+    pageBindsNewGroup && provider
       ? {
-          providerId: keyProvider.id,
-          name: t('{{name}} main account', { name: keyProvider.internalName }),
-          apiKey: typedKey,
+          providerId: provider.id,
+          name: newGroup.name.trim(),
+          apiKey: newGroup.apiKey,
         }
       : undefined
-  const previewGroup =
-    credentialGroup ||
-    (sourceKey ? catalog.modelCredentialGroups[sourceKey] : undefined)
+  const chosenVersion =
+    groupChoice && groupChoice !== NEW_GROUP && groupChoice !== NO_GROUP
+      ? groupChoice
+      : undefined
+  // A real call uses the key the model will have: its own group when edited, else the one chosen here.
+  const realCallGroup =
+    mode.kind === 'edit' && sourceKey
+      ? catalog.modelCredentialGroups[sourceKey]
+      : chosenVersion
+  const realCallKey =
+    mode.kind !== 'edit' && groupChoice === NEW_GROUP && newGroup.apiKey
+      ? newGroup.apiKey
+      : undefined
 
   const draftPayload = (): CatalogEditDraft => ({
     providers: embedded?.extraDraft.providers ?? [],
@@ -488,8 +599,8 @@ function LoadedEditor(props: {
       {
         baseVersion,
         definition: withoutEmpty(draft),
-        ...(mode.kind !== 'edit' && credentialGroup
-          ? { credentialGroupVersionId: credentialGroup }
+        ...(mode.kind !== 'edit' && groupChoice
+          ? { credentialGroup: draftBinding(groupChoice) }
           : {}),
         ...(mode.kind === 'copy'
           ? {
@@ -501,7 +612,7 @@ function LoadedEditor(props: {
             }
           : {}),
       },
-      ...(embedded?.others ?? []),
+      ...others,
     ],
   })
 
@@ -509,7 +620,6 @@ function LoadedEditor(props: {
     const found: Record<string, string> = {}
     const interaction = draft.release.publicInteraction
     const qualityList = (interaction.paramSchema.qualities ?? []) as string[]
-    const others = embedded?.others ?? []
     if (!draft.release.channelId) {
       found.channel = t('Choose a Channel configuration')
     }
@@ -580,9 +690,10 @@ function LoadedEditor(props: {
           'Another model added this time has the same product key'
         )
       }
-      if (needsKey && !typedKey) found.apiKey = t('Enter the API Key')
-      if (!needsKey && !credentialGroup) {
-        found.credentialGroup = t('Choose an API Key group')
+      for (const [field, key] of Object.entries(
+        groupIssues(groupChoice, newGroup, groups)
+      )) {
+        found[field] = t(key)
       }
     }
     const ratios = (interaction.paramSchema.aspectRatios ?? []) as string[]
@@ -657,6 +768,13 @@ function LoadedEditor(props: {
     if (field) setTab('form')
   }
 
+  // Sent here from another model of the page, the problems of this one show at once.
+  useEffect(() => {
+    if (embedded?.showErrors) setErrors(localErrors())
+    // Only when the page moved here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // The first error may be far below: bring it into view and put focus on its control.
   useEffect(() => {
     const first = formArea.current?.querySelector<HTMLElement>('[role=alert]')
@@ -705,11 +823,60 @@ function LoadedEditor(props: {
   )
   const changes = compared ? changedPaths(compared, draft) : []
   const remote = Boolean(latest)
+  // Filled the way copying a model is: the pasted definition is the draft, and the form marks what differs.
+  const jsonPlace = jsonPlaceOf(mode, source)
+  const fillOne = (model: CatalogModelDefinition) => {
+    setPlan(null)
+    setErrors({})
+    setDraft(structuredClone(model))
+    setKeyEdited(customKey(catalog, model))
+    const channelId = model.release.channelId
+    if (mode.kind !== 'edit' && !groupChoice) {
+      const providerId = providerIdOf(channelId)
+      pickGroup(defaultGroupChoice(catalog, providerId, channelId), providerId)
+    }
+  }
+  const fillFromJson = (parsed: unknown): JsonIssue | null => {
+    const several = Boolean(embedded?.slots)
+    if (Array.isArray(parsed) && !several) {
+      return { key: 'Only one model can be filled in here' }
+    }
+    const list: unknown[] = Array.isArray(parsed) ? parsed : [parsed]
+    if (!list.length) return { key: 'The array holds no model' }
+    for (const [index, model] of list.entries()) {
+      const issue = modelJsonIssue(model, catalog, jsonPlace)
+      if (issue && list.length > 1) {
+        return {
+          key: 'Model {{n}}: {{issue}}',
+          values: { n: index + 1 },
+          inner: issue,
+        }
+      }
+      if (issue) return issue
+    }
+    const models = list as CatalogModelDefinition[]
+    if (embedded?.slots) embedded.slots.onFill(models)
+    else fillOne(models[0])
+    toast.success(
+      models.length > 1
+        ? t('Filled in {{count}} models', { count: models.length })
+        : t('Filled in; check it, then validate and preview')
+    )
+    return null
+  }
+
   const submit = () => {
     const found = localErrors()
     if (jsonError) found['paramSchema.usageEstimate'] = jsonError
     const count = Object.keys(found).length
     setErrors(found)
+    // Every model of the page is checked: the first one with problems is shown with them.
+    const pendingAt = embedded?.slots?.pendingAt ?? null
+    if (count === 0 && pendingAt !== null) {
+      embedded?.slots?.onShow(pendingAt, true)
+      toast.error(t('Another model on this page has fields to correct'))
+      return
+    }
     if (count === 0) {
       validate.mutate()
       return
@@ -732,22 +899,46 @@ function LoadedEditor(props: {
       name: source?.displayName ?? '',
     })
   }
-  const groupName = (versionId: string | undefined) =>
-    catalog.credentialGroups.find((group) => group.versionId === versionId)
-      ?.name
-  const boundGroupName = groupName(credentialGroup) ?? newCredentialGroup?.name
-  const boundOnPublish: Record<string, string> = Object.fromEntries([
-    ...(mode.kind !== 'edit' && boundGroupName
-      ? [[draft.productKey, boundGroupName] as [string, string]]
+  const groupName = (binding: CatalogEditDraftModel['credentialGroup']) => {
+    if (binding === 'NEW') return newCredentialGroup?.name
+    return catalog.credentialGroups.find(
+      (group) => group.versionId === binding?.versionId
+    )?.name
+  }
+  const thisBinding =
+    mode.kind !== 'edit' && groupChoice ? draftBinding(groupChoice) : undefined
+  const pageModels = [
+    ...(mode.kind !== 'edit'
+      ? [{ definition: draft, credentialGroup: thisBinding }]
       : []),
-    ...(embedded?.others ?? []).flatMap((entry) => {
-      const name =
-        groupName(entry.credentialGroupVersionId) ?? newCredentialGroup?.name
-      return name
-        ? [[entry.definition.productKey, name] as [string, string]]
-        : []
-    }),
-  ])
+    ...others,
+  ]
+  const boundOnPublish: Record<string, string> = Object.fromEntries(
+    pageModels.flatMap((entry) => {
+      const name = groupName(entry.credentialGroup)
+      return name ? [[entry.definition.productKey, name]] : []
+    })
+  )
+  const unboundNames = pageModels
+    .filter((entry) => entry.credentialGroup === null)
+    .map((entry) => entry.definition.displayName)
+  const confirmNotes = [
+    ...(newCredentialGroup
+      ? [
+          t('Creates the API Key group "{{name}}" and saves its API Key.', {
+            name: newCredentialGroup.name,
+          }),
+        ]
+      : []),
+    ...(unboundNames.length
+      ? [
+          t(
+            'Not bound to an API Key: {{models}}. Bind them under Manage API Key bindings; until then they cannot make real calls or be shown to customers.',
+            { models: unboundNames.join(t(', ')) }
+          ),
+        ]
+      : []),
+  ]
   if (plan) {
     return (
       <ModelPublishPreview
@@ -773,6 +964,8 @@ function LoadedEditor(props: {
         onBack={() => setPlan(null)}
         onConfirm={() => publish.mutate(plan.planToken)}
         together={Boolean(embedded?.wizard)}
+        modelCount={pageModels.length}
+        confirmNotes={confirmNotes}
         boundOnPublish={boundOnPublish}
       />
     )
@@ -856,7 +1049,26 @@ function LoadedEditor(props: {
           </Button>
           <h3 className='text-sm font-medium'>{title}</h3>
           <span className='text-muted-foreground text-sm'>{summary}</span>
+          <Button
+            variant='outline'
+            size='sm'
+            className='ml-auto'
+            onClick={() => setJsonOpen(true)}
+          >
+            {t('Fill from JSON')}
+          </Button>
         </div>
+        {jsonOpen ? (
+          <ModelJsonFill
+            catalog={catalog}
+            place={jsonPlace}
+            several={Boolean(embedded?.slots)}
+            editing={mode.kind === 'edit'}
+            current={draft}
+            fill={fillFromJson}
+            onClose={() => setJsonOpen(false)}
+          />
+        ) : null}
 
         <UnsupportedFieldsNotice paths={unsupportedPaths} />
         {embedded?.slots ? (
@@ -1087,8 +1299,20 @@ function LoadedEditor(props: {
                             disabled={!(provider?.id ?? chosenProvider)}
                             value={draft.release.channelId}
                             onChange={(event) => {
+                              const channelId = event.target.value
                               setPlan(null)
-                              setDraft(blankModel(catalog, event.target.value))
+                              setDraft(blankModel(catalog, channelId))
+                              if (channelId) {
+                                const providerId = providerIdOf(channelId)
+                                pickGroup(
+                                  defaultGroupChoice(
+                                    catalog,
+                                    providerId,
+                                    channelId
+                                  ),
+                                  providerId
+                                )
+                              }
                             }}
                           >
                             <NativeSelectOption value=''>
@@ -1394,74 +1618,20 @@ function LoadedEditor(props: {
                         />
                       )}
                     </EditField>
-                    {keyProvider ? (
-                      <EditField
-                        label='API Key'
-                        help={t('Saved to the API Key group "{{group}}"', {
-                          group: t('{{name}} main account', {
-                            name: keyProvider.internalName,
-                          }),
-                        })}
-                        error={errors.apiKey}
-                      >
-                        {(id, describedBy) => (
-                          <Input
-                            id={id}
-                            type='password'
-                            autoComplete='off'
-                            placeholder={t(
-                              'Saved when publishing; used by real calls'
-                            )}
-                            aria-describedby={describedBy}
-                            aria-invalid={errors.apiKey ? true : undefined}
-                            value={typedKey}
-                            onChange={(event) => {
-                              setTypedKey(event.target.value)
-                              embedded?.onApiKeyChange(event.target.value)
-                            }}
-                          />
-                        )}
-                      </EditField>
-                    ) : (
-                      <EditField
-                        label={t('API Key group')}
-                        help={
-                          mode.kind === 'copy'
-                            ? t(
-                                "Keeps the source model's API Key group by default"
-                              )
-                            : undefined
-                        }
-                        error={errors.credentialGroup}
-                      >
-                        {(id, describedBy) => (
-                          <NativeSelect
-                            id={id}
-                            className='w-full'
-                            aria-describedby={describedBy}
-                            aria-invalid={
-                              errors.credentialGroup ? true : undefined
-                            }
-                            value={credentialGroup}
-                            onChange={(event) =>
-                              setCredentialGroup(event.target.value)
-                            }
-                          >
-                            <NativeSelectOption value=''>
-                              {t('Please select')}
-                            </NativeSelectOption>
-                            {groups.map((group) => (
-                              <NativeSelectOption
-                                key={group.versionId}
-                                value={group.versionId}
-                              >
-                                {group.name}
-                              </NativeSelectOption>
-                            ))}
-                          </NativeSelect>
-                        )}
-                      </EditField>
-                    )}
+                    <CredentialGroupFields
+                      groups={groups}
+                      providerChosen={Boolean(provider)}
+                      choice={groupChoice}
+                      newGroup={newGroup}
+                      copy={mode.kind === 'copy'}
+                      errors={{
+                        credentialGroup: errors.credentialGroup,
+                        newGroupName: errors.newGroupName,
+                        apiKey: errors.apiKey,
+                      }}
+                      onChoice={(choice) => pickGroup(choice)}
+                      onNewGroup={changeNewGroup}
+                    />
                   </>
                 )}
                 {mode.kind === 'copy' ? (
@@ -1541,6 +1711,7 @@ function LoadedEditor(props: {
                 }}
               />
               <ModelReferenceSection
+                accepted={accepted}
                 draft={draft}
                 base={base}
                 sent={sent}
@@ -1550,6 +1721,7 @@ function LoadedEditor(props: {
                 was={was}
               />
               <ModelMediaSection
+                accepted={accepted}
                 draft={draft}
                 base={base}
                 sent={sent}
@@ -1561,17 +1733,16 @@ function LoadedEditor(props: {
             </TabsContent>
             <TabsContent value='json' className='mt-4'>
               <ModelJsonView
-                credentialLabel={
-                  catalog.credentialGroups.find(
-                    (group) => group.versionId === credentialGroup
-                  )?.name
-                }
+                credentialLabel={groupName(
+                  realCallGroup ? { versionId: realCallGroup } : thisBinding
+                )}
+                unbound={mode.kind !== 'edit' && groupChoice === NO_GROUP}
                 base={base}
                 draft={draft}
                 draftPayload={draftPayload}
-                {...(typedKey ? { apiKey: typedKey } : {})}
-                {...(previewGroup
-                  ? { credentialGroupVersionId: previewGroup }
+                {...(realCallKey ? { apiKey: realCallKey } : {})}
+                {...(realCallGroup
+                  ? { credentialGroupVersionId: realCallGroup }
                   : {})}
               />
             </TabsContent>

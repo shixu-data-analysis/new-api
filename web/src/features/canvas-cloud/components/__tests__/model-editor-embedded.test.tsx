@@ -109,7 +109,8 @@ describe('Model editor inside the new-Channel page', () => {
           catalogOverride={draftCatalog()}
           embedded={
             {
-              apiKey: '',
+              newGroup: { name: '', apiKey: '' },
+              onNewGroupChange: () => {},
               extraDraft: { providers: [], channels: [] },
               onChange: (model: unknown) => setStored({ model }),
             } as never
@@ -156,8 +157,8 @@ describe('Model form checks', () => {
           catalogOverride={catalog}
           embedded={
             {
-              apiKey: '',
-              onApiKeyChange: () => {},
+              newGroup: { name: '', apiKey: '' },
+              onNewGroupChange: () => {},
               extraDraft: { providers: [], channels: [] },
               onChange: () => {},
               others,
@@ -187,7 +188,52 @@ describe('Model form checks', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Enter a display name')).toBeInTheDocument()
     expect(screen.getByText('Enter a product key')).toBeInTheDocument()
-    expect(screen.getByText('Enter the API Key')).toBeInTheDocument()
+    expect(
+      screen.getByText('Enter the API Key, or choose "Not bound for now"')
+    ).toBeInTheDocument()
+  })
+
+  it('starts a provider without groups on a new group, and needs no key once left unbound', async () => {
+    open()
+    await screen.findByText('What the user sees')
+    expect(screen.getByLabelText('API Key group')).toHaveValue('NEW')
+    expect(screen.getByLabelText('API Key group name')).toHaveValue(
+      'Draft main account'
+    )
+    fireEvent.change(screen.getByLabelText('API Key group'), {
+      target: { value: 'NONE' },
+    })
+    expect(
+      screen.queryByLabelText('API Key group name')
+    ).not.toBeInTheDocument()
+    validate()
+    expect(
+      await screen.findByText('Enter the upstream model ID')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Enter the API Key, or choose "Not bound for now"')
+    ).not.toBeInTheDocument()
+  })
+
+  it('fills the form from a pasted model, and takes one model at a time on its own', async () => {
+    open()
+    await screen.findByText('What the user sees')
+    const pasted = { ...existing, productKey: '', displayName: 'Pasted' }
+    const paste = (value: unknown) => {
+      fireEvent.click(screen.getByRole('button', { name: 'Fill from JSON' }))
+      fireEvent.change(screen.getByLabelText('JSON to fill in'), {
+        target: { value: JSON.stringify(value) },
+      })
+    }
+    paste([pasted, pasted])
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in 2 models' }))
+    expect(
+      screen.getByText('Only one model can be filled in here')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    paste(pasted)
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in' }))
+    expect(await screen.findByDisplayValue('Pasted')).toBeInTheDocument()
   })
 
   it('refuses an upstream ID in use, a badly formed key and a key of a deleted model', async () => {

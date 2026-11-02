@@ -129,7 +129,8 @@ export interface CatalogRequestChange {
 export interface CatalogEditDraftModel {
   baseVersion: number | null
   definition: CatalogModelDefinition
-  credentialGroupVersionId?: string
+  /** A published group version, the group this publication creates, or null for none yet; left out, a copy keeps its source's group. */
+  credentialGroup?: { versionId: string } | 'NEW' | null
   copy?: {
     sourceModelKey: string
     inheritCategory: boolean

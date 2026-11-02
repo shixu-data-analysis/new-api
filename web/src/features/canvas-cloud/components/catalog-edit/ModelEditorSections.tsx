@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS } from '@pixmiao/model-catalog/request-validator'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 
+import type { Accepts } from '../../catalog-channel-draft'
 import {
   displayPath,
   isValidAspectRatio,
@@ -89,23 +91,28 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? (value as string[]) : []
 }
 
-function optionalSelect(
-  value: unknown,
-  options: string[],
-  onChange: (next: string | undefined) => void,
-  id: string,
-  describedBy: string | undefined,
-  placeholder: string
-) {
+/** A default chosen from the values offered above; with none offered yet, it says to choose those first. */
+function DefaultSelect(props: {
+  value: unknown
+  options: string[]
+  onChange: (next: string | undefined) => void
+  id: string
+  describedBy: string | undefined
+}) {
+  const { t } = useTranslation()
   return (
     <NativeSelect
-      id={id}
-      aria-describedby={describedBy}
-      value={typeof value === 'string' ? value : ''}
-      onChange={(event) => onChange(event.target.value || undefined)}
+      id={props.id}
+      aria-describedby={props.describedBy}
+      value={typeof props.value === 'string' ? props.value : ''}
+      onChange={(event) => props.onChange(event.target.value || undefined)}
     >
-      <NativeSelectOption value=''>{placeholder}</NativeSelectOption>
-      {options.map((option) => (
+      <NativeSelectOption value=''>
+        {props.options.length
+          ? t('Please select')
+          : t('Choose the options first')}
+      </NativeSelectOption>
+      {props.options.map((option) => (
         <NativeSelectOption key={option} value={option}>
           {option}
         </NativeSelectOption>
@@ -454,16 +461,15 @@ export function ModelParametersSection(props: SectionProps) {
             error={errorAt('defaultParams', 'aspectRatio')}
             was={was(['defaultParams', 'aspectRatio'])}
           >
-            {(id, describedBy) =>
-              optionalSelect(
-                defaults.aspectRatio,
-                ratios,
-                (next) => set(['defaultParams', 'aspectRatio'], next),
-                id,
-                describedBy,
-                placeholder
-              )
-            }
+            {(id, describedBy) => (
+              <DefaultSelect
+                value={defaults.aspectRatio}
+                options={ratios}
+                onChange={(next) => set(['defaultParams', 'aspectRatio'], next)}
+                id={id}
+                describedBy={describedBy}
+              />
+            )}
           </EditField>
         </>
       ),
@@ -520,16 +526,15 @@ export function ModelParametersSection(props: SectionProps) {
               error={errorAt('defaultParams', 'quality')}
               was={was(['defaultParams', 'quality'])}
             >
-              {(id, describedBy) =>
-                optionalSelect(
-                  defaults.quality,
-                  qualities,
-                  (next) => set(['defaultParams', 'quality'], next),
-                  id,
-                  describedBy,
-                  placeholder
-                )
-              }
+              {(id, describedBy) => (
+                <DefaultSelect
+                  value={defaults.quality}
+                  options={qualities}
+                  onChange={(next) => set(['defaultParams', 'quality'], next)}
+                  id={id}
+                  describedBy={describedBy}
+                />
+              )}
             </EditField>
           ) : null}
         </>
@@ -572,16 +577,17 @@ export function ModelParametersSection(props: SectionProps) {
               error={errorAt('defaultParams', 'apiQuality')}
               was={was(['defaultParams', 'apiQuality'])}
             >
-              {(id, describedBy) =>
-                optionalSelect(
-                  defaults.apiQuality,
-                  apiQualities,
-                  (next) => set(['defaultParams', 'apiQuality'], next),
-                  id,
-                  describedBy,
-                  placeholder
-                )
-              }
+              {(id, describedBy) => (
+                <DefaultSelect
+                  value={defaults.apiQuality}
+                  options={apiQualities}
+                  onChange={(next) =>
+                    set(['defaultParams', 'apiQuality'], next)
+                  }
+                  id={id}
+                  describedBy={describedBy}
+                />
+              )}
             </EditField>
           ) : null}
         </>
@@ -883,8 +889,8 @@ export function ModelParametersSection(props: SectionProps) {
       ),
     })
   }
-  const sentRows = rows.filter((row) => row.sentTo || row.key === 'count')
-  const otherRows = rows.filter((row) => !row.sentTo && row.key !== 'count')
+  const sentRows = rows.filter((row) => row.sentTo)
+  const otherRows = rows.filter((row) => !row.sentTo)
   return (
     <EditSection title={t('Parameters')}>
       {sentRows.map((row) => (
@@ -908,6 +914,7 @@ export function ModelParametersSection(props: SectionProps) {
           key={row.key}
           name={row.name}
           sentTo=''
+          note={row.note}
           split={splitRows.has(row.key)}
         >
           {row.body}
@@ -1175,9 +1182,12 @@ const REFERENCE_FLAGS = [
   'supportsAudioReference',
 ]
 
-export function ModelReferenceSection(props: SectionProps) {
+/** `accepted` is what the interface measurably takes, so a mode that needs another material cannot be turned on. */
+export function ModelReferenceSection(
+  props: SectionProps & { accepted: Accepts }
+) {
   const { t } = useTranslation()
-  const { draft, sent, set, was, errors } = props
+  const { draft, set, was, errors, accepted } = props
   const cap = draft.capability
   if (cap === 'chat.generate') return null
   const video = cap === 'video.generate'
@@ -1193,11 +1203,13 @@ export function ModelReferenceSection(props: SectionProps) {
       onChange={(next) => set(['referenceLimits', key], next)}
     />
   )
-  const flag = (key: string, label: string) => (
+  // A mode already on can still be turned off, so a model can follow an interface that stopped taking a material.
+  const flag = (key: string, label: string, carried = true) => (
     <SwitchField
       key={key}
       label={label}
       checked={limits[key] === true}
+      disabled={!carried && limits[key] !== true}
       onChange={(next) => set(['referenceLimits', key], next)}
     />
   )
@@ -1234,9 +1246,30 @@ export function ModelReferenceSection(props: SectionProps) {
         >)
       : []),
   ]
+  const material = {
+    image: 'reference',
+    video: 'video',
+    audio: 'audio',
+  } as const
   const media = allMedia.filter(
-    ([, on, , , kind]) => sent.media[kind] || limits[on] === true
+    ([, on, , , kind]) => accepted[material[kind]] || limits[on] === true
   )
+  const notCarried = [
+    ...(!accepted.first
+      ? [
+          t(
+            'Not available: the Channel configuration does not take the first frame, so image to video cannot be turned on.'
+          ),
+        ]
+      : []),
+    ...(!(accepted.first && accepted.last)
+      ? [
+          t(
+            'Not available: the Channel configuration does not take both frames, so first and last frames cannot be turned on.'
+          ),
+        ]
+      : []),
+  ]
   const tableError = media
     .flatMap((row) => [row[1], row[2], row[3]])
     .flatMap(
@@ -1351,14 +1384,16 @@ export function ModelReferenceSection(props: SectionProps) {
           </p>
           <div className='flex flex-wrap gap-x-6 gap-y-2 md:col-span-2'>
             {flag('supportsTextToVideo', t('Text to video'))}
-            {sent.media.image ||
-            limits.supportsImageToVideo === true ||
-            limits.supportsStartEndFrames === true ? (
-              <>
-                {flag('supportsImageToVideo', t('Image to video'))}
-                {flag('supportsStartEndFrames', t('First and last frames'))}
-              </>
-            ) : null}
+            {flag(
+              'supportsImageToVideo',
+              t('Image to video'),
+              Boolean(accepted.first)
+            )}
+            {flag(
+              'supportsStartEndFrames',
+              t('First and last frames'),
+              Boolean(accepted.first && accepted.last)
+            )}
             {media.length ? (
               <SwitchField
                 label={t('Full reference')}
@@ -1371,6 +1406,21 @@ export function ModelReferenceSection(props: SectionProps) {
               />
             ) : null}
           </div>
+          {notCarried.map((note) => (
+            <p
+              key={note}
+              className='text-muted-foreground text-xs md:col-span-2'
+            >
+              {note}
+            </p>
+          ))}
+          {!media.length ? (
+            <p className='text-muted-foreground text-xs md:col-span-2'>
+              {t(
+                'Not available: the Channel configuration takes no reference material, so full reference cannot be turned on.'
+              )}
+            </p>
+          ) : null}
           {omni ? (
             <>
               <p className='text-muted-foreground text-xs font-medium md:col-span-2'>
@@ -1397,6 +1447,13 @@ export function ModelReferenceSection(props: SectionProps) {
             </>
           ) : null}
         </>
+      ) : null}
+      {!video && !media.length ? (
+        <p className='text-muted-foreground text-xs md:col-span-2'>
+          {t(
+            'Not available: the Channel configuration does not take reference images, so reference images and camera angle, relight and region edit cannot be turned on.'
+          )}
+        </p>
       ) : null}
       {!video && media.length ? (
         <>
@@ -1459,25 +1516,15 @@ export function ModelReferenceSection(props: SectionProps) {
   )
 }
 
-const MEDIA_FIELDS: Array<[string, 'mb' | 'sec' | 'px' | 'fps' | '' | 'list']> =
-  [
-    ['formats', 'list'],
-    ['maxFileSizeBytes', 'mb'],
-    ['maxTotalFileSizeBytes', 'mb'],
-    ['minDurationMs', 'sec'],
-    ['maxDurationMs', 'sec'],
-    ['maxTotalDurationMs', 'sec'],
-    ['minShortEdgePx', 'px'],
-    ['maxShortEdgePx', 'px'],
-    ['minWidthPx', 'px'],
-    ['maxWidthPx', 'px'],
-    ['minHeightPx', 'px'],
-    ['maxHeightPx', 'px'],
-    ['minAspectRatio', ''],
-    ['maxAspectRatio', ''],
-    ['minFrameRate', 'fps'],
-    ['maxFrameRate', 'fps'],
-  ]
+type MediaScale = 'list' | 'mb' | 'sec' | ''
+
+// The shared validator lists the constraints in the order the form shows them; the unit follows the field name.
+function mediaScale(field: string): MediaScale {
+  if (field === 'formats') return 'list'
+  if (field.endsWith('Bytes')) return 'mb'
+  if (field.endsWith('Ms')) return 'sec'
+  return ''
+}
 
 function mediaApplies(kind: string, field: string) {
   if (kind === 'image' && /Duration|FrameRate/.test(field)) return false
@@ -1486,9 +1533,9 @@ function mediaApplies(kind: string, field: string) {
 
 const MEGABYTE = 1024 * 1024
 
-export function ModelMediaSection(props: SectionProps) {
+export function ModelMediaSection(props: SectionProps & { accepted: Accepts }) {
   const { t } = useTranslation()
-  const { draft, sent, set } = props
+  const { draft, accepted, set } = props
   const cap = draft.capability
   if (cap === 'chat.generate') return null
   const constraints = (interactionOf(draft).mediaConstraints ?? {}) as Record<
@@ -1496,9 +1543,14 @@ export function ModelMediaSection(props: SectionProps) {
     Record<string, unknown>
   >
   const mediaError = fieldError(props.errors, ['mediaConstraints'])
+  const takes: Record<string, boolean | undefined> = {
+    image: accepted.first || accepted.last || accepted.reference,
+    video: accepted.video,
+    audio: accepted.audio,
+  }
   const kinds = (
     cap === 'video.generate' ? ['image', 'video', 'audio'] : ['image']
-  ).filter((kind) => sent.media[kind as 'image'] || constraints[kind])
+  ).filter((kind) => takes[kind] || constraints[kind])
   if (!kinds.length) return null
   const kindLabels: Record<string, string> = {
     image: t('Image'),
@@ -1509,8 +1561,8 @@ export function ModelMediaSection(props: SectionProps) {
     formats: t('Formats'),
     maxFileSizeBytes: t('Largest file (MB)'),
     maxTotalFileSizeBytes: t('Largest total (MB)'),
-    minDurationMs: t('Shortest (seconds)'),
-    maxDurationMs: t('Longest (seconds)'),
+    minDurationMs: t('Shortest length (seconds)'),
+    maxDurationMs: t('Longest length (seconds)'),
     maxTotalDurationMs: t('Longest total (seconds)'),
     minShortEdgePx: t('Smallest short edge (px)'),
     maxShortEdgePx: t('Largest short edge (px)'),
@@ -1558,9 +1610,9 @@ export function ModelMediaSection(props: SectionProps) {
         </p>
       </div>
       <StaticDataTable
-        data={MEDIA_FIELDS.filter(([field]) =>
+        data={REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS.filter((field) =>
           kinds.some((kind) => mediaApplies(kind, field))
-        )}
+        ).map((field) => [field, mediaScale(field)] as const)}
         getRowKey={(row) => row[0]}
         emptyContent={t('No constraints')}
         columns={[
@@ -1576,7 +1628,7 @@ export function ModelMediaSection(props: SectionProps) {
           ...kinds.map((kind) => ({
             id: kind,
             header: kindLabels[kind],
-            cell: ([field, scale]: (typeof MEDIA_FIELDS)[number]) => {
+            cell: ([field, scale]: readonly [string, MediaScale]) => {
               if (!mediaApplies(kind, field)) {
                 return <span className='text-muted-foreground'>—</span>
               }

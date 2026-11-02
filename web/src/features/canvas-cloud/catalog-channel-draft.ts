@@ -6,9 +6,22 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import {
+  compileParts,
+  contentTemplate,
+  defaultListParts,
+  parseParts,
+  type ShapeParts,
+} from './catalog-channel-shapes'
 // The Channel form's state: reads a Profile and contract into rows, and writes them back. Only what the form controls is
 // rewritten, so opening a Channel and changing nothing produces the same documents.
 import type { CatalogJson } from './catalog-edit-types'
+import { normalizedProviderRequest } from './executor-shared/providerRequestValues'
+import {
+  evaluateTemplate,
+  TemplateLanguageError,
+  type TemplateContext,
+} from './executor-shared/templateLanguageV1'
 
 const REF = (path: string) => ({ $ref: path })
 const OMIT_EMPTY = (node: unknown) => ({ $call: 'omitEmpty', args: [node] })
@@ -92,6 +105,12 @@ export interface RequestRow {
   fixedType?: 'string' | 'number' | 'boolean'
   rawDefault?: boolean
   expr?: string
+  /** contentParts (text and materials in one list) and shaped (items with a shape) keep each part's send content. */
+  parts?: ShapeParts
+  /** A frame alone in its field sent as a list holding only it. */
+  asList?: boolean
+  /** The shape every image shared before a frame or the references took their own. */
+  sharedShape?: string
 }
 
 // Cloud stores a Profile as jsonb, which reorders keys, so a template is compared by content and never by its text.
@@ -107,7 +126,12 @@ function sortedKeys(value: unknown): unknown {
 export const sameDocument = (left: unknown, right: unknown) =>
   JSON.stringify(sortedKeys(left)) === JSON.stringify(sortedKeys(right))
 
-function parseValue(node: unknown, roles: RoleMap): Omit<RequestRow, 'field'> {
+// Only video and image forms edit send content; elsewhere the same template stays an expression.
+function parseValue(
+  node: unknown,
+  roles: RoleMap,
+  shapes: boolean
+): Omit<RequestRow, 'field'> {
   let inner = node as CatalogJson | null
   let transform = ''
   if (
@@ -137,10 +161,37 @@ function parseValue(node: unknown, roles: RoleMap): Omit<RequestRow, 'field'> {
   if (optional && optional[1] !== 'size') {
     return { source: 'option', optionKey: optional[1], transform: '' }
   }
+  for (const video of [true, false]) {
+    for (const audio of [true, false]) {
+      if (sameDocument(node, contentTemplate(roles, { video, audio }))) {
+        return {
+          source: 'contentParts',
+          parts: defaultListParts(roles, { video, audio }),
+          transform: '',
+        }
+      }
+    }
+  }
   const media = Object.entries(MEDIA_TEMPLATES).find(([, make]) =>
     sameDocument(node, make(roles))
   )
   if (media) return { source: media[0], transform: '' }
+  // A template that does not come back unchanged from its parts stays an expression.
+  const parts =
+    shapes && node && typeof node === 'object' ? parseParts(node, roles) : null
+  if (
+    parts &&
+    sameDocument(node, compileParts(parts, roles, 'text' in parts))
+  ) {
+    return {
+      source: 'text' in parts ? 'contentParts' : 'shaped',
+      parts,
+      transform: '',
+    }
+  }
+  if (parts && sameDocument(node, compileParts(parts, roles, false, true))) {
+    return { source: 'shaped', parts, asList: true, transform: '' }
+  }
   if (node === null || typeof node !== 'object') {
     return {
       source: 'fixed',
@@ -158,7 +209,8 @@ function parseValue(node: unknown, roles: RoleMap): Omit<RequestRow, 'field'> {
 export function parseRows(
   template: unknown,
   policy: CatalogJson | null,
-  roles: RoleMap
+  roles: RoleMap,
+  shapes = false
 ): { rows: RequestRow[]; wrap: boolean } {
   const merge = (template as CatalogJson | null)?.$merge as
     | unknown[]
@@ -179,7 +231,7 @@ export function parseRows(
     Object.entries(object).flatMap(([key, node]) =>
       isPlain(node)
         ? flatten(`${prefix}${key}.`, node as CatalogJson)
-        : [{ field: `${prefix}${key}`, ...parseValue(node, roles) }]
+        : [{ field: `${prefix}${key}`, ...parseValue(node, roles, shapes) }]
     )
   const rows = flatten('', fields)
   if (policy) {
@@ -221,7 +273,8 @@ function fixedValue(row: RequestRow): unknown {
   return String(row.fixed ?? '')
 }
 
-function rowTemplate(row: RequestRow, roles: RoleMap): unknown {
+/** The template one request row sends. */
+export function requestRowTemplate(row: RequestRow, roles: RoleMap): unknown {
   if (row.source === 'fixed') return fixedValue(row)
   if (row.source === 'expr') {
     try {
@@ -229,6 +282,14 @@ function rowTemplate(row: RequestRow, roles: RoleMap): unknown {
     } catch {
       return null
     }
+  }
+  if (row.source === 'contentParts' || row.source === 'shaped') {
+    return compileParts(
+      row.parts ?? defaultListParts(roles),
+      roles,
+      row.source === 'contentParts',
+      row.asList
+    )
   }
   const media = MEDIA_TEMPLATES[row.source]
   if (media) return media(roles)
@@ -264,10 +325,39 @@ function requestTemplate(
       parent = (parent[part] ??= {}) as CatalogJson
     }
     const [leaf = ''] = parts.slice(-1)
-    parent[leaf] = rowTemplate(row, roles)
+    parent[leaf] = requestRowTemplate(row, roles)
   }
   return wrap ? { $merge: [REF('request.rawParams'), fields] } : fields
 }
+
+export type MaterialKind = 'first' | 'last' | 'reference' | 'video' | 'audio'
+export type Accepts = Partial<Record<MaterialKind, boolean>>
+export type Slot = 'prompt' | 'first' | 'last' | 'images' | 'videos' | 'audios'
+
+/** What the form remembers while it edits materials by mode; none of it is stored in the Profile. */
+export interface MaterialsMemory {
+  /** The acceptance switches: a loaded interface starts from what it measurably sends, a blank one from nothing. */
+  accepts: Accepts | null
+  slotAbsent: Partial<Record<'first' | 'last', boolean>>
+  shapeMemory: Partial<Record<Slot, string>>
+  fieldRows: RequestRow[]
+  exprRows: RequestRow[]
+  listField?: string
+  listParts?: ShapeParts
+  partMemory: Partial<Record<MaterialKind, string>>
+  /** Role names replaced to tell frames from references, put back when nothing picks by role any more. */
+  roleMemory: Record<string, string | undefined> | null
+}
+
+export const blankMaterialsMemory = (): MaterialsMemory => ({
+  accepts: null,
+  slotAbsent: {},
+  shapeMemory: {},
+  fieldRows: [],
+  exprRows: [],
+  partMemory: {},
+  roleMemory: null,
+})
 
 export type OperationDraft = { method: string; path: string; format?: string }
 
@@ -304,9 +394,39 @@ export interface ChannelDraft {
   promptAudio: string
   pollIntervalMs: string
   baseUrlMode: string
+  materials: MaterialsMemory
 }
 
 export type MediaKind = 'image' | 'video' | 'audio'
+
+/** The placeholder of a task or material ID in a path; `{model}` is the upstream model ID instead. */
+export const POLL_ID = /\{(?!model\})([^}]+)\}/
+
+type PollDraft = ChannelDraft['poll']
+
+/** The task ID lives in one place, so moving it edits the path and the parameter name together. */
+export function movePollTaskId(
+  poll: PollDraft,
+  taskIdIn: PollDraft['taskIdIn']
+): PollDraft {
+  const path = poll.path.trim()
+  if (taskIdIn === 'query') {
+    const found = path.match(POLL_ID)
+    if (!found) return { ...poll, taskIdIn }
+    return {
+      ...poll,
+      taskIdIn,
+      path: path.replace(`/${found[0]}`, '').replace(found[0], '') || '/',
+      queryName: found[1],
+    }
+  }
+  if (!path || POLL_ID.test(path)) return { ...poll, taskIdIn }
+  return {
+    ...poll,
+    taskIdIn,
+    path: `${path.replace(/\/$/, '')}/{${poll.queryName.trim() || 'taskId'}}`,
+  }
+}
 
 /** How one kind of material is uploaded to the upstream before the task is submitted. */
 export interface AssetPrepareDraft {
@@ -399,7 +519,7 @@ function pointersAsPaths(value: unknown): string {
 
 type Operation = { method: string; path: string; definition: CatalogJson }
 
-function findOperation(
+export function findOperation(
   contract: CatalogJson,
   id: unknown
 ): Operation | undefined {
@@ -549,6 +669,7 @@ export function blankChannelDraft(capability: string): ChannelDraft {
     promptAudio: '',
     pollIntervalMs: '',
     baseUrlMode: '',
+    materials: blankMaterialsMemory(),
   }
 }
 
@@ -572,10 +693,14 @@ export function channelDraftFrom(
     Object.keys(pollQuery).find(
       (name) => pollQuery[name]?.$ref === 'request.taskId'
     ) ?? ''
+  // Video and image forms edit materials by mode, which reads send content and lists from the templates.
+  const shapes =
+    profile.kind === 'video.generate' || profile.kind === 'image.generate'
   const parsed = parseRows(
     request.body,
     (request.parameterPolicy ?? {}) as CatalogJson,
-    roleMap
+    roleMap,
+    shapes
   )
   const format = (request.promptReferenceFormat ?? {}) as Record<
     string,
@@ -620,7 +745,7 @@ export function channelDraftFrom(
     },
     rows: parsed.rows,
     imageRows: request.bodyWithImages
-      ? parseRows(request.bodyWithImages, null, roleMap).rows
+      ? parseRows(request.bodyWithImages, null, roleMap, shapes).rows
       : [],
     wrap: parsed.wrap,
     roleMap,
@@ -650,6 +775,7 @@ export function channelDraftFrom(
     promptAudio: format.audio ?? '',
     pollIntervalMs: String(status.pollIntervalMs ?? ''),
     baseUrlMode: String(policy.baseUrlMode ?? ''),
+    materials: blankMaterialsMemory(),
   }
 }
 
@@ -1134,15 +1260,18 @@ export function channelIssues(
     if (!/^\/\S*$/.test(draft.poll.path.trim())) {
       issues.push({ path: 'poll.path', key: 'Enter a path that starts with /' })
     }
-    if (
-      draft.poll.taskIdIn === 'path' &&
-      ![...draft.poll.path.matchAll(/\{([^}]+)\}/g)].some(
-        (match) => match[1] !== 'model'
-      )
-    ) {
+    const idInPath = draft.poll.path.match(POLL_ID)
+    if (draft.poll.taskIdIn === 'path' && !idInPath) {
       issues.push({
         path: 'poll.path',
         key: 'The query path needs a placeholder for the task ID, such as {taskId}',
+      })
+    }
+    if (draft.poll.taskIdIn === 'query' && idInPath) {
+      issues.push({
+        path: 'poll.path',
+        key: 'The task ID goes in a query parameter; remove {{placeholder}} from the path',
+        values: { placeholder: idInPath[0] },
       })
     }
     const queryName = draft.poll.queryName.trim()
@@ -1326,7 +1455,11 @@ export function channelIssues(
     ) {
       issues.push({
         path: 'media.image',
-        key: 'Field {{field}} reads an address, but images are not delivered as addresses',
+        // A form by mode picks the frames and references apart by address, which files and base64 do not have.
+        key:
+          draft.capability === 'video.generate'
+            ? 'Images sent as files or base64 have no address, so modes cannot pick them apart; give the first frame, last frame and images the same field'
+            : 'Field {{field}} reads an address, but images are not delivered as addresses',
         values: { field: row.field },
       })
     }
@@ -1414,142 +1547,127 @@ export function channelIssues(
   return issues
 }
 
-export type SampleKind = 'default' | 'reference' | 'video' | 'audio'
+/**
+ * What a sample request carries. A video form previews by canvas mode: first frame, both frames, or every reference
+ * (omni); with images on a second interface, the first one previews video and audio only.
+ */
+export type SampleKind =
+  | 'default'
+  | 'reference'
+  | 'video'
+  | 'audio'
+  | 'first'
+  | 'last'
+  | 'frames'
+  | 'omni'
+  | 'videoAudio'
 
-const SAMPLE_FILE: Record<MediaKind, { name: string; mime: string }> = {
-  image: { name: 'image-reference-1.png', mime: 'image/png' },
-  video: { name: 'video-reference-1.mp4', mime: 'video/mp4' },
-  audio: { name: 'audio-reference-1.mp3', mime: 'audio/mpeg' },
+type SampleMaterial = 'first' | 'last' | 'reference' | 'video' | 'audio'
+const SAMPLE_MATERIALS: Record<SampleKind, SampleMaterial[]> = {
+  default: [],
+  reference: ['reference'],
+  video: ['video'],
+  audio: ['audio'],
+  first: ['first'],
+  last: ['last'],
+  frames: ['first', 'last'],
+  omni: ['reference', 'video', 'audio'],
+  videoAudio: ['video', 'audio'],
+}
+// The file name of each sample is its marker: a request that holds it carries that material.
+const SAMPLE_FILE: Record<
+  SampleMaterial,
+  { kind: MediaKind; role: string; name: string; mime: string }
+> = {
+  first: {
+    kind: 'image',
+    role: 'first-frame',
+    name: 'first-frame-1.png',
+    mime: 'image/png',
+  },
+  last: {
+    kind: 'image',
+    role: 'last-frame',
+    name: 'last-frame-1.png',
+    mime: 'image/png',
+  },
+  reference: {
+    kind: 'image',
+    role: 'image-reference',
+    name: 'image-reference-1.png',
+    mime: 'image/png',
+  },
+  video: {
+    kind: 'video',
+    role: 'video-reference',
+    name: 'video-reference-1.mp4',
+    mime: 'video/mp4',
+  },
+  audio: {
+    kind: 'audio',
+    role: 'audio-reference',
+    name: 'audio-reference-1.mp3',
+    mime: 'audio/mpeg',
+  },
 }
 
+const remoteIdOf = (name: string) => `remote-${name}`
+// The address the Cloud offline preview gives a sample input, so both previews show the same request.
+const sampleUrl = (name: string) =>
+  `https://media.preview.example/inputs/${name}`
+const UPLOAD_SAMPLE: Record<MediaKind, SampleMaterial> = {
+  image: 'reference',
+  video: 'video',
+  audio: 'audio',
+}
+
+/** The sample file one upload in the examples carries, and the ID the upstream gives it. */
+export function sampleUpload(kind: MediaKind) {
+  const { name } = SAMPLE_FILE[UPLOAD_SAMPLE[kind]]
+  return {
+    name,
+    url: sampleUrl(name),
+    remoteId: remoteIdOf(name),
+  }
+}
+
+// As the Executor does, a material's canvas role reaches the template under the Channel's name for it.
 function sampleMedia(
   draft: ChannelDraft,
-  kind: MediaKind,
-  wanted: boolean
-): CatalogJson[] {
-  if (!wanted) return []
-  const role = draft.roleMap[`${kind}-reference`] || `${kind}-reference`
-  const { name, mime } = SAMPLE_FILE[kind]
-  const url = `https://media.example/${name}`
-  const delivery = draft.media[kind]
-  if (delivery === 'multipart-file') {
-    return [{ role, file: `@${name};type=${mime}` }]
+  material: SampleMaterial
+): CatalogJson {
+  const { kind, role: canvasRole, name, mime } = SAMPLE_FILE[material]
+  const common: CatalogJson = {
+    role: draft.roleMap[canvasRole] || canvasRole,
+    mimeType: mime,
+    sizeBytes: 67,
+    safeName: name,
+    // A reference video or audio clip has a length; {{durationSeconds}} in send content reads it.
+    ...(kind === 'image' ? {} : { durationSeconds: 5 }),
   }
-  if (delivery === 'base64') return [{ role, data: '<base64>' }]
-  if (delivery === 'data-url') {
-    return [{ role, url: `data:${mime};base64,<base64>` }]
+  const byDelivery: Record<string, CatalogJson> = {
+    'multipart-file': { ...common, file: `@${name};type=${mime}` },
+    base64: { ...common, data: `<base64 of ${name}>` },
+    'data-url': { ...common, url: `data:${mime};base64,<${name}>` },
+    'provider-asset': { ...common, url: `asset://${remoteIdOf(name)}` },
   }
-  if (delivery === 'provider-asset') {
-    return [{ role, url: 'asset://remote-asset-1' }]
-  }
-  return [{ role, url }]
-}
-
-function readTemplatePath(context: CatalogJson, path: string): unknown {
-  return path
-    .split('.')
-    .reduce<unknown>(
-      (node, part) => (node as CatalogJson | undefined)?.[part],
-      context
-    )
-}
-
-// The parts of the template language the form can show. The published request comes from Cloud, which runs the Executor's own functions.
-function evaluateTemplate(
-  node: unknown,
-  context: CatalogJson,
-  placeholder: string
-): unknown {
-  if (Array.isArray(node)) {
-    return node.map((entry) => evaluateTemplate(entry, context, placeholder))
-  }
-  if (!node || typeof node !== 'object') return node
-  const template = node as CatalogJson
-  if (typeof template.$ref === 'string') {
-    return readTemplatePath(context, template.$ref)
-  }
-  if (Array.isArray(template.$merge)) {
-    return Object.assign(
-      {},
-      ...template.$merge.map((entry) =>
-        evaluateTemplate(entry, context, placeholder)
-      )
-    )
-  }
-  if (template.$map) {
-    const map = template.$map as CatalogJson
-    const items = evaluateTemplate(map.from, context, placeholder)
-    return Array.isArray(items)
-      ? items.map((item) =>
-          evaluateTemplate(
-            map.template,
-            { ...context, [String(map.as)]: item },
-            placeholder
-          )
-        )
-      : []
-  }
-  if (typeof template.$call === 'string') {
-    const args = ((template.args ?? []) as unknown[]).map((arg) =>
-      evaluateTemplate(arg, context, placeholder)
-    )
-    if (template.$call === 'omitEmpty') return args[0]
-    if (template.$call === 'lowercase') {
-      return String(args[0] ?? '').toLowerCase()
-    }
-    if (template.$call === 'uppercase') {
-      return String(args[0] ?? '').toUpperCase()
-    }
-    if (template.$call === 'trim') return String(args[0] ?? '').trim()
-    if (template.$call === 'number' || template.$call === 'integer') {
-      return Number(args[0])
-    }
-    if (template.$call === 'boolean') return Boolean(args[0])
-    if (template.$call === 'orientationForRatio') {
-      return Number(String(args[0]).split(':')[0]) >=
-        Number(String(args[0]).split(':')[1])
-        ? 'landscape'
-        : 'portrait'
-    }
-    if (template.$call === 'mediaUrlsByRole') {
-      return (args[0] as CatalogJson[])
-        .filter((item) => item.role === args[1])
-        .map((item) => item.url)
-    }
-    if (template.$call === 'mediaUrlByRole') {
-      return (args[0] as CatalogJson[]).find((item) => item.role === args[1])
-        ?.url
-    }
-    return placeholder
-  }
-  return Object.fromEntries(
-    Object.entries(template).map(([key, value]) => [
-      key,
-      evaluateTemplate(value, context, placeholder),
-    ])
-  )
-}
-
-function withoutEmpty(value: unknown): unknown {
-  if (Array.isArray(value)) return value
-  if (!value || typeof value !== 'object') return value
-  return Object.fromEntries(
-    Object.entries(value as CatalogJson)
-      .filter(
-        ([, entry]) =>
-          entry !== undefined &&
-          entry !== null &&
-          !(Array.isArray(entry) && !entry.length)
-      )
-      .map(([key, entry]) => [key, withoutEmpty(entry)])
-  )
+  return byDelivery[draft.media[kind]] ?? { ...common, url: sampleUrl(name) }
 }
 
 export interface SampleRequestText {
   prompt: string
   upstreamId: string
   option: (key: string) => string
-  template: string
+  /** The default parameters of the model the example stands for. */
+  defaults?: CatalogJson
+  negativePrompt?: string
+}
+
+/** Why a template could not build the sample request, as the Executor would report it. */
+/** A template failure names its field; a value the Executor refuses before building the request names none. */
+export interface SampleRequestFailure {
+  reason: string
+  field?: string
 }
 
 /** The example request of the form, from the template the form builds, so it can never disagree with what is saved. */
@@ -1558,327 +1676,121 @@ export function sampleRequest(
   profile: CatalogJson,
   sample: SampleKind,
   text: SampleRequestText
-): { operation: OperationDraft; body: CatalogJson } {
+): {
+  operation: OperationDraft
+  body: CatalogJson
+  failure?: SampleRequestFailure
+} {
   const request = (((profile.advanced ?? {}) as CatalogJson).request ??
     {}) as CatalogJson
-  const withImage = sample === 'reference'
-  const imageOperation = withImage ? draft.images : null
+  const carried = SAMPLE_MATERIALS[sample]
+  const media = {
+    images: carried
+      .filter((material) => SAMPLE_FILE[material].kind === 'image')
+      .map((material) => sampleMedia(draft, material)),
+    videos: carried
+      .filter((material) => material === 'video')
+      .map((material) => sampleMedia(draft, material)),
+    audios: carried
+      .filter((material) => material === 'audio')
+      .map((material) => sampleMedia(draft, material)),
+  }
+  const imageOperation = media.images.length ? draft.images : null
   const useImages = Boolean(imageOperation)
   const rows = useImages ? draft.imageRows : draft.rows
-  const options = rows.filter(
-    (row) => row.source === 'option' && row.field.trim()
-  )
-  const context: CatalogJson = {
-    model: { upstreamId: text.upstreamId },
-    request: {
-      prompt: text.prompt,
-      aspectRatio: '16:9',
-      quality: '2K',
-      durationSeconds: 5,
-      generateAudio: true,
-      batchSize: 1,
-      watermark: false,
-      background: 'transparent',
-      maxTokens: 1024,
-      rawParams: Object.fromEntries(
-        options.map((row) => [
-          row.optionKey ?? paramKeyOf(row.field),
-          text.option(row.field.trim()),
-        ])
-      ),
-    },
-    media: {
-      images: sampleMedia(draft, 'image', withImage),
-      videos: sampleMedia(draft, 'video', sample === 'video'),
-      audios: sampleMedia(draft, 'audio', sample === 'audio'),
-    },
+  const operation = imageOperation ?? draft.submit
+  // The Executor stops a task whose model lacks a value it needs, such as an image size; the example says so.
+  let values: CatalogJson
+  try {
+    values = sampleRequestValues(draft, profile, rows, text)
+  } catch (error) {
+    if (!(error instanceof Error)) throw error
+    return { operation, body: {}, failure: { reason: error.message } }
   }
-  const body = withoutEmpty(
-    evaluateTemplate(
+  const context: TemplateContext = {
+    model: { upstreamId: text.upstreamId, protocolOptions: {} },
+    request: values,
+    media,
+  }
+  // The Executor's own template language builds the body, and JSON serialization drops what it leaves undefined.
+  let built: unknown
+  try {
+    built = evaluateTemplate(
       useImages ? request.bodyWithImages : request.body,
-      context,
-      text.template
+      context
     )
+  } catch (error) {
+    if (!(error instanceof TemplateLanguageError)) throw error
+    return {
+      operation,
+      body: {},
+      failure: { reason: error.reason, field: error.field },
+    }
+  }
+  const body = (
+    built === undefined ? {} : JSON.parse(JSON.stringify(built))
   ) as CatalogJson
-  // These fields live in parameterPolicy, which the Executor applies to both submit operations.
-  const policy = (request.parameterPolicy ?? {}) as CatalogJson
-  const policySamples: Array<[string, unknown]> = [
-    ['sizeParam', '1280x720'],
-    ['qualityParam', 'high'],
-    ['countParam', 1],
-    ['aspectRatioParam', '16:9'],
-  ]
-  const fromPolicy = Object.fromEntries(
-    policySamples.flatMap(([key, value]) =>
-      typeof policy[key] === 'string' ? [[policy[key] as string, value]] : []
-    )
-  )
-  Object.assign(
-    body,
-    { ...((policy.rawDefaults ?? {}) as CatalogJson), ...body },
-    fromPolicy
-  )
-  return { operation: imageOperation ?? draft.submit, body }
+  return { operation, body }
 }
 
-/** Sample choices: only what some field of this form can actually carry. */
-export function sampleChoices(draft: ChannelDraft): SampleKind[] {
-  const rows = [...draft.rows, ...draft.imageRows]
-  const has = (reference: string, ...names: string[]) =>
-    rows.some(
-      (row) =>
-        names.includes(row.source) ||
-        (row.source === 'expr' && String(row.expr ?? '').includes(reference))
-    )
-  return [
-    'default',
-    ...(draft.images ||
-    has(
-      'media.images',
-      'images',
-      'imagesAlways',
-      'imagesByRole',
-      'imageOne',
-      'imageFiles',
-      'imagesBase64',
-      'firstFrame',
-      'lastFrame'
-    )
-      ? ['reference' as const]
-      : []),
-    ...(has('media.videos', 'videos', 'videoFiles', 'videosBase64')
-      ? ['video' as const]
-      : []),
-    ...(has('media.audios', 'audios', 'audioFiles', 'audiosBase64')
-      ? ['audio' as const]
-      : []),
-  ]
+// Without a model to read, an example uses these, as the prototype does.
+const SAMPLE_DEFAULTS: Record<string, CatalogJson> = {
+  'image.generate': {
+    aspectRatio: '1:1',
+    quality: '2K',
+    apiQuality: 'medium',
+    batchSize: 1,
+    sizeMap: { '1:1': { '2K': '2048x2048' } },
+  },
+  'video.generate': {
+    aspectRatio: '16:9',
+    quality: '720P',
+    durationSeconds: 5,
+  },
 }
-
-const readPath = (value: unknown, path: string): unknown[] =>
-  pathToPointer(path)
-    .split('/')
-    .filter(Boolean)
-    .reduce<unknown[]>(
-      (nodes, part) =>
-        nodes.flatMap((node) => {
-          const holder = Array.isArray(node) ? node : [node]
-          return holder.flatMap((entry) => {
-            if (part === '0') return Array.isArray(node) ? [node[0]] : []
-            const next = (entry as CatalogJson | null | undefined)?.[part]
-            return next === undefined ? [] : [next]
-          })
-        }),
-      [value]
-    )
-
-export interface ResponseTestResult {
-  taskId?: unknown
-  status?: unknown
-  state?: 'pending' | 'running' | 'succeeded' | 'failed' | null
-  outputs: string[]
-  error?: unknown
-}
-
-/** Reads a pasted upstream response with the paths of the form. No call is made. */
-export function readResponseSample(
+// The request a canvas task carries, turned into the values the template reads by the Executor's own rules.
+function sampleRequestValues(
   draft: ChannelDraft,
-  pasted: string
-): ResponseTestResult {
-  const value: unknown = JSON.parse(pasted)
-  const first = (paths: string) =>
-    toList(paths)
-      .flatMap((path) => readPath(value, path))
-      .find((entry) => entry !== undefined && entry !== null)
-  const outputs = toList(draft.outputPaths)
-    .flatMap((path) => readPath(value, path))
-    .filter(
-      (entry): entry is string => typeof entry === 'string' && Boolean(entry)
-    )
-  const error = first(draft.errorPaths)
-  if (draft.workflow === 'sync') return { outputs, error }
-  const status = first(draft.statusPath)
-  const state =
-    (['pending', 'running', 'succeeded', 'failed'] as const).find((group) =>
-      toList(draft.states[group]).includes(String(status))
-    ) ?? null
-  return { taskId: first(draft.taskIdPath), status, state, outputs, error }
-}
-
-function setPath(target: CatalogJson, path: string, value: unknown) {
-  const parts = path.replace(/^\//, '').replaceAll('/', '.').split('.')
-  let node = target
-  parts.forEach((part, index) => {
-    const many = part.endsWith('[]')
-    const key = many ? part.slice(0, -2) : part
-    const last = index === parts.length - 1
-    if (many) {
-      if (!Array.isArray(node[key])) node[key] = [last ? value : {}]
-      if (!last) node = (node[key] as CatalogJson[])[0]
-    } else if (last) node[key] = value
-    else {
-      if (
-        !node[key] ||
-        typeof node[key] !== 'object' ||
-        Array.isArray(node[key])
-      ) {
-        node[key] = {}
-      }
-      node = node[key] as CatalogJson
+  profile: CatalogJson,
+  rows: RequestRow[],
+  text: SampleRequestText
+): CatalogJson {
+  const defaults = text.defaults ?? SAMPLE_DEFAULTS[draft.capability] ?? {}
+  // A custom parameter no model has filled in yet still shows, with a sample value of its type.
+  const chosen: CatalogJson = {}
+  for (const row of rows) {
+    const key = row.optionKey ?? paramKeyOf(row.field)
+    if (row.source !== 'option' || !row.field.trim() || key in defaults) {
+      continue
     }
-  })
-}
-
-// Field names follow Cloud's task/metering.ts.
-const SAMPLE_USAGE: Record<string, CatalogJson> = {
-  OPENAI_CHAT: {
-    usage: { prompt_tokens: 120, completion_tokens: 80, total_tokens: 200 },
-  },
-  OPENAI_RESPONSES: {
-    usage: { input_tokens: 120, output_tokens: 80, total_tokens: 200 },
-  },
-  OPENAI_IMAGES: {
-    usage: {
-      input_tokens: 2137,
-      input_tokens_details: { text_tokens: 89, image_tokens: 2048 },
-      output_tokens: 196,
-      total_tokens: 2333,
-    },
-  },
-  ANTHROPIC: { usage: { input_tokens: 120, output_tokens: 80 } },
-  GEMINI: {
-    usageMetadata: {
-      promptTokenCount: 120,
-      candidatesTokenCount: 80,
-      totalTokenCount: 200,
-    },
-  },
-  ARK_VIDEO_TASK: {
-    usage: { completion_tokens: 108000, total_tokens: 108000 },
-  },
-}
-const SAMPLE_OUTPUT: Record<string, string> = {
-  'video.generate': 'https://example.com/out.mp4',
-  'image.generate': 'https://example.com/out.png',
-  'chat.generate': 'Hello',
-}
-
-export type ResponseState =
-  | 'asset'
-  | 'submit'
-  | 'pending'
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-
-function textStreamEvents(protocol: string): CatalogJson[] {
-  const usage = SAMPLE_USAGE[protocol] ?? {}
-  const events: Record<string, CatalogJson[]> = {
-    OPENAI_CHAT: [
-      { choices: [{ delta: { content: 'Hel' } }] },
-      { choices: [{ delta: { content: 'lo' }, finish_reason: 'stop' }] },
-      usage,
-    ],
-    OPENAI_RESPONSES: [
-      { type: 'response.output_text.delta', delta: 'Hello' },
-      { type: 'response.completed', response: usage },
-    ],
-    ANTHROPIC: [{ delta: { text: 'Hello' } }, usage],
-    GEMINI: [
-      { candidates: [{ content: { parts: [{ text: 'Hello' }] } }], ...usage },
-    ],
+    if (row.paramType === 'number') chosen[key] = 1
+    else if (row.paramType === 'boolean') chosen[key] = true
+    else chosen[key] = text.option(row.field.trim())
   }
-  return events[protocol] ?? [usage]
-}
-
-/** The answer the paths of the form expect. Not a real upstream response. */
-export function sampleResponse(
-  draft: ChannelDraft,
-  state: ResponseState,
-  errorText: string
-): {
-  text: string
-  streamed: boolean
-  alsoRead: Array<{
-    what: 'state' | 'taskId' | 'status' | 'result' | 'error'
-    values: string
-  }>
-} {
-  const polls = draft.workflow !== 'sync'
-  if (state === 'asset') {
-    const kind = (['image', 'video', 'audio'] as const).find(
-      (entry) => draft.media[entry] === 'provider-asset'
-    )
-    const answer: CatalogJson = {}
-    if (kind) {
-      const [idPath] = toList(draft.asset[kind].remoteIdPaths)
-      const [statusPath] = toList(draft.asset[kind].statusPaths)
-      if (idPath) setPath(answer, idPath, 'remote-asset-1')
-      if (statusPath) {
-        setPath(
-          answer,
-          statusPath,
-          toList(draft.asset[kind].readyValues)[0] ?? ''
-        )
-      }
-    }
-    return {
-      text: JSON.stringify(answer, null, 2),
-      streamed: false,
-      alsoRead: [],
-    }
+  const fanout = defaults.multiResultMode === 'fanout'
+  const request: CatalogJson = {
+    prompt: text.prompt,
+    aspectRatio: defaults.aspectRatio,
+    quality: defaults.quality || undefined,
+    batchSize: fanout ? 1 : Number(defaults.batchSize) || 1,
+    apiQuality: defaults.apiQuality || undefined,
+    rawParams: chosen,
+    ...(text.negativePrompt ? { negativePrompt: text.negativePrompt } : {}),
+    ...(draft.capability === 'chat.generate' ? { maxTokens: 1024 } : {}),
+    ...(draft.capability === 'video.generate' &&
+    defaults.durationSeconds !== undefined
+      ? { durationSeconds: defaults.durationSeconds }
+      : {}),
+    ...(draft.capability === 'video.generate' &&
+    typeof defaults.generateAudio === 'boolean'
+      ? { generateAudio: defaults.generateAudio }
+      : {}),
   }
-  if (
-    draft.streaming &&
-    draft.capability === 'chat.generate' &&
-    state === 'succeeded'
-  ) {
-    return {
-      text: `${textStreamEvents(draft.usageProtocol)
-        .map((event) => `data: ${JSON.stringify(event, null, 2)}`)
-        .join('\n\n')}\n\ndata: [DONE]`,
-      streamed: true,
-      alsoRead: [],
-    }
-  }
-  const taskIds =
-    state === 'submit' && toList(draft.submitTaskId).length
-      ? toList(draft.submitTaskId)
-      : toList(draft.taskIdPath)
-  const statuses =
-    state === 'submit' ? toList(draft.submitStatus) : toList(draft.statusPath)
-  const outputs = state === 'succeeded' ? toList(draft.outputPaths) : []
-  const errors = state === 'failed' ? toList(draft.errorPaths) : []
-  const answer: CatalogJson = {}
-  if (polls) {
-    if (taskIds[0]) setPath(answer, taskIds[0], 'task_123')
-    const value =
-      state === 'submit'
-        ? (toList(draft.states.pending)[0] ?? toList(draft.states.running)[0])
-        : toList(draft.states[state])[0]
-    if (statuses[0]) setPath(answer, statuses[0], value ?? '')
-  }
-  if (outputs[0]) {
-    setPath(answer, outputs[0], SAMPLE_OUTPUT[draft.capability] ?? '')
-  }
-  if (errors[0]) setPath(answer, errors[0], errorText)
-  if (state === 'succeeded') {
-    Object.assign(answer, SAMPLE_USAGE[draft.usageProtocol] ?? {})
-  }
-  const stateValues =
-    polls && state !== 'submit' ? toList(draft.states[state]) : []
-  const alsoRead = (
-    [
-      ['state', stateValues],
-      ['taskId', taskIds],
-      ['status', statuses],
-      ['result', outputs],
-      ['error', errors],
-    ] as const
+  return normalizedProviderRequest(
+    request,
+    { canvasCapability: draft.capability, defaultParams: defaults },
+    profile
   )
-    .filter(([, values]) => values.length > 1)
-    .map(([what, values]) => ({ what, values: values.slice(1).join(', ') }))
-  return { text: JSON.stringify(answer, null, 2), streamed: false, alsoRead }
 }
 
 // Written from the form's controls, not from catalog data, so a new field in a Bundle is not taken for a supported one (design 6.3).

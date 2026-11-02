@@ -6,48 +6,84 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-
 import {
-  sampleChoices,
   sampleRequest,
-  sampleResponse,
-  toList,
   type ChannelDraft,
-  type ResponseState,
   type SampleKind,
 } from '../../catalog-channel-draft'
+import {
+  isModeView,
+  materialsOf,
+  type BodyName,
+  type MediaMode,
+} from '../../catalog-channel-materials'
 import type { CatalogJson } from '../../catalog-edit-types'
+import { MediaModeTabs } from './ChannelMaterialsSection'
+import {
+  AssetRequestCard,
+  PollRequestCard,
+  PreviewCard,
+  ResponseCard,
+} from './ChannelResponsePreview'
 
 /** The example request and answers of the Channel form; they follow the form and call nothing. */
 export function ChannelPreview(props: {
   draft: ChannelDraft
+  body: BodyName
+  mode?: MediaMode
+  onMode: (mode: MediaMode) => void
   profile: CatalogJson
   baseUrl: string
   upstreamId?: string
+  /** The default parameters of the first model on this Channel, with the values changed on this page. */
+  defaults?: CatalogJson
 }) {
   const { t } = useTranslation()
   const { draft } = props
-  const choices = sampleChoices(draft)
-  const [picked, setPicked] = useState<SampleKind | null>(null)
-  // A Channel that takes references previews the request that carries one, until the administrator picks.
-  const sample =
-    picked && choices.includes(picked) ? picked : (choices[1] ?? 'default')
-  const sampleLabels: Record<SampleKind, string> = {
-    default: t('No materials'),
-    reference: t('With 1 reference image'),
-    video: t('With 1 video'),
-    audio: t('With 1 audio'),
-  }
-  const { operation, body } = sampleRequest(draft, props.profile, sample, {
-    prompt: t('An orange cat on a windowsill, afternoon sun'),
-    upstreamId: props.upstreamId ?? t('<upstream model ID>'),
-    option: (key) => t('<value of {{key}}>', { key }),
-    template: t('<built from the template>'),
-  })
+  // A video or image form previews the mode shown on the left; an expression switches modes here instead.
+  const modeView = isModeView(draft.capability)
+  const view = modeView ? materialsOf(draft, props.body) : null
+  const sample: SampleKind = view
+    ? view.modeSample(view.currentMode(props.mode))
+    : 'default'
+  // The prompt mentions each reference the way this Channel writes it to the upstream, as the canvas sends @图片1.
+  const written = (label: string, custom: string) =>
+    (custom.trim() || `@${label}{n}`).replaceAll('{n}', '1')
+  const tokens =
+    (
+      {
+        reference: [['图片', draft.promptImage]],
+        video: [['视频', draft.promptVideo]],
+        audio: [['音频', draft.promptAudio]],
+        omni: [
+          ['图片', draft.promptImage],
+          ['视频', draft.promptVideo],
+          ['音频', draft.promptAudio],
+        ],
+      } as Partial<Record<SampleKind, string[][]>>
+    )[sample] ?? []
+  const basePrompt = t('An orange cat on a windowsill')
+  const { operation, body, failure } = sampleRequest(
+    draft,
+    props.profile,
+    sample,
+    {
+      prompt: tokens.length
+        ? t('{{prompt}}, referencing {{references}}', {
+            prompt: basePrompt,
+            references: tokens
+              .map(([label, custom]) => written(label, custom))
+              .join(t(', ')),
+          })
+        : basePrompt,
+      upstreamId: props.upstreamId ?? t('<upstream model ID>'),
+      option: (key) => t('<value of {{key}}>', { key }),
+      ...(props.defaults ? { defaults: props.defaults } : {}),
+      ...(modeView ? { negativePrompt: t('Blurry, low resolution') } : {}),
+    }
+  )
   const isForm = operation.format === 'multipart/form-data'
   const requestText = isForm
     ? Object.entries(body)
@@ -60,78 +96,34 @@ export function ChannelPreview(props: {
         .join('\n')
     : JSON.stringify(body, null, 2)
   const polls = draft.workflow !== 'sync'
-  const states: Array<[ResponseState, string]> = polls
-    ? [
-        ...(draft.workflow === 'asset-async'
-          ? [['asset', t('Upload materials')] as [ResponseState, string]]
-          : []),
-        ['submit', t('Submit')],
-        ['pending', t('Queued')],
-        ['running', t('Generating')],
-        ['succeeded', t('Success')],
-        ['failed', t('Failure')],
-      ]
-    : [
-        ['succeeded', t('Success')],
-        ['failed', t('Failure')],
-      ]
-  const [pickedState, setPickedState] = useState<ResponseState | null>(null)
-  const defaultState = polls ? 'running' : 'succeeded'
-  const state =
-    pickedState && states.some(([value]) => value === pickedState)
-      ? pickedState
-      : defaultState
-  const answer = sampleResponse(draft, state, t('Sample error message'))
-  const hasPaths =
-    draft.streaming ||
-    [draft.taskIdPath, draft.statusPath, draft.outputPaths].some(
-      (text) => toList(text).length
-    )
-  const alsoLabels = {
-    state: t('Also accepted: {{values}}'),
-    taskId: t('Task ID is also read from: {{values}}'),
-    status: t('Status is also read from: {{values}}'),
-    result: t('Results are also read from: {{values}}'),
-    error: t('Errors are also read from: {{values}}'),
-  }
+  const base = props.baseUrl.replace(/\/$/, '')
   const ready = props.baseUrl && operation.path.trim()
   return (
     <aside
       aria-label={t('Request and response preview')}
       className='grid min-w-0 gap-3 min-[1181px]:sticky min-[1181px]:top-0 min-[1181px]:max-h-[calc(100vh-13rem)] min-[1181px]:overflow-y-auto'
     >
-      <section className='bg-card grid gap-2 rounded-xl border p-4 text-sm'>
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          <strong className='font-medium'>{t('Example request')}</strong>
-          {choices.length > 1 ? (
-            <div className='flex items-center gap-2'>
-              <span className='text-muted-foreground text-xs'>
-                {t('Preview with')}
-              </span>
-              <NativeSelect
-                aria-label={t('Preview with')}
-                className='w-40'
-                value={sample}
-                onChange={(event) =>
-                  setPicked(event.target.value as SampleKind)
-                }
-              >
-                {choices.map((choice) => (
-                  <NativeSelectOption key={choice} value={choice}>
-                    {sampleLabels[choice]}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            </div>
-          ) : null}
-        </div>
-        <p className='text-muted-foreground text-xs'>
-          {t('Built from the settings on the left; nothing is sent.')}
-        </p>
+      {draft.workflow === 'asset-async' ? (
+        <AssetRequestCard draft={draft} base={base} />
+      ) : null}
+      <PreviewCard
+        title={t('Example request')}
+        note={t('Built from the settings on the left; nothing is sent.')}
+        actions={
+          view && view.mediaStyle() === 'expr' ? (
+            <MediaModeTabs
+              draft={draft}
+              body={props.body}
+              mode={props.mode}
+              onMode={props.onMode}
+            />
+          ) : null
+        }
+      >
         {ready ? (
           <>
             <p className='font-medium [overflow-wrap:anywhere]'>
-              {operation.method} {props.baseUrl.replace(/\/$/, '')}
+              {operation.method} {base}
               {operation.path}
             </p>
             <p className='text-muted-foreground text-xs'>
@@ -140,9 +132,25 @@ export function ChannelPreview(props: {
                 ? ` · ${t('{{header}}: a unique value per submit', { header: draft.idempotencyHeader.trim() })}`
                 : ''}
             </p>
-            <pre className='bg-muted m-0 rounded-lg px-3 py-2 font-mono text-xs leading-snug [overflow-wrap:anywhere] whitespace-pre-wrap'>
-              {requestText}
-            </pre>
+            {failure ? (
+              <p role='alert' className='text-destructive text-xs'>
+                {failure.field
+                  ? t(
+                      'The template fails for this sample: {{reason}} at {{field}}',
+                      { ...failure }
+                    )
+                  : t(
+                      'The request cannot be built for this sample: {{reason}}',
+                      {
+                        reason: failure.reason,
+                      }
+                    )}
+              </p>
+            ) : (
+              <pre className='bg-muted m-0 rounded-lg px-3 py-2 font-mono text-xs leading-snug [overflow-wrap:anywhere] whitespace-pre-wrap'>
+                {requestText}
+              </pre>
+            )}
           </>
         ) : (
           <p className='text-muted-foreground text-xs'>
@@ -151,66 +159,9 @@ export function ChannelPreview(props: {
             )}
           </p>
         )}
-      </section>
-      <section className='bg-card grid gap-2 rounded-xl border p-4 text-sm'>
-        {hasPaths ? (
-          <>
-            <strong className='font-medium'>{t('Example response')}</strong>
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Built from the settings on the left; not a real upstream response.'
-              )}
-            </p>
-            <div
-              role='tablist'
-              aria-label={t('Example response')}
-              className='bg-muted inline-flex w-fit flex-wrap gap-0.5 rounded-lg p-[3px]'
-            >
-              {states.map(([value, label]) => (
-                <button
-                  key={value}
-                  type='button'
-                  role='tab'
-                  aria-selected={state === value}
-                  className={`rounded-md px-2 py-0.5 text-sm font-medium ${state === value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
-                  onClick={() => setPickedState(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <pre className='bg-muted m-0 rounded-lg px-3 py-2 font-mono text-xs leading-snug [overflow-wrap:anywhere] whitespace-pre-wrap'>
-              {answer.text}
-            </pre>
-            {answer.streamed ? (
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'A stream is not one JSON: the upstream sends several parts, each a JSON after data:, ending with data: [DONE].'
-                )}
-              </p>
-            ) : null}
-            {state === 'asset' ? (
-              <p className='text-muted-foreground text-xs'>
-                {t('The submit request sends asset://remote-asset-1.')}
-              </p>
-            ) : null}
-            {answer.alsoRead.map((entry) => (
-              <p
-                key={entry.what}
-                className='text-muted-foreground text-xs [overflow-wrap:anywhere]'
-              >
-                {alsoLabels[entry.what].replace('{{values}}', entry.values)}
-              </p>
-            ))}
-          </>
-        ) : (
-          <p className='text-muted-foreground text-xs'>
-            {t(
-              'The example response appears after you fill in the paths on the left.'
-            )}
-          </p>
-        )}
-      </section>
+      </PreviewCard>
+      {polls ? <PollRequestCard draft={draft} base={base} /> : null}
+      <ResponseCard draft={draft} />
     </aside>
   )
 }

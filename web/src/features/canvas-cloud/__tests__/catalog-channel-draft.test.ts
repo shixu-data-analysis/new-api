@@ -14,6 +14,7 @@ import {
   pathToPointer,
   pointerToPath,
 } from '../catalog-channel-draft'
+import { materialIssues } from '../catalog-channel-materials'
 
 const catalogRoot = path.resolve(process.cwd(), '../../pixmiao-catalog')
 
@@ -301,7 +302,10 @@ describe('Channel form', () => {
         ) {
           differences.push(`${profile.id} contract`)
         }
-        for (const issue of channelIssues(draft, profile)) {
+        for (const issue of [
+          ...channelIssues(draft, profile),
+          ...materialIssues(draft),
+        ]) {
           differences.push(`${profile.id} ${issue.path}: ${issue.key}`)
         }
       }

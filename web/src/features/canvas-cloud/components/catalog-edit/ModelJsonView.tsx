@@ -39,8 +39,10 @@ export function ModelJsonView(props: {
   draftPayload: () => CatalogEditDraft
   credentialGroupVersionId?: string
   credentialLabel?: string | undefined
-  /** A new API provider has no group yet; its key is typed in the form and used for this one call. */
+  /** A new group's key, typed in the form and used for this one call before the group exists. */
   apiKey?: string
+  /** "Not bound for now" was chosen, so there is no key to call with. */
+  unbound?: boolean
 }) {
   const { t } = useTranslation()
   const [sample, setSample] = useState<'default' | 'reference'>('default')
@@ -161,6 +163,13 @@ export function ModelJsonView(props: {
         <p className='text-destructive text-xs'>
           {t('This calls the upstream with the real API Key and costs money.')}
         </p>
+        {props.unbound ? (
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              '"Not bound for now" is chosen: real calls work after an API Key group is bound.'
+            )}
+          </p>
+        ) : null}
         {sample === 'reference' ? (
           <p className='text-muted-foreground text-xs'>
             {t(

@@ -133,8 +133,6 @@ describe('fields the Channel sends', () => {
     expect(sent.aspectRatio).toEqual(['ratio', 'size'])
     expect(sent.quality).toEqual(['size'])
     expect(sent.batchSize).toEqual(['n'])
-    expect(sent.media.image).toBe(true)
-    expect(sent.media.video).toBe(false)
     expect(sent.modelFields.map((field) => field.key)).toEqual(['style'])
   })
 })

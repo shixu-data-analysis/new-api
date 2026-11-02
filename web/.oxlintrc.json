@@ -18,7 +18,8 @@
     ".tanstack",
     ".eslintrc.cjs",
     "src/components/ui",
-    "src/routeTree.gen.ts"
+    "src/routeTree.gen.ts",
+    "src/features/canvas-cloud/executor-shared"
   ],
   "rules": {
     "curly": ["error", "multi-line"],

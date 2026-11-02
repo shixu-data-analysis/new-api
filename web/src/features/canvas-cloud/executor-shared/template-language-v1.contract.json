@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "operators": ["$ref", "$call", "$default", "$if", "$map", "$merge", "$omit"],
+  "functions": {
+    "lowercase": [1, 1],
+    "uppercase": [1, 1],
+    "trim": [1, 1],
+    "number": [1, 1],
+    "integer": [1, 1],
+    "boolean": [1, 1],
+    "json": [1, 1],
+    "join": [1, 2],
+    "concat": [1, 20],
+    "coalesce": [1, 20],
+    "omitEmpty": [1, 1],
+    "orientationForRatio": [1, 1],
+    "mediaUrlByRole": [2, 2],
+    "mediaUrlsByRole": [2, 2]
+  },
+  "functionSemantics": {
+    "lowercase": "String(first).toLowerCase; preserve undefined or null.",
+    "uppercase": "String(first).toUpperCase; preserve undefined or null.",
+    "trim": "String(first).trim; preserve undefined or null.",
+    "number": "Number(first); finite result or NUMBER_CONVERSION_FAILED.",
+    "integer": "Number(first); safe integer result or INTEGER_CONVERSION_FAILED.",
+    "boolean": "Accept true, false, string true/false, number 1/0, or string 1/0; otherwise BOOLEAN_CONVERSION_FAILED.",
+    "json": "First arg must be a string parsed by strict JSON limits; otherwise JSON_CONVERSION_FAILED.",
+    "join": "First arg must be an array; String each element and join with optional String(separator), default comma; otherwise JOIN_REQUIRES_ARRAY.",
+    "concat": "All args must be arrays and are flattened one level in argument order; otherwise CONCAT_REQUIRES_ARRAYS.",
+    "coalesce": "Return first arg other than undefined, null or empty string; zero, false and empty array are present.",
+    "omitEmpty": "Return omit sentinel only for undefined, null, empty string or empty array; preserve zero, false and objects.",
+    "orientationForRatio": "Positive decimal W:H string; portrait if width is less than height, otherwise landscape; invalid yields ORIENTATION_RATIO_INVALID.",
+    "mediaUrlByRole": "Two args: media array and nonempty role string. Exact role match; zero returns undefined, one returns URL, multiple yield MEDIA_ROLE_AMBIGUOUS.",
+    "mediaUrlsByRole": "Two args: media array and nonempty role string. Exact role match; return URLs in input order or empty array."
+  },
+  "references": ["model.upstreamId", "model.protocolOptions", "request.prompt", "request.negativePrompt", "request.aspectRatio", "request.quality", "request.durationSeconds", "request.maxTokens", "request.batchSize", "request.outputIndex", "request.seed", "request.generateAudio", "request.watermark", "request.cameraFixed", "request.enableUpsample", "request.background", "request.rawParams", "request.systemInstruction", "request.generationConfig", "request.mediaPublicUrl", "request.mediaSafeName", "request.mediaAssetType", "request.taskId", "media.images", "media.videos", "media.audios"],
+  "limits": { "depth": 32, "arrayItems": 10000, "listItems": 50, "functionArgs": 20, "jsonBytes": 524288, "jsonDepth": 32, "jsonKeys": 10000, "jsonStringLength": 100000 },
+  "rules": {
+    "expression": "Exactly one operator and only its declared companion fields; unknown dollar keys fail validation.",
+    "reference": "Only exact allowlisted paths, their descendants, and a lexically scoped map alias may be read; missing paths yield undefined.",
+    "presence": "Default, if and coalesce treat only undefined, null and empty string as absent. False, zero and empty arrays are present.",
+    "omit": "Explicit omit and omitEmpty of undefined, null, empty string or empty array remove object fields and array entries. Other undefined values also remove object fields but remain undefined array entries.",
+    "media": "Non-array media or empty role yields MEDIA_ARGUMENT_INVALID; non-object item or non-string role yields MEDIA_ITEM_INVALID; matching missing/empty URL yields MEDIA_URL_INVALID. Single role lookup fails on multiple matches; plural lookup preserves input order and returns an empty array on zero matches.",
+    "json": "Strict JSON parsing rejects duplicate and unsafe keys, invalid Unicode, excess size or depth, and malformed JSON.",
+    "diagnostic": "Errors expose phase, stable reason and template path; messages never include media URLs, request values or secret payloads."
+  }
+}

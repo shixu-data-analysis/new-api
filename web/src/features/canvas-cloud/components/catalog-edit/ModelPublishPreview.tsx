@@ -61,12 +61,21 @@ export function ModelPublishPreview(props: {
   onConfirm: () => void
   confirmDetails?: ConfirmationDetail[]
   together?: boolean
+  /** Models published together on one page. */
+  modelCount?: number
+  /** What else the publication does, such as a new API Key group or models left unbound. */
+  confirmNotes?: string[]
   boundOnPublish?: Record<string, string>
 }) {
   const { t } = useTranslation()
   const { plan } = props
   const [tab, setTab] = useState<'models' | 'shared'>('models')
   const [confirming, setConfirming] = useState(false)
+  let confirmTitle = t('Confirm publication?')
+  if ((props.modelCount ?? 1) > 1) {
+    confirmTitle = t('Publish {{count}} models?', { count: props.modelCount })
+  }
+  if (props.together) confirmTitle = t('Publish together?')
   const reviews = useMemo(
     () =>
       plan.models
@@ -291,9 +300,7 @@ export function ModelPublishPreview(props: {
       <PricingActionConfirmation
         open={confirming}
         onOpenChange={setConfirming}
-        title={
-          props.together ? t('Publish together?') : t('Confirm publication?')
-        }
+        title={confirmTitle}
         description={t(
           'Publishing writes to the audit trail: operator, time, versions before and after.'
         )}
@@ -320,7 +327,13 @@ export function ModelPublishPreview(props: {
         confirmLabel={props.together ? t('Publish together') : t('Publish')}
         pending={props.busy}
         onConfirm={props.onConfirm}
-      />
+      >
+        {props.confirmNotes?.map((note) => (
+          <p key={note} className='text-sm'>
+            {note}
+          </p>
+        ))}
+      </PricingActionConfirmation>
     </div>
   )
 }

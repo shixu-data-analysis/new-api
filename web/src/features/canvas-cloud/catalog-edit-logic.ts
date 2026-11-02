@@ -341,7 +341,6 @@ export interface SentFields {
   watermark: string[]
   batchSize: string[]
   background: string[]
-  media: { image: boolean; video: boolean; audio: boolean }
   /** Fields whose value each model sets: a direct reference to a request.rawParams key. */
   modelFields: Array<{
     key: string
@@ -350,9 +349,7 @@ export interface SentFields {
   }>
 }
 
-const REQUEST_PARAMS: Array<
-  [keyof Omit<SentFields, 'media' | 'modelFields'>, string]
-> = [
+const REQUEST_PARAMS: Array<[keyof Omit<SentFields, 'modelFields'>, string]> = [
   ['aspectRatio', 'request.aspectRatio'],
   ['quality', 'request.quality'],
   ['apiQuality', 'request.apiQuality'],
@@ -425,7 +422,6 @@ export function sentFieldsOf(
     watermark: [],
     batchSize: [],
     background: [],
-    media: { image: false, video: false, audio: false },
     modelFields: [],
   }
   const request = path(profile, ['advanced', 'request']) as
@@ -486,7 +482,7 @@ export function sentFieldsOf(
   walk(request.bodyWithImages, [])
   const policy = (request.parameterPolicy ?? {}) as CatalogJson
   const add = (
-    param: keyof Omit<SentFields, 'media' | 'modelFields'>,
+    param: keyof Omit<SentFields, 'modelFields'>,
     field: unknown
   ) => {
     if (typeof field === 'string' && !sent[param].includes(field)) {
@@ -498,12 +494,6 @@ export function sentFieldsOf(
   add('aspectRatio', policy.aspectRatioParam)
   add('aspectRatio', policy.sizeParam)
   add('quality', policy.sizeParam)
-  const body = JSON.stringify(request)
-  sent.media = {
-    image: body.includes('media.images'),
-    video: body.includes('media.videos'),
-    audio: body.includes('media.audios'),
-  }
   return sent
 }
 

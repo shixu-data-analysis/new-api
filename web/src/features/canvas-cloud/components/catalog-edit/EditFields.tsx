@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { ChevronRight } from 'lucide-react'
 import { type ReactNode, useContext, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -315,5 +317,18 @@ export function ValueAdder(props: {
         </p>
       ) : null}
     </div>
+  )
+}
+
+/** A folded help or optional part: the arrow turns when it opens, as the summary of a <details> does. */
+export function FoldTrigger(props: { children: ReactNode }) {
+  return (
+    <CollapsibleTrigger className='text-primary group/collapsible-trigger inline-flex items-center gap-1 text-sm hover:underline'>
+      <ChevronRight
+        aria-hidden='true'
+        className='size-3.5 shrink-0 transition-transform group-data-[panel-open]/collapsible-trigger:rotate-90'
+      />
+      {props.children}
+    </CollapsibleTrigger>
   )
 }
