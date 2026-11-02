@@ -758,8 +758,8 @@ describe('UnifiedModelPricingHistory', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
     fireEvent.click(screen.getByText('Pricing basis'))
     for (const [category, cost, buffer] of [
-      ['Input tokens', '0.11', '0.12'],
-      ['Output tokens', '0.21', '0.22'],
+      ['Input', '0.11', '0.12'],
+      ['Output', '0.21', '0.22'],
       ['Cache read', '0.31', '0.32'],
       ['Cache write', '0.41', '0.42'],
     ]) {
@@ -835,7 +835,7 @@ describe('UnifiedModelPricingHistory', () => {
     ).toBeVisible()
     expect(
       screen.queryByText(
-        'Output tokens: Other variable cost: Not recorded · Risk buffer: Not recorded'
+        'Output: Other variable cost: Not recorded · Risk buffer: Not recorded'
       )
     ).not.toBeInTheDocument()
   })

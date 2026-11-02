@@ -1327,24 +1327,24 @@ const PROMPT_PROBE = {
   upstreamId: 'model',
   option: () => '',
 }
-const RENDER_KEYS: Array<[SampleKind, string]> = [
-  [
-    'reference',
+// Each sample names the materials it carries, so a request that fails names what came with it.
+const RENDER_FAILURE_KEYS: Record<SampleKind, string> = {
+  default: 'With no material the request fails: {{reason}} at {{field}}',
+  reference:
     'With a reference image the request fails: {{reason}} at {{field}}',
-  ],
-  ['first', 'With a first frame the request fails: {{reason}} at {{field}}'],
-  ['last', 'With a last frame the request fails: {{reason}} at {{field}}'],
-  ['frames', 'With both frames the request fails: {{reason}} at {{field}}'],
-  [
-    'video',
-    'With a reference video the request fails: {{reason}} at {{field}}',
-  ],
-  ['audio', 'With reference audio the request fails: {{reason}} at {{field}}'],
-  [
-    'omni',
-    'With images, video and audio the request fails: {{reason}} at {{field}}',
-  ],
-]
+  first: 'With a first frame the request fails: {{reason}} at {{field}}',
+  last: 'With a last frame the request fails: {{reason}} at {{field}}',
+  frames: 'With both frames the request fails: {{reason}} at {{field}}',
+  video: 'With a reference video the request fails: {{reason}} at {{field}}',
+  audio: 'With reference audio the request fails: {{reason}} at {{field}}',
+  omni: 'With images, video and audio the request fails: {{reason}} at {{field}}',
+  videoAudio:
+    'With a reference video and audio the request fails: {{reason}} at {{field}}',
+  referenceVideo:
+    'With a reference image and video the request fails: {{reason}} at {{field}}',
+  referenceAudio:
+    'With a reference image and audio the request fails: {{reason}} at {{field}}',
+}
 
 /**
  * Checks of the prompt and materials of a video or image form. `models` are the models on the Channel being edited,
@@ -1358,6 +1358,8 @@ export function materialIssues(
   const issues: ChannelIssue[] = []
   const bodies = bodiesOf(draft)
   const profile = buildProfile(draft, null, 'check')
+  // The first request a template fails on, among every mix of materials a mode of a body can take.
+  let renderFailure: ChannelIssue | undefined
   const anyExprIssue = [...draft.rows, ...draft.imageRows].some(
     (row) =>
       row.source === 'expr' &&
@@ -1403,19 +1405,26 @@ export function materialIssues(
       (row) =>
         carriedBy(templateOfRow(row, draft.roleMap), draft.roleMap).prompt
     )
-    // Counted in every request each mode of this body can build, as the Executor builds it, so an expression sending
-    // it twice, or only in a branch that is never taken, is found whatever materials come with it; a request the
-    // template fails on is reported below.
+    // Every request each mode of this body can build, as the Executor builds it, whatever materials come with it: one
+    // the template fails on is reported below, and in the others the prompt is counted, so an expression sending it
+    // twice, or only in a branch that is never taken, is found.
     const view = materialsOf(draft, body)
-    const samples = new Set(view.bodyModes().flatMap(view.modeSamples))
-    const sent = [...samples].flatMap((sample) => {
+    const samples = [...new Set(view.bodyModes().flatMap(view.modeSamples))]
+    const sent = samples.flatMap((sample) => {
       const { body: built, failure } = sampleRequest(
         draft,
         profile,
         sample,
         PROMPT_PROBE
       )
-      if (failure) return []
+      if (failure) {
+        renderFailure ??= {
+          path: 'materialsRender',
+          key: RENDER_FAILURE_KEYS[sample],
+          values: { ...failure },
+        }
+        return []
+      }
       return [JSON.stringify(built).toLowerCase().split(PROMPT_MARK).length - 1]
     })
     if (!senders.length) {
@@ -1493,22 +1502,7 @@ export function materialIssues(
       })
     }
   }
-  // The plain sample carries no material, so a template that fails only on materials is found by rendering each one.
-  const samples =
-    draft.capability === 'image.generate'
-      ? RENDER_KEYS.slice(0, 1)
-      : RENDER_KEYS
-  for (const [sample, key] of samples) {
-    const { failure } = sampleRequest(draft, profile, sample, {
-      prompt: 'prompt',
-      upstreamId: 'model',
-      option: () => '',
-    })
-    if (failure) {
-      issues.push({ path: 'materialsRender', key, values: { ...failure } })
-      break
-    }
-  }
+  if (renderFailure) issues.push(renderFailure)
   return issues
 }
 

@@ -281,6 +281,52 @@ describe('materials of a video form', () => {
     )
   })
 
+  it('reports a request the template fails on in any mix of references, not only all of them', () => {
+    const draft = blankChannelDraft('video.generate')
+    draft.submit.path = '/v1/videos'
+    const picks = (list: string, role: string) => ({
+      $call: 'mediaUrlByRole',
+      args: [{ $ref: list }, role],
+    })
+    // Fails only with a reference image and a video but no audio: `number` refuses text that is no number.
+    const template = {
+      text: { $ref: 'request.prompt' },
+      size: {
+        $if: picks('media.images', 'image-reference'),
+        // The template language's $if takes then and else; this is not a Promise.
+        // eslint-disable-next-line unicorn/no-thenable
+        then: {
+          $if: picks('media.videos', 'video-reference'),
+          // eslint-disable-next-line unicorn/no-thenable
+          then: {
+            $if: picks('media.audios', 'audio-reference'),
+            // eslint-disable-next-line unicorn/no-thenable
+            then: 1,
+            else: { $call: 'number', args: ['not a number'] },
+          },
+          else: 1,
+        },
+        else: 1,
+      },
+    }
+    draft.rows = [
+      row('model', 'upstreamId'),
+      {
+        field: 'content',
+        source: 'expr',
+        expr: JSON.stringify(template),
+        transform: '',
+      },
+    ]
+    expect(materialIssues(draft)).toContainEqual(
+      expect.objectContaining({
+        path: 'materialsRender',
+        key: 'With a reference image and video the request fails: {{reason}} at {{field}}',
+        values: expect.objectContaining({ reason: 'NUMBER_CONVERSION_FAILED' }),
+      })
+    )
+  })
+
   it('reports models whose modes need a material the interface does not take', () => {
     const draft = editMaterials(oneImageList(), (x) => {
       x.rows = x.rows.filter((entry) => entry.source !== 'audios')

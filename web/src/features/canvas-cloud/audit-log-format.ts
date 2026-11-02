@@ -378,6 +378,62 @@ const SPECS: Record<string, ActionSpec> = {
       { key: 'bound', label: 'Bound count', kind: 'number' },
     ],
   },
+  'catalog.admin.published': {
+    objectType: 'Models directory',
+    fields: [
+      { key: 'models', label: 'Models', kind: 'list' },
+      { key: 'channels', label: 'Channel configurations', kind: 'list' },
+      { key: 'providers', label: 'API providers', kind: 'list' },
+    ],
+  },
+  'catalog.model.retired': {
+    objectType: 'Model',
+    objectName: meta('modelKey'),
+    fields: [{ key: 'version', label: 'Version', kind: 'number' }],
+  },
+  'catalog.channel.retired': {
+    objectType: 'Channel configuration',
+    objectName: meta('channelCode'),
+    fields: [{ key: 'version', label: 'Version', kind: 'number' }],
+  },
+  'catalog.real_call.sent': {
+    objectType: 'Model',
+    objectName: meta('modelKey'),
+    fields: [
+      { key: 'upstreamModelId', label: 'Upstream model ID' },
+      { key: 'method', label: 'Request method' },
+      { key: 'path', label: 'Path' },
+      { key: 'credentialGroup', label: 'API Key group' },
+      { key: 'poll', label: 'Query request', kind: 'bool' },
+      { key: 'status', label: 'HTTP status', kind: 'number' },
+      { key: 'timedOut', label: 'Timed out', kind: 'bool' },
+    ],
+  },
+  'catalog.exported': {
+    objectType: 'Models directory',
+    fields: [
+      { key: 'bundleVersion', label: 'Bundle version' },
+      { key: 'models', label: 'Models', kind: 'number' },
+      { key: 'channels', label: 'Channel configurations', kind: 'number' },
+    ],
+  },
+  'model.availability.settings_updated': {
+    objectType: 'Model availability alert settings',
+    fields: [
+      { key: 'version', label: 'Version', kind: 'number' },
+      {
+        key: 'after',
+        previous: 'before',
+        label: 'Changes',
+        kind: 'configDiff',
+      },
+      {
+        key: 'changedProviders',
+        label: 'API providers with changed rules',
+        kind: 'count',
+      },
+    ],
+  },
   'catalog.continuity.recovered': {
     objectType: 'Models directory',
     idLabel: 'Bundle ID',
@@ -1148,6 +1204,13 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'agent.disabled': 'Disable agent qualification',
   'agent.withdrawal.paid': 'Confirm paid',
   'catalog.continuity.published': 'Publish Bundle',
+  'catalog.admin.published': 'Publish catalog changes',
+  'catalog.exported': 'Export the current catalog as a Bundle',
+  'catalog.model.retired': 'Delete the model',
+  'catalog.channel.retired': 'Delete the Channel configuration',
+  'catalog.real_call.sent': 'Call the upstream for real',
+  'model.availability.settings_updated':
+    'Edit model availability alert settings',
   'model.key.monitoring.enabled': 'Restore model',
   'model.key.monitoring.disabled': 'Disable model',
   'model.tag.created': 'New category',
@@ -1389,6 +1452,8 @@ function listText(value: unknown, t: TFunction): string | null {
       entry && typeof entry === 'object'
         ? String(
             (entry as Record<string, unknown>).displayNameSnapshot ??
+              (entry as Record<string, unknown>).productKey ??
+              (entry as Record<string, unknown>).key ??
               (entry as Record<string, unknown>).id ??
               ''
           )
@@ -1477,6 +1542,14 @@ const SETTLEMENT_FIELDS: Record<
   },
 }
 /** Execution policy fields whose settings-page label is not the field name itself. */
+/** Fields of the model availability alert settings, named as the settings dialog names them. */
+const AVAILABILITY_FIELD_LABEL_KEYS: Record<string, string> = {
+  autoProbeEnabled: 'Automatic probing',
+  intervalHours: 'Probe every how many hours',
+  threshold: 'Times in a row before an alert',
+  alertEmails: 'Alert email addresses',
+}
+
 const EXECUTION_FIELD_LABEL_KEYS: Record<string, string> = {
   showSafeErrorDetailsToCustomer: 'Show the upstream reason to customers',
 }
@@ -1512,7 +1585,9 @@ function configDiffLines(
     .map((key) => {
       const labelKey = settlement
         ? SETTLEMENT_FIELDS[key]?.label
-        : (EXECUTION_FIELD_LABEL_KEYS[key] ?? key)
+        : ((action === 'model.availability.settings_updated'
+            ? AVAILABILITY_FIELD_LABEL_KEYS
+            : EXECUTION_FIELD_LABEL_KEYS)[key] ?? key)
       const label = labelKey ? t(labelKey, { defaultValue: key }) : key
       // Rule lists are compared on the settings page's version history; the log only says they changed.
       const nested = [left[key], right[key]].some(

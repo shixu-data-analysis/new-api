@@ -33,15 +33,15 @@ import {
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
 import {
+  tokenCategoryLabelKey,
+  tokenCategoryOrder,
+} from '../lib/token-rate-summary'
+import {
   pricingLoadErrorTitle,
   pricingPublicationErrorTitle,
 } from '../model-pricing-error'
 import { formatExactRmbReference } from '../number-format'
 import { pricingScopeLabel } from '../pricing-scope-label'
-import {
-  providerTokenCategories,
-  providerTokenCategoryLabel,
-} from '../provider-pricing'
 import type {
   CanvasModelPricingDetail,
   CanvasModelPricingCnyValue,
@@ -51,6 +51,7 @@ import type {
   CanvasModelPricingProviderRate,
   CanvasModelPricingPublication,
   CanvasModelPricingQuestionnaire,
+  CanvasTokenCategory,
   CanvasTokenCategoryAssumptions,
   CanvasTokenCategoryRisk,
 } from '../types'
@@ -951,7 +952,8 @@ function TokenCategoryAssumptionFacts(props: {
   risks: CanvasTokenCategoryRisk[] | undefined
 }) {
   const { t } = useTranslation()
-  const categories = providerTokenCategories.filter(
+  const priced = Object.keys(props.tokenRates ?? {})
+  const categories = tokenCategoryOrder.filter(
     (category) =>
       category in (props.tokenRates ?? {}) ||
       category in (props.assumptions ?? {}) ||
@@ -966,7 +968,7 @@ function TokenCategoryAssumptionFacts(props: {
           <div key={category} className='space-y-1'>
             {assumption || risk ? (
               <p className='font-medium'>
-                {t(providerTokenCategoryLabel[category])}
+                {t(tokenCategoryLabelKey(category, priced))}
               </p>
             ) : null}
             {hasRecordedValue(assumption?.otherVariableCostRmb) ? (
@@ -1348,7 +1350,7 @@ function tokenRateSummary(
         .filter(([, value]) => hasRecordedValue(value))
         .map(
           ([key, value]) =>
-            `${providerTokenCategoryLabel[key as keyof typeof providerTokenCategoryLabel] ? t(providerTokenCategoryLabel[key as keyof typeof providerTokenCategoryLabel]) : t('Unknown')} ${formatBusinessNumber(value, 8)}`
+            `${tokenCategoryOrder.includes(key as CanvasTokenCategory) ? t(tokenCategoryLabelKey(key as CanvasTokenCategory, Object.keys(rates))) : t('Unknown')} ${formatBusinessNumber(value, 8)}`
         )
         .join(', ')
     : undefined

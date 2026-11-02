@@ -28,6 +28,8 @@ import type {
   CatalogJson,
   CatalogModelDefinition,
 } from '../../catalog-edit-types'
+import { tokenCategoryLabelKey } from '../../lib/token-rate-summary'
+import type { CanvasTokenCategory } from '../../types'
 import { fieldError } from './catalog-edit-errors'
 import {
   EditField,
@@ -74,7 +76,10 @@ export interface SectionProps {
   /** Sets one field by its dotted path under publicInteraction, as a list of keys. */
   set: (keys: string[], value: unknown) => void
   /** The published value when this field changed, for the "modified" mark. */
-  was: (keys: string[]) => string | undefined
+  was: (
+    keys: string[],
+    named?: (before: unknown) => string
+  ) => string | undefined
 }
 
 function interactionOf(draft: CatalogModelDefinition) {
@@ -949,14 +954,28 @@ export function ModelTokenSection(
   const errorAt = (key: string) => fieldError(errors, ['paramSchema', key])
   const schema = interactionOf(draft).paramSchema
   const categories = stringList(schema.tokenUsageCategories)
-  const labels: Record<string, string> = {
-    input: t('Text input'),
-    output: t('Output'),
-    cacheRead: t('Cache read'),
-    cacheWrite: t('Cache write'),
-    imageInput: t('Image input'),
-    total: t('Total'),
-    totalWithVideoInput: t('Total with video input'),
+  // Named as the pricing pages and model cards name them, by the same rule.
+  const namesOf = (priced: string[]) =>
+    priced.map((category) =>
+      t(tokenCategoryLabelKey(category as CanvasTokenCategory, priced))
+    )
+  const labels = Object.fromEntries(
+    TOKEN_CATEGORIES[cap].map((category) => [
+      category,
+      t(tokenCategoryLabelKey(category as CanvasTokenCategory, categories)),
+    ])
+  )
+  // What to price, by type: the rules of IMAGE-TOKEN-BILLING-001 and VIDEO-TOKEN-BILLING-001.
+  const categoryGuide: Record<CatalogCapability, string> = {
+    'chat.generate': t(
+      'Input and output are always priced. Add cache read and cache write when the API you call prices them apart.'
+    ),
+    'image.generate': t(
+      'Input and output are always priced. Add image input when the upstream prices input images apart; input then counts the text only.'
+    ),
+    'video.generate': t(
+      'Without video input is always priced. Add with video input only when the upstream prices a task with a reference video apart: each quality then has two prices, and a task uses the one that fits whether it has a reference video. Without it, a task with a reference video is priced as without video input.'
+    ),
   }
   return (
     <EditSection
@@ -1000,12 +1019,20 @@ export function ModelTokenSection(
         <EditField
           label={t('Priced categories')}
           wide
-          help={t(
-            'The Channel returns usage as {{protocol}}. Changing categories puts the matching specifications back to pricing.',
-            { protocol: usageProtocol }
-          )}
+          help={
+            <>
+              <span className='block'>{categoryGuide[cap]}</span>
+              <span className='block'>
+                {t(
+                  'Changing categories puts the matching specifications back to pricing.'
+                )}
+              </span>
+            </>
+          }
           error={errorAt('tokenUsageCategories')}
-          was={was(['paramSchema', 'tokenUsageCategories'])}
+          was={was(['paramSchema', 'tokenUsageCategories'], (before) =>
+            namesOf(stringList(before)).join(', ')
+          )}
         >
           {() => (
             <ValuePills

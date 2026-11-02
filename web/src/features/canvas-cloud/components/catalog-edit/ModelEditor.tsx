@@ -494,7 +494,8 @@ function LoadedEditor(props: {
     )
   // A copy is compared with its source, so what was changed on purpose stays visible.
   const compared = base ?? (mode.kind === 'copy' ? source : null)
-  const was = (keys: string[]) => {
+  // A field whose values are codes names them as the page does, through `named`.
+  const was = (keys: string[], named?: (before: unknown) => string) => {
     if (!compared) return undefined
     const joined = ['release', 'publicInteraction', ...keys].join('\u0000')
     const before = readPath(compared, joined)
@@ -502,6 +503,7 @@ function LoadedEditor(props: {
       return undefined
     }
     if (before === undefined) return t('Not set')
+    if (named) return named(before)
     return Array.isArray(before) ? before.join(', ') : String(before)
   }
 

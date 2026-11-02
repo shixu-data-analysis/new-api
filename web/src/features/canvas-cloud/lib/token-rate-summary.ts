@@ -21,6 +21,11 @@ export const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   totalWithVideoInput: 'With video input',
 }
 
+/** Every category in display order, from the labels the compiler checks for completeness. */
+export const tokenCategoryOrder = Object.keys(
+  tokenCategoryLabel
+) as CanvasTokenCategory[]
+
 /**
  * The translation key of a category among those a model is priced by: a model that prices image input apart calls its
  * text input "Text input" (IMAGE-TOKEN-BILLING-001).

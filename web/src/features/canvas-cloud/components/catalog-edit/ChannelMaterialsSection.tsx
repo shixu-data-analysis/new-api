@@ -9,6 +9,7 @@ License, or (at your option) any later version.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -597,37 +598,16 @@ function ShapeEditor(props: {
 
 function HelpTable(props: { heads: string[]; rows: string[][] }) {
   return (
-    <div className='overflow-x-auto rounded-lg border'>
-      <table className='w-full text-xs'>
-        <thead>
-          <tr className='border-b'>
-            {props.heads.map((head) => (
-              <th
-                key={head}
-                scope='col'
-                className='p-2 text-left font-medium whitespace-nowrap'
-              >
-                {head}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {props.rows.map((cells) => (
-            <tr key={cells.join(' ')} className='border-b last:border-0'>
-              {props.heads.map((head, column) => (
-                <td
-                  key={head}
-                  className={`p-2 align-top ${column ? 'font-mono break-all' : ''}`}
-                >
-                  {cells[column]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <StaticDataTable
+      data={props.rows}
+      getRowKey={(cells) => cells.join(' ')}
+      columns={props.heads.map((head, column) => ({
+        id: head,
+        header: head,
+        cellClassName: column ? 'font-mono break-all' : undefined,
+        cell: (cells: string[]) => cells[column],
+      }))}
+    />
   )
 }
 

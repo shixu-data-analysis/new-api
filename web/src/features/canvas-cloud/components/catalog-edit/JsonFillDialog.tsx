@@ -9,6 +9,7 @@ License, or (at your option) any later version.
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import {
@@ -98,37 +99,16 @@ export function JsonFillDialog(props: {
           <Collapsible>
             <FoldTrigger>{t('How to fill in each part')}</FoldTrigger>
             <CollapsibleContent className='mt-2 space-y-2'>
-              <div className='overflow-x-auto rounded-lg border'>
-                <table className='w-full text-xs'>
-                  <thead>
-                    <tr className='border-b'>
-                      {props.heads.map((head) => (
-                        <th
-                          key={head}
-                          scope='col'
-                          className='p-2 text-left font-medium whitespace-nowrap'
-                        >
-                          {head}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {props.rows.map((row) => (
-                      <tr key={row.key} className='border-b last:border-0'>
-                        {props.heads.map((head, column) => (
-                          <td
-                            key={head}
-                            className={`p-2 align-top ${column < 2 ? 'whitespace-nowrap' : ''}`}
-                          >
-                            {row.cells[column]}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <StaticDataTable
+                data={props.rows}
+                getRowKey={(row) => row.key}
+                columns={props.heads.map((head, column) => ({
+                  id: head,
+                  header: head,
+                  cellClassName: column < 2 ? 'whitespace-nowrap' : undefined,
+                  cell: (row: (typeof props.rows)[number]) => row.cells[column],
+                }))}
+              />
               {props.notes.map((note) => (
                 <p key={note} className='text-muted-foreground text-xs'>
                   {note}

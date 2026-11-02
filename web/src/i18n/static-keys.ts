@@ -77,6 +77,10 @@ export const STATIC_I18N_KEYS = [
   'With a reference video the request fails: {{reason}} at {{field}}',
   'With reference audio the request fails: {{reason}} at {{field}}',
   'With images, video and audio the request fails: {{reason}} at {{field}}',
+  'With no material the request fails: {{reason}} at {{field}}',
+  'With a reference video and audio the request fails: {{reason}} at {{field}}',
+  'With a reference image and video the request fails: {{reason}} at {{field}}',
+  'With a reference image and audio the request fails: {{reason}} at {{field}}',
   'Images sent as files or base64 have no address, so modes cannot pick them apart; give the first frame, last frame and images the same field',
   // Canvas executor capacity: result-position badges, task-log filter values and attention hints
   'Result position waiting',
