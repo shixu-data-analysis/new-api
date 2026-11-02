@@ -346,6 +346,14 @@ export interface BodyMaterialsMemory {
   listField?: string
   listParts?: ShapeParts
   partMemory: Partial<Record<MaterialKind, string>>
+  /** Switches changed since the field rows were set aside, applied when they come back. */
+  fieldSwitches: Partial<Record<MaterialKind, boolean>>
+  /** Switches changed since the list was set aside, applied when it comes back. */
+  listSwitches: Partial<Record<MaterialKind, boolean>>
+  /** Where each field row was when set aside. */
+  fieldPlaces?: number[]
+  /** The role names each send style's rows were set aside with. */
+  roleMaps: Partial<Record<'fields' | 'list' | 'expr', Record<string, string>>>
 }
 
 /** What the form remembers while it edits materials by mode; none of it is stored in the Profile. */
@@ -364,6 +372,9 @@ const blankBodyMemory = (): BodyMaterialsMemory => ({
   fieldRows: [],
   exprRows: [],
   partMemory: {},
+  fieldSwitches: {},
+  listSwitches: {},
+  roleMaps: {},
 })
 
 export const blankMaterialsMemory = (): MaterialsMemory => ({

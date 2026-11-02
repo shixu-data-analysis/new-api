@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "Non lu (essayé {{paths}})",
     "A real call cannot read this path: {{path}}": "Un appel réel ne peut pas lire ce chemin : {{path}}",
     "Paste a real upstream response to check the paths": "Coller une vraie réponse de l'amont pour vérifier les chemins",
+    "Checked as the submit response; choose a status tab above to check a query response.": "Vérifié comme réponse à l’envoi ; choisissez un onglet d’état ci-dessus pour vérifier une réponse de requête.",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "Vérifié comme réponse de requête ; choisissez l’onglet Soumettre ci-dessus pour vérifier la réponse à l’envoi.",
     "Queried every {{ms}} ms.": "Interrogée toutes les {{ms}} ms.",
     "Query request": "Requête d'interrogation",
     "Queued values (optional)": "Valeurs en attente (facultatif)",

@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "読み取れません（試したパス：{{paths}}）",
     "A real call cannot read this path: {{path}}": "実際の呼び出しではこのパスを読み取れません：{{path}}",
     "Paste a real upstream response to check the paths": "上流の実際の応答を貼ってパスを確認",
+    "Checked as the submit response; choose a status tab above to check a query response.": "送信時のレスポンスとして確認しています。照会のレスポンスを確認するには、上の状態タブを選んでください。",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "照会のレスポンスとして確認しています。送信時のレスポンスを確認するには、上の「送信」タブを選んでください。",
     "Queried every {{ms}} ms.": "{{ms}} ミリ秒ごとに照会します。",
     "Query request": "照会リクエスト",
     "Queued values (optional)": "待機中の値（任意）",

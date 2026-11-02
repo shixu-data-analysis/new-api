@@ -67,6 +67,20 @@ function modelShapeIssue(model: unknown): JsonIssue | null {
     : null
 }
 
+/**
+ * A pasted model as the form holds it. A model of models.json may leave out its product key and name, which the page
+ * generates or asks for; the form holds them as empty text until they are filled in.
+ */
+export function formModel(
+  model: CatalogModelDefinition
+): CatalogModelDefinition {
+  return {
+    ...model,
+    productKey: model.productKey ?? '',
+    displayName: model.displayName ?? '',
+  }
+}
+
 export interface ChannelJson {
   provider?: CatalogJson
   channel: CatalogJson & { id: string; providerId: string }

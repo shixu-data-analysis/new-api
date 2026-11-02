@@ -16,6 +16,7 @@ import {
   measuredSupport,
 } from '../catalog-channel-materials'
 import { shapeIssue } from '../catalog-channel-shapes'
+import { catalogChannel, catalogDraft } from './catalog-fixtures'
 
 const row = (field: string, source: string): RequestRow => ({
   field,
@@ -286,5 +287,85 @@ describe('expressions and send content', () => {
     expect(shapeIssue('first', '{"url": {"$ref": "item.url"}}')?.key).toBe(
       'Send content has no $ syntax. When it cannot be written, set the send style to an expression'
     )
+  })
+})
+
+const switchStyle = (
+  draft: ChannelDraft,
+  body: 'rows' | 'imageRows',
+  styles: Array<'fields' | 'list' | 'expr'>
+) =>
+  styles.reduce(
+    (current, style) =>
+      editMaterials(current, (x) => materialsOf(x, body).setMediaStyle(style)),
+    draft
+  )
+
+describe('send styles of Catalog Channels', () => {
+  it('keeps the frames that share the image field when references are turned off in a list', () => {
+    const start = catalogDraft('hfsyapi-video')
+    const off = editMaterials(switchStyle(start, 'rows', ['list']), (x) =>
+      materialsOf(x, 'rows').setAccept('reference', false)
+    )
+    const back = switchStyle(off, 'rows', ['fields'])
+    expect(materialsOf(back, 'rows').accepts()).toMatchObject({
+      first: true,
+      last: true,
+      reference: false,
+    })
+    expect(JSON.stringify(bodyOf(back, 'frames').body)).toContain(
+      'last-frame-1'
+    )
+    expect(JSON.stringify(bodyOf(back, 'reference').body)).not.toContain(
+      'image-reference-1'
+    )
+    expect(materialIssues(back)).toEqual([])
+  })
+
+  it('brings back the image request of dklimage.gpt-image after an expression it never changed', () => {
+    const start = catalogDraft('dklimage-gpt-image')
+    const back = switchStyle(start, 'imageRows', ['expr', 'fields'])
+    expect(back.imageRows).toEqual(start.imageRows)
+    expect(materialsOf(back, 'imageRows').accepts()).toEqual(
+      materialsOf(start, 'imageRows').accepts()
+    )
+    expect(materialIssues(back)).toEqual([])
+  })
+
+  it('tells an expression sending only the prompt from fields, and switches back from it', () => {
+    const start = catalogDraft('whatstoken-gpt-image')
+    const expr = switchStyle(start, 'rows', ['expr'])
+    expect(materialsOf(expr, 'rows').mediaStyle()).toBe('expr')
+    const back = switchStyle(expr, 'rows', ['fields'])
+    expect(back.rows).toEqual(start.rows)
+  })
+
+  it('keeps a material turned off in fields out of the list, even after an expression in between', () => {
+    const fields = switchStyle(catalogDraft('hfsyapi-video'), 'rows', [
+      'list',
+      'fields',
+    ])
+    const off = editMaterials(fields, (x) =>
+      materialsOf(x, 'rows').setAccept('video', false)
+    )
+    const list = switchStyle(off, 'rows', ['expr', 'list'])
+    expect(materialsOf(list, 'rows').contentRow()?.parts?.video).toBeUndefined()
+    expect(JSON.stringify(bodyOf(list, 'reference').body)).not.toContain(
+      'video-reference-1'
+    )
+    expect(materialIssues(list)).toEqual([])
+  })
+
+  // manchuangai.video picks frames by role with names it leaves empty; a round trip must not name them.
+  it('switches to a list or an expression and back without changing the Profile', () => {
+    const { profile } = catalogChannel('manchuangai-video')
+    const start = catalogDraft('manchuangai-video')
+    const built = (draft: ChannelDraft) =>
+      JSON.stringify(buildProfile(draft, profile, 'x'))
+    for (const style of ['list', 'expr'] as const) {
+      expect(built(switchStyle(start, 'rows', [style, 'fields']))).toBe(
+        built(start)
+      )
+    }
   })
 })

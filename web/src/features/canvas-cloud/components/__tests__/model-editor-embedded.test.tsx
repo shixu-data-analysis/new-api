@@ -239,6 +239,27 @@ describe('Model form checks', () => {
     expect(await screen.findByDisplayValue('Pasted')).toBeInTheDocument()
   })
 
+  it('marks the name of a pasted model that leaves it out', async () => {
+    open()
+    await screen.findByText('What the user sees')
+    const { displayName: _name, ...nameless } = {
+      ...existing,
+      productKey: 'draft.image.nameless',
+      release: {
+        ...existing.release,
+        execution: { providerModel: { modelId: 'nameless' } },
+      },
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from JSON' }))
+    fireEvent.change(screen.getByLabelText('JSON to fill in'), {
+      target: { value: JSON.stringify(nameless) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in' }))
+    expect(await screen.findByDisplayValue('nameless')).toBeInTheDocument()
+    validate()
+    expect(await screen.findByText('Enter a display name')).toBeInTheDocument()
+  })
+
   it('refuses an upstream ID in use, a badly formed key and a key of a deleted model', async () => {
     open()
     await screen.findByText('What the user sees')

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "templateLanguageVersion": 1,
+  "id": "whatstoken.gpt-image",
+  "version": "1.0.1",
+  "kind": "image.generate",
+  "displayName": "WhatsToken GPT Image",
+  "description": "WhatsToken（OpenAI 兼容网关）同步图片接口：文生图 /v1/images/generations，带参考图时 /v1/images/edits（JSON 传图片 URL）；size 取尺寸表，quality 取画质，多张用 n；返回 OpenAI 图片格式的 usage",
+  "api": "whatstoken-image@1.0.1",
+  "workflow": "sync",
+  "securityScheme": "bearerAuth",
+  "operations": {
+    "submit": "createWhatstokenImage",
+    "submitWithImages": "editWhatstokenImage"
+  },
+  "advanced": {
+    "media": {
+      "image": {
+        "delivery": "public-url"
+      }
+    },
+    "request": {
+      "parameterPolicy": {
+        "rawDefaults": {
+          "response_format": "url"
+        },
+        "sizeParam": "size",
+        "qualityParam": "quality",
+        "countParam": "n"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$ref": "request.rawParams"
+          },
+          {
+            "model": {
+              "$ref": "model.upstreamId"
+            },
+            "prompt": {
+              "$ref": "request.prompt"
+            }
+          }
+        ]
+      },
+      "bodyWithImages": {
+        "$merge": [
+          {
+            "$ref": "request.rawParams"
+          },
+          {
+            "model": {
+              "$ref": "model.upstreamId"
+            },
+            "prompt": {
+              "$ref": "request.prompt"
+            },
+            "image": {
+              "$map": {
+                "from": {
+                  "$ref": "media.images"
+                },
+                "as": "item",
+                "template": {
+                  "$ref": "item.url"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "outputPaths": [
+        "data[].url",
+        "data[].b64_json"
+      ],
+      "errorPaths": [
+        "error.message"
+      ],
+      "usageProtocol": "OPENAI_IMAGES"
+    }
+  }
+}

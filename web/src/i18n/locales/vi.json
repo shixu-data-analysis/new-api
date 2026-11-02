@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "Chưa đọc được (đã thử {{paths}})",
     "A real call cannot read this path: {{path}}": "Lệnh gọi thật không đọc được đường dẫn này: {{path}}",
     "Paste a real upstream response to check the paths": "Dán phản hồi thật của thượng nguồn để kiểm tra đường dẫn",
+    "Checked as the submit response; choose a status tab above to check a query response.": "Đang kiểm tra như phản hồi khi gửi; để kiểm tra phản hồi truy vấn, hãy chọn một tab trạng thái ở trên.",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "Đang kiểm tra như phản hồi truy vấn; để kiểm tra phản hồi khi gửi, hãy chọn tab Gửi ở trên.",
     "Queried every {{ms}} ms.": "Truy vấn mỗi {{ms}} ms.",
     "Query request": "Yêu cầu truy vấn",
     "Queued values (optional)": "Giá trị đang chờ (tùy chọn)",

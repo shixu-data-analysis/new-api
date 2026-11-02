@@ -105,5 +105,16 @@ describe('checking pasted responses', () => {
         'processing → matches no state value, so it stays in progress (from data.status)'
       )
     ).toHaveClass('text-destructive')
+    // The Submit tab checks the same text as the submit answer: only its task ID.
+    await user.click(screen.getByRole('tab', { name: 'Submit' }))
+    expect(
+      screen.getByText(
+        'Checked as the submit response; choose a status tab above to check a query response.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('t1 (from data.id)')).not.toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.queryByText('Status')).not.toBeInTheDocument()
   })
 })

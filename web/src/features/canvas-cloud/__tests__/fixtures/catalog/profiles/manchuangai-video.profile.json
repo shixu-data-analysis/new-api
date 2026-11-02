@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "templateLanguageVersion": 1,
+  "id": "manchuangai.video",
+  "version": "1.2.2",
+  "kind": "video.generate",
+  "displayName": "ManChuang AI Video",
+  "description": "漫创 AI（New API 网关）/v1/videos 异步公网多素材视频接口；参数放在 metadata",
+  "api": "manchuangai-video@1.0.2",
+  "workflow": "async",
+  "securityScheme": "bearerAuth",
+  "operations": {
+    "submit": "createManchuangaiVideoTask",
+    "poll": "queryManchuangaiVideoTask"
+  },
+  "map": {
+    "response": {
+      "taskId": [
+        "/id",
+        "/task_id"
+      ],
+      "status": [
+        "/status"
+      ]
+    }
+  },
+  "states": {
+    "pending": [
+      "queued",
+      "unknown",
+      "pending"
+    ],
+    "running": [
+      "in_progress",
+      "processing",
+      "running"
+    ],
+    "succeeded": [
+      "completed"
+    ],
+    "failed": [
+      "failed"
+    ]
+  },
+  "advanced": {
+    "media": {
+      "image": {
+        "delivery": "public-url"
+      },
+      "video": {
+        "delivery": "public-url"
+      },
+      "audio": {
+        "delivery": "public-url"
+      },
+      "roleMap": {
+        "image-reference": "reference_image",
+        "connected-input": "reference_image",
+        "prompt-reference": "reference_image",
+        "video-reference": "reference_video",
+        "audio-reference": "reference_voice"
+      }
+    },
+    "request": {
+      "promptReferenceFormat": {
+        "image": "图片{n}",
+        "video": "视频{n}",
+        "audio": "音频{n}"
+      },
+      "body": {
+        "model": {
+          "$ref": "model.upstreamId"
+        },
+        "prompt": {
+          "$ref": "request.prompt"
+        },
+        "metadata": {
+          "duration": {
+            "$ref": "request.durationSeconds"
+          },
+          "ratio": {
+            "$ref": "request.aspectRatio"
+          },
+          "resolution": {
+            "$call": "lowercase",
+            "args": [
+              {
+                "$ref": "request.quality"
+              }
+            ]
+          },
+          "referenceImages": {
+            "$call": "omitEmpty",
+            "args": [
+              {
+                "$call": "mediaUrlsByRole",
+                "args": [
+                  {
+                    "$ref": "media.images"
+                  },
+                  "reference_image"
+                ]
+              }
+            ]
+          },
+          "referenceVideos": {
+            "$call": "omitEmpty",
+            "args": [
+              {
+                "$map": {
+                  "from": {
+                    "$ref": "media.videos"
+                  },
+                  "as": "item",
+                  "template": {
+                    "$ref": "item.url"
+                  }
+                }
+              }
+            ]
+          },
+          "referenceAudios": {
+            "$call": "omitEmpty",
+            "args": [
+              {
+                "$map": {
+                  "from": {
+                    "$ref": "media.audios"
+                  },
+                  "as": "item",
+                  "template": {
+                    "$ref": "item.url"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "response": {
+      "outputPaths": [
+        "metadata.url"
+      ],
+      "errorPaths": [
+        "error.message",
+        "message"
+      ]
+    }
+  }
+}

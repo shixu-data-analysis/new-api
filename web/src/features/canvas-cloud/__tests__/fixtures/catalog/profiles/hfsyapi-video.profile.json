@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "templateLanguageVersion": 1,
+  "id": "hfsyapi.video",
+  "version": "2.1.3",
+  "kind": "video.generate",
+  "displayName": "HFSY Video",
+  "description": "HFSY Seedance 2、Seedance 2.5 与 MiniMax H3 共享的异步多素材视频接口",
+  "api": "hfsyapi-video@2.0.6",
+  "workflow": "async",
+  "securityScheme": "bearerAuth",
+  "operations": {
+    "submit": "createHfsyVideoTask",
+    "poll": "queryHfsyVideoTask"
+  },
+  "map": {
+    "submitResponse": {
+      "taskId": [
+        "/id"
+      ]
+    },
+    "response": {
+      "taskId": [
+        "/data/id"
+      ],
+      "status": [
+        "/data/status"
+      ],
+      "outputs": [
+        "/data/video_url"
+      ],
+      "error": [
+        "/data/fail_reason"
+      ]
+    }
+  },
+  "states": {
+    "pending": [
+      "queued",
+      "pending"
+    ],
+    "running": [
+      "in_progress",
+      "processing",
+      "running"
+    ],
+    "succeeded": [
+      "completed"
+    ],
+    "failed": [
+      "failed"
+    ]
+  },
+  "advanced": {
+    "media": {
+      "image": {
+        "delivery": "public-url"
+      },
+      "video": {
+        "delivery": "public-url"
+      },
+      "audio": {
+        "delivery": "public-url"
+      },
+      "roleMap": {
+        "first-frame": "image",
+        "last-frame": "image",
+        "image-reference": "image",
+        "video-reference": "video",
+        "audio-reference": "audio",
+        "connected-input": "image",
+        "prompt-reference": "image"
+      }
+    },
+    "request": {
+      "promptReferenceFormat": {
+        "image": "图片{n}",
+        "video": "视频{n}",
+        "audio": "音频{n}"
+      },
+      "body": {
+        "model": {
+          "$ref": "model.upstreamId"
+        },
+        "orientation": {
+          "$call": "orientationForRatio",
+          "args": [
+            {
+              "$ref": "request.aspectRatio"
+            }
+          ]
+        },
+        "ratio": {
+          "$ref": "request.aspectRatio"
+        },
+        "prompt": {
+          "$ref": "request.prompt"
+        },
+        "duration": {
+          "$ref": "request.durationSeconds"
+        },
+        "images": {
+          "$call": "omitEmpty",
+          "args": [
+            {
+              "$map": {
+                "from": {
+                  "$ref": "media.images"
+                },
+                "as": "item",
+                "template": {
+                  "$ref": "item.url"
+                }
+              }
+            }
+          ]
+        },
+        "videos": {
+          "$call": "omitEmpty",
+          "args": [
+            {
+              "$map": {
+                "from": {
+                  "$ref": "media.videos"
+                },
+                "as": "item",
+                "template": {
+                  "$ref": "item.url"
+                }
+              }
+            }
+          ]
+        },
+        "audios": {
+          "$call": "omitEmpty",
+          "args": [
+            {
+              "$map": {
+                "from": {
+                  "$ref": "media.audios"
+                },
+                "as": "item",
+                "template": {
+                  "$ref": "item.url"
+                }
+              }
+            }
+          ]
+        },
+        "watermark": {
+          "$ref": "request.watermark"
+        }
+      }
+    },
+    "response": {
+      "outputPaths": [
+        "data.video_url"
+      ],
+      "errorPaths": [
+        "data.fail_reason"
+      ]
+    }
+  }
+}

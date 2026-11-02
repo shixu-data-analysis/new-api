@@ -353,9 +353,12 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     }
     return row.source
   }
+  // The send style's expression carries the prompt or a material; one with only the prompt is still that style.
   const mediaExprRows = () =>
     bodyRows().filter(
-      (row) => row.source === 'expr' && /"media\./.test(row.expr ?? '')
+      (row) =>
+        row.source === 'expr' &&
+        /"media\.|"request\.prompt"/.test(row.expr ?? '')
     )
   const slotExprRow = (slot: Slot) =>
     bodyRows().find(
@@ -840,24 +843,77 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
 
   const newListParts = (): ShapeParts =>
     defaultListParts(x.roleMap, imageView ? { reference: false } : undefined)
-  // The switches decide what a list of this body sends: a part turned off is set aside, one turned on comes back as it was.
-  const acceptedParts = (parts: ShapeParts): ShapeParts => {
-    const kept = { ...parts }
-    const defaults = newListParts()
-    for (const kind of bodyKinds()) {
-      if (draftMemory.accepts?.[kind]) {
-        kept[kind] ??= memory.partMemory[kind] ?? defaults[kind]
-        continue
-      }
-      if (kept[kind] === undefined) continue
-      memory.partMemory = { ...memory.partMemory, [kind]: kept[kind] }
-      delete kept[kind]
+  // A list part turned off is set aside, and comes back as it was when turned on again.
+  const switchListPart = (
+    parts: ShapeParts,
+    kind: MaterialKind,
+    on: boolean
+  ): ShapeParts => {
+    if (on) {
+      return parts[kind] === undefined
+        ? { ...parts, [kind]: memory.partMemory[kind] ?? newListParts()[kind] }
+        : parts
     }
+    if (parts[kind] === undefined) return parts
+    const { [kind]: removed, ...kept } = parts
+    memory.partMemory = { ...memory.partMemory, [kind]: removed }
     return kept
+  }
+  // Turning a material off removes only that material: references leave a field they share with frames, which stay.
+  const dropMaterial = (kind: MaterialKind) => {
+    const images = slotRow('images')
+    const sharedFrames =
+      kind === 'reference' && !imageView && images
+        ? (['first', 'last'] as const).filter(
+            (frame) => rowOfSlot(frame) === images
+          )
+        : []
+    if (!images || !sharedFrames.length) {
+      setSlot(ACCEPT_SLOT[kind], '')
+      return
+    }
+    if (images.source !== 'shaped' || images.parts?.all !== undefined) {
+      splitShared(images)
+    }
+    const { reference: _reference, ...frames } = images.parts ?? {}
+    // The field stays a list, as it was with the references in it.
+    Object.assign(images, { source: 'shaped', parts: frames, asList: true })
+    delete images.sharedShape
+    settleShaped(images)
+    nameRolesPickedBy()
+    followAllDelivery()
+  }
+  // Rows set aside come back with the role names they had, so a round trip through another send style changes no name
+  // that style named for itself. The other request body may still pick by those names, and then they stay.
+  const restoreRoleNames = (style: SendStyle) => {
+    const names = memory.roleMaps[style]
+    memory.roleMaps = { ...memory.roleMaps, [style]: undefined }
+    const otherBody: BodyName = body === 'rows' ? 'imageRows' : 'rows'
+    if (
+      !names ||
+      (x.images && materialsOf(x, otherBody).mediaStyle() !== 'fields')
+    ) {
+      return false
+    }
+    x.roleMap = { ...names }
+    const kept = draftMemory.roleMemory
+    if (
+      kept &&
+      Object.entries(kept).every(([role, name]) => x.roleMap[role] === name)
+    ) {
+      draftMemory.roleMemory = null
+    }
+    return true
+  }
+  // A switch changed while rows are set aside applies to them when they come back.
+  const recordSwitch = (kind: MaterialKind, on: boolean) => {
+    memory.fieldSwitches = { ...memory.fieldSwitches, [kind]: on }
+    memory.listSwitches = { ...memory.listSwitches, [kind]: on }
   }
   const setMediaStyle = (style: SendStyle) => {
     const from = mediaStyle()
     if (style === from) return
+    memory.roleMaps = { ...memory.roleMaps, [from]: { ...x.roleMap } }
     // Leaving an expression, its measured materials become the switches; a list starts with only the accepted parts.
     draftMemory.accepts =
       from === 'expr' ? { ...measuredSupport(x) } : { ...accepts() }
@@ -884,41 +940,80 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     if (list) {
       memory.listField = list.field
       memory.listParts = list.parts
+      memory.listSwitches = {}
       take([list])
     }
     if (from === 'expr') memory.exprRows = take(exprs)
-    if (from === 'fields') memory.fieldRows = take(covered())
+    if (from === 'fields') {
+      const rows = covered()
+      memory.fieldPlaces = rows.map((row) => bodyRows().indexOf(row))
+      memory.fieldRows = take(rows)
+      memory.fieldSwitches = {}
+    }
     if (style === 'fields') {
       const hasPrompt = bodyRows().some((row) =>
         ['prompt', 'promptOptional'].includes(row.source)
       )
-      put(
-        memory.fieldRows.length
-          ? memory.fieldRows
-          : [
-              ...(hasPrompt
-                ? []
-                : [{ field: 'prompt', source: 'prompt', transform: '' }]),
-              { field: 'images', source: 'images', transform: '' },
-            ]
-      )
-      memory.fieldRows = []
-      // A material turned off while these rows were set aside leaves its field, as turning it off here does.
-      for (const kind of bodyKinds()) {
-        if (!draftMemory.accepts?.[kind]) setSlot(ACCEPT_SLOT[kind], '')
+      // Rows set aside go back each to its own place, as fields between them stayed.
+      const places = memory.fieldPlaces ?? []
+      const cached = memory.fieldRows.length > 0
+      if (cached) {
+        memory.fieldRows
+          .map((row, i) => ({ row, place: places[i] ?? bodyRows().length }))
+          .sort((left, right) => left.place - right.place)
+          .forEach(({ row, place }) =>
+            bodyRows().splice(Math.min(place, bodyRows().length), 0, row)
+          )
+      } else {
+        put([
+          ...(hasPrompt
+            ? []
+            : [{ field: 'prompt', source: 'prompt', transform: '' }]),
+          { field: 'images', source: 'images', transform: '' },
+        ])
       }
+      memory.fieldRows = []
+      memory.fieldPlaces = undefined
+      const restoredRoles = cached && restoreRoleNames('fields')
+      // A material turned off while these rows were set aside leaves them, as turning it off here does.
+      for (const [kind, on] of Object.entries(memory.fieldSwitches)) {
+        if (!on) dropMaterial(kind as MaterialKind)
+      }
+      memory.fieldSwitches = {}
+      // The expression's measure says nothing of the fields that come back, so the switches follow those fields.
+      if (from === 'expr') draftMemory.accepts = startingAccepts(x)
       followAllDelivery()
-      nameRolesPickedBy()
+      if (!restoredRoles) nameRolesPickedBy()
       return
     }
     // What is left is a prompt field an expression was sent beside; the list and the template both carry the prompt.
-    memory.fieldRows = [...memory.fieldRows, ...take(covered())]
-    // The list and the expression pick images by role, so the roles are named before the parts are written with them.
-    nameRolesPickedBy(true)
-    const parts = acceptedParts(
-      memory.listParts ?? { text: newListParts().text }
-    )
+    const left = covered()
+    memory.fieldPlaces = [
+      ...(memory.fieldPlaces ?? []),
+      ...left.map((row) => bodyRows().indexOf(row)),
+    ]
+    memory.fieldRows = [...memory.fieldRows, ...take(left)]
+    // The list and the expression pick images by role, so the roles are named before the parts are written with them;
+    // a list or an expression set aside comes back with the names it had.
+    const cached =
+      style === 'list' ? Boolean(memory.listParts) : memory.exprRows.length > 0
+    if (!(cached && restoreRoleNames(style))) nameRolesPickedBy(true)
+    // A list set aside comes back with the switches changed since; a new list takes the accepted parts.
+    const parts = memory.listParts
+      ? (
+          Object.entries(memory.listSwitches) as Array<[MaterialKind, boolean]>
+        ).reduce(
+          (current, [kind, on]) => switchListPart(current, kind, on),
+          memory.listParts
+        )
+      : bodyKinds()
+          .filter((kind) => draftMemory.accepts?.[kind])
+          .reduce((current, kind) => switchListPart(current, kind, true), {
+            text: newListParts().text,
+          } as ShapeParts)
     if (style === 'list') {
+      // The list is back, so the switches recorded for it are spent; an expression leaves them for the list.
+      memory.listSwitches = {}
       put([
         {
           field: memory.listField ?? 'content',
@@ -950,12 +1045,13 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
 
   const setAccept = (kind: MaterialKind, on: boolean) => {
     draftMemory.accepts = { ...accepts(), [kind]: on }
+    recordSwitch(kind, on)
     const list = contentRow()
     if (list) {
-      list.parts = acceptedParts(list.parts ?? {})
+      list.parts = switchListPart(list.parts ?? {}, kind, on)
       return
     }
-    if (!on) setSlot(ACCEPT_SLOT[kind], '')
+    if (!on) dropMaterial(kind)
   }
   const setListPart = (key: ShapePart, text: string) => {
     const list = contentRow()
@@ -1279,15 +1375,7 @@ export function materialIssues(
         carriedBy(templateOfRow(row, draft.roleMap), draft.roleMap).prompt
     )
     if (!senders.length) {
-      const exprOnly =
-        rows.some(
-          (row) => row.source === 'expr' && /"media\./.test(row.expr ?? '')
-        ) &&
-        !rows.some(
-          (row) =>
-            Object.values(SLOT_SOURCES).flat().includes(row.source) ||
-            row.source === 'shaped'
-        )
+      const exprOnly = materialsOf(draft, body).mediaStyle() === 'expr'
       let key = 'Enter the field the prompt goes in'
       if (exprOnly) {
         key =

@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "未读取到（试了 {{paths}}）",
     "A real call cannot read this path: {{path}}": "真实调用读不了这个路径：{{path}}",
     "Paste a real upstream response to check the paths": "贴上游真实返回，检查路径",
+    "Checked as the submit response; choose a status tab above to check a query response.": "按提交返回检查；要检查查询返回，请选上方的状态标签。",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "按查询返回检查；要检查提交返回，请选上方的“提交”标签。",
     "Queried every {{ms}} ms.": "每 {{ms}} 毫秒查一次。",
     "Query request": "查询请求",
     "Queued values (optional)": "排队中的状态值（可选）",

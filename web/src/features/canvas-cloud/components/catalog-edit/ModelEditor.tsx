@@ -72,6 +72,7 @@ import type {
   CurrentCatalogView,
 } from '../../catalog-edit-types'
 import {
+  formModel,
   modelJsonIssue,
   type JsonIssue,
   type ModelJsonPlace,
@@ -565,21 +566,28 @@ function LoadedEditor(props: {
     embedded?.onNewGroupChange(next)
   }
   // A new group is made once for the page, however many of its models bind it; the key stays out of the draft.
-  const others = embedded?.others ?? []
   // A model not opened yet binds the group it would start with when opened, so publishing never skips that choice.
-  const groupOf = (entry: PageModel) =>
-    entry.credentialGroup || startingGroup(entry.definition.release.channelId)
+  // The models of a page share their Channel, so its starting group is worked out once.
+  const startingByChannel = new Map<string, GroupChoice>()
+  const others: PageModel[] = (embedded?.others ?? []).map((entry) => {
+    if (entry.credentialGroup) return entry
+    const channelId = entry.definition.release.channelId
+    const starting =
+      startingByChannel.get(channelId) ?? startingGroup(channelId)
+    startingByChannel.set(channelId, starting)
+    return { ...entry, credentialGroup: starting }
+  })
   const otherDrafts: CatalogEditDraftModel[] = others.map((entry) => ({
     baseVersion: null,
     definition: entry.definition,
-    ...(groupOf(entry)
-      ? { credentialGroup: draftBinding(groupOf(entry)) }
+    ...(entry.credentialGroup
+      ? { credentialGroup: draftBinding(entry.credentialGroup) }
       : {}),
   }))
   const pageBindsNewGroup =
     mode.kind !== 'edit' &&
     (groupChoice === NEW_GROUP ||
-      others.some((entry) => groupOf(entry) === NEW_GROUP))
+      others.some((entry) => entry.credentialGroup === NEW_GROUP))
   const newCredentialGroup =
     pageBindsNewGroup && provider
       ? {
@@ -737,7 +745,7 @@ function LoadedEditor(props: {
       }
       if (issue) return issue
     }
-    const models = list as CatalogModelDefinition[]
+    const models = (list as CatalogModelDefinition[]).map(formModel)
     if (embedded?.slots) embedded.slots.onFill(models)
     else fillOne(models[0])
     toast.success(
@@ -781,7 +789,7 @@ function LoadedEditor(props: {
                         .filter((other) => other !== entry)
                         .map((other) => other.definition),
                     ],
-                    groupChoice: groupOf(entry),
+                    groupChoice: entry.credentialGroup,
                     newGroup,
                     catalog,
                     ...sendsOf(entry.definition.release.channelId),

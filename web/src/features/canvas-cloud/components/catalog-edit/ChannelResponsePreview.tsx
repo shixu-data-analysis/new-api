@@ -20,6 +20,7 @@ import {
   readResponseSample,
   sampleResponse,
   type ResponseReading,
+  type ResponseStage,
   type ResponseSource,
   type ResponseState,
   type TaskState,
@@ -210,12 +211,24 @@ export function PollRequestCard(props: { draft: ChannelDraft; base: string }) {
   return <PreviewCard title={t('Query request')}>{content}</PreviewCard>
 }
 
-function ResponseCheck(props: { profile: CatalogJson }) {
+/** Checks a pasted answer as the stage of the tab shown above, so switching tabs reads the same text again. */
+function ResponseCheck(props: {
+  profile: CatalogJson
+  stage: ResponseStage
+  polls: boolean
+}) {
   const { t } = useTranslation()
   const [pasted, setPasted] = useState('')
-  const [result, setResult] = useState<ResponseReading[] | 'invalid' | null>(
-    null
-  )
+  const [checked, setChecked] = useState<string | null>(null)
+  let result: ResponseReading[] | 'invalid' | null = null
+  if (checked !== null) {
+    try {
+      result = readResponseSample(props.profile, checked, props.stage)
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+      result = 'invalid'
+    }
+  }
   const names = {
     taskId: t('Task ID'),
     status: t('Status'),
@@ -249,14 +262,7 @@ function ResponseCheck(props: { profile: CatalogJson }) {
     }
     return t('{{value}} (from {{path}})', { value: shown, path: reading.path })
   }
-  const check = () => {
-    try {
-      setResult(readResponseSample(props.profile, pasted))
-    } catch (error) {
-      if (!(error instanceof SyntaxError)) throw error
-      setResult('invalid')
-    }
-  }
+  const check = () => setChecked(pasted)
   return (
     <Collapsible>
       <FoldTrigger>
@@ -268,6 +274,17 @@ function ResponseCheck(props: { profile: CatalogJson }) {
             'The example response is built from the paths on the left, so it looks right even when a path is wrong. Paste a real response from the upstream documents to see whether each path reads it. Nothing calls the upstream.'
           )}
         </Muted>
+        {props.polls ? (
+          <Muted>
+            {props.stage === 'submit'
+              ? t(
+                  'Checked as the submit response; choose a status tab above to check a query response.'
+                )
+              : t(
+                  'Checked as a query response; choose the Submit tab above to check the submit response.'
+                )}
+          </Muted>
+        ) : null}
         <Textarea
           aria-label={t('Upstream response JSON')}
           rows={4}
@@ -469,8 +486,12 @@ export function ResponseCard(props: {
           {alsoLabels[entry.what].replace('{{values}}', entry.values)}
         </Muted>
       ))}
-      {draft.capability === 'chat.generate' ? null : (
-        <ResponseCheck profile={props.profile} />
+      {draft.capability === 'chat.generate' || state === 'asset' ? null : (
+        <ResponseCheck
+          profile={props.profile}
+          stage={state === 'submit' ? 'submit' : 'query'}
+          polls={polls}
+        />
       )}
     </PreviewCard>
   )

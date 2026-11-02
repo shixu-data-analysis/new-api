@@ -12,6 +12,12 @@ export function pointer(value: unknown, path: string): unknown {
   return path.slice(1).split("/").reduce<unknown>((current, part) => current && typeof current === "object" ? (current as JsonObject)[part.replace(/~1/g, "/").replace(/~0/g, "~")] : undefined, value);
 }
 
+/** Where an operation's response holds the task ID: a submit answer by its own mapping when it has one, else the poll mapping. */
+export function operationTaskIdMapping(profile: JsonObject, role: "prepareAsset" | "pollAsset" | "submit" | "submitWithImages" | "poll"): unknown {
+  if (role === "submit" || role === "submitWithImages") return dotted(profile, "map.submitResponse.taskId") ?? dotted(profile, "map.response.taskId");
+  return dotted(profile, "map.response.taskId");
+}
+
 /** The first configured pointer that finds a value, and the pointer that found it. */
 export function pointerMatch(value: unknown, candidate: unknown): { value: unknown; path: string } | undefined {
   const paths = Array.isArray(candidate) ? candidate : [candidate];

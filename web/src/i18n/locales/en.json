@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "Not read (tried {{paths}})",
     "A real call cannot read this path: {{path}}": "A real call cannot read this path: {{path}}",
     "Paste a real upstream response to check the paths": "Paste a real upstream response to check the paths",
+    "Checked as the submit response; choose a status tab above to check a query response.": "Checked as the submit response; choose a status tab above to check a query response.",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "Checked as a query response; choose the Submit tab above to check the submit response.",
     "Queried every {{ms}} ms.": "Queried every {{ms}} ms.",
     "Query request": "Query request",
     "Queued values (optional)": "Queued values (optional)",

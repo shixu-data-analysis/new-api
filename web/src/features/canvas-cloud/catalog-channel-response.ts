@@ -21,6 +21,7 @@ import type { CatalogJson } from './catalog-edit-types'
 import { dotted } from './executor-shared/providerRequestValues'
 import {
   errorMessageMatch,
+  operationTaskIdMapping,
   outputMatch,
   pointerMatch,
   restrictedJsonPath,
@@ -263,13 +264,18 @@ const pathList = (value: unknown): string[] =>
 const shownPath = (path: string) =>
   path.startsWith('/') ? pointerToPath(path) : path
 
+/** The answer a pasted response is: the submit answer, or a query answer (the only one of a sync interface). */
+export type ResponseStage = 'submit' | 'query'
+
 /**
- * Reads a pasted upstream response as the Executor reads it, with the Profile the form builds: task ID and status by
- * pointer, results by the mapped pointers and then the output paths. Throws on text that is not JSON.
+ * Reads a pasted upstream response as the Executor reads it at that stage, with the Profile the form builds: from a
+ * submit answer the task ID; from a query answer the status by pointer, results by the mapped pointers and then the
+ * output paths, and the failure reason. Throws on text that is not JSON.
  */
 export function readResponseSample(
   profile: CatalogJson,
-  pasted: string
+  pasted: string,
+  stage: ResponseStage
 ): ResponseReading[] {
   const value: unknown = JSON.parse(pasted)
   const response = (
@@ -291,16 +297,19 @@ export function readResponseSample(
       bad: !usable(match.value),
     }
   }
-  const readings: ResponseReading[] = []
-  if (profile.workflow !== 'sync') {
-    // The Executor keeps a task ID only when it is text.
-    readings.push(
+  const polls = profile.workflow !== 'sync'
+  if (polls && stage === 'submit') {
+    // The Executor takes the task ID from the submit answer, by its own mapping when it has one, and keeps only text.
+    return [
       byPointer(
         'taskId',
-        dotted(profile, 'map.response.taskId'),
+        operationTaskIdMapping(profile, 'submit'),
         (found) => typeof found === 'string'
-      )
-    )
+      ),
+    ]
+  }
+  const readings: ResponseReading[] = []
+  if (polls) {
     const status = byPointer(
       'status',
       dotted(profile, 'map.response.status'),

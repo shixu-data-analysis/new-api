@@ -14,7 +14,14 @@ import {
   pathToPointer,
   pointerToPath,
 } from '../catalog-channel-draft'
-import { materialIssues } from '../catalog-channel-materials'
+import {
+  editMaterials,
+  isModeView,
+  materialIssues,
+  materialsOf,
+  withMeasuredAccepts,
+} from '../catalog-channel-materials'
+import { catalogChannel } from './catalog-fixtures'
 
 const catalogRoot = path.resolve(process.cwd(), '../../pixmiao-catalog')
 
@@ -308,34 +315,55 @@ describe('Channel form', () => {
         ]) {
           differences.push(`${profile.id} ${issue.path}: ${issue.key}`)
         }
+        // Design D58: switching the send style and back, with nothing edited, changes nothing.
+        if (!isModeView(draft.capability)) continue
+        const opened = withMeasuredAccepts(draft)
+        const bodies = draft.images
+          ? (['rows', 'imageRows'] as const)
+          : (['rows'] as const)
+        for (const body of bodies) {
+          const from = materialsOf(opened, body).mediaStyle()
+          for (const style of ['fields', 'list', 'expr'] as const) {
+            if (style === from) continue
+            const back = [style, from].reduce(
+              (current, next) =>
+                editMaterials(current, (x) =>
+                  materialsOf(x, body).setMediaStyle(next)
+                ),
+              opened
+            )
+            if (
+              JSON.stringify(buildProfile(back, profile, 'x')) !==
+              JSON.stringify(buildProfile(opened, profile, 'x'))
+            ) {
+              differences.push(
+                `${profile.id} ${body} ${from} → ${style} → ${from}`
+              )
+            }
+          }
+        }
       }
       expect(differences).toEqual([])
     }
   )
 
   // hfsyapi.video maps its result twice; the Executor reads the mapped pointer first.
-  it.skipIf(!existsSync(catalogRoot))(
-    'drops the mapped result pointer once the result paths change, so the paths on the page are the ones read',
-    () => {
-      const read = (file: string) =>
-        JSON.parse(readFileSync(path.join(catalogRoot, file), 'utf8'))
-      const profile = read('profiles/hfsyapi-video.profile.json')
-      const contract = read('openapi/hfsyapi-video.openapi.json')
-      const mapped = (built: Record<string, unknown>) =>
-        (built.map as { response: Record<string, unknown> }).response.outputs
-      const draft = channelDraftFrom(profile, contract)
-      expect(mapped(buildProfile(draft, profile, 'x'))).toEqual([
-        '/data/video_url',
-      ])
-      draft.outputPaths = 'data.result_url'
-      const edited = buildProfile(draft, profile, 'x')
-      expect(mapped(edited)).toBeUndefined()
-      expect(
-        (edited.advanced as { response: { outputPaths: string[] } }).response
-          .outputPaths
-      ).toEqual(['data.result_url'])
-    }
-  )
+  it('drops the mapped result pointer once the result paths change, so the paths on the page are the ones read', () => {
+    const { profile, contract } = catalogChannel('hfsyapi-video')
+    const mapped = (built: Record<string, unknown>) =>
+      (built.map as { response: Record<string, unknown> }).response.outputs
+    const draft = channelDraftFrom(profile, contract)
+    expect(mapped(buildProfile(draft, profile, 'x'))).toEqual([
+      '/data/video_url',
+    ])
+    draft.outputPaths = 'data.result_url'
+    const edited = buildProfile(draft, profile, 'x')
+    expect(mapped(edited)).toBeUndefined()
+    expect(
+      (edited.advanced as { response: { outputPaths: string[] } }).response
+        .outputPaths
+    ).toEqual(['data.result_url'])
+  })
 })
 
 function sorted(value: unknown): unknown {

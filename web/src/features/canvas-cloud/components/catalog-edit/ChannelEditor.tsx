@@ -57,6 +57,7 @@ import { diffCatalogJson } from '../../catalog-json-diff'
 import {
   channelJsonExample,
   channelJsonIssue,
+  formModel,
   pastedNotes,
   type ChannelJson,
   type JsonIssue,
@@ -837,7 +838,7 @@ function LoadedChannelEditor(props: {
     setPasted({
       profile,
       contract: openapi,
-      models: models ?? [],
+      models: (models ?? []).map(formModel),
       notes: pastedNotes(json as ChannelJson, catalog),
     })
     toast.success(

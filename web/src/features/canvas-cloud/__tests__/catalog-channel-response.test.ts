@@ -65,19 +65,43 @@ describe('answers of a task', () => {
   it('marks paths that read nothing and a status that matches no state value', () => {
     const readings = readResponseSample(
       profileOf(videoTask()),
-      '{"data":{"id":"t1","status":"processing"}}'
+      '{"data":{"id":"t1","status":"processing"}}',
+      'query'
     )
     expect(readings.map(({ what, bad }) => [what, bad])).toEqual([
-      ['taskId', false],
       ['status', true],
       ['result', true],
       ['error', true],
     ])
-    expect(readings[1].state).toBeNull()
-    expect(readings[2].tried).toEqual(['data.video_url'])
-    expect(() => readResponseSample(profileOf(videoTask()), '{')).toThrow(
-      SyntaxError
+    expect(readings[0].state).toBeNull()
+    expect(readings[1].tried).toEqual(['data.video_url'])
+    expect(() =>
+      readResponseSample(profileOf(videoTask()), '{', 'query')
+    ).toThrow(SyntaxError)
+  })
+
+  // hfsyapi.video: the submit answer holds the ID at /id, the query answer at /data/id.
+  it('reads the task ID of a submit answer only, by the submit mapping', () => {
+    const draft = videoTask()
+    draft.submitTaskId = 'id'
+    expect(
+      readResponseSample(profileOf(draft), '{"id":"task-123"}', 'submit')
+    ).toEqual([
+      {
+        what: 'taskId',
+        found: ['task-123'],
+        path: 'id',
+        tried: ['id'],
+        bad: false,
+      },
+    ])
+    const query = readResponseSample(
+      profileOf(draft),
+      '{"data":{"id":"task-123","status":"running"}}',
+      'query'
     )
+    expect(query.map(({ what }) => what)).toEqual(['status', 'result', 'error'])
+    expect(query[0]).toMatchObject({ state: 'running', bad: false })
   })
 
   it('reads result paths in lists as a real call does, and names a path it refuses', () => {
@@ -85,7 +109,7 @@ describe('answers of a task', () => {
     const result = (outputPaths: string) => {
       const draft = videoTask()
       draft.outputPaths = outputPaths
-      return readResponseSample(profileOf(draft), pasted).find(
+      return readResponseSample(profileOf(draft), pasted, 'query').find(
         (reading) => reading.what === 'result'
       )
     }
@@ -102,13 +126,17 @@ describe('answers of a task', () => {
     const failed = videoTask()
     failed.errorPaths = 'error.message, error'
     expect(
-      readResponseSample(profileOf(failed), '{"error":"prompt rejected"}').at(
-        -1
-      )
+      readResponseSample(
+        profileOf(failed),
+        '{"error":"prompt rejected"}',
+        'query'
+      ).at(-1)
     ).toMatchObject({ found: ['prompt rejected'], path: 'error', bad: false })
     const draft = videoTask()
     draft.taskIdPath = 'id'
-    expect(readResponseSample(profileOf(draft), pasted)[0]).toMatchObject({
+    expect(
+      readResponseSample(profileOf(draft), pasted, 'submit')[0]
+    ).toMatchObject({
       what: 'taskId',
       found: [7],
       bad: true,

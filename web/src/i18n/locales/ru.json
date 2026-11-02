@@ -10574,6 +10574,8 @@
     "Not read (tried {{paths}})": "Не прочитано (проверено: {{paths}})",
     "A real call cannot read this path: {{path}}": "Реальный вызов не может прочитать этот путь: {{path}}",
     "Paste a real upstream response to check the paths": "Вставьте реальный ответ провайдера, чтобы проверить пути",
+    "Checked as the submit response; choose a status tab above to check a query response.": "Проверяется как ответ на отправку; чтобы проверить ответ на запрос статуса, выберите вкладку статуса выше.",
+    "Checked as a query response; choose the Submit tab above to check the submit response.": "Проверяется как ответ на запрос статуса; чтобы проверить ответ на отправку, выберите вкладку «Отправить» выше.",
     "Queried every {{ms}} ms.": "Опрос каждые {{ms}} мс.",
     "Query request": "Запрос статуса",
     "Queued values (optional)": "Значения ожидания (необязательно)",
