@@ -19,10 +19,7 @@
     "schemas": {
       "GenerationRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "prompt"
-        ],
+        "required": ["model", "prompt"],
         "properties": {
           "model": {
             "type": "string"
@@ -42,19 +39,11 @@
           },
           "quality": {
             "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ]
+            "enum": ["low", "medium", "high"]
           },
           "resolution": {
             "type": "string",
-            "enum": [
-              "1k",
-              "2k",
-              "4k"
-            ]
+            "enum": ["1k", "2k", "4k"]
           },
           "ratio": {
             "type": "string",
@@ -62,10 +51,7 @@
           },
           "response_format": {
             "type": "string",
-            "enum": [
-              "url",
-              "b64_json"
-            ]
+            "enum": ["url", "b64_json"]
           },
           "image": {
             "type": "array",
@@ -80,11 +66,7 @@
       },
       "EditRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "prompt",
-          "image"
-        ],
+        "required": ["model", "prompt", "image"],
         "properties": {
           "model": {
             "type": "string"
@@ -104,19 +86,11 @@
           },
           "quality": {
             "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ]
+            "enum": ["low", "medium", "high"]
           },
           "resolution": {
             "type": "string",
-            "enum": [
-              "1k",
-              "2k",
-              "4k"
-            ]
+            "enum": ["1k", "2k", "4k"]
           },
           "ratio": {
             "type": "string",
@@ -124,10 +98,7 @@
           },
           "response_format": {
             "type": "string",
-            "enum": [
-              "url",
-              "b64_json"
-            ]
+            "enum": ["url", "b64_json"]
           },
           "image": {
             "type": "array",
@@ -142,9 +113,7 @@
       },
       "ImageResponse": {
         "type": "object",
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "array",

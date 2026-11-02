@@ -15,41 +15,20 @@
   },
   "map": {
     "submitResponse": {
-      "taskId": [
-        "/id"
-      ]
+      "taskId": ["/id"]
     },
     "response": {
-      "taskId": [
-        "/data/id"
-      ],
-      "status": [
-        "/data/status"
-      ],
-      "outputs": [
-        "/data/video_url"
-      ],
-      "error": [
-        "/data/fail_reason"
-      ]
+      "taskId": ["/data/id"],
+      "status": ["/data/status"],
+      "outputs": ["/data/video_url"],
+      "error": ["/data/fail_reason"]
     }
   },
   "states": {
-    "pending": [
-      "queued",
-      "pending"
-    ],
-    "running": [
-      "in_progress",
-      "processing",
-      "running"
-    ],
-    "succeeded": [
-      "completed"
-    ],
-    "failed": [
-      "failed"
-    ]
+    "pending": ["queued", "pending"],
+    "running": ["in_progress", "processing", "running"],
+    "succeeded": ["completed"],
+    "failed": ["failed"]
   },
   "advanced": {
     "media": {
@@ -153,12 +132,8 @@
       }
     },
     "response": {
-      "outputPaths": [
-        "data.video_url"
-      ],
-      "errorPaths": [
-        "data.fail_reason"
-      ]
+      "outputPaths": ["data.video_url"],
+      "errorPaths": ["data.fail_reason"]
     }
   }
 }

@@ -203,6 +203,44 @@ describe('materials of a video form', () => {
     )
   })
 
+  it('counts the prompt in the request each mode builds, not the rows that mention it', () => {
+    const withExpr = (template: unknown) =>
+      editMaterials(oneImageList(), (x) => {
+        x.rows = [
+          row('model', 'upstreamId'),
+          {
+            field: 'content',
+            source: 'expr',
+            expr: JSON.stringify(template),
+            transform: '',
+          },
+        ]
+      })
+    const prompt = { $ref: 'request.prompt' }
+    const keys = (template: unknown) =>
+      materialIssues(withExpr(template)).map((issue) => issue.key)
+    expect(keys({ text: prompt, again: prompt })).toContain(
+      'The prompt is sent {{count}} times ({{fields}}); keep one'
+    )
+    expect(
+      keys({
+        // $if takes a branch by whether its value exists; this one never does.
+        text: {
+          $if: { $ref: 'request.rawParams.never' },
+          // The template language's $if takes then and else; this is not a Promise.
+          // eslint-disable-next-line unicorn/no-thenable
+          then: prompt,
+          else: '',
+        },
+      })
+    ).toContain(
+      'The prompt is not sent in every mode ({{fields}}); check the conditions around it'
+    )
+    expect(keys({ text: prompt })).not.toContain(
+      'The prompt is sent {{count}} times ({{fields}}); keep one'
+    )
+  })
+
   it('reports models whose modes need a material the interface does not take', () => {
     const draft = editMaterials(oneImageList(), (x) => {
       x.rows = x.rows.filter((entry) => entry.source !== 'audios')

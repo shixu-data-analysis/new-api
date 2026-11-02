@@ -28,23 +28,117 @@ export interface JsonIssue {
 const isObject = (value: unknown): value is CatalogJson =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
+const JSON_NUMBER = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y
+const JSON_LITERALS: Record<string, string> = {
+  t: 'true',
+  f: 'false',
+  n: 'null',
+}
+
+/**
+ * Where text stops being one strict JSON value: the offset of the first character that cannot be there, or the end
+ * when it is missing more. Read by the grammar itself, so every browser places it alike, whatever its parser reports.
+ */
+function jsonStopOffset(text: string): number {
+  let at = 0
+  const skipSpace = () => {
+    while (at < text.length && ' \t\n\r'.includes(text[at])) at += 1
+  }
+  const string = (): boolean => {
+    at += 1
+    while (at < text.length) {
+      const code = text.charCodeAt(at)
+      if (code === 34) {
+        at += 1
+        return true
+      }
+      if (code < 32) return false
+      if (code === 92) {
+        const escape = text[at + 1]
+        if (escape === 'u') {
+          if (!/^[0-9a-fA-F]{4}$/.test(text.slice(at + 2, at + 6))) {
+            at += 1
+            return false
+          }
+          at += 6
+          continue
+        }
+        if (escape === undefined || !'"\\/bfnrt'.includes(escape)) {
+          at += 1
+          return false
+        }
+        at += 2
+        continue
+      }
+      at += 1
+    }
+    return false
+  }
+  const scalar = (): boolean => {
+    if (text[at] === '"') return string()
+    const word = JSON_LITERALS[text[at]]
+    if (word) {
+      if (!text.startsWith(word, at)) return false
+      at += word.length
+      return true
+    }
+    JSON_NUMBER.lastIndex = at
+    const number = JSON_NUMBER.exec(text)
+    if (!number) return false
+    at += number[0].length
+    return true
+  }
+  // An object member starts with its key and colon; the value follows as any other.
+  const key = (): boolean => {
+    skipSpace()
+    if (text[at] !== '"' || !string()) return false
+    skipSpace()
+    if (text[at] !== ':') return false
+    at += 1
+    return true
+  }
+  const open: Array<'{' | '['> = []
+  let wantValue = true
+  for (;;) {
+    skipSpace()
+    if (wantValue) {
+      const char = text[at]
+      if (char === '{' || char === '[') {
+        at += 1
+        skipSpace()
+        if (text[at] === (char === '{' ? '}' : ']')) {
+          at += 1
+          wantValue = false
+          continue
+        }
+        open.push(char)
+        if (char === '{' && !key()) return at
+        continue
+      }
+      if (!scalar()) return at
+      wantValue = false
+      continue
+    }
+    const inside = open.at(-1)
+    if (!inside) return at
+    if (text[at] === ',') {
+      at += 1
+      if (inside === '{' && !key()) return at
+      wantValue = true
+      continue
+    }
+    if (text[at] !== (inside === '{' ? '}' : ']')) return at
+    at += 1
+    open.pop()
+  }
+}
+
 /** A parse error names the line, so a long paste can be fixed where it broke. */
 export function jsonSyntaxIssue(text: string, error: SyntaxError): JsonIssue {
   const message = error.message
     .replace(/ in JSON at position \d+.*$/, '')
     .replace(/ \(line \d+ column \d+\)$/, '')
-  const located = /line (\d+) column (\d+)/.exec(error.message)
-  if (located) {
-    return {
-      key: 'The JSON is not valid at line {{line}}, near character {{column}}: {{message}}',
-      values: { line: located[1], column: located[2], message },
-    }
-  }
-  const at = Number(/position (\d+)/.exec(error.message)?.[1])
-  if (!Number.isInteger(at)) {
-    return { key: 'The JSON is not valid: {{message}}', values: { message } }
-  }
-  const lines = text.slice(0, at).split('\n')
+  const lines = text.slice(0, jsonStopOffset(text)).split('\n')
   return {
     key: 'The JSON is not valid at line {{line}}, near character {{column}}: {{message}}',
     values: {

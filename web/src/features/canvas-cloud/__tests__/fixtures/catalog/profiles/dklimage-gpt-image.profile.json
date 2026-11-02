@@ -75,50 +75,24 @@
       }
     },
     "response": {
-      "outputPaths": [
-        "result.data[].url",
-        "result.data[].b64_json"
-      ],
-      "errorPaths": [
-        "error.message",
-        "message"
-      ]
+      "outputPaths": ["result.data[].url", "result.data[].b64_json"],
+      "errorPaths": ["error.message", "message"]
     }
   },
   "map": {
     "submitResponse": {
-      "taskId": [
-        "/task_id"
-      ],
-      "status": [
-        "/status"
-      ]
+      "taskId": ["/task_id"],
+      "status": ["/status"]
     },
     "response": {
-      "taskId": [
-        "/task_id"
-      ],
-      "status": [
-        "/status"
-      ]
+      "taskId": ["/task_id"],
+      "status": ["/status"]
     }
   },
   "states": {
-    "pending": [
-      "queued",
-      "pending"
-    ],
-    "running": [
-      "running",
-      "processing",
-      "in_progress"
-    ],
-    "succeeded": [
-      "succeeded"
-    ],
-    "failed": [
-      "failed",
-      "canceled"
-    ]
+    "pending": ["queued", "pending"],
+    "running": ["running", "processing", "in_progress"],
+    "succeeded": ["succeeded"],
+    "failed": ["failed", "canceled"]
   }
 }

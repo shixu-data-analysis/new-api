@@ -76,11 +76,7 @@
     "schemas": {
       "VideoRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "prompt",
-          "metadata"
-        ],
+        "required": ["model", "prompt", "metadata"],
         "properties": {
           "model": {
             "type": "string"
@@ -91,10 +87,7 @@
           },
           "metadata": {
             "type": "object",
-            "required": [
-              "duration",
-              "ratio"
-            ],
+            "required": ["duration", "ratio"],
             "properties": {
               "duration": {
                 "type": "integer",
@@ -103,20 +96,11 @@
               },
               "ratio": {
                 "type": "string",
-                "enum": [
-                  "16:9",
-                  "9:16",
-                  "4:3",
-                  "3:4",
-                  "1:1"
-                ]
+                "enum": ["16:9", "9:16", "4:3", "3:4", "1:1"]
               },
               "resolution": {
                 "type": "string",
-                "enum": [
-                  "480p",
-                  "720p"
-                ]
+                "enum": ["480p", "720p"]
               },
               "referenceImages": {
                 "type": "array",
@@ -158,43 +142,25 @@
             "type": "string"
           },
           "object": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "status": {
             "type": "string"
           },
           "progress": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "created_at": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "completed_at": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "metadata": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "properties": {
               "url": {
                 "type": "string"
@@ -203,22 +169,13 @@
             "additionalProperties": true
           },
           "error": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "properties": {
               "message": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "code": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               }
             },
             "additionalProperties": true

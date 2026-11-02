@@ -71,13 +71,8 @@
       }
     },
     "response": {
-      "outputPaths": [
-        "data[].url",
-        "data[].b64_json"
-      ],
-      "errorPaths": [
-        "error.message"
-      ],
+      "outputPaths": ["data[].url", "data[].b64_json"],
+      "errorPaths": ["error.message"],
       "usageProtocol": "OPENAI_IMAGES"
     }
   }

@@ -54,6 +54,7 @@ import {
   displayPath,
   followSelections,
   startingProductKey,
+  upstreamModelIdsOf,
   prefillSizeMap,
   profileOfChannel,
   readPath,
@@ -528,7 +529,10 @@ function LoadedEditor(props: {
 
   const onEmbeddedChange = embedded?.onChange
   useEffect(() => {
-    const started = Boolean(draft.displayName || upstreamId)
+    // Begun once it has a name or any upstream model ID, by quality tier too; a model not begun is left out of the page.
+    const started = Boolean(
+      draft.displayName || upstreamModelIdsOf(draft).some(Boolean)
+    )
     onEmbeddedChange?.(started ? withoutEmpty(draft) : null, groupChoice)
     // The parent stores the latest draft; its callback identity does not matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps

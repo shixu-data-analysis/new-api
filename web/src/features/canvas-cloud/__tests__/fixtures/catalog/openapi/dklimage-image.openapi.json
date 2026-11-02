@@ -123,10 +123,7 @@
     "schemas": {
       "GenerationRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "prompt"
-        ],
+        "required": ["model", "prompt"],
         "properties": {
           "model": {
             "type": "string"
@@ -142,22 +139,14 @@
           },
           "quality": {
             "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ]
+            "enum": ["low", "medium", "high"]
           },
           "aspect_ratio": {
             "type": "string"
           },
           "resolution": {
             "type": "string",
-            "enum": [
-              "1k",
-              "2k",
-              "4k"
-            ]
+            "enum": ["1k", "2k", "4k"]
           },
           "size": {
             "type": "string",
@@ -165,10 +154,7 @@
           },
           "response_format": {
             "type": "string",
-            "enum": [
-              "url",
-              "b64_json"
-            ]
+            "enum": ["url", "b64_json"]
           },
           "async": {
             "type": "boolean"
@@ -178,11 +164,7 @@
       },
       "EditRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "prompt",
-          "image[]"
-        ],
+        "required": ["model", "prompt", "image[]"],
         "properties": {
           "model": {
             "type": "string"
@@ -206,22 +188,14 @@
           },
           "quality": {
             "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ]
+            "enum": ["low", "medium", "high"]
           },
           "aspect_ratio": {
             "type": "string"
           },
           "resolution": {
             "type": "string",
-            "enum": [
-              "1k",
-              "2k",
-              "4k"
-            ]
+            "enum": ["1k", "2k", "4k"]
           },
           "size": {
             "type": "string",
@@ -229,10 +203,7 @@
           },
           "response_format": {
             "type": "string",
-            "enum": [
-              "url",
-              "b64_json"
-            ]
+            "enum": ["url", "b64_json"]
           },
           "async": {
             "type": "boolean"
@@ -242,9 +213,7 @@
       },
       "ImageResponse": {
         "type": "object",
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "array",
@@ -267,9 +236,7 @@
       },
       "SubmitResponse": {
         "type": "object",
-        "required": [
-          "task_id"
-        ],
+        "required": ["task_id"],
         "properties": {
           "task_id": {
             "type": "string",
@@ -279,20 +246,14 @@
             "type": "string"
           },
           "created_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
         "additionalProperties": true
       },
       "TaskResponse": {
         "type": "object",
-        "required": [
-          "task_id",
-          "status"
-        ],
+        "required": ["task_id", "status"],
         "properties": {
           "task_id": {
             "type": "string"
@@ -301,28 +262,16 @@
             "type": "string"
           },
           "created_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "updated_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "result": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "properties": {
               "created": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
+                "type": ["integer", "null"]
               },
               "data": {
                 "type": "array",
@@ -335,16 +284,10 @@
             "additionalProperties": true
           },
           "error": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": ["object", "null"],
             "properties": {
               "message": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               }
             },
             "additionalProperties": true

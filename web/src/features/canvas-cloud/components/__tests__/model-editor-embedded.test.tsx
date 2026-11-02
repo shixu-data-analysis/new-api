@@ -317,6 +317,46 @@ describe('Model form checks', () => {
     ).toBeInTheDocument()
   })
 
+  it('keeps an unnamed model with an upstream ID per quality when its tab is left', async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NewModelsPage
+          channelId='draft.image'
+          catalogOverride={draftCatalog()}
+          onClose={() => {}}
+          onEditPresentation={() => {}}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByText('What the user sees')
+    const { productKey: _key, ...tiered } = {
+      ...existing,
+      displayName: '',
+      release: {
+        ...existing.release,
+        execution: {
+          providerModel: {
+            defaultQuality: '1K',
+            modelIdByQuality: { '1K': 'tier-one' },
+          },
+        },
+        publicInteraction: {
+          ...existing.release.publicInteraction,
+          paramSchema: { qualities: ['1K'] },
+        },
+      },
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from JSON' }))
+    fireEvent.change(screen.getByLabelText('JSON to fill in'), {
+      target: { value: JSON.stringify([tiered, { ...tiered }]) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in 2 models' }))
+    expect(await screen.findAllByDisplayValue('tier-one')).not.toHaveLength(0)
+    fireEvent.click(screen.getByRole('tab', { name: /2/ }))
+    fireEvent.click(screen.getByRole('tab', { name: /1/ }))
+    expect(await screen.findAllByDisplayValue('tier-one')).not.toHaveLength(0)
+  })
+
   it('generates the product keys of pasted models that were never opened', async () => {
     planCatalogEdit.mockClear()
     const catalog = draftCatalog()

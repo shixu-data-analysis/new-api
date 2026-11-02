@@ -197,7 +197,21 @@ describe('JSON that does not parse', () => {
       error = caught as SyntaxError
     }
     expect(jsonSyntaxIssue(text, error as SyntaxError).values).toMatchObject({
-      line: expect.anything(),
+      line: 3,
+      column: 7,
     })
+  })
+
+  // Safari and Bun report no position, so the place is read from the text itself.
+  it('places the error by the JSON grammar, whatever the parser reports', () => {
+    const at = (text: string) =>
+      jsonSyntaxIssue(text, new SyntaxError('JSON Parse error: Unexpected'))
+        .values
+    expect(at('{\n  "a": 1,\n  "b" 2\n}')).toMatchObject({ line: 3, column: 7 })
+    expect(at('[1, 2,]')).toMatchObject({ line: 1, column: 7 })
+    expect(at('{"a": tru}')).toMatchObject({ line: 1, column: 7 })
+    expect(at('{"a": "x\\q"}')).toMatchObject({ line: 1, column: 10 })
+    expect(at('{"a": [1, {"b": 2}]')).toMatchObject({ line: 1, column: 20 })
+    expect(at('{"a": 1} x')).toMatchObject({ line: 1, column: 10 })
   })
 })

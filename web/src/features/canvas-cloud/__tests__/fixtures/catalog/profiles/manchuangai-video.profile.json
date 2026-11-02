@@ -15,32 +15,15 @@
   },
   "map": {
     "response": {
-      "taskId": [
-        "/id",
-        "/task_id"
-      ],
-      "status": [
-        "/status"
-      ]
+      "taskId": ["/id", "/task_id"],
+      "status": ["/status"]
     }
   },
   "states": {
-    "pending": [
-      "queued",
-      "unknown",
-      "pending"
-    ],
-    "running": [
-      "in_progress",
-      "processing",
-      "running"
-    ],
-    "succeeded": [
-      "completed"
-    ],
-    "failed": [
-      "failed"
-    ]
+    "pending": ["queued", "unknown", "pending"],
+    "running": ["in_progress", "processing", "running"],
+    "succeeded": ["completed"],
+    "failed": ["failed"]
   },
   "advanced": {
     "media": {
@@ -139,13 +122,8 @@
       }
     },
     "response": {
-      "outputPaths": [
-        "metadata.url"
-      ],
-      "errorPaths": [
-        "error.message",
-        "message"
-      ]
+      "outputPaths": ["metadata.url"],
+      "errorPaths": ["error.message", "message"]
     }
   }
 }

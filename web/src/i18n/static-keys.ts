@@ -29,7 +29,6 @@ export const STATIC_I18N_KEYS = [
   'Paste one model object: an item of models in models.json',
   'Paste one object holding channel, profile and openapi',
   'The JSON is not valid at line {{line}}, near character {{column}}: {{message}}',
-  'The JSON is not valid: {{message}}',
   'The product key cannot change when editing; it must be {{key}}',
   'These values follow the rules of the page and are not taken from the paste: {{fields}}',
   'This model belongs to Channel configuration {{id}}; only models of {{fixed}} can be filled here',

@@ -76,33 +76,18 @@
     "schemas": {
       "VideoCreateRequest": {
         "type": "object",
-        "required": [
-          "model",
-          "orientation",
-          "prompt",
-          "duration"
-        ],
+        "required": ["model", "orientation", "prompt", "duration"],
         "properties": {
           "model": {
             "type": "string"
           },
           "orientation": {
             "type": "string",
-            "enum": [
-              "landscape",
-              "portrait"
-            ]
+            "enum": ["landscape", "portrait"]
           },
           "ratio": {
             "type": "string",
-            "enum": [
-              "9:16",
-              "3:4",
-              "1:1",
-              "4:3",
-              "16:9",
-              "21:9"
-            ]
+            "enum": ["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"]
           },
           "prompt": {
             "type": "string",
@@ -148,9 +133,7 @@
       },
       "VideoSubmitResponse": {
         "type": "object",
-        "required": [
-          "id"
-        ],
+        "required": ["id"],
         "properties": {
           "id": {
             "type": "string"
@@ -160,16 +143,11 @@
       },
       "VideoQueryResponse": {
         "type": "object",
-        "required": [
-          "data"
-        ],
+        "required": ["data"],
         "properties": {
           "data": {
             "type": "object",
-            "required": [
-              "id",
-              "status"
-            ],
+            "required": ["id", "status"],
             "properties": {
               "id": {
                 "type": "string"
@@ -178,17 +156,11 @@
                 "type": "string"
               },
               "video_url": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "format": "uri"
               },
               "fail_reason": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               }
             },
             "additionalProperties": true

@@ -1315,6 +1315,13 @@ const GAP_KEYS: Record<string, string> = {
   supportsAudioReference:
     '{{count}} models turn on reference audio ({{models}}), but this interface does not take audio. Turn on receiving it in the reference tab, or turn the mode off on those models first',
 }
+// A prompt no transform of the request changes, so its copies in a built request can be counted.
+const PROMPT_MARK = 'pixmiaopromptprobe'
+const PROMPT_PROBE = {
+  prompt: PROMPT_MARK,
+  upstreamId: 'model',
+  option: () => '',
+}
 const RENDER_KEYS: Array<[SampleKind, string]> = [
   [
     'reference',
@@ -1345,6 +1352,7 @@ export function materialIssues(
   if (!isModeView(draft.capability)) return []
   const issues: ChannelIssue[] = []
   const bodies = bodiesOf(draft)
+  const profile = buildProfile(draft, null, 'check')
   const anyExprIssue = [...draft.rows, ...draft.imageRows].some(
     (row) =>
       row.source === 'expr' &&
@@ -1390,22 +1398,41 @@ export function materialIssues(
       (row) =>
         carriedBy(templateOfRow(row, draft.roleMap), draft.roleMap).prompt
     )
+    // Counted in the request each mode of this body builds, as the Executor builds it, so an expression sending it
+    // twice, or only in a branch that is never taken, is found; a mode the template fails on is reported below.
+    const view = materialsOf(draft, body)
+    const sent = view.bodyModes().flatMap((mode) => {
+      const { body: built, failure } = sampleRequest(
+        draft,
+        profile,
+        view.modeSample(mode),
+        PROMPT_PROBE
+      )
+      if (failure) return []
+      return [JSON.stringify(built).toLowerCase().split(PROMPT_MARK).length - 1]
+    })
     if (!senders.length) {
-      const exprOnly = materialsOf(draft, body).mediaStyle() === 'expr'
       let key = 'Enter the field the prompt goes in'
-      if (exprOnly) {
+      if (view.mediaStyle() === 'expr') {
         key =
           'The expression does not send the prompt yet; add {"$ref": "request.prompt"}'
       }
       if (hasList) key = 'The prompt send content cannot be empty'
       issues.push({ path: `${body}.promptSent`, key })
+    } else if (sent.includes(0)) {
+      issues.push({
+        path: `${body}.promptSent`,
+        key: 'The prompt is not sent in every mode ({{fields}}); check the conditions around it',
+        values: { fields: senders.map((row) => row.field.trim()).join(', ') },
+      })
     }
-    if (senders.length > 1) {
+    const most = Math.max(0, ...sent)
+    if (most > 1) {
       issues.push({
         path: `${body}.promptSent`,
         key: 'The prompt is sent {{count}} times ({{fields}}); keep one',
         values: {
-          count: senders.length,
+          count: most,
           fields: senders.map((row) => row.field.trim()).join(', '),
         },
       })
@@ -1460,7 +1487,6 @@ export function materialIssues(
     }
   }
   // The plain sample carries no material, so a template that fails only on materials is found by rendering each one.
-  const profile = buildProfile(draft, null, 'check')
   const samples =
     draft.capability === 'image.generate'
       ? RENDER_KEYS.slice(0, 1)

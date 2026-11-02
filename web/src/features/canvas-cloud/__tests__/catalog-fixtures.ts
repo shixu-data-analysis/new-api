@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { ChannelDraft } from '../catalog-channel-draft'
-import { channelDraftFrom } from '../catalog-channel-draft'
+import { channelDraftFrom, type ChannelDraft } from '../catalog-channel-draft'
 import { withMeasuredAccepts } from '../catalog-channel-materials'
 import type { CatalogJson } from '../catalog-edit-types'
 
