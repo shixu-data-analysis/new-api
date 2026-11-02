@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -220,15 +220,16 @@ function ResponseCheck(props: {
   const { t } = useTranslation()
   const [pasted, setPasted] = useState('')
   const [checked, setChecked] = useState<string | null>(null)
-  let result: ResponseReading[] | 'invalid' | null = null
-  if (checked !== null) {
+  // Read once per checked text, Profile and stage, not again on each keystroke in the box.
+  const result = useMemo((): ResponseReading[] | 'invalid' | null => {
+    if (checked === null) return null
     try {
-      result = readResponseSample(props.profile, checked, props.stage)
+      return readResponseSample(props.profile, checked, props.stage)
     } catch (error) {
       if (!(error instanceof SyntaxError)) throw error
-      result = 'invalid'
+      return 'invalid'
     }
-  }
+  }, [checked, props.profile, props.stage])
   const names = {
     taskId: t('Task ID'),
     status: t('Status'),

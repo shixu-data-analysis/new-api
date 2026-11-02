@@ -10266,6 +10266,7 @@
     "Prompt text": "提示詞",
     "Publish a new version of the Channel configuration?": "發布介面配置新版本？",
     "Publish together?": "一起發布？",
+    "Publish together with {{count}} models?": "和 {{count}} 個模型一起發布？",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "發布後寫入稽核（操作人、時間、前後版本）。",
     "Quality tier": "清晰度",
     "Query path": "查詢介面",

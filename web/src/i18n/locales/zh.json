@@ -10290,6 +10290,7 @@
     "The requests of all its Channel configurations go to this address.": "所有接口配置的请求都发到这个地址。",
     "Next: view the impact": "下一步：查看影响",
     "Publish together?": "一起发布？",
+    "Publish together with {{count}} models?": "和 {{count}} 个模型一起发布？",
     "Confirm publication?": "确认发布？",
     "Validated": "校验通过",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "发布后写入审计（操作人、时间、前后版本）。",

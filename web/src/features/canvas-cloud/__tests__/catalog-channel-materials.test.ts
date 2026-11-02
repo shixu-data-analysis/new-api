@@ -356,6 +356,54 @@ describe('send styles of Catalog Channels', () => {
     expect(materialIssues(list)).toEqual([])
   })
 
+  // dklimage.gpt-image has a text request and an image request; role names belong to the whole draft.
+  it('brings the role names back once both request bodies are back, in either order', () => {
+    const { profile } = catalogChannel('dklimage-gpt-image')
+    const start = catalogDraft('dklimage-gpt-image')
+    const built = (draft: ChannelDraft) =>
+      JSON.stringify(buildProfile(draft, profile, 'x'))
+    const away = switchStyle(
+      switchStyle(start, 'rows', ['list']),
+      'imageRows',
+      ['list']
+    )
+    const rowsFirst = switchStyle(
+      switchStyle(away, 'rows', ['fields']),
+      'imageRows',
+      ['fields']
+    )
+    const imagesFirst = switchStyle(
+      switchStyle(away, 'imageRows', ['fields']),
+      'rows',
+      ['fields']
+    )
+    expect(built(rowsFirst)).toBe(built(start))
+    expect(built(imagesFirst)).toBe(built(start))
+  })
+
+  it('brings the role names back past an edit of another field, but not past an edit of a material', () => {
+    const start = catalogDraft('dklimage-gpt-image')
+    const away = switchStyle(start, 'rows', ['list'])
+    expect(away.roleMap).not.toEqual(start.roleMap)
+    // Edited in place, as a field name is, past every setter of the materials.
+    const editRow = (source: string, field: string) =>
+      editMaterials(away, (x) => {
+        const row = x.imageRows.find((entry) => entry.source === source)
+        if (row) row.field = field
+      })
+    const otherField = switchStyle(
+      editRow('upstreamId', 'model_name'),
+      'rows',
+      ['fields']
+    )
+    expect(otherField.roleMap).toEqual(start.roleMap)
+    expect(otherField.materials.roleSnapshot).toBeNull()
+    const material = switchStyle(editRow('imageFiles', 'images[]'), 'rows', [
+      'fields',
+    ])
+    expect(material.materials.roleSnapshot).not.toBeNull()
+  })
+
   // manchuangai.video picks frames by role with names it leaves empty; a round trip must not name them.
   it('switches to a list or an expression and back without changing the Profile', () => {
     const { profile } = catalogChannel('manchuangai-video')

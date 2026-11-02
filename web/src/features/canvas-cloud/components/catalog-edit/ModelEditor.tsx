@@ -53,7 +53,7 @@ import {
   contractOfProfile,
   displayPath,
   followSelections,
-  generatedProductKey,
+  startingProductKey,
   prefillSizeMap,
   profileOfChannel,
   readPath,
@@ -191,17 +191,7 @@ function customKey(
   const providerId = catalog.bundle.channels.find(
     (entry) => entry.id === model.release.channelId
   )?.providerId
-  const providerModel = model.release.execution.providerModel
-  const firstId =
-    'modelId' in providerModel
-      ? providerModel.modelId
-      : (Object.values(providerModel.modelIdByQuality)[0] ?? '')
-  return (
-    !providerId ||
-    !firstId ||
-    model.productKey !==
-      generatedProductKey(providerId, model.capability, firstId)
-  )
+  return model.productKey !== startingProductKey(providerId, model)
 }
 
 /** A model of a page that adds several, kept by the page while another one is on screen. */
@@ -522,17 +512,8 @@ function LoadedEditor(props: {
   const providerId = provider?.id
   useEffect(() => {
     if (mode.kind === 'edit' || keyEdited || !providerId) return
-    const firstId =
-      upstreamId ||
-      ('modelIdByQuality' in draft.release.execution.providerModel
-        ? (Object.values(
-            draft.release.execution.providerModel.modelIdByQuality
-          )[0] ?? '')
-        : '')
     setDraft((current) => {
-      const productKey = firstId
-        ? generatedProductKey(providerId, current.capability, firstId)
-        : ''
+      const productKey = startingProductKey(providerId, current)
       return current.productKey === productKey
         ? current
         : { ...current, productKey }
@@ -566,16 +547,28 @@ function LoadedEditor(props: {
     embedded?.onNewGroupChange(next)
   }
   // A new group is made once for the page, however many of its models bind it; the key stays out of the draft.
-  // A model not opened yet binds the group it would start with when opened, so publishing never skips that choice.
-  // The models of a page share their Channel, so its starting group is worked out once.
+  // A model not opened yet starts as it would when its tab opens, so publishing never skips what the form sets up:
+  // the product key it generates and the group a new model starts with. The models of a page share their Channel, so
+  // its starting group is worked out once.
   const startingByChannel = new Map<string, GroupChoice>()
   const others: PageModel[] = (embedded?.others ?? []).map((entry) => {
-    if (entry.credentialGroup) return entry
     const channelId = entry.definition.release.channelId
+    const definition = entry.definition.productKey
+      ? entry.definition
+      : {
+          ...entry.definition,
+          productKey: startingProductKey(
+            catalog.bundle.providers.find(
+              (item) => item.id === providerIdOf(channelId)
+            )?.id,
+            entry.definition
+          ),
+        }
+    if (entry.credentialGroup) return { ...entry, definition }
     const starting =
       startingByChannel.get(channelId) ?? startingGroup(channelId)
     startingByChannel.set(channelId, starting)
-    return { ...entry, credentialGroup: starting }
+    return { ...entry, definition, credentialGroup: starting }
   })
   const otherDrafts: CatalogEditDraftModel[] = others.map((entry) => ({
     baseVersion: null,

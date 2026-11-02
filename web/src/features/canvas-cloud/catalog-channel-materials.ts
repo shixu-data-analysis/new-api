@@ -70,13 +70,14 @@ const SLOT_SOURCES: Record<Slot, string[]> = {
   videos: ['videos', 'videoFiles', 'videosBase64'],
   audios: ['audios', 'audioFiles', 'audiosBase64'],
 }
-/** Sources the materials section shows, so the other field groups leave them out. */
-export const MATERIAL_SOURCES = [
+/** Sources the send style owns: the prompt and materials by field, shaped, or in one list. */
+const STYLE_SOURCES = new Set([
   ...Object.values(SLOT_SOURCES).flat(),
   'contentParts',
   'shaped',
-  'negativePrompt',
-]
+])
+/** Sources the materials section shows, so the other field groups leave them out. */
+export const MATERIAL_SOURCES = [...STYLE_SOURCES, 'negativePrompt']
 const IMAGE_SLOTS = new Set<Slot>(['first', 'last', 'images'])
 /** The material each slot carries; it is also the send content part of that slot. */
 export const KIND_OF_SLOT: Record<MediaSlot, MaterialKind> = {
@@ -112,6 +113,12 @@ const CONTENT_COVERS = new Set([
   'firstFrame',
   'lastFrame',
 ])
+/** The send style's expression: it carries the prompt or a material; one with only the prompt is still that style. */
+const isStyleExpr = (row: RequestRow) =>
+  row.source === 'expr' && /"media\.|"request\.prompt"/.test(row.expr ?? '')
+/** A row the send style owns: the prompt, a material, a list of them, or the expression that carries them. */
+const isStyleRow = (row: RequestRow) =>
+  STYLE_SOURCES.has(row.source) || isStyleExpr(row)
 const MEDIA_OF_PART: Record<MediaPart, 'image' | 'video' | 'audio'> = {
   first: 'image',
   last: 'image',
@@ -315,6 +322,10 @@ export function withMeasuredAccepts(draft: ChannelDraft): ChannelDraft {
   })
 }
 
+/** The request bodies a draft sends: the submit request, and the one with images when the interface has it. */
+const bodiesOf = (draft: ChannelDraft): BodyName[] =>
+  draft.images ? ['rows', 'imageRows'] : ['rows']
+
 export const isModeView = (capability: string) =>
   capability === 'video.generate' || capability === 'image.generate'
 
@@ -354,12 +365,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     return row.source
   }
   // The send style's expression carries the prompt or a material; one with only the prompt is still that style.
-  const mediaExprRows = () =>
-    bodyRows().filter(
-      (row) =>
-        row.source === 'expr' &&
-        /"media\.|"request\.prompt"/.test(row.expr ?? '')
-    )
+  const mediaExprRows = () => bodyRows().filter(isStyleExpr)
   const slotExprRow = (slot: Slot) =>
     bodyRows().find(
       (row) =>
@@ -883,19 +889,34 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     nameRolesPickedBy()
     followAllDelivery()
   }
-  // Rows set aside come back with the role names they had, so a round trip through another send style changes no name
-  // that style named for itself. The other request body may still pick by those names, and then they stay.
-  const restoreRoleNames = (style: SendStyle) => {
-    const names = memory.roleMaps[style]
-    memory.roleMaps = { ...memory.roleMaps, [style]: undefined }
-    const otherBody: BodyName = body === 'rows' ? 'imageRows' : 'rows'
-    if (
-      !names ||
-      (x.images && materialsOf(x, otherBody).mediaStyle() !== 'fields')
-    ) {
-      return false
+  // Role names belong to the whole draft. The snapshot holds them with every body's style rows and send style as they
+  // were before the switches; the names come back only when those rows are back as they were, so an edit to them, by
+  // any control, keeps the names it has.
+  // Only the rows the send style owns pick by role, so an edit of any other field keeps the names coming back.
+  const requestRows = () =>
+    JSON.stringify(bodiesOf(x).map((name) => x[name].filter(isStyleRow)))
+  const takeRoleSnapshot = () => {
+    const snapshot = draftMemory.roleSnapshot
+    const settled =
+      snapshot &&
+      bodiesOf(x).every(
+        (name) => materialsOf(x, name).mediaStyle() === snapshot.home[name]
+      )
+    // Every body in its own style again, edited or not, is where the next round trip starts.
+    if (snapshot && !settled) return
+    draftMemory.roleSnapshot = {
+      names: { ...x.roleMap },
+      rows: requestRows(),
+      home: Object.fromEntries(
+        bodiesOf(x).map((name) => [name, materialsOf(x, name).mediaStyle()])
+      ),
     }
-    x.roleMap = { ...names }
+  }
+  const settleRoleNames = () => {
+    const snapshot = draftMemory.roleSnapshot
+    if (!snapshot || snapshot.rows !== requestRows()) return false
+    x.roleMap = { ...snapshot.names }
+    draftMemory.roleSnapshot = null
     const kept = draftMemory.roleMemory
     if (
       kept &&
@@ -913,19 +934,12 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
   const setMediaStyle = (style: SendStyle) => {
     const from = mediaStyle()
     if (style === from) return
-    memory.roleMaps = { ...memory.roleMaps, [from]: { ...x.roleMap } }
+    takeRoleSnapshot()
     // Leaving an expression, its measured materials become the switches; a list starts with only the accepted parts.
     draftMemory.accepts =
       from === 'expr' ? { ...measuredSupport(x) } : { ...accepts() }
     const exprs = mediaExprRows()
-    const covered = () =>
-      bodyRows().filter(
-        (row) =>
-          row.source === 'shaped' ||
-          CONTENT_COVERS.has(row.source) ||
-          exprs.includes(row) ||
-          Object.values(SLOT_SOURCES).flat().includes(row.source)
-      )
+    const covered = () => bodyRows().filter(isStyleRow)
     const list = contentRow()
     // The materials return where they were, so switching does not reorder the request.
     const at = bodyRows().findIndex(
@@ -974,12 +988,12 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
       }
       memory.fieldRows = []
       memory.fieldPlaces = undefined
-      const restoredRoles = cached && restoreRoleNames('fields')
       // A material turned off while these rows were set aside leaves them, as turning it off here does.
       for (const [kind, on] of Object.entries(memory.fieldSwitches)) {
         if (!on) dropMaterial(kind as MaterialKind)
       }
       memory.fieldSwitches = {}
+      const restoredRoles = cached && settleRoleNames()
       // The expression's measure says nothing of the fields that come back, so the switches follow those fields.
       if (from === 'expr') draftMemory.accepts = startingAccepts(x)
       followAllDelivery()
@@ -993,11 +1007,11 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
       ...left.map((row) => bodyRows().indexOf(row)),
     ]
     memory.fieldRows = [...memory.fieldRows, ...take(left)]
-    // The list and the expression pick images by role, so the roles are named before the parts are written with them;
-    // a list or an expression set aside comes back with the names it had.
+    // The list and the expression pick images by role, so a new one has the roles named before its parts are written
+    // with them; one set aside comes back as it was, and is named after it is back unless the names return with it.
     const cached =
       style === 'list' ? Boolean(memory.listParts) : memory.exprRows.length > 0
-    if (!(cached && restoreRoleNames(style))) nameRolesPickedBy(true)
+    if (!cached) nameRolesPickedBy(true)
     // A list set aside comes back with the switches changed since; a new list takes the accepted parts.
     const parts = memory.listParts
       ? (
@@ -1022,6 +1036,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
           transform: '',
         },
       ])
+      if (cached && !settleRoleNames()) nameRolesPickedBy(true)
       return
     }
     // The expression starts from the list's structure, so an upstream that differs only needs its keys changed.
@@ -1041,6 +1056,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
             },
           ]
     )
+    if (cached && !settleRoleNames()) nameRolesPickedBy(true)
   }
 
   const setAccept = (kind: MaterialKind, on: boolean) => {
@@ -1328,7 +1344,7 @@ export function materialIssues(
 ): ChannelIssue[] {
   if (!isModeView(draft.capability)) return []
   const issues: ChannelIssue[] = []
-  const bodies: BodyName[] = draft.images ? ['rows', 'imageRows'] : ['rows']
+  const bodies = bodiesOf(draft)
   const anyExprIssue = [...draft.rows, ...draft.imageRows].some(
     (row) =>
       row.source === 'expr' &&

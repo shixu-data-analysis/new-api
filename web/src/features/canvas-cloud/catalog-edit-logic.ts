@@ -692,6 +692,17 @@ export function unsupportedFieldsOfPlan(
   )
 }
 
+/** The product key a new model starts with: its API provider, type and first upstream model ID; empty without them. */
+export function startingProductKey(
+  providerId: string | undefined,
+  model: CatalogModelDefinition
+): string {
+  const firstId = upstreamModelIdsOf(model)[0] ?? ''
+  return providerId && firstId
+    ? generatedProductKey(providerId, model.capability, firstId)
+    : ''
+}
+
 export function upstreamModelIdsOf(model: CatalogModelDefinition): string[] {
   const providerModel = model.release.execution.providerModel
   return 'modelId' in providerModel

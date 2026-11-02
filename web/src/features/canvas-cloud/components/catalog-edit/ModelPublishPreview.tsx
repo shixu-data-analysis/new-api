@@ -71,11 +71,18 @@ export function ModelPublishPreview(props: {
   const { plan } = props
   const [tab, setTab] = useState<'models' | 'shared'>('models')
   const [confirming, setConfirming] = useState(false)
+  // Several models name their count, published alone or together with a new Channel configuration.
+  const several = (props.modelCount ?? 1) > 1
   let confirmTitle = t('Confirm publication?')
-  if ((props.modelCount ?? 1) > 1) {
+  if (props.together) {
+    confirmTitle = several
+      ? t('Publish together with {{count}} models?', {
+          count: props.modelCount,
+        })
+      : t('Publish together?')
+  } else if (several) {
     confirmTitle = t('Publish {{count}} models?', { count: props.modelCount })
   }
-  if (props.together) confirmTitle = t('Publish together?')
   const reviews = useMemo(
     () =>
       plan.models

@@ -10266,6 +10266,7 @@
     "Prompt text": "プロンプト",
     "Publish a new version of the Channel configuration?": "インターフェース設定の新バージョンを公開しますか？",
     "Publish together?": "まとめて公開しますか？",
+    "Publish together with {{count}} models?": "{{count}} 個のモデルとまとめて公開しますか？",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "公開時に監査へ記録します（操作者、時刻、前後のバージョン）。",
     "Quality tier": "解像度",
     "Query path": "照会パス",

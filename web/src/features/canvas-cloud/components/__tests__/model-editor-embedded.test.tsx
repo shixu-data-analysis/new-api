@@ -317,7 +317,57 @@ describe('Model form checks', () => {
     ).toBeInTheDocument()
   })
 
+  it('generates the product keys of pasted models that were never opened', async () => {
+    planCatalogEdit.mockClear()
+    const catalog = draftCatalog()
+    catalog.bundle.models = [existing] as never
+    catalog.credentialGroups = [
+      { providerId: 'draft', versionId: 'v1', name: 'Main' },
+    ] as never
+    catalog.modelCredentialGroups = { 'draft.image.taken': 'v1' }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NewModelsPage
+          channelId='draft.image'
+          catalogOverride={catalog}
+          onClose={() => {}}
+          onEditPresentation={() => {}}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByText('What the user sees')
+    const pasted = (id: string) => {
+      const { productKey: _key, ...model } = {
+        ...existing,
+        displayName: id,
+        release: {
+          ...existing.release,
+          execution: { providerModel: { modelId: id } },
+        },
+      }
+      return model
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Fill from JSON' }))
+    fireEvent.change(screen.getByLabelText('JSON to fill in'), {
+      target: { value: JSON.stringify([pasted('one'), pasted('two')]) },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Fill in 2 models' }))
+    expect(await screen.findAllByDisplayValue('one')).not.toHaveLength(0)
+    validate()
+    await vi.waitFor(() => expect(planCatalogEdit).toHaveBeenCalled())
+    const draft = (
+      planCatalogEdit.mock.calls[0] as unknown as [
+        { models: Array<{ definition: { productKey: string } }> },
+      ]
+    )[0]
+    expect(draft.models.map((model) => model.definition.productKey)).toEqual([
+      'draft.image.one',
+      'draft.image.two',
+    ])
+  })
+
   it('checks and binds pasted models that were never opened before the page publishes', async () => {
+    planCatalogEdit.mockClear()
     const catalog = draftCatalog()
     catalog.bundle.models = [existing] as never
     catalog.credentialGroups = [

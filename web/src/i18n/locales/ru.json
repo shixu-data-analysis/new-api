@@ -10266,6 +10266,7 @@
     "Prompt text": "Промпт",
     "Publish a new version of the Channel configuration?": "Опубликовать новую версию конфигурации интерфейса?",
     "Publish together?": "Опубликовать вместе?",
+    "Publish together with {{count}} models?": "Опубликовать вместе с {{count}} моделями?",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "Публикация записывается в аудит: оператор, время, версии до и после.",
     "Quality tier": "Разрешение",
     "Query path": "Путь запроса статуса",

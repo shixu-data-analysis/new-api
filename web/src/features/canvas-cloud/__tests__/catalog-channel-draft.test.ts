@@ -20,6 +20,7 @@ import {
   materialIssues,
   materialsOf,
   withMeasuredAccepts,
+  type SendStyle,
 } from '../catalog-channel-materials'
 import { catalogChannel } from './catalog-fixtures'
 
@@ -315,29 +316,48 @@ describe('Channel form', () => {
         ]) {
           differences.push(`${profile.id} ${issue.path}: ${issue.key}`)
         }
-        // Design D58: switching the send style and back, with nothing edited, changes nothing.
+        // Design D58: switching the send style and back, with nothing edited, changes nothing, also when the two
+        // request bodies switch in turn and come back in either order.
         if (!isModeView(draft.capability)) continue
         const opened = withMeasuredAccepts(draft)
         const bodies = draft.images
           ? (['rows', 'imageRows'] as const)
           : (['rows'] as const)
-        for (const body of bodies) {
-          const from = materialsOf(opened, body).mediaStyle()
-          for (const style of ['fields', 'list', 'expr'] as const) {
-            if (style === from) continue
-            const back = [style, from].reduce(
-              (current, next) =>
-                editMaterials(current, (x) =>
-                  materialsOf(x, body).setMediaStyle(next)
-                ),
-              opened
+        const home = Object.fromEntries(
+          bodies.map((body) => [body, materialsOf(opened, body).mediaStyle()])
+        )
+        const run = (steps: Array<[(typeof bodies)[number], SendStyle]>) =>
+          steps.reduce(
+            (current, [body, style]) =>
+              editMaterials(current, (x) =>
+                materialsOf(x, body).setMediaStyle(style)
+              ),
+            opened
+          )
+        const unchanged = JSON.stringify(buildProfile(opened, profile, 'x'))
+        for (const style of ['fields', 'list', 'expr'] as const) {
+          const trips: Array<Array<[(typeof bodies)[number], SendStyle]>> =
+            bodies.map((body) => [
+              [body, style],
+              [body, home[body]],
+            ])
+          if (bodies.length === 2) {
+            const away = bodies.map(
+              (body): [(typeof bodies)[number], SendStyle] => [body, style]
             )
+            const back = bodies.map(
+              (body): [(typeof bodies)[number], SendStyle] => [body, home[body]]
+            )
+            trips.push([...away, ...back], [...away, ...[...back].reverse()])
+          }
+          for (const trip of trips) {
+            if (trip.every(([body, next]) => next === home[body])) continue
             if (
-              JSON.stringify(buildProfile(back, profile, 'x')) !==
-              JSON.stringify(buildProfile(opened, profile, 'x'))
+              JSON.stringify(buildProfile(run(trip), profile, 'x')) !==
+              unchanged
             ) {
               differences.push(
-                `${profile.id} ${body} ${from} → ${style} → ${from}`
+                `${profile.id} ${trip.map(([body, next]) => `${body}→${next}`).join(' ')}`
               )
             }
           }

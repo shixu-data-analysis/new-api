@@ -10266,6 +10266,7 @@
     "Prompt text": "Invite",
     "Publish a new version of the Channel configuration?": "Publier une nouvelle version de la configuration d'interface ?",
     "Publish together?": "Publier ensemble ?",
+    "Publish together with {{count}} models?": "Publier ensemble avec {{count}} modèles ?",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "La publication est consignée dans l'audit : opérateur, heure, versions avant et après.",
     "Quality tier": "Résolution",
     "Query path": "Chemin d'interrogation",

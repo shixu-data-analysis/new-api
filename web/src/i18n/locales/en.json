@@ -10290,6 +10290,7 @@
     "The requests of all its Channel configurations go to this address.": "The requests of all its Channel configurations go to this address.",
     "Next: view the impact": "Next: view the impact",
     "Publish together?": "Publish together?",
+    "Publish together with {{count}} models?": "Publish together with {{count}} models?",
     "Confirm publication?": "Confirm publication?",
     "Validated": "Validated",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "Publishing writes to the audit trail: operator, time, versions before and after.",

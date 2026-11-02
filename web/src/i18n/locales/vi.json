@@ -10266,6 +10266,7 @@
     "Prompt text": "Câu lệnh",
     "Publish a new version of the Channel configuration?": "Xuất bản phiên bản mới của cấu hình giao diện?",
     "Publish together?": "Xuất bản cùng nhau?",
+    "Publish together with {{count}} models?": "Xuất bản cùng nhau với {{count}} mô hình?",
     "Publishing writes to the audit trail: operator, time, versions before and after.": "Xuất bản được ghi vào kiểm toán: người thao tác, thời gian, phiên bản trước và sau.",
     "Quality tier": "Độ phân giải",
     "Query path": "Đường dẫn truy vấn",

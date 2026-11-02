@@ -352,8 +352,6 @@ export interface BodyMaterialsMemory {
   listSwitches: Partial<Record<MaterialKind, boolean>>
   /** Where each field row was when set aside. */
   fieldPlaces?: number[]
-  /** The role names each send style's rows were set aside with. */
-  roleMaps: Partial<Record<'fields' | 'list' | 'expr', Record<string, string>>>
 }
 
 /** What the form remembers while it edits materials by mode; none of it is stored in the Profile. */
@@ -364,6 +362,12 @@ export interface MaterialsMemory {
   bodies: Record<BodyName, BodyMaterialsMemory>
   /** Role names replaced to tell frames from references, put back when nothing picks by role any more. */
   roleMemory: Record<string, string | undefined> | null
+  /** The role names, request rows and each body's send style before the switches, until the rows are back. */
+  roleSnapshot: {
+    names: Record<string, string>
+    rows: string
+    home: Partial<Record<BodyName, 'fields' | 'list' | 'expr'>>
+  } | null
 }
 
 const blankBodyMemory = (): BodyMaterialsMemory => ({
@@ -374,13 +378,13 @@ const blankBodyMemory = (): BodyMaterialsMemory => ({
   partMemory: {},
   fieldSwitches: {},
   listSwitches: {},
-  roleMaps: {},
 })
 
 export const blankMaterialsMemory = (): MaterialsMemory => ({
   accepts: null,
   bodies: { rows: blankBodyMemory(), imageRows: blankBodyMemory() },
   roleMemory: null,
+  roleSnapshot: null,
 })
 
 export type OperationDraft = { method: string; path: string; format?: string }
