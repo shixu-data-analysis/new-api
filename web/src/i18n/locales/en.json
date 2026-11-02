@@ -10576,7 +10576,7 @@
     "Check": "Check",
     "Each material is uploaded once; the example is {{kind}}.": "Each material is uploaded once; the example is {{kind}}.",
     "Error message": "Error message",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.",
     "Fill it in only when it differs from the submit response.": "Fill it in only when it differs from the submit response.",
     "Left empty, they also count as in progress.": "Left empty, they also count as in progress.",

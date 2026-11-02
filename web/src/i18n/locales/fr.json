@@ -10576,7 +10576,7 @@
     "Check": "Vérifier",
     "Each material is uploaded once; the example is {{kind}}.": "Chaque média est téléversé une fois ; l'exemple est {{kind}}.",
     "Error message": "Message d'erreur",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "Chaque interrogation lit l'état. Saisissez les valeurs brutes de l'amont, en respectant la casse, séparées par des virgules.",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "Chaque interrogation lit l'état. Saisissez les valeurs brutes de l'amont, en respectant la casse, séparées par des virgules. Une fois publiées, les tâches déjà en cours utilisent aussi ces valeurs pour un statut que leurs anciens paramètres ne reconnaissent pas.",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "Saisissez-en au moins une. Une valeur non listée compte aussi comme en cours, mais est enregistrée comme état non reconnu.",
     "Fill it in only when it differs from the submit response.": "À remplir seulement s'il diffère de la réponse d'envoi.",
     "Left empty, they also count as in progress.": "Vides, elles comptent aussi comme en cours.",

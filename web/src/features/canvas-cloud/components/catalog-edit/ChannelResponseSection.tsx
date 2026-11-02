@@ -253,7 +253,7 @@ export function ChannelResponseSection(props: {
           <SubHead
             title={t('Telling when the task ends')}
             note={t(
-              'Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.'
+              'Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.'
             )}
           />
           <PathInput

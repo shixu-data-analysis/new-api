@@ -10576,7 +10576,7 @@
     "Check": "チェック",
     "Each material is uploaded once; the example is {{kind}}.": "素材ごとに 1 回アップロードします。例は{{kind}}です。",
     "Error message": "エラー説明",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "照会のたびに状態を読みます。上流の元の値を大文字小文字も同じにして入力し、複数はカンマで区切ります。",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "照会のたびに状態を読みます。上流の元の値を大文字小文字も同じにして入力し、複数はカンマで区切ります。公開後は、実行中のタスクも、以前の設定で認識できない状態をこれらの値で判断します。",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "少なくとも 1 つ入力してください。記載のない値も進行中として扱いますが、「認識されない状態」として記録されます。",
     "Fill it in only when it differs from the submit response.": "送信応答と異なる場合のみ入力します。",
     "Left empty, they also count as in progress.": "空欄でも進行中として扱います。",

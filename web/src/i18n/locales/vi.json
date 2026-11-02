@@ -10576,7 +10576,7 @@
     "Check": "Kiểm tra",
     "Each material is uploaded once; the example is {{kind}}.": "Mỗi tư liệu được tải lên một lần; ví dụ là {{kind}}.",
     "Error message": "Thông báo lỗi",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "Mỗi lần truy vấn đều đọc trạng thái. Điền giá trị gốc của thượng nguồn, đúng chữ hoa thường, nhiều giá trị ngăn bằng dấu phẩy.",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "Mỗi lần truy vấn đều đọc trạng thái. Điền giá trị gốc của thượng nguồn, đúng chữ hoa thường, nhiều giá trị ngăn bằng dấu phẩy. Sau khi phát hành, các tác vụ đang chạy cũng dùng các giá trị này cho trạng thái mà cấu hình trước đó không nhận ra.",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "Điền ít nhất một. Giá trị không có trong danh sách cũng được coi là đang xử lý nhưng bị ghi là trạng thái không nhận diện.",
     "Fill it in only when it differs from the submit response.": "Chỉ điền khi khác với phản hồi gửi.",
     "Left empty, they also count as in progress.": "Để trống thì vẫn được coi là đang xử lý.",

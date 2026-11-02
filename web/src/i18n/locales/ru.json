@@ -10576,7 +10576,7 @@
     "Check": "Проверить",
     "Each material is uploaded once; the example is {{kind}}.": "Каждый материал загружается один раз; в примере — {{kind}}.",
     "Error message": "Сообщение об ошибке",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "Каждый опрос читает статус. Укажите исходные значения провайдера с тем же регистром, несколько — через запятую.",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "Каждый опрос читает статус. Укажите исходные значения провайдера с тем же регистром, несколько — через запятую. После публикации уже выполняющиеся задачи тоже используют эти значения для статуса, который не распознают их прежние настройки.",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "Укажите хотя бы одно. Неуказанное значение тоже считается «в процессе», но записывается как нераспознанный статус.",
     "Fill it in only when it differs from the submit response.": "Заполняйте, только если он отличается от ответа отправки.",
     "Left empty, they also count as in progress.": "Если не заполнено, они тоже считаются «в процессе».",

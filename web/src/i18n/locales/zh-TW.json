@@ -10576,7 +10576,7 @@
     "Check": "檢查",
     "Each material is uploaded once; the example is {{kind}}.": "每個素材上傳一次，示例是一個{{kind}}。",
     "Error message": "錯誤說明",
-    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas.": "每次查詢都讀狀態。狀態值填上游返回的原值，多個用逗號分隔，大小寫要一致。",
+    "Every query reads the status. Fill in the raw values of the upstream, match their case, and separate several with commas. Once published, tasks already running also use these values for a status their earlier settings do not recognise.": "每次查詢都讀狀態。狀態值填上游返回的原值，多個用逗號分隔，大小寫要一致。發佈後，進行中的任務遇到原設定認不出的狀態，也會按這裡的值判斷。",
     "Fill in at least one. A value not listed also counts as in progress, but is recorded as an unrecognized state.": "至少填一個。沒列出的值也當作進行中，但會記成「未識別的狀態」。",
     "Fill it in only when it differs from the submit response.": "和提交返回不同時才填。",
     "Left empty, they also count as in progress.": "不填也當作進行中。",
