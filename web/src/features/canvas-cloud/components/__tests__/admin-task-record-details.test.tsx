@@ -155,6 +155,20 @@ const pointRecord = {
   targetReservedAfter: null,
 }
 
+/** Opens the end-task dialog and chooses one way to end the task. */
+async function chooseEndOption(option: string) {
+  fireEvent.click(await screen.findByRole('button', { name: 'End task' }))
+  const dialog = await screen.findByRole('alertdialog', { name: 'End task' })
+  fireEvent.click(within(dialog).getByText(option))
+  return dialog
+}
+
+async function openManualResult() {
+  const dialog = await chooseEndOption('Enter a manual result')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+  return screen.findByRole('alertdialog', { name: 'Enter a manual result' })
+}
+
 function mount() {
   function View() {
     return (
@@ -411,7 +425,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(await screen.findByText('ledger-1')).toHaveClass('break-all')
     expect(screen.getByText('allocation-1')).toHaveClass('break-all')
     expect(
-      screen.getByText('Point lot available points').parentElement
+      screen.getByText('Point lot remaining points').parentElement
     ).toHaveTextContent('100 → 100')
   })
 
@@ -456,19 +470,19 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
 
     expect(
-      screen.getByText('Source point lot available points').parentElement
+      screen.getByText('Source point lot remaining points').parentElement
     ).toHaveTextContent('8 → 1')
     expect(
       screen.getByText('Source point lot frozen points').parentElement
     ).toHaveTextContent('7 → 0')
     expect(
-      screen.getByText('Target point lot available points').parentElement
+      screen.getByText('Target point lot remaining points').parentElement
     ).toHaveTextContent('2 → 9')
     expect(
       screen.getByText('Target point lot frozen points').parentElement
     ).toHaveTextContent('0 → 7')
     expect(
-      screen.queryByText('Point lot available points')
+      screen.queryByText('Point lot remaining points')
     ).not.toBeInTheDocument()
   })
 
@@ -1033,8 +1047,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       releasedPoints: '0',
       deductedPoints: '0',
       unknownDeadlineAt: '2099-09-14T09:17:00.000Z',
-      earlyReleaseAllowed: false,
-      earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
       outputs: [
         {
           outputIndex: 0,
@@ -1079,8 +1093,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       releasedPoints: '0',
       deductedPoints: '0',
       unknownDeadlineAt: '2020-01-01T00:00:00.000Z',
-      earlyReleaseAllowed: false,
-      earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+      earlyReleaseAllowed: true,
+      earlyReleaseBlockedReason: null,
       outputs: [
         {
           outputIndex: 0,
@@ -1116,8 +1130,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         releasedPoints: '0',
         deductedPoints: '0',
         unknownDeadlineAt: '2026-10-10T12:02:00.000Z',
-        earlyReleaseAllowed: false,
-        earlyReleaseBlockedReason: 'ACTIVE_REQUEST_LEASE',
+        earlyReleaseAllowed: true,
+        earlyReleaseBlockedReason: null,
         outputs: [
           {
             outputIndex: 0,
@@ -1179,30 +1193,29 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       response: { status: 409 },
     })
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Release frozen points early' })
+    const dialog = await chooseEndOption(
+      'Failure confirmed with the API provider'
     )
     expect(
-      screen.getByText(
-        'Release 14 frozen points for this task. This does not send a cancellation request to the API provider.'
+      within(dialog).getByText(
+        'Choose how to end this task. No cancellation request is sent to the API provider.'
       )
     ).toBeVisible()
     expect(
-      screen.getByText(
+      within(dialog).getByText(
         /If the API provider already charged, the platform bears the cost\./
       )
     ).toBeVisible()
+    expect(within(dialog).getByText('Releases 14 frozen points.')).toBeVisible()
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Verified with provider' },
     })
-    fireEvent.click(screen.getByText('Failure confirmed with the API provider'))
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
-    const actions = screen.getAllByRole('button', {
-      name: 'Release frozen points early',
-    })
-    fireEvent.click(actions.at(-1) as HTMLElement)
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Release points' })
+    )
 
     await waitFor(() =>
       expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledWith(task.id, {
@@ -1274,10 +1287,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(screen.getByText('https://cdn.example.com/page.html')).toBeVisible()
     expect(screen.getByText('upstream-b')).toBeVisible()
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Enter a manual result' })
-    )
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await openManualResult()
     expect(
       within(dialog).getByText(
         /If it passes, the customer gets it and 7 points are deducted\./
@@ -1387,20 +1397,26 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     api.getCanvasAdminTaskRecord.mockResolvedValue(waiting)
     try {
       mount()
+      expect(await screen.findByText('Processing')).toBeVisible()
+      // Every way to end the task waits: each option says why.
+      fireEvent.click(screen.getByRole('button', { name: 'End task' }))
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'End task',
+      })
       expect(
-        await screen.findByRole('button', {
-          name: 'Release frozen points early',
-        })
-      ).toBeDisabled()
-      expect(
-        screen.getByText(
+        within(dialog).getAllByText(
           'Points can be released after the manual result finishes.'
         )
-      ).toBeVisible()
-      expect(screen.getByText('Processing')).toBeVisible()
+      ).toHaveLength(2)
       expect(
-        screen.queryByRole('button', { name: 'Enter a manual result' })
-      ).not.toBeInTheDocument()
+        within(dialog).getByText(
+          'Not available: only an unknown media result not billed by Tokens can take a manual result, one at a time.'
+        )
+      ).toBeVisible()
+      for (const radio of within(dialog).getAllByRole('radio')) {
+        expect(radio).toHaveAttribute('aria-disabled', 'true')
+      }
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
       expect(api.getCanvasAdminTaskRecord).toHaveBeenCalledTimes(1)
 
       // The executor applies it: the next refresh shows the result, and refreshing stops.
@@ -1481,10 +1497,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       response: { status: 409 },
     })
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Enter a manual result' })
-    )
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await openManualResult()
     fireEvent.change(within(dialog).getByLabelText('File URL'), {
       target: { value: 'https://cdn.example.com/first.mp4' },
     })
@@ -1551,10 +1564,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       manualResults: [],
     })
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Enter a manual result' })
-    )
-    const dialog = await screen.findByRole('alertdialog')
+    const dialog = await openManualResult()
     expect(within(dialog).getByText('Result 2')).toBeVisible()
     expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
     expect(within(dialog).getByText('upstream-second')).toBeVisible()
@@ -1583,17 +1593,17 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     )
   })
 
-  it('offers no manual result when no result is eligible', async () => {
+  it('offers no way to end a task without frozen results', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValue(task)
     mount()
     expect(await screen.findByText('UAT customer')).toBeVisible()
     expect(
-      screen.queryByRole('button', { name: 'Enter a manual result' })
+      screen.queryByRole('button', { name: 'End task' })
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Manual result records')).not.toBeInTheDocument()
   })
 
-  it('force-ends a processing task with the early-release dialog, counting only its unfinished frozen result', async () => {
+  it('force-ends a processing task from the end-task dialog, counting only its unfinished frozen result', async () => {
     const output = {
       settledPoints: null,
       error: null,
@@ -1630,30 +1640,24 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       ],
     })
     mount()
+    const dialog = await chooseEndOption('Not sure, release the points')
     expect(
-      screen.queryByRole('button', { name: 'Release frozen points early' })
-    ).not.toBeInTheDocument()
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Force-end and release points',
-      })
-    )
-    expect(
-      screen.getByText(
-        'End this task and release 6 frozen points for 1 unfinished results. The current execution stops; no cancellation request is sent to the API provider.'
+      within(dialog).getByText(
+        'Releases 6 frozen points for 1 unfinished results.'
       )
     ).toBeVisible()
+    const release = within(dialog).getByRole('button', {
+      name: 'Release points',
+    })
+    expect(release).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Upstream returned 401 and the task kept processing' },
     })
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
-    const actions = screen.getAllByRole('button', {
-      name: 'Force-end and release points',
-    })
     api.releaseCanvasTaskFrozenPoints.mockResolvedValueOnce(task)
-    fireEvent.click(actions.at(-1) as HTMLElement)
+    fireEvent.click(release)
 
     await waitFor(() =>
       expect(api.releaseCanvasTaskFrozenPoints).toHaveBeenCalledWith(task.id, {
@@ -1682,14 +1686,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       outputs: [],
     })
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Release frozen points early' })
-    )
-    expect(
-      screen.getByText(
-        'Release 5 frozen points for this task. This does not send a cancellation request to the API provider.'
-      )
-    ).toBeVisible()
+    const dialog = await chooseEndOption('Not sure, release the points')
+    expect(within(dialog).getByText('Releases 5 frozen points.')).toBeVisible()
   })
 
   it('keeps the entered early-release confirmation after a request failure', async () => {
@@ -1718,20 +1716,18 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     })
     api.releaseCanvasTaskFrozenPoints.mockRejectedValueOnce(new Error('boom'))
     mount()
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Release frozen points early' })
+    const dialog = await chooseEndOption(
+      'Failure confirmed with the API provider'
     )
     fireEvent.change(screen.getByLabelText('Administrator reason'), {
       target: { value: 'Checked upstream result' },
     })
-    fireEvent.click(screen.getByText('Failure confirmed with the API provider'))
     fireEvent.click(
       screen.getByText('I understand the impact of this operation')
     )
-    const actions = screen.getAllByRole('button', {
-      name: 'Release frozen points early',
-    })
-    fireEvent.click(actions.at(-1) as HTMLElement)
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Release points' })
+    )
 
     expect(
       await screen.findByText('Unable to release frozen points')
@@ -1764,9 +1760,9 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'Point action',
       'Convert to grace bonus points',
       'Sent upstream request (sanitized)',
-      'Source point lot available points',
+      'Source point lot remaining points',
       'Source point lot frozen points',
-      'Target point lot available points',
+      'Target point lot remaining points',
       'Target point lot frozen points',
       'Executor request confirmed not sent',
       'Generation request preparation failed',

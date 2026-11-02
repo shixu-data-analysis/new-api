@@ -2039,8 +2039,6 @@ export interface CanvasAdminTaskRecordDetail {
   earlyReleaseBlockedReason:
     | 'TASK_NOT_ELIGIBLE'
     | 'MANUAL_RESULT_PENDING'
-    | 'ACTIVE_EXECUTOR_CLAIM'
-    | 'ACTIVE_REQUEST_LEASE'
     | null
   /** Results an administrator may enter a manual result for, with the Provider task that covers each. */
   manualResultTargets: Array<{

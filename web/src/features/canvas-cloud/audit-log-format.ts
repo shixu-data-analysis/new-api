@@ -728,7 +728,7 @@ const SPECS: Record<string, ActionSpec> = {
       { key: 'points', label: 'Deduct points', kind: 'points' },
       {
         key: 'remainingAfter',
-        label: 'Available points after deduction',
+        label: 'Remaining points after deduction',
         kind: 'points',
       },
       { key: 'reservedPoints', label: 'Task-reserved points', kind: 'points' },
@@ -1243,7 +1243,7 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'recharge.code_batch.unused_downloaded': 'Download unused codes',
   'executor.drain.started': 'Start draining',
   'executor.drain.cancelled': 'Cancel draining',
-  'task.execution.admin_frozen_points_released': 'Release frozen points early',
+  'task.execution.admin_frozen_points_released': 'Force-end and release points',
   'task.execution.admin_manual_result_requested': 'Enter a manual result',
   'executor.manual_result.applied': 'Manual result applied',
   'executor.manual_result.failed': 'Manual result not applied',

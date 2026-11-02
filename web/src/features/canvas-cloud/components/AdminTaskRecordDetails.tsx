@@ -16,11 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { flexRender, type ColumnDef, type Row } from '@tanstack/react-table'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   Accordion,
@@ -28,27 +27,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 
-import {
-  getCanvasAdminTaskRecord,
-  getCanvasTaskPointLedger,
-  releaseCanvasTaskFrozenPoints,
-} from '../api'
+import { endableResults } from '../admin-task-end'
+import { getCanvasAdminTaskRecord, getCanvasTaskPointLedger } from '../api'
 import {
   ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE,
   customerDeadline,
@@ -73,6 +57,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { DetailValue } from './DetailValue'
+import { EndTaskDialog } from './EndTaskDialog'
 import { ManualResultDialog } from './ManualResultDialog'
 import { PreflightDiagnosticDetails } from './PreflightDiagnosticDetails'
 import {
@@ -154,15 +139,6 @@ const manualResultStatuses: Record<string, string> = {
 const manualResultFailureReasons: Record<string, string> = {
   OUTPUT_NOT_AWAITING_RESULT:
     'The result no longer waited: the provider answered first or the points were released',
-}
-const earlyReleaseBlockedReasons: Record<string, string> = {
-  TASK_NOT_ELIGIBLE: 'This task is not eligible for early point release.',
-  MANUAL_RESULT_PENDING:
-    'A manual result is being processed. Points can be released after it finishes.',
-  ACTIVE_EXECUTOR_CLAIM:
-    'An executor is still handling this task. Try again after its claim ends.',
-  ACTIVE_REQUEST_LEASE:
-    'A provider request is still active. Try again after the request lease ends.',
 }
 
 function Points({ value }: { value: string | null | undefined }) {
@@ -594,7 +570,7 @@ function PointDetails({ record }: { record: CanvasAdminTaskPointRecord }) {
             ),
           ],
           [
-            'Source point lot available points',
+            'Source point lot remaining points',
             pair(record.sourceRemainingBefore, record.sourceRemainingAfter),
           ],
           [
@@ -602,7 +578,7 @@ function PointDetails({ record }: { record: CanvasAdminTaskPointRecord }) {
             pair(record.sourceReservedBefore, record.sourceReservedAfter),
           ],
           [
-            'Target point lot available points',
+            'Target point lot remaining points',
             pair(record.targetRemainingBefore, record.targetRemainingAfter),
           ],
           [
@@ -653,7 +629,7 @@ function PointDetails({ record }: { record: CanvasAdminTaskPointRecord }) {
       ? []
       : [
           [
-            'Point lot available points',
+            'Point lot remaining points',
             pair(record.remainingBefore, record.remainingAfter),
           ] as [string, ReactNode],
           [
@@ -791,15 +767,7 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
 
 export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   const { t, i18n } = useTranslation()
-  const queryClient = useQueryClient()
-  const [releaseOpen, setReleaseOpen] = useState(false)
-  const [upstreamFailureConfirmed, setUpstreamFailureConfirmed] =
-    useState(false)
-  const [releaseReason, setReleaseReason] = useState('')
-  const [impactConfirmed, setImpactConfirmed] = useState(false)
-  const [releaseError, setReleaseError] = useState('')
-  const [releaseConflict, setReleaseConflict] = useState(false)
-  const [reasonTried, setReasonTried] = useState(false)
+  const [endTaskOpen, setEndTaskOpen] = useState(false)
   const [manualResultOpen, setManualResultOpen] = useState(false)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const query = useQuery({
@@ -813,52 +781,6 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
       )
         ? 5_000
         : false,
-  })
-  const release = useMutation({
-    // The variable says whether this release force-ends a processing task.
-    mutationFn: (_forceEnd: boolean) =>
-      releaseCanvasTaskFrozenPoints(taskId, {
-        upstreamFailureConfirmed,
-        reason: releaseReason.trim(),
-      }),
-    onSuccess: async (_task, forceEnd) => {
-      setReleaseOpen(false)
-      setReleaseReason('')
-      setImpactConfirmed(false)
-      setUpstreamFailureConfirmed(false)
-      setReleaseError('')
-      setReleaseConflict(false)
-      setReasonTried(false)
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ['canvas-cloud', 'task-record', taskId],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['canvas-cloud', 'admin-task-logs'],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['canvas-cloud', 'customer', 'point-summary'],
-        }),
-      ])
-      toast.success(
-        t(
-          forceEnd
-            ? 'Task ended and frozen points released'
-            : 'Frozen points released'
-        )
-      )
-    },
-    onError: async (error) => {
-      const status = (error as { response?: { status?: number } }).response
-        ?.status
-      if (status === 409) {
-        setReleaseError('')
-        setReleaseConflict(true)
-        await query.refetch()
-        return
-      }
-      setReleaseError(t('Unable to release frozen points'))
-    },
   })
   // While the drawer stays open, the customer view counts down to the point release; the clock stops once the deadline
   // has passed, and whether the points were released still comes from the API.
@@ -922,61 +844,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
     task.customerBillingStatus === 'FROZEN'
   const hasPendingFrozenOutput =
     pendingFrozenOutputs.length > 0 || legacyPendingTask
-  // A processing task is force-ended: Canvas Cloud ends the current execution, and its frozen results still executing
-  // or already UNKNOWN are released with the same dialog.
-  const forceEnd =
-    task.executionStatus === 'PROCESSING' &&
-    task.customerBillingStatus === 'FROZEN'
-  const releasableOutputs = forceEnd
-    ? task.outputs.filter(
-        (output) =>
-          output.billingStatus === 'FROZEN' &&
-          ['ACCEPTED', 'PROCESSING', 'UNKNOWN'].includes(output.executionStatus)
-      )
-    : pendingFrozenOutputs
-  const legacyReleasableTask =
-    legacyPendingTask || (forceEnd && task.outputs.length === 0)
-  const releaseActionShown =
-    releasableOutputs.length > 0 || legacyReleasableTask
-  const releaseActionLabel = forceEnd
-    ? 'Force-end and release points'
-    : 'Release frozen points early'
-  const releasableResultCount = legacyReleasableTask
-    ? 1
-    : releasableOutputs.length
-  const releasablePoints = legacyReleasableTask
-    ? task.quotedPoints
-    : releasableOutputs
-        .reduce((sum, output) => sum + BigInt(output.quotedPoints), 0n)
-        .toString()
-  const manualResultShown = task.manualResultTargets.length > 0
-  const multipleResults = task.outputs.length > 1
-  const releaseValues = {
-    points: releasablePoints,
-    count: releasableResultCount,
-  }
-  let releaseDescription: string
-  if (forceEnd) {
-    releaseDescription = multipleResults
-      ? t(
-          'End this task and release {{points}} frozen points for {{count}} unfinished results. The current execution stops; no cancellation request is sent to the provider.',
-          releaseValues
-        )
-      : t(
-          'End this task and release {{points}} frozen points. The current execution stops; no cancellation request is sent to the provider.',
-          releaseValues
-        )
-  } else {
-    releaseDescription = multipleResults
-      ? t(
-          'Release {{points}} frozen points for {{count}} pending results. This does not send a cancellation request to the provider.',
-          releaseValues
-        )
-      : t(
-          'Release {{points}} frozen points for this task. This does not send a cancellation request to the provider.',
-          releaseValues
-        )
-  }
+  const endable = endableResults(task)
   const nodeStatus = customerNodeStatus(task, now)
   const deadline = customerDeadline(task, now)
   const points = customerPoints(task)
@@ -1258,147 +1126,28 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-      {releaseActionShown || manualResultShown ? (
-        <div className='bg-background/95 sticky bottom-0 flex flex-col items-end gap-2 border-t py-4 backdrop-blur'>
-          {releaseActionShown &&
-          !task.earlyReleaseAllowed &&
-          task.earlyReleaseBlockedReason ? (
-            <p className='text-muted-foreground text-sm'>
-              {t(
-                earlyReleaseBlockedReasons[task.earlyReleaseBlockedReason] ??
-                  'This task is not eligible for early point release.'
-              )}
-            </p>
-          ) : null}
-          <div className='flex flex-wrap justify-end gap-2'>
-            {manualResultShown ? (
-              <Button
-                type='button'
-                variant='outline'
-                onClick={() => setManualResultOpen(true)}
-              >
-                {t('Enter a manual result')}
-              </Button>
-            ) : null}
-            {releaseActionShown ? (
-              <Button
-                type='button'
-                variant='destructive'
-                disabled={!task.earlyReleaseAllowed}
-                onClick={() => setReleaseOpen(true)}
-              >
-                {t(releaseActionLabel)}
-              </Button>
-            ) : null}
-          </div>
+      {endable.count > 0 ? (
+        <div className='bg-background/95 sticky bottom-0 flex justify-end border-t py-4 backdrop-blur'>
+          <Button
+            type='button'
+            variant='destructive'
+            onClick={() => setEndTaskOpen(true)}
+          >
+            {t('End task')}
+          </Button>
         </div>
       ) : null}
+      <EndTaskDialog
+        task={task}
+        open={endTaskOpen}
+        onOpenChange={setEndTaskOpen}
+        onEnterManualResult={() => setManualResultOpen(true)}
+      />
       <ManualResultDialog
         task={task}
         open={manualResultOpen}
         onOpenChange={setManualResultOpen}
       />
-      <AlertDialog open={releaseOpen} onOpenChange={setReleaseOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t(releaseActionLabel)}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {releaseDescription}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className='space-y-4'>
-            {releaseConflict ? (
-              <p
-                className='border-destructive/35 text-destructive rounded-md border p-3 text-sm'
-                role='alert'
-              >
-                {t(
-                  'Task status changed and details were refreshed. Your input was kept and the request was not retried.'
-                )}
-              </p>
-            ) : null}
-            <label className='flex items-start gap-2 text-sm'>
-              <Checkbox
-                checked={upstreamFailureConfirmed}
-                onCheckedChange={(checked) =>
-                  setUpstreamFailureConfirmed(checked === true)
-                }
-              />
-              <span>{t('Provider failure was confirmed')}</span>
-            </label>
-            <p className='text-muted-foreground text-sm'>
-              {t(
-                upstreamFailureConfirmed
-                  ? 'The result will be marked failed and asynchronous capacity will be returned immediately.'
-                  : 'The system stops querying and later provider results will not be delivered to the customer. If the provider already charged, the platform bears the cost. Asynchronous capacity remains occupied until the execution deadline.'
-              )}
-            </p>
-            <div className='space-y-1'>
-              <label htmlFor='release-reason' className='text-sm font-medium'>
-                {t('Administrator reason')}
-              </label>
-              <Textarea
-                id='release-reason'
-                value={releaseReason}
-                maxLength={1000}
-                aria-invalid={reasonTried && releaseReason.trim() === ''}
-                aria-describedby='release-reason-help'
-                placeholder={t(
-                  'Describe the verification channel and conclusion. Do not include secrets or unsanitized responses.'
-                )}
-                onChange={(event) => setReleaseReason(event.target.value)}
-              />
-              <div
-                id='release-reason-help'
-                className='text-muted-foreground flex justify-between text-xs'
-              >
-                <span>{t('Recorded only in the audit log')}</span>
-                <span className='tabular-nums'>
-                  {releaseReason.trim().length} / 1000
-                </span>
-              </div>
-              {reasonTried && releaseReason.trim() === '' ? (
-                <p className='text-destructive text-xs' role='alert'>
-                  {t('Enter a reason.')}
-                </p>
-              ) : null}
-            </div>
-            <label className='flex items-start gap-2 text-sm'>
-              <Checkbox
-                checked={impactConfirmed}
-                onCheckedChange={(checked) =>
-                  setImpactConfirmed(checked === true)
-                }
-              />
-              <span>{t('I understand the impact of this operation')}</span>
-            </label>
-            {releaseError ? (
-              <p className='text-destructive text-sm' role='alert'>
-                {releaseError}
-              </p>
-            ) : null}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={release.isPending || !impactConfirmed}
-              onClick={(event) => {
-                event.preventDefault()
-                setReasonTried(true)
-                if (releaseReason.trim() === '') {
-                  document
-                    .querySelector<HTMLElement>('#release-reason')
-                    ?.focus()
-                  return
-                }
-                release.mutate(forceEnd)
-              }}
-            >
-              {t(release.isPending ? 'Submitting…' : releaseActionLabel)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
