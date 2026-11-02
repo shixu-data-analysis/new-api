@@ -14,6 +14,7 @@ import {
   channelDraftFrom,
   requestRowTemplate,
   sampleRequest,
+  samplesWithin,
   type Accepts,
   type BodyName,
   type ChannelIssue,
@@ -429,6 +430,9 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     if (imageView) return 'reference'
     return textBodyWithImagesElsewhere ? 'videoAudio' : MODE_SAMPLE[mode]
   }
+  // A reference mode takes any of its materials, alone or together; the other modes take theirs all at once.
+  const modeSamples = (mode: MediaMode): SampleKind[] =>
+    mode === 'reference' ? samplesWithin(modeSample(mode)) : [modeSample(mode)]
   // A frame with no field of its own goes with the images when that list takes every image, as hfsyapi.video does.
   const slotField = (slot: Slot): string => {
     const row = slotRow(slot)
@@ -1093,6 +1097,7 @@ export function materialsOf(x: ChannelDraft, body: BodyName) {
     accepts,
     currentMode,
     modeSample,
+    modeSamples,
     frameAlone,
     slotSendsList,
     negativeRow,
@@ -1398,14 +1403,16 @@ export function materialIssues(
       (row) =>
         carriedBy(templateOfRow(row, draft.roleMap), draft.roleMap).prompt
     )
-    // Counted in the request each mode of this body builds, as the Executor builds it, so an expression sending it
-    // twice, or only in a branch that is never taken, is found; a mode the template fails on is reported below.
+    // Counted in every request each mode of this body can build, as the Executor builds it, so an expression sending
+    // it twice, or only in a branch that is never taken, is found whatever materials come with it; a request the
+    // template fails on is reported below.
     const view = materialsOf(draft, body)
-    const sent = view.bodyModes().flatMap((mode) => {
+    const samples = new Set(view.bodyModes().flatMap(view.modeSamples))
+    const sent = [...samples].flatMap((sample) => {
       const { body: built, failure } = sampleRequest(
         draft,
         profile,
-        view.modeSample(mode),
+        sample,
         PROMPT_PROBE
       )
       if (failure) return []

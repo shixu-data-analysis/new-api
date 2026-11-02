@@ -1600,6 +1600,8 @@ export type SampleKind =
   | 'frames'
   | 'omni'
   | 'videoAudio'
+  | 'referenceVideo'
+  | 'referenceAudio'
 
 type SampleMaterial = 'first' | 'last' | 'reference' | 'video' | 'audio'
 const SAMPLE_MATERIALS: Record<SampleKind, SampleMaterial[]> = {
@@ -1612,6 +1614,18 @@ const SAMPLE_MATERIALS: Record<SampleKind, SampleMaterial[]> = {
   frames: ['first', 'last'],
   omni: ['reference', 'video', 'audio'],
   videoAudio: ['video', 'audio'],
+  referenceVideo: ['reference', 'video'],
+  referenceAudio: ['reference', 'audio'],
+}
+
+/** Every sample carrying some of this one's materials and nothing else: what a request of a reference mode can hold. */
+export function samplesWithin(sample: SampleKind): SampleKind[] {
+  const held = SAMPLE_MATERIALS[sample]
+  return (Object.keys(SAMPLE_MATERIALS) as SampleKind[]).filter(
+    (kind) =>
+      SAMPLE_MATERIALS[kind].length > 0 &&
+      SAMPLE_MATERIALS[kind].every((material) => held.includes(material))
+  )
 }
 // The file name of each sample is its marker: a request that holds it carries that material.
 const SAMPLE_FILE: Record<

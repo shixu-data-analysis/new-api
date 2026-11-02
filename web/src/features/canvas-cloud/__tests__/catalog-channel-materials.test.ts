@@ -241,6 +241,46 @@ describe('materials of a video form', () => {
     )
   })
 
+  it('counts the prompt in every mix of references the reference mode takes', () => {
+    const draft = blankChannelDraft('video.generate')
+    draft.submit.path = '/v1/videos'
+    const prompt = { $ref: 'request.prompt' }
+    const picks = (list: string, role: string) => ({
+      $call: 'mediaUrlByRole',
+      args: [{ $ref: list }, role],
+    })
+    // Once with a reference image or nothing at all, twice with a video but no reference image.
+    const template = {
+      text: {
+        $if: picks('media.images', 'image-reference'),
+        // The template language's $if takes then and else; this is not a Promise.
+        // eslint-disable-next-line unicorn/no-thenable
+        then: prompt,
+        else: {
+          $if: picks('media.videos', 'video-reference'),
+          // eslint-disable-next-line unicorn/no-thenable
+          then: [prompt, prompt],
+          else: prompt,
+        },
+      },
+    }
+    draft.rows = [
+      row('model', 'upstreamId'),
+      {
+        field: 'content',
+        source: 'expr',
+        expr: JSON.stringify(template),
+        transform: '',
+      },
+    ]
+    expect(materialIssues(draft)).toContainEqual(
+      expect.objectContaining({
+        key: 'The prompt is sent {{count}} times ({{fields}}); keep one',
+        values: expect.objectContaining({ count: 2 }),
+      })
+    )
+  })
+
   it('reports models whose modes need a material the interface does not take', () => {
     const draft = editMaterials(oneImageList(), (x) => {
       x.rows = x.rows.filter((entry) => entry.source !== 'audios')
