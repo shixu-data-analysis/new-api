@@ -156,6 +156,7 @@ export type ExecutionAttentionType =
   | 'OUTPUT_TOO_LARGE'
   | 'RETRY_EXHAUSTED'
   | 'UNRECOGNIZED_PROVIDER_STATUS'
+  | 'PLATFORM_ERROR_RETRY'
   | 'WAITING_AREA_NEARLY_FULL'
   | 'DATABASE_UNSTABLE'
 
@@ -166,6 +167,7 @@ export interface ExecutionAttention {
   taskLogFilters?: {
     failureReason?: 'PROVIDER_OUTPUT_TOO_LARGE' | 'RETRY_EXHAUSTED'
     unrecognizedStatus?: 'present'
+    platformIssue?: 'present'
     from: string
   }
   /** UNRECOGNIZED_PROVIDER_STATUS only: each provider channel and status value, most recent first. */

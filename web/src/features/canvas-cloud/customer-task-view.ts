@@ -41,6 +41,7 @@ type CustomerTask = Pick<
   | 'derivedExecutionStatus'
   | 'customerBillingStatus'
   | 'unknownDeadlineAt'
+  | 'platformIssue'
   | 'releasedPoints'
   | 'billingFinalizedAt'
   | 'taskError'
@@ -59,6 +60,8 @@ const isReleased = (status: string) =>
 export type CustomerNodeStatus = {
   key: string
   failed: boolean
+  /** The amber state of a task waiting after a platform error. */
+  attention?: true
 }
 
 export function customerNodeStatus(
@@ -117,6 +120,14 @@ export function customerNodeStatus(
         ? 'Customer task view releasing points'
         : 'Customer task view verifying',
       failed: false,
+    }
+  }
+  // A running task waiting after a platform error shows it with its retry time (FreeCanvasNode `platformIssueOverlay`).
+  if (task.platformIssue) {
+    return {
+      key: 'Customer task view platform issue',
+      failed: false,
+      attention: true,
     }
   }
   // Every result still to come waits for its turn at the Provider.
@@ -226,15 +237,19 @@ export function customerDeadline(
   task: CustomerTask,
   now = Date.now()
 ): CustomerDeadline {
-  if (
-    task.executionStatus !== 'UNKNOWN' ||
-    task.customerBillingStatus !== 'FROZEN'
-  ) {
+  // As `cloudTaskDeadlineInfo()`: an UNKNOWN task's frozen deadline, or the execution deadline of a task waiting after a
+  // platform error.
+  if (task.customerBillingStatus !== 'FROZEN') return { kind: 'hidden' }
+  if (task.executionStatus !== 'UNKNOWN' && !task.platformIssue) {
     return { kind: 'hidden' }
   }
-  const countdown = customerReleaseCountdown(task.unknownDeadlineAt, now)
-  if (!countdown || !task.unknownDeadlineAt) return { kind: 'missing' }
-  return { kind: 'scheduled', at: task.unknownDeadlineAt, countdown }
+  const at =
+    task.executionStatus === 'UNKNOWN'
+      ? task.unknownDeadlineAt
+      : (task.platformIssue?.releaseAt ?? null)
+  const countdown = customerReleaseCountdown(at, now)
+  if (!countdown || !at) return { kind: 'missing' }
+  return { kind: 'scheduled', at, countdown }
 }
 
 export type CustomerPoints = {

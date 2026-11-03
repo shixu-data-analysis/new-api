@@ -2698,6 +2698,46 @@ describe('execution settings', () => {
     )
   })
 
+  it('lists the tasks waiting after a platform error and links them in task records', async () => {
+    const overview = await mocks.getCanvasExecutionOverview()
+    mocks.getCanvasExecutionOverview.mockResolvedValueOnce({
+      ...overview,
+      attention: [
+        {
+          type: 'PLATFORM_ERROR_RETRY',
+          count: 2,
+          latestAt: '2026-11-04T02:20:05.000Z',
+          taskLogFilters: {
+            platformIssue: 'present',
+            from: '2026-11-03T05:00:00.000Z',
+          },
+        },
+      ],
+    })
+    mount()
+    const card = (await screen.findByText('Needs attention')).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement
+    expect(
+      within(card).getByText(
+        '2 tasks hit a platform error and are waiting to be retried'
+      )
+    ).toBeVisible()
+    expect(
+      within(card).getByText(
+        /^They are retried at once after the fix is released\./
+      )
+    ).toBeVisible()
+    expect(
+      within(card).getByRole('link', {
+        name: 'View these 2 tasks in task records',
+      })
+    ).toHaveAttribute(
+      'href',
+      '/canvas-cloud/task-logs?platformIssue=present&from=2026-11-03T05%3A00%3A00.000Z'
+    )
+  })
+
   it('shows the attention hints after the drain row and links the task-record ones', async () => {
     const overview = await mocks.getCanvasExecutionOverview()
     mocks.getCanvasExecutionOverview.mockResolvedValueOnce({

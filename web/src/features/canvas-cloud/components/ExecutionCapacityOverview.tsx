@@ -137,6 +137,7 @@ export function TaskLogCountLink(props: {
     | 'credentialGroupId'
     | 'failureReason'
     | 'unrecognizedStatus'
+    | 'platformIssue'
     | 'from'
   >
   label?: string

@@ -62,6 +62,7 @@ const task = {
   billingUnit: null,
   billingFinalizedAt: null,
   unknownDeadlineAt: null,
+  platformIssue: null,
   earlyReleaseAllowed: false,
   earlyReleaseBlockedReason: null,
   manualResultTargets: [],
@@ -1082,6 +1083,76 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     expect(
       screen.queryByText('The upstream service returned an error code.')
     ).not.toBeInTheDocument()
+  })
+
+  it('explains a platform error the task waits after, and shows the customer the same note and release time', async () => {
+    const platformIssue = {
+      occurredAt: '2099-11-04T02:19:20.000Z',
+      retryAt: '2099-11-04T02:49:20.000Z',
+      releaseAt: '2099-11-04T06:17:56.000Z',
+      errorName: 'TaskUncaughtError',
+      errorCode: 'ENETUNREACH',
+      location: 'pinned-fetch.js:30',
+    }
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'PROCESSING',
+      executionStatus: 'PROCESSING',
+      customerBillingStatus: 'FROZEN',
+      settledPoints: null,
+      deductedPoints: null,
+      releasedPoints: '0',
+      completedAt: null,
+      platformIssue,
+      outputs: [
+        {
+          outputIndex: 0,
+          quotedPoints: '14',
+          settledPoints: null,
+          executionStatus: 'PROCESSING',
+          billingStatus: 'FROZEN',
+          error: null,
+          usageSnapshot: null,
+          completedAt: null,
+          billingFinalizedAt: null,
+        },
+      ],
+    })
+    mount()
+
+    const clock = (value: string, timeStyle: 'short' | 'medium') =>
+      new Intl.DateTimeFormat('en', { timeStyle }).format(new Date(value))
+    expect(await screen.findByText('Platform error')).toBeVisible()
+    expect(
+      screen.getByText(
+        `Error at ${clock(platformIssue.occurredAt, 'medium')}, retried automatically at ${clock(platformIssue.retryAt, 'medium')}, and at once after the fix is released.`
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText('TaskUncaughtError · ENETUNREACH · pinned-fetch.js:30')
+    ).toBeVisible()
+    expect(screen.getByText('Latest point release time')).toBeVisible()
+    // What the customer sees: the amber node state, its retry time, the contact button, the note and the release time.
+    expect(screen.getByText('Platform issue')).toBeVisible()
+    expect(
+      screen.getByText(
+        `Retrying at about ${clock(platformIssue.retryAt, 'short')}`
+      )
+    ).toBeVisible()
+    expect(screen.getByText('Contact us')).toBeVisible()
+    expect(
+      screen.getByText(
+        `Sorry, the platform ran into a problem with this task. It will retry automatically at ${clock(platformIssue.retryAt, 'short')}.`
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByText('Please contact us with the task ID.')
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        'If there is still no result by then, the frozen points will be released.'
+      )
+    ).toBeVisible()
   })
 
   it('shows the customer that frozen points are being released once the deadline has passed', async () => {

@@ -889,6 +889,8 @@ export const STATIC_I18N_KEYS = [
   'UPSTREAM_ERROR_DETAIL_UNRECOGNIZED',
   // Canvas Cloud customer task view (mirrors Canvas Web)
   'Customer task view running',
+  'Customer task view platform issue',
+  'Customer task view contact us',
   'Customer task view verifying',
   'Customer task view releasing points',
   'Customer task view deadline expired',

@@ -51,6 +51,7 @@ import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
   CanvasAdminTokenBilling,
+  CanvasTaskPlatformIssue,
   CanvasTokenCategory,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
@@ -150,6 +151,19 @@ function Points({ value }: { value: string | null | undefined }) {
       {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))}
     </span>
   )
+}
+/** A time of day, as Canvas Web shows the retry time to the customer (`formatTaskTime()`). */
+function formatClock(
+  locale: string | undefined,
+  value: string,
+  timeStyle: 'short' | 'medium'
+) {
+  return new Intl.DateTimeFormat(locale, { timeStyle }).format(new Date(value))
+}
+function platformIssueFacts(issue: CanvasTaskPlatformIssue) {
+  return [issue.errorName, issue.errorCode, issue.location]
+    .filter((fact) => fact !== null)
+    .join(' · ')
 }
 function formatTime(locale: string | undefined, value: string | null) {
   return value
@@ -854,6 +868,17 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   )
   const upstreamReason = customerUpstreamReason(task)
   const showCustomerError = nodeStatus.failed
+  const platformIssue = task.platformIssue
+  let latestReleaseAt: string | null | undefined
+  if (platformIssue) latestReleaseAt = platformIssue.releaseAt
+  else if (hasPendingFrozenOutput) latestReleaseAt = task.unknownDeadlineAt
+  let nodeStatusClassName = 'text-sm font-medium'
+  if (nodeStatus.failed) {
+    nodeStatusClassName = 'text-destructive text-sm font-medium'
+  } else if (nodeStatus.attention) {
+    nodeStatusClassName =
+      'text-sm font-medium text-amber-700 dark:text-amber-400'
+  }
   const separateSubmissions =
     task.multiResultMode === 'FANOUT' && task.outputs.length > 1
   let upstreamTaskHelp: string | null = null
@@ -911,9 +936,9 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
             />
           </DetailValue>
         ) : null}
-        {hasPendingFrozenOutput ? (
+        {latestReleaseAt !== undefined ? (
           <DetailValue label='Latest point release time'>
-            {formatTime(locale, task.unknownDeadlineAt)}
+            {formatTime(locale, latestReleaseAt)}
           </DetailValue>
         ) : null}
         <DetailValue label='Upstream task ID'>
@@ -934,6 +959,28 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
             </>
           )}
         </DetailValue>
+        {platformIssue ? (
+          <div className='col-span-full rounded-lg border border-amber-500/40 bg-amber-500/5 p-3'>
+            <DetailValue label='Platform error'>
+              {t(
+                'Error at {{occurredAt}}, retried automatically at {{retryAt}}, and at once after the fix is released.',
+                {
+                  occurredAt: formatClock(
+                    locale,
+                    platformIssue.occurredAt,
+                    'medium'
+                  ),
+                  retryAt: formatClock(locale, platformIssue.retryAt, 'medium'),
+                }
+              )}
+              {platformIssueFacts(platformIssue) ? (
+                <p className='text-muted-foreground mt-1 font-mono text-xs [overflow-wrap:anywhere]'>
+                  {platformIssueFacts(platformIssue)}
+                </p>
+              ) : null}
+            </DetailValue>
+          </div>
+        ) : null}
         {failure ? (
           <div className='col-span-full'>
             <DetailValue label='Failure summary'>{failure}</DetailValue>
@@ -955,16 +1002,22 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
               <div className='space-y-4 rounded-lg border p-4'>
                 <div className='flex flex-wrap items-center justify-between gap-2'>
                   <span className='grid gap-0.5'>
-                    <span
-                      className={
-                        nodeStatus.failed
-                          ? 'text-destructive text-sm font-medium'
-                          : 'text-sm font-medium'
-                      }
-                    >
+                    <span className={nodeStatusClassName}>
                       {t(nodeStatus.key)}
                     </span>
-                    {deadline.kind === 'scheduled' &&
+                    {platformIssue ? (
+                      <span className='text-muted-foreground text-xs'>
+                        {t('Customer task view retry at', {
+                          time: formatClock(
+                            locale,
+                            platformIssue.retryAt,
+                            'short'
+                          ),
+                        })}
+                      </span>
+                    ) : null}
+                    {!platformIssue &&
+                    deadline.kind === 'scheduled' &&
                     !deadline.countdown.expired ? (
                       <span className='text-muted-foreground text-xs'>
                         {t('Customer task view release in', {
@@ -977,7 +1030,11 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
                     ) : null}
                   </span>
                   <span className='text-muted-foreground rounded-md border px-2 py-0.5 text-xs'>
-                    {t('Customer task view task information')}
+                    {t(
+                      platformIssue
+                        ? 'Customer task view contact us'
+                        : 'Customer task view task information'
+                    )}
                   </span>
                 </div>
                 {task.outputs.length > 1 ? (
@@ -1002,6 +1059,20 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
                     <DetailValue label='Customer task view task ID'>
                       <CopyableText value={task.id} noTruncate />
                     </DetailValue>
+                    {platformIssue ? (
+                      <DetailValue label='Customer task view platform note'>
+                        {t('Customer task view platform note text', {
+                          time: formatClock(
+                            locale,
+                            platformIssue.retryAt,
+                            'short'
+                          ),
+                        })}
+                        <p className='text-muted-foreground mt-1 text-xs'>
+                          {t('Customer task view platform contact')}
+                        </p>
+                      </DetailValue>
+                    ) : null}
                     {deadline.kind === 'hidden' ? null : (
                       <DetailValue label='Customer task view deadline'>
                         {deadline.kind === 'scheduled'

@@ -79,6 +79,7 @@ const taskLogSearch = {
     .optional()
     .catch(undefined),
   unrecognizedStatus: z.literal('present').optional().catch(undefined),
+  platformIssue: z.literal('present').optional().catch(undefined),
   from: z.string().datetime({ offset: true }).optional().catch(undefined),
 }
 

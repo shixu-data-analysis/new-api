@@ -1828,6 +1828,8 @@ export interface CanvasAdminTaskLogQuery {
   failureReason?: CanvasAdminTaskFailureReason
   /** Tasks with a provider call that received a status the interface template does not list. */
   unrecognizedStatus?: 'present'
+  /** Tasks waiting after a platform error until they are tried again. */
+  platformIssue?: 'present'
   billingStatus?: string
   executionOrigin?: 'REAL' | 'MOCK'
   from?: string
@@ -2016,6 +2018,15 @@ export interface CanvasAdminTokenBilling {
   } | null
 }
 
+export interface CanvasTaskPlatformIssue {
+  occurredAt: string
+  retryAt: string
+  releaseAt: string
+  errorName: string | null
+  errorCode: string | null
+  location: string | null
+}
+
 export interface CanvasAdminTaskRecordDetail {
   id: string
   customerId: string
@@ -2035,6 +2046,8 @@ export interface CanvasAdminTaskRecordDetail {
   billingUnit: string | null
   billingFinalizedAt: string | null
   unknownDeadlineAt: string | null
+  /** The platform error the task waits after, with the error name, code and code location the Executor recorded. */
+  platformIssue: CanvasTaskPlatformIssue | null
   earlyReleaseAllowed: boolean
   earlyReleaseBlockedReason:
     | 'TASK_NOT_ELIGIBLE'

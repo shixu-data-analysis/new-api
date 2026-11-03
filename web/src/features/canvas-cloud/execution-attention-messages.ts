@@ -17,6 +17,8 @@ export const attentionMessageKeys: Record<ExecutionAttention['type'], string> =
       '{{count}} tasks in the last 24 hours failed after repeated attempts to fetch the result',
     UNRECOGNIZED_PROVIDER_STATUS:
       '{{count}} tasks in the last 24 hours received a provider status the interface template does not list',
+    PLATFORM_ERROR_RETRY:
+      '{{count}} tasks hit a platform error and are waiting to be retried',
     WAITING_AREA_NEARLY_FULL:
       '{{count}} executor instances are nearly full of tasks waiting for results',
     DATABASE_UNSTABLE:

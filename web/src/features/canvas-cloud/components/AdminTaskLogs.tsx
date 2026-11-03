@@ -165,6 +165,7 @@ export function AdminTaskLogs() {
   const credentialGroupId = search.credentialGroupId ?? ''
   const failureReason = search.failureReason
   const unrecognizedStatus = search.unrecognizedStatus
+  const platformIssue = search.platformIssue
   const from = useMemo(
     () => (search.from ? new Date(search.from) : undefined),
     [search.from]
@@ -204,6 +205,7 @@ export function AdminTaskLogs() {
     derivedExecutionStatus,
     failureReason,
     unrecognizedStatus,
+    platformIssue,
     from,
     frozenResultsOnly,
     model,
@@ -229,6 +231,7 @@ export function AdminTaskLogs() {
       credentialGroupId,
       failureReason,
       unrecognizedStatus,
+      platformIssue,
       billingStatus,
       from?.toISOString(),
       to?.toISOString(),
@@ -253,6 +256,7 @@ export function AdminTaskLogs() {
           ...(credentialGroupId ? { credentialGroupId } : {}),
           ...(failureReason ? { failureReason } : {}),
           ...(unrecognizedStatus ? { unrecognizedStatus } : {}),
+          ...(platformIssue ? { platformIssue } : {}),
           ...(billingStatus ? { billingStatus } : {}),
           ...(from ? { from: from.toISOString() } : {}),
           ...(to ? { to: to.toISOString() } : {}),
@@ -502,6 +506,11 @@ export function AdminTaskLogs() {
       key: 'unrecognizedStatus',
       label: t('Received an unrecognized provider status'),
       remove: () => setSearch({ unrecognizedStatus: undefined }),
+    },
+    platformIssue && {
+      key: 'platformIssue',
+      label: t('Waiting to retry after a platform error'),
+      remove: () => setSearch({ platformIssue: undefined }),
     },
   ].filter((item): item is { key: string; label: string; remove: () => void } =>
     Boolean(item)
@@ -847,6 +856,8 @@ export function AdminTaskLogs() {
             frozenResultsOnly: undefined,
             credentialGroupId: undefined,
             failureReason: undefined,
+            unrecognizedStatus: undefined,
+            platformIssue: undefined,
             from: undefined,
           })
         }}

@@ -443,6 +443,34 @@ describe('Canvas administrator task records', () => {
     )
   })
 
+  it('filters to tasks waiting after a platform error, and clears it with the other linked filters', async () => {
+    const user = userEvent.setup()
+    routeState.set({
+      platformIssue: 'present',
+      unrecognizedStatus: 'present',
+      from: '2026-10-04T12:00:00.000Z',
+    })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          platformIssue: 'present',
+          unrecognizedStatus: 'present',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    expect(
+      within(tags).getByRole('button', {
+        name: 'Remove filter Waiting to retry after a platform error',
+      })
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(routeState.get()).not.toHaveProperty('platformIssue')
+    expect(routeState.get()).not.toHaveProperty('unrecognizedStatus')
+  })
+
   it('filters to tasks that received an unrecognized provider status, shown as a removable chip', async () => {
     const user = userEvent.setup()
     routeState.set({

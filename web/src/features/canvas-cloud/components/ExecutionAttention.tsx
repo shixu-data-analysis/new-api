@@ -53,6 +53,9 @@ export function ExecutionAttentionCard(props: {
                       'When it is full, the instance stops taking new tasks. Add executor instances or raise the poll interval.'
                     )
                   : null}
+                {hint.type === 'PLATFORM_ERROR_RETRY'
+                  ? `${t('They are retried at once after the fix is released.')} `
+                  : null}
                 {hint.type === 'UNRECOGNIZED_PROVIDER_STATUS'
                   ? `${t('These tasks keep querying. Once the meaning of each value is confirmed, add it to the interface template and publish a new catalog.')} `
                   : null}
