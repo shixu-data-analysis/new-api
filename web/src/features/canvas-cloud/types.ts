@@ -2021,7 +2021,8 @@ export interface CanvasAdminTokenBilling {
 export interface CanvasTaskPlatformIssue {
   occurredAt: string
   retryAt: string
-  releaseAt: string
+  /** Null for a task priced without a billing snapshot, which has no execution deadline. */
+  releaseAt: string | null
   errorName: string | null
   errorCode: string | null
   location: string | null

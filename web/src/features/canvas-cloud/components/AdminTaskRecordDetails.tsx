@@ -870,7 +870,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   const showCustomerError = nodeStatus.failed
   const platformIssue = task.platformIssue
   let latestReleaseAt: string | null | undefined
-  if (platformIssue) latestReleaseAt = platformIssue.releaseAt
+  if (platformIssue) latestReleaseAt = platformIssue.releaseAt ?? undefined
   else if (hasPendingFrozenOutput) latestReleaseAt = task.unknownDeadlineAt
   let nodeStatusClassName = 'text-sm font-medium'
   if (nodeStatus.failed) {

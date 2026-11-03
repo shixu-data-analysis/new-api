@@ -1155,6 +1155,36 @@ describe('AdminTaskRecordDetails UAT-018', () => {
     ).toBeVisible()
   })
 
+  it('shows no point release time for a waiting task without an execution deadline', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      derivedExecutionStatus: 'PROCESSING',
+      executionStatus: 'PROCESSING',
+      customerBillingStatus: 'FROZEN',
+      completedAt: null,
+      platformIssue: {
+        occurredAt: '2099-11-04T02:19:20.000Z',
+        retryAt: '2099-11-04T02:49:20.000Z',
+        releaseAt: null,
+        errorName: 'TaskUncaughtError',
+        errorCode: null,
+        location: null,
+      },
+    })
+    mount()
+
+    expect(await screen.findByText('Platform error')).toBeVisible()
+    expect(screen.getByText('TaskUncaughtError')).toBeVisible()
+    expect(
+      screen.queryByText('Latest point release time')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'If there is still no result by then, the frozen points will be released.'
+      )
+    ).not.toBeInTheDocument()
+  })
+
   it('shows the customer that frozen points are being released once the deadline has passed', async () => {
     api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
       ...task,

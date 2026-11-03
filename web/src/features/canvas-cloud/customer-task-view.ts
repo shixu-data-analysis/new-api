@@ -240,7 +240,7 @@ export function customerDeadline(
   // As `cloudTaskDeadlineInfo()`: an UNKNOWN task's frozen deadline, or the execution deadline of a task waiting after a
   // platform error.
   if (task.customerBillingStatus !== 'FROZEN') return { kind: 'hidden' }
-  if (task.executionStatus !== 'UNKNOWN' && !task.platformIssue) {
+  if (task.executionStatus !== 'UNKNOWN' && !task.platformIssue?.releaseAt) {
     return { kind: 'hidden' }
   }
   const at =
