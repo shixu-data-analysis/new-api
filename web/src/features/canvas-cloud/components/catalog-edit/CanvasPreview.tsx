@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { SentFields } from '../../catalog-edit-logic'
 import type { CatalogModelDefinition } from '../../catalog-edit-types'
+import { CanvasPreviewSegmented } from './CanvasPreviewSegmented'
+import { CanvasUpscalePreview } from './CanvasUpscalePreview'
 
 const ratioSize = (ratio: string) => {
   const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(ratio)
@@ -23,32 +25,6 @@ const ratioSize = (ratio: string) => {
       ? [Math.min(28, 17 * value), Math.min(28, 17 * value) / value]
       : [Math.min(24, 17 / value) * value, Math.min(24, 17 / value)]
   return { width: Math.round(width), height: Math.round(height) }
-}
-
-function Segmented(props: {
-  title: string
-  options: Array<[string, string]>
-  value: string
-  onPick: (value: string) => void
-}) {
-  return (
-    <section>
-      <strong>{props.title}</strong>
-      <div className='qualitySegmented' role='group' aria-label={props.title}>
-        {props.options.map(([value, label]) => (
-          <button
-            key={value}
-            type='button'
-            className={props.value === value ? 'active' : ''}
-            aria-pressed={props.value === value}
-            onClick={() => props.onPick(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </section>
-  )
 }
 
 /**
@@ -77,6 +53,18 @@ export function CanvasPreview(props: {
     referenceLimits: interaction.referenceLimits,
     quality,
   })
+  // An upscale model appears in the video toolbar's upscale panel, not in the generation panel (VIDEO-UPSCALE-001).
+  if (rules.videoUpscale) {
+    return (
+      <aside
+        aria-label={t('What the user sees')}
+        className='grid min-w-0 gap-2 min-[1181px]:sticky min-[1181px]:top-0'
+      >
+        <div className='catalog-canvas-title'>{t('What the user sees')}</div>
+        <CanvasUpscalePreview model={model} />
+      </aside>
+    )
+  }
   const pick = (
     key: string,
     fallback: unknown,
@@ -193,7 +181,7 @@ export function CanvasPreview(props: {
     </section>
   ) : null
   const durationControl = rules.durationDiscrete ? (
-    <Segmented
+    <CanvasPreviewSegmented
       title={t('Length')}
       options={durations.map((value) => [String(value), `${value}S`])}
       value={String(duration)}
@@ -218,7 +206,7 @@ export function CanvasPreview(props: {
     </section>
   )
   const qualityControl = rules.qualities.length ? (
-    <Segmented
+    <CanvasPreviewSegmented
       title={t('Quality tier')}
       options={rules.qualities.map((value) => [value, value])}
       value={quality}
@@ -236,7 +224,7 @@ export function CanvasPreview(props: {
           {model.displayName || t('(unnamed model)')}
         </div>
         {modes.length ? (
-          <Segmented
+          <CanvasPreviewSegmented
             title={t('Video mode')}
             options={modes}
             value={mode}
@@ -267,7 +255,7 @@ export function CanvasPreview(props: {
           ) : (
             <>
               {rules.apiQualities.length ? (
-                <Segmented
+                <CanvasPreviewSegmented
                   title={t('Image quality')}
                   options={rules.apiQualities.map((value) => [
                     value,
@@ -282,7 +270,7 @@ export function CanvasPreview(props: {
             </>
           )}
           {rules.modelOptions.map((option) => (
-            <Segmented
+            <CanvasPreviewSegmented
               key={option.key}
               title={option.label}
               options={
@@ -304,7 +292,7 @@ export function CanvasPreview(props: {
             />
           ))}
           {rules.supportsAudioGeneration ? (
-            <Segmented
+            <CanvasPreviewSegmented
               title={t('Audio')}
               options={[
                 ['true', t('On')],
@@ -317,7 +305,7 @@ export function CanvasPreview(props: {
           {rules.supportsTransparentBackground ? (
             <>
               {rules.transparentNeedsSingleAlphaImage ? (
-                <Segmented
+                <CanvasPreviewSegmented
                   title={t('Reference images')}
                   options={[
                     ['none', t('None')],
@@ -344,7 +332,7 @@ export function CanvasPreview(props: {
             </>
           ) : null}
           {rules.batchOptions.length > 1 ? (
-            <Segmented
+            <CanvasPreviewSegmented
               title={t('Number of results')}
               options={rules.batchOptions.map((value) => [
                 String(value),

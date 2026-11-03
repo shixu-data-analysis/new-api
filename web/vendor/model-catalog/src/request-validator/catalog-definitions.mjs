@@ -1,5 +1,5 @@
 /** Catalog definition rules shared by the repository check and Cloud. */
-import { collapsePromptWhitespaceIssue, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge } from "./index.mjs";
+import { collapsePromptWhitespaceIssue, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PROFILE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -534,6 +534,8 @@ function validateVideoUpscaleModel(productKey, capability, interaction) {
   if (unknown.length) fail(`${location}; qualities ${unknown.join(", ")} have no resolution to compare with the source`);
   const range = object(schema.durationRange, `${location}: paramSchema.durationRange`);
   if (range.step !== undefined && range.step !== 1) fail(`${location}; durationRange.step must be 1, since it bills the source's own seconds`);
+  // The seconds are the source's whatever the tier, so one range covers every tier.
+  if (schema.durationRangeByQuality !== undefined) fail(`${location}; it must not set durationRangeByQuality`);
 }
 
 function validateReferenceLimits(raw, location) {
@@ -783,7 +785,7 @@ export function validateCatalogDefinitions(read, options = {}) {
     if (value.capability === "image.generate" && Number(referenceLimits.maxImageReferences ?? 0) >= 1 && referenceLimits.imageOperations === undefined) {
       fail(`Model ${productKey} must declare imageOperations; image models support camera-angle and relight by default and opt out with an explicit declaration`);
     }
-    if (referenceLimits.videoOperations?.upscale !== undefined) validateVideoUpscaleModel(productKey, value.capability, interaction);
+    if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
     return value;

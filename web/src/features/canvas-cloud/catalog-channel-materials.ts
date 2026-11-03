@@ -1490,7 +1490,9 @@ export function materialIssues(
   }
   if (anyExprIssue || !draft.submit.path.trim()) return issues
   const prompted = draft.promptOmitted
-    ? models.filter((model) => Number(model.limits?.minPromptCharacters ?? 0) > 0)
+    ? models.filter(
+        (model) => Number(model.limits?.minPromptCharacters ?? 0) > 0
+      )
     : []
   if (prompted.length) {
     issues.push({

@@ -302,6 +302,12 @@ function checkImageCombinations(interaction, value, metadata, issues) {
   if (total > limit) add(issues, CatalogRequestIssueCode.TOTAL_REFERENCE_COUNT_EXCEEDS_MAXIMUM, "maxImagesWithResults", { actual: total, maximum: limit });
 }
 
+/** A model's video upscale declaration ({ sameResolution }), or undefined when the model does not upscale. */
+export function videoUpscaleOperation(referenceLimits) {
+  const operations = object(object(referenceLimits).videoOperations);
+  return has(operations, "upscale") ? object(operations.upscale) : undefined;
+}
+
 /** The short edge in pixels of a video resolution tier: "720P" is 720, "2K" 1440 and "4K" 2160; unknown text has none. */
 export function videoQualityShortEdge(quality) {
   if (typeof quality !== "string") return undefined;
@@ -334,8 +340,8 @@ export function videoUpscaleTierBlock(upscale, quality, widthPx, heightPx) {
 
 // A video upscale takes one source video, is billed for that video's own length and offers only the tiers its size allows.
 function checkVideoUpscale(interaction, value, metadata, issues) {
-  const operations = object(object(interaction.referenceLimits).videoOperations);
-  if (!has(operations, "upscale")) return;
+  const upscale = videoUpscaleOperation(interaction.referenceLimits);
+  if (!upscale) return;
   const videos = metadata.filter((entry) => entry.mediaType === "VIDEO");
   if (videos.length === 0) {
     add(issues, CatalogRequestIssueCode.REFERENCE_COUNT_BELOW_MINIMUM, "inputAssetIds", { mediaKind: "video", actual: 0, minimum: 1 });
@@ -346,7 +352,7 @@ function checkVideoUpscale(interaction, value, metadata, issues) {
   const seconds = upscaleBilledSeconds(source.durationMs);
   if (seconds === undefined) addMissingMetadata(issues, "durationMs", details);
   else if (value.durationSeconds !== seconds) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "durationSeconds", { actual: issueValue(value.durationSeconds), allowed: [seconds] });
-  const block = videoUpscaleTierBlock(operations.upscale, value.quality, source.widthPx, source.heightPx);
+  const block = videoUpscaleTierBlock(upscale, value.quality, source.widthPx, source.heightPx);
   if (block) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "quality", { ...details, actual: value.quality, reason: block, sourceShortEdgePx: Math.min(source.widthPx, source.heightPx) });
 }
 

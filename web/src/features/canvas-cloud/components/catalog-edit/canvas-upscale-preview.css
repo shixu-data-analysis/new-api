@@ -1,0 +1,59 @@
+/* Canvas Web VideoUpscaleControl inside the admin preview: header chip, model field, summary rows, full-width confirm. */
+.catalog-canvas-upscale-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.catalog-canvas-upscale-header strong {
+  color: var(--text);
+  font-size: 14px;
+}
+.catalog-canvas-upscale-header span {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  padding: 3px 8px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+.catalog-canvas-upscale-select {
+  display: flex;
+  height: 36px;
+  align-items: center;
+  border: 1px solid #3d3d3d;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.catalog-canvas-upscale-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 5%, #202020);
+  padding: 9px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.catalog-canvas-upscale-row strong {
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.catalog-canvas-upscale-confirm {
+  display: grid;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+  background: #f4f4f5;
+  color: #18181b;
+  font-size: 13px;
+  font-weight: 650;
+}
+/* A tier the source rules out stays visible but cannot be picked, as on the canvas. */
+.catalog-canvas-upscale .qualitySegmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

@@ -55,6 +55,7 @@ export declare function durationRangeForQuality(paramSchema: unknown, quality: u
 export declare function defaultParamsIssues(interaction: unknown): CatalogRequestValidationIssue[];
 export declare function validateCatalogRequest(input?: { model?: { release?: { publicInteraction?: CatalogInteraction } }; interaction?: CatalogInteraction; request?: Record<string, unknown> }): CatalogRequestValidationResult;
 export declare function isAspectRatio(value: unknown): boolean;
+export declare function videoUpscaleOperation(referenceLimits: unknown): VideoUpscaleOperation | undefined;
 export declare function videoQualityShortEdge(quality: unknown): number | undefined;
 export declare function upscaleBilledSeconds(durationMs: unknown): number | undefined;
 export declare function videoUpscaleTierBlock(upscale: unknown, quality: unknown, widthPx: unknown, heightPx: unknown): VideoUpscaleTierBlock | undefined;

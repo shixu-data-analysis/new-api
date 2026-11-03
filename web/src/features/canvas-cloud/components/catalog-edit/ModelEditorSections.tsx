@@ -6,7 +6,10 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS } from '@pixmiao/model-catalog/request-validator'
+import {
+  REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS,
+  videoUpscaleOperation,
+} from '@pixmiao/model-catalog/request-validator'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -1384,11 +1387,12 @@ export function ModelReferenceSection(
     relight: t('Relight'),
     'region-edit': t('Region edit'),
   }
-  const upscale = (
-    limits.videoOperations as { upscale?: { sameResolution: boolean } } | undefined
-  )?.upscale
+  const upscale = videoUpscaleOperation(limits)
   const setUpscale = (next: { sameResolution: boolean } | undefined) =>
-    set(['referenceLimits', 'videoOperations'], next ? { upscale: next } : undefined)
+    set(
+      ['referenceLimits', 'videoOperations'],
+      next ? { upscale: next } : undefined
+    )
   const setOperation = (operation: string, next: boolean) => {
     const value = { ...operations }
     if (next) {

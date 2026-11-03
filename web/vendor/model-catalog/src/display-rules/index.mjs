@@ -2,7 +2,7 @@
  * What the canvas generation panel shows for a model. Canvas Web renders it and the admin form previews it, so one rule
  * change takes effect in both; each side keeps its own controls and styles.
  */
-import { durationRangeForQuality } from "../request-validator/index.mjs";
+import { durationRangeForQuality, upscaleBilledSeconds, videoQualityShortEdge, videoUpscaleOperation, videoUpscaleTierBlock } from "../request-validator/index.mjs";
 
 const object = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const stringList = (value) => (Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : []);
@@ -80,7 +80,9 @@ export function generationPanelRules(input) {
     optionDefaults: Object.fromEntries(modelOptionsFromSchema(schema).map((option) => [option.key, defaults[option.key]])),
     batchOptions: modelBatchOptions(schema),
     defaultBatchSize: typeof defaults.batchSize === "number" ? defaults.batchSize : undefined,
-    videoModes: video ? {
+    // An upscale model is used from the video node toolbar, not the generation panel (VIDEO-UPSCALE-001).
+    videoUpscale: video ? videoUpscaleOperation(limits) ?? null : null,
+    videoModes: video && !videoUpscaleOperation(limits) ? {
       textToVideo: videoModeSupported("text-to-video", limits),
       imageToVideo: videoModeSupported("image-to-video", limits),
       firstLastFrame: videoModeSupported("first-last-frame", limits),
@@ -88,4 +90,31 @@ export function generationPanelRules(input) {
     } : null,
     regionEdit: image && Boolean(object(limits.imageOperations)["region-edit"]),
   };
+}
+
+/**
+ * The upscale panel of a video node for a source: each tier the model lists, why it is not offered for this source, and
+ * the size it makes (the source's short edge becomes the tier, the ratio is kept); and the seconds it bills, or why the
+ * source cannot be upscaled. Canvas Web shows it and the admin form previews it.
+ */
+export function videoUpscalePanelRules(input, source) {
+  const schema = object(input?.paramSchema);
+  const upscale = videoUpscaleOperation(input?.referenceLimits);
+  const width = Number(source?.width) || null;
+  const height = Number(source?.height) || null;
+  const tiers = stringList(schema.qualities).map((quality) => {
+    const block = videoUpscaleTierBlock(upscale, quality, width, height);
+    const edge = videoQualityShortEdge(quality);
+    if (!edge || !width || !height) return { quality, ...(block ? { block } : {}), outputSize: null, sameSize: false };
+    const even = (value) => Math.round(value / 2) * 2;
+    const outputSize = width <= height ? { width: edge, height: even(height * edge / width) } : { width: even(width * edge / height), height: edge };
+    return { quality, ...(block ? { block } : {}), outputSize, sameSize: outputSize.width === width && outputSize.height === height };
+  });
+  const seconds = upscaleBilledSeconds(source?.durationMs);
+  const range = object(schema.durationRange);
+  const duration = seconds === undefined ? { problem: "unknown" }
+    : typeof range.min === "number" && seconds < range.min ? { problem: "too-short", limitSeconds: range.min }
+      : typeof range.max === "number" && seconds > range.max ? { problem: "too-long", limitSeconds: range.max }
+        : { seconds };
+  return { tiers, duration };
 }
