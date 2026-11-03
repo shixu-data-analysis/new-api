@@ -1,6 +1,6 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.8.0";
-export const REQUEST_VALIDATOR_VECTORS_SHA256 = "cb35d1a472ceafc6b2db3f62d3049345a7f66e971f99c928e7d45f645f8d2472";
+export const REQUEST_VALIDATOR_VERSION = "1.9.0";
+export const REQUEST_VALIDATOR_VECTORS_SHA256 = "49381f2459c8c94ee82f294f3868e36cbc9b1a49b6d228e1e2f91982798ea1c0";
 
 export const CatalogRequestIssueCode = Object.freeze({
   PROMPT_TOO_LONG: "PROMPT_TOO_LONG",
@@ -36,7 +36,7 @@ export const REQUEST_VALIDATOR_OPTION_TYPES = Object.freeze(["enum", "boolean"])
 export const REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS = Object.freeze([
   "minImageReferences", "maxImageReferences", "maxVideoReferences", "maxAudioReferences", "maxTotalReferences", "maxImagesWithResults", "minPromptCharacters", "maxPromptCharacters",
   "supportsTextToVideo", "supportsImageToVideo", "supportsStartEndFrames", "supportsImageReference", "supportsVideoReference", "supportsAudioReference",
-  "requiresImageInputWithVideo", "requiresVisualInputWithAudio",
+  "requiresImageInputWithVideo", "requiresVisualInputWithAudio", "videoOperations",
 ]);
 export const REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS = Object.freeze([
   "formats", "minDurationMs", "maxDurationMs", "maxTotalDurationMs", "maxFileSizeBytes", "maxTotalFileSizeBytes",
@@ -302,6 +302,54 @@ function checkImageCombinations(interaction, value, metadata, issues) {
   if (total > limit) add(issues, CatalogRequestIssueCode.TOTAL_REFERENCE_COUNT_EXCEEDS_MAXIMUM, "maxImagesWithResults", { actual: total, maximum: limit });
 }
 
+/** The short edge in pixels of a video resolution tier: "720P" is 720, "2K" 1440 and "4K" 2160; unknown text has none. */
+export function videoQualityShortEdge(quality) {
+  if (typeof quality !== "string") return undefined;
+  const progressive = /^(\d+)P$/.exec(quality);
+  if (progressive) return Number(progressive[1]);
+  return { "2K": 1440, "4K": 2160 }[quality];
+}
+
+/**
+ * The seconds an upscale is billed and sent upstream for a source video: its measured duration to a tenth of a second,
+ * rounded up to whole seconds, so a 10.01-second probe of a 10-second clip stays 10 while 10.2 seconds becomes 11.
+ */
+export function upscaleBilledSeconds(durationMs) {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) return undefined;
+  return Math.max(1, Math.ceil(Math.round(durationMs / 100) / 10));
+}
+
+/**
+ * Why an upscale model does not offer a target tier for a source of this size: below the source never, the source's own
+ * tier only for a model that rebuilds at the same resolution. Undefined when the tier is offered or the size is unknown.
+ */
+export function videoUpscaleTierBlock(upscale, quality, widthPx, heightPx) {
+  const target = videoQualityShortEdge(quality);
+  if (target === undefined || !positiveInteger(widthPx) || !positiveInteger(heightPx)) return undefined;
+  const source = Math.min(widthPx, heightPx);
+  if (target < source) return "BELOW_SOURCE";
+  if (target === source && object(upscale).sameResolution !== true) return "SAME_AS_SOURCE";
+  return undefined;
+}
+
+// A video upscale takes one source video, is billed for that video's own length and offers only the tiers its size allows.
+function checkVideoUpscale(interaction, value, metadata, issues) {
+  const operations = object(object(interaction.referenceLimits).videoOperations);
+  if (!has(operations, "upscale")) return;
+  const videos = metadata.filter((entry) => entry.mediaType === "VIDEO");
+  if (videos.length === 0) {
+    add(issues, CatalogRequestIssueCode.REFERENCE_COUNT_BELOW_MINIMUM, "inputAssetIds", { mediaKind: "video", actual: 0, minimum: 1 });
+    return;
+  }
+  const source = videos[0];
+  const details = { mediaKind: "video", ...(source.assetId ? { assetId: source.assetId } : { assetIndex: source.assetIndex }) };
+  const seconds = upscaleBilledSeconds(source.durationMs);
+  if (seconds === undefined) addMissingMetadata(issues, "durationMs", details);
+  else if (value.durationSeconds !== seconds) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "durationSeconds", { actual: issueValue(value.durationSeconds), allowed: [seconds] });
+  const block = videoUpscaleTierBlock(operations.upscale, value.quality, source.widthPx, source.heightPx);
+  if (block) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "quality", { ...details, actual: value.quality, reason: block, sourceShortEdgePx: Math.min(source.widthPx, source.heightPx) });
+}
+
 function checkRequestParameters(capability, value, issues) {
   checkParameters(capability, value, issues);
   checkOptions(object(capability.paramSchema), value, issues);
@@ -328,6 +376,7 @@ export function validateCatalogRequest({ model, interaction, request = {} } = {}
   const metadata = metadataFromRequest(value, issues);
   checkMedia(capability, metadata, issues, value.mode);
   checkImageCombinations(capability, value, metadata, issues);
+  checkVideoUpscale(capability, value, metadata, issues);
   return { ok: issues.length === 0, issues, validatorVersion: REQUEST_VALIDATOR_VERSION };
 }
 

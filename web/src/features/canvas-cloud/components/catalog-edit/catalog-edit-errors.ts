@@ -143,6 +143,13 @@ function catalogDefinitionMessage(message: string, t: TFunction): string {
         ),
     ],
     [
+      /declares videoOperations\.upscale/,
+      () =>
+        t(
+          'A video upscale model takes exactly one reference video and no images, audio or prompt, keeps the other video modes off, makes one result, steps its duration by 1 second and uses resolutions such as 720P, 2K or 4K'
+        ),
+    ],
+    [
       /must declare imageOperations/,
       () =>
         t(
@@ -219,6 +226,7 @@ export function catalogErrorField(
     return 'referenceLimits.minPromptCharacters'
   }
   if (/imageOperations/.test(text)) return 'referenceLimits.imageOperations'
+  if (/videoOperations/.test(text)) return 'referenceLimits.videoOperations'
   if (/providerModel|upstream model/.test(text)) return 'upstream'
   return undefined
 }

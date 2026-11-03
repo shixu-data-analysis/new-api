@@ -1427,7 +1427,14 @@ export function materialIssues(
       }
       return [JSON.stringify(built).toLowerCase().split(PROMPT_MARK).length - 1]
     })
-    if (!senders.length) {
+    const omitted = draft.promptOmitted && view.mediaStyle() === 'fields'
+    if (omitted && senders.length) {
+      issues.push({
+        path: `${body}.promptSent`,
+        key: 'The prompt is set not to be sent, but {{fields}} still sends it',
+        values: { fields: senders.map((row) => row.field.trim()).join(', ') },
+      })
+    } else if (!omitted && !senders.length) {
       let key = 'Enter the field the prompt goes in'
       if (view.mediaStyle() === 'expr') {
         key =
@@ -1435,7 +1442,7 @@ export function materialIssues(
       }
       if (hasList) key = 'The prompt send content cannot be empty'
       issues.push({ path: `${body}.promptSent`, key })
-    } else if (sent.includes(0)) {
+    } else if (!omitted && sent.includes(0)) {
       issues.push({
         path: `${body}.promptSent`,
         key: 'The prompt is not sent in every mode ({{fields}}); check the conditions around it',
@@ -1482,6 +1489,19 @@ export function materialIssues(
     }
   }
   if (anyExprIssue || !draft.submit.path.trim()) return issues
+  const prompted = draft.promptOmitted
+    ? models.filter((model) => Number(model.limits?.minPromptCharacters ?? 0) > 0)
+    : []
+  if (prompted.length) {
+    issues.push({
+      path: 'rows.promptSent',
+      key: '{{count}} models need a prompt ({{models}}), but this interface sends none',
+      values: {
+        count: prompted.length,
+        models: prompted.map((model) => model.key).join(', '),
+      },
+    })
+  }
   if (models.length) {
     const carried = measuredSupport(draft)
     const gaps = models.flatMap((model) =>

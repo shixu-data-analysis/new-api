@@ -422,6 +422,8 @@ export interface ChannelDraft {
   promptAudio: string
   pollIntervalMs: string
   baseUrlMode: string
+  /** The interface sends no prompt at all (an upscale takes only the source video), so none is asked for. */
+  promptOmitted: boolean
   materials: MaterialsMemory
 }
 
@@ -697,6 +699,7 @@ export function blankChannelDraft(capability: string): ChannelDraft {
     promptAudio: '',
     pollIntervalMs: '',
     baseUrlMode: '',
+    promptOmitted: false,
     materials: blankMaterialsMemory(),
   }
 }
@@ -803,6 +806,11 @@ export function channelDraftFrom(
     promptAudio: format.audio ?? '',
     pollIntervalMs: String(status.pollIntervalMs ?? ''),
     baseUrlMode: String(policy.baseUrlMode ?? ''),
+    promptOmitted:
+      shapes &&
+      ![request.body, request.bodyWithImages].some((body) =>
+        JSON.stringify(body ?? {}).includes('"request.prompt"')
+      ),
     materials: blankMaterialsMemory(),
   }
 }

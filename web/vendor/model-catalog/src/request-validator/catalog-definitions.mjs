@@ -1,5 +1,5 @@
 /** Catalog definition rules shared by the repository check and Cloud. */
-import { collapsePromptWhitespaceIssue, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES } from "./index.mjs";
+import { collapsePromptWhitespaceIssue, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge } from "./index.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PROFILE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -216,6 +216,7 @@ const REFERENCE_LIMIT_FIELDS = [
   ...REFERENCE_LIMIT_INTEGER_FIELDS,
   ...REFERENCE_LIMIT_BOOLEAN_FIELDS,
   "imageOperations",
+  "videoOperations",
 ];
 const NON_VALIDATION_REFERENCE_FIELDS = ["imageOperations"];
 if (REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS.some((field) => !REFERENCE_LIMIT_FIELDS.includes(field))) throw new Error("Catalog reference schema is missing a shared validator field");
@@ -224,6 +225,7 @@ const IMAGE_OPERATION_FIELDS = ["camera-angle", "relight", "region-edit"];
 // The compiler decides how the boxes reach the model, so an unknown one could not be compiled on the canvas.
 const REGION_EDIT_COMPILERS = ["canvas.semantic.region-edit.bbox.v1", "canvas.semantic.region-edit.marked-image.v1"];
 const IMAGE_OPERATION_MODES = new Set(["prompt", "native"]);
+const VIDEO_OPERATION_FIELDS = ["upscale"];
 
 function finiteNumber(value, location, integer = false) {
   if (typeof value !== "number" || !Number.isFinite(value) || (integer && !Number.isSafeInteger(value)) || value < 0) {
@@ -512,6 +514,28 @@ function validateMediaConstraints(raw, location) {
   return constraints;
 }
 
+// An upscale model only upscales: one source video in, no prompt, one result billed for the source's own seconds, and a
+// target resolution it can compare with the source's short edge.
+function validateVideoUpscaleModel(productKey, capability, interaction) {
+  const limits = interaction.referenceLimits;
+  const schema = interaction.paramSchema;
+  const location = `Model ${productKey} declares videoOperations.upscale`;
+  if (capability !== "video.generate") fail(`${location} but is not a video model`);
+  if (limits.supportsVideoReference !== true || limits.maxVideoReferences !== 1) fail(`${location}; it must accept exactly one reference video`);
+  for (const field of ["supportsTextToVideo", "supportsImageToVideo", "supportsStartEndFrames", "supportsImageReference", "supportsAudioReference"]) {
+    if (limits[field] === true) fail(`${location}; it must not set ${field}`);
+  }
+  for (const field of ["maxImageReferences", "maxAudioReferences", "minPromptCharacters"]) {
+    if (limits[field] !== undefined && limits[field] !== 0) fail(`${location}; ${field} must be 0`);
+  }
+  if (schema.maxBatchSize !== 1) fail(`${location}; paramSchema.maxBatchSize must be 1`);
+  const qualities = array(schema.qualities, `${location}: paramSchema.qualities`, 1);
+  const unknown = qualities.filter((quality) => videoQualityShortEdge(quality) === undefined);
+  if (unknown.length) fail(`${location}; qualities ${unknown.join(", ")} have no resolution to compare with the source`);
+  const range = object(schema.durationRange, `${location}: paramSchema.durationRange`);
+  if (range.step !== undefined && range.step !== 1) fail(`${location}; durationRange.step must be 1, since it bills the source's own seconds`);
+}
+
 function validateReferenceLimits(raw, location) {
   const limits = object(raw, location);
   exactKeys(limits, REFERENCE_LIMIT_FIELDS, location);
@@ -534,6 +558,15 @@ function validateReferenceLimits(raw, location) {
       if (operation === "region-edit" && (configuration.mode !== "prompt" || !REGION_EDIT_COMPILERS.includes(configuration.compiler))) {
         fail(`${location}.imageOperations.region-edit must use mode prompt and a compiler of ${REGION_EDIT_COMPILERS.join(", ")}`);
       }
+    }
+  }
+  if (limits.videoOperations !== undefined) {
+    const operations = object(limits.videoOperations, `${location}.videoOperations`);
+    exactKeys(operations, VIDEO_OPERATION_FIELDS, `${location}.videoOperations`);
+    if (operations.upscale !== undefined) {
+      const upscale = object(operations.upscale, `${location}.videoOperations.upscale`);
+      exactKeys(upscale, ["sameResolution"], `${location}.videoOperations.upscale`);
+      if (typeof upscale.sameResolution !== "boolean") fail(`${location}.videoOperations.upscale.sameResolution must be a boolean`);
     }
   }
   if (limits.maxImagesWithResults !== undefined && limits.maxImagesWithResults < 1) fail(`${location}.maxImagesWithResults must be at least 1`);
@@ -750,6 +783,7 @@ export function validateCatalogDefinitions(read, options = {}) {
     if (value.capability === "image.generate" && Number(referenceLimits.maxImageReferences ?? 0) >= 1 && referenceLimits.imageOperations === undefined) {
       fail(`Model ${productKey} must declare imageOperations; image models support camera-angle and relight by default and opt out with an explicit declaration`);
     }
+    if (referenceLimits.videoOperations?.upscale !== undefined) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
     return value;

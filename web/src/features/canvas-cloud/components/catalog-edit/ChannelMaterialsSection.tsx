@@ -183,6 +183,17 @@ export function ChannelMaterialsSection(props: {
     </EditField>
   )
 
+  // Turning the prompt off also clears where it went, so nothing sends it by accident.
+  const omitPrompt = (next: boolean) =>
+    props.onChange({
+      ...editMaterials(draft, (copy) => {
+        if (!next) return
+        for (const name of ['rows', 'imageRows'] as const) {
+          if (copy[name].length) materialsOf(copy, name).setSlot('prompt', '')
+        }
+      }),
+      promptOmitted: next,
+    })
   const negative = view.negativeRow()
   const header = (
     <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(13rem,16rem))]'>
@@ -211,7 +222,18 @@ export function ChannelMaterialsSection(props: {
           </NativeSelect>
         )}
       </EditField>
-      {style === 'fields' ? slotInput('prompt') : null}
+      {style === 'fields' ? (
+        <EditField label={t('Prompt text')}>
+          {() => (
+            <SwitchField
+              label={t('Do not send')}
+              checked={draft.promptOmitted}
+              onChange={omitPrompt}
+            />
+          )}
+        </EditField>
+      ) : null}
+      {style === 'fields' && !draft.promptOmitted ? slotInput('prompt') : null}
       {style === 'list' && list ? (
         <EditField label={t('List field name')}>
           {(id, describedBy) => (

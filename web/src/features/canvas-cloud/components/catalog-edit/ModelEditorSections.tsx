@@ -1384,6 +1384,11 @@ export function ModelReferenceSection(
     relight: t('Relight'),
     'region-edit': t('Region edit'),
   }
+  const upscale = (
+    limits.videoOperations as { upscale?: { sameResolution: boolean } } | undefined
+  )?.upscale
+  const setUpscale = (next: { sameResolution: boolean } | undefined) =>
+    set(['referenceLimits', 'videoOperations'], next ? { upscale: next } : undefined)
   const setOperation = (operation: string, next: boolean) => {
     const value = { ...operations }
     if (next) {
@@ -1433,6 +1438,40 @@ export function ModelReferenceSection(
               />
             ) : null}
           </div>
+          <EditField
+            label={t('Video upscale')}
+            wide
+            error={fieldError(errors, ['referenceLimits', 'videoOperations'])}
+            help={
+              upscale
+                ? t(
+                    'An upscale model takes one source video and no prompt, makes one result and bills the source length; turn the other video modes off.'
+                  )
+                : undefined
+            }
+          >
+            {() => (
+              <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                <SwitchField
+                  label={t('Upscale only')}
+                  checked={Boolean(upscale)}
+                  disabled={!accepted.video && !upscale}
+                  onChange={(next) =>
+                    setUpscale(next ? { sameResolution: false } : undefined)
+                  }
+                />
+                {upscale ? (
+                  <SwitchField
+                    label={t(
+                      'Accepts the source resolution (rebuilds at the same size)'
+                    )}
+                    checked={upscale.sameResolution}
+                    onChange={(next) => setUpscale({ sameResolution: next })}
+                  />
+                ) : null}
+              </div>
+            )}
+          </EditField>
           {notCarried.map((note) => (
             <p
               key={note}

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   blankChannelDraft,
   buildProfile,
+  channelDraftFrom,
   sampleRequest,
   type ChannelDraft,
   type RequestRow,
@@ -179,6 +180,60 @@ describe('materials of a video form', () => {
     expect(JSON.stringify(bodyOf(list, 'reference').body)).not.toContain(
       'video_url'
     )
+  })
+
+  it('lets an interface send no prompt, and then refuses a prompt still sent or a model that needs one', () => {
+    const upscale = (omitted: boolean, extra: RequestRow[] = []) => {
+      const draft = blankChannelDraft('video.generate')
+      draft.submit.path = '/v1/videos'
+      draft.rows = [
+        row('model', 'upstreamId'),
+        row('metadata.referenceVideos', 'videos'),
+        ...extra,
+      ]
+      draft.roleMap = { 'video-reference': 'reference_video' }
+      draft.promptOmitted = omitted
+      return draft
+    }
+    const promptKeys = (issues: ReturnType<typeof materialIssues>) =>
+      issues.map((issue) => issue.key).filter((key) => /prompt/i.test(key))
+    expect(promptKeys(materialIssues(upscale(false)))).toEqual([
+      'Enter the field the prompt goes in',
+    ])
+    expect(promptKeys(materialIssues(upscale(true)))).toEqual([])
+    expect(
+      promptKeys(materialIssues(upscale(true, [row('prompt', 'prompt')])))
+    ).toEqual(['The prompt is set not to be sent, but {{fields}} still sends it'])
+    const models = [
+      { key: 'a', limits: { minPromptCharacters: 1 } },
+      { key: 'b', limits: { minPromptCharacters: 0 } },
+    ]
+    const needing = materialIssues(upscale(true), models).find((issue) =>
+      issue.key.startsWith('{{count}} models need a prompt')
+    )
+    expect(needing?.values).toEqual({ count: 1, models: 'a' })
+  })
+
+  it('reads an interface whose bodies never send the prompt as sending none', () => {
+    const profile = (body: Record<string, unknown>) => ({
+      kind: 'video.generate',
+      workflow: 'async',
+      advanced: { request: { body } },
+    })
+    const model = { model: { $ref: 'model.upstreamId' } }
+    expect(channelDraftFrom(profile(model), {}).promptOmitted).toBe(true)
+    expect(
+      channelDraftFrom(
+        profile({ ...model, prompt: { $ref: 'request.prompt' } }),
+        {}
+      ).promptOmitted
+    ).toBe(false)
+    expect(
+      channelDraftFrom(
+        profile({ ...model, negative: { $ref: 'request.negativePrompt' } }),
+        {}
+      ).promptOmitted
+    ).toBe(true)
   })
 
   it('reports a prompt sent twice and a received material without a field', () => {

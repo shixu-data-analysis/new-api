@@ -9,7 +9,13 @@ export type CatalogRequestValidationIssue = {
   minimum?: string | number;
   maximum?: string | number;
   allowed?: Array<string | number>;
+  /** A video upscale tier the source size rules out, with the source's short edge. */
+  reason?: VideoUpscaleTierBlock;
+  sourceShortEdgePx?: number;
 };
+export type VideoUpscaleTierBlock = "BELOW_SOURCE" | "SAME_AS_SOURCE";
+/** referenceLimits.videoOperations.upscale: whether the model also rebuilds at the source's own resolution. */
+export type VideoUpscaleOperation = { sameResolution: boolean };
 export type CatalogRequestValidationResult = {
   ok: boolean;
   issues: CatalogRequestValidationIssue[];
@@ -49,6 +55,9 @@ export declare function durationRangeForQuality(paramSchema: unknown, quality: u
 export declare function defaultParamsIssues(interaction: unknown): CatalogRequestValidationIssue[];
 export declare function validateCatalogRequest(input?: { model?: { release?: { publicInteraction?: CatalogInteraction } }; interaction?: CatalogInteraction; request?: Record<string, unknown> }): CatalogRequestValidationResult;
 export declare function isAspectRatio(value: unknown): boolean;
+export declare function videoQualityShortEdge(quality: unknown): number | undefined;
+export declare function upscaleBilledSeconds(durationMs: unknown): number | undefined;
+export declare function videoUpscaleTierBlock(upscale: unknown, quality: unknown, widthPx: unknown, heightPx: unknown): VideoUpscaleTierBlock | undefined;
 export declare function profileStatesIssue(states: unknown): string | undefined;
 export type PromptReferenceFormat = Readonly<Record<CatalogMediaKind, string>>;
 export declare const PROMPT_REFERENCE_FORMAT_KINDS: readonly string[];
