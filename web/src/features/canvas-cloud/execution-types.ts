@@ -168,7 +168,8 @@ export interface ExecutionAttention {
     failureReason?: 'PROVIDER_OUTPUT_TOO_LARGE' | 'RETRY_EXHAUSTED'
     unrecognizedStatus?: 'present'
     platformIssue?: 'present'
-    from: string
+    /** The 24-hour window; absent for PLATFORM_ERROR_RETRY, which counts every task waiting now. */
+    from?: string
   }
   /** UNRECOGNIZED_PROVIDER_STATUS only: each provider channel and status value, most recent first. */
   unrecognizedStatuses?: Array<{

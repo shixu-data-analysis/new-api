@@ -2707,10 +2707,7 @@ describe('execution settings', () => {
           type: 'PLATFORM_ERROR_RETRY',
           count: 2,
           latestAt: '2026-11-04T02:20:05.000Z',
-          taskLogFilters: {
-            platformIssue: 'present',
-            from: '2026-11-03T05:00:00.000Z',
-          },
+          taskLogFilters: { platformIssue: 'present' },
         },
       ],
     })
@@ -2732,10 +2729,7 @@ describe('execution settings', () => {
       within(card).getByRole('link', {
         name: 'View these 2 tasks in task records',
       })
-    ).toHaveAttribute(
-      'href',
-      '/canvas-cloud/task-logs?platformIssue=present&from=2026-11-03T05%3A00%3A00.000Z'
-    )
+    ).toHaveAttribute('href', '/canvas-cloud/task-logs?platformIssue=present')
   })
 
   it('shows the attention hints after the drain row and links the task-record ones', async () => {
