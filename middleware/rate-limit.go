@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -164,11 +165,69 @@ func GlobalWebRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
-func GlobalAPIRateLimit() func(c *gin.Context) {
-	if common.GlobalApiRateLimitEnable {
-		return rateLimitFactory(common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, "GA")
+// takeRateLimit counts one request in a bucket and rejects it with 429 when the bucket is full. It returns whether
+// the request may continue.
+func takeRateLimit(c *gin.Context, redisKey string, memoryKey string, maxRequestNum int, duration int64) bool {
+	if common.RedisEnabled {
+		allowed, _, ttlSeconds, err := redisFixedWindowTake(c.Request.Context(), redisKey, maxRequestNum, duration)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("rate limit check failed (key=%s): %v", redisKey, err))
+			c.Status(http.StatusInternalServerError)
+			c.Abort()
+			return false
+		}
+		if !allowed {
+			writeRateLimited(c, ttlSeconds)
+			return false
+		}
+		return true
 	}
-	return defNext
+	if !inMemoryRateLimiter.Request(memoryKey, maxRequestNum, duration) {
+		writeRateLimited(c, duration)
+		return false
+	}
+	return true
+}
+
+// verifiedAccessTokenUser is the user of a request whose Authorization carries a dashboard access token with a valid
+// signature and lifetime. The session is not looked up here; UserAuth still decides whether the request is allowed.
+func verifiedAccessTokenUser(c *gin.Context) (int, bool) {
+	raw, ok := authorizationToken(c.GetHeader("Authorization"))
+	if !ok {
+		return 0, false
+	}
+	identity, err := service.ParseAccessToken(raw)
+	if err != nil {
+		return 0, false
+	}
+	return identity.UserID, true
+}
+
+// GlobalAPIRateLimit counts a request with a valid dashboard access token against its user (GLOBAL_API_RATE_LIMIT)
+// and against its address with the larger backstop (GLOBAL_API_IP_RATE_LIMIT), so customers behind one office
+// address keep their own budgets while one address still cannot flood the service. A request without a valid access
+// token counts only against its address with GLOBAL_API_RATE_LIMIT, as before. Sign-in, refresh and the other
+// critical routes keep their own address limits. Both windows must not exceed RateLimitKeyExpirationDuration.
+func GlobalAPIRateLimit() func(c *gin.Context) {
+	if !common.GlobalApiRateLimitEnable {
+		return defNext
+	}
+	if !common.RedisEnabled {
+		// It's safe to call multi times.
+		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+	}
+	return func(c *gin.Context) {
+		clientIP := c.ClientIP()
+		userID, authenticated := verifiedAccessTokenUser(c)
+		if !authenticated {
+			takeRateLimit(c, redisIPRateLimitKey("GA", clientIP), "GA"+clientIP, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration)
+			return
+		}
+		if !takeRateLimit(c, redisIPRateLimitKey("GAI", clientIP), "GAI"+clientIP, common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration) {
+			return
+		}
+		takeRateLimit(c, redisUserRateLimitKey("GAU", userID), fmt.Sprintf("GAU:user:%d", userID), common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration)
+	}
 }
 
 func CriticalRateLimit() func(c *gin.Context) {
