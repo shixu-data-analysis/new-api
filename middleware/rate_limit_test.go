@@ -2,8 +2,11 @@ package middleware
 
 import (
 	"context"
+	"fmt"
+	"github.com/QuantumNous/new-api/service"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -262,6 +265,81 @@ func TestAuthRefreshDoesNotShareTheSignInBucket(t *testing.T) {
 				require.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/refresh", backend.office).Code)
 			}
 			assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/refresh", backend.office).Code)
+		})
+	}
+}
+
+func issueTestAccessToken(t *testing.T, userID int) string {
+	t.Helper()
+	token, _, err := service.IssueAccessToken(service.AuthIdentity{UserID: userID, SessionID: fmt.Sprintf("session-%d", userID), UserAuthVersion: 1, SessionVersion: 1})
+	require.NoError(t, err)
+	return token
+}
+
+func performAuthorizedRateLimitRequest(router http.Handler, path string, remoteAddr string, token string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, path, nil)
+	request.RemoteAddr = remoteAddr
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// Users behind one office address keep their own budgets; the address backstop still caps the whole office, and a
+// request without a valid access token keeps the old address limit.
+func TestGlobalAPIRateLimitCountsUsersWithAnAddressBackstop(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previous := []any{common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration, common.SessionSecret}
+	common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration = true, 3, 180
+	common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration = 5, 180
+	common.SessionSecret = "rate-limit-test-secret"
+	t.Cleanup(func() {
+		common.GlobalApiRateLimitEnable = previous[0].(bool)
+		common.GlobalApiRateLimitNum = previous[1].(int)
+		common.GlobalApiRateLimitDuration = previous[2].(int64)
+		common.GlobalApiIpRateLimitNum = previous[3].(int)
+		common.GlobalApiIpRateLimitDuration = previous[4].(int64)
+		common.SessionSecret = previous[5].(string)
+	})
+
+	for _, backend := range []struct {
+		name   string
+		office string
+		redis  bool
+	}{
+		{name: "redis", office: "192.0.2.30:443", redis: true},
+		{name: "memory", office: "192.0.2.31:443"},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			if backend.redis {
+				useRateLimitMiniRedis(t)
+			} else {
+				previousRedisEnabled := common.RedisEnabled
+				common.RedisEnabled = false
+				t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+			}
+			router := gin.New()
+			require.NoError(t, router.SetTrustedProxies(nil))
+			router.GET("/api/self", GlobalAPIRateLimit(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			alice, bob, carol := issueTestAccessToken(t, 101), issueTestAccessToken(t, 102), issueTestAccessToken(t, 103)
+
+			// Each user has 3; Alice's limit does not touch Bob's.
+			for range 3 {
+				require.Equal(t, http.StatusNoContent, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, alice).Code)
+			}
+			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, alice).Code)
+			require.Equal(t, http.StatusNoContent, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, bob).Code)
+			// The address backstop of 5 counts every authenticated request of the office, rejected ones included.
+			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, carol).Code)
+
+			// A forged token does not get a user budget; it falls back to the address limit of 3.
+			other := strings.Replace(backend.office, ".3", ".4", 1)
+			for range 3 {
+				require.Equal(t, http.StatusNoContent, performAuthorizedRateLimitRequest(router, "/api/self", other, alice+"x").Code)
+			}
+			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", other, "").Code)
 		})
 	}
 }
