@@ -153,7 +153,7 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 	if !ok {
 		return nil, service.AuthIdentity{}, dashboardCredentialUnmatched, nil
 	}
-	identity, internal, err := service.ParseDashboardAccessToken(raw)
+	identity, internal, err := parseDashboardToken(c, raw)
 	if internal {
 		if err != nil {
 			return nil, service.AuthIdentity{}, dashboardCredentialInternal, err
@@ -178,7 +178,30 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 	return user, service.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}, dashboardCredentialPAT, nil
 }
 
-const dashboardPATLookupContextKey = "dashboard_pat_lookup"
+const (
+	dashboardTokenParseContextKey = "dashboard_token_parse"
+	dashboardPATLookupContextKey  = "dashboard_pat_lookup"
+)
+
+type dashboardTokenParse struct {
+	raw      string
+	identity service.AuthIdentity
+	internal bool
+	err      error
+}
+
+// parseDashboardToken checks a dashboard access token's signature and lifetime once per request: the global API rate
+// limit checks it before authentication, and authentication reuses the answer.
+func parseDashboardToken(c *gin.Context, raw string) (service.AuthIdentity, bool, error) {
+	if stored, ok := c.Get(dashboardTokenParseContextKey); ok {
+		if parse := stored.(dashboardTokenParse); parse.raw == raw {
+			return parse.identity, parse.internal, parse.err
+		}
+	}
+	identity, internal, err := service.ParseDashboardAccessToken(raw)
+	c.Set(dashboardTokenParseContextKey, dashboardTokenParse{raw: raw, identity: identity, internal: internal, err: err})
+	return identity, internal, err
+}
 
 type dashboardPATLookup struct {
 	raw  string
@@ -276,7 +299,7 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		raw, ok := authorizationToken(c.GetHeader("Authorization"))
 		if ok {
-			identity, internal, err := service.ParseDashboardAccessToken(raw)
+			identity, internal, err := parseDashboardToken(c, raw)
 			if !internal {
 				TokenAuth()(c)
 				return

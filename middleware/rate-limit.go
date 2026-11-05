@@ -11,7 +11,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
 )
@@ -290,7 +289,7 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 			return
 		}
 		// As in authentication, a dashboard token is never tried as a personal one.
-		identity, internal, err := service.ParseDashboardAccessToken(raw)
+		identity, internal, err := parseDashboardToken(c, raw)
 		if internal {
 			if err != nil {
 				takeRateLimit(c, globalAPIAddressWindow(clientIP))
