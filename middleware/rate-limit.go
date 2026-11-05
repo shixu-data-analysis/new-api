@@ -2,15 +2,18 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/hot"
 )
 
 const redisRateLimitNamespace = "rateLimit:v2"
@@ -228,31 +231,48 @@ func takeRateLimit(c *gin.Context, windows ...rateLimitWindow) bool {
 	return true
 }
 
-// rateLimitUser is the user a request counts against: the user of a dashboard access token whose signature and
-// lifetime are valid, or of a personal access token, which the Canvas Desktop sends through Cloud. As in
-// authentication, a dashboard token is never tried as a personal one. Sessions and user status are not checked here;
-// UserAuth still decides whether the request is allowed, and it reuses the personal token lookup.
-func rateLimitUser(c *gin.Context) (int, bool) {
-	raw, ok := authorizationToken(c.GetHeader("Authorization"))
-	if !ok {
-		return 0, false
+const (
+	personalTokenUserTTL      = 5 * time.Minute
+	personalTokenUserCapacity = 10000
+)
+
+// personalTokenUsers remembers, in this instance, the user of each personal access token found valid, keyed by the
+// SHA-256 of the token, so the global API limit knows the user of a known token without asking the database. It only
+// decides which budget a request uses: UserAuth still looks the token up on every request, so a token revoked within
+// the TTL keeps its user's budget but is still rejected. Only valid tokens are stored, so made-up tokens cannot fill it.
+var personalTokenUsers = hot.NewHotCache[[sha256.Size]byte, int](hot.LRU, personalTokenUserCapacity).
+	WithTTL(personalTokenUserTTL).
+	Build()
+
+func globalAPIAddressWindow(clientIP string) rateLimitWindow {
+	return rateLimitWindow{
+		redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GA", clientIP), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
+		memoryKey:        "GA" + clientIP,
 	}
-	identity, internal, err := service.ParseDashboardAccessToken(raw)
-	if internal {
-		return identity.UserID, err == nil
-	}
-	user, err := lookupDashboardPAT(c, raw)
-	if err != nil || user == nil || user.Id <= 0 {
-		return 0, false
-	}
-	return user.Id, true
 }
 
-// GlobalAPIRateLimit counts a request with a valid dashboard or personal access token against its user
-// (GLOBAL_API_RATE_LIMIT) and against its address with the larger backstop (GLOBAL_API_IP_RATE_LIMIT), so customers
-// behind one office address keep their own budgets while one address still cannot flood the service. A request without
-// a valid token counts only against its address with GLOBAL_API_RATE_LIMIT, as before. Sign-in, refresh and the other
-// critical routes keep their own address limits. Both windows must not exceed RateLimitKeyExpirationDuration.
+// takeGlobalAPIUserRateLimit counts a request of a known user. The address backstop comes first: a request it rejects
+// does not use the user's budget. Both windows take one Redis round trip.
+func takeGlobalAPIUserRateLimit(c *gin.Context, clientIP string, userID int) {
+	takeRateLimit(c, rateLimitWindow{
+		redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GAI", clientIP), maxRequestNum: common.GlobalApiIpRateLimitNum, duration: common.GlobalApiIpRateLimitDuration},
+		memoryKey:        "GAI" + clientIP,
+	}, rateLimitWindow{
+		redisFixedWindow: redisFixedWindow{key: redisUserRateLimitKey("GAU", userID), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
+		memoryKey:        fmt.Sprintf("GAU:user:%d", userID),
+	})
+}
+
+// GlobalAPIRateLimit counts a request of a known user against that user (GLOBAL_API_RATE_LIMIT) and against its
+// address with the larger backstop (GLOBAL_API_IP_RATE_LIMIT), so customers behind one office address keep their own
+// budgets while one address still cannot flood the service. A known user is the user of a dashboard access token whose
+// signature and lifetime are valid, or of a personal access token (the Canvas Desktop's key, sent through Cloud) this
+// instance found valid within personalTokenUserTTL. Every other request counts only against its address with
+// GLOBAL_API_RATE_LIMIT, as before; a personal token not known yet is looked up only after that count allows it, so
+// made-up tokens cannot query the database more often than the address limit. Sessions and user status are not
+// checked here; UserAuth still decides whether the request is allowed, and it reuses the lookup made here. Sign-in,
+// refresh and the other critical routes keep their own address limits. Both windows must not exceed
+// RateLimitKeyExpirationDuration.
 func GlobalAPIRateLimit() func(c *gin.Context) {
 	if !common.GlobalApiRateLimitEnable {
 		return defNext
@@ -263,22 +283,33 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	}
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		userID, authenticated := rateLimitUser(c)
-		if !authenticated {
-			takeRateLimit(c, rateLimitWindow{
-				redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GA", clientIP), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
-				memoryKey:        "GA" + clientIP,
-			})
+		raw, hasCredential := authorizationToken(c.GetHeader("Authorization"))
+		if !hasCredential {
+			takeRateLimit(c, globalAPIAddressWindow(clientIP))
 			return
 		}
-		// The address backstop comes first: a request it rejects does not use the user's budget.
-		takeRateLimit(c, rateLimitWindow{
-			redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GAI", clientIP), maxRequestNum: common.GlobalApiIpRateLimitNum, duration: common.GlobalApiIpRateLimitDuration},
-			memoryKey:        "GAI" + clientIP,
-		}, rateLimitWindow{
-			redisFixedWindow: redisFixedWindow{key: redisUserRateLimitKey("GAU", userID), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
-			memoryKey:        fmt.Sprintf("GAU:user:%d", userID),
-		})
+		// As in authentication, a dashboard token is never tried as a personal one.
+		identity, internal, err := service.ParseDashboardAccessToken(raw)
+		if internal {
+			if err != nil {
+				takeRateLimit(c, globalAPIAddressWindow(clientIP))
+				return
+			}
+			takeGlobalAPIUserRateLimit(c, clientIP, identity.UserID)
+			return
+		}
+		tokenHash := sha256.Sum256([]byte(raw))
+		if userID, found, _ := personalTokenUsers.Get(tokenHash); found {
+			takeGlobalAPIUserRateLimit(c, clientIP, userID)
+			return
+		}
+		if !takeRateLimit(c, globalAPIAddressWindow(clientIP)) {
+			return
+		}
+		user, err := lookupDashboardPAT(c, raw)
+		if err == nil && user != nil && user.Id > 0 {
+			personalTokenUsers.Set(tokenHash, user.Id)
+		}
 	}
 }
 

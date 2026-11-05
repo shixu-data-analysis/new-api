@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net"
@@ -185,8 +186,10 @@ type dashboardPATLookup struct {
 	err  error
 }
 
-// lookupDashboardPAT finds the user of a personal access token once per request: the global API rate limit counts
-// the request against that user before authentication, and authentication reuses the same answer.
+// lookupDashboardPAT finds the user of a personal access token once per request: when the global API rate limit does
+// not know the token yet it looks it up before authentication, and authentication reuses the same answer. A token the
+// database no longer has is forgotten by the limit at once, so a replaced or removed token stops using its former
+// user's budget.
 func lookupDashboardPAT(c *gin.Context, raw string) (*model.User, error) {
 	if stored, ok := c.Get(dashboardPATLookupContextKey); ok {
 		if lookup := stored.(dashboardPATLookup); lookup.raw == raw {
@@ -195,6 +198,9 @@ func lookupDashboardPAT(c *gin.Context, raw string) (*model.User, error) {
 	}
 	user, err := model.ValidateAccessToken(raw)
 	c.Set(dashboardPATLookupContextKey, dashboardPATLookup{raw: raw, user: user, err: err})
+	if err == nil && (user == nil || user.Id <= 0) {
+		personalTokenUsers.Delete(sha256.Sum256([]byte(raw)))
+	}
 	return user, err
 }
 

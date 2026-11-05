@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -353,49 +354,89 @@ func TestGlobalAPIRateLimitCountsUsersWithAnAddressBackstop(t *testing.T) {
 }
 
 // The Canvas Desktop reaches /api through Cloud with a personal access token, so two Desktop customers behind one
-// office address keep their own budgets too; authentication reuses the token lookup of the limit.
+// office address keep their own budgets too. A token is looked up only after the address limit allows it, so made-up
+// tokens stop reaching the database once that limit is used up, and the remembered user of a token never lets
+// authentication skip its own lookup.
 func TestGlobalAPIRateLimitCountsPersonalAccessTokenUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	setupDashboardAuthMiddlewareTest(t)
 	previous := []any{common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration}
 	common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration = true, 2, 180
 	common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration = 10, 180
+	personalTokenUsers.Purge()
 	t.Cleanup(func() {
 		common.GlobalApiRateLimitEnable = previous[0].(bool)
 		common.GlobalApiRateLimitNum = previous[1].(int)
 		common.GlobalApiRateLimitDuration = previous[2].(int64)
 		common.GlobalApiIpRateLimitNum = previous[3].(int)
 		common.GlobalApiIpRateLimitDuration = previous[4].(int64)
+		personalTokenUsers.Purge()
 	})
-	alice := createMiddlewarePATUser(t, "pat-limit-alice", "pat-limit-alice-key")
-	bob := createMiddlewarePATUser(t, "pat-limit-bob", "pat-limit-bob-key")
-	tokenLookups := 0
-	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register("count_access_token_lookups", func(db *gorm.DB) {
-		if strings.Contains(db.Statement.SQL.String(), "access_token") {
-			tokenLookups++
-		}
-	}))
+	for _, backend := range []struct {
+		name    string
+		address string
+		redis   bool
+	}{
+		{name: "memory", address: "192.0.2.6"},
+		{name: "redis", address: "192.0.2.7", redis: true},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			personalTokenUsers.Purge()
+			if backend.redis {
+				useRateLimitMiniRedis(t)
+			}
+			alice := createMiddlewarePATUser(t, "pat-limit-alice-"+backend.name, "pat-limit-alice-key-"+backend.name)
+			bob := createMiddlewarePATUser(t, "pat-limit-bob-"+backend.name, "pat-limit-bob-key-"+backend.name)
+			carol := createMiddlewarePATUser(t, "pat-limit-carol-"+backend.name, "pat-limit-carol-key-"+backend.name)
+			tokenLookups := 0
+			require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register("count_access_token_lookups_"+backend.name, func(db *gorm.DB) {
+				if strings.Contains(db.Statement.SQL.String(), "access_token") {
+					tokenLookups++
+				}
+			}))
 
-	router := gin.New()
-	require.NoError(t, router.SetTrustedProxies(nil))
-	router.GET("/api/self", GlobalAPIRateLimit(), UserAuth(), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) })
-	office := "192.0.2.60:443"
+			router := gin.New()
+			require.NoError(t, router.SetTrustedProxies(nil))
+			router.GET("/api/self", GlobalAPIRateLimit(), UserAuth(), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) })
+			office := backend.address + "0:443"
 
-	for range 2 {
-		response := performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken)
-		require.Equal(t, http.StatusOK, response.Code)
-		assert.JSONEq(t, fmt.Sprintf(`{"id":%d}`, alice.Id), response.Body.String())
+			// Alice's first request counts against the office address and teaches the limit her user; the next two use her
+			// budget of 2 and the fourth is rejected. Bob's budget is his own.
+			for range 3 {
+				response := performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken)
+				require.Equal(t, http.StatusOK, response.Code)
+				assert.JSONEq(t, fmt.Sprintf(`{"id":%d}`, alice.Id), response.Body.String())
+			}
+			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken).Code)
+			for range 2 {
+				require.Equal(t, http.StatusOK, performAuthorizedRateLimitRequest(router, "/api/self", office, *bob.AccessToken).Code)
+			}
+			// One lookup per request that reaches authentication: the limit's lookup is reused, and a rejected request has none.
+			assert.Equal(t, 5, tokenLookups)
+
+			// Made-up tokens count against the address limit of 2 before any lookup; once it is used up they stop reaching
+			// the database.
+			stranger := backend.address + "1:443"
+			for range 2 {
+				require.Equal(t, http.StatusUnauthorized, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
+			}
+			lookupsBeforeFlood := tokenLookups
+			for range 5 {
+				require.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
+			}
+			assert.Equal(t, lookupsBeforeFlood, tokenLookups)
+
+			// A token replaced after the limit remembered its user keeps that budget but is rejected by authentication.
+			home := backend.address + "2:443"
+			require.Equal(t, http.StatusOK, performAuthorizedRateLimitRequest(router, "/api/self", home, *carol.AccessToken).Code)
+			require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", carol.Id).Update("access_token", "pat-limit-carol-new-"+backend.name).Error)
+			assert.Equal(t, http.StatusUnauthorized, performAuthorizedRateLimitRequest(router, "/api/self", home, *carol.AccessToken).Code)
+			// That rejection makes the limit forget the token, so it no longer uses Carol's budget.
+			_, remembered, err := personalTokenUsers.Get(sha256.Sum256([]byte(*carol.AccessToken)))
+			require.NoError(t, err)
+			assert.False(t, remembered)
+		})
 	}
-	assert.Equal(t, 2, tokenLookups)
-	assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken).Code)
-	assert.Equal(t, http.StatusOK, performAuthorizedRateLimitRequest(router, "/api/self", office, *bob.AccessToken).Code)
-
-	// An unknown key gets no user budget: it counts against the address limit of 2 and authentication rejects it.
-	stranger := "192.0.2.61:443"
-	for range 2 {
-		require.Equal(t, http.StatusUnauthorized, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
-	}
-	assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
 }
 
 // redisCommandCounter counts the commands a Redis client sends.
