@@ -375,13 +375,18 @@ export function UnifiedModelPricingHistory(props: {
                 <NativeSelectOption value='ALL'>
                   {t('All changes')}
                 </NativeSelectOption>
-                {['INITIAL', 'COST', 'PRICE', 'COST_AND_PRICE', 'UNIT'].map(
-                  (value) => (
-                    <NativeSelectOption key={value} value={value}>
-                      {t(value)}
-                    </NativeSelectOption>
-                  )
-                )}
+                {[
+                  'INITIAL',
+                  'COST',
+                  'PRICE',
+                  'COST_AND_PRICE',
+                  'UNIT',
+                  'SURCHARGE',
+                ].map((value) => (
+                  <NativeSelectOption key={value} value={value}>
+                    {t(value)}
+                  </NativeSelectOption>
+                ))}
               </NativeSelect>
             </DataTableColumnFilterField>
             <DataTableColumnFilterField label={t('Status')}>
@@ -1259,6 +1264,7 @@ function changeLabelFromCode(
       ? 'Provider cost, agent display price and customer sale price'
       : 'Provider cost and customer sale price',
     UNIT: 'Billing unit',
+    SURCHARGE: 'Reference-material charging',
     KEEP: 'Customer sale price retained',
   }
   return keys[value] ? t(keys[value]) : t('Unknown')

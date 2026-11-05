@@ -42,6 +42,8 @@ import { cn } from '@/lib/utils'
 import { pointsUnitKey } from '../lib/billing-unit-labels'
 import {
   calculatedPoints,
+  isSurchargeField,
+  surchargePoints,
   draftValue,
   groupBy,
   isCostLocked,
@@ -179,8 +181,8 @@ export function ModelPricingEditorTable(props: {
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
   const token = state.billingUnit === 'MILLION_TOKENS'
   const labeling = useMemo(
-    () => pricingRowLabeling(detail, token),
-    [detail, token]
+    () => pricingRowLabeling(detail, token, state.inputSurcharge ?? null),
+    [detail, token, state.inputSurcharge]
   )
   let combinationTitle = t('Parameter combination')
   if (token && videoTotalPricing(labeling.tokenCategories)) {
@@ -250,6 +252,11 @@ export function ModelPricingEditorTable(props: {
       setPlanFilter(ALL_PRICING_PLANS)
     })
   const pointsUnit = t(pointsUnitKey(state.billingUnit))
+  // A reference video is priced per second whatever the unit, a reference image per image.
+  const unitOf = (row: PricingEditorRow) => {
+    if (row.field === 'surcharge:image') return t('points per image')
+    return isSurchargeField(row.field) ? t(pointsUnitKey('SECOND')) : pointsUnit
+  }
 
   const input = (
     row: PricingEditorRow,
@@ -310,7 +317,7 @@ export function ModelPricingEditorTable(props: {
       const current = row.price.current
       notes.push({
         text: current
-          ? `${fieldValue(current.tokenRates ?? current.points, row.field)} ${pointsUnit}`
+          ? `${isSurchargeField(row.field) ? surchargePoints(current.inputSurcharge, row.field) : fieldValue(current.tokenRates ?? current.points, row.field)} ${unitOf(row)}`
           : t('Not priced; customers cannot see this specification'),
       })
       const error = conflict ?? errors.customer
@@ -361,7 +368,7 @@ export function ModelPricingEditorTable(props: {
       notes.push({ text: t('Current active version is legacy points pricing') })
     }
     if (result) {
-      notes.push({ text: `${calculatedPoints(result, row)} ${pointsUnit}` })
+      notes.push({ text: `${calculatedPoints(result, row)} ${unitOf(row)}` })
       notes.push({
         text: t('Above inviter display price by {{amount}} yuan', {
           amount: difference(result.customerMinusInviterCny, row.field),

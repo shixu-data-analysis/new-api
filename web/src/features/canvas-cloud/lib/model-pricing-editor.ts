@@ -17,13 +17,66 @@ import type {
   CanvasModelPricingPreview,
   CanvasModelPricingTokenRateVector,
   CanvasTimeOfDaySchedule,
+  CanvasInputSurcharge,
+  CanvasInputSurchargeCny,
+  CanvasInputSurchargeSetting,
   CanvasTokenCategory,
 } from '../types'
 
 // The editable current-pricing table: one row per pricing scope × price plan (text models: × Token category).
 // Rows of one scope (and category) share the provider cost, so a cost change re-publishes every priced plan.
 
-export type PricingField = 'scalar' | CanvasTokenCategory
+/**
+ * A reference-material surcharge item (INPUT-ASSET-BILLING-001): the video price by generated quality, one per reference
+ * video tier, or the reference image price. Tier and image prices are one price of the model, edited once for every spec.
+ */
+export type SurchargeField =
+  | 'surcharge:video'
+  | `surcharge:video:${string}`
+  | 'surcharge:image'
+export type PricingField = 'scalar' | CanvasTokenCategory | SurchargeField
+
+export function isSurchargeField(field: PricingField): field is SurchargeField {
+  return field.startsWith('surcharge:')
+}
+
+/** The published points of a surcharge item. */
+export function surchargePoints(
+  surcharge: CanvasInputSurcharge | null | undefined,
+  field: SurchargeField
+): string {
+  if (field === 'surcharge:image') return surcharge?.image?.points ?? ''
+  const video = surcharge?.video
+  if (field === 'surcharge:video') {
+    return video?.basis === 'OUTPUT_QUALITY' ? video.points : ''
+  }
+  const name = field.slice('surcharge:video:'.length)
+  return video?.basis === 'INPUT_TIER'
+    ? (video.tiers.find((tier) => tier.name === name)?.points ?? '')
+    : ''
+}
+
+/** A surcharge price shared by every spec: a reference video tier or the reference image price. */
+export function isSharedSurchargeField(field: PricingField): boolean {
+  return field === 'surcharge:image' || field.startsWith('surcharge:video:')
+}
+
+/** The surcharge items a setting prices, in table order: reference video, then reference images. */
+export function surchargeFields(
+  setting: CanvasInputSurchargeSetting | null | undefined
+): SurchargeField[] {
+  if (!setting) return []
+  const image: SurchargeField[] = setting.image ? ['surcharge:image'] : []
+  if (setting.video?.basis === 'INPUT_TIER') {
+    return [
+      ...setting.video.tiers.map(
+        (tier) => `surcharge:video:${tier.name}` as SurchargeField
+      ),
+      ...image,
+    ]
+  }
+  return [...(setting.video ? ['surcharge:video' as const] : []), ...image]
+}
 export type PricingSide = 'provider' | 'inviter' | 'customer'
 export type PricingScope = CanvasModelPricingDetail['pricingScopes'][number]
 export type PricingScopePrice = PricingScope['prices'][number]
@@ -65,6 +118,17 @@ export interface PricingEditorState {
    * spec, so the usual rules publish the specs alike, and the page shows one spec's rows (shownRows).
    */
   oneTokenPrice?: boolean
+  /** How reference materials are charged in the drafts (INPUT-ASSET-BILLING-001). */
+  inputSurcharge?: CanvasInputSurchargeSetting | null
+  /** The drafts charge reference materials differently from the published prices: every price is re-entered. */
+  surchargeChange?: boolean
+}
+
+// A unit or surcharge change re-enters every price the API requires, like a unit switch.
+function restructured(
+  state: Pick<PricingEditorState, 'unitChange' | 'surchargeChange'>
+): boolean {
+  return state.unitChange || state.surchargeChange === true
 }
 
 export const PRICING_SIDE_LABEL_KEYS: Record<PricingSide, string> = {
@@ -104,6 +168,26 @@ const emptyDraft = (): CnyScopeDraft => ({
   customers: {},
 })
 
+// A published surcharge amount set as draft fields: one per surcharge item.
+function surchargeDraftFields(
+  value: CanvasInputSurchargeCny | null | undefined
+): Record<string, string> {
+  if (!value) return {}
+  const video =
+    typeof value.video === 'string'
+      ? { 'surcharge:video': value.video }
+      : Object.fromEntries(
+          Object.entries(value.video ?? {}).map(([tier, amount]) => [
+            `surcharge:video:${tier}`,
+            amount,
+          ])
+        )
+  return {
+    ...video,
+    ...(value.image ? { 'surcharge:image': value.image } : {}),
+  }
+}
+
 function cnyDraftFields(
   value: CanvasModelPricingCnyValue | null | undefined
 ): Record<string, string> {
@@ -113,6 +197,11 @@ function cnyDraftFields(
       (entry): entry is [string, string] => typeof entry[1] === 'string'
     )
   )
+}
+
+function surchargeOf(scope: PricingScope, groupId: string) {
+  return scope.prices.find((price) => price.priceGroupId === groupId)?.current
+    ?.originalSurchargeCny
 }
 
 /** Drafts prefilled with the recorded CNY input of every current price. */
@@ -129,17 +218,33 @@ export function originalPricingDrafts(
       return [
         scope.parameterCombinationId,
         {
-          provider: cnyDraftFields(scope.originalProviderSuccessPriceCny),
+          provider: {
+            ...cnyDraftFields(scope.originalProviderSuccessPriceCny),
+            ...surchargeDraftFields(
+              scope.prices.find((price) => price.current?.originalSurchargeCny)
+                ?.current?.originalSurchargeCny?.providerCny
+            ),
+          },
           inviters: Object.fromEntries(
             inputs.map(([groupId, input]) => [
               groupId,
-              cnyDraftFields(input.inviterDisplayPriceCny),
+              {
+                ...cnyDraftFields(input.inviterDisplayPriceCny),
+                ...surchargeDraftFields(
+                  surchargeOf(scope, groupId)?.inviterDisplayPriceCny
+                ),
+              },
             ])
           ),
           customers: Object.fromEntries(
             inputs.map(([groupId, input]) => [
               groupId,
-              cnyDraftFields(input.customerPriceCny),
+              {
+                ...cnyDraftFields(input.customerPriceCny),
+                ...surchargeDraftFields(
+                  surchargeOf(scope, groupId)?.customerPriceCny
+                ),
+              },
             ])
           ),
         },
@@ -175,9 +280,12 @@ export function sharedTokenPrice(detail: CanvasModelPricingDetail): boolean {
 
 export function pricingFields(
   billingUnit: CanvasBillingUnit,
-  tokenCategories: CanvasTokenCategory[]
+  tokenCategories: CanvasTokenCategory[],
+  inputSurcharge?: CanvasInputSurchargeSetting | null
 ): PricingField[] {
-  return billingUnit === 'MILLION_TOKENS' ? tokenCategories : ['scalar']
+  return billingUnit === 'MILLION_TOKENS'
+    ? tokenCategories
+    : ['scalar', ...surchargeFields(inputSurcharge)]
 }
 
 export function pricingEditorRows(
@@ -225,8 +333,15 @@ function shownScopeId(state: PricingEditorState): string | undefined {
 
 /** The rows the page shows: one spec's for a model with one Token price, every row otherwise. */
 export function shownRows(state: PricingEditorState): PricingEditorRow[] {
-  if (!state.oneTokenPrice) return state.rows
   const scopeId = shownScopeId(state)
+  if (!state.oneTokenPrice) {
+    // A shared surcharge price is one row per plan, on the first spec's rows.
+    return state.rows.filter(
+      (row) =>
+        !isSharedSurchargeField(row.field) ||
+        row.scope.parameterCombinationId === scopeId
+    )
+  }
   return state.rows.filter(
     (row) => row.scope.parameterCombinationId === scopeId
   )
@@ -234,7 +349,7 @@ export function shownRows(state: PricingEditorState): PricingEditorRow[] {
 
 // The shown row that stands for a row of any spec: the same category and plan.
 function shownRowId(state: PricingEditorState, row: PricingEditorRow) {
-  return state.oneTokenPrice
+  return state.oneTokenPrice || isSharedSurchargeField(row.field)
     ? `${shownScopeId(state)}:${row.field}:${row.price.priceGroupId}`
     : row.id
 }
@@ -247,7 +362,9 @@ export function withEditedValue(
   side: PricingSide,
   value: string
 ): PricingDrafts {
-  if (!state.oneTokenPrice) return withDraftValue(drafts, row, side, value)
+  if (!state.oneTokenPrice && !isSharedSurchargeField(row.field)) {
+    return withDraftValue(drafts, row, side, value)
+  }
   const scopes = new Map(
     state.rows.map((item) => [item.scope.parameterCombinationId, item.scope])
   )
@@ -375,7 +492,7 @@ export function isRowLocked(
   row: PricingEditorRow
 ): boolean {
   if (state.unitPending || isPendingRow(row)) return true
-  return state.unitChange ? !inUnitChange(row) : !row.scope.enabled
+  return restructured(state) ? !inUnitChange(row) : !row.scope.enabled
 }
 
 /** The shared cost stays editable on pending rows; publishing it then reports the schedule. */
@@ -385,7 +502,7 @@ export function isCostLocked(
 ): boolean {
   if (state.unitPending) return true
   return groupRows.every((row) =>
-    state.unitChange ? !inUnitChange(row) : !row.scope.enabled
+    restructured(state) ? !inUnitChange(row) : !row.scope.enabled
   )
 }
 
@@ -394,7 +511,7 @@ export function isSideChanged(
   row: PricingEditorRow,
   side: PricingSide
 ): boolean {
-  if (state.unitChange) return draftValue(state, row, side) !== ''
+  if (restructured(state)) return draftValue(state, row, side) !== ''
   return draftValue(state, row, side) !== originalValue(state, row, side)
 }
 
@@ -424,7 +541,7 @@ export function isRowIncluded(
   row: PricingEditorRow
 ): boolean {
   if (state.unitPending) return false
-  if (state.unitChange) return inUnitChange(row)
+  if (restructured(state)) return inUnitChange(row)
   if (!row.scope.enabled) return false
   // A newly priced plan needs every Token category, so filling one category brings in the whole plan.
   if (!row.price.current) return isPlanFilled(state, row)
@@ -466,7 +583,7 @@ export function pricingRowErrors(
   const provider = draftValue(state, row, 'provider')
   const inviter = draftValue(state, row, 'inviter')
   const customer = draftValue(state, row, 'customer')
-  const flagEmpty = !state.unitChange || attempted
+  const flagEmpty = !restructured(state) || attempted
   const errors: PricingRowErrors = {}
   if (
     (inviter !== '' || flagEmpty) &&
@@ -521,7 +638,13 @@ export function calculatedPoints(
   row: PricingEditorRow
 ): string {
   if (row.field === 'scalar') return result.normalizedPoints
-  return result.normalizedTokenRates?.[row.field] ?? ''
+  if (isSurchargeField(row.field)) {
+    return (
+      result.surchargeCalculations?.[row.field.slice('surcharge:'.length)]
+        ?.points ?? ''
+    )
+  }
+  return result.normalizedTokenRates?.[row.field as CanvasTokenCategory] ?? ''
 }
 
 /** The shared cost error of a cost cell, shown when any row of its group is published. */
@@ -534,7 +657,7 @@ export function pricingCostError(
   if (!first || !groupRows.some((row) => isRowIncluded(state, row))) return
   const cost = draftValue(state, first, 'provider')
   if (isPositiveRmbAmount(cost)) return
-  if (cost === '' && state.unitChange && !attempted) return
+  if (cost === '' && restructured(state) && !attempted) return
   return PRICING_MESSAGES.amount
 }
 
@@ -558,6 +681,44 @@ export function firstPricingError(
     if (errors.customer) return { row, side: 'customer' }
   }
   return null
+}
+
+// The surcharge amounts of a draft side in the API's form; undefined without a surcharge setting.
+function surchargeCny(
+  values: Record<string, string> | undefined,
+  state: PricingEditorState
+): CanvasInputSurchargeCny | undefined {
+  const setting = state.inputSurcharge
+  if (!setting || state.billingUnit === 'MILLION_TOKENS') return undefined
+  let video: CanvasInputSurchargeCny['video']
+  if (setting.video?.basis === 'INPUT_TIER') {
+    video = Object.fromEntries(
+      setting.video.tiers.map((tier) => [
+        tier.name,
+        values?.[`surcharge:video:${tier.name}`] ?? '',
+      ])
+    )
+  } else if (setting.video) {
+    video = values?.['surcharge:video'] ?? ''
+  }
+  return {
+    ...(video !== undefined ? { video } : {}),
+    ...(setting.image ? { image: values?.['surcharge:image'] ?? '' } : {}),
+  }
+}
+
+function surchargeComplete(
+  value: CanvasInputSurchargeCny | undefined,
+  valid: (value: string) => boolean
+) {
+  if (!value) return true
+  const amounts = [
+    ...(typeof value.video === 'string'
+      ? [value.video]
+      : Object.values(value.video ?? {})),
+    ...(value.image !== undefined ? [value.image] : []),
+  ]
+  return amounts.every(valid)
 }
 
 function cnyValue(
@@ -602,7 +763,7 @@ export function calculationScopes(
     state,
     (row) =>
       isRowIncluded(state, row) ||
-      (!state.unitChange &&
+      (!restructured(state) &&
         row.scope.enabled &&
         Boolean(row.price.current) &&
         !isPendingRow(row))
@@ -614,17 +775,18 @@ export function calculationScopes(
         .get(scope.parameterCombinationId)
         ?.prices.map((price) => price.priceGroupId) ?? []
     )
-    const costComplete = cnyFieldsComplete(
-      scope.providerSuccessPriceCny,
-      isPositiveRmbAmount
-    )
+    const costComplete =
+      cnyFieldsComplete(scope.providerSuccessPriceCny, isPositiveRmbAmount) &&
+      surchargeComplete(scope.providerSurchargeCny, isPositiveRmbAmount)
     if (required.size && !costComplete) return null
     if (!costComplete) continue
     const prices = []
     for (const price of scope.prices) {
       const complete =
         cnyFieldsComplete(price.inviterDisplayPriceCny, isRmbAmount) &&
-        cnyFieldsComplete(price.customerPriceCny, isPositiveRmbAmount)
+        cnyFieldsComplete(price.customerPriceCny, isPositiveRmbAmount) &&
+        surchargeComplete(price.inviterSurchargeCny, isRmbAmount) &&
+        surchargeComplete(price.customerSurchargeCny, isPositiveRmbAmount)
       if (complete) prices.push(price)
       else if (required.has(price.priceGroupId)) return null
     }
@@ -640,6 +802,13 @@ function cnyFieldsComplete(
   return typeof value === 'string'
     ? valid(value)
     : Object.values(value).every((amount) => valid(amount ?? ''))
+}
+
+function withSurcharge<K extends string>(
+  key: K,
+  value: CanvasInputSurchargeCny | undefined
+): Partial<Record<K, CanvasInputSurchargeCny>> {
+  return value ? ({ [key]: value } as Record<K, CanvasInputSurchargeCny>) : {}
 }
 
 function scopesOf(
@@ -659,7 +828,7 @@ function scopesOf(
       Boolean(state.timeOfDayChange) ||
       state.fields.some(
         (field) =>
-          state.unitChange ||
+          restructured(state) ||
           (state.drafts[scopeId]?.provider[field] ?? '') !==
             (state.originals[scopeId]?.provider[field] ?? '')
       )
@@ -674,6 +843,10 @@ function scopesOf(
       {
         parameterCombinationId: scopeId,
         providerSuccessPriceCny: cnyValue(draft?.provider, state),
+        ...withSurcharge(
+          'providerSurchargeCny',
+          surchargeCny(draft?.provider, state)
+        ),
         ...(state.timeOfDayChange
           ? { timeOfDaySchedule: state.timeOfDayChange.schedule }
           : {}),
@@ -689,6 +862,14 @@ function scopesOf(
           customerPriceCny: cnyValue(
             draft?.customers[price.priceGroupId],
             state
+          ),
+          ...withSurcharge(
+            'inviterSurchargeCny',
+            surchargeCny(draft?.inviters[price.priceGroupId], state)
+          ),
+          ...withSurcharge(
+            'customerSurchargeCny',
+            surchargeCny(draft?.customers[price.priceGroupId], state)
           ),
         })),
       },

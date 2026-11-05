@@ -448,6 +448,8 @@ export interface CanvasAgentModelPrice {
       customerTokenRates: Partial<CanvasTokenRateVector> | null
       modelPriceCny: string | Partial<CanvasTokenRateVector> | null
       timeOfDaySchedule?: CanvasTimeOfDaySchedule
+      inputSurcharge?: CanvasInputSurcharge
+      modelSurchargeCny?: CanvasInputSurchargeCny
     }>
   }>
 }
@@ -769,6 +771,8 @@ export interface CanvasCatalogModel {
     tokenRates: Partial<CanvasTokenRateVector> | null
     points: string
     timeOfDaySchedule?: CanvasTimeOfDaySchedule
+    inputSurcharge?: CanvasInputSurcharge
+    baseInputSurcharge?: CanvasInputSurcharge
   }>
 }
 
@@ -1276,6 +1280,14 @@ export interface CanvasModelPricingPriceSnapshot {
   billingUnit: CanvasBillingUnit
   points: string
   tokenRates: CanvasModelPricingTokenRateVector | null
+  inputSurcharge?: CanvasInputSurcharge | null
+  /** The surcharge setting and its three CNY amounts as published. */
+  originalSurchargeCny?: {
+    setting: CanvasInputSurchargeSetting
+    providerCny: CanvasInputSurchargeCny
+    inviterDisplayPriceCny: CanvasInputSurchargeCny
+    customerPriceCny: CanvasInputSurchargeCny
+  } | null
   questionnaire: CanvasModelPricingQuestionnaire
   calculation?: CanvasModelPricingCalculation
   cnyCalculation?: {
@@ -1365,6 +1377,7 @@ export type CanvasModelPricingCnyValue =
 export interface CanvasModelPricingCnyScope {
   parameterCombinationId: string
   providerSuccessPriceCny: CanvasModelPricingCnyValue
+  providerSurchargeCny?: CanvasInputSurchargeCny
   /** Sent only when the schedule changes: null removes it; omitted keeps the published one. */
   timeOfDaySchedule?: CanvasTimeOfDaySchedule | null
   prices: Array<{
@@ -1372,7 +1385,37 @@ export interface CanvasModelPricingCnyScope {
     sourcePriceVersionId?: string
     inviterDisplayPriceCny: CanvasModelPricingCnyValue
     customerPriceCny: CanvasModelPricingCnyValue
+    inviterSurchargeCny?: CanvasInputSurchargeCny
+    customerSurchargeCny?: CanvasInputSurchargeCny
   }>
+}
+
+// INPUT-ASSET-BILLING-001: reference-material surcharges. A reference video tier by its short edge.
+export interface CanvasReferenceVideoTier {
+  name: string
+  maxShortEdgePx: number
+}
+/** How a price charges reference materials, chosen on the pricing page. */
+export interface CanvasInputSurchargeSetting {
+  video?:
+    | { basis: 'OUTPUT_QUALITY' }
+    | { basis: 'INPUT_TIER'; tiers: CanvasReferenceVideoTier[] }
+  image?: { freeCount: number }
+}
+/** One CNY amount per surcharge item: video per second (one, or one per tier name), image per image. */
+export interface CanvasInputSurchargeCny {
+  video?: string | Record<string, string>
+  image?: string
+}
+/** A price's surcharge in points: video per second, image per image beyond the free count. */
+export interface CanvasInputSurcharge {
+  video?:
+    | { basis: 'OUTPUT_QUALITY'; points: string }
+    | {
+        basis: 'INPUT_TIER'
+        tiers: Array<CanvasReferenceVideoTier & { points: string }>
+      }
+  image?: { freeCount: number; points: string }
 }
 
 export interface CanvasModelPricingModel {
@@ -1397,6 +1440,15 @@ export interface CanvasModelPricingModel {
   // A Token-billed image: per million Tokens one price for the whole model, published for every spec.
   oneTokenPrice?: boolean
   tokenCategories: CanvasTokenCategory[]
+  // The published surcharge setting and what the model can be charged for (INPUT-ASSET-BILLING-001).
+  inputSurcharge?: {
+    setting: CanvasInputSurchargeSetting | null
+    availability: {
+      video: boolean
+      image: boolean
+      defaultReferenceVideoTiers: CanvasReferenceVideoTier[]
+    }
+  }
   combinations: Array<{
     id: string
     key: string
@@ -1511,6 +1563,16 @@ export type CanvasModelPricingCnyCalculation = Omit<
       sourcePriceVersion: number | null
       normalizedPoints: string
       normalizedTokenRates: CanvasModelPricingTokenRateVector | null
+      inputSurcharge?: CanvasInputSurcharge | null
+      /** Per surcharge item ("video", "video:<tier>", "image"): its points and the differences between the three prices. */
+      surchargeCalculations?: Record<
+        string,
+        {
+          points: string
+          inviterMinusProviderCny: string
+          customerMinusInviterCny: string
+        }
+      > | null
       inviterMinusProviderCny: CanvasModelPricingCnyValue
       customerMinusInviterCny: CanvasModelPricingCnyValue
       fullCostCny: CanvasModelPricingCnyValue
@@ -1581,7 +1643,7 @@ export interface CanvasModelPricingPublication {
     | 'CURRENT'
     | 'PARTIALLY_CURRENT'
     | 'SUPERSEDED'
-  change: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT'
+  change: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT' | 'SURCHARGE'
   effectiveAt: string
   billingUnit: CanvasBillingUnit
   createdAt: string

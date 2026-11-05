@@ -7,8 +7,16 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { pricingScopeLabel, videoTotalPricing } from '../pricing-scope-label'
-import type { CanvasModelPricingDetail, CanvasTokenCategory } from '../types'
-import { sharedTokenPrice, type PricingEditorRow } from './model-pricing-editor'
+import type {
+  CanvasInputSurchargeSetting,
+  CanvasModelPricingDetail,
+  CanvasTokenCategory,
+} from '../types'
+import {
+  isSurchargeField,
+  sharedTokenPrice,
+  type PricingEditorRow,
+} from './model-pricing-editor'
 import { tokenCategoryLabelKey } from './token-rate-summary'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
@@ -22,14 +30,18 @@ export interface PricingRowLabeling {
   multiplePlans: boolean
   /** The categories the model is priced by, which name its text input apart from image input. */
   tokenCategories: CanvasTokenCategory[]
+  /** How reference materials are charged, which names the surcharge rows (INPUT-ASSET-BILLING-001). */
+  inputSurcharge: CanvasInputSurchargeSetting | null
 }
 
 export function pricingRowLabeling(
   detail: CanvasModelPricingDetail,
-  token: boolean
+  token: boolean,
+  inputSurcharge: CanvasInputSurchargeSetting | null = null
 ): PricingRowLabeling {
   return {
     token,
+    inputSurcharge,
     qualityOnly:
       detail.pricingScopes.length > 0 &&
       detail.pricingScopes.every((scope) => {
@@ -56,6 +68,9 @@ export function pricingRowCombination(
         { key: row.scope.combinationKey, parameters: row.scope.parameters },
         t
       )
+  if (isSurchargeField(row.field)) {
+    return surchargeRowCombination(row, labeling, scope, t)
+  }
   if (!labeling.token) return scope
   // A video's rows are its pricing scopes: "720p · 不含视频输入" (VIDEO-TOKEN-BILLING-001).
   if (videoTotalPricing(labeling.tokenCategories)) {
@@ -70,6 +85,30 @@ export function pricingRowCombination(
     )
   )
   return labeling.multipleScopes ? `${scope} · ${category}` : category
+}
+
+// "参考视频 · 生成 720P 时", "参考视频 · 720P（短边 ≤ 720）" or "参考图 · 1 张以内免费，超出部分". Tier and image prices
+// are one price of the model, so they name no spec.
+function surchargeRowCombination(
+  row: PricingEditorRow,
+  labeling: PricingRowLabeling,
+  scope: string,
+  t: Translate
+): string {
+  if (row.field === 'surcharge:image') {
+    const free = labeling.inputSurcharge?.image?.freeCount ?? 0
+    return `${t('Reference images')} · ${free ? t('Up to {{count}} free, beyond that', { count: free }) : t('Each image')}`
+  }
+  if (row.field === 'surcharge:video') {
+    return `${t('Reference video')} · ${t('At generated {{quality}}', { quality: scope })}`
+  }
+  const name = row.field.slice('surcharge:video:'.length)
+  const video = labeling.inputSurcharge?.video
+  const tier =
+    video?.basis === 'INPUT_TIER'
+      ? video.tiers.find((item) => item.name === name)
+      : undefined
+  return `${t('Reference video')} · ${tier ? t('{{name}} (short edge ≤ {{px}})', { name, px: tier.maxShortEdgePx }) : name}`
 }
 
 /** "范围 · 方案", or the scope alone when the model has one price plan. */

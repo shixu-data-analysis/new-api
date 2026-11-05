@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { referenceVideoTiersIssue } from '@pixmiao/model-catalog/request-validator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -39,6 +40,12 @@ import {
   publishCanvasModelPricing,
 } from '../api'
 import { billingUnitLabelKey } from '../lib/billing-unit-labels'
+import {
+  onlyTiersChanged,
+  sameInputSurcharge,
+  withoutChangedSurchargeGroups,
+  withSurchargeDrafts,
+} from '../lib/input-surcharge'
 import {
   calculatedPoints,
   calculationScopes,
@@ -83,6 +90,7 @@ import type {
   CanvasBillingUnit,
   CanvasModelPricingCnyCalculation,
   CanvasModelPricingCnyScope,
+  CanvasInputSurchargeSetting,
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
 } from '../types'
@@ -160,6 +168,9 @@ export function UnifiedModelPricing(props: {
   const modelId = props.initialModelId ?? ''
   const [tab, setTab] = useState<PricingTab>(props.tab ?? 'current')
   const [billingUnit, setBillingUnit] = useState<CanvasBillingUnit>('REQUEST')
+  // How reference materials are charged in the drafts (INPUT-ASSET-BILLING-001); null charges none.
+  const [inputSurcharge, setInputSurcharge] =
+    useState<CanvasInputSurchargeSetting | null>(null)
   const [unitChosen, setUnitChosen] = useState(true)
   const [drafts, setDrafts] = useState<PricingDrafts>({})
   const [attempted, setAttempted] = useState(false)
@@ -224,6 +235,7 @@ export function UnifiedModelPricing(props: {
     setPricing(latest)
     setPricingChanged(false)
     setDrafts(originalPricingDrafts(latest))
+    setInputSurcharge(model.inputSurcharge?.setting ?? null)
     const copied = model.copiedPricingStructure
     setTimeOfDay(
       draftFromSchedule(
@@ -263,17 +275,26 @@ export function UnifiedModelPricing(props: {
     form.reset(EMPTY_META)
   }, [detail.data, form, initializedModelId, pricing])
 
-  const fields = pricingFields(billingUnit, selected?.tokenCategories ?? [])
+  const fields = pricingFields(
+    billingUnit,
+    selected?.tokenCategories ?? [],
+    inputSurcharge
+  )
   const rows = useMemo(
     () =>
       pricing
         ? pricingEditorRows(
             pricing,
-            pricingFields(billingUnit, pricing.model.tokenCategories)
+            pricingFields(
+              billingUnit,
+              pricing.model.tokenCategories,
+              inputSurcharge
+            )
           )
         : [],
-    [pricing, billingUnit]
+    [pricing, billingUnit, inputSurcharge]
   )
+  const publishedSurcharge = selected?.inputSurcharge?.setting ?? null
   const state: PricingEditorState = {
     rows,
     drafts,
@@ -287,6 +308,15 @@ export function UnifiedModelPricing(props: {
         (selected.billingUnit !== null && selected.billingUnit !== billingUnit))
     ),
     unitPending: !unitChosen,
+    inputSurcharge: billingUnit === 'MILLION_TOKENS' ? null : inputSurcharge,
+    surchargeChange: Boolean(
+      selected &&
+      selected.billingUnitState !== 'UNPRICED' &&
+      !sameInputSurcharge(
+        publishedSurcharge,
+        billingUnit === 'MILLION_TOKENS' ? null : inputSurcharge
+      )
+    ),
     // A Token-billed image has one price for the whole model: edits go to every spec, one spec's rows are shown.
     oneTokenPrice:
       billingUnit === 'MILLION_TOKENS' &&
@@ -319,12 +349,19 @@ export function UnifiedModelPricing(props: {
   // Unpublished pricing edits: prices, a unit change or the time-of-day schedule. A refresh to newer versions then keeps
   // them and asks to discard instead of replacing them, and the publish bar counts them.
   const hasPricingEdits =
-    includedRows.length > 0 || state.unitChange || timeOfDayEdited
+    includedRows.length > 0 ||
+    state.unitChange ||
+    Boolean(state.surchargeChange) ||
+    timeOfDayEdited
   useEffect(() => {
     hasEdits.current = hasPricingEdits
   })
   const labeling = pricing
-    ? pricingRowLabeling(pricing, billingUnit === 'MILLION_TOKENS')
+    ? pricingRowLabeling(
+        pricing,
+        billingUnit === 'MILLION_TOKENS',
+        state.inputSurcharge ?? null
+      )
     : null
   // Preview conflicts by row, for the table's notes and the prices by period.
   const rowConflicts = conflictsByRow(state, conflicts)
@@ -344,23 +381,37 @@ export function UnifiedModelPricing(props: {
     useState<CanvasModelPricingCnyCalculation | null>(null)
   const [calculationFailed, setCalculationFailed] = useState(false)
   const [calculationRetry, setCalculationRetry] = useState(0)
+  // Tiers the API would refuse are reported beside them and priced only once valid.
+  const tierIssue =
+    state.inputSurcharge?.video?.basis === 'INPUT_TIER'
+      ? referenceVideoTiersIssue(state.inputSurcharge.video.tiers)
+      : undefined
   const scopesForCalculation =
-    pricing && unitChosen ? calculationScopes(publicationState) : null
+    pricing && unitChosen && !tierIssue
+      ? calculationScopes(publicationState)
+      : null
   // Serialized, so the request only repeats when the priced values change.
-  const calculationKey = JSON.stringify(scopesForCalculation)
+  const calculationKey = JSON.stringify({
+    scopes: scopesForCalculation,
+    inputSurcharge: state.inputSurcharge ?? null,
+  })
   useEffect(() => {
     calculationRevision.current += 1
     setCalculation(null)
     setCalculationFailed(false)
-    const scopes = JSON.parse(calculationKey) as
-      | CanvasModelPricingCnyScope[]
-      | null
+    const { scopes, inputSurcharge: surcharge } = JSON.parse(
+      calculationKey
+    ) as {
+      scopes: CanvasModelPricingCnyScope[] | null
+      inputSurcharge: CanvasInputSurchargeSetting | null
+    }
     if (!scopes || !modelId) return
     const revision = calculationRevision.current
     const timeout = window.setTimeout(() => {
       calculateCanvasModelPricingCny({
         customerModelId: modelId,
         billingUnit,
+        ...(surcharge ? { inputSurcharge: surcharge } : {}),
         scopes,
       })
         .then((result) => {
@@ -392,6 +443,9 @@ export function UnifiedModelPricing(props: {
         decisionSummary: decisionSummary.trim(),
         inputMode: 'CNY',
         calculationIdentity: input.calculationIdentity,
+        ...(state.inputSurcharge
+          ? { inputSurcharge: state.inputSurcharge }
+          : {}),
         scopes: input.scopes,
       }),
     onSuccess: (result, input) => {
@@ -504,8 +558,20 @@ export function UnifiedModelPricing(props: {
     )
   }
 
+  // A new surcharge setting asks for its prices again; returning to the published one restores them.
+  function changeInputSurcharge(next: CanvasInputSurchargeSetting | null) {
+    invalidatePreview()
+    setInputSurcharge(next)
+    setAttempted(false)
+    setDrafts((current) =>
+      sameInputSurcharge(next, publishedSurcharge)
+        ? withSurchargeDrafts(current, originals)
+        : withoutChangedSurchargeGroups(current, inputSurcharge, next)
+    )
+  }
+
   async function requestPreview() {
-    if (!pricing || !unitChosen || pricingChanged) return
+    if (!pricing || !unitChosen || pricingChanged || tierIssue) return
     setAttempted(true)
     const revision = ++previewRevision.current
     setConflicts([])
@@ -544,6 +610,9 @@ export function UnifiedModelPricing(props: {
         await calculateCanvasModelPricingCny({
           customerModelId: modelId,
           billingUnit,
+          ...(state.inputSurcharge
+            ? { inputSurcharge: state.inputSurcharge }
+            : {}),
           scopes,
         })
       ).inputIdentity
@@ -626,7 +695,21 @@ export function UnifiedModelPricing(props: {
     includedRows.map((row) => row.scope.parameterCombinationId)
   ).size
   let summary = t('No unpublished changes')
-  if (state.unitChange) {
+  if (
+    !state.unitChange &&
+    onlyTiersChanged(publishedSurcharge, inputSurcharge)
+  ) {
+    summary = t('Reference video tiers changed; fill in {{count}} prices', {
+      count: includedRows.filter((row) =>
+        row.field.startsWith('surcharge:video')
+      ).length,
+    })
+  } else if (state.surchargeChange && !state.unitChange) {
+    summary = t(
+      'Reference-material charging changed; fill in all {{count}} prices',
+      { count: includedRows.length }
+    )
+  } else if (state.unitChange) {
     summary = t(
       'Billing unit changed to {{unit}}; fill in all {{count}} prices',
       {
@@ -741,6 +824,8 @@ export function UnifiedModelPricing(props: {
               publishedIssuanceRate?.pointsPerRmb
             }
             onUnitChange={changeBillingUnit}
+            inputSurcharge={state.inputSurcharge ?? null}
+            onInputSurchargeChange={changeInputSurcharge}
           />
           {calculationFailed ? (
             <div role='alert' className='flex items-center gap-3 text-sm'>

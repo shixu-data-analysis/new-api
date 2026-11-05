@@ -90,4 +90,36 @@ describe('ModelCardPrices (VIDEO-TOKEN-BILLING-001)', () => {
     expect(screen.getAllByText('3000')).toHaveLength(1)
     expect(screen.queryByText('1K')).not.toBeInTheDocument()
   })
+
+  it('shows each spec its own reference image price when a special discounts it for some specs only (INPUT-ASSET-BILLING-001)', () => {
+    const now = new Date('2026-11-06T00:00:00Z')
+    const image = (quality: string, points: string) => ({
+      key: quality,
+      parameters: { quality },
+      billingUnit: 'REQUEST' as const,
+      points: '20',
+      tokenRates: null,
+      inputSurcharge: { image: { freeCount: 1, points } },
+      baseInputSurcharge: { image: { freeCount: 1, points: '3' } },
+    })
+    const { unmount } = render(
+      <ModelCardPrices
+        prices={[image('1K', '2'), image('2K', '3')]}
+        capability='image.generate'
+        now={now}
+      />
+    )
+    expect(screen.getByText('1K · Reference images')).toBeVisible()
+    expect(screen.getByText('2K · Reference images')).toBeVisible()
+    unmount()
+    render(
+      <ModelCardPrices
+        prices={[image('1K', '3'), image('2K', '3')]}
+        capability='image.generate'
+        now={now}
+      />
+    )
+    expect(screen.getAllByText(/Reference images/)).toHaveLength(1)
+    expect(screen.getByText('Reference images')).toBeVisible()
+  })
 })

@@ -25,6 +25,15 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 type PublicationItem = CanvasModelPricingPublication['scopeSummary'][number]
 
+// A billing-unit or charging switch takes effect for every scope together, so it is only cancelled as a whole.
+const WHOLE_CANCELLATION_REASON: Partial<
+  Record<CanvasModelPricingPublication['change'], string>
+> = {
+  UNIT: 'This schedule changes the billing unit, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
+  SURCHARGE:
+    'This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
+}
+
 // Empty in Chinese and Japanese, a space elsewhere.
 const SENTENCE_SEPARATOR_KEY = 'sentence separator'
 
@@ -52,7 +61,8 @@ export function ModelPricingScheduleCancelDialog(props: {
     enabled: Boolean(props.publicationId),
   })
   const item = publication.data
-  const whole = !props.scopeId || item?.change === 'UNIT'
+  const wholeReason = item ? WHOLE_CANCELLATION_REASON[item.change] : undefined
+  const whole = !props.scopeId || Boolean(wholeReason)
   const pending = (item?.scopeSummary ?? []).filter(
     (entry, _index, entries) =>
       entry.status === 'SCHEDULED' &&
@@ -104,10 +114,8 @@ export function ModelPricingScheduleCancelDialog(props: {
     ),
   ]
   const sentences = [
-    props.scopeId && item?.change === 'UNIT'
-      ? t(
-          'This schedule changes the billing unit, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.'
-        )
+    props.scopeId && wholeReason
+      ? t(wholeReason)
       : t(
           whole
             ? 'Cancel every pending price of this schedule; current prices stay in effect.'

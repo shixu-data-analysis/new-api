@@ -83,3 +83,41 @@ export declare function imageTokenEstimateIssue(interaction: CatalogInteraction)
 export declare const VIDEO_ESTIMATE_METHODS: readonly string[];
 export declare function estimateVideoTokenUsage(input?: { interaction?: CatalogInteraction; request?: Record<string, unknown>; inputVideoDurationsMs?: Array<number | null> }): Partial<Record<TokenUsageCategory, string>>;
 export declare function videoTokenEstimateIssue(interaction: CatalogInteraction): string | undefined;
+/** A reference video tier priced by its short edge (INPUT-ASSET-BILLING-001). */
+export type ReferenceVideoTier = { name: string; maxShortEdgePx: number };
+/** The reference-material surcharge of a published price: video points per second, image points per image. */
+export type InputSurcharge = {
+  video?: { basis: "OUTPUT_QUALITY"; points: string } | { basis: "INPUT_TIER"; tiers: Array<ReferenceVideoTier & { points: string }> };
+  image?: { freeCount: number; points: string };
+};
+export type InputSurchargeVideoLine = {
+  mediaKind: "video";
+  assetIndex?: number;
+  assetId?: string;
+  /** Seconds in tenths, each clip rounded up. */
+  tenths: number;
+  /** The tier name by INPUT_TIER; null when the clip is above the highest tier. */
+  tier?: string | null;
+  points: string;
+  /** points × tenths: the amount in tenths of a point. */
+  amountTenths: string;
+  estimated: boolean;
+};
+export type InputSurchargeQuote = {
+  ok: boolean;
+  issues: CatalogRequestValidationIssue[];
+  estimated: boolean;
+  video: InputSurchargeVideoLine[];
+  image: { count: number; points: string; amountTenths: string } | null;
+  /** Base and surcharges of one result, rounded up once; null when an issue stops the request. */
+  points: string | null;
+};
+export declare function defaultReferenceVideoTiers(qualities: unknown): ReferenceVideoTier[];
+export declare function referenceVideoTiersIssue(tiers: unknown): string | undefined;
+export declare function inputSurchargeQuote(input?: {
+  surcharge?: InputSurcharge | null;
+  basePoints: string | number | bigint;
+  inputAssetMetadata?: Array<Partial<CatalogInputAssetMetadata>>;
+  maxTotalDurationMs?: number;
+  estimate?: boolean;
+}): InputSurchargeQuote;

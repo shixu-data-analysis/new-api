@@ -178,6 +178,8 @@ export async function createCanvasLimitedPriceActivity(input: {
   specialPoints?: string
   // The categories of the source price, as the model declares them (text and image input and output, a video's totals).
   specialTokenRates?: CanvasTokenRateVector
+  // Only for a price with a reference-material surcharge: also discount it at the base price's ratio.
+  surchargeDiscount?: boolean
   startsAt: string
   endsAt: string
   approvalReason: string

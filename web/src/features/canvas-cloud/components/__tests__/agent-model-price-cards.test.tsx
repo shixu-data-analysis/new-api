@@ -146,6 +146,46 @@ describe('Agent model price cards', () => {
     )
   })
 
+  it('follows the generated video and every surcharge item with its model price (INPUT-ASSET-BILLING-001)', () => {
+    const video = (quality: string, generated: string, reference: string) =>
+      ({
+        combinationKey: quality,
+        parameters: { quality },
+        billingUnit: 'SECOND',
+        customerPoints: '26',
+        customerTokenRates: null,
+        modelPriceCny: generated,
+        inputSurcharge: {
+          video: { basis: 'OUTPUT_QUALITY', points: '20' },
+          image: { freeCount: 1, points: '3' },
+        },
+        modelSurchargeCny: { video: reference, image: '0.024' },
+      }) as Price
+    const wan: CanvasAgentModelPrice = {
+      ...model('Wan', {}),
+      capability: 'video.generate',
+      priceGroups: [
+        {
+          priceGroupId: 'g1',
+          priceGroupName: 'Standard',
+          prices: [video('480P', '0.2', '0.16'), video('720P', '0.4', '0.32')],
+        },
+      ],
+    }
+    render(<AgentModelPriceCards showModelIcons models={[wan]} />)
+    expect(
+      within(cardOf('Wan'))
+        .getAllByTitle('Model price')
+        .map((item) => item.textContent)
+    ).toEqual([
+      '· Model price ¥0.2',
+      '· Model price ¥0.16',
+      '· Model price ¥0.4',
+      '· Model price ¥0.32',
+      '· Model price ¥0.024',
+    ])
+  })
+
   it('shows the model icon and badges after the title', () => {
     render(
       <AgentModelPriceCards

@@ -20,7 +20,12 @@ import { toIntlLocale } from '@/i18n/languages'
 
 import { billingUnitLabelKey } from '../lib/billing-unit-labels'
 import { formatExactRmbReference } from '../number-format'
-import type { CanvasBillingUnit, CanvasModelPricingModel } from '../types'
+import type {
+  CanvasBillingUnit,
+  CanvasInputSurchargeSetting,
+  CanvasModelPricingModel,
+} from '../types'
+import { InputSurchargeControls } from './InputSurchargeControls'
 
 const FIXED_UNIT_HINT_KEYS: Partial<Record<CanvasBillingUnit, string>> = {
   REQUEST: 'Image models are always billed per request',
@@ -35,6 +40,9 @@ export function ModelPricingUnitSummary(props: {
   unitChange: boolean
   pointsPerRmb: string | undefined
   onUnitChange: (unit: CanvasBillingUnit) => void
+  /** How reference materials are charged; null charges none. Not offered for million-Token pricing. */
+  inputSurcharge: CanvasInputSurchargeSetting | null
+  onInputSurchargeChange: (next: CanvasInputSurchargeSetting | null) => void
 }) {
   const { t, i18n } = useTranslation()
   const { model } = props
@@ -105,6 +113,13 @@ export function ModelPricingUnitSummary(props: {
           </span>
         )}
         {rate}
+        {props.billingUnit !== 'MILLION_TOKENS' && props.unitChosen ? (
+          <InputSurchargeControls
+            availability={model.inputSurcharge?.availability}
+            value={props.inputSurcharge}
+            onChange={props.onInputSurchargeChange}
+          />
+        ) : null}
       </div>
       {props.billingUnit === 'REQUEST' && model.fixedRequestBatchSize ? (
         <p role='note'>

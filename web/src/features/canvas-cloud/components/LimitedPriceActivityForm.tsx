@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 
 import { createCanvasLimitedPriceActivity } from '../activity-api'
 import {
@@ -31,6 +32,8 @@ import {
 } from '../lib/token-rate-summary'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
+  CanvasInputSurcharge,
+  CanvasInputSurchargeCny,
   CanvasModelPricingPriceSnapshot,
   CanvasTokenCategory,
   CanvasTokenCategoryRisk,
@@ -101,6 +104,9 @@ type PublishedPriceSource = {
   tokenCategoryRisks: CanvasTokenCategoryRisk[]
   /** A disabled specification stays listed but cannot get a new special. */
   specificationDisabled: boolean
+  /** INPUT-ASSET-BILLING-001: the reference-material surcharge points and their provider cost in CNY. */
+  inputSurcharge: CanvasInputSurcharge | null
+  surchargeCostCny: CanvasInputSurchargeCny | null
 }
 
 type TokenRateKey = CanvasTokenCategory
@@ -222,6 +228,9 @@ export function LimitedPriceActivityForm(props: {
   const [modelId, setModelId] = useState('')
   const [sourcePriceVersionId, setSourcePriceVersionId] = useState('')
   const [specialPoints, setSpecialPoints] = useState('')
+  // Off by default: a surcharge is the provider's own charge and stays at its price unless the special includes it.
+  const [surchargeDiscount, setSurchargeDiscount] = useState(false)
+  const surchargeDiscountId = useId()
   const [specialTokenRates, setSpecialTokenRates] = useState(
     () =>
       Object.fromEntries(
@@ -262,6 +271,8 @@ export function LimitedPriceActivityForm(props: {
             calculation: current.calculation,
             tokenCategoryRisks: current.assumptions?.tokenCategoryRisks ?? [],
             specificationDisabled: scope.controlEnabled === false,
+            inputSurcharge: current.inputSurcharge ?? null,
+            surchargeCostCny: current.originalSurchargeCny?.providerCny ?? null,
           },
         ]
       })
@@ -340,6 +351,7 @@ export function LimitedPriceActivityForm(props: {
         name: name.trim(),
         sourcePriceVersionId: source.id,
         specialPoints: specialPoints.trim(),
+        ...(source.inputSurcharge ? { surchargeDiscount } : {}),
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
         approvalReason: approvalReason.trim(),
@@ -553,11 +565,35 @@ export function LimitedPriceActivityForm(props: {
               />
             </>
           )}
+          {source?.inputSurcharge && !tokenPriced ? (
+            <div className='flex items-start justify-between gap-3 rounded-lg border p-3 lg:col-span-2'>
+              <div className='space-y-0.5'>
+                <Label htmlFor={surchargeDiscountId}>
+                  {t('Discount the surcharge too')}
+                </Label>
+                <p
+                  id={`${surchargeDiscountId}-help`}
+                  className='text-muted-foreground text-xs'
+                >
+                  {t(
+                    'When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.'
+                  )}
+                </p>
+              </div>
+              <Switch
+                id={surchargeDiscountId}
+                checked={surchargeDiscount}
+                aria-describedby={`${surchargeDiscountId}-help`}
+                onCheckedChange={setSurchargeDiscount}
+              />
+            </div>
+          ) : null}
           {source ? (
             <LimitedPriceCostReference
               source={source}
               specialPoints={specialPoints}
               specialTokenRates={specialTokenRates}
+              surchargeDiscount={surchargeDiscount}
             />
           ) : null}
           <div>
@@ -730,6 +766,7 @@ function LimitedPriceCostReference(props: {
   source: PublishedPriceSource
   specialPoints: string
   specialTokenRates: Record<TokenRateKey, string>
+  surchargeDiscount: boolean
 }) {
   const { t } = useTranslation()
   if (props.source.billingUnit === 'MILLION_TOKENS') {
@@ -761,11 +798,86 @@ function LimitedPriceCostReference(props: {
     ),
     props.source.calculation.kPricingRmb
   )
-  return <SpecialPriceReference preview={preview} />
+  return (
+    <SpecialPriceReference
+      preview={preview}
+      surcharges={surchargeCostReferences(
+        props.source,
+        props.specialPoints.trim(),
+        props.surchargeDiscount,
+        t
+      )}
+    />
+  )
+}
+
+/**
+ * One cost reference per surcharge item: its points (discounted at the special's ratio when the switch is on, rounded up
+ * as Cloud does) in CNY against the provider cost of the item.
+ */
+function surchargeCostReferences(
+  source: PublishedPriceSource,
+  specialPoints: string,
+  discount: boolean,
+  t: (key: string, options?: Record<string, unknown>) => string
+) {
+  const surcharge = source.inputSurcharge
+  const costs = source.surchargeCostCny
+  const rate = source.calculation?.baseRatePointsPerRmb
+  if (!surcharge || !costs || !rate) return []
+  const base = BigInt(source.points)
+  const special = /^[1-9]\d*$/u.test(specialPoints)
+    ? BigInt(specialPoints)
+    : null
+  const effective = (points: string) =>
+    discount && special !== null && base > 0n
+      ? ((BigInt(points) * special + base - 1n) / base).toString()
+      : points
+  const items: Array<{
+    label: string
+    points: string
+    cost: string | undefined
+  }> = []
+  const video = surcharge.video
+  if (video?.basis === 'OUTPUT_QUALITY') {
+    items.push({
+      label: t('Reference video'),
+      points: video.points,
+      cost: typeof costs.video === 'string' ? costs.video : undefined,
+    })
+  }
+  if (video?.basis === 'INPUT_TIER') {
+    for (const tier of video.tiers) {
+      items.push({
+        label: `${t('Reference video')} · ${t('{{name}} (short edge ≤ {{px}})', { name: tier.name, px: tier.maxShortEdgePx })}`,
+        points: tier.points,
+        cost:
+          typeof costs.video === 'object' ? costs.video[tier.name] : undefined,
+      })
+    }
+  }
+  if (surcharge.image) {
+    items.push({
+      label: t('Reference images'),
+      points: surcharge.image.points,
+      cost: costs.image,
+    })
+  }
+  return items.map((item) => ({
+    label: item.label,
+    preview: specialPricePreview(
+      specialRevenueFromPoints(effective(item.points), rate),
+      item.cost
+    ),
+  }))
 }
 
 function SpecialPriceReference(props: {
   preview: ReturnType<typeof specialPricePreview> | undefined
+  surcharges?: Array<{
+    label: string
+    preview: ReturnType<typeof specialPricePreview> | undefined
+  }>
 }) {
   const { t } = useTranslation()
   if (!props.preview) {
@@ -786,7 +898,21 @@ function SpecialPriceReference(props: {
         {t('{{label}}: ', { label: t('Difference') })}¥
         {fixedDecimalText(props.preview.difference)}
       </p>
-      {props.preview.below ? (
+      {(props.surcharges ?? []).map((line) =>
+        line.preview ? (
+          <p key={line.label}>
+            {t('{{label}}: ', { label: line.label })}
+            {t('{{label}}: ', { label: t('Converted CNY') })}¥
+            {fixedDecimalText(line.preview.revenue)} ·{' '}
+            {t('{{label}}: ', { label: t('Cost reference') })}¥
+            {fixedDecimalText(line.preview.cost)} ·{' '}
+            {t('{{label}}: ', { label: t('Difference') })}¥
+            {fixedDecimalText(line.preview.difference)}
+          </p>
+        ) : null
+      )}
+      {props.preview.below ||
+      (props.surcharges ?? []).some((line) => line.preview?.below) ? (
         <p className='text-destructive mt-1 font-medium'>
           {t('Special price is below the pricing cost reference.')}
         </p>

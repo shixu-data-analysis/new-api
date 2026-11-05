@@ -1,5 +1,5 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.9.0";
+export const REQUEST_VALIDATOR_VERSION = "1.10.0";
 export const REQUEST_VALIDATOR_VECTORS_SHA256 = "49381f2459c8c94ee82f294f3868e36cbc9b1a49b6d228e1e2f91982798ea1c0";
 
 export const CatalogRequestIssueCode = Object.freeze({
@@ -21,6 +21,7 @@ export const CatalogRequestIssueCode = Object.freeze({
   MEDIA_FRAME_RATE_OUT_OF_RANGE: "MEDIA_FRAME_RATE_OUT_OF_RANGE",
   PARAMETER_VALUE_UNSUPPORTED: "PARAMETER_VALUE_UNSUPPORTED",
   REQUIRED_MEDIA_METADATA_MISSING: "REQUIRED_MEDIA_METADATA_MISSING",
+  REFERENCE_VIDEO_ABOVE_PRICED_TIERS: "REFERENCE_VIDEO_ABOVE_PRICED_TIERS",
 });
 
 // These are the catalog fields that the shared request validator actually interprets.
@@ -707,4 +708,123 @@ export function imageTokenEstimateIssue(interaction) {
     }
   }
   return undefined;
+}
+
+// INPUT-ASSET-BILLING-001: reference materials the upstream charges for on top of the result. How they are charged is
+// part of the published price, not of the Catalog model; Cloud's quote and the canvas estimate both run this code.
+
+/** The default reference video tiers of a model: its qualities at their short edges, ascending; unknown qualities are left out. */
+export function defaultReferenceVideoTiers(qualities) {
+  const tiers = (Array.isArray(qualities) ? qualities : [])
+    .map((name) => ({ name, maxShortEdgePx: videoQualityShortEdge(name) }))
+    .filter((tier) => tier.maxShortEdgePx !== undefined);
+  return tiers.sort((left, right) => left.maxShortEdgePx - right.maxShortEdgePx);
+}
+
+/** Why reference video tiers cannot be priced, or undefined: names unique and non-empty, short edges positive and ascending. */
+export function referenceVideoTiersIssue(tiers) {
+  if (!Array.isArray(tiers) || tiers.length === 0) return "at least one tier is required";
+  const names = new Set();
+  let previous = 0;
+  for (const [index, tier] of tiers.entries()) {
+    const value = object(tier);
+    if (typeof value.name !== "string" || value.name.trim() === "") return `tier ${index + 1} needs a name`;
+    if (names.has(value.name)) return `tier name ${value.name} is repeated`;
+    names.add(value.name);
+    if (!positiveInteger(value.maxShortEdgePx)) return `tier ${value.name} needs a positive whole short edge`;
+    if (value.maxShortEdgePx <= previous) return "tiers must be in ascending short edge order";
+    previous = value.maxShortEdgePx;
+  }
+  return undefined;
+}
+
+const wholePoints = (value, field) => {
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) throw new Error(`${field} must be whole points`);
+  return BigInt(value);
+};
+// A reference video is billed per clip to a tenth of a second, rounded up, so it is never less than the upstream measures.
+const tenthsOfSecond = (durationMs) => Math.ceil(durationMs / 100);
+
+/**
+ * The points of one result with its reference-material surcharges (INPUT-ASSET-BILLING-001).
+ *
+ * surcharge is the published price's: { video?: { basis: "OUTPUT_QUALITY", points } | { basis: "INPUT_TIER", tiers:
+ * [{ name, maxShortEdgePx, points }] }, image?: { freeCount, points } }, video points per second and image points per image.
+ * Every reference video clip is rounded up to a tenth of a second; by INPUT_TIER each clip takes the first tier whose short
+ * edge is not below its own. The base and the surcharges are added in tenths of a point and rounded up once.
+ *
+ * With estimate (the canvas), a clip of unknown length shares what is left of maxTotalDurationMs and one of unknown size
+ * takes the highest tier; without it (Cloud, on verified metadata) missing metadata is an issue. A clip above the highest
+ * tier is an issue either way, and then there are no points.
+ */
+export function inputSurchargeQuote({ surcharge, basePoints, inputAssetMetadata = [], maxTotalDurationMs, estimate = false } = {}) {
+  const setting = object(surcharge);
+  const base = wholePoints(String(basePoints), "basePoints");
+  const metadata = (Array.isArray(inputAssetMetadata) ? inputAssetMetadata : []).map((entry, assetIndex) => ({ ...object(entry), assetIndex }));
+  const issues = [];
+  const video = [];
+  let estimated = false;
+  let tenthPoints = base * 10n;
+  const videoSetting = setting.video === undefined ? undefined : object(setting.video);
+  if (videoSetting) {
+    const byTier = videoSetting.basis === "INPUT_TIER";
+    if (!byTier && videoSetting.basis !== "OUTPUT_QUALITY") throw new Error(`Unknown reference video basis: ${String(videoSetting.basis)}`);
+    const tierIssue = byTier ? referenceVideoTiersIssue(videoSetting.tiers) : undefined;
+    if (tierIssue) throw new Error(`Reference video tiers are invalid: ${tierIssue}`);
+    const tiers = byTier ? videoSetting.tiers.map((tier) => ({ name: tier.name, maxShortEdgePx: tier.maxShortEdgePx, points: wholePoints(tier.points, `tier ${tier.name} points`) })) : [];
+    const flatPoints = byTier ? 0n : wholePoints(videoSetting.points, "video points");
+    const highest = tiers[tiers.length - 1];
+    let unknown = null;
+    for (const clip of metadata.filter((entry) => entry.mediaType === "VIDEO")) {
+      const details = { mediaKind: "video", assetIndex: clip.assetIndex, ...(typeof clip.inputAssetId === "string" ? { assetId: clip.inputAssetId } : {}) };
+      const knownLength = nonNegativeInteger(clip.durationMs);
+      const knownSize = positiveInteger(clip.widthPx) && positiveInteger(clip.heightPx);
+      if (!estimate && !knownLength) addMissingMetadata(issues, "durationMs", details);
+      if (!estimate && byTier && !knownSize) addMissingMetadata(issues, "widthPx", details);
+      let tier = null;
+      if (byTier && knownSize) {
+        const shortEdge = Math.min(clip.widthPx, clip.heightPx);
+        tier = tiers.find((candidate) => candidate.maxShortEdgePx >= shortEdge) ?? null;
+        if (!tier) add(issues, CatalogRequestIssueCode.REFERENCE_VIDEO_ABOVE_PRICED_TIERS, "inputAssetIds", { ...details, actual: shortEdge, maximum: highest.maxShortEdgePx });
+      }
+      if (byTier && !knownSize) tier = highest;
+      if (!knownLength) {
+        // Unknown lengths are priced together at the dearest tier among them, an upper bound until the page reads them.
+        if (!unknown || (tier && tier.points > unknown.tier.points)) unknown = { tier, details };
+        continue;
+      }
+      video.push({ ...details, tenths: tenthsOfSecond(clip.durationMs), ...(byTier ? { tier } : {}), estimated: byTier && !knownSize });
+      if (byTier && !knownSize) estimated = true;
+    }
+    if (unknown && estimate) {
+      if (!positiveInteger(maxTotalDurationMs)) throw new Error("An unknown reference video length needs mediaConstraints.video.maxTotalDurationMs");
+      const known = video.reduce((sum, line) => sum + line.tenths, 0);
+      video.push({ mediaKind: "video", tenths: Math.max(0, tenthsOfSecond(maxTotalDurationMs) - known), ...(byTier ? { tier: unknown.tier } : {}), estimated: true });
+      estimated = true;
+    }
+    for (const line of video) {
+      line.points = (byTier ? line.tier?.points ?? 0n : flatPoints).toString();
+      line.amountTenths = (BigInt(line.points) * BigInt(line.tenths)).toString();
+      if (byTier) line.tier = line.tier ? line.tier.name : null;
+      tenthPoints += BigInt(line.amountTenths);
+    }
+  }
+  let image = null;
+  if (setting.image !== undefined) {
+    const imageSetting = object(setting.image);
+    if (!nonNegativeInteger(imageSetting.freeCount)) throw new Error("The free reference image count must be a nonnegative whole number");
+    const points = wholePoints(imageSetting.points, "image points");
+    const count = Math.max(0, metadata.filter((entry) => entry.mediaType === "IMAGE").length - imageSetting.freeCount);
+    image = { count, points: points.toString(), amountTenths: (points * BigInt(count) * 10n).toString() };
+    tenthPoints += BigInt(image.amountTenths);
+  }
+  const ok = issues.length === 0;
+  return {
+    ok,
+    issues,
+    estimated,
+    video,
+    image,
+    points: ok ? ((tenthPoints + 9n) / 10n).toString() : null,
+  };
 }

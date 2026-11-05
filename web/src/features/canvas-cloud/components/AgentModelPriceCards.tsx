@@ -15,7 +15,7 @@ If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { toIntlLocale } from '@/i18n/languages'
@@ -93,6 +93,8 @@ function agentPrices(
       points: price.customerPoints,
       tokenRates: price.customerTokenRates,
       timeOfDaySchedule: price.timeOfDaySchedule,
+      inputSurcharge: price.inputSurcharge,
+      ...agentSurchargePrices(price.modelSurchargeCny, label, rmb, t),
       extra: single,
       below,
       categories: perCategory
@@ -118,6 +120,43 @@ function agentPrices(
           : undefined,
     }
   })
+}
+
+/** The agent's model price of every surcharge item, after its points like the price's own. */
+function agentSurchargePrices(
+  modelSurchargeCny: AgentPrice['modelSurchargeCny'],
+  label: ReactNode,
+  rmb: (amount: string) => string,
+  t: Translate
+): Pick<ModelCardPrice, 'surchargeExtra' | 'surchargeIdentity'> {
+  if (!modelSurchargeCny) return {}
+  const { video, image } = modelSurchargeCny
+  const amountOf = (item: string) => {
+    if (item === 'image') return image
+    if (item === 'video') return typeof video === 'string' ? video : undefined
+    return typeof video === 'object'
+      ? video[item.slice('video:'.length)]
+      : undefined
+  }
+  return {
+    surchargeExtra: (item) => {
+      const amount = amountOf(item)
+      return (
+        <span
+          className='text-muted-foreground ms-1 text-xs'
+          title={t('Model price')}
+        >
+          · {label}
+          {amount === undefined ? '—' : rmb(amount)}
+        </span>
+      )
+    },
+    // A reference video priced by the generated quality follows its spec; tiers and images are shared.
+    surchargeIdentity: JSON.stringify({
+      video: typeof video === 'object' ? video : null,
+      image: image ?? null,
+    }),
+  }
 }
 
 /**

@@ -14,9 +14,11 @@ import { billingUnitLabelKey } from '../lib/billing-unit-labels'
 import {
   draftValue,
   isRowIncluded,
+  isSurchargeField,
   isSideChanged,
   originalValue,
   PRICING_SIDE_LABEL_KEYS,
+  surchargePoints,
   type PricingEditorRow,
   type PricingEditorState,
   type PricingSide,
@@ -43,7 +45,11 @@ function snapshotPoints(
   field: PricingEditorRow['field']
 ) {
   if (!price) return ''
-  return field === 'scalar' ? price.points : (price.tokenRates?.[field] ?? '')
+  if (field === 'scalar') return price.points
+  if (isSurchargeField(field)) {
+    return surchargePoints(price.inputSurcharge, field)
+  }
+  return price.tokenRates?.[field] ?? ''
 }
 
 /** "确认发布定价": every published row with its old → new values, then the effective mode and reason. */

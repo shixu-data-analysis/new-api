@@ -701,6 +701,7 @@ export async function previewCanvasModelPricing(input: {
   effectiveMode: 'IMMEDIATE' | 'SCHEDULED'
   effectiveAt?: string
   decisionSummary?: string
+  inputSurcharge?: import('./types').CanvasInputSurchargeSetting | null
   scopes: CanvasModelPricingCnyScope[]
 }): Promise<CanvasModelPricingPreview> {
   return (
@@ -713,6 +714,7 @@ export async function previewCanvasModelPricing(input: {
 export async function calculateCanvasModelPricingCny(input: {
   customerModelId: string
   billingUnit: import('./types').CanvasBillingUnit
+  inputSurcharge?: import('./types').CanvasInputSurchargeSetting | null
   scopes: CanvasModelPricingCnyScope[]
 }): Promise<CanvasModelPricingCnyCalculation> {
   return (
@@ -748,7 +750,13 @@ export async function getCanvasModelPricingHistory(
     sortDirection?: 'asc' | 'desc'
     combinationId?: string
     priceGroupId?: string
-    change?: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT'
+    change?:
+      | 'INITIAL'
+      | 'COST'
+      | 'PRICE'
+      | 'COST_AND_PRICE'
+      | 'UNIT'
+      | 'SURCHARGE'
     status?:
       | 'SCHEDULED'
       | 'CANCELLED'
