@@ -238,8 +238,9 @@ const (
 
 // personalTokenUsers remembers, in this instance, the user of each personal access token found valid, keyed by the
 // SHA-256 of the token, so the global API limit knows the user of a known token without asking the database. It only
-// decides which budget a request uses: UserAuth still looks the token up on every request, so a token revoked within
-// the TTL keeps its user's budget but is still rejected. Only valid tokens are stored, so made-up tokens cannot fill it.
+// decides which budget a request uses: UserAuth still looks the token up on every request and rejects a replaced or
+// removed token, and lookupDashboardPAT then forgets it here. Only valid tokens are stored, so made-up tokens cannot
+// fill it.
 var personalTokenUsers = hot.NewHotCache[[sha256.Size]byte, int](hot.LRU, personalTokenUserCapacity).
 	WithTTL(personalTokenUserTTL).
 	Build()
