@@ -163,7 +163,7 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 		}
 		return user, identity, dashboardCredentialInternal, nil
 	}
-	patUser, err := model.ValidateAccessToken(raw)
+	patUser, err := lookupDashboardPAT(c, raw)
 	if err != nil {
 		return nil, service.AuthIdentity{}, dashboardCredentialPAT, err
 	}
@@ -175,6 +175,27 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 		return nil, service.AuthIdentity{}, dashboardCredentialPAT, err
 	}
 	return user, service.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}, dashboardCredentialPAT, nil
+}
+
+const dashboardPATLookupContextKey = "dashboard_pat_lookup"
+
+type dashboardPATLookup struct {
+	raw  string
+	user *model.User
+	err  error
+}
+
+// lookupDashboardPAT finds the user of a personal access token once per request: the global API rate limit counts
+// the request against that user before authentication, and authentication reuses the same answer.
+func lookupDashboardPAT(c *gin.Context, raw string) (*model.User, error) {
+	if stored, ok := c.Get(dashboardPATLookupContextKey); ok {
+		if lookup := stored.(dashboardPATLookup); lookup.raw == raw {
+			return lookup.user, lookup.err
+		}
+	}
+	user, err := model.ValidateAccessToken(raw)
+	c.Set(dashboardPATLookupContextKey, dashboardPATLookup{raw: raw, user: user, err: err})
+	return user, err
 }
 
 func authorizationToken(header string) (string, bool) {

@@ -20,20 +20,31 @@ const redisRateLimitNamespace = "rateLimit:v2"
 // simple fixed-window behavior: traffic at a window boundary can burst up to
 // twice the configured limit. Do not replace this with a sliding-window ZSET
 // unless that externally visible behavior is intentionally changed.
+//
+// The script takes one or more windows (KEYS[i] with ARGV[2i-1] as the limit and
+// ARGV[2i] as the duration) and counts the request in them in order within one
+// round trip, stopping at the first full window: a request rejected by an earlier
+// window is not counted in the later ones. It returns the decision, count and TTL
+// of the rejecting window, or of the last window when all allow the request.
 const redisFixedWindowScript = `
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then
-  redis.call('EXPIRE', KEYS[1], ARGV[2])
+for index, key in ipairs(KEYS) do
+  local duration = ARGV[index * 2]
+  local count = redis.call('INCR', key)
+  if count == 1 then
+    redis.call('EXPIRE', key, duration)
+  end
+  local ttl = redis.call('TTL', key)
+  if ttl < 0 then
+    redis.call('EXPIRE', key, duration)
+    ttl = redis.call('TTL', key)
+  end
+  if count > tonumber(ARGV[index * 2 - 1]) then
+    return {0, count, ttl}
+  end
+  if index == #KEYS then
+    return {1, count, ttl}
+  end
 end
-local ttl = redis.call('TTL', KEYS[1])
-if ttl < 0 then
-  redis.call('EXPIRE', KEYS[1], ARGV[2])
-  ttl = redis.call('TTL', KEYS[1])
-end
-if count > tonumber(ARGV[1]) then
-  return {0, count, ttl}
-end
-return {1, count, ttl}
 `
 
 var inMemoryRateLimiter common.InMemoryRateLimiter
@@ -63,27 +74,43 @@ func redisReplyInteger(value interface{}) (int64, error) {
 	}
 }
 
+// redisFixedWindow is one fixed window of the Redis rate limit.
+type redisFixedWindow struct {
+	key           string
+	maxRequestNum int
+	duration      int64
+}
+
 func redisFixedWindowTake(ctx context.Context, key string, maxRequestNum int, duration int64) (bool, int64, int64, error) {
+	return redisFixedWindowsTake(ctx, redisFixedWindow{key: key, maxRequestNum: maxRequestNum, duration: duration})
+}
+
+// redisFixedWindowsTake counts one request in each window in order with one Redis round trip and stops at the first
+// full window. It returns whether the request is allowed and the count and TTL of the window that decided.
+func redisFixedWindowsTake(ctx context.Context, windows ...redisFixedWindow) (bool, int64, int64, error) {
 	if common.RDB == nil {
 		return false, 0, 0, errors.New("Redis client is not initialized")
 	}
-	if key == "" {
-		return false, 0, 0, errors.New("rate limit key is empty")
+	if len(windows) == 0 {
+		return false, 0, 0, errors.New("rate limit has no window")
 	}
-	if maxRequestNum <= 0 {
-		return false, 0, 0, errors.New("rate limit maximum must be positive")
-	}
-	if duration <= 0 {
-		return false, 0, 0, errors.New("rate limit duration must be positive")
+	keys := make([]string, 0, len(windows))
+	arguments := make([]interface{}, 0, len(windows)*2)
+	for _, window := range windows {
+		if window.key == "" {
+			return false, 0, 0, errors.New("rate limit key is empty")
+		}
+		if window.maxRequestNum <= 0 {
+			return false, 0, 0, errors.New("rate limit maximum must be positive")
+		}
+		if window.duration <= 0 {
+			return false, 0, 0, errors.New("rate limit duration must be positive")
+		}
+		keys = append(keys, window.key)
+		arguments = append(arguments, window.maxRequestNum, window.duration)
 	}
 
-	values, err := common.RDB.Eval(
-		ctx,
-		redisFixedWindowScript,
-		[]string{key},
-		maxRequestNum,
-		duration,
-	).Slice()
+	values, err := common.RDB.Eval(ctx, redisFixedWindowScript, keys, arguments...).Slice()
 	if err != nil {
 		return false, 0, 0, err
 	}
@@ -165,13 +192,23 @@ func GlobalWebRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
-// takeRateLimit counts one request in a bucket and rejects it with 429 when the bucket is full. It returns whether
-// the request may continue.
-func takeRateLimit(c *gin.Context, redisKey string, memoryKey string, maxRequestNum int, duration int64) bool {
+// rateLimitWindow is one bucket of a rate limit, under its Redis key and its in-memory key.
+type rateLimitWindow struct {
+	redisFixedWindow
+	memoryKey string
+}
+
+// takeRateLimit counts one request in each window in order, stopping at the first full one, and rejects it with 429
+// when a window is full. With Redis all windows take one round trip. It returns whether the request may continue.
+func takeRateLimit(c *gin.Context, windows ...rateLimitWindow) bool {
 	if common.RedisEnabled {
-		allowed, _, ttlSeconds, err := redisFixedWindowTake(c.Request.Context(), redisKey, maxRequestNum, duration)
+		redisWindows := make([]redisFixedWindow, len(windows))
+		for index, window := range windows {
+			redisWindows[index] = window.redisFixedWindow
+		}
+		allowed, _, ttlSeconds, err := redisFixedWindowsTake(c.Request.Context(), redisWindows...)
 		if err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("rate limit check failed (key=%s): %v", redisKey, err))
+			logger.LogError(c.Request.Context(), fmt.Sprintf("rate limit check failed (key=%s): %v", windows[0].key, err))
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return false
@@ -182,31 +219,39 @@ func takeRateLimit(c *gin.Context, redisKey string, memoryKey string, maxRequest
 		}
 		return true
 	}
-	if !inMemoryRateLimiter.Request(memoryKey, maxRequestNum, duration) {
-		writeRateLimited(c, duration)
-		return false
+	for _, window := range windows {
+		if !inMemoryRateLimiter.Request(window.memoryKey, window.maxRequestNum, window.duration) {
+			writeRateLimited(c, window.duration)
+			return false
+		}
 	}
 	return true
 }
 
-// verifiedAccessTokenUser is the user of a request whose Authorization carries a dashboard access token with a valid
-// signature and lifetime. The session is not looked up here; UserAuth still decides whether the request is allowed.
-func verifiedAccessTokenUser(c *gin.Context) (int, bool) {
+// rateLimitUser is the user a request counts against: the user of a dashboard access token whose signature and
+// lifetime are valid, or of a personal access token, which the Canvas Desktop sends through Cloud. As in
+// authentication, a dashboard token is never tried as a personal one. Sessions and user status are not checked here;
+// UserAuth still decides whether the request is allowed, and it reuses the personal token lookup.
+func rateLimitUser(c *gin.Context) (int, bool) {
 	raw, ok := authorizationToken(c.GetHeader("Authorization"))
 	if !ok {
 		return 0, false
 	}
-	identity, err := service.ParseAccessToken(raw)
-	if err != nil {
+	identity, internal, err := service.ParseDashboardAccessToken(raw)
+	if internal {
+		return identity.UserID, err == nil
+	}
+	user, err := lookupDashboardPAT(c, raw)
+	if err != nil || user == nil || user.Id <= 0 {
 		return 0, false
 	}
-	return identity.UserID, true
+	return user.Id, true
 }
 
-// GlobalAPIRateLimit counts a request with a valid dashboard access token against its user (GLOBAL_API_RATE_LIMIT)
-// and against its address with the larger backstop (GLOBAL_API_IP_RATE_LIMIT), so customers behind one office
-// address keep their own budgets while one address still cannot flood the service. A request without a valid access
-// token counts only against its address with GLOBAL_API_RATE_LIMIT, as before. Sign-in, refresh and the other
+// GlobalAPIRateLimit counts a request with a valid dashboard or personal access token against its user
+// (GLOBAL_API_RATE_LIMIT) and against its address with the larger backstop (GLOBAL_API_IP_RATE_LIMIT), so customers
+// behind one office address keep their own budgets while one address still cannot flood the service. A request without
+// a valid token counts only against its address with GLOBAL_API_RATE_LIMIT, as before. Sign-in, refresh and the other
 // critical routes keep their own address limits. Both windows must not exceed RateLimitKeyExpirationDuration.
 func GlobalAPIRateLimit() func(c *gin.Context) {
 	if !common.GlobalApiRateLimitEnable {
@@ -218,15 +263,22 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	}
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		userID, authenticated := verifiedAccessTokenUser(c)
+		userID, authenticated := rateLimitUser(c)
 		if !authenticated {
-			takeRateLimit(c, redisIPRateLimitKey("GA", clientIP), "GA"+clientIP, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration)
+			takeRateLimit(c, rateLimitWindow{
+				redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GA", clientIP), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
+				memoryKey:        "GA" + clientIP,
+			})
 			return
 		}
-		if !takeRateLimit(c, redisIPRateLimitKey("GAI", clientIP), "GAI"+clientIP, common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration) {
-			return
-		}
-		takeRateLimit(c, redisUserRateLimitKey("GAU", userID), fmt.Sprintf("GAU:user:%d", userID), common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration)
+		// The address backstop comes first: a request it rejects does not use the user's budget.
+		takeRateLimit(c, rateLimitWindow{
+			redisFixedWindow: redisFixedWindow{key: redisIPRateLimitKey("GAI", clientIP), maxRequestNum: common.GlobalApiIpRateLimitNum, duration: common.GlobalApiIpRateLimitDuration},
+			memoryKey:        "GAI" + clientIP,
+		}, rateLimitWindow{
+			redisFixedWindow: redisFixedWindow{key: redisUserRateLimitKey("GAU", userID), maxRequestNum: common.GlobalApiRateLimitNum, duration: common.GlobalApiRateLimitDuration},
+			memoryKey:        fmt.Sprintf("GAU:user:%d", userID),
+		})
 	}
 }
 

@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"github.com/QuantumNous/new-api/service"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,11 +12,14 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func useRateLimitMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
@@ -313,8 +315,10 @@ func TestGlobalAPIRateLimitCountsUsersWithAnAddressBackstop(t *testing.T) {
 		{name: "memory", office: "192.0.2.31:443"},
 	} {
 		t.Run(backend.name, func(t *testing.T) {
+			commands := &redisCommandCounter{}
 			if backend.redis {
-				useRateLimitMiniRedis(t)
+				_, redisClient := useRateLimitMiniRedis(t)
+				redisClient.AddHook(commands)
 			} else {
 				previousRedisEnabled := common.RedisEnabled
 				common.RedisEnabled = false
@@ -329,6 +333,10 @@ func TestGlobalAPIRateLimitCountsUsersWithAnAddressBackstop(t *testing.T) {
 			for range 3 {
 				require.Equal(t, http.StatusNoContent, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, alice).Code)
 			}
+			if backend.redis {
+				// The address backstop and the user window take one Redis round trip per request, as one window did.
+				assert.Equal(t, int64(3), commands.count.Load())
+			}
 			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, alice).Code)
 			require.Equal(t, http.StatusNoContent, performAuthorizedRateLimitRequest(router, "/api/self", backend.office, bob).Code)
 			// The address backstop of 5 counts every authenticated request of the office, rejected ones included.
@@ -342,4 +350,69 @@ func TestGlobalAPIRateLimitCountsUsersWithAnAddressBackstop(t *testing.T) {
 			assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", other, "").Code)
 		})
 	}
+}
+
+// The Canvas Desktop reaches /api through Cloud with a personal access token, so two Desktop customers behind one
+// office address keep their own budgets too; authentication reuses the token lookup of the limit.
+func TestGlobalAPIRateLimitCountsPersonalAccessTokenUsers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupDashboardAuthMiddlewareTest(t)
+	previous := []any{common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration, common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration}
+	common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration = true, 2, 180
+	common.GlobalApiIpRateLimitNum, common.GlobalApiIpRateLimitDuration = 10, 180
+	t.Cleanup(func() {
+		common.GlobalApiRateLimitEnable = previous[0].(bool)
+		common.GlobalApiRateLimitNum = previous[1].(int)
+		common.GlobalApiRateLimitDuration = previous[2].(int64)
+		common.GlobalApiIpRateLimitNum = previous[3].(int)
+		common.GlobalApiIpRateLimitDuration = previous[4].(int64)
+	})
+	alice := createMiddlewarePATUser(t, "pat-limit-alice", "pat-limit-alice-key")
+	bob := createMiddlewarePATUser(t, "pat-limit-bob", "pat-limit-bob-key")
+	tokenLookups := 0
+	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register("count_access_token_lookups", func(db *gorm.DB) {
+		if strings.Contains(db.Statement.SQL.String(), "access_token") {
+			tokenLookups++
+		}
+	}))
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/api/self", GlobalAPIRateLimit(), UserAuth(), func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) })
+	office := "192.0.2.60:443"
+
+	for range 2 {
+		response := performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken)
+		require.Equal(t, http.StatusOK, response.Code)
+		assert.JSONEq(t, fmt.Sprintf(`{"id":%d}`, alice.Id), response.Body.String())
+	}
+	assert.Equal(t, 2, tokenLookups)
+	assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", office, *alice.AccessToken).Code)
+	assert.Equal(t, http.StatusOK, performAuthorizedRateLimitRequest(router, "/api/self", office, *bob.AccessToken).Code)
+
+	// An unknown key gets no user budget: it counts against the address limit of 2 and authentication rejects it.
+	stranger := "192.0.2.61:443"
+	for range 2 {
+		require.Equal(t, http.StatusUnauthorized, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
+	}
+	assert.Equal(t, http.StatusTooManyRequests, performAuthorizedRateLimitRequest(router, "/api/self", stranger, "unknown-key").Code)
+}
+
+// redisCommandCounter counts the commands a Redis client sends.
+type redisCommandCounter struct{ count atomic.Int64 }
+
+func (counter *redisCommandCounter) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
+	counter.count.Add(1)
+	return ctx, nil
+}
+
+func (counter *redisCommandCounter) AfterProcess(context.Context, redis.Cmder) error { return nil }
+
+func (counter *redisCommandCounter) BeforeProcessPipeline(ctx context.Context, commands []redis.Cmder) (context.Context, error) {
+	counter.count.Add(int64(len(commands)))
+	return ctx, nil
+}
+
+func (counter *redisCommandCounter) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+	return nil
 }

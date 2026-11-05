@@ -225,7 +225,7 @@ var (
 	GlobalApiRateLimitEnable   bool
 	GlobalApiRateLimitNum      int
 	GlobalApiRateLimitDuration int64
-	// Requests with a valid dashboard access token count against their user with GlobalApiRateLimitNum; every
+	// Requests with a valid dashboard or personal access token count against their user with GlobalApiRateLimitNum; every
 	// request also counts against its address with this larger backstop (GLOBAL_API_IP_RATE_LIMIT), so users behind
 	// one office address keep their own budgets.
 	GlobalApiIpRateLimitNum      int
