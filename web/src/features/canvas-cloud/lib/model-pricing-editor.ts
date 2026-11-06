@@ -57,7 +57,7 @@ export function surchargePoints(
 }
 
 /** A surcharge price shared by every spec: a reference video tier or the reference image price. */
-export function isSharedSurchargeField(field: PricingField): boolean {
+function isSharedSurchargeField(field: PricingField): boolean {
   return field === 'surcharge:image' || field.startsWith('surcharge:video:')
 }
 
