@@ -173,4 +173,71 @@ describe('LimitedPriceActivityForm', () => {
       approvalReason: 'Launch',
     })
   })
+
+  it('names the reference images in the surcharge cost reference as the pricing page does (INPUT-ASSET-BILLING-001)', async () => {
+    pricingApi.getCanvasModelPricingWorkspace.mockResolvedValue({
+      models: [
+        {
+          id: 'model-seedream',
+          effectiveDisplayName: 'WT-Seedream 5.0 Pro',
+          catalogDefaultName: 'WT-Seedream 5.0 Pro',
+          modelKey: 'whatstoken.image.seedream-5-0-pro',
+          hasPublishedPricing: true,
+        },
+      ],
+    })
+    pricingApi.getCanvasModelPricingModel.mockResolvedValue({
+      pricingScopes: [
+        {
+          combinationKey: 'quality=1K',
+          parameters: { quality: '1K' },
+          prices: [
+            {
+              priceGroupName: 'Standard',
+              current: {
+                id: 'price-1k',
+                status: 'PUBLISHED',
+                billingUnit: 'REQUEST',
+                points: '10',
+                tokenRates: null,
+                calculation: {
+                  baseRatePointsPerRmb: '50',
+                  kPricingRmb: '0.1956',
+                },
+                assumptions: {},
+                inputSurcharge: { image: { freeCount: 1, points: '1' } },
+                originalSurchargeCny: { providerCny: { image: '0.0131' } },
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <LimitedPriceActivityForm onBack={vi.fn()} onSaved={vi.fn()} />
+      </QueryClientProvider>
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Model' }))
+    await user.click(
+      await screen.findByRole('option', {
+        name: 'WT-Seedream 5.0 Pro · whatstoken.image.seedream-5-0-pro',
+      })
+    )
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Applicable price' })
+    )
+    await user.click(
+      await screen.findByRole('option', { name: 'Standard · Quality: 1K' })
+    )
+    await user.type(screen.getByLabelText(/^Special price/), '9')
+    expect(
+      await screen.findByText(/^Reference images · Up to 1 free, beyond that/)
+    ).toBeVisible()
+  })
 })

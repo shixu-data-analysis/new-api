@@ -141,6 +141,29 @@ export function onlyTiersChanged(
   )
 }
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
+/** "720P（短边 ≤ 720）": a reference video tier as the pricing table, the special form and the model cards name it. */
+export function referenceVideoTierName(
+  tier: Pick<CanvasReferenceVideoTier, 'name' | 'maxShortEdgePx'>,
+  t: Translate
+): string {
+  return t('{{name}} (short edge ≤ {{px}})', {
+    name: tier.name,
+    px: tier.maxShortEdgePx,
+  })
+}
+
+/** "1 张以内免费，超出部分", or "每张" without free images: the reference images a price charges. */
+export function chargedReferenceImagesName(
+  freeCount: number,
+  t: Translate
+): string {
+  return freeCount
+    ? t('Up to {{count}} free, beyond that', { count: freeCount })
+    : t('Each image')
+}
+
 const wholePixels = (value: number) => Number.isSafeInteger(value) && value > 0
 
 /** The tiers by short edge, smallest first; a tier still without a valid short edge stays at the end. */

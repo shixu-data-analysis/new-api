@@ -20,6 +20,10 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
+import {
+  chargedReferenceImagesName,
+  referenceVideoTierName,
+} from '../lib/input-surcharge'
 import { oneTokenPrice } from '../lib/one-token-price'
 import {
   ratesAtMultiplier,
@@ -245,10 +249,7 @@ function SurchargeBlocks(props: { price: ModelCardPrice; spec?: string }) {
           {video.tiers.map((tier) => (
             <SurchargeLine
               key={tier.name}
-              name={t('{{name}} (short edge ≤ {{px}})', {
-                name: tier.name,
-                px: tier.maxShortEdgePx,
-              })}
+              name={referenceVideoTierName(tier, t)}
               points={tier.points}
               basePoints={
                 baseVideo?.basis === 'INPUT_TIER'
@@ -268,13 +269,7 @@ function SurchargeBlocks(props: { price: ModelCardPrice; spec?: string }) {
             {title(t('Reference images'))}
           </span>
           <SurchargeLine
-            name={
-              surcharge.image.freeCount
-                ? t('Up to {{count}} free, beyond that', {
-                    count: surcharge.image.freeCount,
-                  })
-                : t('Each image')
-            }
+            name={chargedReferenceImagesName(surcharge.image.freeCount, t)}
             points={surcharge.image.points}
             basePoints={base?.image?.points}
             unit={t('points per image')}

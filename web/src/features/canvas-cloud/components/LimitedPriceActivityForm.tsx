@@ -26,6 +26,10 @@ import {
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
 import {
+  chargedReferenceImagesName,
+  referenceVideoTierName,
+} from '../lib/input-surcharge'
+import {
   isTextInput,
   tokenCategoryLabel,
   tokenCategoryLabelKey,
@@ -849,7 +853,7 @@ function surchargeCostReferences(
   if (video?.basis === 'INPUT_TIER') {
     for (const tier of video.tiers) {
       items.push({
-        label: `${t('Reference video')} · ${t('{{name}} (short edge ≤ {{px}})', { name: tier.name, px: tier.maxShortEdgePx })}`,
+        label: `${t('Reference video')} · ${referenceVideoTierName(tier, t)}`,
         points: tier.points,
         cost:
           typeof costs.video === 'object' ? costs.video[tier.name] : undefined,
@@ -858,7 +862,7 @@ function surchargeCostReferences(
   }
   if (surcharge.image) {
     items.push({
-      label: t('Reference images'),
+      label: `${t('Reference images')} · ${chargedReferenceImagesName(surcharge.image.freeCount, t)}`,
       points: surcharge.image.points,
       cost: costs.image,
     })

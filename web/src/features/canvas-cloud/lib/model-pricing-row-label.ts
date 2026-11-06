@@ -13,6 +13,10 @@ import type {
   CanvasTokenCategory,
 } from '../types'
 import {
+  chargedReferenceImagesName,
+  referenceVideoTierName,
+} from './input-surcharge'
+import {
   isSurchargeField,
   sharedTokenPrice,
   type PricingEditorRow,
@@ -106,7 +110,7 @@ function surchargeRowCombination(
 ): string {
   if (row.field === 'surcharge:image') {
     const free = labeling.inputSurcharge?.image?.freeCount ?? 0
-    return `${t('Reference images')} · ${free ? t('Up to {{count}} free, beyond that', { count: free }) : t('Each image')}`
+    return `${t('Reference images')} · ${chargedReferenceImagesName(free, t)}`
   }
   if (row.field === 'surcharge:video') {
     return `${t('Reference video')} · ${t('At generated {{quality}}', { quality: scope })}`
@@ -117,7 +121,7 @@ function surchargeRowCombination(
     video?.basis === 'INPUT_TIER'
       ? video.tiers.find((item) => item.name === name)
       : undefined
-  return `${t('Reference video')} · ${tier ? t('{{name}} (short edge ≤ {{px}})', { name, px: tier.maxShortEdgePx }) : name}`
+  return `${t('Reference video')} · ${tier ? referenceVideoTierName(tier, t) : name}`
 }
 
 /** "范围 · 方案", or the scope alone when the model has one price plan. */
