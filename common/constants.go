@@ -225,6 +225,11 @@ var (
 	GlobalApiRateLimitEnable   bool
 	GlobalApiRateLimitNum      int
 	GlobalApiRateLimitDuration int64
+	// Requests with a valid dashboard or personal access token count against their user with GlobalApiRateLimitNum; every
+	// request also counts against its address with this larger backstop (GLOBAL_API_IP_RATE_LIMIT), so users behind
+	// one office address keep their own budgets.
+	GlobalApiIpRateLimitNum      int
+	GlobalApiIpRateLimitDuration int64
 
 	GlobalWebRateLimitEnable   bool
 	GlobalWebRateLimitNum      int
@@ -236,6 +241,7 @@ var (
 
 	// Refreshing needs the unguessable refresh cookie, so it gets its own looser IP bucket instead of sharing the
 	// sign-in one: customers behind one office address refresh far more often than they sign in.
+	// AUTH_REFRESH_RATE_LIMIT and AUTH_REFRESH_RATE_LIMIT_DURATION override these defaults, as for the critical limit.
 	AuthRefreshRateLimitNum            = 120
 	AuthRefreshRateLimitDuration int64 = 20 * 60
 
