@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "Không thể phát hành nhóm API Key. Hãy kiểm tra các cơ chế bắt buộc và xem trước lại.",
     "Model binding failed. Refresh the model list and preview the selection again.": "Không thể liên kết mô hình. Hãy làm mới danh sách và xem trước lại lựa chọn.",
     "API Key group publication failed. Retry.": "Không thể phát hành nhóm API Key. Hãy thử lại.",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "Nhà cung cấp API này đã có nhóm API Key cùng tên. Hãy dùng tên khác hoặc sửa nhóm hiện có.",
     "This API Key group is archived. Restore it before publishing changes.": "Nhóm API Key này đã được lưu trữ. Hãy khôi phục trước khi phát hành thay đổi.",
     "There are no API Key group changes to publish.": "Không có thay đổi nào của nhóm API Key để phát hành.",
     "Another publication used this request identity. Retry from the current configuration.": "Một lần phát hành khác đã dùng định danh yêu cầu này. Hãy thử lại từ cấu hình hiện tại.",

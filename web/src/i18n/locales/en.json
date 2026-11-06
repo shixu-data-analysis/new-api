@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "API Key group publication failed. Check the required schemes and preview again.",
     "Model binding failed. Refresh the model list and preview the selection again.": "Model binding failed. Refresh the model list and preview the selection again.",
     "API Key group publication failed. Retry.": "API Key group publication failed. Retry.",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "This API provider already has an API Key group with this name. Use another name, or edit the existing group.",
     "This API Key group is archived. Restore it before publishing changes.": "This API Key group is archived. Restore it before publishing changes.",
     "There are no API Key group changes to publish.": "There are no API Key group changes to publish.",
     "Another publication used this request identity. Retry from the current configuration.": "Another publication used this request identity. Retry from the current configuration.",

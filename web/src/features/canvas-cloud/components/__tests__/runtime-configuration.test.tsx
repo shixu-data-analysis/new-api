@@ -1319,6 +1319,46 @@ describe('Canvas runtime configuration', () => {
     )
   })
 
+  it('returns to the form and marks the name when the provider already has a group with it', async () => {
+    apiMocks.publishCanvasProviderCredentialGroup.mockRejectedValue({
+      response: {
+        data: {
+          code: 'CREDENTIAL_GROUP_NAME_TAKEN',
+          details: { field: 'name' },
+        },
+      },
+    })
+    renderProviderConfiguration()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add API Key group' })
+    )
+    const editor = await screen.findByRole('form', {
+      name: 'Publish provider API Key group',
+    })
+    fireEvent.change(within(editor).getByLabelText('API provider'), {
+      target: { value: providerRuntime.providers[0].id },
+    })
+    fireEvent.change(within(editor).getByLabelText('API Key group'), {
+      target: { value: 'Taken group' },
+    })
+    fireEvent.change(within(editor).getByLabelText('API Key'), {
+      target: { value: 'not-rendered-secret' },
+    })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Next' }))
+    fireEvent.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: 'Confirm publication',
+      })
+    )
+    const message = await within(editor).findByText(
+      'This API provider already has an API Key group with this name. Use another name, or edit the existing group.'
+    )
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    const name = within(editor).getByLabelText('API Key group')
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(name).toHaveAttribute('aria-describedby', message.id)
+  })
+
   it('reviews the exact drawer owner and selects the newly created group', async () => {
     const secondProviderId = '85000000-0000-7000-8000-000000000020'
     const newGroupId = '85000000-0000-7000-8000-000000000021'

@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "Не удалось опубликовать группу API Key. Проверьте обязательные схемы и снова выполните предварительный просмотр.",
     "Model binding failed. Refresh the model list and preview the selection again.": "Не удалось привязать модели. Обновите список моделей и снова просмотрите выбор.",
     "API Key group publication failed. Retry.": "Не удалось опубликовать группу API Key. Повторите попытку.",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "У этого поставщика API уже есть группа API-ключей с таким названием. Выберите другое название или измените существующую группу.",
     "This API Key group is archived. Restore it before publishing changes.": "Эта группа API Key архивирована. Восстановите её перед публикацией изменений.",
     "There are no API Key group changes to publish.": "Нет изменений группы API Key для публикации.",
     "Another publication used this request identity. Retry from the current configuration.": "Другой запрос публикации уже использовал этот идентификатор. Повторите попытку с текущей конфигурацией.",

@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "API Key グループを公開できませんでした。必要なセキュリティ方式を確認し、もう一度プレビューしてください。",
     "Model binding failed. Refresh the model list and preview the selection again.": "モデルの紐付けに失敗しました。モデル一覧を更新し、選択内容をもう一度プレビューしてください。",
     "API Key group publication failed. Retry.": "API Key グループの公開に失敗しました。再試行してください。",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "この API サービスには同じ名前の API Key グループがあります。別の名前にするか、既存のグループを編集してください。",
     "This API Key group is archived. Restore it before publishing changes.": "この API Key グループはアーカイブされています。変更を公開する前に復元してください。",
     "There are no API Key group changes to publish.": "公開する API Key グループの変更はありません。",
     "Another publication used this request identity. Retry from the current configuration.": "別の公開処理がこのリクエスト識別子を使用しました。現在の設定から再試行してください。",

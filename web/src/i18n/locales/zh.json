@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "API Key 组发布失败。请检查必需的安全方案并重新预览。",
     "Model binding failed. Refresh the model list and preview the selection again.": "模型绑定失败。请刷新模型列表并重新预览所选模型。",
     "API Key group publication failed. Retry.": "API Key 组发布失败，请重试。",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "该 API 服务商已有同名的 API Key 组。请换一个名称，或编辑已有的组。",
     "This API Key group is archived. Restore it before publishing changes.": "此 API Key 组已归档，请先恢复再发布更改。",
     "There are no API Key group changes to publish.": "没有可发布的 API Key 组更改。",
     "Another publication used this request identity. Retry from the current configuration.": "另一发布请求已使用此次请求标识，请基于当前配置重试。",

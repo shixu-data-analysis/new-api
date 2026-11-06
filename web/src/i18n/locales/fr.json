@@ -82,6 +82,7 @@
     "Credential publication failed. Check the required schemes and preview again.": "La publication du groupe d’API Key a échoué. Vérifiez les schémas requis et prévisualisez de nouveau.",
     "Model binding failed. Refresh the model list and preview the selection again.": "L’association des modèles a échoué. Actualisez la liste et prévisualisez de nouveau la sélection.",
     "API Key group publication failed. Retry.": "La publication du groupe d’API Key a échoué. Réessayez.",
+    "This API provider already has an API Key group with this name. Use another name, or edit the existing group.": "Ce fournisseur d’API a déjà un groupe de clés API portant ce nom. Choisissez un autre nom ou modifiez le groupe existant.",
     "This API Key group is archived. Restore it before publishing changes.": "Ce groupe d’API Key est archivé. Restaurez-le avant de publier des modifications.",
     "There are no API Key group changes to publish.": "Aucune modification du groupe d’API Key n’est à publier.",
     "Another publication used this request identity. Retry from the current configuration.": "Une autre publication a utilisé cet identifiant de requête. Réessayez depuis la configuration actuelle.",

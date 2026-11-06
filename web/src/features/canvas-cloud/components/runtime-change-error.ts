@@ -24,13 +24,24 @@ function runtimeErrorData(error: unknown): Record<string, unknown> | null {
     : null
 }
 
+/** The error code Cloud returned for a runtime configuration change, if any. */
+export function runtimeErrorCode(error: unknown): string | null {
+  const data = runtimeErrorData(error)
+  return typeof data?.code === 'string' ? data.code : null
+}
+
+export const CREDENTIAL_GROUP_NAME_TAKEN_KEY =
+  'This API provider already has an API Key group with this name. Use another name, or edit the existing group.'
+
 export function runtimeChangeError(
   error: unknown,
   translate: (key: string) => string,
   operation: 'credential' | 'management' | 'load'
 ) {
-  const data = runtimeErrorData(error)
-  const code = typeof data?.code === 'string' ? data.code : null
+  const code = runtimeErrorCode(error)
+  if (code === 'CREDENTIAL_GROUP_NAME_TAKEN') {
+    return translate(CREDENTIAL_GROUP_NAME_TAKEN_KEY)
+  }
   if (code === 'PREVIEW_STALE') {
     return translate('Configuration changed. Preview again before confirming.')
   }

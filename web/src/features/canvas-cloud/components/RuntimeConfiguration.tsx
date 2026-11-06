@@ -104,7 +104,11 @@ import {
   PricingActionConfirmation,
   type ConfirmationDetail,
 } from './PricingActionConfirmation'
-import { runtimeChangeError } from './runtime-change-error'
+import {
+  CREDENTIAL_GROUP_NAME_TAKEN_KEY,
+  runtimeChangeError,
+  runtimeErrorCode,
+} from './runtime-change-error'
 
 function isHttpsOrigin(value: string) {
   try {
@@ -635,6 +639,16 @@ export function RuntimeConfiguration(
       await refresh()
     },
     onError: (error) => {
+      // A taken name is fixed in the form, so the dialog closes and the name field says why.
+      if (runtimeErrorCode(error) === 'CREDENTIAL_GROUP_NAME_TAKEN') {
+        setConfirmation(null)
+        credential.setError(
+          'name',
+          { message: t(CREDENTIAL_GROUP_NAME_TAKEN_KEY) },
+          { shouldFocus: true }
+        )
+        return
+      }
       toast.error(runtimeChangeError(error, t, 'credential'))
     },
   })
