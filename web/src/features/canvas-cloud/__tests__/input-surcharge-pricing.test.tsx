@@ -24,6 +24,7 @@ import {
   pricingFields,
   publicationScopes,
   shownRows,
+  sortPricingRows,
   surchargeFields,
   withEditedValue,
   type PricingDrafts,
@@ -111,6 +112,7 @@ function detail(): CanvasModelPricingDetail {
   })
   return {
     model: {
+      capability: 'video.generate',
       billingUnit: 'SECOND',
       billingUnitState: 'CONSISTENT',
       tokenCategories: [],
@@ -177,6 +179,33 @@ describe('Surcharge prices on the pricing page', () => {
     expect(shown).toContain('480P:surcharge:video:720P:standard')
     expect(shown).not.toContain('720P:surcharge:video:720P:standard')
     expect(shown).toContain('720P:scalar:standard')
+  })
+
+  it('lists the generated video prices first, then the reference video and image surcharges, in either order', () => {
+    const state = editor({
+      video: { basis: 'OUTPUT_QUALITY' },
+      image: { freeCount: 1 },
+    })
+    const ids = shownRows(state).map((row) => row.id)
+    expect(ids).toEqual([
+      '480P:scalar:standard',
+      '720P:scalar:standard',
+      '480P:surcharge:video:standard',
+      '720P:surcharge:video:standard',
+      '480P:surcharge:image:standard',
+    ])
+    const items = shownRows(state).map((row) => ({ row, plan: 'standard' }))
+    expect(
+      sortPricingRows(items, [{ id: 'combination', desc: true }]).map(
+        (item) => item.row.id
+      )
+    ).toEqual([
+      '720P:scalar:standard',
+      '480P:scalar:standard',
+      '720P:surcharge:video:standard',
+      '480P:surcharge:video:standard',
+      '480P:surcharge:image:standard',
+    ])
   })
 
   it('writes a tier price for every spec and sends the amounts in the API form', () => {
@@ -283,6 +312,14 @@ describe('Surcharge prices on the pricing page', () => {
     expect(pricingRowLabel(row, labeling, t)).toBe(
       'Reference video · 720P (short edge ≤ 720)'
     )
+    // Beside the surcharge rows a base row says what it prices; without a surcharge it is the quality alone.
+    const base = state.rows.find(
+      (item) => item.id === '480P:scalar:standard'
+    ) as PricingEditorRow
+    expect(pricingRowLabel(base, labeling, t)).toBe('Generated video · 480P')
+    expect(
+      pricingRowLabel(base, pricingRowLabeling(detail(), false, null), t)
+    ).toBe('480P')
     const imageState = editor({ image: { freeCount: 1 } })
     const imageRow = imageState.rows.find(
       (item) => item.field === 'surcharge:image'

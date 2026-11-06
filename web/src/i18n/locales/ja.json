@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}}（短辺 ≤ {{px}}）",
     "points per image": "ポイント／枚",
     "Generated video": "生成動画",
+    "Generated images": "生成画像",
+    "Pricing item": "価格項目",
     "Discount the surcharge too": "追加料金も割引",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "オンにすると、参照素材の追加料金も基本価格と同じ割合で割引します。オフのときは通常価格です。"
   }

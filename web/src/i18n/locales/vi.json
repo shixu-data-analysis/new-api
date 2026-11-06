@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}} (cạnh ngắn ≤ {{px}})",
     "points per image": "điểm/ảnh",
     "Generated video": "Video tạo ra",
+    "Generated images": "Ảnh tạo ra",
+    "Pricing item": "Hạng mục tính giá",
     "Discount the surcharge too": "Giảm giá cả phụ phí",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "Khi bật, phụ phí tài liệu tham chiếu được giảm theo cùng tỉ lệ với giá cơ bản. Khi tắt, phụ phí tính theo giá thường."
   }

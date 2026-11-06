@@ -292,30 +292,54 @@ export function pricingEditorRows(
   detail: CanvasModelPricingDetail,
   fields: PricingField[]
 ): PricingEditorRow[] {
-  return detail.pricingScopes.flatMap((scope) =>
-    fields.flatMap((field) =>
-      scope.prices.map((price) => ({
-        id: `${scope.parameterCombinationId}:${field}:${price.priceGroupId}`,
-        groupKey: `${scope.parameterCombinationId}:${field}`,
-        scope,
-        price,
-        field,
-      }))
-    )
-  )
+  const rowsOf = (
+    scope: CanvasModelPricingDetail['pricingScopes'][number],
+    field: PricingField
+  ) =>
+    scope.prices.map((price) => ({
+      id: `${scope.parameterCombinationId}:${field}:${price.priceGroupId}`,
+      groupKey: `${scope.parameterCombinationId}:${field}`,
+      scope,
+      price,
+      field,
+    }))
+  // The generated result's prices spec by spec, then each surcharge item's: reference video, then reference images.
+  const scopes = detail.pricingScopes
+  return [
+    ...scopes.flatMap((scope) =>
+      fields
+        .filter((field) => !isSurchargeField(field))
+        .flatMap((field) => rowsOf(scope, field))
+    ),
+    ...fields
+      .filter(isSurchargeField)
+      .flatMap((field) => scopes.flatMap((scope) => rowsOf(scope, field))),
+  ]
+}
+
+// The table's sections: the generated result's prices, reference video surcharges, reference image surcharges.
+function pricingSection(field: PricingField) {
+  if (!isSurchargeField(field)) return 'result'
+  return field === 'surcharge:image' ? 'image' : 'video'
 }
 
 /**
  * Orders the table's rows before they are paged, keeping each spec's rows together so a merged provider cost is never
- * split: the quality column reverses whole specs, the price plan column sorts inside each spec.
+ * split: the quality column reverses whole specs inside each section, the price plan column sorts inside each spec.
  */
 export function sortPricingRows<
-  T extends { row: { groupKey: string }; plan: string },
+  T extends { row: { groupKey: string; field: PricingField }; plan: string },
 >(items: T[], sorting: SortingState): T[] {
   const sort = sorting[0]
   if (!sort || (sort.id === 'combination' && !sort.desc)) return items
   const specs = [...groupBy(items, (item) => item.row.groupKey).values()]
-  if (sort.id === 'combination') return specs.reverse().flat()
+  if (sort.id === 'combination') {
+    return [
+      ...groupBy(specs, (rows) =>
+        pricingSection((rows[0] as T).row.field)
+      ).values(),
+    ].flatMap((section) => section.reverse().flat())
+  }
   return specs.flatMap((rows) =>
     [...rows].sort(
       (left, right) =>

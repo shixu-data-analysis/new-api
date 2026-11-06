@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}} (petit côté ≤ {{px}})",
     "points per image": "points par image",
     "Generated video": "Vidéo générée",
+    "Generated images": "Images générées",
+    "Pricing item": "Élément tarifé",
     "Discount the surcharge too": "Remiser aussi le supplément",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "Activé, le supplément des éléments de référence est remisé au même taux que le prix de base. Désactivé, il est facturé au prix normal."
   }

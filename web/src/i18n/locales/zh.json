@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}}（短边 ≤ {{px}}）",
     "points per image": "积分／张",
     "Generated video": "生成视频",
+    "Generated images": "生成图片",
+    "Pricing item": "计价项目",
     "Discount the surcharge too": "附加费同时打折",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "打开后，参考素材附加费按基础价的同一比例打折。关闭时，附加费按原价收。"
   }

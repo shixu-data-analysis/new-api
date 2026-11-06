@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}} (короткая сторона ≤ {{px}})",
     "points per image": "баллов за изображение",
     "Generated video": "Сгенерированное видео",
+    "Generated images": "Сгенерированные изображения",
+    "Pricing item": "Позиция тарифа",
     "Discount the surcharge too": "Скидка и на доплату",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "Если включено, доплата за опорные материалы снижается в той же пропорции, что и базовая цена. Если выключено, она взимается по обычной цене."
   }

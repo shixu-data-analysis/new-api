@@ -146,7 +146,7 @@ const included = (state: PricingEditorState) =>
 
 describe('sortPricingRows', () => {
   const item = (groupKey: string, plan: string) => ({
-    row: { groupKey },
+    row: { groupKey, field: 'scalar' as const },
     plan,
   })
   const items = [

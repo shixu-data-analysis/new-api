@@ -10818,6 +10818,8 @@
     "{{name}} (short edge ≤ {{px}})": "{{name}} (short edge ≤ {{px}})",
     "points per image": "points per image",
     "Generated video": "Generated video",
+    "Generated images": "Generated images",
+    "Pricing item": "Pricing item",
     "Discount the surcharge too": "Discount the surcharge too",
     "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price.": "When on, the reference-material surcharge is discounted at the base price ratio. When off, it is charged at the regular price."
   }

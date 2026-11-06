@@ -189,6 +189,9 @@ export function ModelPricingEditorTable(props: {
     combinationTitle = t('Pricing scope')
   } else if (token) {
     combinationTitle = t('Token category')
+  } else if (labeling.inputSurcharge) {
+    // Surcharge rows are not qualities: the column names what each row prices.
+    combinationTitle = t('Pricing item')
   } else if (labeling.qualityOnly) {
     combinationTitle = t('Quality')
   }

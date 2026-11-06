@@ -32,6 +32,8 @@ export interface PricingRowLabeling {
   tokenCategories: CanvasTokenCategory[]
   /** How reference materials are charged, which names the surcharge rows (INPUT-ASSET-BILLING-001). */
   inputSurcharge: CanvasInputSurchargeSetting | null
+  /** Beside surcharge rows the base rows say what they price: "生成视频 · 720P" or "生成图片 · 1K". */
+  resultKey: 'Generated video' | 'Generated images'
 }
 
 export function pricingRowLabeling(
@@ -42,6 +44,10 @@ export function pricingRowLabeling(
   return {
     token,
     inputSurcharge,
+    resultKey:
+      detail.model.capability === 'video.generate'
+        ? 'Generated video'
+        : 'Generated images',
     qualityOnly:
       detail.pricingScopes.length > 0 &&
       detail.pricingScopes.every((scope) => {
@@ -70,6 +76,9 @@ export function pricingRowCombination(
       )
   if (isSurchargeField(row.field)) {
     return surchargeRowCombination(row, labeling, scope, t)
+  }
+  if (!labeling.token && labeling.inputSurcharge) {
+    return `${t(labeling.resultKey)} · ${scope}`
   }
   if (!labeling.token) return scope
   // A video's rows are its pricing scopes: "720p · 不含视频输入" (VIDEO-TOKEN-BILLING-001).
