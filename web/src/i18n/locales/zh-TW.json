@@ -9585,6 +9585,7 @@
     "Inviter display price and customer sale price unchanged": "代理商展示價格和客戶售價不變",
     "This schedule changes the billing unit, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "這次預約更改了計費單位，所有定價範圍必須一起生效，所以會取消整次預約。目前有效的價格不變。",
     "This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "這次預約更改了參考素材收費方式，所有定價範圍必須一起生效，所以會取消整次預約。目前有效的價格不變。",
+    "This schedule changes reference-material prices that every specification shares, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "這次預約修改了所有規格共用的參考素材價格，所有定價範圍必須一起生效，所以會取消整次預約。目前有效的價格不變。",
     "Cancel every pending price of this schedule; current prices stay in effect.": "取消這次預約中所有待生效的價格，目前有效的價格不變。",
     "Only the prices below are cancelled; current prices stay in effect.": "只取消下列價格的預約，目前有效的價格不變。",
     "First-time prices among them return to unpriced; customers cannot see those specifications until they are priced again.": "其中首次定價的規格會恢復為未定價，客戶看不到，需要重新定價。",

@@ -1644,6 +1644,8 @@ export interface CanvasModelPricingPublication {
     | 'PARTIALLY_CURRENT'
     | 'SUPERSEDED'
   change: 'INITIAL' | 'COST' | 'PRICE' | 'COST_AND_PRICE' | 'UNIT' | 'SURCHARGE'
+  /** Unified publications: why Cloud cancels the schedule only as a whole; null when single scopes may be cancelled. */
+  wholeCancellation?: 'UNIT' | 'SURCHARGE' | 'SHARED_SURCHARGE' | null
   effectiveAt: string
   billingUnit: CanvasBillingUnit
   createdAt: string

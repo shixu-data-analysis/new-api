@@ -25,13 +25,16 @@ import { PricingActionConfirmation } from './PricingActionConfirmation'
 
 type PublicationItem = CanvasModelPricingPublication['scopeSummary'][number]
 
-// A billing-unit or charging switch takes effect for every scope together, so it is only cancelled as a whole.
-const WHOLE_CANCELLATION_REASON: Partial<
-  Record<CanvasModelPricingPublication['change'], string>
+// Cloud tells why a schedule takes effect for every scope together and is only cancelled as a whole.
+const WHOLE_CANCELLATION_REASON: Record<
+  NonNullable<CanvasModelPricingPublication['wholeCancellation']>,
+  string
 > = {
   UNIT: 'This schedule changes the billing unit, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
   SURCHARGE:
     'This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
+  SHARED_SURCHARGE:
+    'This schedule changes reference-material prices that every specification shares, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
 }
 
 // Empty in Chinese and Japanese, a space elsewhere.
@@ -61,7 +64,9 @@ export function ModelPricingScheduleCancelDialog(props: {
     enabled: Boolean(props.publicationId),
   })
   const item = publication.data
-  const wholeReason = item ? WHOLE_CANCELLATION_REASON[item.change] : undefined
+  const wholeReason = item?.wholeCancellation
+    ? WHOLE_CANCELLATION_REASON[item.wholeCancellation]
+    : undefined
   const whole = !props.scopeId || Boolean(wholeReason)
   const pending = (item?.scopeSummary ?? []).filter(
     (entry, _index, entries) =>

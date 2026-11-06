@@ -9585,6 +9585,7 @@
     "Inviter display price and customer sale price unchanged": "代理店表示価格と顧客販売価格は変わりません",
     "This schedule changes the billing unit, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "この予約は課金単位を変更するため、すべての価格範囲を同時に適用する必要があり、予約全体を取り消します。現在の価格は変わりません。",
     "This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "この予約は参照素材の課金方法を変更するため、すべての価格範囲を同時に適用する必要があり、予約全体を取り消します。現在の価格は変わりません。",
+    "This schedule changes reference-material prices that every specification shares, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.": "この予約はすべての仕様で共通の参照素材の価格を変更するため、すべての価格範囲を同時に適用する必要があり、予約全体を取り消します。現在の価格は変わりません。",
     "Cancel every pending price of this schedule; current prices stay in effect.": "この予約で適用待ちのすべての価格を取り消します。現在の価格は変わりません。",
     "Only the prices below are cancelled; current prices stay in effect.": "以下の価格の予約のみを取り消します。現在の価格は変わりません。",
     "First-time prices among them return to unpriced; customers cannot see those specifications until they are priced again.": "初めて価格を設定した仕様は未設定に戻り、再設定するまで顧客に表示されません。",

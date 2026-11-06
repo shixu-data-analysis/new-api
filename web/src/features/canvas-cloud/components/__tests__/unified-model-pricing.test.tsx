@@ -510,71 +510,85 @@ describe('UnifiedModelPricing inline editing', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('cancels a schedule that changes how reference materials are charged only as a whole (INPUT-ASSET-BILLING-001)', async () => {
-    const scheduledDetail = structuredClone(detail)
-    ;(
-      scheduledDetail.pricingScopes[0].prices[0] as Record<string, unknown>
-    ).scheduled = {
-      ...current,
-      id: 'price-2',
-      status: 'APPROVED',
-      points: '150',
-      effectiveAt: '2026-12-01T10:00:00Z',
-      publicationId: 'publication-9',
-      originalCnyValues: { ...original, customerPriceCny: '1.5000' },
-    }
-    mocks.detail.mockResolvedValue(scheduledDetail)
-    mocks.publication.mockResolvedValue({
-      id: 'publication-9',
-      displayNameSnapshot: 'Video Alpha',
-      effectiveAt: '2026-12-01T10:00:00Z',
-      change: 'SURCHARGE',
-      scopeSummary: [
-        {
-          combinationId: 'scope-1',
-          combinationKey: 'standard',
-          parameters: { quality: 'HD' },
-          priceGroupId: 'group-1',
-          changeKind: 'PRICE',
-          providerRateVersionId: 'provider-1',
-          priceVersionId: 'price-2',
-          rateCurrent: true,
-          priceCurrent: false,
-          status: 'SCHEDULED',
-        },
-        {
-          combinationId: 'scope-2',
-          combinationKey: 'premium',
-          parameters: { quality: '4K' },
-          priceGroupId: 'group-1',
-          changeKind: 'PRICE',
-          providerRateVersionId: 'provider-2',
-          priceVersionId: 'price-3',
-          rateCurrent: true,
-          priceCurrent: false,
-          status: 'SCHEDULED',
-        },
-      ],
-    })
-    mocks.cancel.mockResolvedValue({ id: 'publication-9', status: 'CANCELLED' })
-    renderPricing()
+  it.each([
+    [
+      'SURCHARGE',
+      'SURCHARGE',
+      'This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
+    ],
+    [
+      'PRICE',
+      'SHARED_SURCHARGE',
+      'This schedule changes reference-material prices that every specification shares, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.',
+    ],
+  ])(
+    'cancels a %s schedule that Cloud marks %s only as a whole (INPUT-ASSET-BILLING-001)',
+    async (change, wholeCancellation, reason) => {
+      const scheduledDetail = structuredClone(detail)
+      ;(
+        scheduledDetail.pricingScopes[0].prices[0] as Record<string, unknown>
+      ).scheduled = {
+        ...current,
+        id: 'price-2',
+        status: 'APPROVED',
+        points: '150',
+        effectiveAt: '2026-12-01T10:00:00Z',
+        publicationId: 'publication-9',
+        originalCnyValues: { ...original, customerPriceCny: '1.5000' },
+      }
+      mocks.detail.mockResolvedValue(scheduledDetail)
+      mocks.publication.mockResolvedValue({
+        id: 'publication-9',
+        displayNameSnapshot: 'Video Alpha',
+        effectiveAt: '2026-12-01T10:00:00Z',
+        change,
+        wholeCancellation,
+        scopeSummary: [
+          {
+            combinationId: 'scope-1',
+            combinationKey: 'standard',
+            parameters: { quality: 'HD' },
+            priceGroupId: 'group-1',
+            changeKind: 'PRICE',
+            providerRateVersionId: 'provider-1',
+            priceVersionId: 'price-2',
+            rateCurrent: true,
+            priceCurrent: false,
+            status: 'SCHEDULED',
+          },
+          {
+            combinationId: 'scope-2',
+            combinationKey: 'premium',
+            parameters: { quality: '4K' },
+            priceGroupId: 'group-1',
+            changeKind: 'PRICE',
+            providerRateVersionId: 'provider-2',
+            priceVersionId: 'price-3',
+            rateCurrent: true,
+            priceCurrent: false,
+            status: 'SCHEDULED',
+          },
+        ],
+      })
+      mocks.cancel.mockResolvedValue({
+        id: 'publication-9',
+        status: 'CANCELLED',
+      })
+      renderPricing()
 
-    expect(await customerInput()).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel schedule' }))
-    const dialog = await screen.findByRole('alertdialog')
-    await waitFor(() =>
-      expect(dialog).toHaveTextContent(
-        'This schedule changes how reference materials are charged, so every pricing scope must take effect together and the whole schedule is cancelled. Current prices stay in effect.'
+      expect(await customerInput()).toBeDisabled()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel schedule' }))
+      const dialog = await screen.findByRole('alertdialog')
+      await waitFor(() => expect(dialog).toHaveTextContent(reason))
+      expect(dialog).toHaveTextContent('To cancel:HD 4K')
+      fireEvent.click(
+        within(dialog).getByRole('button', { name: 'Cancel schedule' })
       )
-    )
-    expect(dialog).toHaveTextContent('To cancel:HD 4K')
-    fireEvent.click(
-      within(dialog).getByRole('button', { name: 'Cancel schedule' })
-    )
-    await waitFor(() =>
-      expect(mocks.cancel).toHaveBeenCalledWith('publication-9', undefined)
-    )
-  })
+      await waitFor(() =>
+        expect(mocks.cancel).toHaveBeenCalledWith('publication-9', undefined)
+      )
+    }
+  )
 
   it('clears every price when the billing unit changes and restores them when it changes back', async () => {
     const videoModel = { ...model, allowedBillingUnits: ['REQUEST', 'SECOND'] }
