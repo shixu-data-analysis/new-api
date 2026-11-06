@@ -22,7 +22,11 @@ import {
 } from '@/components/ui/select'
 import { toIntlLocale } from '@/i18n/languages'
 
-import { tierIssueKey } from '../lib/input-surcharge'
+import {
+  invalidTierCells,
+  sortedTiers,
+  tierIssueKey,
+} from '../lib/input-surcharge'
 import type {
   CanvasInputSurchargeSetting,
   CanvasModelPricingModel,
@@ -204,6 +208,7 @@ function ReferenceVideoTierEditor(props: {
 }) {
   const { t, i18n } = useTranslation()
   const issue = tierIssueKey(props.tiers)
+  const invalid = invalidTierCells(props.tiers)
   const update = (index: number, change: Partial<CanvasReferenceVideoTier>) =>
     props.onChange(
       props.tiers.map((tier, position) =>
@@ -211,7 +216,18 @@ function ReferenceVideoTierEditor(props: {
       )
     )
   return (
-    <div className='max-w-xl basis-full space-y-2'>
+    <div
+      className='max-w-xl basis-full space-y-2'
+      // Tiers keep short-edge order, so a tier added for any size lands in its place. They are sorted when focus leaves
+      // the table, not between its cells, so the focused cell keeps its tier.
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return
+        const sorted = sortedTiers(props.tiers)
+        if (sorted.some((tier, index) => tier !== props.tiers[index])) {
+          props.onChange(sorted)
+        }
+      }}
+    >
       <StaticDataTable
         data={props.tiers}
         getRowKey={(_tier, index) => index}
@@ -225,7 +241,9 @@ function ReferenceVideoTierEditor(props: {
               return (
                 <Input
                   aria-label={t('Name of tier {{index}}', { index: index + 1 })}
-                  aria-invalid={issue ? true : undefined}
+                  aria-invalid={
+                    issue && invalid[index]?.name ? true : undefined
+                  }
                   placeholder={t('Such as {{example}}', { example: '720P' })}
                   value={tier.name}
                   onChange={(event) =>
@@ -245,7 +263,9 @@ function ReferenceVideoTierEditor(props: {
                   aria-label={t('Largest short edge of tier {{index}}', {
                     index: index + 1,
                   })}
-                  aria-invalid={issue ? true : undefined}
+                  aria-invalid={
+                    issue && invalid[index]?.shortEdge ? true : undefined
+                  }
                   className='tabular-nums'
                   type='number'
                   min={1}
@@ -308,11 +328,10 @@ function ReferenceVideoTierEditor(props: {
       ) : null}
       <p className='text-muted-foreground text-xs'>
         {t(
-          'Defaults follow the model qualities: {{tiers}}. Tiers go from the smallest short edge up; a reference video above the highest tier cannot be submitted. A new tier must be priced before publishing.',
+          'Defaults follow the model qualities: {{tiers}}. Tiers are sorted by short edge; a reference video above the highest tier cannot be submitted. A new tier must be priced before publishing.',
           {
             tiers: new Intl.ListFormat(
-              toIntlLocale(i18n.resolvedLanguage || i18n.language),
-              { type: 'unit' }
+              toIntlLocale(i18n.resolvedLanguage || i18n.language)
             ).format(
               props.defaults.map(
                 (tier) => `${tier.name} ≤ ${tier.maxShortEdgePx}`

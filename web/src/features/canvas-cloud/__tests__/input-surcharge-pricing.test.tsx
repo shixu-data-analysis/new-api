@@ -12,7 +12,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { InputSurchargeControls } from '../components/InputSurchargeControls'
 import {
   onlyTiersChanged,
+  invalidTierCells,
   sameInputSurcharge,
+  sortedTiers,
   tierIssueKey,
   withoutChangedSurchargeGroups,
   withSurchargeDrafts,
@@ -382,12 +384,27 @@ describe('Surcharge controls', () => {
         tiers: [...tiers, { name: '', maxShortEdgePx: 0 }],
       },
     })
-    expect(
-      tierIssueKey([
-        { name: 'A', maxShortEdgePx: 720 },
-        { name: 'B', maxShortEdgePx: 480 },
-      ])
-    ).toBe('Short edges must be whole numbers in ascending order')
+    // The editor sorts the tiers, so a tier added after larger ones is not an issue; a repeated edge is.
+    const added = [...tiers, { name: '540P', maxShortEdgePx: 540 }]
+    expect(tierIssueKey(added)).toBeUndefined()
+    expect(sortedTiers([{ name: 'new', maxShortEdgePx: 0 }, ...added])).toEqual(
+      [
+        tiers[0],
+        { name: '540P', maxShortEdgePx: 540 },
+        tiers[1],
+        { name: 'new', maxShortEdgePx: 0 },
+      ]
+    )
+    const repeated = [...tiers, { name: '720P+', maxShortEdgePx: 720 }]
+    expect(tierIssueKey(repeated)).toBe('Short edges must differ')
+    expect(invalidTierCells(repeated)).toEqual([
+      { name: false, shortEdge: false },
+      { name: false, shortEdge: true },
+      { name: false, shortEdge: true },
+    ])
+    expect(tierIssueKey([...tiers, { name: '1080P', maxShortEdgePx: 0 }])).toBe(
+      'Each short edge must be a whole number of pixels'
+    )
     expect(
       tierIssueKey([
         { name: 'A', maxShortEdgePx: 480 },
@@ -395,6 +412,50 @@ describe('Surcharge controls', () => {
       ])
     ).toBe('Tier names must differ')
     expect(tierIssueKey(tiers)).toBeUndefined()
+  })
+
+  it('sorts the tiers by short edge when focus leaves the table, not between its cells', () => {
+    const onChange = vi.fn()
+    const added = [...tiers, { name: '540P', maxShortEdgePx: 540 }]
+    render(
+      <>
+        <InputSurchargeControls
+          availability={availability}
+          value={{ video: { basis: 'INPUT_TIER', tiers: added } }}
+          onChange={onChange}
+        />
+        <button type='button'>Outside</button>
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tiers' }))
+    const edge = screen.getByLabelText('Largest short edge of tier 3')
+    fireEvent.blur(edge, {
+      relatedTarget: screen.getByLabelText('Name of tier 1'),
+    })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.blur(edge, {
+      relatedTarget: screen.getByRole('button', { name: 'Outside' }),
+    })
+    expect(onChange).toHaveBeenLastCalledWith({
+      video: {
+        basis: 'INPUT_TIER',
+        tiers: [tiers[0], { name: '540P', maxShortEdgePx: 540 }, tiers[1]],
+      },
+    })
+  })
+
+  it('does not change sorted tiers when focus leaves the table', () => {
+    const onChange = vi.fn()
+    render(
+      <InputSurchargeControls
+        availability={availability}
+        value={byTier}
+        onChange={onChange}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit tiers' }))
+    fireEvent.blur(screen.getByLabelText('Largest short edge of tier 1'))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('is not shown for a model that takes no reference materials', () => {

@@ -141,12 +141,45 @@ export function onlyTiersChanged(
   )
 }
 
-/** The shared validator's tier issue as a localized message; undefined for valid tiers. */
+const wholePixels = (value: number) => Number.isSafeInteger(value) && value > 0
+
+/** The tiers by short edge, smallest first; a tier still without a valid short edge stays at the end. */
+export function sortedTiers(
+  tiers: CanvasReferenceVideoTier[]
+): CanvasReferenceVideoTier[] {
+  return [...tiers].sort((left, right) => {
+    if (!wholePixels(left.maxShortEdgePx)) {
+      return wholePixels(right.maxShortEdgePx) ? 1 : 0
+    }
+    if (!wholePixels(right.maxShortEdgePx)) return -1
+    return left.maxShortEdgePx - right.maxShortEdgePx
+  })
+}
+
+/**
+ * The shared validator's tier issue as a localized message; undefined for valid tiers. The editor sorts the tiers, so
+ * their order is never the issue: after sorting, a short edge out of order can only repeat another.
+ */
 export function tierIssueKey(tiers: CanvasReferenceVideoTier[]) {
-  const issue = referenceVideoTiersIssue(tiers)
+  const issue = referenceVideoTiersIssue(sortedTiers(tiers))
   if (!issue) return undefined
   if (issue.includes('at least one')) return 'Add at least one tier'
   if (issue.includes('needs a name')) return 'Each tier needs a name'
   if (issue.includes('repeated')) return 'Tier names must differ'
-  return 'Short edges must be whole numbers in ascending order'
+  if (issue.includes('positive whole')) {
+    return 'Each short edge must be a whole number of pixels'
+  }
+  return 'Short edges must differ'
+}
+
+/** The cells to mark: a missing or repeated name, a missing, partial or repeated short edge. */
+export function invalidTierCells(tiers: CanvasReferenceVideoTier[]) {
+  const count = <T>(value: T, of: (tier: CanvasReferenceVideoTier) => T) =>
+    tiers.filter((tier) => of(tier) === value).length
+  return tiers.map((tier) => ({
+    name: tier.name === '' || count(tier.name, (item) => item.name) > 1,
+    shortEdge:
+      !wholePixels(tier.maxShortEdgePx) ||
+      count(tier.maxShortEdgePx, (item) => item.maxShortEdgePx) > 1,
+  }))
 }
