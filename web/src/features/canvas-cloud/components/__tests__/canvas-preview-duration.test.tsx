@@ -50,4 +50,22 @@ describe('Canvas preview duration', () => {
     rerender(<CanvasPreview model={model(['720P'])} sent={sent} />)
     expect(slider()).toHaveAttribute('max', '12')
   })
+
+  it('lights the nearest fixed choice when the default is not one of them', () => {
+    const choices = model(['720P'])
+    choices.release.publicInteraction.paramSchema = {
+      qualities: ['720P'],
+      durations: [5, 10, 30],
+    }
+    choices.release.publicInteraction.defaultParams = {
+      quality: '720P',
+      durationSeconds: 25,
+    }
+    render(<CanvasPreview model={choices} sent={sent} />)
+    expect(screen.queryByRole('slider', { name: 'Length' })).toBeNull()
+    expect(screen.getByRole('button', { name: '30S' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
 })

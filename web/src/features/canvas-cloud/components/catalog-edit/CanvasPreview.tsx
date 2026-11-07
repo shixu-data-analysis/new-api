@@ -129,9 +129,19 @@ export function CanvasPreview(props: {
     pick('duration', rules.defaultDuration ?? durations[0])
   )
   const [longest = pickedDuration] = durations.slice(-1)
-  const duration = durations.length
-    ? Math.min(Math.max(pickedDuration, durations[0]), longest)
-    : pickedDuration
+  // Fixed choices show the nearest choice, so a default outside them still lights one; a range clamps to its ends.
+  const shownDuration = () => {
+    if (!durations.length) return pickedDuration
+    if (!rules.durationDiscrete) {
+      return Math.min(Math.max(pickedDuration, durations[0]), longest)
+    }
+    return durations.reduce((best, value) =>
+      Math.abs(value - pickedDuration) < Math.abs(best - pickedDuration)
+        ? value
+        : best
+    )
+  }
+  const duration = shownDuration()
   const batch = pick('batch', rules.defaultBatchSize ?? rules.batchOptions[0])
   const summary = (
     video

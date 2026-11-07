@@ -99,6 +99,47 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? (value as string[]) : []
 }
 
+function secondsList(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  const seconds = value
+    .map(Number)
+    .filter((entry) => Number.isSafeInteger(entry) && entry > 0)
+  return [...new Set(seconds)].sort((left, right) => left - right)
+}
+
+// Switching how lengths are offered keeps what can be kept: a range becomes its values (only the default when there
+// are too many to click through); choices become the range from the shortest to the longest, stepping by their gap
+// when it is even, else by one second.
+const MAX_CHOICES_FROM_RANGE = 12
+
+function choicesFromRange(
+  range: Record<string, number | undefined>,
+  fallback: unknown
+): number[] {
+  const { min, max, step = 1 } = range
+  const values: number[] = []
+  if (min && max && step > 0 && max >= min) {
+    for (
+      let value = min;
+      value <= max && values.length <= MAX_CHOICES_FROM_RANGE;
+      value += step
+    ) {
+      values.push(value)
+    }
+  }
+  if (values.length && values.length <= MAX_CHOICES_FROM_RANGE) return values
+  return typeof fallback === 'number' ? [fallback] : []
+}
+
+function rangeFromChoices(choices: number[]) {
+  const [min] = choices
+  const max = choices.at(-1)
+  if (min === undefined || max === undefined) return undefined
+  const gaps = choices.slice(1).map((value, index) => value - choices[index])
+  const even = gaps.length > 0 && gaps.every((gap) => gap === gaps[0])
+  return { min, max, step: even ? gaps[0] : 1 }
+}
+
 /** A default chosen from the values offered above; with none offered yet, it says to choose those first. */
 function DefaultSelect(props: {
   value: unknown
@@ -399,6 +440,8 @@ export function ModelParametersSection(props: SectionProps) {
   const byQuality = (schema.durationRangeByQuality ?? undefined) as
     | Record<string, Record<string, number | undefined>>
     | undefined
+  const durationChoices = secondsList(schema.durations)
+  const durationMode = Array.isArray(schema.durations) ? 'choices' : 'range'
   const placeholder = t('Please select')
   const ratioChoices = [
     ...new Set([...props.catalogValues(cap, 'aspectRatios'), ...ratios]),
@@ -606,6 +649,7 @@ export function ModelParametersSection(props: SectionProps) {
     if (
       sent.durationSeconds.length ||
       schema.durationRange ||
+      schema.durations ||
       defaults.durationSeconds !== undefined
     ) {
       rows.push({
@@ -614,109 +658,269 @@ export function ModelParametersSection(props: SectionProps) {
         sentTo: sent.durationSeconds.join(', '),
         body: (
           <>
-            {(['min', 'max', 'step'] as const).map((part) => (
-              <NumberField
-                key={part}
-                label={
-                  {
-                    min: t('Shortest (seconds)'),
-                    max: t('Longest (seconds)'),
-                    step: t('Step (seconds)'),
-                  }[part]
-                }
-                value={range[part]}
-                error={errorAt('paramSchema', 'durationRange', part)}
-                was={was(['paramSchema', 'durationRange', part])}
-                onChange={(next) =>
-                  set(['paramSchema', 'durationRange', part], next)
-                }
-              />
-            ))}
-            <NumberField
-              label={t('Default (seconds)')}
-              value={defaults.durationSeconds}
-              error={errorAt('defaultParams', 'durationSeconds')}
-              was={was(['defaultParams', 'durationSeconds'])}
-              onChange={(next) =>
-                set(['defaultParams', 'durationSeconds'], next)
-              }
-            />
             <EditField
-              label={t('Limit duration by resolution')}
-              wide
+              label={t('Value mode')}
               help={
-                qualities.length
-                  ? t('Fill only what differs; empty keeps the overall range')
-                  : t('Choose resolutions first')
+                durationMode === 'choices'
+                  ? t('Fixed choices do not differ by resolution')
+                  : t(
+                      'Choose fixed choices when the upstream accepts only some lengths'
+                    )
               }
-              error={errorAt('paramSchema', 'durationRangeByQuality')}
             >
-              {() => (
-                <div className='space-y-2'>
-                  <SwitchField
-                    label={t('Limit duration by resolution')}
-                    checked={Boolean(byQuality)}
-                    disabled={!qualities.length}
-                    onChange={(next) =>
+              {(id, describedBy) => (
+                <NativeSelect
+                  id={id}
+                  className='w-full'
+                  aria-describedby={describedBy}
+                  value={durationMode}
+                  onChange={(event) => {
+                    if (event.target.value === durationMode) return
+                    if (event.target.value === 'choices') {
                       set(
-                        ['paramSchema', 'durationRangeByQuality'],
-                        next ? {} : undefined
+                        ['paramSchema', 'durations'],
+                        choicesFromRange(range, defaults.durationSeconds)
                       )
+                      set(['paramSchema', 'durationRange'], undefined)
+                      set(['paramSchema', 'durationRangeByQuality'], undefined)
+                      return
                     }
-                  />
-                  {byQuality
-                    ? qualities.map((quality) => (
-                        <div
-                          key={quality}
-                          className='flex flex-wrap items-center gap-2'
-                        >
-                          <span className='text-muted-foreground w-14 shrink-0 text-xs'>
-                            {quality}
-                          </span>
-                          {(['min', 'max', 'step'] as const).map((part) => (
-                            <Input
-                              key={part}
-                              className='w-28'
-                              type='number'
-                              aria-label={t('{{quality}} {{part}}', {
-                                quality,
-                                part: {
-                                  min: t('Shortest'),
-                                  max: t('Longest'),
-                                  step: t('Step'),
-                                }[part],
-                              })}
-                              placeholder={t('Keep {{value}}', {
-                                value: range[part] ?? '—',
-                              })}
-                              value={byQuality[quality]?.[part] ?? ''}
-                              onChange={(event) => {
-                                const number =
-                                  event.target.value === ''
-                                    ? undefined
-                                    : Number(event.target.value)
-                                const entry = {
-                                  ...byQuality[quality],
-                                  [part]: number,
-                                }
-                                if (number === undefined) delete entry[part]
-                                const next = { ...byQuality, [quality]: entry }
-                                if (Object.keys(entry).length === 0) {
-                                  delete next[quality]
-                                }
-                                set(
-                                  ['paramSchema', 'durationRangeByQuality'],
-                                  next
-                                )
-                              }}
-                            />
-                          ))}
-                        </div>
-                      ))
-                    : null}
-                </div>
+                    set(
+                      ['paramSchema', 'durationRange'],
+                      rangeFromChoices(durationChoices)
+                    )
+                    set(['paramSchema', 'durations'], undefined)
+                  }}
+                >
+                  <NativeSelectOption value='range'>
+                    {t('Continuous range')}
+                  </NativeSelectOption>
+                  <NativeSelectOption value='choices'>
+                    {t('Fixed choices')}
+                  </NativeSelectOption>
+                </NativeSelect>
               )}
             </EditField>
+            {durationMode === 'choices' ? (
+              <>
+                <EditField
+                  label={t('Default')}
+                  error={errorAt('defaultParams', 'durationSeconds')}
+                  was={was(['defaultParams', 'durationSeconds'])}
+                >
+                  {(id, describedBy) => (
+                    <NativeSelect
+                      id={id}
+                      className='w-full'
+                      aria-describedby={describedBy}
+                      aria-invalid={
+                        errorAt('defaultParams', 'durationSeconds')
+                          ? true
+                          : undefined
+                      }
+                      value={
+                        typeof defaults.durationSeconds === 'number'
+                          ? String(defaults.durationSeconds)
+                          : ''
+                      }
+                      onChange={(event) =>
+                        set(
+                          ['defaultParams', 'durationSeconds'],
+                          event.target.value
+                            ? Number(event.target.value)
+                            : undefined
+                        )
+                      }
+                    >
+                      <NativeSelectOption value=''>
+                        {durationChoices.length
+                          ? t('Please select')
+                          : t('Choose the options first')}
+                      </NativeSelectOption>
+                      {durationChoices.map((seconds) => (
+                        <NativeSelectOption
+                          key={seconds}
+                          value={String(seconds)}
+                        >
+                          {t('{{seconds}} s', { seconds })}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </EditField>
+                <EditField
+                  label={t('Choices')}
+                  wide
+                  help={t(
+                    'Lengths other video models use are listed; the lit ones apply to this model'
+                  )}
+                  error={errorAt('paramSchema', 'durations')}
+                  was={was(['paramSchema', 'durations'])}
+                >
+                  {() => {
+                    const offered = secondsList([
+                      ...props.catalogValues(cap, 'durations'),
+                      ...durationChoices,
+                    ])
+                    return (
+                      <div className='space-y-2'>
+                        <ValuePills
+                          label={t('Length')}
+                          options={offered.map(String)}
+                          labels={Object.fromEntries(
+                            offered.map((seconds) => [
+                              String(seconds),
+                              t('{{seconds}} s', { seconds }),
+                            ])
+                          )}
+                          selected={durationChoices.map(String)}
+                          onToggle={(value) =>
+                            set(
+                              ['paramSchema', 'durations'],
+                              secondsList(
+                                toggled(durationChoices.map(String), value)
+                              )
+                            )
+                          }
+                        />
+                        <div className='max-w-sm'>
+                          <ValueAdder
+                            placeholder={t('Enter seconds, such as 30')}
+                            actionLabel={t('Add length')}
+                            fieldLabel={t('Length to add')}
+                            validate={(value) => {
+                              if (!/^[1-9][0-9]*$/.test(value.trim())) {
+                                return t('Enter a whole number of seconds')
+                              }
+                              return durationChoices.includes(Number(value))
+                                ? t('This length already exists')
+                                : undefined
+                            }}
+                            onAdd={(value) =>
+                              set(
+                                ['paramSchema', 'durations'],
+                                secondsList([...durationChoices, Number(value)])
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    )
+                  }}
+                </EditField>
+              </>
+            ) : (
+              <>
+                {(['min', 'max', 'step'] as const).map((part) => (
+                  <NumberField
+                    key={part}
+                    label={
+                      {
+                        min: t('Shortest (seconds)'),
+                        max: t('Longest (seconds)'),
+                        step: t('Step (seconds)'),
+                      }[part]
+                    }
+                    value={range[part]}
+                    error={errorAt('paramSchema', 'durationRange', part)}
+                    was={was(['paramSchema', 'durationRange', part])}
+                    onChange={(next) =>
+                      set(['paramSchema', 'durationRange', part], next)
+                    }
+                  />
+                ))}
+                <NumberField
+                  label={t('Default (seconds)')}
+                  value={defaults.durationSeconds}
+                  error={errorAt('defaultParams', 'durationSeconds')}
+                  was={was(['defaultParams', 'durationSeconds'])}
+                  onChange={(next) =>
+                    set(['defaultParams', 'durationSeconds'], next)
+                  }
+                />
+                <EditField
+                  label={t('Limit duration by resolution')}
+                  wide
+                  help={
+                    qualities.length
+                      ? t(
+                          'Fill only what differs; empty keeps the overall range'
+                        )
+                      : t('Choose resolutions first')
+                  }
+                  error={errorAt('paramSchema', 'durationRangeByQuality')}
+                >
+                  {() => (
+                    <div className='space-y-2'>
+                      <SwitchField
+                        label={t('Limit duration by resolution')}
+                        checked={Boolean(byQuality)}
+                        disabled={!qualities.length}
+                        onChange={(next) =>
+                          set(
+                            ['paramSchema', 'durationRangeByQuality'],
+                            next ? {} : undefined
+                          )
+                        }
+                      />
+                      {byQuality
+                        ? qualities.map((quality) => (
+                            <div
+                              key={quality}
+                              className='flex flex-wrap items-center gap-2'
+                            >
+                              <span className='text-muted-foreground w-14 shrink-0 text-xs'>
+                                {quality}
+                              </span>
+                              {(['min', 'max', 'step'] as const).map((part) => (
+                                <Input
+                                  key={part}
+                                  className='w-28'
+                                  type='number'
+                                  aria-label={t('{{quality}} {{part}}', {
+                                    quality,
+                                    part: {
+                                      min: t('Shortest'),
+                                      max: t('Longest'),
+                                      step: t('Step'),
+                                    }[part],
+                                  })}
+                                  placeholder={t('Keep {{value}}', {
+                                    value: range[part] ?? '—',
+                                  })}
+                                  value={byQuality[quality]?.[part] ?? ''}
+                                  onChange={(event) => {
+                                    const number =
+                                      event.target.value === ''
+                                        ? undefined
+                                        : Number(event.target.value)
+                                    const entry = {
+                                      ...byQuality[quality],
+                                      [part]: number,
+                                    }
+                                    if (number === undefined) delete entry[part]
+                                    const next = {
+                                      ...byQuality,
+                                      [quality]: entry,
+                                    }
+                                    if (Object.keys(entry).length === 0) {
+                                      delete next[quality]
+                                    }
+                                    set(
+                                      ['paramSchema', 'durationRangeByQuality'],
+                                      next
+                                    )
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          ))
+                        : null}
+                    </div>
+                  )}
+                </EditField>
+              </>
+            )}
           </>
         ),
       })
