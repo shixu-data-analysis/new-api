@@ -1,6 +1,6 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.10.0";
-export const REQUEST_VALIDATOR_VECTORS_SHA256 = "49381f2459c8c94ee82f294f3868e36cbc9b1a49b6d228e1e2f91982798ea1c0";
+export const REQUEST_VALIDATOR_VERSION = "1.11.0";
+export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7220892a5fd6ed760563e63a786d99f72ff9332c982ae0f16e214a1b0d9078c1";
 
 export const CatalogRequestIssueCode = Object.freeze({
   PROMPT_TOO_LONG: "PROMPT_TOO_LONG",
@@ -27,7 +27,7 @@ export const CatalogRequestIssueCode = Object.freeze({
 // These are the catalog fields that the shared request validator actually interprets.
 // Keeping the schema allowlist derived from this contract prevents catalog-only rules.
 export const REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS = Object.freeze([
-  "aspectRatios", "qualities", "apiQualities", "backgroundModes", "backgroundInput", "minBatchSize", "maxBatchSize", "durationRange", "durationRangeByQuality", "supportsAudioGeneration", "options",
+  "aspectRatios", "qualities", "apiQualities", "backgroundModes", "backgroundInput", "minBatchSize", "maxBatchSize", "durationRange", "durationRangeByQuality", "durations", "supportsAudioGeneration", "options",
   "minOutputTokens",
 ]);
 export const REQUEST_VALIDATOR_DURATION_FIELDS = Object.freeze(["min", "max", "step"]);
@@ -160,6 +160,16 @@ function mediaRules(interaction) {
   return result;
 }
 
+/**
+ * The fixed durations a model offers instead of a range (paramSchema.durations), ascending and without repeats; empty when
+ * the model declares a range. Request checks, usage estimates and the canvas controls all read the choices through this.
+ */
+export function declaredDurations(paramSchema) {
+  const durations = object(paramSchema).durations;
+  if (!Array.isArray(durations)) return [];
+  return [...new Set(durations.filter((value) => positiveInteger(value)))].sort((left, right) => left - right);
+}
+
 /** The duration range of one quality: a quality-specific range overrides only the bounds it names, e.g. 720P capped at 12 seconds. */
 export function durationRangeForQuality(paramSchema, quality) {
   const schema = object(paramSchema);
@@ -180,7 +190,10 @@ function checkParameters(interaction, request, issues) {
     const tooSmall = hasMinBatch && (!positiveInteger(request.batchSize) || request.batchSize < schema.minBatchSize);
     if (tooLarge || tooSmall) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "batchSize", { actual: request.batchSize, ...(hasMinBatch ? { minimum: schema.minBatchSize } : {}), ...(hasMaxBatch ? { maximum: schema.maxBatchSize } : {}) });
   }
-  if (has(request, "durationSeconds")) {
+  const durations = declaredDurations(schema);
+  if (has(request, "durationSeconds") && durations.length) {
+    if (!durations.includes(request.durationSeconds)) add(issues, CatalogRequestIssueCode.PARAMETER_VALUE_UNSUPPORTED, "durationSeconds", { actual: request.durationSeconds, allowed: durations });
+  } else if (has(request, "durationSeconds")) {
     const range = durationRangeForQuality(schema, request.quality);
     const min = positiveInteger(range.min) ? range.min : undefined;
     const max = positiveInteger(range.max) ? range.max : undefined;
@@ -629,7 +642,8 @@ export function videoTokenEstimateIssue(interaction) {
   const defaults = object(object(interaction).defaultParams);
   const acceptsVideo = positiveInteger(object(object(interaction).referenceLimits).maxVideoReferences);
   const range = object(schema.durationRange);
-  const durations = positiveInteger(range.min) && positiveInteger(range.max)
+  const declared = declaredDurations(schema);
+  const durations = declared.length ? declared : positiveInteger(range.min) && positiveInteger(range.max)
     ? Array.from({ length: Math.floor((range.max - range.min) / (range.step ?? 1)) + 1 }, (_, index) => range.min + index * (range.step ?? 1))
     : [defaults.durationSeconds];
   const choices = (values, fallback) => (Array.isArray(values) ? values : [fallback]);

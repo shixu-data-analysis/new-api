@@ -391,6 +391,13 @@ function validateParamSchema(raw, location, capability) {
       if (effective.min !== undefined && effective.max !== undefined && effective.min > effective.max) fail(`${overrideLocation} min must not exceed max`);
     }
   }
+  if (schema.durations !== undefined) {
+    if (!video) fail(`${location}.durations is only for video models`);
+    const durations = array(schema.durations, `${location}.durations`, 1);
+    durations.forEach((value, index) => positiveNumber(value, `${location}.durations[${index}]`, true));
+    if (durations.some((value, index) => index > 0 && value <= durations[index - 1])) fail(`${location}.durations must be ascending without repeats`);
+    if (schema.durationRange !== undefined || schema.durationRangeByQuality !== undefined) fail(`${location}.durations must not be combined with durationRange or durationRangeByQuality`);
+  }
   return schema;
 }
 

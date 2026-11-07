@@ -51,6 +51,7 @@ export declare const REQUEST_VALIDATOR_OPTION_TYPES: readonly string[];
 export declare const REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS: readonly string[];
 export declare const REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS: readonly string[];
 export declare function resolveCatalogRequest(input?: { interaction?: CatalogInteraction; parameterBindings?: Record<string, unknown>; request?: Record<string, unknown> }): { request: Record<string, unknown>; issues: CatalogRequestValidationIssue[] };
+export declare function declaredDurations(paramSchema: unknown): number[];
 export declare function durationRangeForQuality(paramSchema: unknown, quality: unknown): { min?: number; max?: number; step?: number };
 export declare function defaultParamsIssues(interaction: unknown): CatalogRequestValidationIssue[];
 export declare function validateCatalogRequest(input?: { model?: { release?: { publicInteraction?: CatalogInteraction } }; interaction?: CatalogInteraction; request?: Record<string, unknown> }): CatalogRequestValidationResult;

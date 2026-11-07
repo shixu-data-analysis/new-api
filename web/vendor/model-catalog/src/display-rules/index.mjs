@@ -2,7 +2,7 @@
  * What the canvas generation panel shows for a model. Canvas Web renders it and the admin form previews it, so one rule
  * change takes effect in both; each side keeps its own controls and styles.
  */
-import { durationRangeForQuality, upscaleBilledSeconds, videoQualityShortEdge, videoUpscaleOperation, videoUpscaleTierBlock } from "../request-validator/index.mjs";
+import { declaredDurations, durationRangeForQuality, upscaleBilledSeconds, videoQualityShortEdge, videoUpscaleOperation, videoUpscaleTierBlock } from "../request-validator/index.mjs";
 
 const object = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const stringList = (value) => (Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : []);
@@ -42,8 +42,8 @@ export function modelBatchOptions(schema) {
 
 export function durationOptions(schema, quality) {
   const source = object(schema);
-  const discrete = Array.isArray(source.durations) ? source.durations.map(Number).filter((value) => Number.isFinite(value) && value > 0) : [];
-  if (discrete.length) return { values: [...new Set(discrete)].sort((left, right) => left - right), discrete: true };
+  const discrete = declaredDurations(source);
+  if (discrete.length) return { values: discrete, discrete: true };
   if (!Object.keys(object(source.durationRange)).length) return { values: [], discrete: false };
   const range = durationRangeForQuality(source, quality);
   const min = Math.max(1, Math.trunc(Number(range.min) || 1));
