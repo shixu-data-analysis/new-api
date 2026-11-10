@@ -355,6 +355,7 @@
           },
           "code": {
             "enum": [
+              "MODEL_INPUT_STORAGE_UNAVAILABLE",
               "SOURCE_FIELD_REQUIRED",
               "SOURCE_FIELD_UNKNOWN",
               "PROGRAM_CAPABILITY_MISSING",

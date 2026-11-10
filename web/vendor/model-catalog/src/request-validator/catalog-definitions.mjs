@@ -626,7 +626,10 @@ function validateModelShape(raw, location) {
   exactKeys(release, ["channelId", "execution", "publicInteraction"], `${name}.release`);
   if (typeof release.channelId !== "string") fail(`${name}.release.channelId must be a string`);
   const execution = object(release.execution, `${name}.release.execution`);
-  exactKeys(execution, ["providerModel"], `${name}.release.execution`);
+  exactKeys(execution, ["providerModel", "inputStorage"], `${name}.release.execution`);
+  // The task-media storage that holds this model's inputs, by its name in each environment's runtime management; omitted means
+  // the default storage. Whether the storage exists is checked by Cloud, which knows the environment.
+  if (execution.inputStorage !== undefined && (typeof execution.inputStorage !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(execution.inputStorage))) fail(`${name}.release.execution.inputStorage must be a storage name of lowercase letters, digits and hyphens`);
   const providerModel = object(execution.providerModel, `${name}.release.execution.providerModel`);
   if (Object.hasOwn(providerModel, "modelId")) {
     exactKeys(providerModel, ["modelId"], `${name}.release.execution.providerModel`);
