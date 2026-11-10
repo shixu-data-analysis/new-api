@@ -34,6 +34,7 @@ import {
   formatBusinessPercentFromRate,
   formatExactPointQuantity,
 } from './number-format'
+import { connectionCheckReason } from './runtime-connection-check'
 import { billingLabels, executionLabels } from './task-status-labels'
 import type { CanvasAuditEventPage, CanvasAuditResolvedNames } from './types'
 
@@ -74,6 +75,7 @@ type FieldKind =
   | 'counts'
   | 'agentStatus'
   | 'versionCount'
+  | 'checkReason'
 
 interface FieldSpec {
   key: string
@@ -129,6 +131,10 @@ const providerRateModel: NameSource = ({ event, names }) =>
   event.resourceId ? names.providerRateVersions[event.resourceId] : null
 const providerName: NameSource = ({ event, names }) =>
   event.resourceId ? names.providers[event.resourceId] : null
+const storageName: NameSource = ({ event }) =>
+  typeof event.publicMetadata.storageKey === 'string'
+    ? event.publicMetadata.storageKey
+    : null
 const inviteCode: NameSource = ({ event, names }) =>
   event.resourceId ? names.inviteCodes[event.resourceId] : null
 const rechargeCode: NameSource = ({ event, names }) =>
@@ -169,7 +175,7 @@ const runtimePublished: FieldSpec[] = [
 const runtimeChecked: FieldSpec[] = [
   { key: 'environment', label: 'Environment' },
   { key: 'outcome', label: 'Check result', kind: 'enum' },
-  { key: 'reasonCode', label: 'Check failure reason', kind: 'enum' },
+  { key: 'reasonCode', label: 'Check failure reason', kind: 'checkReason' },
 ]
 const inviteCounts: FieldSpec[] = [
   { key: 'consumedCount', label: 'Used', kind: 'number' },
@@ -824,6 +830,14 @@ const SPECS: Record<string, ActionSpec> = {
   'runtime.task_media.published': {
     objectType: 'Task media',
     fields: runtimePublished,
+  },
+  'runtime.task_media.retired': {
+    objectType: 'Task media',
+    objectName: storageName,
+    fields: [
+      { key: 'environment', label: 'Environment' },
+      { key: 'version', label: 'Version', kind: 'number' },
+    ],
   },
   'runtime.database_backup.published': {
     objectType: 'Database backups',
@@ -1649,6 +1663,8 @@ function formatValue(
       return value === true || value === 'true' ? t('Yes') : t('No')
     case 'enum':
       return enumText(field.key, value, t)
+    case 'checkReason':
+      return connectionCheckReason(String(value), t)
     case 'count':
       return Array.isArray(value) ? String(value.length) : null
     case 'agentStatus':

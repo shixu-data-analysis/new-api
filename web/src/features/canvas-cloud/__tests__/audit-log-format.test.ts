@@ -104,6 +104,40 @@ describe('operation log value names', () => {
     ).toMatchObject({ 检查结果: '连接检查通过' })
   })
 
+  it('explains a failed check with the sentence its storage card shows', () => {
+    const failed = (reasonCode: string) =>
+      rows(
+        event('runtime.task_media.checked', {
+          environment: 'UAT',
+          outcome: 'FAILED',
+          reasonCode,
+        })
+      )
+    expect(failed('STORAGE_ACCESS_DENIED')).toMatchObject({
+      检查失败原因: '存储拒绝访问，请检查密钥及其权限策略。',
+    })
+    expect(failed('STORAGE_CONNECTION_FAILED')).toMatchObject({
+      检查失败原因: '无法验证存储连接',
+    })
+    // A code the admin does not describe is shown as stored.
+    expect(failed('R2_CONNECTION_FAILED')).toMatchObject({
+      检查失败原因: 'R2_CONNECTION_FAILED',
+    })
+  })
+
+  it('names a deleted storage by its name, with its environment and version', () => {
+    const retired = event('runtime.task_media.retired', {
+      environment: 'UAT',
+      storageKey: 'cn-east',
+      version: 2,
+    })
+    expect(
+      auditActionOptionLabel('runtime.task_media.retired', i18next.t)
+    ).toBe('删除任务媒体存储')
+    expect(auditObjectText(retired, names, i18next.t)).toContain('cn-east')
+    expect(rows(retired)).toMatchObject({ 环境: 'UAT', 版本: '2' })
+  })
+
   it('names recharge-code batch counters with the recharge-code statuses', () => {
     expect(
       rows(

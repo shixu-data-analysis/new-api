@@ -349,6 +349,23 @@ function bindingExplanation(
   ]
 }
 
+/** The model's input storage in this Bundle, and the current one when it changes. */
+function inputStorageChange(
+  t: TFunction,
+  definition: CatalogModelReview['model']['definition']
+): string {
+  const storageOf = (value: unknown) => {
+    const storage = (
+      value as { release?: { execution?: { inputStorage?: unknown } } }
+    )?.release?.execution?.inputStorage
+    return typeof storage === 'string' ? storage : t('Default storage')
+  }
+  const proposed = storageOf(definition.proposed)
+  if (!definition.current) return proposed
+  const current = storageOf(definition.current)
+  return current === proposed ? proposed : `${current} → ${proposed}`
+}
+
 function CatalogModelDetail(props: {
   request?: string
   boundGroup?: string
@@ -495,6 +512,10 @@ function CatalogModelDetail(props: {
               )}
             </>
           )}
+        </div>
+        <div className='space-y-1'>
+          <div className='font-medium'>{t('Input storage')}</div>
+          <div>{inputStorageChange(t, model.definition)}</div>
         </div>
         <div className='space-y-1'>
           <div className='font-medium'>{t('Channel configuration')}</div>

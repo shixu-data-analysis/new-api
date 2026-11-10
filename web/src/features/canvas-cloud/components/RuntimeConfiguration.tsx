@@ -14,16 +14,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import {
-  cloneElement,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -82,6 +73,7 @@ import {
   publishCanvasTaskMediaStorage,
 } from '../api'
 import { formatCanvasDateTime } from '../formatters'
+import { reportConnectionCheck } from '../runtime-connection-check'
 import type {
   CanvasCredentialRotationPreview,
   CanvasProviderConfiguration,
@@ -92,13 +84,13 @@ import type {
 } from '../types'
 import { useDirectAsync } from '../use-direct-async'
 import { useServerTableState } from '../use-server-table-state'
-import { BusinessTermText } from './BusinessTerm'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
+import { InputStorages } from './InputStorages'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import {
   PricingActionConfirmation,
@@ -109,6 +101,7 @@ import {
   runtimeChangeError,
   runtimeErrorCode,
 } from './runtime-change-error'
+import { Field, StorageCardHeader, StorageSummary } from './RuntimeStorageParts'
 
 function isHttpsOrigin(value: string) {
   try {
@@ -721,12 +714,7 @@ export function RuntimeConfiguration(
     },
   })
   const reportCheck = async (result: CanvasRuntimeConnectionCheck) => {
-    if (result.outcome === 'PASSED') toast.success(t('Connection check passed'))
-    else {
-      toast.error(
-        `${t('{{label}}: ', { label: t('Connection check failed') })}${connectionCheckReason(result.reasonCode, t)}`
-      )
-    }
+    reportConnectionCheck(result, t)
     await refresh()
   }
   const checkTaskMedia = useMutation({
@@ -970,7 +958,7 @@ export function RuntimeConfiguration(
       ...(current?.endpoint !== value.endpoint
         ? [
             {
-              label: t('R2 endpoint'),
+              label: t('Endpoint'),
               value: `${current?.endpoint ?? t('Not configured')} → ${value.endpoint}`,
             },
           ]
@@ -978,7 +966,7 @@ export function RuntimeConfiguration(
       ...(current?.bucket !== value.bucket
         ? [
             {
-              label: t('Task media bucket'),
+              label: t('Bucket'),
               value: `${current?.bucket ?? t('Not configured')} → ${value.bucket}`,
             },
           ]
@@ -1199,236 +1187,232 @@ export function RuntimeConfiguration(
       />
       <div className='space-y-4'>
         {view === 'taskMedia' && (
-          <div>
-            <Card>
-              <CardHeader>
-                <div className='flex flex-wrap items-baseline gap-x-3 gap-y-1'>
-                  <CardTitle>{t('Task media')}</CardTitle>
-                  {storageData?.taskMedia && (
-                    <>
-                      <Badge variant='secondary'>
-                        <BusinessTermText
-                          kind='configStatus'
-                          value={storageData.taskMedia.status}
-                        />
-                      </Badge>
-                      <Badge variant='secondary'>
-                        {t('Version')} {storageData.taskMedia.version}
-                      </Badge>
-                    </>
+          <div className='space-y-4'>
+            <InputStorages
+              storages={storageData?.inputStorages ?? []}
+              onChanged={refresh}
+              defaultStorage={
+                <Card>
+                  {storageData?.taskMedia ? (
+                    <StorageCardHeader
+                      title={t('Default storage')}
+                      storage={storageData.taskMedia}
+                    />
+                  ) : (
+                    <CardHeader>
+                      <CardTitle>{t('Default storage')}</CardTitle>
+                    </CardHeader>
                   )}
-                </div>
-                <CardDescription>
-                  {t(
-                    'Stores task inputs and generated outputs with separate retention controls.'
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className='space-y-5'>
-                {storageData?.taskMedia ? (
-                  <StorageSummary
-                    bucketLabel={t('Task media bucket')}
-                    item={storageData.taskMedia}
-                    details={`${t('{{label}}: ', { label: t('Input retention hours') })}${storageData.taskMedia.inputRetentionHours}h · ${t('{{label}}: ', { label: t('Output retention hours') })}${storageData.taskMedia.outputRetentionHours}h · ${t('{{label}}: ', { label: t('Payment proof retention hours') })}${storageData.taskMedia.agentFileRetentionHours}h · ${t('{{label}}: ', { label: t('Download URL seconds') })}${storageData.taskMedia.downloadUrlTtlSeconds}s`}
-                    checkLabel={t('Task media check')}
-                    buttonLabel={t('Check task media')}
-                    editLabel={t('Update configuration')}
-                    onCheck={() => {
-                      const id = storageData.taskMedia?.id
-                      if (id) checkTaskMedia.mutate(id)
-                    }}
-                    checking={checkTaskMedia.isPending}
-                    editing={openEditor === 'taskMedia'}
-                    onEdit={() =>
-                      openEditor === 'taskMedia'
-                        ? requestStorageClose()
-                        : openStorageEditor()
-                    }
-                  />
-                ) : (
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Not configured')}
-                  </p>
-                )}
-                {!storageData?.taskMedia && (
-                  <Button
-                    variant='outline'
-                    onClick={openStorageEditor}
-                    aria-expanded={openEditor === 'taskMedia'}
-                  >
-                    {t('Update configuration')}
-                  </Button>
-                )}
-                {openEditor === 'taskMedia' && (
-                  <form
-                    aria-label={t('Publish task media configuration')}
-                    className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
-                    onSubmit={taskMedia.handleSubmit((value) => {
-                      const currentAccessKeyId =
-                        storageData?.taskMedia?.accessKeyId ?? ''
-                      if (
-                        (!storageData?.taskMedia ||
-                          value.accessKeyId !== currentAccessKeyId) &&
-                        !value.secretAccessKey
-                      ) {
-                        taskMedia.setError('secretAccessKey', {
-                          message:
-                            'Enter both credential fields or leave both blank',
-                        })
-                        return
-                      }
-                      if (!taskMedia.formState.isDirty) return
-                      setConfirmation('taskMedia')
-                    })}
-                  >
-                    <Field
-                      label={t('R2 endpoint')}
-                      error={taskMedia.formState.errors.endpoint?.message}
-                    >
-                      <Input
-                        {...taskMedia.register('endpoint')}
-                        placeholder='https://…r2.cloudflarestorage.com'
-                      />
-                    </Field>
-                    <Field
-                      label={t('Task media bucket')}
-                      error={taskMedia.formState.errors.bucket?.message}
-                    >
-                      <Input {...taskMedia.register('bucket')} />
-                    </Field>
-                    <Field
-                      label={t('Access key ID')}
-                      error={taskMedia.formState.errors.accessKeyId?.message}
-                    >
-                      <Input
-                        autoComplete='off'
-                        {...taskMedia.register('accessKeyId')}
-                      />
-                    </Field>
-                    <Field
-                      label={t('Secret access key')}
-                      error={
-                        taskMedia.formState.errors.secretAccessKey?.message
-                      }
-                    >
-                      <Input
-                        type='password'
-                        autoComplete='new-password'
-                        {...taskMedia.register('secretAccessKey')}
-                      />
-                    </Field>
-                    {storageData?.taskMedia?.credentialsConfigured ? (
-                      <p className='text-muted-foreground text-xs sm:col-span-2'>
-                        {t(
-                          'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
-                        )}
-                      </p>
-                    ) : null}
-                    <Field
-                      label={t('Input retention hours')}
-                      error={
-                        taskMedia.formState.errors.inputRetentionHours?.message
-                      }
-                    >
-                      <Input
-                        type='number'
-                        min={1}
-                        max={8760}
-                        {...taskMedia.register('inputRetentionHours', {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <Field
-                      label={t('Output retention hours')}
-                      error={
-                        taskMedia.formState.errors.outputRetentionHours?.message
-                      }
-                    >
-                      <Input
-                        type='number'
-                        min={1}
-                        max={8760}
-                        {...taskMedia.register('outputRetentionHours', {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <div className='min-w-0 space-y-1'>
-                      <Field
-                        label={t('Payment proof retention hours')}
-                        error={
-                          taskMedia.formState.errors.agentFileRetentionHours
-                            ?.message
+                  <CardContent className='space-y-5'>
+                    {storageData?.taskMedia ? (
+                      <StorageSummary
+                        item={storageData.taskMedia}
+                        details={`${t('{{label}}: ', { label: t('Input retention hours') })}${storageData.taskMedia.inputRetentionHours}h · ${t('{{label}}: ', { label: t('Output retention hours') })}${storageData.taskMedia.outputRetentionHours}h · ${t('{{label}}: ', { label: t('Payment proof retention hours') })}${storageData.taskMedia.agentFileRetentionHours}h · ${t('{{label}}: ', { label: t('Download URL seconds') })}${storageData.taskMedia.downloadUrlTtlSeconds}s`}
+                        onCheck={() => {
+                          const id = storageData.taskMedia?.id
+                          if (id) checkTaskMedia.mutate(id)
+                        }}
+                        checking={checkTaskMedia.isPending}
+                        editing={openEditor === 'taskMedia'}
+                        onEdit={() =>
+                          openEditor === 'taskMedia'
+                            ? requestStorageClose()
+                            : openStorageEditor()
                         }
-                      >
-                        <Input
-                          type='number'
-                          min={1}
-                          max={8760}
-                          aria-describedby='agent-file-retention-help'
-                          {...taskMedia.register('agentFileRetentionHours', {
-                            valueAsNumber: true,
-                          })}
-                        />
-                      </Field>
-                      <p
-                        id='agent-file-retention-help'
-                        className='text-muted-foreground text-xs'
-                      >
-                        {Number.isInteger(agentFileRetentionHours)
-                          ? `= ${t('{{days}} days', { days: Math.round((agentFileRetentionHours / 24) * 10) / 10 })} · `
-                          : ''}
-                        {t(
-                          'How long payment proofs of agent withdrawals are kept; afterwards they are deleted and show "Expired". Default 2160 hours (90 days). Changes affect only proofs uploaded afterwards. Payment QR codes do not expire.'
-                        )}
-                      </p>
-                    </div>
-                    <Field
-                      label={t('Download URL seconds')}
-                      error={
-                        taskMedia.formState.errors.downloadUrlTtlSeconds
-                          ?.message
-                      }
-                    >
-                      <Input
-                        type='number'
-                        min={60}
-                        max={3600}
-                        {...taskMedia.register('downloadUrlTtlSeconds', {
-                          valueAsNumber: true,
-                        })}
                       />
-                    </Field>
-                    <Field
-                      label={t('Reason (optional)')}
-                      error={taskMedia.formState.errors.reason?.message}
-                    >
-                      <Input {...taskMedia.register('reason')} />
-                    </Field>
-                    <div className='flex flex-wrap justify-end gap-2 sm:col-span-2'>
+                    ) : (
+                      <p className='text-muted-foreground text-sm'>
+                        {t('Not configured')}
+                      </p>
+                    )}
+                    {!storageData?.taskMedia && (
                       <Button
-                        type='button'
                         variant='outline'
-                        disabled={taskMediaMutation.isPending}
-                        onClick={requestStorageClose}
+                        onClick={openStorageEditor}
+                        aria-expanded={openEditor === 'taskMedia'}
                       >
-                        {t('Cancel')}
+                        {t('Update configuration')}
                       </Button>
-                      <Button
-                        type='submit'
-                        disabled={
-                          taskMediaMutation.isPending ||
-                          !taskMedia.formState.isDirty
-                        }
+                    )}
+                    {openEditor === 'taskMedia' && (
+                      <form
+                        aria-label={t('Publish task media configuration')}
+                        className='bg-muted/20 grid gap-3 rounded-lg border p-3 sm:grid-cols-2'
+                        onSubmit={taskMedia.handleSubmit((value) => {
+                          const currentAccessKeyId =
+                            storageData?.taskMedia?.accessKeyId ?? ''
+                          if (
+                            (!storageData?.taskMedia ||
+                              value.accessKeyId !== currentAccessKeyId) &&
+                            !value.secretAccessKey
+                          ) {
+                            taskMedia.setError('secretAccessKey', {
+                              message:
+                                'Enter both credential fields or leave both blank',
+                            })
+                            return
+                          }
+                          if (!taskMedia.formState.isDirty) return
+                          setConfirmation('taskMedia')
+                        })}
                       >
-                        {t('Review task media publication')}
-                      </Button>
-                    </div>
-                  </form>
-                )}
-              </CardContent>
-            </Card>
+                        <Field
+                          label={t('Endpoint')}
+                          error={taskMedia.formState.errors.endpoint?.message}
+                        >
+                          <Input
+                            {...taskMedia.register('endpoint')}
+                            placeholder='https://…r2.cloudflarestorage.com'
+                          />
+                        </Field>
+                        <Field
+                          label={t('Bucket')}
+                          error={taskMedia.formState.errors.bucket?.message}
+                        >
+                          <Input {...taskMedia.register('bucket')} />
+                        </Field>
+                        <Field
+                          label={t('Access key ID')}
+                          error={
+                            taskMedia.formState.errors.accessKeyId?.message
+                          }
+                        >
+                          <Input
+                            autoComplete='off'
+                            {...taskMedia.register('accessKeyId')}
+                          />
+                        </Field>
+                        <Field
+                          label={t('Secret access key')}
+                          error={
+                            taskMedia.formState.errors.secretAccessKey?.message
+                          }
+                        >
+                          <Input
+                            type='password'
+                            autoComplete='new-password'
+                            {...taskMedia.register('secretAccessKey')}
+                          />
+                        </Field>
+                        {storageData?.taskMedia?.credentialsConfigured ? (
+                          <p className='text-muted-foreground text-xs sm:col-span-2'>
+                            {t(
+                              'Secret access keys are never shown. Leave both credential fields unchanged to keep the current credentials.'
+                            )}
+                          </p>
+                        ) : null}
+                        <Field
+                          label={t('Input retention hours')}
+                          error={
+                            taskMedia.formState.errors.inputRetentionHours
+                              ?.message
+                          }
+                        >
+                          <Input
+                            type='number'
+                            min={1}
+                            max={8760}
+                            {...taskMedia.register('inputRetentionHours', {
+                              valueAsNumber: true,
+                            })}
+                          />
+                        </Field>
+                        <Field
+                          label={t('Output retention hours')}
+                          error={
+                            taskMedia.formState.errors.outputRetentionHours
+                              ?.message
+                          }
+                        >
+                          <Input
+                            type='number'
+                            min={1}
+                            max={8760}
+                            {...taskMedia.register('outputRetentionHours', {
+                              valueAsNumber: true,
+                            })}
+                          />
+                        </Field>
+                        <div className='min-w-0 space-y-1'>
+                          <Field
+                            label={t('Payment proof retention hours')}
+                            error={
+                              taskMedia.formState.errors.agentFileRetentionHours
+                                ?.message
+                            }
+                          >
+                            <Input
+                              type='number'
+                              min={1}
+                              max={8760}
+                              aria-describedby='agent-file-retention-help'
+                              {...taskMedia.register(
+                                'agentFileRetentionHours',
+                                {
+                                  valueAsNumber: true,
+                                }
+                              )}
+                            />
+                          </Field>
+                          <p
+                            id='agent-file-retention-help'
+                            className='text-muted-foreground text-xs'
+                          >
+                            {Number.isInteger(agentFileRetentionHours)
+                              ? `= ${t('{{days}} days', { days: Math.round((agentFileRetentionHours / 24) * 10) / 10 })} · `
+                              : ''}
+                            {t(
+                              'How long payment proofs of agent withdrawals are kept; afterwards they are deleted and show "Expired". Default 2160 hours (90 days). Changes affect only proofs uploaded afterwards. Payment QR codes do not expire.'
+                            )}
+                          </p>
+                        </div>
+                        <Field
+                          label={t('Download URL seconds')}
+                          error={
+                            taskMedia.formState.errors.downloadUrlTtlSeconds
+                              ?.message
+                          }
+                        >
+                          <Input
+                            type='number'
+                            min={60}
+                            max={3600}
+                            {...taskMedia.register('downloadUrlTtlSeconds', {
+                              valueAsNumber: true,
+                            })}
+                          />
+                        </Field>
+                        <Field
+                          label={t('Reason (optional)')}
+                          error={taskMedia.formState.errors.reason?.message}
+                        >
+                          <Input {...taskMedia.register('reason')} />
+                        </Field>
+                        <div className='flex flex-wrap justify-end gap-2 sm:col-span-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            disabled={taskMediaMutation.isPending}
+                            onClick={requestStorageClose}
+                          >
+                            {t('Cancel')}
+                          </Button>
+                          <Button
+                            type='submit'
+                            disabled={
+                              taskMediaMutation.isPending ||
+                              !taskMedia.formState.isDirty
+                            }
+                          >
+                            {t('Review task media publication')}
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+                  </CardContent>
+                </Card>
+              }
+            />
           </div>
         )}
 
@@ -2538,165 +2522,4 @@ function formatCredentialGroupChange(
     return `${t('{{label}}: ', { label: change.displayNameSnapshot })}${change.fromGroup ?? t('Unbound')} → ${change.toGroup ?? t('Unbound')}`
   }
   return t(change.type ?? 'GROUP_UPDATED')
-}
-
-function StorageSummary(props: {
-  bucketLabel: string
-  item: {
-    version: number
-    status: string
-    endpoint: string
-    bucket: string
-    updatedBy: string
-    createdAt: string
-    latestCheck: CanvasRuntimeConnectionCheck | null
-  }
-  details?: string
-  checkLabel: string
-  buttonLabel: string
-  editLabel: string
-  checking: boolean
-  editing: boolean
-  onCheck: () => void
-  onEdit: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className='space-y-5 text-sm'>
-      <dl className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
-        <div className='bg-muted/30 min-w-0 rounded-lg p-3 xl:col-span-2'>
-          <dt className='text-muted-foreground text-xs'>{t('R2 endpoint')}</dt>
-          <dd className='mt-1 font-medium break-all'>{props.item.endpoint}</dd>
-        </div>
-        <div className='bg-muted/30 min-w-0 rounded-lg p-3'>
-          <dt className='text-muted-foreground text-xs'>{props.bucketLabel}</dt>
-          <dd className='mt-1 font-medium break-all'>{props.item.bucket}</dd>
-        </div>
-        {props.details && (
-          <div className='bg-muted/30 min-w-0 rounded-lg p-3 md:col-span-2'>
-            <dt className='text-muted-foreground text-xs'>
-              {t('Retention and download')}
-            </dt>
-            <dd className='mt-1 font-medium'>{props.details}</dd>
-          </div>
-        )}
-        <div className='bg-muted/30 min-w-0 rounded-lg p-3'>
-          <dt className='text-muted-foreground text-xs'>{t('Updated by')}</dt>
-          <dd className='mt-1 font-medium'>
-            {props.item.updatedBy} ·{' '}
-            {formatCanvasDateTime(props.item.createdAt)}
-          </dd>
-        </div>
-      </dl>
-      <div className='bg-muted/30 flex flex-col gap-3 rounded-lg px-4 py-3 sm:flex-row sm:items-center sm:justify-between'>
-        <dl className='min-w-0 text-xs'>
-          <ConnectionCheck
-            label={props.checkLabel}
-            value={props.item.latestCheck}
-          />
-        </dl>
-        <div className='flex shrink-0 flex-wrap gap-2'>
-          <Button
-            size='sm'
-            variant='outline'
-            disabled={props.checking}
-            onClick={props.onCheck}
-          >
-            {props.buttonLabel}
-          </Button>
-          <Button
-            size='sm'
-            aria-expanded={props.editing}
-            onClick={props.onEdit}
-          >
-            {props.editLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Field(props: {
-  label: string
-  error?: unknown
-  children: ReactElement<{
-    id?: string
-    'aria-describedby'?: string
-    'aria-invalid'?: boolean
-  }>
-}) {
-  const { t } = useTranslation()
-  const generatedId = useId()
-  const controlId = props.children.props.id ?? `field-${generatedId}`
-  const errorId = `${controlId}-error`
-  const hasError = Boolean(props.error)
-  const control = cloneElement(props.children, {
-    id: controlId,
-    'aria-invalid': hasError || undefined,
-    'aria-describedby': hasError
-      ? errorId
-      : props.children.props['aria-describedby'],
-  })
-  return (
-    <div className='min-w-0 space-y-1'>
-      <Label className='block' htmlFor={controlId}>
-        {props.label}
-      </Label>
-      <span className='block font-normal'>{control}</span>
-      {hasError && (
-        <div id={errorId} className='text-destructive text-xs' role='alert'>
-          {t(String(props.error))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ConnectionCheck(props: {
-  label: string
-  value: CanvasRuntimeConnectionCheck | null
-}) {
-  const { t } = useTranslation()
-  let statusClass = 'text-muted-foreground'
-  if (props.value?.outcome === 'PASSED') {
-    statusClass = 'text-emerald-600 dark:text-emerald-400'
-  }
-  if (props.value?.outcome === 'FAILED') statusClass = 'text-destructive'
-  let statusLabel = t('Not checked')
-  if (props.value?.outcome === 'PASSED') statusLabel = t('Passed')
-  if (props.value?.outcome === 'FAILED') statusLabel = t('Failed')
-  return (
-    <div>
-      <dt className='text-muted-foreground'>{props.label}</dt>
-      <dd>
-        <span className={statusClass}>{statusLabel}</span>
-        {props.value && (
-          <>
-            {' '}
-            · {formatCanvasDateTime(props.value.checkedAt)}
-            {props.value.checkedBy ? ` · ${props.value.checkedBy}` : ''}
-          </>
-        )}
-        {props.value?.outcome === 'FAILED' && (
-          <span className='text-muted-foreground block'>
-            {connectionCheckReason(props.value.reasonCode, t)}
-          </span>
-        )}
-      </dd>
-    </div>
-  )
-}
-
-function connectionCheckReason(
-  reasonCode: string | null,
-  translate: (key: string) => string
-) {
-  if (reasonCode === 'PROVIDER_CHECK_REQUIRES_CHANNEL') {
-    return translate('A safe provider check requires a bound provider channel')
-  }
-  if (reasonCode === 'R2_CONNECTION_FAILED') {
-    return translate('The R2 connection could not be verified')
-  }
-  return reasonCode ?? translate('Connection check failed')
 }

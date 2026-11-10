@@ -48,11 +48,25 @@ export interface CanvasAdminProvisioningPrincipals {
 
 export interface CanvasRuntimeConfiguration {
   environment: 'UAT' | 'STG' | 'PROD'
+  /** The default storage: outputs, agent files and the inputs of models without a storage of their own. */
   taskMedia: CanvasRuntimeTaskMediaConfiguration | null
+  /** Storages that hold the inputs of the models naming them. */
+  inputStorages: CanvasRuntimeInputStorage[]
+}
+
+/** How the S3 driver reaches a storage. */
+export interface CanvasS3DriverConfig {
+  region: string
+  forcePathStyle: boolean
+  uploadEndpoint?: string
+  contentLock: 'sha256' | 'md5'
 }
 
 export interface CanvasRuntimeTaskMediaConfiguration {
   id: string
+  storageKey: string
+  driver: 'S3' | 'QINIU'
+  driverConfig: CanvasS3DriverConfig
   version: number
   status: string
   endpoint: string
@@ -69,6 +83,14 @@ export interface CanvasRuntimeTaskMediaConfiguration {
   updatedBy: string
   createdAt: string
   latestCheck: CanvasRuntimeConnectionCheck | null
+}
+
+/** Outputs and agent files live only in the default storage, so an input storage has no retention for them. */
+export interface CanvasRuntimeInputStorage extends Omit<
+  CanvasRuntimeTaskMediaConfiguration,
+  'outputRetentionHours' | 'agentFileRetentionHours'
+> {
+  usage: { models: number; inputs: number; lastDeleteAfter: string | null }
 }
 
 export interface CanvasProviderConfigurationQuery {

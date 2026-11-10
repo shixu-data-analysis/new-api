@@ -286,6 +286,16 @@ export function catalogPlanDiagnosticText(
           'Use another upstream model ID, or delete the other model first.'
         ),
       }
+    case 'MODEL_INPUT_STORAGE_UNAVAILABLE':
+      return {
+        message: t('This environment has no usable storage {{storage}}.', {
+          storage: params.storageKey,
+        }),
+        remedy: t(
+          'Add {{storage}} in Runtime management → Task media and pass its connection check, or choose an existing storage.',
+          { storage: params.storageKey }
+        ),
+      }
     case 'MODEL_KEY_RETIRED':
       return {
         message: t('Product key {{key}} belongs to a deleted model.', {
@@ -372,6 +382,7 @@ const KNOWN_DIAGNOSTICS: ReadonlySet<string> = new Set([
   'CREDENTIAL_BINDING_BLOCKED',
   'DATABASE_CAPABILITY_MISSING',
   'MODEL_ADMIN_EDITED',
+  'MODEL_INPUT_STORAGE_UNAVAILABLE',
   'MODEL_KEY_RETIRED',
   'MODEL_UPSTREAM_ID_DUPLICATE',
   'PAYLOAD_TOO_LARGE',

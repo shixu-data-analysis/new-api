@@ -26,6 +26,8 @@ export interface CatalogModelDefinition {
       providerModel:
         | { modelId: string }
         | { defaultQuality: string; modelIdByQuality: Record<string, string> }
+      /** The task-media storage for this model's inputs; omitted means the default storage. */
+      inputStorage?: string
     }
     publicInteraction: {
       defaultParams: CatalogJson

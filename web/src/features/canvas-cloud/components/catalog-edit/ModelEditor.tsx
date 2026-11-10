@@ -102,6 +102,7 @@ import {
   LeaveConfirm,
   SwitchField,
 } from './EditFields'
+import { InputStorageField } from './InputStorageField'
 import {
   ModelMediaSection,
   ModelParametersSection,
@@ -1361,7 +1362,10 @@ function LoadedEditor(props: {
                               ...current,
                               release: {
                                 ...current.release,
-                                execution: { providerModel: nextModel },
+                                execution: {
+                                  ...current.release.execution,
+                                  providerModel: nextModel,
+                                },
                               },
                             }
                           })
@@ -1388,6 +1392,7 @@ function LoadedEditor(props: {
                               release: {
                                 ...current.release,
                                 execution: {
+                                  ...current.release.execution,
                                   providerModel: {
                                     modelId: event.target.value,
                                   },
@@ -1560,6 +1565,24 @@ function LoadedEditor(props: {
                     />
                   </>
                 )}
+                <InputStorageField
+                  value={draft.release.execution.inputStorage}
+                  onChange={(inputStorage) =>
+                    update((current) => {
+                      const { inputStorage: _previous, ...execution } =
+                        current.release.execution
+                      return {
+                        ...current,
+                        release: {
+                          ...current.release,
+                          execution: inputStorage
+                            ? { ...execution, inputStorage }
+                            : execution,
+                        },
+                      }
+                    })
+                  }
+                />
                 {mode.kind === 'copy' ? (
                   <EditField
                     label={t('Display attributes')}

@@ -401,7 +401,6 @@ const runtimeConfigurationKeys = [
   'Mock mode',
   'Real mode',
   'Updated by',
-  'Task media check',
   'Backup check',
   'Credential schemes',
   'Last check',

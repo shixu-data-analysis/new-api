@@ -78,8 +78,16 @@ vi.mock('../../execution-api', async (importOriginal) => ({
 
 const runtime = {
   environment: 'UAT',
+  inputStorages: [],
   taskMedia: {
     id: '85000000-0000-7000-8000-000000000002',
+    storageKey: 'default',
+    driver: 'S3',
+    driverConfig: {
+      region: 'auto',
+      forcePathStyle: true,
+      contentLock: 'sha256',
+    },
     version: 1,
     status: 'PUBLISHED',
     endpoint: 'https://account.r2.cloudflarestorage.com',
@@ -1535,8 +1543,8 @@ describe('Canvas runtime configuration', () => {
       name: 'Publish task media configuration',
     })
     for (const [label, value] of [
-      ['R2 endpoint', 'https://example.r2.cloudflarestorage.com'],
-      ['Task media bucket', 'uat-task-media'],
+      ['Endpoint', 'https://example.r2.cloudflarestorage.com'],
+      ['Bucket', 'uat-task-media'],
       ['Access key ID', 'mock-access'],
       ['Secret access key', 'mock-secret'],
       ['Reason (optional)', 'Mock publication'],
@@ -1579,10 +1587,10 @@ describe('Canvas runtime configuration', () => {
       name: 'Publish task media configuration',
     })
 
-    expect(within(form).getByLabelText('R2 endpoint')).toHaveValue(
+    expect(within(form).getByLabelText('Endpoint')).toHaveValue(
       runtime.taskMedia.endpoint
     )
-    expect(within(form).getByLabelText('Task media bucket')).toHaveValue(
+    expect(within(form).getByLabelText('Bucket')).toHaveValue(
       runtime.taskMedia.bucket
     )
     expect(within(form).getByLabelText('Access key ID')).toHaveValue(
@@ -1628,10 +1636,10 @@ describe('Canvas runtime configuration', () => {
       name: 'Publish task media configuration',
     })
 
-    expect(within(form).getByLabelText('R2 endpoint')).toHaveValue(
+    expect(within(form).getByLabelText('Endpoint')).toHaveValue(
       runtime.taskMedia.endpoint
     )
-    expect(within(form).getByLabelText('Task media bucket')).toHaveValue(
+    expect(within(form).getByLabelText('Bucket')).toHaveValue(
       runtime.taskMedia.bucket
     )
     expect(within(form).getByLabelText('Access key ID')).toHaveValue(

@@ -107,6 +107,7 @@ import type {
   CanvasModelMonitoringControlResult,
   CanvasModelMonitoringOverview,
   CanvasModelMonitoringOverviewQuery,
+  CanvasS3DriverConfig,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -1487,6 +1488,10 @@ export async function getCanvasProviderCredentialGroupChanges(
 }
 
 export async function publishCanvasTaskMediaStorage(input: {
+  /** Omitted: the default storage. A new name creates an input storage. */
+  storageKey?: string
+  driver?: 'S3' | 'QINIU'
+  driverConfig?: CanvasS3DriverConfig
   endpoint?: string
   mediaBucket?: string
   mediaCredentials?: { accessKeyId: string; secretAccessKey: string }
@@ -1503,6 +1508,22 @@ export async function publishCanvasTaskMediaStorage(input: {
       {
         headers: {
           'Idempotency-Key': idempotencyKey('web-task-media-storage'),
+        },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+/** Deletes an input storage; refused while a model or an undeleted input still uses it. */
+export async function retireCanvasInputStorage(storageKey: string) {
+  return (
+    await api.post(
+      `${webBase}/admin/runtime-storage/task-media/${encodeURIComponent(storageKey)}/retirement`,
+      undefined,
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey('web-input-storage-retirement'),
         },
         skipErrorHandler: true,
       }
