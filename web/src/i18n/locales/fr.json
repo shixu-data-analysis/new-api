@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "Données d’exemple, pas un vrai client.",
     "Customer list": "Liste des clients",
     "Email records": "Historique des e-mails",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "Les clients sans adresse e-mail enregistrée ne le reçoivent pas ; l’historique des e-mails les indique en échec.",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "Sélectionnez au plus {{count}} clients ; pour tout le monde, utilisez « Écrire à tous les clients actifs ».",
     "Email every active customer": "Écrire à tous les clients actifs",
     "Send email ({{count}})": "Envoyer un e-mail ({{count}})",

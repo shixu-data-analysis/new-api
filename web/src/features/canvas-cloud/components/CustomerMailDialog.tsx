@@ -226,6 +226,11 @@ export function CustomerMailDialog(props: {
                 )}
               </p>
             ) : null}
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Customers with no email address on file cannot receive it; Email records lists them as failed.'
+              )}
+            </p>
           </div>
           <div className='space-y-1'>
             <Label htmlFor={`${id}-subject`}>{t('Subject')}</Label>

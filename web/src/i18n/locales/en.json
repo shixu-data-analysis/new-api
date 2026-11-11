@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "Sample data, not a real customer.",
     "Customer list": "Customer list",
     "Email records": "Email records",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "Customers with no email address on file cannot receive it; Email records lists them as failed.",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "Select at most {{count}} customers; to reach everyone, email every active customer.",
     "Email every active customer": "Email every active customer",
     "Send email ({{count}})": "Send email ({{count}})",

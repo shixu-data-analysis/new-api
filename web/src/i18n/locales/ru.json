@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "Пример данных, не реальный клиент.",
     "Customer list": "Список клиентов",
     "Email records": "История писем",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "Клиенты без указанного адреса почты письмо не получат; в истории писем они отмечены как неудачные.",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "Можно выбрать не более {{count}} клиентов; чтобы написать всем, используйте «Письмо всем активным клиентам».",
     "Email every active customer": "Письмо всем активным клиентам",
     "Send email ({{count}})": "Отправить письмо ({{count}})",

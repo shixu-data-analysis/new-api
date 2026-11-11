@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "Dữ liệu mẫu, không phải khách hàng thật.",
     "Customer list": "Danh sách khách hàng",
     "Email records": "Lịch sử email",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "Khách hàng chưa đăng ký email sẽ không nhận được; Lịch sử email ghi họ là thất bại.",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "Chọn tối đa {{count}} khách hàng; để gửi cho mọi người, hãy dùng “Gửi email cho mọi khách hàng đang hoạt động”.",
     "Email every active customer": "Gửi email cho mọi khách hàng đang hoạt động",
     "Send email ({{count}})": "Gửi email ({{count}})",

@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "サンプルデータです。実際の顧客ではありません。",
     "Customer list": "顧客一覧",
     "Email records": "メール履歴",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "メールアドレスが登録されていない顧客には届きません。メール履歴に失敗として記録されます。",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "一度に選べるのは最大 {{count}} 人です。全員に送るには「すべての有効な顧客にメール」を使ってください。",
     "Email every active customer": "すべての有効な顧客にメール",
     "Send email ({{count}})": "メールを送信（{{count}}）",

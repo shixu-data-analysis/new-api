@@ -10923,6 +10923,7 @@
     "Sample data, not a real customer.": "示例数据，不是真实客户。",
     "Customer list": "客户列表",
     "Email records": "邮件记录",
+    "Customers with no email address on file cannot receive it; Email records lists them as failed.": "没有登记邮箱的客户收不到，会在邮件记录里记为失败。",
     "Select at most {{count}} customers; to reach everyone, email every active customer.": "一次最多选 {{count}} 人；要发给所有人，请用「发邮件给全部有效客户」。",
     "Email every active customer": "发邮件给全部有效客户",
     "Send email ({{count}})": "发邮件（{{count}}）",
