@@ -23,14 +23,16 @@ import type { CustomerMailFailureReason } from '../customer-notices-api'
 /** Why a test mail did not arrive, as the administrator can act on it. */
 export function mailFailureMessageKey(error: unknown): string {
   const code = getServerErrorCode(error)
-  if (code === 'EMAIL_NOT_CONFIGURED')
+  if (code === 'EMAIL_NOT_CONFIGURED') {
     return 'Mail is not set up in this environment.'
+  }
   const reason = (
     error as { response?: { data?: { details?: { reason?: string } } } }
   ).response?.data?.details?.reason
   if (reason === 'NO_ADDRESS') return 'Your account has no email address.'
-  if (reason === 'RATE_LIMITED')
+  if (reason === 'RATE_LIMITED') {
     return 'Too many mails at once. Try again in a minute.'
+  }
   return 'The mail was not sent. Please try again.'
 }
 
@@ -42,6 +44,5 @@ export const MAIL_FAILURE_REASON_KEYS: Record<
   NO_ADDRESS: 'No email address',
   NOT_CONFIGURED: 'Mail is not set up',
   REJECTED: 'Refused by the mail server',
-  UNREACHABLE: 'Mail server unreachable',
   CUSTOMER_INACTIVE: 'Customer no longer active',
 }

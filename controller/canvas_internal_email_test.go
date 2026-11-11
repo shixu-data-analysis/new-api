@@ -170,7 +170,20 @@ func TestCanvasInternalEmailReportsARefusedMailWithoutItsDetails(t *testing.T) {
 
 	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"s","html":"b"}`)
 	assert.Equal(t, http.StatusBadGateway, response.Code)
-	assert.JSONEq(t, `{"success":false,"code":"EMAIL_DELIVERY_FAILED"}`, response.Body.String())
+	assert.JSONEq(t, `{"success":false,"code":"EMAIL_REJECTED"}`, response.Body.String(), "a 5xx reply is final")
+}
+
+func TestCanvasInternalEmailReportsAnUnreachableMailServerAsTemporary(t *testing.T) {
+	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().(*net.TCPAddr)
+	require.NoError(t, listener.Close())
+	useMailServer(t, address.IP.String(), address.Port)
+
+	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"s","html":"b"}`)
+	assert.Equal(t, http.StatusBadGateway, response.Code)
+	assert.JSONEq(t, `{"success":false,"code":"EMAIL_DELIVERY_FAILED"}`, response.Body.String(), "Canvas Cloud sends it again later")
 }
 
 // setupCanvasEmailUsers gives the handler a database with one user that has an address and one that has none.

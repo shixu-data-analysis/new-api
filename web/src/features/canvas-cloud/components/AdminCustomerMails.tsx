@@ -57,6 +57,7 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasStatusBadge } from './CanvasStatusBadge'
 
 const REMINDER_DAYS = [3, 7, 15, 30] as const
 
@@ -66,33 +67,38 @@ function MailResult(props: { batch: CustomerMailBatch }) {
   const { batch } = props
   if (batch.recipients === 0) {
     return (
-      <span className='text-muted-foreground'>
-        {t(
+      <CanvasStatusBadge
+        status='OFFLINE'
+        label={t(
           batch.kind === 'POINTS_EXPIRY' ? 'No one to remind' : 'No recipients'
         )}
-      </span>
+      />
     )
   }
-  if (batch.queued > 0)
+  if (batch.queued > 0) {
     return (
-      <span className='text-primary font-medium whitespace-nowrap'>
-        {t('{{count}} people · sending', { count: batch.recipients })}
-      </span>
+      <CanvasStatusBadge
+        status='PENDING'
+        label={t('{{count}} people · sending', { count: batch.recipients })}
+      />
     )
+  }
   if (batch.failed > 0) {
     return (
-      <span className='text-destructive font-medium whitespace-nowrap'>
-        {t('{{count}} people · {{failed}} failed', {
+      <CanvasStatusBadge
+        status='CONFIRMED_FAILED'
+        label={t('{{count}} people · {{failed}} failed', {
           count: batch.recipients,
           failed: batch.failed,
         })}
-      </span>
+      />
     )
   }
   return (
-    <span className='font-medium whitespace-nowrap text-green-600 dark:text-green-500'>
-      {t('{{count}} people · all sent', { count: batch.recipients })}
-    </span>
+    <CanvasStatusBadge
+      status='COMPLETED'
+      label={t('{{count}} people · all sent', { count: batch.recipients })}
+    />
   )
 }
 
@@ -310,13 +316,14 @@ function PointsExpiryReminderCard() {
   })
   const settings = reminder.data
   let reminderSummary = t('Loading...')
-  if (settings)
+  if (settings) {
     reminderSummary = t(
       'Every day at 10:00, to customers with points expiring within {{days}} days. Each batch of points is reminded once.',
       { days: settings.daysBefore }
     )
-  else if (reminder.isError)
+  } else if (reminder.isError) {
     reminderSummary = t('Unable to load. Please try again.')
+  }
   return (
     <Card size='sm'>
       <CardContent className='flex flex-wrap items-center justify-between gap-3'>

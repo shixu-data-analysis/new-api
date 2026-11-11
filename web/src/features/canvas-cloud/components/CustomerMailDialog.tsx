@@ -110,11 +110,12 @@ export function CustomerMailDialog(props: {
         ids: selected.map((customer) => customer.customerId),
       })
       // A retry of the same mail reuses its idempotency key, so a send whose response was lost is not repeated.
-      if (attempt.current?.content !== content)
+      if (attempt.current?.content !== content) {
         attempt.current = {
           content,
           key: `web-customer-mail-${crypto.randomUUID()}`,
         }
+      }
       return sendCustomerMail({
         audience: props.audience,
         subject: subject.trim(),
@@ -178,8 +179,9 @@ export function CustomerMailDialog(props: {
               !validate(['subject', 'body']) ||
               sendCount === 0 ||
               sendCount === null
-            )
+            ) {
               return
+            }
             setConfirming(true)
           }}
         >

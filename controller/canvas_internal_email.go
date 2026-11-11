@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +37,17 @@ type canvasInternalEmailRequest struct {
 	UserID  *int   `json:"userId"`
 	Subject string `json:"subject"`
 	HTML    string `json:"html"`
+}
+
+// canvasDeliveryFailureCode tells Canvas Cloud whether sending again can help. A 5xx reply is the mail server's final
+// refusal (EMAIL_REJECTED); a 4xx reply or a connection that failed is temporary (EMAIL_DELIVERY_FAILED), so the mail
+// stays queued.
+func canvasDeliveryFailureCode(err error) string {
+	var reply *textproto.Error
+	if errors.As(err, &reply) && reply.Code >= 500 {
+		return "EMAIL_REJECTED"
+	}
+	return "EMAIL_DELIVERY_FAILED"
 }
 
 // canvasMaskedAddress is what Canvas Cloud may keep of an address: the first character and the domain.
@@ -105,7 +118,7 @@ func SendCanvasInternalEmail(c *gin.Context) {
 	if err := common.SendEmail(brandedSubject, receiver, request.HTML); err != nil {
 		// SMTP errors can name the mail host or account, so they stay in the server log.
 		common.SysError(fmt.Sprintf("failed to send canvas email to %s: %s", common.MaskEmail(receiver), err.Error()))
-		canvasEmailFailure(c, http.StatusBadGateway, "EMAIL_DELIVERY_FAILED")
+		canvasEmailFailure(c, http.StatusBadGateway, canvasDeliveryFailureCode(err))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "addressMasked": canvasMaskedAddress(receiver)})

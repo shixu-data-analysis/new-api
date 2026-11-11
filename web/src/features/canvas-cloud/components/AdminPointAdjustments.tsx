@@ -175,6 +175,14 @@ export function AdminPointAdjustments({
   const [mailSelection, setMailSelection] = useState<
     Map<string, CanvasAdminCustomerPointBalance>
   >(() => new Map())
+  // The newest selection, so two clicks before a render both count.
+  const mailSelectionRef = useRef(mailSelection)
+  const changeMailSelection = (
+    next: Map<string, CanvasAdminCustomerPointBalance>
+  ) => {
+    mailSelectionRef.current = next
+    setMailSelection(next)
+  }
   const [mailAudience, setMailAudience] = useState<
     'selected' | 'allActive' | 'customer' | null
   >(null)
@@ -550,7 +558,7 @@ export function AdminPointAdjustments({
     rows: CanvasAdminCustomerPointBalance[],
     checked: boolean
   ) => {
-    const next = new Map(mailSelection)
+    const next = new Map(mailSelectionRef.current)
     for (const row of rows) {
       if (checked) next.set(row.customerId, row)
       else next.delete(row.customerId)
@@ -564,7 +572,7 @@ export function AdminPointAdjustments({
       )
       return
     }
-    setMailSelection(next)
+    changeMailSelection(next)
   }
   const customerColumns: ColumnDef<CanvasAdminCustomerPointBalance, unknown>[] =
     [
@@ -712,7 +720,7 @@ export function AdminPointAdjustments({
                 ? { kind: 'allActive' }
                 : { kind: 'selected', customers: [...mailSelection.values()] }
             }
-            onSent={() => setMailSelection(new Map())}
+            onSent={() => changeMailSelection(new Map())}
             onClose={() => setMailAudience(null)}
           />
         ) : null}

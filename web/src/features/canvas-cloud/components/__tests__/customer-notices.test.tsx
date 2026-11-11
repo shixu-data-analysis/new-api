@@ -205,6 +205,62 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     slot.remove()
   })
 
+  it('starts a new version from the current text even when the list shows a later page', async () => {
+    apiMocks.getConventionVersions.mockImplementation(
+      async (query: { pageSize: number }) =>
+        query.pageSize === 10
+          ? {
+              page: 1,
+              pageSize: 10,
+              total: 21,
+              items: [
+                {
+                  id: 'v-21',
+                  version: 21,
+                  publishedAt: '2026-11-11T02:00:00.000Z',
+                  current: true,
+                },
+              ],
+            }
+          : {
+              page: 2,
+              pageSize: 20,
+              total: 21,
+              items: [
+                {
+                  id: 'v-1',
+                  version: 1,
+                  publishedAt: '2026-10-02T01:30:00.000Z',
+                  current: false,
+                },
+              ],
+            }
+    )
+    apiMocks.getConventionVersion.mockResolvedValue({
+      id: 'v-21',
+      version: 21,
+      body: '第二十一版正文',
+      publishedAt: '2026-11-11T02:00:00.000Z',
+    })
+    const slot = document.createElement('div')
+    document.body.append(slot)
+    renderWithClient(<AdminConventionVersions titleActionSlot={slot} />)
+    expect(await screen.findByText('Version 1')).toBeInTheDocument()
+    fireEvent.click(
+      within(slot).getByRole('button', { name: 'Publish new version' })
+    )
+    await waitFor(() =>
+      expect(screen.getByLabelText('Convention text')).toHaveValue(
+        '第二十一版正文'
+      )
+    )
+    expect(apiMocks.getConventionVersions).toHaveBeenCalledWith(
+      { page: 1, pageSize: 10 },
+      expect.anything()
+    )
+    slot.remove()
+  })
+
   it('mails selected customers, skipping inactive ones, only after confirmation', async () => {
     const onClose = vi.fn()
     renderWithClient(

@@ -64,7 +64,6 @@ export function AdminConventionVersions(props: {
     queryFn: ({ signal }) => getConventionVersions(query, signal),
   })
   const rows = useMemo(() => versions.data?.items ?? [], [versions.data])
-  const currentId = rows.find((row) => row.current)?.id
 
   const columns = useMemo<ColumnDef<ConventionVersionSummary, unknown>[]>(
     () => [
@@ -144,10 +143,7 @@ export function AdminConventionVersions(props: {
         getRowId={(row) => row.id}
       />
       {publishing ? (
-        <PublishConventionDialog
-          currentId={currentId}
-          onClose={() => setPublishing(false)}
-        />
+        <PublishConventionDialog onClose={() => setPublishing(false)} />
       ) : null}
       {viewing ? (
         <ConventionVersionDialog
@@ -166,12 +162,13 @@ function ConventionVersionDialog(props: { id: string; onClose: () => void }) {
     queryFn: ({ signal }) => getConventionVersion(props.id, signal),
   })
   let description = t('Loading...')
-  if (version.data)
+  if (version.data) {
     description = t('In force from {{time}}', {
       time: formatCanvasDateTimeMinutes(version.data.publishedAt),
     })
-  else if (version.isError)
+  } else if (version.isError) {
     description = t('Unable to load the convention. Please try again.')
+  }
   return (
     <Dialog open onOpenChange={(open) => (!open ? props.onClose() : undefined)}>
       <DialogContent className='sm:max-w-2xl'>
@@ -200,18 +197,21 @@ function ConventionVersionDialog(props: { id: string; onClose: () => void }) {
   )
 }
 
-function PublishConventionDialog(props: {
-  currentId?: string
-  onClose: () => void
-}) {
+function PublishConventionDialog(props: { onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const id = useId()
-  const current = useQuery({
-    queryKey: customerNoticeQueryKeys.convention(props.currentId ?? ''),
+  // The newest version, whatever page the list shows: versions are listed newest first.
+  const newest = useQuery({
+    queryKey: [...customerNoticeQueryKeys.conventions, 'newest'],
     queryFn: ({ signal }) =>
-      getConventionVersion(props.currentId ?? '', signal),
-    enabled: Boolean(props.currentId),
+      getConventionVersions({ page: 1, pageSize: 10 }, signal),
+  })
+  const currentId = newest.data?.items.find((item) => item.current)?.id
+  const current = useQuery({
+    queryKey: customerNoticeQueryKeys.convention(currentId ?? ''),
+    queryFn: ({ signal }) => getConventionVersion(currentId ?? '', signal),
+    enabled: Boolean(currentId),
   })
   // Starts from the current text, so a correction does not mean retyping it.
   const [body, setBody] = useState<string | null>(null)
@@ -224,11 +224,12 @@ function PublishConventionDialog(props: {
     mutationFn: () => {
       const trimmed = text.trim()
       // A retry of the same text reuses its idempotency key, so a publication whose response was lost is not repeated.
-      if (attempt.current?.body !== trimmed)
+      if (attempt.current?.body !== trimmed) {
         attempt.current = {
           body: trimmed,
           key: `web-convention-${crypto.randomUUID()}`,
         }
+      }
       return publishConventionVersion({
         body: trimmed,
         idempotencyKey: attempt.current.key,
@@ -252,7 +253,8 @@ function PublishConventionDialog(props: {
     },
   })
   const loadingCurrent =
-    Boolean(props.currentId) && current.isPending && body === null
+    body === null &&
+    (newest.isPending || (Boolean(currentId) && current.isPending))
   return (
     <Dialog
       open

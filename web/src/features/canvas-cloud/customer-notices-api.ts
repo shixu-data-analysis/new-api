@@ -45,7 +45,6 @@ export type CustomerMailFailureReason =
   | 'NO_ADDRESS'
   | 'NOT_CONFIGURED'
   | 'REJECTED'
-  | 'UNREACHABLE'
   | 'CUSTOMER_INACTIVE'
 
 export interface CustomerMailBatch {
