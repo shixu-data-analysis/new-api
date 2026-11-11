@@ -33,6 +33,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import {
@@ -253,34 +261,28 @@ function MailFailuresDialog(props: {
           </DialogDescription>
         </DialogHeader>
         <div className='max-h-[50vh] overflow-auto rounded-lg border'>
-          <table className='w-full text-sm'>
-            <thead className='bg-muted/60'>
-              <tr>
-                <th className='h-10 px-3 text-left font-medium'>
-                  {t('Username')}
-                </th>
-                <th className='h-10 px-3 text-left font-medium'>
-                  {t('Email')}
-                </th>
-                <th className='h-10 px-3 text-left font-medium'>
-                  {t('Reason')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('Username')}</TableHead>
+                <TableHead>{t('Email')}</TableHead>
+                <TableHead>{t('Reason')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {(failures.data?.items ?? []).map((item) => (
-                <tr key={item.customerId} className='border-t'>
-                  <td className='px-3 py-2'>{item.username ?? '—'}</td>
-                  <td className='text-muted-foreground px-3 py-2'>
+                <TableRow key={item.customerId}>
+                  <TableCell>{item.username ?? '—'}</TableCell>
+                  <TableCell className='text-muted-foreground'>
                     {item.emailMasked ?? '—'}
-                  </td>
-                  <td className='px-3 py-2'>
+                  </TableCell>
+                  <TableCell>
                     {t(MAIL_FAILURE_REASON_KEYS[item.reason] ?? 'Unknown')}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {failures.isError ? (
             <p className='text-destructive p-3 text-sm'>
               {t('Unable to load. Please try again.')}
