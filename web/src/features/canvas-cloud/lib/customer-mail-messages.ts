@@ -45,4 +45,5 @@ export const MAIL_FAILURE_REASON_KEYS: Record<
   NOT_CONFIGURED: 'Mail is not set up',
   REJECTED: 'Refused by the mail server',
   CUSTOMER_INACTIVE: 'Customer no longer active',
+  INTERNAL_ERROR: 'System error',
 }

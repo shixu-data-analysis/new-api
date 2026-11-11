@@ -46,6 +46,7 @@ export type CustomerMailFailureReason =
   | 'NOT_CONFIGURED'
   | 'REJECTED'
   | 'CUSTOMER_INACTIVE'
+  | 'INTERNAL_ERROR'
 
 export interface CustomerMailBatch {
   id: string

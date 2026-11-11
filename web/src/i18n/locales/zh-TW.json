@@ -10937,6 +10937,7 @@
     "Mail is not set up": "郵件服務未設定",
     "Refused by the mail server": "被郵件伺服器拒收",
     "Customer no longer active": "客戶已不是有效狀態",
+    "System error": "系統錯誤",
     "No one to remind": "無需提醒",
     "No recipients": "沒有收件人",
     "Account suspended": "帳號已暫停",

@@ -10937,6 +10937,7 @@
     "Mail is not set up": "邮件服务未配置",
     "Refused by the mail server": "被邮件服务器拒收",
     "Customer no longer active": "客户已不是有效状态",
+    "System error": "系统错误",
     "No one to remind": "无需提醒",
     "No recipients": "没有收件人",
     "Account suspended": "账号已暂停",
