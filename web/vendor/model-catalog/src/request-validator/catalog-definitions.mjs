@@ -194,6 +194,14 @@ function validateRequestOptions(profile, request, location) {
   // The credential header is checked once the Profile's OpenAPI security schemes are known.
   const issue = Object.hasOwn(request, "idempotencyHeader") ? idempotencyHeaderIssue(request.idempotencyHeader, profile.workflow) : undefined;
   if (issue) fail(`${location}.${issue}`);
+  if (Object.hasOwn(request, "conversationProtocol")) {
+    // Cloud builds the conversation body itself and reads tool calls and usage from the stream, so the endpoint must be
+    // a streamed text endpoint whose usage it already reads in the same format.
+    if (!CONVERSATION_PROTOCOLS.includes(request.conversationProtocol)) fail(`${location}.conversationProtocol must be one of ${CONVERSATION_PROTOCOLS.join(", ")}`);
+    if (profile.kind !== "chat.generate" || profile.workflow !== "sync") fail(`${location}.conversationProtocol is only allowed for sync chat.generate Profiles`);
+    const response = profile.advanced?.response;
+    if (response?.streaming !== true || response?.usageProtocol !== request.conversationProtocol) fail(`${location}.conversationProtocol requires a streamed response with the same usageProtocol`);
+  }
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio"]);
@@ -241,8 +249,11 @@ function positiveNumber(value, location, integer = false) {
 
 // Text models declare their Token limits and billed categories; Cloud computes each request's output limit from them.
 // They are not request parameters, so the shared request validator does not read them. minOutputTokens, which it does
-// read, is listed with its fields and allowed for text models only.
-const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories"];
+// read, is listed with its fields and allowed for text models only. toolCalling marks a model checked by real calls to
+// answer multi-turn messages with tool calls, so the canvas assistant may use it; its Profile must speak a conversation.
+const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling"];
+// The multi-turn protocols Cloud builds a conversation request for itself: messages, tools and their streamed calls.
+const CONVERSATION_PROTOCOLS = ["OPENAI_CHAT"];
 // Text input is text only in the current scope, so text models cannot declare image input. The total is for an upstream
 // that reports one count only, which is a video task so far (VIDEO-TOKEN-BILLING-001).
 const VIDEO_TOKEN_USAGE_CATEGORIES = ["total", "totalWithVideoInput"];
@@ -324,6 +335,7 @@ function validateTextParamSchema(schema, location) {
     if (schema.minOutputTokens > schema.maxTokens) fail(`${location}.minOutputTokens must not exceed maxTokens`);
   }
   validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
+  if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
 }
 
 // A Token-billed image or video model must be settleable and estimable for every choice it offers: its Profile reads a
@@ -797,6 +809,7 @@ export function validateCatalogDefinitions(read, options = {}) {
     }
     if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
+    if (paramSchema.toolCalling && !channel.profile.advanced?.request?.conversationProtocol) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} declares no conversationProtocol`);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
     return value;
   });
