@@ -130,8 +130,9 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
       subject: '维护通知',
       createdAt: '2026-11-11T07:02:00.000Z',
       sender: 'xu.shi',
-      recipients: 3,
+      recipients: 5,
       sent: 2,
+      skipped: 2,
       failed: 1,
       queued: 0,
     }
@@ -144,6 +145,7 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
       sender: null,
       recipients: 0,
       sent: 0,
+      skipped: 0,
       failed: 0,
       queued: 0,
     }
@@ -161,7 +163,7 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
           customerId: 'c-3',
           username: 'zhou_vfx',
           emailMasked: 'z***@example.com',
-          reason: 'NO_ADDRESS',
+          reason: 'REJECTED',
         },
       ],
     })
@@ -378,7 +380,9 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
 
   it('lists every kind of send in one table, with the failures of one send', async () => {
     renderWithClient(<CustomerMailRecords />)
+    // Of 5 recipients 2 have no email address: the result counts the other 3 and names the 2 beside it.
     expect(await screen.findByText('3 people · 1 failed')).toBeInTheDocument()
+    expect(screen.getByText('2 more with no email address')).toBeInTheDocument()
     expect(apiMocks.getCustomerMails).toHaveBeenCalledWith(
       { page: 1, pageSize: 20 },
       expect.anything()
@@ -388,6 +392,6 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     expect(screen.getByText('Every active customer')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     expect(await screen.findByText('zhou_vfx')).toBeInTheDocument()
-    expect(screen.getByText('No email address')).toBeInTheDocument()
+    expect(screen.getByText('Refused by the mail server')).toBeInTheDocument()
   })
 })

@@ -42,7 +42,6 @@ export interface ConventionVersion {
 
 export type CustomerMailKind = 'MANUAL' | 'POINTS_EXPIRY'
 export type CustomerMailFailureReason =
-  | 'NO_ADDRESS'
   | 'NOT_CONFIGURED'
   | 'REJECTED'
   | 'CUSTOMER_INACTIVE'
@@ -57,6 +56,8 @@ export interface CustomerMailBatch {
   sender: string | null
   recipients: number
   sent: number
+  /** Customers with no email address in New API: nothing to send, not a failure. */
+  skipped: number
   failed: number
   queued: number
 }

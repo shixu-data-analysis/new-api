@@ -44,7 +44,6 @@ export const MAIL_FAILURE_REASON_KEYS: Record<
   CustomerMailFailureReason,
   string
 > = {
-  NO_ADDRESS: 'No email address',
   NOT_CONFIGURED: 'Mail is not set up',
   REJECTED: 'Refused by the mail server',
   CUSTOMER_INACTIVE: 'Customer no longer active',

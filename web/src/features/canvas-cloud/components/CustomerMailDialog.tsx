@@ -228,7 +228,7 @@ export function CustomerMailDialog(props: {
             ) : null}
             <p className='text-muted-foreground text-xs'>
               {t(
-                'Customers with no email address on file cannot receive it; Email records lists them as failed.'
+                'Customers with no email address on file cannot receive it; Email records counts them separately.'
               )}
             </p>
           </div>

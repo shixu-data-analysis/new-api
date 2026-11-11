@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useEffect, useId, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -74,12 +74,23 @@ import { CanvasStatusBadge } from './CanvasStatusBadge'
 
 const REMINDER_DAYS = [3, 7, 15, 30] as const
 
-/** One send's outcome in one line: still sending, all sent, or how many failed. */
+/**
+ * One send's outcome in one line: still sending, all sent, or how many failed. Customers with no email address had
+ * nothing to send to, so they are counted beside the result, not as failures.
+ */
 function MailResult(props: { batch: CustomerMailBatch }) {
   const { t } = useTranslation()
   const { batch } = props
+  const reachable = batch.recipients - batch.skipped
+  const noAddress =
+    batch.skipped > 0 && reachable > 0 ? (
+      <span className='text-muted-foreground text-xs'>
+        {t('{{count}} more with no email address', { count: batch.skipped })}
+      </span>
+    ) : null
+  let badge: ReactNode
   if (batch.recipients === 0) {
-    return (
+    badge = (
       <CanvasStatusBadge
         status='OFFLINE'
         label={t(
@@ -87,31 +98,45 @@ function MailResult(props: { batch: CustomerMailBatch }) {
         )}
       />
     )
-  }
-  if (batch.queued > 0) {
-    return (
+  } else if (batch.queued > 0) {
+    badge = (
       <CanvasStatusBadge
         status='PENDING'
         label={t('{{count}} people · sending', { count: batch.recipients })}
       />
     )
-  }
-  if (batch.failed > 0) {
-    return (
+  } else if (reachable === 0) {
+    badge = (
+      <CanvasStatusBadge
+        status='OFFLINE'
+        label={t('{{count}} people · no email address', {
+          count: batch.skipped,
+        })}
+      />
+    )
+  } else if (batch.failed > 0) {
+    badge = (
       <CanvasStatusBadge
         status='CONFIRMED_FAILED'
         label={t('{{count}} people · {{failed}} failed', {
-          count: batch.recipients,
+          count: reachable,
           failed: batch.failed,
         })}
       />
     )
+  } else {
+    badge = (
+      <CanvasStatusBadge
+        status='COMPLETED'
+        label={t('{{count}} people · all sent', { count: reachable })}
+      />
+    )
   }
   return (
-    <CanvasStatusBadge
-      status='COMPLETED'
-      label={t('{{count}} people · all sent', { count: batch.recipients })}
-    />
+    <div className='flex flex-wrap items-center gap-2'>
+      {badge}
+      {noAddress}
+    </div>
   )
 }
 
