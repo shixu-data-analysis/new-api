@@ -392,6 +392,34 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     expect(screen.getByText('Every active customer')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     expect(await screen.findByText('zhou_vfx')).toBeInTheDocument()
+    // The dialog counts like the row: the 2 customers without an address are not among the people mailed.
+    expect(screen.getByText(/3 people, 1 failed/)).toBeInTheDocument()
     expect(screen.getByText('Refused by the mail server')).toBeInTheDocument()
+  })
+
+  it('counts only customers with an address while a send is still going out', async () => {
+    apiMocks.getCustomerMails.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          id: 'b-3',
+          kind: 'MANUAL',
+          audience: 'SELECTED',
+          subject: '发送中',
+          createdAt: '2026-11-11T08:00:00.000Z',
+          sender: 'xu.shi',
+          recipients: 10,
+          sent: 5,
+          skipped: 3,
+          failed: 0,
+          queued: 2,
+        },
+      ],
+    })
+    renderWithClient(<CustomerMailRecords />)
+    expect(await screen.findByText('7 people · sending')).toBeInTheDocument()
+    expect(screen.getByText('3 more with no email address')).toBeInTheDocument()
   })
 })

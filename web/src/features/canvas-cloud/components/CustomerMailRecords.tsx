@@ -102,7 +102,7 @@ function MailResult(props: { batch: CustomerMailBatch }) {
     badge = (
       <CanvasStatusBadge
         status='PENDING'
-        label={t('{{count}} people · sending', { count: batch.recipients })}
+        label={t('{{count}} people · sending', { count: reachable })}
       />
     )
   } else if (reachable === 0) {
@@ -319,7 +319,7 @@ function MailFailuresDialog(props: {
           <DialogDescription>
             {t('{{time}} · {{count}} people, {{failed}} failed', {
               time: formatCanvasDateTimeMinutes(props.batch.createdAt),
-              count: props.batch.recipients,
+              count: props.batch.recipients - props.batch.skipped,
               failed: props.batch.failed,
             })}
           </DialogDescription>
