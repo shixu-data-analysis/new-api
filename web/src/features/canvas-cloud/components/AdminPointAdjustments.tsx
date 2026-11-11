@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeft, Gift } from 'lucide-react'
+import { ArrowLeft, Gift, Mail } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -47,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -85,6 +87,7 @@ import {
   previewCanvasOrderPointReturn,
 } from '../api'
 import { factValueLabels } from '../business-facts'
+import { SELECTED_CUSTOMER_MAIL_LIMIT } from '../customer-notices-api'
 import {
   bonusAdjustmentSchema,
   deductionSchema,
@@ -110,7 +113,9 @@ import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRechargeOrderSummary } from './CanvasRechargeOrder'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
+import { CustomerMailDialog } from './CustomerMailDialog'
 import { CustomerPriceAssignment } from './CustomerPriceAssignment'
+import { CustomerSuspensionDialog } from './CustomerSuspensionDialog'
 
 type AdjustmentAction = 'bonus' | 'paid' | 'deduction' | 'return'
 type PendingAction = AdjustmentAction | null
@@ -137,11 +142,14 @@ export function AdminPointAdjustments({
   onCustomerChange,
   orderId,
   pointLotId,
+  titleActionSlot,
 }: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
   orderId?: string
   pointLotId?: string
+  /** Where the list puts 发邮件给全部有效客户, left of Refresh. */
+  titleActionSlot?: HTMLElement | null
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
@@ -163,6 +171,16 @@ export function AdminPointAdjustments({
     'ALL' | 'AGENT' | 'CUSTOMER'
   >('ALL')
   const [refreshingCustomer, setRefreshingCustomer] = useState(false)
+  // COMMUNITY-CONVENTION-001: customers picked for a mail, and the open mail or suspension dialog.
+  const [mailSelection, setMailSelection] = useState<
+    Map<string, CanvasAdminCustomerPointBalance>
+  >(() => new Map())
+  const [mailAudience, setMailAudience] = useState<
+    'selected' | 'allActive' | 'customer' | null
+  >(null)
+  const [statusAction, setStatusAction] = useState<
+    'suspend' | 'restore' | null
+  >(null)
   const submittingAction = useRef(false)
   const customersState = useServerTableState('createdAt')
   const setCustomersPagination = customersState.setPagination
@@ -524,8 +542,62 @@ export function AdminPointAdjustments({
     }
   }
 
+  const pageCustomers = customers.data?.items ?? []
+  const allPageSelected =
+    pageCustomers.length > 0 &&
+    pageCustomers.every((row) => mailSelection.has(row.customerId))
+  const toggleMailSelection = (
+    rows: CanvasAdminCustomerPointBalance[],
+    checked: boolean
+  ) => {
+    const next = new Map(mailSelection)
+    for (const row of rows) {
+      if (checked) next.set(row.customerId, row)
+      else next.delete(row.customerId)
+    }
+    if (next.size > SELECTED_CUSTOMER_MAIL_LIMIT) {
+      toast.error(
+        t(
+          'Select at most {{count}} customers; to reach everyone, email every active customer.',
+          { count: SELECTED_CUSTOMER_MAIL_LIMIT }
+        )
+      )
+      return
+    }
+    setMailSelection(next)
+  }
   const customerColumns: ColumnDef<CanvasAdminCustomerPointBalance, unknown>[] =
     [
+      {
+        id: 'select',
+        enableHiding: false,
+        enableSorting: false,
+        header: () => (
+          <Checkbox
+            aria-label={t('Select all on this page')}
+            checked={allPageSelected}
+            indeterminate={
+              !allPageSelected &&
+              pageCustomers.some((row) => mailSelection.has(row.customerId))
+            }
+            onCheckedChange={(checked) =>
+              toggleMailSelection(pageCustomers, checked)
+            }
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            aria-label={t('Select {{title}}', {
+              title: row.original.username ?? '—',
+            })}
+            checked={mailSelection.has(row.original.customerId)}
+            onCheckedChange={(checked) =>
+              toggleMailSelection([row.original], checked)
+            }
+          />
+        ),
+        size: 48,
+      },
       {
         id: 'customer',
         accessorKey: 'username',
@@ -620,6 +692,30 @@ export function AdminPointAdjustments({
     }
     return (
       <Card>
+        {titleActionSlot
+          ? createPortal(
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setMailAudience('allActive')}
+              >
+                <Mail className='size-4' />
+                {t('Email every active customer')}
+              </Button>,
+              titleActionSlot
+            )
+          : null}
+        {mailAudience === 'allActive' || mailAudience === 'selected' ? (
+          <CustomerMailDialog
+            audience={
+              mailAudience === 'allActive'
+                ? { kind: 'allActive' }
+                : { kind: 'selected', customers: [...mailSelection.values()] }
+            }
+            onSent={() => setMailSelection(new Map())}
+            onClose={() => setMailAudience(null)}
+          />
+        ) : null}
         <CardContent>
           <CanvasServerTable
             data={customers.data?.items ?? []}
@@ -689,6 +785,18 @@ export function AdminPointAdjustments({
                   </Select>
                 </DataTableColumnFilterField>
               </>
+            }
+            selectionActions={
+              mailSelection.size ? (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => setMailAudience('selected')}
+                >
+                  <Mail className='size-4' />
+                  {t('Send email ({{count}})', { count: mailSelection.size })}
+                </Button>
+              ) : null
             }
             hasActiveFilters={Boolean(
               customerStatus || agentIdentity !== 'ALL'
@@ -898,12 +1006,63 @@ export function AdminPointAdjustments({
               </div>
             </div>
             <div className='flex flex-wrap gap-2'>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => setMailAudience('customer')}
+              >
+                <Mail className='size-4' />
+                {t('Send email')}
+              </Button>
+              {customer.status === 'ACTIVE' ||
+              customer.status === 'SUSPENDED' ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() =>
+                    setStatusAction(
+                      customer.status === 'ACTIVE' ? 'suspend' : 'restore'
+                    )
+                  }
+                >
+                  {t(
+                    customer.status === 'ACTIVE'
+                      ? 'Suspend account'
+                      : 'Restore account'
+                  )}
+                </Button>
+              ) : null}
               <Button type='button' onClick={openBonusSheet}>
                 <Gift className='size-4' />
                 {t('Gift points')}
               </Button>
             </div>
           </div>
+          {mailAudience === 'customer' ? (
+            <CustomerMailDialog
+              audience={{
+                kind: 'selected',
+                customers: [
+                  {
+                    customerId: customer.customerId,
+                    username: customer.username,
+                    status: customer.status,
+                  },
+                ],
+              }}
+              onClose={() => setMailAudience(null)}
+            />
+          ) : null}
+          {statusAction ? (
+            <CustomerSuspensionDialog
+              customer={{
+                customerId: customer.customerId,
+                username: customer.username,
+              }}
+              action={statusAction}
+              onClose={() => setStatusAction(null)}
+            />
+          ) : null}
           <CustomerPriceAssignment
             key={customer.customerId}
             customerId={customer.customerId}

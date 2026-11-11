@@ -43,8 +43,8 @@ import {
   isCanvasInviteRegistrationRequired,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
-import { AdminAnnouncements } from './components/AdminAnnouncements'
 import { AdminAuditLog } from './components/AdminAuditLog'
+import { AdminCustomerMails } from './components/AdminCustomerMails'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
 import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
@@ -69,6 +69,7 @@ import {
   RuntimeManagement,
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
+import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
@@ -106,6 +107,7 @@ const sectionTitles: Record<CanvasSection, string> = {
   'provider-configuration': 'Provider configuration',
   audit: 'Operation log',
   announcements: 'System announcements',
+  emails: 'Email notifications',
   'agent-center': 'My customers',
   'agent-earnings': 'My earnings',
 }
@@ -184,6 +186,7 @@ export function AdminContent(props: {
       'pricing',
       'point-campaigns',
       'announcements',
+      'emails',
     ].includes(props.section),
   })
   if (props.section === 'customers') {
@@ -193,13 +196,15 @@ export function AdminContent(props: {
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
+        titleActionSlot={props.titleActionSlot}
       />
     )
   }
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'announcements') {
-    return <AdminAnnouncements titleActionSlot={props.titleActionSlot} />
+    return <SystemAnnouncementsPage titleActionSlot={props.titleActionSlot} />
   }
+  if (props.section === 'emails') return <AdminCustomerMails />
   if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {
     return (
