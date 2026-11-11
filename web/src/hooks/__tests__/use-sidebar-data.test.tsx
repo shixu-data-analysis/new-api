@@ -140,7 +140,6 @@ describe('Canvas administrator primary sidebar', () => {
       '/canvas-cloud/task-logs',
       '/canvas-cloud/audit',
       '/canvas-cloud/announcements',
-      '/canvas-cloud/emails',
       '/canvas-cloud/customers',
       '/canvas-cloud/point-campaigns',
       '/canvas-cloud/invitations',

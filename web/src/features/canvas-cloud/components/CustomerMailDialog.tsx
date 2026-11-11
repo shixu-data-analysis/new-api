@@ -126,7 +126,7 @@ export function CustomerMailDialog(props: {
     onSuccess: async (result) => {
       setConfirming(false)
       toast.success(
-        t('Sending {{count}} mails; see Email notifications for the results', {
+        t('Sending {{count}} mails; see Email records for the results', {
           count: result.queued,
         })
       )

@@ -18,10 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -32,6 +33,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import {
   Table,
@@ -41,7 +48,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import {
   customerNoticeQueryKeys,
@@ -57,13 +63,12 @@ import {
 import { formatCanvasDateTimeMinutes } from '../formatters'
 import {
   MAIL_FAILURE_REASON_KEYS,
+  MAIL_KIND_KEYS,
+  MAIL_KINDS,
   mailFailureMessageKey,
 } from '../lib/customer-mail-messages'
 import { useServerTableState } from '../use-server-table-state'
-import {
-  CanvasManagementTabsList,
-  CanvasManagementTabsTrigger,
-} from './CanvasManagementTabs'
+import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 
@@ -110,13 +115,10 @@ function MailResult(props: { batch: CustomerMailBatch }) {
   )
 }
 
-function useMailColumns(
-  kind: CustomerMailKind,
-  onDetail: (batch: CustomerMailBatch) => void
-) {
+function useMailColumns(onDetail: (batch: CustomerMailBatch) => void) {
   const { t } = useTranslation()
   return useMemo<ColumnDef<CustomerMailBatch, unknown>[]>(() => {
-    const columns: ColumnDef<CustomerMailBatch, unknown>[] = [
+    return [
       {
         id: 'createdAt',
         accessorKey: 'createdAt',
@@ -130,9 +132,15 @@ function useMailColumns(
         ),
         meta: { label: t('Sent at') },
       },
-    ]
-    if (kind === 'MANUAL') {
-      columns.push({
+      {
+        id: 'kind',
+        accessorKey: 'kind',
+        enableSorting: false,
+        header: () => t('Type'),
+        cell: ({ row }) => t(MAIL_KIND_KEYS[row.original.kind]),
+        meta: { label: t('Type') },
+      },
+      {
         id: 'subject',
         accessorKey: 'subject',
         enableSorting: false,
@@ -140,7 +148,7 @@ function useMailColumns(
         cell: ({ row }) => (
           <div className='max-w-[28rem] min-w-0'>
             <p className='truncate' title={row.original.subject ?? ''}>
-              {row.original.subject}
+              {row.original.subject ?? '—'}
             </p>
             {row.original.audience === 'ALL_ACTIVE' ? (
               <p className='text-muted-foreground text-xs'>
@@ -150,57 +158,63 @@ function useMailColumns(
           </div>
         ),
         meta: { label: t('Subject') },
-      })
-    }
-    columns.push({
-      id: 'result',
-      accessorKey: 'recipients',
-      enableSorting: false,
-      header: () => t('Result'),
-      cell: ({ row }) => <MailResult batch={row.original} />,
-      meta: { label: t('Result') },
-    })
-    if (kind === 'MANUAL') {
-      columns.push({
+      },
+      {
+        id: 'result',
+        accessorKey: 'recipients',
+        enableSorting: false,
+        header: () => t('Result'),
+        cell: ({ row }) => <MailResult batch={row.original} />,
+        meta: { label: t('Result') },
+      },
+      {
         id: 'sender',
         accessorKey: 'sender',
         enableSorting: false,
         header: () => t('Sender'),
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
-            {row.original.sender ?? '—'}
+            {row.original.kind === 'POINTS_EXPIRY'
+              ? t('System')
+              : (row.original.sender ?? '—')}
           </span>
         ),
         meta: { label: t('Sender') },
-      })
-    }
-    columns.push({
-      id: 'actions',
-      enableHiding: false,
-      enableSorting: false,
-      header: () => t('Actions'),
-      cell: ({ row }) =>
-        row.original.failed > 0 ? (
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => onDetail(row.original)}
-          >
-            {t('Details')}
-          </Button>
-        ) : null,
-      meta: { label: t('Actions') },
-    })
-    return columns
-  }, [kind, onDetail, t])
+      },
+      {
+        id: 'actions',
+        enableHiding: false,
+        enableSorting: false,
+        header: () => t('Actions'),
+        cell: ({ row }) =>
+          row.original.failed > 0 ? (
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => onDetail(row.original)}
+            >
+              {t('Details')}
+            </Button>
+          ) : null,
+        meta: { label: t('Actions') },
+      },
+    ]
+  }, [onDetail, t])
 }
 
-function MailRecords(props: { kind: CustomerMailKind }) {
+function MailRecords() {
   const { t } = useTranslation()
   const table = useServerTableState<'createdAt'>('createdAt')
+  const setPagination = table.setPagination
   const [detail, setDetail] = useState<CustomerMailBatch | null>(null)
+  const [kind, setKind] = useState<CustomerMailKind | ''>('')
+  useEffect(() => {
+    setPagination((value) =>
+      value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
+    )
+  }, [kind, setPagination])
   const query = {
-    kind: props.kind,
+    ...(kind ? { kind } : {}),
     page: table.query.page,
     pageSize: table.query.pageSize,
   }
@@ -213,7 +227,7 @@ function MailRecords(props: { kind: CustomerMailKind }) {
         ? 15_000
         : false,
   })
-  const columns = useMailColumns(props.kind, setDetail)
+  const columns = useMailColumns(setDetail)
   return (
     <>
       <CanvasServerTable
@@ -224,11 +238,36 @@ function MailRecords(props: { kind: CustomerMailKind }) {
         loading={mails.isPending || mails.isFetching}
         error={mails.isError}
         onRetry={() => void mails.refetch()}
-        emptyTitle={t(
-          props.kind === 'MANUAL'
-            ? 'No mails sent yet'
-            : 'No reminders sent yet'
-        )}
+        emptyTitle={t('No mails sent yet')}
+        filteredEmptyTitle={t('No matching results')}
+        additionalFilters={
+          <DataTableColumnFilterField label={t('Type')}>
+            <Select
+              value={kind || 'ALL'}
+              onValueChange={(value) =>
+                setKind(value === 'ALL' ? '' : (value as CustomerMailKind))
+              }
+            >
+              <SelectTrigger className='w-full' aria-label={t('Type')}>
+                <CanvasLocalizedSelectValue
+                  value={kind}
+                  emptyLabelKey='All types'
+                  displayValue={kind ? t(MAIL_KIND_KEYS[kind]) : undefined}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='ALL'>{t('All types')}</SelectItem>
+                {MAIL_KINDS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(MAIL_KIND_KEYS[value])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </DataTableColumnFilterField>
+        }
+        hasActiveFilters={Boolean(kind)}
+        onResetFilters={() => setKind('')}
         getRowId={(row) => row.id}
       />
       {detail ? (
@@ -507,28 +546,13 @@ function ReminderPreviewDialog(props: { onClose: () => void }) {
   )
 }
 
-// COMMUNITY-CONVENTION-001: 运营 › 邮件通知. Manual sends start in 客户管理; this page keeps their results and the daily
-// points expiry reminder.
-export function AdminCustomerMails() {
-  const { t } = useTranslation()
-  const [tab, setTab] = useState('manual')
+// COMMUNITY-CONVENTION-001: 客户管理 › 邮件记录. Every mail sent to customers, from the customer list or by the daily
+// points expiry reminder, under the reminder's settings.
+export function CustomerMailRecords() {
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
-      <CanvasManagementTabsList>
-        <CanvasManagementTabsTrigger value='manual'>
-          {t('Manual sends')}
-        </CanvasManagementTabsTrigger>
-        <CanvasManagementTabsTrigger value='auto'>
-          {t('Automatic sends')}
-        </CanvasManagementTabsTrigger>
-      </CanvasManagementTabsList>
-      <TabsContent value='manual'>
-        <MailRecords kind='MANUAL' />
-      </TabsContent>
-      <TabsContent value='auto' className='space-y-4'>
-        <PointsExpiryReminderCard />
-        <MailRecords kind='POINTS_EXPIRY' />
-      </TabsContent>
-    </Tabs>
+    <div className='space-y-4'>
+      <PointsExpiryReminderCard />
+      <MailRecords />
+    </div>
   )
 }

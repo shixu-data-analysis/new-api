@@ -31,8 +31,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@/i18n/locales/en.json'
 
 import { AdminConventionVersions } from '../AdminConventionVersions'
-import { AdminCustomerMails } from '../AdminCustomerMails'
 import { CustomerMailDialog } from '../CustomerMailDialog'
+import { CustomerMailRecords } from '../CustomerMailRecords'
 import { CustomerSuspensionDialog } from '../CustomerSuspensionDialog'
 
 const apiMocks = vi.hoisted(() => ({
@@ -123,39 +123,37 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     })
     apiMocks.suspendCustomer.mockResolvedValue({ status: 'SUSPENDED' })
     apiMocks.restoreCustomer.mockResolvedValue({ status: 'ACTIVE' })
+    const manualSend = {
+      id: 'b-1',
+      kind: 'MANUAL',
+      audience: 'ALL_ACTIVE',
+      subject: '维护通知',
+      createdAt: '2026-11-11T07:02:00.000Z',
+      sender: 'xu.shi',
+      recipients: 3,
+      sent: 2,
+      failed: 1,
+      queued: 0,
+    }
+    const reminderSend = {
+      id: 'b-2',
+      kind: 'POINTS_EXPIRY',
+      audience: null,
+      subject: null,
+      createdAt: '2026-11-11T02:00:00.000Z',
+      sender: null,
+      recipients: 0,
+      sent: 0,
+      failed: 0,
+      queued: 0,
+    }
     apiMocks.getCustomerMails.mockImplementation(
-      async (query: { kind: string }) => ({
-        page: 1,
-        pageSize: 20,
-        total: 1,
-        items: [
-          query.kind === 'MANUAL'
-            ? {
-                id: 'b-1',
-                kind: 'MANUAL',
-                audience: 'ALL_ACTIVE',
-                subject: '维护通知',
-                createdAt: '2026-11-11T07:02:00.000Z',
-                sender: 'xu.shi',
-                recipients: 3,
-                sent: 2,
-                failed: 1,
-                queued: 0,
-              }
-            : {
-                id: 'b-2',
-                kind: 'POINTS_EXPIRY',
-                audience: null,
-                subject: null,
-                createdAt: '2026-11-11T02:00:00.000Z',
-                sender: null,
-                recipients: 0,
-                sent: 0,
-                failed: 0,
-                queued: 0,
-              },
-        ],
-      })
+      async (query: { kind?: string }) => {
+        const items = [manualSend, reminderSend].filter(
+          (item) => !query.kind || item.kind === query.kind
+        )
+        return { page: 1, pageSize: 20, total: items.length, items }
+      }
     )
     apiMocks.getCustomerMailFailures.mockResolvedValue({
       items: [
@@ -378,9 +376,15 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     )
   })
 
-  it('shows send results, the failures of one send and the reminder settings', async () => {
-    renderWithClient(<AdminCustomerMails />)
+  it('lists every kind of send in one table, with the failures of one send', async () => {
+    renderWithClient(<CustomerMailRecords />)
     expect(await screen.findByText('3 people · 1 failed')).toBeInTheDocument()
+    expect(apiMocks.getCustomerMails).toHaveBeenCalledWith(
+      { page: 1, pageSize: 20 },
+      expect.anything()
+    )
+    expect(screen.getByText('Notice')).toBeInTheDocument()
+    expect(screen.getByText('System')).toBeInTheDocument()
     expect(screen.getByText('Every active customer')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     expect(await screen.findByText('zhou_vfx')).toBeInTheDocument()

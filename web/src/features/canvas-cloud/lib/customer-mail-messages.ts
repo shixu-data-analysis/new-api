@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getServerErrorCode } from '@/lib/server-error-message'
 
-import type { CustomerMailFailureReason } from '../customer-notices-api'
+import type {
+  CustomerMailFailureReason,
+  CustomerMailKind,
+} from '../customer-notices-api'
 
 /** Why a test mail did not arrive, as the administrator can act on it. */
 export function mailFailureMessageKey(error: unknown): string {
@@ -46,4 +49,15 @@ export const MAIL_FAILURE_REASON_KEYS: Record<
   REJECTED: 'Refused by the mail server',
   CUSTOMER_INACTIVE: 'Customer no longer active',
   INTERNAL_ERROR: 'System error',
+}
+
+export const MAIL_KINDS: readonly CustomerMailKind[] = [
+  'MANUAL',
+  'POINTS_EXPIRY',
+]
+
+/** What a send was: a notice an administrator wrote, or the daily points expiry reminder. */
+export const MAIL_KIND_KEYS: Record<CustomerMailKind, string> = {
+  MANUAL: 'Notice',
+  POINTS_EXPIRY: 'Points expiry reminder',
 }

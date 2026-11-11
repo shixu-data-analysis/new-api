@@ -44,9 +44,7 @@ import {
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
 import { AdminAuditLog } from './components/AdminAuditLog'
-import { AdminCustomerMails } from './components/AdminCustomerMails'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
-import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentEarnings } from './components/AgentEarnings'
@@ -54,6 +52,7 @@ import {
   CanvasAccessDenied,
   CanvasSessionUnavailable,
 } from './components/CanvasRouteStates'
+import { CustomerManagementPage } from './components/CustomerManagementPage'
 import { CustomerModelCenter } from './components/CustomerModelCenter'
 import {
   CustomerPointsCenter,
@@ -107,7 +106,6 @@ const sectionTitles: Record<CanvasSection, string> = {
   'provider-configuration': 'Provider configuration',
   audit: 'Operation log',
   announcements: 'System announcements',
-  emails: 'Email notifications',
   'agent-center': 'My customers',
   'agent-earnings': 'My earnings',
 }
@@ -186,12 +184,11 @@ export function AdminContent(props: {
       'pricing',
       'point-campaigns',
       'announcements',
-      'emails',
     ].includes(props.section),
   })
   if (props.section === 'customers') {
     return (
-      <AdminPointAdjustments
+      <CustomerManagementPage
         customerId={props.initialCustomerId}
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
@@ -204,7 +201,6 @@ export function AdminContent(props: {
   if (props.section === 'announcements') {
     return <SystemAnnouncementsPage titleActionSlot={props.titleActionSlot} />
   }
-  if (props.section === 'emails') return <AdminCustomerMails />
   if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {
     return (

@@ -208,7 +208,7 @@ export async function sendTestCustomerMail(
 }
 
 export async function getCustomerMails(
-  query: { kind: CustomerMailKind; page: number; pageSize: number },
+  query: { kind?: CustomerMailKind; page: number; pageSize: number },
   signal?: AbortSignal
 ): Promise<CanvasPage<CustomerMailBatch>> {
   return (
