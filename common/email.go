@@ -147,9 +147,10 @@ func SendEmail(subject string, receiver string, content string) error {
 	if err != nil {
 		return err
 	}
-	err = client.Quit()
-	if err != nil {
-		SysError(fmt.Sprintf("failed to send email to %s: %v", MaskEmail(receiver), err))
+	// The server accepted the mail when it answered the end of DATA. A failed QUIT after that does not undo the
+	// delivery, so it is only logged; reporting it would make callers send the same mail again.
+	if err = client.Quit(); err != nil {
+		SysError(fmt.Sprintf("email to %s was accepted, but closing the SMTP session failed: %v", MaskEmail(receiver), err))
 	}
-	return err
+	return nil
 }
