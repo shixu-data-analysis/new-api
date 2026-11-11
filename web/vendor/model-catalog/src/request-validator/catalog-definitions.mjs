@@ -202,6 +202,19 @@ function validateRequestOptions(profile, request, location) {
     const response = profile.advanced?.response;
     if (response?.streaming !== true || response?.usageProtocol !== request.conversationProtocol) fail(`${location}.conversationProtocol requires a streamed response with the same usageProtocol`);
   }
+  if (Object.hasOwn(request, "reasoningLevels")) {
+    // The upstream fields of each reasoning level, merged into the conversation body Cloud builds.
+    if (!Object.hasOwn(request, "conversationProtocol")) fail(`${location}.reasoningLevels requires a conversationProtocol`);
+    const levels = object(request.reasoningLevels, `${location}.reasoningLevels`);
+    if (!Object.keys(levels).length) fail(`${location}.reasoningLevels must map at least one level`);
+    for (const [level, fields] of Object.entries(levels)) {
+      if (!REASONING_LEVEL.test(level)) fail(`${location}.reasoningLevels.${level} must be 1-32 lowercase letters, digits, - or _`);
+      const body = object(fields, `${location}.reasoningLevels.${level}`);
+      if (!Object.keys(body).length) fail(`${location}.reasoningLevels.${level} must set at least one field`);
+      const built = Object.keys(body).filter((field) => CONVERSATION_BODY_FIELDS.includes(field));
+      if (built.length) fail(`${location}.reasoningLevels.${level} must not set ${built.join(", ")}, which Cloud builds`);
+    }
+  }
 }
 
 const MEDIA_KINDS = new Set(["image", "video", "audio"]);
@@ -251,7 +264,12 @@ function positiveNumber(value, location, integer = false) {
 // They are not request parameters, so the shared request validator does not read them. minOutputTokens, which it does
 // read, is listed with its fields and allowed for text models only. toolCalling marks a model checked by real calls to
 // answer multi-turn messages with tool calls, so the canvas assistant may use it; its Profile must speak a conversation.
-const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling"];
+// reasoning lists the reasoning levels the model offers in a conversation, with their names and the default; its Profile
+// maps each level to the upstream's own fields (advanced.request.reasoningLevels).
+const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning"];
+const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
+// Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
+const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "stream", "stream_options", "max_tokens"];
 // The multi-turn protocols Cloud builds a conversation request for itself: messages, tools and their streamed calls.
 const CONVERSATION_PROTOCOLS = ["OPENAI_CHAT"];
 // Text input is text only in the current scope, so text models cannot declare image input. The total is for an upstream
@@ -336,6 +354,25 @@ function validateTextParamSchema(schema, location) {
   }
   validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
   if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
+  if (schema.reasoning !== undefined) validateReasoning(object(schema.reasoning, `${location}.reasoning`), `${location}.reasoning`);
+}
+
+// The levels a panel offers for the model: a value it sends, a short name, an optional one-line description, and
+// thinking: false on a level that does not think (used when the context leaves too little room for reasoning).
+function validateReasoning(reasoning, location) {
+  exactKeys(reasoning, ["default", "levels"], location);
+  const levels = array(reasoning.levels, `${location}.levels`, 1);
+  if (levels.length > 8) fail(`${location}.levels must list at most 8 levels`);
+  levels.forEach((level, index) => {
+    const at = `${location}.levels[${index}]`;
+    exactKeys(object(level, at), ["value", "label", "description", "thinking"], at);
+    if (typeof level.value !== "string" || !REASONING_LEVEL.test(level.value)) fail(`${at}.value must be 1-32 lowercase letters, digits, - or _`);
+    if (typeof level.label !== "string" || level.label.trim().length < 1 || level.label.length > 8) fail(`${at}.label must be 1-8 characters`);
+    if (level.description !== undefined && (typeof level.description !== "string" || level.description.length > 40)) fail(`${at}.description must be at most 40 characters`);
+    if (level.thinking !== undefined && level.thinking !== false) fail(`${at}.thinking must be false when declared`);
+  });
+  unique(levels, (level) => level.value, `${location}.levels value`);
+  if (!levels.some((level) => level.value === reasoning.default)) fail(`${location}.default must be one of its levels`);
 }
 
 // A Token-billed image or video model must be settleable and estimable for every choice it offers: its Profile reads a
@@ -810,6 +847,8 @@ export function validateCatalogDefinitions(read, options = {}) {
     if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
     if (paramSchema.toolCalling && !channel.profile.advanced?.request?.conversationProtocol) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} declares no conversationProtocol`);
+    const unmapped = (paramSchema.reasoning?.levels ?? []).map((level) => level.value).filter((level) => !Object.hasOwn(channel.profile.advanced?.request?.reasoningLevels ?? {}, level));
+    if (unmapped.length) fail(`Model ${productKey} offers reasoning levels ${unmapped.join(", ")} that Profile ${channel.profile.id} does not map in reasoningLevels`);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
     return value;
   });

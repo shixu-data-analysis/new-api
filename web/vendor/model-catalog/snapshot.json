@@ -13,7 +13,7 @@
     "src/display-rules/index.d.ts": "0397a494393bf2f56cfdb0b0f0286c260f8002adf6f84773dead0180d8428ba7",
     "src/display-rules/index.mjs": "8a53bbdb51ffdaaadc16d89e2972403db3639815353aa0512fab93083f9f432a",
     "src/request-validator/catalog-definitions.d.ts": "c37ecf08634d9995e5582260833e22e42333fc5e2d24d8e4fce2ee13ed443f8e",
-    "src/request-validator/catalog-definitions.mjs": "a90b09a8cbffbb8a2eec5dbd5c3ce7c48efdb6a9f0862bc46545bb1e74851791",
+    "src/request-validator/catalog-definitions.mjs": "013b8d40d38bf49945cefd0d4996e654a692005f303b25277d1666267da05716",
     "src/request-validator/index.d.ts": "8c0dbab114394ebf613a870d070ee7d5dd08b7245016845e54a7448610e3c707",
     "src/request-validator/index.mjs": "bf1d90a32ad84d52371fcb12baaa32c07839b13e3a8196fc2f45fa75d6381038",
     "test-vectors.mjs": "ba599a12a355d8b4f5fc361181bbe14b450bc64681d2d1ad65bbcf8203e139b0",
