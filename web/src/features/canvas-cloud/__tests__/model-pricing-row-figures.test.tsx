@@ -351,9 +351,12 @@ describe('surcharge rows in the current-pricing table', () => {
     // Generated video: cost, inviter, customer; then the reference video row: cost, inviter, customer.
     expect(inputs).toEqual(['0.35', '0.37', '0.42', '0.30', '0.31', '0.32'])
     const scheduledCells = [
-      ...document.querySelectorAll('[data-column-id="scheduled"]'),
+      ...document.querySelectorAll('td[data-column-id="scheduled"]'),
     ].map((cell) => cell.textContent)
-    expect(scheduledCells.some((text) => text?.includes('0.50'))).toBe(true)
-    expect(scheduledCells.some((text) => text?.includes('0.36'))).toBe(true)
+    // One scheduled cell per row, in table order.
+    expect(scheduledCells).toHaveLength(2)
+    expect(scheduledCells[0]).toContain('0.50')
+    expect(scheduledCells[1]).toContain('0.36')
+    expect(scheduledCells[1]).not.toContain('0.50')
   })
 })

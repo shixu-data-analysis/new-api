@@ -68,10 +68,12 @@ function surchargePointFields(
   surcharge: CanvasInputSurcharge | null | undefined
 ): Partial<Record<SurchargeField, string>> {
   if (!surcharge) return {}
-  const image: Partial<Record<SurchargeField, string>> = surcharge.image
-    ? { 'surcharge:image': surcharge.image.points }
+  const { video, image: imagePrice, ...unread } = surcharge
+  // A new surcharge item in the API type stops compiling here until it is read.
+  unread satisfies Record<string, never>
+  const image: Partial<Record<SurchargeField, string>> = imagePrice
+    ? { 'surcharge:image': imagePrice.points }
     : {}
-  const video = surcharge.video
   if (!video) return image
   if (video.basis === 'OUTPUT_QUALITY') {
     return { 'surcharge:video': video.points, ...image }
@@ -221,18 +223,21 @@ function surchargeDraftFields(
   value: CanvasInputSurchargeCny | null | undefined
 ): Record<string, string> {
   if (!value) return {}
+  const { video: videoAmount, image, ...unread } = value
+  // A new surcharge item in the API type stops compiling here until it is read.
+  unread satisfies Record<string, never>
   const video =
-    typeof value.video === 'string'
-      ? { 'surcharge:video': value.video }
+    typeof videoAmount === 'string'
+      ? { 'surcharge:video': videoAmount }
       : Object.fromEntries(
-          Object.entries(value.video ?? {}).map(([tier, amount]) => [
+          Object.entries(videoAmount ?? {}).map(([tier, amount]) => [
             `surcharge:video:${tier}`,
             amount,
           ])
         )
   return {
     ...video,
-    ...(value.image ? { 'surcharge:image': value.image } : {}),
+    ...(image ? { 'surcharge:image': image } : {}),
   }
 }
 
