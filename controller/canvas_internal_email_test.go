@@ -3,6 +3,7 @@ package controller
 import (
 	"bufio"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"mime/quotedprintable"
 	"net"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -74,8 +76,9 @@ func TestCanvasInternalEmailValidatesBeforeSending(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, postCanvasEmail("service-token", "", `{"to":"a@example.com","subject":"s","html":"b"}`).Code, "SMTP not configured")
 }
 
-// fakeMailServer answers plain SMTP and hands over each message. A rejecting one refuses every recipient.
-func fakeMailServer(t *testing.T, rejectRecipients bool) (string, int, <-chan string) {
+// fakeMailServer answers plain SMTP and hands over each message. A rejecting one refuses every recipient; a dropping one
+// accepts the mail, then closes the connection without answering QUIT.
+func fakeMailServer(t *testing.T, rejectRecipients bool, dropOnQuit bool) (string, int, <-chan string) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -112,7 +115,9 @@ func fakeMailServer(t *testing.T, rejectRecipients bool) (string, int, <-chan st
 				messages <- data.String()
 				reply("250 queued")
 			case command == "QUIT":
-				reply("221 bye")
+				if !dropOnQuit {
+					reply("221 bye")
+				}
 				return
 			default:
 				reply("250 ok")
@@ -136,7 +141,7 @@ func useMailServer(t *testing.T, host string, port int) {
 
 func TestCanvasInternalEmailDeliversTheMailInTheSharedFrame(t *testing.T) {
 	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
-	host, port, messages := fakeMailServer(t, false)
+	host, port, messages := fakeMailServer(t, false, false)
 	useMailServer(t, host, port)
 
 	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"下架提醒","html":"<p>正文</p>"}`)
@@ -163,10 +168,83 @@ func TestCanvasInternalEmailDeliversTheMailInTheSharedFrame(t *testing.T) {
 
 func TestCanvasInternalEmailReportsARefusedMailWithoutItsDetails(t *testing.T) {
 	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
-	host, port, _ := fakeMailServer(t, true)
+	host, port, _ := fakeMailServer(t, true, false)
 	useMailServer(t, host, port)
 
 	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"s","html":"b"}`)
 	assert.Equal(t, http.StatusBadGateway, response.Code)
-	assert.JSONEq(t, `{"success":false,"code":"EMAIL_DELIVERY_FAILED"}`, response.Body.String())
+	assert.JSONEq(t, `{"success":false,"code":"EMAIL_REJECTED"}`, response.Body.String(), "a 5xx reply is final")
+}
+
+func TestCanvasInternalEmailCountsAMailTheServerAcceptedAsSentWhenQuitFails(t *testing.T) {
+	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
+	host, port, messages := fakeMailServer(t, false, true)
+	useMailServer(t, host, port)
+
+	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"s","html":"b"}`)
+	assert.Equal(t, http.StatusOK, response.Code, "Canvas Cloud must not send the accepted mail again")
+	select {
+	case <-messages:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no mail arrived")
+	}
+}
+
+func TestCanvasInternalEmailReportsAnUnreachableMailServerAsTemporary(t *testing.T) {
+	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().(*net.TCPAddr)
+	require.NoError(t, listener.Close())
+	useMailServer(t, address.IP.String(), address.Port)
+
+	response := postCanvasEmail("service-token", "", `{"to":"admin@example.com","subject":"s","html":"b"}`)
+	assert.Equal(t, http.StatusBadGateway, response.Code)
+	assert.JSONEq(t, `{"success":false,"code":"EMAIL_DELIVERY_FAILED"}`, response.Body.String(), "Canvas Cloud sends it again later")
+}
+
+// setupCanvasEmailUsers gives the handler a database with one user that has an address and one that has none.
+func setupCanvasEmailUsers(t *testing.T) (withAddress int, withoutAddress int) {
+	t.Helper()
+	db := setupManageUserTestDB(t)
+	customer := model.User{Username: "canvas-mail-customer", Password: "password-1234", DisplayName: "c", Email: "customer@example.com", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "cm01"}
+	silent := model.User{Username: "canvas-mail-silent", Password: "password-1234", DisplayName: "s", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, AffCode: "cm02"}
+	require.NoError(t, db.Create(&customer).Error)
+	require.NoError(t, db.Create(&silent).Error)
+	return customer.Id, silent.Id
+}
+
+func TestCanvasInternalEmailMailsAUserByIdAndReturnsOnlyAMaskedAddress(t *testing.T) {
+	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
+	withAddress, withoutAddress := setupCanvasEmailUsers(t)
+	host, port, messages := fakeMailServer(t, false, false)
+	useMailServer(t, host, port)
+
+	response := postCanvasEmail("service-token", "", fmt.Sprintf(`{"userId":%d,"subject":"违规通知","html":"<p>正文</p>"}`, withAddress))
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.JSONEq(t, `{"success":true,"addressMasked":"c***@example.com"}`, response.Body.String(), "Canvas Cloud never sees the address")
+	select {
+	case message := <-messages:
+		assert.Contains(t, message, "To: customer@example.com\r\n")
+	case <-time.After(2 * time.Second):
+		t.Fatal("no mail arrived")
+	}
+
+	missing := postCanvasEmail("service-token", "", fmt.Sprintf(`{"userId":%d,"subject":"s","html":"b"}`, withoutAddress))
+	assert.Equal(t, http.StatusUnprocessableEntity, missing.Code)
+	assert.JSONEq(t, `{"success":false,"code":"EMAIL_ADDRESS_MISSING"}`, missing.Body.String())
+	assert.Equal(t, http.StatusUnprocessableEntity, postCanvasEmail("service-token", "", `{"userId":999999,"subject":"s","html":"b"}`).Code, "an unknown user has no address either")
+}
+
+func TestCanvasInternalEmailTakesExactlyOneRecipient(t *testing.T) {
+	t.Setenv("CANVAS_EMAIL_SERVICE_TOKEN", "service-token")
+	setupCanvasEmailUsers(t)
+	for name, body := range map[string]string{
+		"both":          `{"to":"a@example.com","userId":1,"subject":"s","html":"b"}`,
+		"zero user":     `{"userId":0,"subject":"s","html":"b"}`,
+		"negative user": `{"userId":-3,"subject":"s","html":"b"}`,
+		"user as text":  `{"userId":"1","subject":"s","html":"b"}`,
+	} {
+		assert.Equal(t, http.StatusBadRequest, postCanvasEmail("service-token", "", body).Code, name)
+	}
 }

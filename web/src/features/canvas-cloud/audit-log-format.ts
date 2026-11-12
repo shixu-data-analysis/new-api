@@ -509,6 +509,52 @@ const SPECS: Record<string, ActionSpec> = {
     objectName: meta('name'),
     fields: [{ key: 'name', label: 'Name' }],
   },
+  // COMMUNITY-CONVENTION-001
+  'convention.published': {
+    objectType: 'Community convention',
+    fields: [
+      { key: 'version', label: 'Version', kind: 'number' },
+      { key: 'body', label: 'Convention text' },
+    ],
+  },
+  'customer.suspended': {
+    objectType: 'Customer',
+    objectName: customerName(),
+    fields: [customerField, reasonField],
+  },
+  'customer.restored': {
+    objectType: 'Customer',
+    objectName: customerName(),
+    fields: [customerField, reasonField],
+  },
+  'customer.email.sent': {
+    objectType: 'Customer mail',
+    objectName: meta('subject'),
+    fields: [
+      { key: 'audience', label: 'Recipients', kind: 'enum' },
+      { key: 'recipientCount', label: 'Queued', kind: 'number' },
+      { key: 'skippedCount', label: 'Skipped', kind: 'number' },
+      { key: 'subject', label: 'Subject' },
+      { key: 'body', label: 'Mail text' },
+    ],
+  },
+  'email.points_expiry_reminder.updated': {
+    objectType: 'Points expiry reminder',
+    fields: [
+      {
+        key: 'enabled',
+        previous: 'previousEnabled',
+        label: 'Status',
+        kind: 'enum',
+      },
+      {
+        key: 'daysBefore',
+        previous: 'previousDaysBefore',
+        label: 'Remind this many days before',
+        kind: 'number',
+      },
+    ],
+  },
   'announcement.retention.updated': {
     objectType: 'Visible time and cleanup',
     fields: [
@@ -1236,6 +1282,11 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'announcement.tag.updated': 'Edit tag',
   'announcement.tag.deleted': 'Delete tag',
   'announcement.retention.updated': 'Change visible time and cleanup',
+  'convention.published': 'Publish new version',
+  'customer.suspended': 'Suspend account',
+  'customer.restored': 'Restore account',
+  'customer.email.sent': 'Send email',
+  'email.points_expiry_reminder.updated': 'Change points expiry reminder',
   'model.tag.assignments.updated': 'Associate models',
   'pricing.provider_rate.risk_decided': 'Record risk decision',
   'points.activity.stopped': 'Stop activity',
@@ -1417,6 +1468,10 @@ const ENUM_LABEL_KEYS: Record<string, Record<string, string>> = {
   previousExecutionStatus: executionLabels,
   customerBillingStatus: billingLabels,
   enabled: { true: 'Enabled', false: 'Disabled' },
+  audience: {
+    SELECTED: 'Selected customers',
+    ALL_ACTIVE: 'Every active customer',
+  },
   previousEnabled: { true: 'Enabled', false: 'Disabled' },
   color: MODEL_COLOR_LABEL_KEYS,
   previousColor: MODEL_COLOR_LABEL_KEYS,

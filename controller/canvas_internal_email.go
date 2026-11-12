@@ -1,14 +1,17 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,10 +30,34 @@ var (
 	canvasEmailLimiterOnce sync.Once
 )
 
+// Exactly one of To and UserID names the recipient. With UserID New API reads the user's address itself, so Canvas Cloud
+// mails customers without ever holding their addresses.
 type canvasInternalEmailRequest struct {
 	To      string `json:"to"`
+	UserID  *int   `json:"userId"`
 	Subject string `json:"subject"`
 	HTML    string `json:"html"`
+}
+
+// canvasDeliveryFailureCode tells Canvas Cloud whether sending again can help. A 5xx reply is the mail server's final
+// refusal (EMAIL_REJECTED); a 4xx reply or a connection that failed is temporary (EMAIL_DELIVERY_FAILED), so the mail
+// stays queued.
+func canvasDeliveryFailureCode(err error) string {
+	var reply *textproto.Error
+	if errors.As(err, &reply) && reply.Code >= 500 {
+		return "EMAIL_REJECTED"
+	}
+	return "EMAIL_DELIVERY_FAILED"
+}
+
+// canvasMaskedAddress is what Canvas Cloud may keep of an address: the first character and the domain.
+func canvasMaskedAddress(address string) string {
+	at := strings.LastIndex(address, "@")
+	if at < 1 {
+		return "***"
+	}
+	first, _ := utf8.DecodeRuneInString(address)
+	return string(first) + "***" + address[at:]
 }
 
 func canvasEmailFailure(c *gin.Context, status int, code string) {
@@ -54,9 +81,31 @@ func SendCanvasInternalEmail(c *gin.Context) {
 	subject := strings.TrimSpace(request.Subject)
 	validSubject := subject != "" && utf8.RuneCountInString(subject) <= canvasEmailMaxSubjectChars && !strings.ContainsAny(subject, "\r\n")
 	validContent := request.HTML != "" && len(request.HTML) <= canvasEmailMaxHTMLBytes
+	oneRecipient := (request.To == "") != (request.UserID == nil)
+	if !validSubject || !validContent || !oneRecipient || (request.UserID != nil && *request.UserID <= 0) {
+		canvasEmailFailure(c, http.StatusBadRequest, "INVALID_REQUEST")
+		return
+	}
+	receiver := request.To
+	if request.UserID != nil {
+		address, err := model.GetUserEmail(*request.UserID)
+		if err != nil {
+			common.SysError(fmt.Sprintf("failed to read the address of user %d for a canvas email: %s", *request.UserID, err.Error()))
+			canvasEmailFailure(c, http.StatusInternalServerError, "EMAIL_ADDRESS_UNREADABLE")
+			return
+		}
+		if strings.TrimSpace(address) == "" {
+			canvasEmailFailure(c, http.StatusUnprocessableEntity, "EMAIL_ADDRESS_MISSING")
+			return
+		}
+		receiver = strings.TrimSpace(address)
+	}
 	// SendEmail reads ";" as several recipients.
-	validReceiver := !strings.ContainsAny(request.To, ";,\r\n") && common.Validate.Var(request.To, "required,email") == nil
-	if !validSubject || !validContent || !validReceiver {
+	if strings.ContainsAny(receiver, ";,\r\n") || common.Validate.Var(receiver, "required,email") != nil {
+		if request.UserID != nil {
+			canvasEmailFailure(c, http.StatusUnprocessableEntity, "EMAIL_ADDRESS_MISSING")
+			return
+		}
 		canvasEmailFailure(c, http.StatusBadRequest, "INVALID_REQUEST")
 		return
 	}
@@ -66,11 +115,11 @@ func SendCanvasInternalEmail(c *gin.Context) {
 	}
 
 	brandedSubject := fmt.Sprintf("【%s】%s", common.NormalizeSystemName(common.SystemName), subject)
-	if err := common.SendEmail(brandedSubject, request.To, request.HTML); err != nil {
+	if err := common.SendEmail(brandedSubject, receiver, request.HTML); err != nil {
 		// SMTP errors can name the mail host or account, so they stay in the server log.
-		common.SysError(fmt.Sprintf("failed to send canvas email to %s: %s", common.MaskEmail(request.To), err.Error()))
-		canvasEmailFailure(c, http.StatusBadGateway, "EMAIL_DELIVERY_FAILED")
+		common.SysError(fmt.Sprintf("failed to send canvas email to %s: %s", common.MaskEmail(receiver), err.Error()))
+		canvasEmailFailure(c, http.StatusBadGateway, canvasDeliveryFailureCode(err))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	c.JSON(http.StatusOK, gin.H{"success": true, "addressMasked": canvasMaskedAddress(receiver)})
 }

@@ -621,8 +621,22 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "成功；失败时 success 为 false，带有 code 的失败见 LoginError",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LoginError"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "409": {
             "description": "该用户的活跃登录 Session 已达上限",
@@ -5322,6 +5336,34 @@
               "REGISTRATION_DISABLED",
               "VERIFICATION_CODE_INVALID",
               "REGISTRATION_IDENTITY_UNAVAILABLE"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "按请求语言本地化的安全提示，不包含具体拒绝原因"
+          }
+        }
+      },
+      "LoginError": {
+        "type": "object",
+        "description": "INVALID_CREDENTIALS 合并用户名不存在、密码错误和用户已被封禁",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "PASSWORD_LOGIN_DISABLED",
+              "INVALID_CREDENTIALS"
             ]
           },
           "message": {
