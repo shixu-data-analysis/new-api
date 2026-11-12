@@ -15,6 +15,7 @@ import type {
   CanvasModelPricingCnyValue,
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
+  CanvasModelPricingPriceSnapshot,
   CanvasModelPricingTokenRateVector,
   CanvasTimeOfDaySchedule,
   CanvasInputSurcharge,
@@ -40,20 +41,69 @@ export function isSurchargeField(field: PricingField): field is SurchargeField {
   return field.startsWith('surcharge:')
 }
 
-/** The published points of a surcharge item. */
-export function surchargePoints(
-  surcharge: CanvasInputSurcharge | null | undefined,
-  field: SurchargeField
+/** One kind of value of a price: the whole price (one value, or one per Token category) and each surcharge item's. */
+interface PricingFieldValues {
+  whole: CanvasModelPricingCnyValue | null | undefined
+  surcharge: Partial<Record<SurchargeField, string>>
+}
+
+/**
+ * A row's value read by its field, the one place that tells the fields apart: the whole price for a request or
+ * second, a Token category's rate, or a surcharge item's own value, never the whole price's.
+ */
+function pricingFieldValue(
+  field: PricingField,
+  values: PricingFieldValues
 ): string {
-  if (field === 'surcharge:image') return surcharge?.image?.points ?? ''
-  const video = surcharge?.video
-  if (field === 'surcharge:video') {
-    return video?.basis === 'OUTPUT_QUALITY' ? video.points : ''
+  if (isSurchargeField(field)) return values.surcharge[field] ?? ''
+  const { whole } = values
+  if (field === 'scalar') return typeof whole === 'string' ? whole : ''
+  // Anything else must be a Token category; a new kind of field stops compiling here until it is read above.
+  const category: CanvasTokenCategory = field
+  return typeof whole === 'object' && whole ? (whole[category] ?? '') : ''
+}
+
+// A published surcharge's points per surcharge item.
+function surchargePointFields(
+  surcharge: CanvasInputSurcharge | null | undefined
+): Partial<Record<SurchargeField, string>> {
+  if (!surcharge) return {}
+  const { video, image: imagePrice, ...unread } = surcharge
+  // A new surcharge item in the API type stops compiling here until it is read.
+  unread satisfies Record<string, never>
+  const image: Partial<Record<SurchargeField, string>> = imagePrice
+    ? { 'surcharge:image': imagePrice.points }
+    : {}
+  if (!video) return image
+  if (video.basis === 'OUTPUT_QUALITY') {
+    return { 'surcharge:video': video.points, ...image }
   }
-  const name = field.slice('surcharge:video:'.length)
-  return video?.basis === 'INPUT_TIER'
-    ? (video.tiers.find((tier) => tier.name === name)?.points ?? '')
-    : ''
+  return {
+    ...Object.fromEntries(
+      video.tiers.map((tier) => [`surcharge:video:${tier.name}`, tier.points])
+    ),
+    ...image,
+  }
+}
+
+/** What a published or scheduled price shows on a row: its customer points and the CNY prices it was published with. */
+export function publishedRowFigures(
+  price: CanvasModelPricingPriceSnapshot | null | undefined,
+  field: PricingField
+) {
+  const amount = (side: 'inviterDisplayPriceCny' | 'customerPriceCny') =>
+    pricingFieldValue(field, {
+      whole: price?.originalCnyValues?.[side],
+      surcharge: surchargeDraftFields(price?.originalSurchargeCny?.[side]),
+    })
+  return {
+    points: pricingFieldValue(field, {
+      whole: price?.tokenRates ?? price?.points,
+      surcharge: surchargePointFields(price?.inputSurcharge),
+    }),
+    inviterDisplayPriceCny: amount('inviterDisplayPriceCny'),
+    customerPriceCny: amount('customerPriceCny'),
+  }
 }
 
 /** A surcharge price shared by every spec: a reference video tier or the reference image price. */
@@ -173,18 +223,21 @@ function surchargeDraftFields(
   value: CanvasInputSurchargeCny | null | undefined
 ): Record<string, string> {
   if (!value) return {}
+  const { video: videoAmount, image, ...unread } = value
+  // A new surcharge item in the API type stops compiling here until it is read.
+  unread satisfies Record<string, never>
   const video =
-    typeof value.video === 'string'
-      ? { 'surcharge:video': value.video }
+    typeof videoAmount === 'string'
+      ? { 'surcharge:video': videoAmount }
       : Object.fromEntries(
-          Object.entries(value.video ?? {}).map(([tier, amount]) => [
+          Object.entries(videoAmount ?? {}).map(([tier, amount]) => [
             `surcharge:video:${tier}`,
             amount,
           ])
         )
   return {
     ...video,
-    ...(value.image ? { 'surcharge:image': value.image } : {}),
+    ...(image ? { 'surcharge:image': image } : {}),
   }
 }
 
@@ -656,19 +709,39 @@ export function validCalculatedPrice(
   return result
 }
 
-/** The customer points Cloud calculated for a row: per request or second, or the Token category's rate per million. */
-export function calculatedPoints(
+/**
+ * What Cloud calculated for a row: the customer points (per request or second, or the Token category's rate per
+ * million) and the differences between the three prices, each a surcharge row's own.
+ */
+export function calculatedRowFigures(
   result: CalculatedPrice,
-  row: PricingEditorRow
-): string {
-  if (row.field === 'scalar') return result.normalizedPoints
-  if (isSurchargeField(row.field)) {
-    return (
-      result.surchargeCalculations?.[row.field.slice('surcharge:'.length)]
-        ?.points ?? ''
+  field: PricingField
+) {
+  // Cloud keys surcharge calculations by item ("video", "video:<tier>", "image").
+  const items = Object.entries(result.surchargeCalculations ?? {})
+  const surcharge = (
+    pick: (item: (typeof items)[number][1]) => string
+  ): Partial<Record<SurchargeField, string>> =>
+    Object.fromEntries(
+      items.map(([item, calculation]) => [
+        `surcharge:${item}`,
+        pick(calculation),
+      ])
     )
+  return {
+    points: pricingFieldValue(field, {
+      whole: result.normalizedTokenRates ?? result.normalizedPoints,
+      surcharge: surcharge((item) => item.points),
+    }),
+    inviterMinusProviderCny: pricingFieldValue(field, {
+      whole: result.inviterMinusProviderCny,
+      surcharge: surcharge((item) => item.inviterMinusProviderCny),
+    }),
+    customerMinusInviterCny: pricingFieldValue(field, {
+      whole: result.customerMinusInviterCny,
+      surcharge: surcharge((item) => item.customerMinusInviterCny),
+    }),
   }
-  return result.normalizedTokenRates?.[row.field as CanvasTokenCategory] ?? ''
 }
 
 /** The shared cost error of a cost cell, shown when any row of its group is published. */
