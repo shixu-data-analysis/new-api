@@ -41,9 +41,8 @@ import { cn } from '@/lib/utils'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
 import {
-  calculatedPoints,
+  calculatedRowFigures,
   isSurchargeField,
-  surchargePoints,
   draftValue,
   groupBy,
   isCostLocked,
@@ -56,6 +55,7 @@ import {
   pricingInputId,
   pricingRowErrors,
   PRICING_SIDE_LABEL_KEYS,
+  publishedRowFigures,
   sortPricingRows,
   validCalculatedPrice,
   type PricingEditorRow,
@@ -79,7 +79,6 @@ import { formatExactRmbReference } from '../number-format'
 import { videoTotalPricing } from '../pricing-scope-label'
 import type {
   CanvasModelPricingCnyCalculation,
-  CanvasModelPricingCnyValue,
   CanvasModelPricingDetail,
 } from '../types'
 import { END_ALIGNED_HEADER } from './canvas-table-layout'
@@ -140,11 +139,6 @@ const STATUS_OPTIONS: Array<{ value: PricingStatusFilter; labelKey: string }> =
     { value: 'UNPRICED', labelKey: 'Not priced' },
   ]
 
-const fieldValue = (
-  value: CanvasModelPricingCnyValue | null | undefined,
-  field: string
-) => (typeof value === 'string' ? value : (value?.[field as 'input'] ?? ''))
-
 /**
  * The current-pricing table with every price editable in place. Filtered or paged-out rows keep their drafts; the
  * page decides what is published. The price plan and pricing status filters are shared by every model's page; the
@@ -166,8 +160,7 @@ export function ModelPricingEditorTable(props: {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.language)
   // Cloud returns CNY differences with 8 decimals; the note shows the amount without trailing zeros.
-  const difference = (value: CanvasModelPricingCnyValue, field: string) =>
-    formatExactRmbReference(fieldValue(value, field), locale)
+  const difference = (amount: string) => formatExactRmbReference(amount, locale)
   const { detail, state } = props
   const [combinationFilter, setCombinationFilter] = useState(ALL)
   const [sorting, setSorting] = useState<SortingState>([
@@ -269,12 +262,9 @@ export function ModelPricingEditorTable(props: {
     const pending = isPendingRow(row)
     const value =
       pending && side !== 'provider'
-        ? fieldValue(
-            row.price.current?.originalCnyValues?.[
-              side === 'inviter' ? 'inviterDisplayPriceCny' : 'customerPriceCny'
-            ],
-            row.field
-          )
+        ? publishedRowFigures(row.price.current, row.field)[
+            side === 'inviter' ? 'inviterDisplayPriceCny' : 'customerPriceCny'
+          ]
         : draftValue(state, row, side)
     let placeholder: string | undefined
     if (side !== 'provider' && !row.price.current && !state.unitChange) {
@@ -320,7 +310,7 @@ export function ModelPricingEditorTable(props: {
       const current = row.price.current
       notes.push({
         text: current
-          ? `${isSurchargeField(row.field) ? surchargePoints(current.inputSurcharge, row.field) : fieldValue(current.tokenRates ?? current.points, row.field)} ${unitOf(row)}`
+          ? `${publishedRowFigures(current, row.field).points} ${unitOf(row)}`
           : t('Not priced; customers cannot see this specification'),
       })
       const error = conflict ?? errors.customer
@@ -342,11 +332,12 @@ export function ModelPricingEditorTable(props: {
       conflict,
       props.attempted
     )
+    const calculated = result ? calculatedRowFigures(result, row.field) : null
     if (side === 'inviter') {
-      if (result) {
+      if (calculated) {
         notes.push({
           text: t('Above provider cost by {{amount}} yuan', {
-            amount: difference(result.inviterMinusProviderCny, row.field),
+            amount: difference(calculated.inviterMinusProviderCny),
           }),
         })
       }
@@ -370,11 +361,11 @@ export function ModelPricingEditorTable(props: {
     ) {
       notes.push({ text: t('Current active version is legacy points pricing') })
     }
-    if (result) {
-      notes.push({ text: `${calculatedPoints(result, row)} ${unitOf(row)}` })
+    if (calculated) {
+      notes.push({ text: `${calculated.points} ${unitOf(row)}` })
       notes.push({
         text: t('Above inviter display price by {{amount}} yuan', {
-          amount: difference(result.customerMinusInviterCny, row.field),
+          amount: difference(calculated.customerMinusInviterCny),
         }),
       })
     }
@@ -471,19 +462,16 @@ export function ModelPricingEditorTable(props: {
         const editorRow = row.original.row
         if (!isPendingRow(editorRow)) return <span>—</span>
         // A cost-only schedule keeps the current customer price.
-        const price = editorRow.price.scheduled ?? editorRow.price.current
+        const scheduled = publishedRowFigures(
+          editorRow.price.scheduled ?? editorRow.price.current,
+          editorRow.field
+        )
         const publicationId = pendingPublicationId(editorRow)
         return (
           <PendingPriceCell
             row={editorRow}
-            amount={fieldValue(
-              price?.originalCnyValues?.customerPriceCny,
-              editorRow.field
-            )}
-            points={fieldValue(
-              price?.tokenRates ?? price?.points,
-              editorRow.field
-            )}
+            amount={scheduled.customerPriceCny}
+            points={scheduled.points}
             onCancel={
               publicationId
                 ? () =>

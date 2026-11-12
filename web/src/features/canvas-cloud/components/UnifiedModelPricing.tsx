@@ -47,7 +47,7 @@ import {
   withSurchargeDrafts,
 } from '../lib/input-surcharge'
 import {
-  calculatedPoints,
+  calculatedRowFigures,
   calculationScopes,
   conflictsByRow,
   currentPricingIdentity,
@@ -884,7 +884,9 @@ export function UnifiedModelPricing(props: {
                     customerCny: isPositiveRmbAmount(customer)
                       ? customer
                       : null,
-                    points: result ? calculatedPoints(result, row) : null,
+                    points: result
+                      ? calculatedRowFigures(result, row.field).points
+                      : null,
                     costCny: isPositiveRmbAmount(cost) ? cost : null,
                   }
                 })}
