@@ -43,10 +43,8 @@ import {
   isCanvasInviteRegistrationRequired,
 } from './api'
 import { ActivityManagement } from './components/ActivityManagement'
-import { AdminAnnouncements } from './components/AdminAnnouncements'
 import { AdminAuditLog } from './components/AdminAuditLog'
 import { AdminModelCatalog } from './components/AdminModelCatalog'
-import { AdminPointAdjustments } from './components/AdminPointAdjustments'
 import { AdminTaskLogs } from './components/AdminTaskLogs'
 import { AgentCenter } from './components/AgentCenter'
 import { AgentEarnings } from './components/AgentEarnings'
@@ -54,6 +52,7 @@ import {
   CanvasAccessDenied,
   CanvasSessionUnavailable,
 } from './components/CanvasRouteStates'
+import { CustomerManagementPage } from './components/CustomerManagementPage'
 import { CustomerModelCenter } from './components/CustomerModelCenter'
 import {
   CustomerPointsCenter,
@@ -69,6 +68,7 @@ import {
   RuntimeManagement,
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
+import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
@@ -188,17 +188,18 @@ export function AdminContent(props: {
   })
   if (props.section === 'customers') {
     return (
-      <AdminPointAdjustments
+      <CustomerManagementPage
         customerId={props.initialCustomerId}
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
+        titleActionSlot={props.titleActionSlot}
       />
     )
   }
   if (props.section === 'audit') return <AdminAuditLog />
   if (props.section === 'announcements') {
-    return <AdminAnnouncements titleActionSlot={props.titleActionSlot} />
+    return <SystemAnnouncementsPage titleActionSlot={props.titleActionSlot} />
   }
   if (props.section === 'task-logs') return <AdminTaskLogs />
   if (props.section === 'runtime') {

@@ -39,7 +39,7 @@ var (
 
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
-		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
+		common.ApiErrorI18nCode(c, "PASSWORD_LOGIN_DISABLED", i18n.MsgUserPasswordLoginDisabled)
 		return
 	}
 	var loginRequest LoginRequest
@@ -67,7 +67,7 @@ func Login(c *gin.Context) {
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		default:
-			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
+			common.ApiErrorI18nCode(c, "INVALID_CREDENTIALS", i18n.MsgUserUsernameOrPasswordError)
 		}
 		return
 	}

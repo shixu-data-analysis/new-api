@@ -14,11 +14,10 @@ import { billingUnitLabelKey } from '../lib/billing-unit-labels'
 import {
   draftValue,
   isRowIncluded,
-  isSurchargeField,
   isSideChanged,
   originalValue,
   PRICING_SIDE_LABEL_KEYS,
-  surchargePoints,
+  publishedRowFigures,
   type PricingEditorRow,
   type PricingEditorState,
   type PricingSide,
@@ -30,7 +29,6 @@ import {
 import type {
   CanvasModelPricingDetail,
   CanvasModelPricingPreview,
-  CanvasModelPricingPriceSnapshot,
 } from '../types'
 import type { PricingEffectiveMode } from './ModelPricingPublishBar'
 import {
@@ -39,18 +37,6 @@ import {
 } from './PricingActionConfirmation'
 
 const SIDES: PricingSide[] = ['provider', 'inviter', 'customer']
-
-function snapshotPoints(
-  price: CanvasModelPricingPriceSnapshot | null | undefined,
-  field: PricingEditorRow['field']
-) {
-  if (!price) return ''
-  if (field === 'scalar') return price.points
-  if (isSurchargeField(field)) {
-    return surchargePoints(price.inputSurcharge, field)
-  }
-  return price.tokenRates?.[field] ?? ''
-}
 
 /** "确认发布定价": every published row with its old → new values, then the effective mode and reason. */
 export function ModelPricingPublishConfirmation(props: {
@@ -72,7 +58,7 @@ export function ModelPricingPublishConfirmation(props: {
   const { state } = props
   const model = props.detail.model
   const proposedPoints = (row: PricingEditorRow) =>
-    snapshotPoints(
+    publishedRowFigures(
       props.preview?.scopes
         .find(
           (scope) =>
@@ -81,7 +67,7 @@ export function ModelPricingPublishConfirmation(props: {
         ?.prices.find((price) => price.priceGroupId === row.price.priceGroupId)
         ?.proposed,
       row.field
-    )
+    ).points
   const rowLines = (row: PricingEditorRow): string[] => {
     const label = (side: PricingSide) => t(PRICING_SIDE_LABEL_KEYS[side])
     // After a unit change old prices are in another unit, so only the new values are listed.
@@ -107,7 +93,7 @@ export function ModelPricingPublishConfirmation(props: {
       })}`
     })
     if (changed.includes('customer')) {
-      const from = snapshotPoints(row.price.current, row.field)
+      const from = publishedRowFigures(row.price.current, row.field).points
       lines.push(
         t('Customer points {{from}} → {{to}} points', {
           from: from || t('Not priced'),
