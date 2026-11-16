@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "The Webhook did not answer in time",
     "The bot refused the message; check the address and its security settings": "The bot refused the message; check the address and its security settings",
     "This address is not allowed. Use an HTTPS address on the public internet.": "This address is not allowed. Use an HTTPS address on the public internet.",
-    "This conversation is not on this page. Search for the customer to open it.": "This conversation is not on this page. Search for the customer to open it.",
+    "This conversation does not exist": "This conversation does not exist",
     "This file is not an image": "This file is not an image",
     "Unable to load earlier messages": "Unable to load earlier messages",
     "Unable to load the conversations. Please try again.": "Unable to load the conversations. Please try again.",

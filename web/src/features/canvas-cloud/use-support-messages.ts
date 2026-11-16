@@ -25,6 +25,16 @@ import type { CanvasAdminSupportMessage } from './types'
 
 const POLL_MILLISECONDS = 10_000
 const PAGE = 50
+const POLL_PAGE = 100
+// A signed attachment address is renewed this long before it expires, so a later view or download still works.
+const RENEW_AHEAD_MILLISECONDS = 60_000
+
+const expiring = (message: CanvasAdminSupportMessage, now: number) => {
+  const expiresAt = message.attachment?.urlExpiresAt
+  return expiresAt
+    ? Date.parse(expiresAt) - now < RENEW_AHEAD_MILLISECONDS
+    : false
+}
 
 /**
  * One conversation's messages, oldest first: the newest page on open, new messages polled after the last sequence number,
@@ -35,37 +45,64 @@ export function useSupportMessages(conversationId: string) {
   const [hasEarlier, setHasEarlier] = useState(false)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadingEarlier, setLoadingEarlier] = useState(false)
-  const lastSeq = useRef(0)
+  // Every message up to this one has been read by polling. A sent reply is shown at once but does not move it, so a
+  // customer message that arrived between the last poll and the reply is still fetched.
+  const polledThrough = useRef(0)
+  const shown = useRef<CanvasAdminSupportMessage[]>([])
   const current = useRef(conversationId)
   current.current = conversationId
 
-  const merge = useCallback(
-    (incoming: CanvasAdminSupportMessage[], where: 'start' | 'end') => {
-      setMessages((previous) => {
-        const known = new Set(previous.map((message) => message.seq))
-        const fresh = incoming.filter((message) => !known.has(message.seq))
-        // An empty poll keeps the same list, so the thread neither renders again nor moves.
-        if (fresh.length === 0) return previous
-        const next =
-          where === 'end' ? [...previous, ...fresh] : [...fresh, ...previous]
-        lastSeq.current = Math.max(
-          lastSeq.current,
-          ...next.map((message) => message.seq)
-        )
-        return next
+  /** Adds new messages and replaces known ones (renewed attachment addresses). */
+  const merge = useCallback((incoming: CanvasAdminSupportMessage[]) => {
+    setMessages((previous) => {
+      if (incoming.length === 0) return previous
+      const bySeq = new Map(incoming.map((message) => [message.seq, message]))
+      const replaced = previous.map((message) => {
+        const update = bySeq.get(message.seq)
+        if (update) bySeq.delete(message.seq)
+        return update ?? message
       })
-    },
-    []
-  )
+      // An empty poll keeps the same list, so the thread neither renders again nor moves.
+      if (
+        bySeq.size === 0 &&
+        replaced.every((message, index) => message === previous[index])
+      ) {
+        return previous
+      }
+      const next = [...replaced, ...bySeq.values()]
+      // Polls and replies append; only earlier pages or a reply overtaken by a poll need sorting.
+      const inOrder = next.every(
+        (message, index) =>
+          index === 0 || (next[index - 1]?.seq ?? 0) < message.seq
+      )
+      const sorted = inOrder ? next : next.sort((a, b) => a.seq - b.seq)
+      shown.current = sorted
+      return sorted
+    })
+  }, [])
 
   const poll = useCallback(async () => {
     const id = conversationId
     try {
       const page = await getCanvasAdminSupportMessages(id, {
-        after: lastSeq.current,
-        limit: 100,
+        after: polledThrough.current,
+        limit: POLL_PAGE,
       })
-      if (current.current === id) merge(page.messages, 'end')
+      if (current.current !== id) return
+      merge(page.messages)
+      polledThrough.current = Math.max(
+        polledThrough.current,
+        ...page.messages.map((message) => message.seq)
+      )
+      // One request renews the addresses of up to a page of messages from the oldest expiring one.
+      const now = Date.now()
+      const first = shown.current.find((message) => expiring(message, now))
+      if (!first) return
+      const renewed = await getCanvasAdminSupportMessages(id, {
+        after: first.seq - 1,
+        limit: POLL_PAGE,
+      })
+      if (current.current === id) merge(renewed.messages)
     } catch {
       // A failed poll keeps the thread as it is; the next one tries again.
     }
@@ -73,7 +110,8 @@ export function useSupportMessages(conversationId: string) {
 
   useEffect(() => {
     const controller = new AbortController()
-    lastSeq.current = 0
+    polledThrough.current = 0
+    shown.current = []
     setMessages([])
     setState('loading')
     getCanvasAdminSupportMessages(
@@ -82,7 +120,11 @@ export function useSupportMessages(conversationId: string) {
       controller.signal
     )
       .then((page) => {
-        merge(page.messages, 'end')
+        merge(page.messages)
+        polledThrough.current = Math.max(
+          0,
+          ...page.messages.map((message) => message.seq)
+        )
         setHasEarlier(page.hasEarlier)
         setState('ready')
       })
@@ -109,7 +151,7 @@ export function useSupportMessages(conversationId: string) {
         limit: PAGE,
       })
       if (current.current !== id) return
-      merge(page.messages, 'start')
+      merge(page.messages)
       setHasEarlier(page.hasEarlier)
     } catch {
       toast.error(translate('Unable to load earlier messages'))
@@ -124,6 +166,6 @@ export function useSupportMessages(conversationId: string) {
     state,
     loadingEarlier,
     loadEarlier,
-    append: (sent: CanvasAdminSupportMessage[]) => merge(sent, 'end'),
+    append: merge,
   }
 }

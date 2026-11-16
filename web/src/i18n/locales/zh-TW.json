@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Webhook 回應逾時",
     "The bot refused the message; check the address and its security settings": "機器人拒收了訊息，請檢查位址和機器人的安全設定",
     "This address is not allowed. Use an HTTPS address on the public internet.": "這個位址不被允許，請使用公網上的 HTTPS 位址。",
-    "This conversation is not on this page. Search for the customer to open it.": "這個會話不在目前頁面，請搜尋客戶後開啟。",
+    "This conversation does not exist": "這個會話不存在",
     "This file is not an image": "這個檔案不是圖片",
     "Unable to load earlier messages": "無法載入更早的訊息",
     "Unable to load the conversations. Please try again.": "無法載入會話，請重試。",

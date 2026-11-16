@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Webhook の応答がタイムアウトしました",
     "The bot refused the message; check the address and its security settings": "ボットがメッセージを拒否しました。アドレスとセキュリティ設定を確認してください",
     "This address is not allowed. Use an HTTPS address on the public internet.": "このアドレスは使用できません。インターネット上の HTTPS アドレスを使用してください。",
-    "This conversation is not on this page. Search for the customer to open it.": "この会話はこのページにありません。顧客を検索して開いてください。",
+    "This conversation does not exist": "この会話は存在しません",
     "This file is not an image": "このファイルは画像ではありません",
     "Unable to load earlier messages": "以前のメッセージを読み込めません",
     "Unable to load the conversations. Please try again.": "会話を読み込めません。もう一度お試しください。",

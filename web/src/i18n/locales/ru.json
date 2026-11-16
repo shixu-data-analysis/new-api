@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Webhook не ответил вовремя",
     "The bot refused the message; check the address and its security settings": "Бот отклонил сообщение; проверьте адрес и настройки безопасности",
     "This address is not allowed. Use an HTTPS address on the public internet.": "Этот адрес не разрешён. Используйте публичный HTTPS-адрес.",
-    "This conversation is not on this page. Search for the customer to open it.": "Этого диалога нет на странице. Найдите клиента, чтобы открыть его.",
+    "This conversation does not exist": "Этот разговор не существует",
     "This file is not an image": "Этот файл не является изображением",
     "Unable to load earlier messages": "Не удалось загрузить более ранние сообщения",
     "Unable to load the conversations. Please try again.": "Не удалось загрузить диалоги. Повторите попытку.",

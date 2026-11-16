@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Le Webhook n'a pas répondu à temps",
     "The bot refused the message; check the address and its security settings": "Le bot a refusé le message ; vérifiez l'adresse et ses paramètres de sécurité",
     "This address is not allowed. Use an HTTPS address on the public internet.": "Cette adresse n'est pas autorisée. Utilisez une adresse HTTPS publique.",
-    "This conversation is not on this page. Search for the customer to open it.": "Cette conversation n'est pas sur cette page. Recherchez le client pour l'ouvrir.",
+    "This conversation does not exist": "Cette conversation n'existe pas",
     "This file is not an image": "Ce fichier n'est pas une image",
     "Unable to load earlier messages": "Impossible de charger les messages précédents",
     "Unable to load the conversations. Please try again.": "Impossible de charger les conversations. Veuillez réessayer.",

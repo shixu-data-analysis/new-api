@@ -371,6 +371,7 @@ export function SupportThread(props: {
                     type='button'
                     className='absolute end-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-black/60 text-white'
                     aria-label={t('Remove image')}
+                    disabled={send.isPending}
                     onClick={() =>
                       setImages((previous) =>
                         previous.filter((item) => item.key !== image.key)
@@ -397,9 +398,12 @@ export function SupportThread(props: {
               id: conversation.customer.userId,
             })}
             value={draft}
+            // Read-only while sending, so a successful send never clears what was typed meanwhile.
+            readOnly={send.isPending}
             maxLength={TEXT_MAX}
             onChange={(event) => setDraft(event.target.value)}
             onPaste={(event) => {
+              if (send.isPending) return
               const files = [...event.clipboardData.files]
               if (!files.some((file) => file.type.startsWith('image/'))) return
               event.preventDefault()
@@ -418,17 +422,21 @@ export function SupportThread(props: {
             }}
           />
           <div className='text-muted-foreground flex items-center gap-2 text-xs'>
-            <Button
-              type='button'
-              variant='ghost'
-              size='icon-sm'
-              aria-label={t('Send image')}
-              onClick={() => fileInput.current?.click()}
-            >
-              <ImagePlus aria-hidden='true' />
-            </Button>
+            <CanvasTooltip content={t('Send image')}>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon-sm'
+                aria-label={t('Send image')}
+                disabled={send.isPending}
+                onClick={() => fileInput.current?.click()}
+              >
+                <ImagePlus aria-hidden='true' />
+              </Button>
+            </CanvasTooltip>
             <SupportQuickReplyMenu
               replies={props.quickReplies}
+              disabled={send.isPending}
               onPick={setDraft}
             />
             <label className='flex items-center gap-1.5 text-xs'>

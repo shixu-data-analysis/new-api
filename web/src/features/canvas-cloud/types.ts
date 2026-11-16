@@ -2407,6 +2407,8 @@ export interface CanvasAdminSupportConversation {
 
 export interface CanvasAdminSupportConversationQuery {
   filter: 'all' | 'pending'
+  /** Only this conversation, for a link to one that is not on the current page. */
+  id?: string
   q?: string
   page: number
   pageSize: number

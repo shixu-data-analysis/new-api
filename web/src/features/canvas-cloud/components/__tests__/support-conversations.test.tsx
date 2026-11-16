@@ -274,6 +274,78 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     )
   })
 
+  it('opens a linked conversation that is not on the current page', async () => {
+    const yuki: CanvasAdminSupportConversation = {
+      ...mia,
+      id: '92000000-0000-7000-8000-000000000003',
+      customer: {
+        ...mia.customer,
+        id: '92000000-0000-7000-8000-000000000013',
+        name: 'Yuki',
+      },
+    }
+    apiMocks.getCanvasAdminSupportConversations.mockImplementation(
+      async (query: { id?: string }) =>
+        query.id
+          ? { page: 1, pageSize: 10, total: 1, items: [yuki] }
+          : { page: 1, pageSize: 20, total: 30, items: [xiaolin, mia] }
+    )
+    render(
+      wrap(
+        <SupportConversations
+          conversationId={yuki.id}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Yuki' })
+    ).toBeInTheDocument()
+    expect(apiMocks.getCanvasAdminSupportConversations).toHaveBeenCalledWith(
+      { filter: 'all', id: yuki.id, page: 1, pageSize: 10 },
+      expect.anything()
+    )
+  })
+
+  it('still polls a customer message that arrived before the reply', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    apiMocks.replyCanvasAdminSupportConversation.mockResolvedValueOnce({
+      messages: [
+        message({ seq: 4, sender: 'ADMIN', adminName: '运营', text: '已恢复' }),
+      ],
+    })
+    try {
+      render(
+        wrap(
+          <SupportThread
+            conversation={xiaolin}
+            quickReplies={{ conversation: [], failureNotice: [] }}
+            onOpenCustomer={vi.fn()}
+          />
+        )
+      )
+      expect(await screen.findByText('收到')).toBeInTheDocument()
+      const input = screen.getByRole('textbox', {
+        name: 'Reply to 小林 (ID 10245)',
+      })
+      fireEvent.change(input, { target: { value: '已恢复' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(await screen.findByText('已恢复')).toBeInTheDocument()
+      apiMocks.getCanvasAdminSupportMessages.mockResolvedValueOnce({
+        messages: [message({ seq: 3, text: '还有一条卡住了' })],
+        hasEarlier: false,
+      })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(apiMocks.getCanvasAdminSupportMessages).toHaveBeenLastCalledWith(
+        xiaolin.id,
+        { after: 2, limit: 100 }
+      )
+      expect(await screen.findByText('还有一条卡住了')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('sends with Enter, keeps Shift + Enter and composition for the text, and marks handled', async () => {
     const onOpenCustomer = vi.fn()
     render(

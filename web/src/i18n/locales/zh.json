@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Webhook 响应超时",
     "The bot refused the message; check the address and its security settings": "机器人拒收了消息，请检查地址和机器人的安全设置",
     "This address is not allowed. Use an HTTPS address on the public internet.": "这个地址不被允许，请使用公网上的 HTTPS 地址。",
-    "This conversation is not on this page. Search for the customer to open it.": "这个会话不在当前页，请搜索客户后打开。",
+    "This conversation does not exist": "这个会话不存在",
     "This file is not an image": "这个文件不是图片",
     "Unable to load earlier messages": "无法加载更早的消息",
     "Unable to load the conversations. Please try again.": "无法加载会话，请重试。",

@@ -151,8 +151,23 @@ export function SupportConversations(props: {
     },
     getCoreRowModel: getCoreRowModel(),
   })
+  const onPage = rows.find((row) => row.id === props.conversationId)
+  // A link to a conversation on another page reads that one conversation.
+  const linked = useQuery({
+    queryKey: [...supportQueryKeys.conversations, 'id', props.conversationId],
+    queryFn: ({ signal }) =>
+      getCanvasAdminSupportConversations(
+        { filter: 'all', id: props.conversationId, page: 1, pageSize: 10 },
+        signal
+      ),
+    enabled:
+      props.conversationId !== undefined &&
+      conversations.data !== undefined &&
+      !onPage,
+  })
   const selected: CanvasAdminSupportConversation | null =
-    rows.find((row) => row.id === props.conversationId) ??
+    onPage ??
+    linked.data?.items[0] ??
     (props.conversationId ? null : (rows[0] ?? null))
   const searching = debouncedSearch !== ''
   let emptyText = t('No conversations yet')
@@ -373,12 +388,10 @@ export function SupportConversations(props: {
               />
             </div>
           ) : null}
-          {!selected && props.conversationId && !conversations.isPending ? (
+          {!selected && props.conversationId && linked.data ? (
             <Card className='p-4'>
               <p className='text-muted-foreground text-sm'>
-                {t(
-                  'This conversation is not on this page. Search for the customer to open it.'
-                )}
+                {t('This conversation does not exist')}
               </p>
             </Card>
           ) : null}

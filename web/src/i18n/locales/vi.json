@@ -11075,7 +11075,7 @@
     "The Webhook did not answer in time": "Webhook không phản hồi kịp",
     "The bot refused the message; check the address and its security settings": "Bot đã từ chối tin nhắn; hãy kiểm tra địa chỉ và cài đặt bảo mật",
     "This address is not allowed. Use an HTTPS address on the public internet.": "Địa chỉ này không được phép. Hãy dùng địa chỉ HTTPS công khai.",
-    "This conversation is not on this page. Search for the customer to open it.": "Cuộc trò chuyện này không ở trang hiện tại. Hãy tìm khách hàng để mở.",
+    "This conversation does not exist": "Cuộc trò chuyện này không tồn tại",
     "This file is not an image": "Tệp này không phải ảnh",
     "Unable to load earlier messages": "Không tải được tin nhắn cũ hơn",
     "Unable to load the conversations. Please try again.": "Không tải được các cuộc trò chuyện. Vui lòng thử lại.",

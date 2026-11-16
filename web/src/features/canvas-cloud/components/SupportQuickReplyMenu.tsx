@@ -38,6 +38,7 @@ import type { CanvasSupportQuickReplies } from '../types'
  */
 export function SupportQuickReplyMenu(props: {
   replies: CanvasSupportQuickReplies
+  disabled?: boolean
   onPick: (text: string) => void
 }) {
   const { t } = useTranslation()
@@ -49,6 +50,7 @@ export function SupportQuickReplyMenu(props: {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        disabled={props.disabled}
         render={<Button type='button' variant='ghost' size='sm' />}
       >
         <MessageSquareText aria-hidden='true' />
