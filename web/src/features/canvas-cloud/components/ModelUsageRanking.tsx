@@ -128,6 +128,8 @@ function TypeCard(props: {
             {
               id: 'model',
               header: t('Model'),
+              // Table cells do not wrap by default; a long model name wraps instead of being cut off.
+              cellClassName: 'whitespace-normal',
               cell: (row) => {
                 const share = total ? row.results / total : 0
                 return (
@@ -146,20 +148,25 @@ function TypeCard(props: {
                         </span>
                       )}
                     </div>
-                    <div className='flex items-center gap-2' aria-hidden='true'>
-                      <div className='bg-muted h-1 flex-1 overflow-hidden rounded-full'>
-                        <div
-                          className='bg-primary/70 h-full rounded-full'
-                          style={{ width: `${share * 100}%` }}
-                        />
+                    {share > 0 ? (
+                      <div
+                        className='flex items-center gap-2'
+                        aria-hidden='true'
+                      >
+                        <div className='bg-muted h-1 flex-1 overflow-hidden rounded-full'>
+                          <div
+                            className='bg-primary/70 h-full rounded-full'
+                            style={{ width: `${share * 100}%` }}
+                          />
+                        </div>
+                        <span className='text-muted-foreground w-8 text-end text-xs tabular-nums'>
+                          {new Intl.NumberFormat(toIntlLocale(language), {
+                            style: 'percent',
+                            maximumFractionDigits: 0,
+                          }).format(share)}
+                        </span>
                       </div>
-                      <span className='text-muted-foreground w-8 text-end text-xs tabular-nums'>
-                        {new Intl.NumberFormat(toIntlLocale(language), {
-                          style: 'percent',
-                          maximumFractionDigits: 0,
-                        }).format(share)}
-                      </span>
-                    </div>
+                    ) : null}
                   </div>
                 )
               },
@@ -434,7 +441,8 @@ export function ModelUsageRanking(props: {
       {usage.data && !usage.isError ? (
         <>
           <TypeSummary usage={usage.data} />
-          <div className='grid gap-4 xl:grid-cols-3'>
+          {/* Cards share the row: two types fill it, more wrap once a card would get too narrow for its names. */}
+          <div className='grid grid-cols-[repeat(auto-fit,minmax(min(100%,30rem),1fr))] gap-4'>
             {rankedTypes.map((capability) => (
               <TypeCard
                 key={capability ?? 'none'}
