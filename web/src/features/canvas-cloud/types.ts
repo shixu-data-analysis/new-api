@@ -2048,7 +2048,12 @@ export interface CanvasModelMonitoringFailures {
   modelKey: string
   from: string
   to: string
-  causes: Array<{ errorCode: string | null; count: number }>
+  causes: Array<{
+    errorCode: string | null
+    count: number
+    /** Built-in customer message by app language code; null when the code is not an error category. */
+    defaultCustomerMessages: Record<string, string> | null
+  }>
   pending: {
     queryable: number
     unqueryable: number

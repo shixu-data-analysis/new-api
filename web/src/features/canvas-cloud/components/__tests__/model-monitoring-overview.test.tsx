@@ -176,8 +176,16 @@ const failures = {
   from: overview.from,
   to: overview.to,
   causes: [
-    { errorCode: 'PROVIDER_RATE_LIMITED', count: 3 },
-    { errorCode: 'ADMIN_CONFIRMED_UPSTREAM_FAILED', count: 1 },
+    {
+      errorCode: 'PROVIDER_RATE_LIMITED',
+      count: 3,
+      defaultCustomerMessages: { en: 'Busy now', zhCN: '暂时繁忙' },
+    },
+    {
+      errorCode: 'ADMIN_CONFIRMED_UPSTREAM_FAILED',
+      count: 1,
+      defaultCustomerMessages: null,
+    },
   ],
   pending: {
     queryable: 1,
@@ -336,6 +344,16 @@ describe('model monitoring', () => {
       'Succeeded after release (not delivered)1',
       'Administrator confirmed the provider failure1',
     ])
+    expect(
+      within(causes).getByRole('button', {
+        name: 'API provider rate limited. PROVIDER_RATE_LIMITED. Customers see by default: Busy now',
+      })
+    ).toBeVisible()
+    expect(
+      within(causes).getByRole('button', {
+        name: 'Administrator confirmed the provider failure. ADMIN_CONFIRMED_UPSTREAM_FAILED. An administrator confirmed the upstream failure and released the points',
+      })
+    ).toBeVisible()
     const recent = screen.getByRole('region', { name: 'Recent failed tasks' })
     fireEvent.click(
       await within(recent).findByRole('button', {

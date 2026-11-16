@@ -59,6 +59,7 @@ type Cause = {
 
 function failureCauses(
   failures: CanvasModelMonitoringFailures,
+  language: string,
   t: (key: string, values?: Record<string, unknown>) => string
 ): Cause[] {
   const pending: Cause[] = [
@@ -66,7 +67,7 @@ function failureCauses(
       key: 'queryable',
       label: t('Pending · still querying'),
       hint: t(
-        'Has a provider task ID; the system keeps querying and it may still succeed'
+        'Has a provider task ID; the system keeps querying and it may still succeed\nThe points are released if there is still no result by the deadline'
       ),
       count: failures.pending.queryable,
       pending: true,
@@ -75,7 +76,7 @@ function failureCauses(
       key: 'unqueryable',
       label: t('Pending · cannot be queried'),
       hint: t(
-        'No provider task ID; the system will not query again and releases the points at the deadline'
+        'No provider task ID after submission; the system no longer queries\nThe points are released at the deadline; the task can be ended in its details'
       ),
       count: failures.pending.unqueryable,
       pending: true,
@@ -83,14 +84,18 @@ function failureCauses(
     {
       key: 'releasedTimeout',
       label: t('Released after timeout'),
-      hint: t('No result by the deadline; the system released the points'),
+      hint: t(
+        'No result by the deadline; the system released the points automatically\nResult status UNKNOWN, points status RELEASED_TIMEOUT'
+      ),
       count: failures.pending.releasedTimeout,
       pending: true,
     },
     {
       key: 'releasedByAdmin',
       label: t('Released early by an administrator'),
-      hint: t('An administrator released the points early or ended the task'),
+      hint: t(
+        'An administrator released the points early in the task details (ending the task included)\nResult status UNKNOWN, points status RELEASED_TIMEOUT\nTold apart by the audit record ADMIN_EARLY_RELEASE'
+      ),
       count: failures.pending.releasedByAdmin,
       pending: true,
     },
@@ -98,7 +103,7 @@ function failureCauses(
       key: 'lateSuccess',
       label: t('Succeeded after release (not delivered)'),
       hint: t(
-        'The provider reported success after the points were released; the result was not delivered'
+        'The provider reported success after the points were released\nThe result is not delivered to the customer; the cost is a reconciliation timeout loss\nResult status SUCCEEDED, points status RELEASED_TIMEOUT'
       ),
       count: failures.pending.lateSuccess,
       pending: true,
@@ -106,17 +111,34 @@ function failureCauses(
   ]
   const confirmed = failures.causes.map((cause): Cause => {
     let label = t('Unknown error category')
+    let hint = t('No error code was recorded')
     if (cause.errorCode === ADMIN_CONFIRMED_UPSTREAM_FAILURE) {
       label = t('Administrator confirmed the upstream failure')
+      hint = [
+        cause.errorCode,
+        t(
+          'An administrator confirmed the upstream failure and released the points'
+        ),
+      ].join('\n')
     } else if (cause.errorCode) {
       label = t(
         taskErrorCategoryLabels[cause.errorCode] ?? 'Unknown error category'
       )
+      // An administrator may have overridden the message; the built-in one is what customers see by default.
+      const message =
+        cause.defaultCustomerMessages?.[language] ??
+        cause.defaultCustomerMessages?.en
+      hint = message
+        ? [
+            cause.errorCode,
+            t('Customers see by default: {{message}}', { message }),
+          ].join('\n')
+        : cause.errorCode
     }
     return {
       key: cause.errorCode ?? 'none',
       label,
-      hint: cause.errorCode ?? t('No error code was recorded'),
+      hint,
       count: cause.count,
       pending: false,
     }
@@ -342,6 +364,10 @@ export function ModelMonitoringDetail(props: {
     enabled: Boolean(bucket),
   })
   const failures = bucket ? scoped.data : whole.data
+  const linkTimeFormat = new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
   const linkSearch = {
     modelKey: props.model.modelKey,
     executionOrigin: 'REAL' as const,
@@ -368,7 +394,7 @@ export function ModelMonitoringDetail(props: {
         signal
       ),
   })
-  const causes = failures ? failureCauses(failures, t) : []
+  const causes = failures ? failureCauses(failures, i18n.language, t) : []
   const largest = Math.max(1, ...causes.map((cause) => cause.count))
   const summary = bucket ?? props.model.summary
   const timeFormat = new Intl.DateTimeFormat(toIntlLocale(language), {
@@ -451,6 +477,7 @@ export function ModelMonitoringDetail(props: {
                     <button
                       type='button'
                       className='cursor-help border-b border-dotted border-current text-start'
+                      aria-label={`${cause.label}. ${cause.hint.replaceAll('\n', '. ')}`}
                     >
                       {cause.label}
                     </button>
@@ -509,14 +536,25 @@ export function ModelMonitoringDetail(props: {
               </li>
             ))}
           </ul>
-          <Link
-            to='/canvas-cloud/$section'
-            params={{ section: 'task-logs' }}
-            search={linkSearch as never}
-            className='text-primary text-sm underline underline-offset-4'
+          <MonitoringHint
+            hint={t(
+              'Opens task records with:\nModel key {{modelKey}}\nAccepted {{from}} – {{to}}\nResults with confirmed failures or pending confirmation',
+              {
+                modelKey: linkSearch.modelKey,
+                from: linkTimeFormat.format(new Date(linkSearch.from)),
+                to: linkTimeFormat.format(new Date(linkSearch.to)),
+              }
+            )}
           >
-            {t('View in task records')}
-          </Link>
+            <Link
+              to='/canvas-cloud/$section'
+              params={{ section: 'task-logs' }}
+              search={linkSearch as never}
+              className='text-primary text-sm underline underline-offset-4'
+            >
+              {t('View in task records')}
+            </Link>
+          </MonitoringHint>
         </section>
       </CardContent>
       <TaskRecordDetailsSheet

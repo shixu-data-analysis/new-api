@@ -217,7 +217,7 @@ function TypeCard(props: {
               header: (
                 <MonitoringHint
                   hint={t(
-                    'Compared with the period of the same length just before, on the sorted column'
+                    'Compared with the period of the same length just before\nFor example, the last 7 days against the 7 days before them\n(this period − previous) ÷ previous; “New in ranking” when the previous period is 0\nOn the sorted measure (results or customers)'
                   )}
                 >
                   <span className='border-b border-dotted border-current'>
@@ -269,16 +269,28 @@ function TypeSummary(props: { usage: CanvasModelUsage }) {
         </span>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <div
-          className='flex h-2.5 gap-0.5 overflow-hidden rounded-full'
-          aria-hidden='true'
-        >
+        {/* The list below gives the same numbers to assistive technology; the bar only adds a hover hint. */}
+        <div className='flex h-2.5 gap-0.5 overflow-hidden rounded-full'>
           {props.usage.types.map((type, index) => (
-            <div
+            <MonitoringHint
               key={type.capability ?? 'none'}
-              className={typeColors[index % typeColors.length]}
-              style={{ width: `${total ? (type.results / total) * 100 : 0}%` }}
-            />
+              hint={t('{{type}}: {{count}} results, {{share}}', {
+                type: type.capability ? t(type.capability) : t('Unknown'),
+                count: type.results.toLocaleString(toIntlLocale(language)),
+                share: new Intl.NumberFormat(toIntlLocale(language), {
+                  style: 'percent',
+                  maximumFractionDigits: 1,
+                }).format(total ? type.results / total : 0),
+              })}
+            >
+              <div
+                aria-hidden='true'
+                className={typeColors[index % typeColors.length]}
+                style={{
+                  width: `${total ? (type.results / total) * 100 : 0}%`,
+                }}
+              />
+            </MonitoringHint>
           ))}
         </div>
         <dl className='grid gap-4 sm:grid-cols-3'>
