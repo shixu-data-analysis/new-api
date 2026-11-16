@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "Окно оповещений об ошибках (ч)",
     "Failure alerts": "Оповещения об ошибках",
     "Failure notices": "Уведомления об ошибках",
-    "First failure": "Первая ошибка",
     "Hours": "Часы",
     "Inserted into the reply; edit it before sending if needed": "Вставляется в ответ; при необходимости измените перед отправкой",
     "Latest failure": "Последняя ошибка",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "Только HTTPS",
     "At most 20 in each group": "Не более 20 в каждой группе",
     "{{names}} and {{count}} customers in all": "{{names}} и другие (всего {{count}})",
-    "{{count}} customers with open failure alerts": "Клиентов с открытыми оповещениями об ошибках: {{count}}"
+    "{{count}} customers with open failure alerts": "Клиентов с открытыми оповещениями об ошибках: {{count}}",
+    "Last notice": "Последнее уведомление",
+    "Still being worked on · {{time}}": "В работе · {{time}}",
+    "Is the problem resolved?": "Проблема решена?",
+    "Resolved": "Решено",
+    "The alert closes": "Оповещение закроется",
+    "Still being worked on": "В работе",
+    "The alert stays; notify again once resolved": "Оповещение остаётся; сообщите снова после решения",
+    "Pop up on the client": "Показать всплывающее окно в клиенте",
+    "Pop-up on the client": "Всплывающее окно в клиенте"
   }
 }

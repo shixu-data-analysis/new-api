@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "Failure alert window (hours)",
     "Failure alerts": "Failure alerts",
     "Failure notices": "Failure notices",
-    "First failure": "First failure",
     "Hours": "Hours",
     "Inserted into the reply; edit it before sending if needed": "Inserted into the reply; edit it before sending if needed",
     "Latest failure": "Latest failure",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "HTTPS only",
     "At most 20 in each group": "At most 20 in each group",
     "{{names}} and {{count}} customers in all": "{{names}} and {{count}} customers in all",
-    "{{count}} customers with open failure alerts": "{{count}} customers with open failure alerts"
+    "{{count}} customers with open failure alerts": "{{count}} customers with open failure alerts",
+    "Last notice": "Last notice",
+    "Still being worked on · {{time}}": "Still being worked on · {{time}}",
+    "Is the problem resolved?": "Is the problem resolved?",
+    "Resolved": "Resolved",
+    "The alert closes": "The alert closes",
+    "Still being worked on": "Still being worked on",
+    "The alert stays; notify again once resolved": "The alert stays; notify again once resolved",
+    "Pop up on the client": "Pop up on the client",
+    "Pop-up on the client": "Pop-up on the client"
   }
 }

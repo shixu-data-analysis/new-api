@@ -624,6 +624,8 @@ const SPECS: Record<string, ActionSpec> = {
     fields: [
       { key: 'customers', label: 'Customers notified', kind: 'number' },
       { key: 'textLength', label: 'Notice length', kind: 'number' },
+      { key: 'resolved', label: 'Resolved', kind: 'bool' },
+      { key: 'popup', label: 'Pop-up on the client', kind: 'bool' },
     ],
   },
   'model.tag.renamed': {

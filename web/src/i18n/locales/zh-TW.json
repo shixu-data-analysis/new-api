@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "失敗提醒統計時間（小時）",
     "Failure alerts": "失敗提醒",
     "Failure notices": "失敗通知",
-    "First failure": "首次失敗",
     "Hours": "小時數",
     "Inserted into the reply; edit it before sending if needed": "點一則插入輸入框，可再修改",
     "Latest failure": "最近失敗",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "僅限 HTTPS 位址",
     "At most 20 in each group": "每組最多 20 則",
     "{{names}} and {{count}} customers in all": "{{names}} 等 {{count}} 位",
-    "{{count}} customers with open failure alerts": "{{count}} 位客戶有未處理的失敗提醒"
+    "{{count}} customers with open failure alerts": "{{count}} 位客戶有未處理的失敗提醒",
+    "Last notice": "上次通知",
+    "Still being worked on · {{time}}": "仍在處理 · {{time}}",
+    "Is the problem resolved?": "問題是否已解決",
+    "Resolved": "問題已解決",
+    "The alert closes": "發送後關閉提醒",
+    "Still being worked on": "仍在處理",
+    "The alert stays; notify again once resolved": "保留提醒，解決後再通知",
+    "Pop up on the client": "在客戶端彈出提示",
+    "Pop-up on the client": "客戶端彈出提示"
   }
 }

@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 
 import { notifyCanvasAdminSupportFailureAlerts, supportQueryKeys } from '../api'
@@ -51,6 +53,8 @@ export function SupportFailureNoticeDialog(props: {
   const queryClient = useQueryClient()
   const id = useId()
   const [text, setText] = useState('')
+  const [resolved, setResolved] = useState(true)
+  const [popup, setPopup] = useState(true)
   // One key per dialog, so a retry after a lost answer is not sent twice.
   const [idempotencyKey] = useState(() => crypto.randomUUID())
   const trimmed = text.trim()
@@ -60,6 +64,8 @@ export function SupportFailureNoticeDialog(props: {
         modelKey: props.modelKey,
         alertIds: props.alertIds,
         text: trimmed,
+        resolved,
+        popup,
         idempotencyKey,
       }),
     onSuccess: (result) => {
@@ -117,6 +123,39 @@ export function SupportFailureNoticeDialog(props: {
               onChange={(event) => setText(event.target.value)}
             />
           </div>
+          <RadioGroup
+            aria-label={t('Is the problem resolved?')}
+            className='grid gap-2 sm:grid-cols-2'
+            value={resolved ? 'resolved' : 'working'}
+            onValueChange={(value) => setResolved(value === 'resolved')}
+          >
+            {[
+              ['resolved', t('Resolved'), t('The alert closes')],
+              [
+                'working',
+                t('Still being worked on'),
+                t('The alert stays; notify again once resolved'),
+              ],
+            ].map(([value, label, help]) => (
+              <label
+                key={value}
+                className='has-[[data-checked]]:border-primary flex items-start gap-3 rounded-md border p-3 text-sm'
+              >
+                <RadioGroupItem value={value} className='mt-0.5' />
+                <span className='grid gap-0.5'>
+                  <span className='font-medium'>{label}</span>
+                  <span className='text-muted-foreground text-xs'>{help}</span>
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+          <label className='flex items-center gap-2 text-sm'>
+            <Checkbox
+              checked={popup}
+              onCheckedChange={(checked) => setPopup(checked === true)}
+            />
+            {t('Pop up on the client')}
+          </label>
           <div className='bg-muted/50 rounded-xl border p-3 text-sm'>
             <span className='text-muted-foreground mb-1 block text-xs'>
               {t('What the customer sees')}

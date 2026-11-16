@@ -2312,6 +2312,10 @@ export async function notifyCanvasAdminSupportFailureAlerts(request: {
   modelKey: string
   alertIds: string[]
   text: string
+  /** false: still being worked on; the alerts stay for the next notice. */
+  resolved: boolean
+  /** false: the client lights its dot without the preview card. */
+  popup: boolean
   idempotencyKey: string
 }): Promise<{ notified: number }> {
   const { idempotencyKey, ...body } = request

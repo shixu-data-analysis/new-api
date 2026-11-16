@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "失敗アラートの集計時間（時間）",
     "Failure alerts": "失敗アラート",
     "Failure notices": "失敗の通知",
-    "First failure": "最初の失敗",
     "Hours": "時間",
     "Inserted into the reply; edit it before sending if needed": "返信欄に挿入されます。必要なら送信前に編集してください",
     "Latest failure": "最新の失敗",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "HTTPS のみ",
     "At most 20 in each group": "各グループ最大 20 件",
     "{{names}} and {{count}} customers in all": "{{names}} ほか（計 {{count}} 人）",
-    "{{count}} customers with open failure alerts": "未処理の失敗アラートがある顧客 {{count}} 人"
+    "{{count}} customers with open failure alerts": "未処理の失敗アラートがある顧客 {{count}} 人",
+    "Last notice": "前回の通知",
+    "Still being worked on · {{time}}": "対応中 · {{time}}",
+    "Is the problem resolved?": "問題は解決しましたか",
+    "Resolved": "解決済み",
+    "The alert closes": "送信後にアラートを閉じます",
+    "Still being worked on": "対応中",
+    "The alert stays; notify again once resolved": "アラートを残し、解決後に再通知",
+    "Pop up on the client": "クライアントにポップアップを表示",
+    "Pop-up on the client": "クライアントのポップアップ"
   }
 }

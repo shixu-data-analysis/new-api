@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "Fenêtre des alertes d’échec (heures)",
     "Failure alerts": "Alertes d’échec",
     "Failure notices": "Avis d’échec",
-    "First failure": "Premier échec",
     "Hours": "Heures",
     "Inserted into the reply; edit it before sending if needed": "Insérée dans la réponse ; modifiez-la avant l’envoi si besoin",
     "Latest failure": "Dernier échec",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "HTTPS uniquement",
     "At most 20 in each group": "20 au maximum par groupe",
     "{{names}} and {{count}} customers in all": "{{names}} et autres ({{count}} clients)",
-    "{{count}} customers with open failure alerts": "{{count}} clients avec des alertes d’échec en attente"
+    "{{count}} customers with open failure alerts": "{{count}} clients avec des alertes d’échec en attente",
+    "Last notice": "Dernier avis",
+    "Still being worked on · {{time}}": "En cours · {{time}}",
+    "Is the problem resolved?": "Le problème est-il résolu ?",
+    "Resolved": "Résolu",
+    "The alert closes": "L’alerte se ferme",
+    "Still being worked on": "En cours",
+    "The alert stays; notify again once resolved": "L’alerte reste ; informez à nouveau une fois résolu",
+    "Pop up on the client": "Afficher une fenêtre sur le client",
+    "Pop-up on the client": "Fenêtre sur le client"
   }
 }

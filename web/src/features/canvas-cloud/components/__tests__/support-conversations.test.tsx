@@ -515,6 +515,7 @@ describe('SUPPORT-CHAT-001 失败提醒', () => {
             failureCount: 4,
             firstFailedAt: '2026-11-16T01:41:00.000Z',
             lastFailedAt: '2026-11-16T02:18:00.000Z',
+            lastNotifiedAt: null,
           },
           {
             alertId: '93000000-0000-7000-8000-000000000002',
@@ -522,6 +523,7 @@ describe('SUPPORT-CHAT-001 失败提醒', () => {
             failureCount: 3,
             firstFailedAt: '2026-11-16T01:55:00.000Z',
             lastFailedAt: '2026-11-16T02:12:00.000Z',
+            lastNotifiedAt: null,
           },
         ],
       },
@@ -574,8 +576,42 @@ describe('SUPPORT-CHAT-001 失败提醒', () => {
         modelKey: 'seedance-2.0',
         alertIds: ['93000000-0000-7000-8000-000000000001'],
         text: '原因已经查明并修复。',
+        resolved: true,
+        popup: true,
         idempotencyKey: expect.any(String),
       })
+    )
+  })
+
+  it('tells customers it is still being worked on, quietly, and keeps the alert', async () => {
+    render(
+      wrap(
+        <SupportFailureAlerts
+          alerts={alerts}
+          quickReplies={[]}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Notify customers of the result' })
+    )
+    fireEvent.click(
+      await screen.findByRole('radio', { name: /Still being worked on/ })
+    )
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Pop up on the client' })
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Notice' }), {
+      target: { value: '上游仍在修复' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() =>
+      expect(
+        apiMocks.notifyCanvasAdminSupportFailureAlerts
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({ resolved: false, popup: false })
+      )
     )
   })
 

@@ -11106,7 +11106,6 @@
     "Failure alert window (hours)": "Khoảng thời gian cảnh báo thất bại (giờ)",
     "Failure alerts": "Cảnh báo thất bại",
     "Failure notices": "Thông báo thất bại",
-    "First failure": "Thất bại đầu tiên",
     "Hours": "Số giờ",
     "Inserted into the reply; edit it before sending if needed": "Chèn vào ô trả lời; sửa trước khi gửi nếu cần",
     "Latest failure": "Thất bại gần nhất",
@@ -11133,6 +11132,15 @@
     "HTTPS only": "Chỉ HTTPS",
     "At most 20 in each group": "Tối đa 20 mục mỗi nhóm",
     "{{names}} and {{count}} customers in all": "{{names}} và những người khác ({{count}} khách hàng)",
-    "{{count}} customers with open failure alerts": "{{count}} khách hàng có cảnh báo thất bại chưa xử lý"
+    "{{count}} customers with open failure alerts": "{{count}} khách hàng có cảnh báo thất bại chưa xử lý",
+    "Last notice": "Thông báo gần nhất",
+    "Still being worked on · {{time}}": "Đang xử lý · {{time}}",
+    "Is the problem resolved?": "Vấn đề đã được giải quyết chưa",
+    "Resolved": "Đã giải quyết",
+    "The alert closes": "Cảnh báo sẽ đóng",
+    "Still being worked on": "Đang xử lý",
+    "The alert stays; notify again once resolved": "Giữ cảnh báo; thông báo lại khi đã giải quyết",
+    "Pop up on the client": "Hiển thị cửa sổ bật lên trên ứng dụng",
+    "Pop-up on the client": "Cửa sổ bật lên trên ứng dụng"
   }
 }

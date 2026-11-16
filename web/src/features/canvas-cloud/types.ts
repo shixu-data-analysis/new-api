@@ -2486,6 +2486,8 @@ export interface CanvasSupportFailureAlertCustomer {
   failureCount: number
   firstFailedAt: string
   lastFailedAt: string
+  /** When the customer was last told the failure is still being worked on. */
+  lastNotifiedAt: string | null
 }
 
 export interface CanvasSupportFailureAlertModel {

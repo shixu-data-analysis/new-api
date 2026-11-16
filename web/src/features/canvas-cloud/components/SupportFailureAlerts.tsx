@@ -184,10 +184,10 @@ export function SupportFailureAlerts(props: {
                 <th className='py-2 text-start font-medium'>{t('Customer')}</th>
                 <th className='py-2 text-start font-medium'>{t('Failures')}</th>
                 <th className='py-2 text-start font-medium'>
-                  {t('First failure')}
+                  {t('Latest failure')}
                 </th>
                 <th className='py-2 text-start font-medium'>
-                  {t('Latest failure')}
+                  {t('Last notice')}
                 </th>
                 <th className='py-2'>
                   <span className='sr-only'>{t('Actions')}</span>
@@ -221,10 +221,14 @@ export function SupportFailureAlerts(props: {
                     </td>
                     <td className='py-2 tabular-nums'>{row.failureCount}</td>
                     <td className='py-2 tabular-nums'>
-                      {time(row.firstFailedAt)}
-                    </td>
-                    <td className='py-2 tabular-nums'>
                       {time(row.lastFailedAt)}
+                    </td>
+                    <td className='text-muted-foreground py-2 tabular-nums'>
+                      {row.lastNotifiedAt
+                        ? t('Still being worked on · {{time}}', {
+                            time: time(row.lastNotifiedAt),
+                          })
+                        : '—'}
                     </td>
                     <td className='py-2 text-end'>
                       <Button
