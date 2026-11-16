@@ -114,6 +114,7 @@ import {
 import { ModelJsonFill } from './ModelJsonFill'
 import { ModelJsonView } from './ModelJsonView'
 import { ModelPublishPreview } from './ModelPublishPreview'
+import { ModelAssistantSection } from './TextModelFields'
 
 export type ModelEditorMode =
   | { kind: 'edit'; modelKey: string }
@@ -315,7 +316,12 @@ function LoadedEditor(props: {
   const [tab, setTab] = useState<'form' | 'json'>('form')
   const [plan, setPlan] = useState<CatalogEditPlan | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [jsonError, setJsonError] = useState<string>()
+  // JSON fields still holding an issue, by paramSchema field: publishing waits until each is fixed.
+  const [jsonIssues, setJsonIssues] = useState<
+    Record<string, string | undefined>
+  >({})
+  const setJsonIssue = (field: string, issue: string | undefined) =>
+    setJsonIssues((current) => ({ ...current, [field]: issue }))
   const providerIdOf = (channelId: string) =>
     catalog.bundle.channels.find((entry) => entry.id === channelId)?.providerId
   const suggestGroupName = (providerId: string | undefined) => {
@@ -758,7 +764,9 @@ function LoadedEditor(props: {
 
   const submit = () => {
     const found = localErrors()
-    if (jsonError) found['paramSchema.usageEstimate'] = jsonError
+    for (const [field, issue] of Object.entries(jsonIssues)) {
+      if (issue) found[`paramSchema.${field}`] = issue
+    }
     const count = Object.keys(found).length
     setErrors(found)
     // Every model of the page is checked, opened or not: the first one with problems is shown with them.
@@ -1641,8 +1649,32 @@ function LoadedEditor(props: {
                 set={setInteraction}
                 was={was}
                 usageProtocol={usageProtocol}
-                onJsonError={setJsonError}
+                onJsonIssue={setJsonIssue}
               />
+              {draft.capability === 'chat.generate' &&
+              draft.release.channelId ? (
+                <ModelAssistantSection
+                  draft={draft}
+                  base={base}
+                  sent={sent}
+                  catalogValues={catalogValues}
+                  errors={errors}
+                  set={setInteraction}
+                  was={was}
+                  mappedLevels={Object.keys(
+                    (
+                      profile?.advanced as
+                        | {
+                            request?: {
+                              reasoningLevels?: Record<string, unknown>
+                            }
+                          }
+                        | undefined
+                    )?.request?.reasoningLevels ?? {}
+                  )}
+                  onJsonIssue={setJsonIssue}
+                />
+              ) : null}
               <ModelSizeSection
                 draft={draft}
                 base={base}

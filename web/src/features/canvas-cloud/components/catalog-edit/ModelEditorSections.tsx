@@ -42,6 +42,7 @@ import {
   ValueAdder,
   ValuePills,
 } from './EditFields'
+import { InputTiersField } from './TextModelFields'
 
 const RATIO_ORDER = [
   '1:1',
@@ -1157,7 +1158,7 @@ const TOKEN_CATEGORIES: Record<CatalogCapability, string[]> = {
 export function ModelTokenSection(
   props: SectionProps & {
     usageProtocol: string | undefined
-    onJsonError: (error: string | undefined) => void
+    onJsonIssue: (field: string, issue: string | undefined) => void
   }
 ) {
   const { t } = useTranslation()
@@ -1265,6 +1266,9 @@ export function ModelTokenSection(
           )}
         </EditField>
       ) : null}
+      {cap === 'chat.generate' ? (
+        <InputTiersField {...props} onJsonIssue={props.onJsonIssue} />
+      ) : null}
       {usageProtocol && cap !== 'chat.generate' ? (
         <EditField
           label={t('Usage estimate (JSON)')}
@@ -1289,15 +1293,18 @@ export function ModelTokenSection(
               onChange={(event) => {
                 const text = event.target.value.trim()
                 if (!text) {
-                  props.onJsonError(undefined)
+                  props.onJsonIssue('usageEstimate', undefined)
                   set(['paramSchema', 'usageEstimate'], undefined)
                   return
                 }
                 try {
                   set(['paramSchema', 'usageEstimate'], JSON.parse(text))
-                  props.onJsonError(undefined)
+                  props.onJsonIssue('usageEstimate', undefined)
                 } catch {
-                  props.onJsonError(t('The usage estimate is not valid JSON'))
+                  props.onJsonIssue(
+                    'usageEstimate',
+                    t('The usage estimate is not valid JSON')
+                  )
                 }
               }}
             />
