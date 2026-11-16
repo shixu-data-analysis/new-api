@@ -667,7 +667,7 @@ export function SupportThread(props: {
           </label>
           <Textarea
             id={inputId}
-            className='min-h-14 resize-none border-0 p-0 shadow-none focus-visible:ring-0'
+            className='min-h-14 resize-none rounded-none border-0 p-0 shadow-none focus-visible:ring-0'
             placeholder={t('Reply to {{name}} (ID {{id}})', {
               name,
               id: conversation.customer.userId,
