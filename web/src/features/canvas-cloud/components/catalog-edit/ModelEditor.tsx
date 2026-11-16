@@ -322,6 +322,14 @@ function LoadedEditor(props: {
   >({})
   const setJsonIssue = (field: string, issue: string | undefined) =>
     setJsonIssues((current) => ({ ...current, [field]: issue }))
+  // Counts the drafts that replaced the whole draft (filled from JSON, merged with a newer version, started over). The
+  // JSON fields are keyed by it, so each shows the new draft's value and drops what was typed and its issue.
+  const [draftRevision, setDraftRevision] = useState(0)
+  const replaceDraft = (next: CatalogModelDefinition) => {
+    setDraft(next)
+    setJsonIssues({})
+    setDraftRevision((current) => current + 1)
+  }
   const providerIdOf = (channelId: string) =>
     catalog.bundle.channels.find((entry) => entry.id === channelId)?.providerId
   const suggestGroupName = (providerId: string | undefined) => {
@@ -725,7 +733,7 @@ function LoadedEditor(props: {
   const fillOne = (model: CatalogModelDefinition) => {
     setPlan(null)
     setErrors({})
-    setDraft(structuredClone(model))
+    replaceDraft(structuredClone(model))
     setKeyEdited(customKey(catalog, model))
     const channelId = model.release.channelId
     if (mode.kind !== 'edit' && !groupChoice) {
@@ -1119,7 +1127,9 @@ function LoadedEditor(props: {
                       .filter((conflict) => choices[conflict.path] === 'theirs')
                       .map((conflict) => conflict.path)
                   )
-                  setDraft(replayChanges(base, draft, latestModel, keepTheirs))
+                  replaceDraft(
+                    replayChanges(base, draft, latestModel, keepTheirs)
+                  )
                   setBase(latestModel)
                   setBaseVersion(latest.version)
                   setLatest(null)
@@ -1176,7 +1186,7 @@ function LoadedEditor(props: {
                             const next = event.target.value as CatalogCapability
                             setChosenCapability(next)
                             setChosenProvider('')
-                            setDraft({
+                            replaceDraft({
                               ...blankModel(catalog, ''),
                               capability: next,
                             })
@@ -1201,7 +1211,7 @@ function LoadedEditor(props: {
                           value={provider?.id ?? chosenProvider}
                           onChange={(event) => {
                             setChosenProvider(event.target.value)
-                            setDraft({
+                            replaceDraft({
                               ...blankModel(catalog, ''),
                               capability: chosenCapability,
                             })
@@ -1236,7 +1246,7 @@ function LoadedEditor(props: {
                             onChange={(event) => {
                               const channelId = event.target.value
                               setPlan(null)
-                              setDraft(blankModel(catalog, channelId))
+                              replaceDraft(blankModel(catalog, channelId))
                               if (channelId) {
                                 const providerId = providerIdOf(channelId)
                                 pickGroup(
@@ -1641,6 +1651,7 @@ function LoadedEditor(props: {
                 ) : null}
               </div>
               <ModelTokenSection
+                key={draftRevision}
                 draft={draft}
                 base={base}
                 sent={sent}
@@ -1654,6 +1665,7 @@ function LoadedEditor(props: {
               {draft.capability === 'chat.generate' &&
               draft.release.channelId ? (
                 <ModelAssistantSection
+                  key={draftRevision}
                   draft={draft}
                   base={base}
                   sent={sent}
