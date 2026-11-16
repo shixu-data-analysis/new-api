@@ -240,15 +240,23 @@ it('keeps the first and last time labels while limiting dense ticks', () => {
   expect([...monitoringTickLabelIndexes(0)]).toEqual([])
 })
 
-function mount(focusModelKey?: string) {
+function mount(focusModelKey?: string, onClearFocus = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const view = (key?: string) => (
     <QueryClientProvider client={client}>
-      <ModelMonitoringOverview focusModelKey={focusModelKey} />
+      <ModelMonitoringOverview
+        focusModelKey={key}
+        onClearFocus={onClearFocus}
+      />
     </QueryClientProvider>
   )
+  const rendered = render(view(focusModelKey))
+  return {
+    ...rendered,
+    setFocus: (key?: string) => rendered.rerender(view(key)),
+  }
 }
 
 describe('model monitoring', () => {
@@ -547,7 +555,8 @@ describe('model monitoring', () => {
             total: 11,
           }
     )
-    mount('image.alpha')
+    const onClearFocus = vi.fn()
+    const { setFocus } = mount('image.alpha', onClearFocus)
     expect(
       await screen.findByRole('heading', { name: 'Alpha model' })
     ).toBeVisible()
@@ -560,6 +569,9 @@ describe('model monitoring', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Remove filter Model: Alpha model' })
     )
+    // The tag asks the page to drop modelKey from the address; the page then renders without it.
+    expect(onClearFocus).toHaveBeenCalledTimes(1)
+    setFocus(undefined)
     expect(
       await screen.findByRole('heading', { name: 'Beta model' })
     ).toBeVisible()

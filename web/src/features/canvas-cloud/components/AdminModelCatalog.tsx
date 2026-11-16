@@ -756,8 +756,8 @@ export function AdminModelCatalog(props: {
           </TabsContent>
           <TabsContent value='monitoring' className='mt-4'>
             <ModelMonitoringOverview
-              key={monitoringModelKey ?? ''}
               focusModelKey={monitoringModelKey}
+              onClearFocus={() => changeTab('monitoring')}
             />
           </TabsContent>
           <TabsContent value='usage' className='mt-4'>

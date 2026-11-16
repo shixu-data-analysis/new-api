@@ -43,8 +43,16 @@ vi.mock('../UnifiedModelPricing', () => ({
   ),
 }))
 vi.mock('../ModelMonitoringOverview', () => ({
-  ModelMonitoringOverview: (props: { focusModelKey?: string }) => (
-    <div>Logical model monitoring overview {props.focusModelKey ?? ''}</div>
+  ModelMonitoringOverview: (props: {
+    focusModelKey?: string
+    onClearFocus: () => void
+  }) => (
+    <div>
+      <span>Logical model monitoring overview {props.focusModelKey ?? ''}</span>
+      <button type='button' onClick={props.onClearFocus}>
+        Clear monitoring focus
+      </button>
+    </div>
   ),
 }))
 vi.mock('../ModelUsageRanking', () => ({
@@ -343,6 +351,15 @@ describe('Canvas model catalog folder upload', () => {
     ).toHaveAttribute('aria-selected', 'true')
     expect(
       await screen.findByText('Logical model monitoring overview image.alpha')
+    ).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Clear monitoring focus' })
+    )
+    expect(
+      screen.getByRole('tab', { name: 'Runtime monitoring' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      await screen.findByText('Logical model monitoring overview')
     ).toBeVisible()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {

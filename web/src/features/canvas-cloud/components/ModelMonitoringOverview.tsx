@@ -165,7 +165,11 @@ function Totals(props: { data: CanvasModelMonitoringOverview }) {
   )
 }
 
-export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
+export function ModelMonitoringOverview(props: {
+  /** A model opened from the usage ranking; the address bar owns it so removing its tag also leaves the link. */
+  focusModelKey?: string
+  onClearFocus: () => void
+}) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [appliedWindow, setAppliedWindow] = useState<PresetWindow | 'custom'>(
@@ -179,8 +183,8 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
   const [capability, setCapability] = useState('')
   const [providerId, setProviderId] = useState('')
   const [tagId, setTagId] = useState('')
-  // A model opened from the usage ranking is filtered by its exact key; search would also match longer keys on other pages.
-  const [focusModelKey, setFocusModelKey] = useState(props.focusModelKey ?? '')
+  // Filtered by its exact key; search would also match longer keys on other pages.
+  const focusModelKey = props.focusModelKey ?? ''
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search.trim(), 300)
   const [page, setPage] = useState(1)
@@ -299,7 +303,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
     setCapability('')
     setProviderId('')
     setTagId('')
-    setFocusModelKey('')
+    if (focusModelKey) props.onClearFocus()
     setSearch('')
     resetPage()
   }
@@ -367,7 +371,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
             ?.effectiveDisplayName ?? focusModelKey,
       }),
       remove: () => {
-        setFocusModelKey('')
+        props.onClearFocus()
         resetPage()
       },
     },
