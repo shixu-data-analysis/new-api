@@ -1,5 +1,5 @@
 /** Catalog definition rules shared by the repository check and Cloud. */
-import { collapsePromptWhitespaceIssue, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
+import { collapsePromptWhitespaceIssue, CONVERSATION_PROTOCOLS, conversationProtocolOf, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PROFILE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -194,17 +194,10 @@ function validateRequestOptions(profile, request, location) {
   // The credential header is checked once the Profile's OpenAPI security schemes are known.
   const issue = Object.hasOwn(request, "idempotencyHeader") ? idempotencyHeaderIssue(request.idempotencyHeader, profile.workflow) : undefined;
   if (issue) fail(`${location}.${issue}`);
-  if (Object.hasOwn(request, "conversationProtocol")) {
-    // Cloud builds the conversation body itself and reads tool calls and usage from the stream, so the endpoint must be
-    // a streamed text endpoint whose usage it already reads in the same format.
-    if (!CONVERSATION_PROTOCOLS.includes(request.conversationProtocol)) fail(`${location}.conversationProtocol must be one of ${CONVERSATION_PROTOCOLS.join(", ")}`);
-    if (profile.kind !== "chat.generate" || profile.workflow !== "sync") fail(`${location}.conversationProtocol is only allowed for sync chat.generate Profiles`);
-    const response = profile.advanced?.response;
-    if (response?.streaming !== true || response?.usageProtocol !== request.conversationProtocol) fail(`${location}.conversationProtocol requires a streamed response with the same usageProtocol`);
-  }
+  if (Object.hasOwn(request, "conversationProtocol")) fail(`${location}.conversationProtocol is no longer supported; a streamed sync chat Profile speaks the conversation of its usageProtocol`);
   if (Object.hasOwn(request, "reasoningLevels")) {
     // The upstream fields of each reasoning level, merged into the conversation body Cloud builds.
-    if (!Object.hasOwn(request, "conversationProtocol")) fail(`${location}.reasoningLevels requires a conversationProtocol`);
+    if (!conversationProtocolOf(profile)) fail(`${location}.reasoningLevels requires a Profile that speaks a conversation: sync chat.generate, streamed, usageProtocol ${CONVERSATION_PROTOCOL_NAMES}`);
     const levels = object(request.reasoningLevels, `${location}.reasoningLevels`);
     if (!Object.keys(levels).length) fail(`${location}.reasoningLevels must map at least one level`);
     for (const [level, fields] of Object.entries(levels)) {
@@ -270,8 +263,7 @@ const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCateg
 const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
 // Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
 const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "stream", "stream_options", "max_tokens"];
-// The multi-turn protocols Cloud builds a conversation request for itself: messages, tools and their streamed calls.
-const CONVERSATION_PROTOCOLS = ["OPENAI_CHAT"];
+const CONVERSATION_PROTOCOL_NAMES = CONVERSATION_PROTOCOLS.join(" or ");
 // Text input is text only in the current scope, so text models cannot declare image input. The total is for an upstream
 // that reports one count only, which is a video task so far (VIDEO-TOKEN-BILLING-001).
 const VIDEO_TOKEN_USAGE_CATEGORIES = ["total", "totalWithVideoInput"];
@@ -846,7 +838,7 @@ export function validateCatalogDefinitions(read, options = {}) {
     }
     if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
-    if (paramSchema.toolCalling && !channel.profile.advanced?.request?.conversationProtocol) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} declares no conversationProtocol`);
+    if (paramSchema.toolCalling && !conversationProtocolOf(channel.profile)) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} does not speak a conversation: sync chat.generate, streamed, usageProtocol ${CONVERSATION_PROTOCOL_NAMES}`);
     const unmapped = (paramSchema.reasoning?.levels ?? []).map((level) => level.value).filter((level) => !Object.hasOwn(channel.profile.advanced?.request?.reasoningLevels ?? {}, level));
     if (unmapped.length) fail(`Model ${productKey} offers reasoning levels ${unmapped.join(", ")} that Profile ${channel.profile.id} does not map in reasoningLevels`);
     if (paramSchema.tokenUsageCategories?.includes("totalWithVideoInput") && !(Number(referenceLimits.maxVideoReferences ?? 0) >= 1)) fail(`Model ${productKey} prices a video input but accepts no reference video`);
