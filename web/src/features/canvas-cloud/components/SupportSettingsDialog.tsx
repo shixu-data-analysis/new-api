@@ -40,13 +40,22 @@ import {
   testCanvasAdminSupportWebhook,
 } from '../api'
 import type {
+  CanvasSupportQuickReplies,
   CanvasSupportRetentionDays,
   CanvasSupportSettings,
   CanvasSupportWebhookFormat,
   CanvasSupportWebhookTest,
 } from '../types'
+import { SupportQuickRepliesField } from './SupportQuickRepliesField'
 
 const RETENTION_DAYS: CanvasSupportRetentionDays[] = [3, 7, 15, 30]
+const THRESHOLD_RANGE = { min: 2, max: 20 }
+const WINDOW_HOURS_RANGE = { min: 1, max: 168 }
+
+const inRange = (value: string, range: { min: number; max: number }) =>
+  /^\d+$/.test(value) &&
+  Number(value) >= range.min &&
+  Number(value) <= range.max
 const FORMATS: Array<[CanvasSupportWebhookFormat, string]> = [
   ['WECOM', 'WeCom'],
   ['DINGTALK', 'DingTalk'],
@@ -80,7 +89,7 @@ function webhookUrlError(
   return null
 }
 
-/** 客服设置: message retention and the Webhook that alerts the internal group. */
+/** 客服设置: message retention, the Webhook that alerts the internal group, failure alerts and quick replies. */
 export function SupportSettingsDialog(props: {
   settings: CanvasSupportSettings
   onClose: () => void
@@ -95,6 +104,15 @@ export function SupportSettingsDialog(props: {
   const [format, setFormat] = useState<CanvasSupportWebhookFormat>(
     props.settings.webhook?.format ?? 'WECOM'
   )
+  const [threshold, setThreshold] = useState(
+    String(props.settings.failureAlerts.threshold)
+  )
+  const [windowHours, setWindowHours] = useState(
+    String(props.settings.failureAlerts.windowHours)
+  )
+  const [quickReplies, setQuickReplies] = useState<CanvasSupportQuickReplies>(
+    props.settings.quickReplies
+  )
   const [url, setUrl] = useState('')
   const [tried, setTried] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -106,8 +124,25 @@ export function SupportSettingsDialog(props: {
   const localUrlError = webhookUrlError(urlMissing, urlNotHttps, t)
   const shownUrlError = tried ? (localUrlError ?? urlError) : urlError
   const shorter = retentionDays < props.settings.retentionDays
+  const failureRangeError =
+    inRange(threshold, THRESHOLD_RANGE) &&
+    inRange(windowHours, WINDOW_HOURS_RANGE)
+      ? null
+      : t(
+          'Enter {{min}}–{{max}} failures and {{minHours}}–{{maxHours}} hours',
+          {
+            min: THRESHOLD_RANGE.min,
+            max: THRESHOLD_RANGE.max,
+            minHours: WINDOW_HOURS_RANGE.min,
+            maxHours: WINDOW_HOURS_RANGE.max,
+          }
+        )
   const dirty =
     retentionDays !== props.settings.retentionDays ||
+    threshold !== String(props.settings.failureAlerts.threshold) ||
+    windowHours !== String(props.settings.failureAlerts.windowHours) ||
+    JSON.stringify(quickReplies) !==
+      JSON.stringify(props.settings.quickReplies) ||
     hasWebhook !== (saved !== null) ||
     (hasWebhook && (format !== saved?.format || trimmedUrl !== ''))
 
@@ -115,6 +150,11 @@ export function SupportSettingsDialog(props: {
     mutationFn: () =>
       setCanvasAdminSupportSettings({
         retentionDays,
+        failureAlerts: {
+          threshold: Number(threshold),
+          windowHours: Number(windowHours),
+        },
+        quickReplies,
         webhook: hasWebhook
           ? { format, ...(trimmedUrl ? { url: trimmedUrl } : {}) }
           : null,
@@ -152,7 +192,7 @@ export function SupportSettingsDialog(props: {
       open
       onOpenChange={(open) => (!open && !busy ? props.onClose() : undefined)}
     >
-      <DialogContent className='sm:max-w-lg'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{t('Support settings')}</DialogTitle>
         </DialogHeader>
@@ -162,7 +202,7 @@ export function SupportSettingsDialog(props: {
           onSubmit={(event) => {
             event.preventDefault()
             setTried(true)
-            if (localUrlError) return
+            if (localUrlError || failureRangeError) return
             save.mutate()
           }}
         >
@@ -288,6 +328,69 @@ export function SupportSettingsDialog(props: {
                 </div>
               </>
             ) : null}
+          </fieldset>
+
+          <fieldset className='space-y-2 border-t border-dashed pt-4'>
+            <legend className='text-sm font-medium'>
+              {t('Failure alerts')}
+            </legend>
+            <div className='flex flex-wrap items-center gap-2 text-sm'>
+              <span>{t('Alert when one customer fails on one model')}</span>
+              <Input
+                className='w-20'
+                inputMode='numeric'
+                aria-label={t('Failures')}
+                aria-invalid={tried && Boolean(failureRangeError)}
+                value={threshold}
+                onChange={(event) => setThreshold(event.target.value.trim())}
+              />
+              <span>{t('times within')}</span>
+              <Input
+                className='w-20'
+                inputMode='numeric'
+                aria-label={t('Hours')}
+                aria-invalid={tried && Boolean(failureRangeError)}
+                value={windowHours}
+                onChange={(event) => setWindowHours(event.target.value.trim())}
+              />
+              <span>{t('hours')}</span>
+            </div>
+            {tried && failureRangeError ? (
+              <p role='alert' className='text-destructive text-xs'>
+                {failureRangeError}
+              </p>
+            ) : (
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Confirmed failures of real tasks; one task counts once. The group hears at most once per model every 5 minutes.'
+                )}
+              </p>
+            )}
+          </fieldset>
+
+          <fieldset className='space-y-3 border-t border-dashed pt-4'>
+            <legend className='text-sm font-medium'>
+              {t('Quick replies')}
+            </legend>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Plain text, sent as it is or edited first. At most 20 in each group, 500 characters each.'
+              )}
+            </p>
+            <SupportQuickRepliesField
+              label={t('Conversation replies')}
+              values={quickReplies.conversation}
+              onChange={(conversation) =>
+                setQuickReplies({ ...quickReplies, conversation })
+              }
+            />
+            <SupportQuickRepliesField
+              label={t('Failure notices')}
+              values={quickReplies.failureNotice}
+              onChange={(failureNotice) =>
+                setQuickReplies({ ...quickReplies, failureNotice })
+              }
+            />
           </fieldset>
 
           <DialogFooter className='sm:justify-between'>

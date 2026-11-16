@@ -2437,8 +2437,22 @@ export type CanvasSupportWebhookFormat =
   | 'SLACK'
   | 'JSON'
 
+/** A customer whose tasks on one model fail `threshold` times within `windowHours` alerts the internal group. */
+export interface CanvasSupportFailureAlertSettings {
+  threshold: number
+  windowHours: number
+}
+
+/** Plain texts inserted into a reply (conversation) or a failure notice. */
+export interface CanvasSupportQuickReplies {
+  conversation: string[]
+  failureNotice: string[]
+}
+
 export interface CanvasSupportSettings {
   retentionDays: CanvasSupportRetentionDays
+  failureAlerts: CanvasSupportFailureAlertSettings
+  quickReplies: CanvasSupportQuickReplies
   webhook: { format: CanvasSupportWebhookFormat; displayHint: string } | null
   version: number | null
   effectiveAt: string | null
@@ -2446,6 +2460,8 @@ export interface CanvasSupportSettings {
 
 export interface CanvasSupportSettingsInput {
   retentionDays: CanvasSupportRetentionDays
+  failureAlerts: CanvasSupportFailureAlertSettings
+  quickReplies: CanvasSupportQuickReplies
   /** null removes the Webhook; without url the saved address is kept and only the format changes. */
   webhook: { format: CanvasSupportWebhookFormat; url?: string } | null
 }
@@ -2459,4 +2475,24 @@ export interface CanvasSupportWebhookTest {
     | 'HTTP_STATUS'
     | 'BOT_ERROR'
     | null
+}
+
+export interface CanvasSupportFailureAlertCustomer {
+  alertId: string
+  customer: { id: string; userId: string; name: string | null }
+  failureCount: number
+  firstFailedAt: string
+  lastFailedAt: string
+}
+
+export interface CanvasSupportFailureAlertModel {
+  modelKey: string
+  modelName: string
+  customers: CanvasSupportFailureAlertCustomer[]
+}
+
+export interface CanvasSupportFailureAlerts {
+  threshold: number
+  windowHours: number
+  models: CanvasSupportFailureAlertModel[]
 }

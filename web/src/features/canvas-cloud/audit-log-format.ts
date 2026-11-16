@@ -598,6 +598,32 @@ const SPECS: Record<string, ActionSpec> = {
         label: 'Webhook address replaced',
         kind: 'bool',
       },
+      {
+        key: 'failureThreshold',
+        previous: 'previousFailureThreshold',
+        label: 'Failure alert count',
+        kind: 'number',
+      },
+      {
+        key: 'failureWindowHours',
+        previous: 'previousFailureWindowHours',
+        label: 'Failure alert window (hours)',
+        kind: 'number',
+      },
+      {
+        key: 'quickReplyCount',
+        previous: 'previousQuickReplyCount',
+        label: 'Quick replies',
+        kind: 'number',
+      },
+    ],
+  },
+  'support.failure.notified': {
+    objectType: 'Model',
+    objectName: resourceKey,
+    fields: [
+      { key: 'customers', label: 'Customers notified', kind: 'number' },
+      { key: 'textLength', label: 'Notice length', kind: 'number' },
     ],
   },
   'model.tag.renamed': {
@@ -1311,6 +1337,7 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'announcement.tag.deleted': 'Delete tag',
   'announcement.retention.updated': 'Change visible time and cleanup',
   'support.settings.updated': 'Change support settings',
+  'support.failure.notified': 'Notify customers of a failure result',
   'convention.published': 'Publish new version',
   'customer.suspended': 'Suspend account',
   'customer.restored': 'Restore account',

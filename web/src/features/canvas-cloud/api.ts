@@ -116,6 +116,7 @@ import type {
   CanvasAdminSupportMessage,
   CanvasAdminSupportMessages,
   CanvasSupportAttachmentIssued,
+  CanvasSupportFailureAlerts,
   CanvasSupportSettings,
   CanvasSupportSettingsInput,
   CanvasSupportUpload,
@@ -2124,6 +2125,12 @@ export const supportQueryKeys = {
   conversations: ['canvas-cloud', 'admin', 'support', 'conversations'] as const,
   pendingCount: ['canvas-cloud', 'admin', 'support', 'pending-count'] as const,
   settings: ['canvas-cloud', 'admin', 'support', 'settings'] as const,
+  failureAlerts: [
+    'canvas-cloud',
+    'admin',
+    'support',
+    'failure-alerts',
+  ] as const,
 }
 
 export async function getCanvasAdminSupportConversations(
@@ -2282,6 +2289,55 @@ export async function setCanvasAdminSupportSettings(
       `${webBase}/admin/support/settings`,
       input,
       {
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function getCanvasAdminSupportFailureAlerts(
+  signal?: AbortSignal
+): Promise<CanvasSupportFailureAlerts> {
+  return (
+    await api.get<CanvasSupportFailureAlerts>(
+      `${webBase}/admin/support/failure-alerts`,
+      { signal }
+    )
+  ).data
+}
+
+/** Sends the chosen customers the result as a system notice; the customer reads 关于「model」： before the text. */
+export async function notifyCanvasAdminSupportFailureAlerts(request: {
+  modelKey: string
+  alertIds: string[]
+  text: string
+  idempotencyKey: string
+}): Promise<{ notified: number }> {
+  const { idempotencyKey, ...body } = request
+  return (
+    await api.post<{ notified: number }>(
+      `${webBase}/admin/support/failure-alerts/notify`,
+      body,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function dismissCanvasAdminSupportFailureAlerts(request: {
+  modelKey: string
+  alertIds: string[]
+  idempotencyKey: string
+}): Promise<{ dismissed: number }> {
+  const { idempotencyKey, ...body } = request
+  return (
+    await api.post<{ dismissed: number }>(
+      `${webBase}/admin/support/failure-alerts/dismiss`,
+      body,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey },
         skipErrorHandler: true,
       }
     )

@@ -39,6 +39,7 @@ export function CustomerManagementPage(props: {
   pointLotId?: string
   titleActionSlot?: HTMLElement | null
   tab?: 'support'
+  supportView?: 'failures'
   supportConversationId?: string
   onSupportChange?: (support: {
     open: boolean
@@ -82,6 +83,7 @@ export function CustomerManagementPage(props: {
       </TabsContent>
       <TabsContent value='support'>
         <SupportConversations
+          view={props.supportView}
           conversationId={props.supportConversationId}
           onConversationChange={(conversationId) =>
             props.onSupportChange?.({

@@ -31,6 +31,7 @@ import type {
   CanvasSupportSettings,
 } from '../../types'
 import { SupportConversations } from '../SupportConversations'
+import { SupportFailureAlerts } from '../SupportFailureAlerts'
 import { SupportSettingsDialog } from '../SupportSettingsDialog'
 import { SupportThread } from '../SupportThread'
 
@@ -40,6 +41,7 @@ const apiMocks = vi.hoisted(() => ({
     conversations: ['canvas-cloud', 'admin', 'support', 'conversations'],
     pendingCount: ['canvas-cloud', 'admin', 'support', 'pending-count'],
     settings: ['canvas-cloud', 'admin', 'support', 'settings'],
+    failureAlerts: ['canvas-cloud', 'admin', 'support', 'failure-alerts'],
   },
   getCanvasAdminSupportConversations: vi.fn(),
   getCanvasAdminSupportSettings: vi.fn(),
@@ -51,6 +53,9 @@ const apiMocks = vi.hoisted(() => ({
   resolveCanvasSupportAttachmentUrl: vi.fn(),
   setCanvasAdminSupportSettings: vi.fn(),
   testCanvasAdminSupportWebhook: vi.fn(),
+  getCanvasAdminSupportFailureAlerts: vi.fn(),
+  notifyCanvasAdminSupportFailureAlerts: vi.fn(),
+  dismissCanvasAdminSupportFailureAlerts: vi.fn(),
 }))
 vi.mock('../../api', () => apiMocks)
 
@@ -130,6 +135,11 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       ],
     })
     apiMocks.markCanvasAdminSupportHandled.mockResolvedValue(undefined)
+    apiMocks.getCanvasAdminSupportFailureAlerts.mockResolvedValue({
+      threshold: 3,
+      windowHours: 24,
+      models: [],
+    })
   })
 
   it('names who spoke last in the list preview', () => {
@@ -186,7 +196,11 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     const onOpenCustomer = vi.fn()
     render(
       wrap(
-        <SupportThread conversation={xiaolin} onOpenCustomer={onOpenCustomer} />
+        <SupportThread
+          conversation={xiaolin}
+          quickReplies={['您好，我们已收到您的问题。']}
+          onOpenCustomer={onOpenCustomer}
+        />
       )
     )
     expect(await screen.findByText('收到')).toBeInTheDocument()
@@ -219,10 +233,26 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
         idempotencyKey: expect.any(String),
       })
     )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Quick replies' }))
+    fireEvent.click(
+      await screen.findByRole('menuitem', {
+        name: '您好，我们已收到您的问题。',
+      })
+    )
+    expect(input).toHaveValue('您好，我们已收到您的问题。')
   })
 
   it('holds pasted images above the input until they are sent or removed', async () => {
-    render(wrap(<SupportThread conversation={mia} onOpenCustomer={vi.fn()} />))
+    render(
+      wrap(
+        <SupportThread
+          conversation={mia}
+          quickReplies={[]}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
     const input = await screen.findByRole('textbox', {
       name: 'Reply to Mia (ID 10871)',
     })
@@ -246,6 +276,8 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
 describe('SUPPORT-CHAT-001 客服设置', () => {
   const saved: CanvasSupportSettings = {
     retentionDays: 7,
+    failureAlerts: { threshold: 3, windowHours: 24 },
+    quickReplies: { conversation: ['收到'], failureNotice: [] },
     webhook: { format: 'WECOM', displayHint: 'qyapi.weixin.qq.com/…3f2a' },
     version: 2,
     effectiveAt: '2026-11-16T03:00:00.000Z',
@@ -284,6 +316,8 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
         retentionDays: 3,
+        failureAlerts: { threshold: 3, windowHours: 24 },
+        quickReplies: { conversation: ['收到'], failureNotice: [] },
         webhook: { format: 'FEISHU' },
       })
     )
@@ -293,6 +327,8 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
   it('asks for an HTTPS address before the first save and sends the test of a saved Webhook', async () => {
     const empty: CanvasSupportSettings = {
       retentionDays: 3,
+      failureAlerts: { threshold: 3, windowHours: 24 },
+      quickReplies: { conversation: [], failureNotice: [] },
       webhook: null,
       version: null,
       effectiveAt: null,
@@ -320,6 +356,8 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
         retentionDays: 3,
+        failureAlerts: { threshold: 3, windowHours: 24 },
+        quickReplies: { conversation: [], failureNotice: [] },
         webhook: { format: 'WECOM', url: 'https://hooks.example.com/x' },
       })
     )
@@ -332,5 +370,146 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
         expect.any(String)
       )
     )
+  })
+
+  it('checks the failure alert range and saves the quick replies with the settings', async () => {
+    render(wrap(<SupportSettingsDialog settings={saved} onClose={vi.fn()} />))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Failures' }), {
+      target: { value: '1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('failures and')
+    expect(apiMocks.setCanvasAdminSupportSettings).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Failures' }), {
+      target: { value: '5' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hours' }), {
+      target: { value: '6' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove this quick reply' })
+    )
+    const [, failureAdder] = screen.getAllByRole('textbox', {
+      name: 'Add a quick reply',
+    })
+    const [, failureAdd] = screen.getAllByRole('button', { name: 'Add' })
+    fireEvent.change(failureAdder as HTMLElement, {
+      target: { value: ' 已修复，可以再试 ' },
+    })
+    fireEvent.click(failureAdd as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
+        retentionDays: 7,
+        failureAlerts: { threshold: 5, windowHours: 6 },
+        quickReplies: { conversation: [], failureNotice: ['已修复，可以再试'] },
+        webhook: { format: 'WECOM' },
+      })
+    )
+  })
+})
+
+describe('SUPPORT-CHAT-001 失败提醒', () => {
+  const alerts = {
+    threshold: 3,
+    windowHours: 24,
+    models: [
+      {
+        modelKey: 'seedance-2.0',
+        modelName: 'Seedance 2.0',
+        customers: [
+          {
+            alertId: '93000000-0000-7000-8000-000000000001',
+            customer: { id: 'c-1', userId: '10245', name: '小林' },
+            failureCount: 4,
+            firstFailedAt: '2026-11-16T01:41:00.000Z',
+            lastFailedAt: '2026-11-16T02:18:00.000Z',
+          },
+          {
+            alertId: '93000000-0000-7000-8000-000000000002',
+            customer: { id: 'c-2', userId: '10871', name: 'Mia' },
+            failureCount: 3,
+            firstFailedAt: '2026-11-16T01:55:00.000Z',
+            lastFailedAt: '2026-11-16T02:12:00.000Z',
+          },
+        ],
+      },
+    ],
+  }
+  beforeAll(() => {
+    i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+  })
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18next.changeLanguage('en')
+    apiMocks.notifyCanvasAdminSupportFailureAlerts.mockResolvedValue({
+      notified: 1,
+    })
+    apiMocks.dismissCanvasAdminSupportFailureAlerts.mockResolvedValue({
+      dismissed: 2,
+    })
+  })
+
+  it('notifies only the chosen customers with a quick reply, and shows what they see', async () => {
+    render(
+      wrap(
+        <SupportFailureAlerts
+          alerts={alerts}
+          quickReplies={['原因已经查明并修复。']}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Choose Mia' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Notify customers of the result' })
+    )
+    const send = await screen.findByRole('button', { name: 'Send' })
+    expect(send).toBeDisabled()
+    fireEvent.click(
+      screen.getByRole('button', { name: '原因已经查明并修复。' })
+    )
+    expect(
+      screen.getByText('关于「Seedance 2.0」：原因已经查明并修复。')
+    ).toBeInTheDocument()
+    fireEvent.click(send)
+    await waitFor(() =>
+      expect(
+        apiMocks.notifyCanvasAdminSupportFailureAlerts
+      ).toHaveBeenCalledWith({
+        modelKey: 'seedance-2.0',
+        alertIds: ['93000000-0000-7000-8000-000000000001'],
+        text: '原因已经查明并修复。',
+        idempotencyKey: expect.any(String),
+      })
+    )
+  })
+
+  it('dismisses the chosen alerts without a notice', async () => {
+    render(
+      wrap(
+        <SupportFailureAlerts
+          alerts={alerts}
+          quickReplies={[]}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    await waitFor(() =>
+      expect(
+        apiMocks.dismissCanvasAdminSupportFailureAlerts
+      ).toHaveBeenCalledWith({
+        modelKey: 'seedance-2.0',
+        alertIds: [
+          '93000000-0000-7000-8000-000000000001',
+          '93000000-0000-7000-8000-000000000002',
+        ],
+        idempotencyKey: expect.any(String),
+      })
+    )
+    expect(
+      apiMocks.notifyCanvasAdminSupportFailureAlerts
+    ).not.toHaveBeenCalled()
   })
 })

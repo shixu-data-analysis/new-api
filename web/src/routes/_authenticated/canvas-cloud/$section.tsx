@@ -94,6 +94,8 @@ export const canvasCloudSearchSchema = z.object({
   // Other sections' routes keep their own `tab` strings, so this one is a string too and only 'support' is read.
   tab: z.string().max(32).optional().catch(undefined),
   conversation: optionalUuidSearch,
+  // 客服会话 › 失败提醒, the page a failure alert links to; only 'failures' is read.
+  supportView: z.string().max(32).optional().catch(undefined),
   customerName: z.string().trim().min(1).max(191).optional().catch(undefined),
   orderId: optionalUuidSearch,
   pointLotId: optionalUuidSearch,

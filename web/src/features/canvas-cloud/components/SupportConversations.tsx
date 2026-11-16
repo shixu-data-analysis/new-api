@@ -33,15 +33,20 @@ import { cn } from '@/lib/utils'
 
 import {
   getCanvasAdminSupportConversations,
+  getCanvasAdminSupportFailureAlerts,
   getCanvasAdminSupportSettings,
   supportQueryKeys,
 } from '../api'
 import { lastMessagePreview } from '../lib/support-labels'
 import type { CanvasAdminSupportConversation } from '../types'
+import { SupportFailureAlerts } from './SupportFailureAlerts'
 import { SupportSettingsDialog } from './SupportSettingsDialog'
 import { SupportThread } from './SupportThread'
 
 const REFRESH_MILLISECONDS = 10_000
+const FAILURE_REFRESH_MILLISECONDS = 60_000
+const refreshWhileVisible = (milliseconds: number) => () =>
+  document.visibilityState === 'visible' ? milliseconds : false
 const PAGE_SIZES = [10, 20, 30, 40, 50, 100] as const
 const paginationColumns = [{ id: 'conversation' }]
 
@@ -65,12 +70,16 @@ function FilterButton(props: {
 
 /** 客户管理 › 客服会话: conversations on the left, the selected one on the right. */
 export function SupportConversations(props: {
+  /** `failures` opens 失败提醒, the page a failure alert links to. */
+  view?: 'failures'
   conversationId?: string
   onConversationChange?: (conversationId?: string) => void
   onOpenCustomer: (customerId: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const [filter, setFilter] = useState<'all' | 'pending'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'failures'>(
+    props.view ?? 'all'
+  )
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search.trim(), 300)
   const [page, setPage] = useState(1)
@@ -87,21 +96,38 @@ export function SupportConversations(props: {
     queryFn: ({ signal }) =>
       getCanvasAdminSupportConversations(
         {
-          filter,
+          // Not read for 失败提醒: the list is not requested then.
+          filter: filter === 'failures' ? 'all' : filter,
           page,
           pageSize,
           ...(debouncedSearch ? { q: debouncedSearch } : {}),
         },
         signal
       ),
-    refetchInterval: () =>
-      document.visibilityState === 'visible' ? REFRESH_MILLISECONDS : false,
+    enabled: filter !== 'failures',
+    refetchInterval: refreshWhileVisible(REFRESH_MILLISECONDS),
     placeholderData: (previous) => previous,
   })
+  const failureAlerts = useQuery({
+    queryKey: supportQueryKeys.failureAlerts,
+    queryFn: ({ signal }) => getCanvasAdminSupportFailureAlerts(signal),
+    refetchInterval: refreshWhileVisible(
+      filter === 'failures'
+        ? REFRESH_MILLISECONDS
+        : FAILURE_REFRESH_MILLISECONDS
+    ),
+  })
+  const conversationsFailed =
+    filter !== 'failures' && conversations.isError && !conversations.data
+  const showConversations = filter !== 'failures' && !conversationsFailed
+  const failureCustomers = (failureAlerts.data?.models ?? []).reduce(
+    (sum, model) => sum + model.customers.length,
+    0
+  )
   const settings = useQuery({
     queryKey: supportQueryKeys.settings,
+    // Read once for the quick replies; the dialog edits the same data.
     queryFn: ({ signal }) => getCanvasAdminSupportSettings(signal),
-    enabled: settingsOpen,
   })
   const rows = conversations.data?.items ?? []
   const total = conversations.data?.total ?? 0
@@ -180,6 +206,17 @@ export function SupportConversations(props: {
           >
             {t('Awaiting reply')}
           </FilterButton>
+          <FilterButton
+            selected={filter === 'failures'}
+            onClick={() => setFilter('failures')}
+          >
+            {t('Failure alerts')}
+            {failureCustomers > 0 ? (
+              <Badge variant='destructive' className='ms-1 px-1.5'>
+                {failureCustomers}
+              </Badge>
+            ) : null}
+          </FilterButton>
         </div>
         <Button
           type='button'
@@ -193,7 +230,29 @@ export function SupportConversations(props: {
         </Button>
       </div>
 
-      {conversations.isError && !conversations.data ? (
+      {filter === 'failures' && failureAlerts.isError && !failureAlerts.data ? (
+        <Card className='p-4'>
+          <p className='text-destructive text-sm' role='alert'>
+            {t('Unable to load the failure alerts. Please try again.')}
+          </p>
+          <Button
+            className='mt-3 w-fit'
+            variant='outline'
+            size='sm'
+            onClick={() => void failureAlerts.refetch()}
+          >
+            {t('Retry')}
+          </Button>
+        </Card>
+      ) : null}
+      {filter === 'failures' && failureAlerts.data ? (
+        <SupportFailureAlerts
+          alerts={failureAlerts.data}
+          quickReplies={settings.data?.quickReplies.failureNotice ?? []}
+          onOpenCustomer={props.onOpenCustomer}
+        />
+      ) : null}
+      {conversationsFailed ? (
         <Card className='p-4'>
           <p className='text-destructive text-sm' role='alert'>
             {t('Unable to load the conversations. Please try again.')}
@@ -207,7 +266,8 @@ export function SupportConversations(props: {
             {t('Retry')}
           </Button>
         </Card>
-      ) : (
+      ) : null}
+      {showConversations ? (
         <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
           <div className='min-w-0 space-y-2'>
             <Card className='gap-0 p-2'>
@@ -300,6 +360,7 @@ export function SupportConversations(props: {
               <SupportThread
                 key={selected.id}
                 conversation={selected}
+                quickReplies={settings.data?.quickReplies.conversation ?? []}
                 onOpenCustomer={props.onOpenCustomer}
               />
             </div>
@@ -314,7 +375,7 @@ export function SupportConversations(props: {
             </Card>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       {settingsOpen && settings.data ? (
         <SupportSettingsDialog

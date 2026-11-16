@@ -66,6 +66,7 @@ import type {
   CanvasAdminSupportMessage,
   CanvasSupportAttachment,
 } from '../types'
+import { SupportQuickReplyMenu } from './SupportQuickReplyMenu'
 
 const POLL_MILLISECONDS = 10_000
 const PAGE = 50
@@ -391,6 +392,7 @@ interface PendingImage {
 
 export function SupportThread(props: {
   conversation: CanvasAdminSupportConversation
+  quickReplies: string[]
   onOpenCustomer: (customerId: string) => void
 }) {
   const { t, i18n } = useTranslation()
@@ -700,6 +702,10 @@ export function SupportThread(props: {
             >
               <ImagePlus aria-hidden='true' />
             </Button>
+            <SupportQuickReplyMenu
+              replies={props.quickReplies}
+              onPick={setDraft}
+            />
             <input
               ref={fileInput}
               type='file'

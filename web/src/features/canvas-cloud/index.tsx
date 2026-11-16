@@ -164,6 +164,7 @@ export function AdminContent(props: {
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   customersTab?: 'support'
+  supportView?: 'failures'
   supportConversationId?: string
   onSupportChange?: (support: {
     open: boolean
@@ -201,6 +202,7 @@ export function AdminContent(props: {
         pointLotId={props.initialPointLotId}
         titleActionSlot={props.titleActionSlot}
         tab={props.customersTab}
+        supportView={props.supportView}
         supportConversationId={props.supportConversationId}
         onSupportChange={props.onSupportChange}
       />
@@ -392,6 +394,7 @@ export function CanvasCloud() {
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
         customersTab={search.tab === 'support' ? 'support' : undefined}
+        supportView={search.supportView === 'failures' ? 'failures' : undefined}
         supportConversationId={search.conversation}
         onSupportChange={(support) =>
           void navigate({
@@ -401,6 +404,8 @@ export function CanvasCloud() {
               ...previous,
               tab: support.open ? 'support' : undefined,
               conversation: support.open ? support.conversationId : undefined,
+              // The failure alert link opens 失败提醒 once; later choices stay on the page.
+              supportView: undefined,
             }),
             replace: true,
           })
