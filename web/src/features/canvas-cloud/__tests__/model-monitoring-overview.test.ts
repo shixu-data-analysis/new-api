@@ -8,7 +8,10 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it } from 'vitest'
 
-import { monitoringCellTone } from '../model-monitoring-overview'
+import {
+  monitoringCellTone,
+  monitoringRangeFromSearch,
+} from '../model-monitoring-overview'
 
 const thresholds = { watchRate: 0.1, badRate: 0.3 }
 const stats = (failed: number, pending: number, determined: number) => ({
@@ -34,4 +37,28 @@ describe('model monitoring interval color', () => {
       expect(monitoringCellTone(value, thresholds)).toBe(expected)
     }
   )
+})
+
+it('reads the monitoring range from the address and ignores a custom window without both ends', () => {
+  expect(monitoringRangeFromSearch({ window: 'hour' })).toEqual({
+    window: 'hour',
+  })
+  expect(
+    monitoringRangeFromSearch({
+      window: 'custom',
+      from: '2026-11-01T00:00:00.000Z',
+      to: '2026-11-02T00:00:00.000Z',
+    })
+  ).toEqual({
+    window: 'custom',
+    from: '2026-11-01T00:00:00.000Z',
+    to: '2026-11-02T00:00:00.000Z',
+  })
+  expect(
+    monitoringRangeFromSearch({
+      window: 'custom',
+      from: '2026-11-01T00:00:00.000Z',
+    })
+  ).toBeUndefined()
+  expect(monitoringRangeFromSearch({})).toBeUndefined()
 })

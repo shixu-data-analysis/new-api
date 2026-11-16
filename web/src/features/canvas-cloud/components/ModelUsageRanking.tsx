@@ -366,7 +366,8 @@ export function ModelUsageRanking(props: {
     +draftFrom < +draftTo &&
     +draftTo - +draftFrom <= maximumCustomRangeMilliseconds
   )
-  const customRangeStarted = Boolean(draftFrom || draftTo)
+  // Only a range with both ends is judged; a half-chosen one keeps the neutral hint.
+  const customRangeChosen = Boolean(draftFrom && draftTo)
   // A ranking per type that has a model used in either period, most results first, so a type that fell to zero still shows its
   // models' drop; the summary above compares only this period.
   const currentResults = new Map(
@@ -428,9 +429,9 @@ export function ModelUsageRanking(props: {
             />
             {!customRangeValid ? (
               <p
-                role={customRangeStarted ? 'alert' : undefined}
+                role={customRangeChosen ? 'alert' : undefined}
                 className={
-                  customRangeStarted
+                  customRangeChosen
                     ? 'text-destructive mt-2 text-sm'
                     : 'text-muted-foreground mt-2 text-sm'
                 }

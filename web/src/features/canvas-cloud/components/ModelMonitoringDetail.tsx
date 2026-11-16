@@ -37,7 +37,7 @@ import { MonitoringHint, type ModelMonitoringRow } from './ModelMonitoringList'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const segments = [
-  ['succeeded', 'bg-muted-foreground/60'],
+  ['succeeded', 'bg-success/70'],
   ['failed', 'bg-destructive'],
   ['pending', 'bg-amber-500'],
   ['processing', 'bg-primary'],
@@ -364,10 +364,6 @@ export function ModelMonitoringDetail(props: {
     enabled: Boolean(bucket),
   })
   const failures = bucket ? scoped.data : whole.data
-  const linkTimeFormat = new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
   const linkSearch = {
     modelKey: props.model.modelKey,
     executionOrigin: 'REAL' as const,
@@ -420,7 +416,13 @@ export function ModelMonitoringDetail(props: {
           <p className='text-muted-foreground text-sm'>
             {props.model.provider.name} ·{' '}
             {props.model.capability ? t(props.model.capability) : t('Unknown')}{' '}
-            · {props.rangeLabel}
+            ·{' '}
+            {bucket
+              ? t('{{from}} – {{to}}', {
+                  from: timeFormat.format(new Date(bucket.from)),
+                  to: timeFormat.format(new Date(bucket.to)),
+                })
+              : props.rangeLabel}
             {bucket ? (
               <Button
                 type='button'
@@ -541,8 +543,8 @@ export function ModelMonitoringDetail(props: {
               'Opens task records with:\nModel key {{modelKey}}\nAccepted {{from}} – {{to}}\nResults with confirmed failures or pending confirmation',
               {
                 modelKey: linkSearch.modelKey,
-                from: linkTimeFormat.format(new Date(linkSearch.from)),
-                to: linkTimeFormat.format(new Date(linkSearch.to)),
+                from: timeFormat.format(new Date(linkSearch.from)),
+                to: timeFormat.format(new Date(linkSearch.to)),
               }
             )}
           >

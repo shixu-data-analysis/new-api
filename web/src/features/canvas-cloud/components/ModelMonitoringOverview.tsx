@@ -34,6 +34,10 @@ import { getServerErrorStatus } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { getCanvasModelMonitoringOverview } from '../api'
+import {
+  defaultMonitoringRange,
+  type MonitoringRange,
+} from '../model-monitoring-overview'
 import type {
   CanvasModelMonitoringOverview,
   CanvasModelMonitoringOverviewQuery,
@@ -169,18 +173,19 @@ export function ModelMonitoringOverview(props: {
   /** A model opened from the usage ranking; the address bar owns it so removing its tag also leaves the link. */
   focusModelKey?: string
   onClearFocus: () => void
+  /** Owned by the address like the focused model; missing means the default range. */
+  range?: MonitoringRange
+  onRangeChange: (range: MonitoringRange) => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
-  // Opens on the usage ranking's default range, so a model opened from it shows the same period.
-  const [appliedWindow, setAppliedWindow] = useState<PresetWindow | 'custom'>(
-    'week'
-  )
+  const range = props.range ?? defaultMonitoringRange
+  const appliedWindow = range.window
+  const appliedFrom = range.window === 'custom' ? range.from : undefined
+  const appliedTo = range.window === 'custom' ? range.to : undefined
   const [customOpen, setCustomOpen] = useState(false)
   const [draftFrom, setDraftFrom] = useState<Date>()
   const [draftTo, setDraftTo] = useState<Date>()
-  const [appliedFrom, setAppliedFrom] = useState<string>()
-  const [appliedTo, setAppliedTo] = useState<string>()
   const [capability, setCapability] = useState('')
   const [providerId, setProviderId] = useState('')
   const [tagId, setTagId] = useState('')
@@ -316,19 +321,20 @@ export function ModelMonitoringOverview(props: {
     +draftFrom < +draftTo &&
     +draftTo - +draftFrom <= maximumCustomRangeMilliseconds
   )
-  const customRangeStarted = Boolean(draftFrom || draftTo)
+  // Only a range with both ends is judged; a half-chosen one keeps the neutral hint.
+  const customRangeChosen = Boolean(draftFrom && draftTo)
   const choosePreset = (value: PresetWindow) => {
     setCustomOpen(false)
-    setAppliedWindow(value)
-    setAppliedFrom(undefined)
-    setAppliedTo(undefined)
+    props.onRangeChange({ window: value })
     resetPage()
   }
   const applyCustomRange = () => {
     if (!customRangeValid || !draftFrom || !draftTo) return
-    setAppliedWindow('custom')
-    setAppliedFrom(draftFrom.toISOString())
-    setAppliedTo(draftTo.toISOString())
+    props.onRangeChange({
+      window: 'custom',
+      from: draftFrom.toISOString(),
+      to: draftTo.toISOString(),
+    })
     setCustomOpen(false)
     resetPage()
   }
@@ -616,9 +622,9 @@ export function ModelMonitoringOverview(props: {
             />
             {!customRangeValid ? (
               <p
-                role={customRangeStarted ? 'alert' : undefined}
+                role={customRangeChosen ? 'alert' : undefined}
                 className={
-                  customRangeStarted
+                  customRangeChosen
                     ? 'text-destructive mt-2 text-sm'
                     : 'text-muted-foreground mt-2 text-sm'
                 }

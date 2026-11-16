@@ -19,6 +19,34 @@ import type {
 export const ADMIN_CONFIRMED_UPSTREAM_FAILURE =
   'ADMIN_CONFIRMED_UPSTREAM_FAILED'
 
+/** The range runtime monitoring shows; the address keeps it, so returning from task records restores it. */
+export type MonitoringRange =
+  | { window: 'hour' | 'day' | 'week' }
+  | { window: 'custom'; from: string; to: string }
+
+/** The usage ranking's default range, so a model opened from it shows the same period. */
+export const defaultMonitoringRange: MonitoringRange = { window: 'week' }
+
+/** The range an address names; a custom window without both ends names none. */
+export function monitoringRangeFromSearch(search: {
+  window?: string
+  from?: string
+  to?: string
+}): MonitoringRange | undefined {
+  if (search.window === 'custom') {
+    if (!search.from || !search.to) return undefined
+    return { window: 'custom', from: search.from, to: search.to }
+  }
+  if (
+    search.window === 'hour' ||
+    search.window === 'day' ||
+    search.window === 'week'
+  ) {
+    return { window: search.window }
+  }
+  return undefined
+}
+
 export type MonitoringCellTone = 'none' | 'ok' | 'watch' | 'bad' | 'pending'
 
 /**

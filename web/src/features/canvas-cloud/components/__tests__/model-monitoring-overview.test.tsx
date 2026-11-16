@@ -15,12 +15,16 @@ import {
   within,
 } from '@testing-library/react'
 import i18next from 'i18next'
+import { useState } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
-import { monitoringTickLabelIndexes } from '../../model-monitoring-overview'
+import {
+  monitoringTickLabelIndexes,
+  type MonitoringRange,
+} from '../../model-monitoring-overview'
 import type { CanvasModelMonitoringOverview } from '../../types'
 import { ModelMonitoringOverview } from '../ModelMonitoringOverview'
 
@@ -248,16 +252,29 @@ it('keeps the first and last time labels while limiting dense ticks', () => {
   expect([...monitoringTickLabelIndexes(0)]).toEqual([])
 })
 
+// Stands in for the address bar, which owns the range on the page.
+function RangeOwner(props: {
+  focusModelKey?: string
+  onClearFocus: () => void
+}) {
+  const [range, setRange] = useState<MonitoringRange>()
+  return (
+    <ModelMonitoringOverview
+      focusModelKey={props.focusModelKey}
+      onClearFocus={props.onClearFocus}
+      range={range}
+      onRangeChange={setRange}
+    />
+  )
+}
+
 function mount(focusModelKey?: string, onClearFocus = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   const view = (key?: string) => (
     <QueryClientProvider client={client}>
-      <ModelMonitoringOverview
-        focusModelKey={key}
-        onClearFocus={onClearFocus}
-      />
+      <RangeOwner focusModelKey={key} onClearFocus={onClearFocus} />
     </QueryClientProvider>
   )
   const rendered = render(view(focusModelKey))

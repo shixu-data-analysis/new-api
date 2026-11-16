@@ -46,11 +46,22 @@ vi.mock('../ModelMonitoringOverview', () => ({
   ModelMonitoringOverview: (props: {
     focusModelKey?: string
     onClearFocus: () => void
+    range?: { window: string }
+    onRangeChange: (range: { window: 'hour' }) => void
   }) => (
     <div>
-      <span>Logical model monitoring overview {props.focusModelKey ?? ''}</span>
+      <span>
+        Logical model monitoring overview {props.focusModelKey ?? ''}{' '}
+        {props.range?.window ?? ''}
+      </span>
       <button type='button' onClick={props.onClearFocus}>
         Clear monitoring focus
+      </button>
+      <button
+        type='button'
+        onClick={() => props.onRangeChange({ window: 'hour' })}
+      >
+        Pick the last hour
       </button>
     </div>
   ),
@@ -352,6 +363,13 @@ describe('Canvas model catalog folder upload', () => {
     expect(
       await screen.findByText('Logical model monitoring overview image.alpha')
     ).toBeVisible()
+    // Changing the range keeps the focused model, and clearing the model keeps the range.
+    fireEvent.click(screen.getByRole('button', { name: 'Pick the last hour' }))
+    expect(
+      await screen.findByText(
+        'Logical model monitoring overview image.alpha hour'
+      )
+    ).toBeVisible()
     fireEvent.click(
       screen.getByRole('button', { name: 'Clear monitoring focus' })
     )
@@ -359,7 +377,7 @@ describe('Canvas model catalog folder upload', () => {
       screen.getByRole('tab', { name: 'Runtime monitoring' })
     ).toHaveAttribute('aria-selected', 'true')
     expect(
-      await screen.findByText('Logical model monitoring overview')
+      await screen.findByText('Logical model monitoring overview hour')
     ).toBeVisible()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {
