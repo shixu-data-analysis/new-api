@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "Доля сбоев в интервале не ниже {{rate}}",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "Доля сбоев не ниже {{rate}}, неподтверждённых больше, чем подтверждённых сбоев",
     "The interval has no succeeded, failed or pending results": "В интервале нет успешных, неудачных или неподтверждённых результатов",
-    "Too few results": "Мало данных",
     "Updated {{time}}": "Обновлено в {{time}}",
     "Upstream model ID changed: {{ids}}": "ID модели у поставщика изменён: {{ids}}",
     "Upstream model ID unchanged": "ID модели у поставщика не изменился",

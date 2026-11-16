@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "The interval failure rate reaches {{rate}}",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures",
     "The interval has no succeeded, failed or pending results": "The interval has no succeeded, failed or pending results",
-    "Too few results": "Too few results",
     "Updated {{time}}": "Updated {{time}}",
     "Upstream model ID changed: {{ids}}": "Upstream model ID changed: {{ids}}",
     "Upstream model ID unchanged": "Upstream model ID unchanged",

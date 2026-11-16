@@ -52,6 +52,8 @@ const model = (
 ) => ({
   modelKey,
   displayName: modelKey,
+  catalogDefaultName: `${modelKey} default`,
+  upstreamModelIds: [`${modelKey}-upstream`],
   capability,
   manualEnabled: modelKey !== 'video.old',
   results,
@@ -185,6 +187,19 @@ describe('model usage ranking', () => {
         .getByRole('heading', { name: 'By generation type' })
         .closest('[data-slot="card"]')
     ).not.toHaveTextContent('Text generation')
+  })
+
+  it('shows each model identity next to its name, as the monitoring list does', async () => {
+    mount()
+    const video = await screen.findByRole('region', {
+      name: 'Video generation ranking',
+    })
+    const first = within(video).getAllByRole('row')[1] as HTMLElement
+    fireEvent.click(
+      within(first).getByRole('button', { name: 'View model identity' })
+    )
+    expect(await screen.findByText('video.fast default')).toBeVisible()
+    expect(screen.getByText('video.fast-upstream')).toBeVisible()
   })
 
   it('asks for a custom range of at most 30 days', async () => {

@@ -23,6 +23,9 @@ it('opens the same model identity content by keyboard focus and click', async ()
   render(<ModelIdentityTooltip {...identity} />)
 
   const trigger = screen.getByRole('button', { name: 'View model identity' })
+  // A plain icon that darkens on hover, not a ghost button with a hover background.
+  expect(trigger).not.toHaveAttribute('data-slot', 'button')
+  expect(trigger.className).not.toMatch(/hover:bg-/)
   fireEvent.focus(trigger)
   expect(await screen.findByText('Catalog Alpha')).toBeVisible()
   expect(screen.getByText('canvas.image.alpha')).toBeVisible()

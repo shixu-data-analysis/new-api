@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "Le taux d’échec de l’intervalle atteint {{rate}}",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "Le taux d’échec atteint {{rate}} et les résultats en attente dépassent les échecs confirmés",
     "The interval has no succeeded, failed or pending results": "L’intervalle n’a aucun résultat réussi, en échec ou en attente",
-    "Too few results": "Trop peu de résultats",
     "Updated {{time}}": "Mis à jour à {{time}}",
     "Upstream model ID changed: {{ids}}": "ID du modèle amont modifié : {{ids}}",
     "Upstream model ID unchanged": "ID du modèle amont inchangé",

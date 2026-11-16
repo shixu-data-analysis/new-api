@@ -44,11 +44,11 @@ import type {
 } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasTooltip } from './CanvasTooltip'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelMonitoringDetail } from './ModelMonitoringDetail'
 import {
   ModelMonitoringList,
-  MonitoringHint,
   type ModelMonitoringRow,
 } from './ModelMonitoringList'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
@@ -584,7 +584,7 @@ export function ModelMonitoringOverview(props: {
           >
             {custom ? customLabel : t('Custom range')}
           </Button>
-          <MonitoringHint hint={refreshHint}>
+          <CanvasTooltip content={refreshHint}>
             <button
               type='button'
               className='text-muted-foreground inline-flex items-center gap-1.5 text-sm'
@@ -603,7 +603,7 @@ export function ModelMonitoringOverview(props: {
                 ? t('Updated {{time}}', { time: updatedAt })
                 : t('Paused')}
             </button>
-          </MonitoringHint>
+          </CanvasTooltip>
         </div>
       </div>
       {customOpen ? (

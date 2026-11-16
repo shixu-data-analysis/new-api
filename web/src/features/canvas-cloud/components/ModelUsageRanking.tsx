@@ -25,7 +25,8 @@ import { getCanvasModelUsage } from '../api'
 import type { CanvasModelUsage, CanvasModelUsageQuery } from '../types'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
-import { MonitoringHint } from './ModelMonitoringList'
+import { CanvasTooltip } from './CanvasTooltip'
+import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 
 type Metric = 'results' | 'customers'
 type UsageModel = CanvasModelUsage['models'][number]
@@ -65,7 +66,7 @@ function ChangeCell(props: { model: UsageModel; metric: Metric }) {
   if (change >= 0.005) tone = 'text-emerald-600 dark:text-emerald-400'
   else if (change <= -0.005) tone = 'text-destructive'
   return (
-    <MonitoringHint hint={hint}>
+    <CanvasTooltip content={hint}>
       <button
         type='button'
         className={cn('cursor-help tabular-nums', tone)}
@@ -73,7 +74,7 @@ function ChangeCell(props: { model: UsageModel; metric: Metric }) {
       >
         {percent}
       </button>
-    </MonitoringHint>
+    </CanvasTooltip>
   )
 }
 
@@ -160,6 +161,12 @@ function TypeCard(props: {
                       >
                         {row.displayName}
                       </button>
+                      <ModelIdentityTooltip
+                        effectiveDisplayName={row.displayName}
+                        catalogDefaultName={row.catalogDefaultName}
+                        modelKey={row.modelKey}
+                        upstreamModelIds={row.upstreamModelIds}
+                      />
                       {row.manualEnabled ? null : (
                         <span className='text-muted-foreground text-xs'>
                           {t('Disabled')}
@@ -189,8 +196,8 @@ function TypeCard(props: {
               className: 'w-20 text-end',
               cellClassName: 'text-end tabular-nums',
               header: (
-                <MonitoringHint
-                  hint={t('Accepted results, failed ones included')}
+                <CanvasTooltip
+                  content={t('Accepted results, failed ones included')}
                 >
                   <span className='inline-flex'>
                     <CanvasStaticSortHeader
@@ -200,7 +207,7 @@ function TypeCard(props: {
                       onClick={() => props.onMetric('results')}
                     />
                   </span>
-                </MonitoringHint>
+                </CanvasTooltip>
               ),
               cell: (row) => row.results.toLocaleString(toIntlLocale(language)),
             },
@@ -209,7 +216,7 @@ function TypeCard(props: {
               className: 'w-20 text-end',
               cellClassName: 'text-end tabular-nums',
               header: (
-                <MonitoringHint hint={t('Customers who submitted tasks')}>
+                <CanvasTooltip content={t('Customers who submitted tasks')}>
                   <span className='inline-flex'>
                     <CanvasStaticSortHeader
                       active={props.metric === 'customers'}
@@ -218,7 +225,7 @@ function TypeCard(props: {
                       onClick={() => props.onMetric('customers')}
                     />
                   </span>
-                </MonitoringHint>
+                </CanvasTooltip>
               ),
               cell: (row) =>
                 row.customers.toLocaleString(toIntlLocale(language)),
@@ -228,15 +235,15 @@ function TypeCard(props: {
               className: 'w-20 text-end',
               cellClassName: 'text-end',
               header: (
-                <MonitoringHint
-                  hint={t(
+                <CanvasTooltip
+                  content={t(
                     'Compared with the period of the same length just before\nFor example, the last 7 days against the 7 days before them\n(this period − previous) ÷ previous; “New in ranking” when the previous period is 0\nOn the sorted measure (results or customers)'
                   )}
                 >
                   <span className='border-b border-dotted border-current'>
                     {t('Vs. previous')}
                   </span>
-                </MonitoringHint>
+                </CanvasTooltip>
               ),
               cell: (row) => <ChangeCell model={row} metric={props.metric} />,
             },
@@ -285,9 +292,9 @@ function TypeSummary(props: { usage: CanvasModelUsage }) {
         {/* The list below gives the same numbers to assistive technology; the bar only adds a hover hint. */}
         <div className='flex h-2.5 gap-0.5 overflow-hidden rounded-full'>
           {props.usage.types.map((type, index) => (
-            <MonitoringHint
+            <CanvasTooltip
               key={type.capability ?? 'none'}
-              hint={t('{{type}}: {{count}} results, {{share}}', {
+              content={t('{{type}}: {{count}} results, {{share}}', {
                 type: type.capability ? t(type.capability) : t('Unknown'),
                 count: type.results.toLocaleString(toIntlLocale(language)),
                 share: new Intl.NumberFormat(toIntlLocale(language), {
@@ -303,7 +310,7 @@ function TypeSummary(props: { usage: CanvasModelUsage }) {
                   width: `${total ? (type.results / total) * 100 : 0}%`,
                 }}
               />
-            </MonitoringHint>
+            </CanvasTooltip>
           ))}
         </div>
         <dl className='grid gap-4 sm:grid-cols-3'>

@@ -8,12 +8,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
 
 import {
@@ -26,6 +20,7 @@ import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasTooltip } from './CanvasTooltip'
 import { CodeBlock } from './CodeBlock'
 import { CopyableText } from './CopyableText'
 import { TableRowPanel } from './TableRowPanel'
@@ -485,24 +480,15 @@ export function CallDetails({
                 key={label}
               >
                 <dt className='text-muted-foreground text-sm'>
-                  <TooltipProvider delay={200}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <span
-                            className='focus-visible:ring-ring/50 cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
-                            aria-label={`${t(label)}. ${t(overviewHints[label] ?? '')}`}
-                            tabIndex={0}
-                          />
-                        }
-                      >
-                        {t(label)}
-                      </TooltipTrigger>
-                      <TooltipContent className='max-w-72 leading-relaxed'>
-                        {t(overviewHints[label] ?? '')}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <CanvasTooltip content={t(overviewHints[label] ?? '')}>
+                    <span
+                      className='focus-visible:ring-ring/50 cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
+                      aria-label={`${t(label)}. ${t(overviewHints[label] ?? '')}`}
+                      tabIndex={0}
+                    >
+                      {t(label)}
+                    </span>
+                  </CanvasTooltip>
                 </dt>
                 <dd className='mt-1 text-sm [overflow-wrap:anywhere] break-words'>
                   {content}

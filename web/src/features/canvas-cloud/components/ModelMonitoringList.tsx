@@ -6,17 +6,11 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +23,7 @@ import type {
   CanvasModelMonitoringOverviewQuery,
 } from '../types'
 import { CanvasStaticSortHeader } from './CanvasStaticSortHeader'
+import { CanvasTooltip } from './CanvasTooltip'
 import {
   formatMonitoringPercent,
   monitoringCellClasses,
@@ -42,26 +37,8 @@ type Sort = Pick<CanvasModelMonitoringOverviewQuery, 'sortBy' | 'sortOrder'>
 const healthBadges = {
   bad: { label: 'Abnormal', variant: 'destructive' },
   watch: { label: 'Needs attention', variant: 'warning' },
-  thin: { label: 'Too few results', variant: 'outline' },
   off: { label: 'Disabled', variant: 'outline' },
 } as const
-
-/** Hover text explaining something on the page; the trigger keeps its own semantics. */
-export function MonitoringHint(props: {
-  hint: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger render={props.children as React.ReactElement} />
-        <TooltipContent className='max-w-72 leading-relaxed whitespace-pre-line'>
-          {props.hint}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
 
 function HealthBadge(props: {
   row: ModelMonitoringRow
@@ -69,21 +46,14 @@ function HealthBadge(props: {
 }) {
   const { t, i18n } = useTranslation()
   const status = props.row.health.status
-  if (status === 'ok') return null
+  // Too few results is not a judgement to act on: no badge, the rate says it (FailureRate).
+  if (status === 'ok' || status === 'thin') return null
   const badge = healthBadges[status]
   const percent = (value: number | null) =>
     formatMonitoringPercent(value, i18n.language, t)
   const last = props.row.trend.at(-1)
   let hint = t('Manually disabled; takes no new tasks')
-  if (status === 'thin') {
-    hint = t(
-      'Only {{count}} determined results; fewer than {{min}} are not judged',
-      {
-        count: props.row.summary.determined,
-        min: props.thresholds.minDetermined,
-      }
-    )
-  } else if (status === 'watch') {
+  if (status === 'watch') {
     hint = t('Failure rate {{rate}}, between {{low}} and {{high}}', {
       rate: percent(props.row.summary.failureRate),
       low: percent(props.thresholds.watchRate),
@@ -110,7 +80,7 @@ function HealthBadge(props: {
     })
   }
   return (
-    <MonitoringHint hint={hint}>
+    <CanvasTooltip content={hint}>
       <button
         type='button'
         className='cursor-help rounded-full'
@@ -118,7 +88,71 @@ function HealthBadge(props: {
       >
         <Badge variant={badge.variant}>{t(badge.label)}</Badge>
       </button>
-    </MonitoringHint>
+    </CanvasTooltip>
+  )
+}
+
+/**
+ * A model's failure rate: a dash without determined results; with too few of them it is faint and the hover says why
+ * it is not judged.
+ */
+function FailureRate(props: {
+  row: ModelMonitoringRow
+  thresholds: CanvasModelMonitoringOverview['thresholds']
+}) {
+  const { t, i18n } = useTranslation()
+  const failureRate = props.row.summary.failureRate
+  if (failureRate === null) {
+    return <span className='text-muted-foreground'>—</span>
+  }
+  const rate = formatMonitoringPercent(failureRate, i18n.language, t)
+  if (props.row.health.status !== 'thin') {
+    return <span className='text-muted-foreground'>{rate}</span>
+  }
+  const hint = t(
+    'Only {{count}} determined results; fewer than {{min}} are not judged',
+    {
+      count: props.row.summary.determined,
+      min: props.thresholds.minDetermined,
+    }
+  )
+  return (
+    <CanvasTooltip content={hint}>
+      <span
+        tabIndex={0}
+        aria-label={`${rate}. ${hint}`}
+        className='text-muted-foreground/65 focus-visible:ring-ring/50 cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
+      >
+        {rate}
+      </span>
+    </CanvasTooltip>
+  )
+}
+
+/** A name cut to one line; the hover shows it in full only when it is cut. */
+function ModelName(props: { name: string; onSelect: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+  return (
+    <CanvasTooltip
+      content={props.name}
+      open={open}
+      onOpenChange={(next) => {
+        const button = ref.current
+        setOpen(
+          next && Boolean(button && button.scrollWidth > button.clientWidth)
+        )
+      }}
+    >
+      <button
+        ref={ref}
+        type='button'
+        className='min-w-0 truncate text-start font-medium'
+        onClick={props.onSelect}
+      >
+        {props.name}
+      </button>
+    </CanvasTooltip>
   )
 }
 
@@ -148,9 +182,9 @@ function SortHeader(props: {
     />
   )
   return props.hint ? (
-    <MonitoringHint hint={props.hint}>
+    <CanvasTooltip content={props.hint}>
       <span className='inline-flex'>{header}</span>
-    </MonitoringHint>
+    </CanvasTooltip>
   ) : (
     header
   )
@@ -220,19 +254,11 @@ export function ModelMonitoringList(props: {
           {props.emptyAction}
         </div>
       ) : (
-        <div
-          className='max-w-full overflow-x-auto px-2'
-          tabIndex={0}
-          aria-label={t('Models')}
-        >
-          <div
-            role='table'
-            aria-label={t('Models')}
-            className='min-w-max text-sm'
-          >
+        <div className='px-2'>
+          <div role='table' aria-label={t('Models')} className='text-sm'>
             <div
               role='row'
-              className='grid grid-cols-[minmax(10rem,13rem)_5rem_auto] items-center gap-3 border-b px-2 py-2.5 max-sm:hidden'
+              className='grid grid-cols-[minmax(0,13rem)_8rem_minmax(0,1fr)] items-center gap-3 border-b px-2 py-2.5 max-sm:hidden'
             >
               <span role='columnheader'>
                 <SortHeader
@@ -288,7 +314,7 @@ export function ModelMonitoringList(props: {
                   role='row'
                   aria-selected={selected}
                   className={cn(
-                    'grid cursor-pointer grid-cols-[minmax(10rem,13rem)_5rem_auto] items-center gap-3 border-b px-2 py-2 last:border-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-y-2',
+                    'grid cursor-pointer grid-cols-[minmax(0,13rem)_8rem_minmax(0,1fr)] items-center gap-3 border-b px-2 py-2 last:border-0 max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-y-2',
                     selected ? 'bg-primary/10' : 'hover:bg-muted/60'
                   )}
                   onClick={(event) => {
@@ -297,14 +323,12 @@ export function ModelMonitoringList(props: {
                   }}
                 >
                   <div role='cell' className='min-w-0'>
-                    <div className='flex flex-wrap items-center gap-1.5'>
-                      <button
-                        type='button'
-                        className='text-start font-medium'
-                        onClick={() => props.onSelectModel(row.modelKey)}
-                      >
-                        {row.effectiveDisplayName}
-                      </button>
+                    {/* Two fixed lines: name, ⓘ and an actionable status; then API service and type. */}
+                    <div className='flex min-w-0 items-center gap-1'>
+                      <ModelName
+                        name={row.effectiveDisplayName}
+                        onSelect={() => props.onSelectModel(row.modelKey)}
+                      />
                       <ModelIdentityTooltip
                         effectiveDisplayName={row.effectiveDisplayName}
                         catalogDefaultName={row.catalogDefaultName}
@@ -313,19 +337,20 @@ export function ModelMonitoringList(props: {
                       />
                       <HealthBadge row={row} thresholds={thresholds} />
                     </div>
-                    <p className='text-muted-foreground text-xs whitespace-nowrap'>
+                    <p className='text-muted-foreground truncate text-xs'>
                       {row.provider.name} ·{' '}
                       {row.capability ? t(row.capability) : t('Unknown')}
                     </p>
                   </div>
-                  {/* One line, as the header reads "failures / failure rate"; a rate without determined results is a dash. */}
+                  {/* One line, as the header reads "failures / failure rate"; a rate without determined results is a dash.
+                      Count right, rate left in a fixed width, so the slash lines up in every row. */}
                   <div
                     role='cell'
-                    className='text-end text-sm whitespace-nowrap tabular-nums'
+                    className='grid grid-cols-[minmax(0,1fr)_auto_3rem] items-baseline gap-1 text-sm whitespace-nowrap tabular-nums'
                   >
                     <span
                       className={cn(
-                        'font-semibold',
+                        'text-end font-semibold',
                         failureCountTone(row.health.status)
                       )}
                     >
@@ -333,32 +358,26 @@ export function ModelMonitoringList(props: {
                         toIntlLocale(language)
                       )}
                     </span>
-                    <span className='text-muted-foreground'>
-                      {' / '}
-                      {row.summary.failureRate === null
-                        ? '—'
-                        : formatMonitoringPercent(
-                            row.summary.failureRate,
-                            language,
-                            t
-                          )}
+                    <span className='text-muted-foreground'>/</span>
+                    <span className='justify-self-start'>
+                      <FailureRate row={row} thresholds={thresholds} />
                     </span>
                   </div>
                   <div
                     role='cell'
-                    className='flex flex-wrap gap-0.5 max-sm:col-span-2'
+                    className='grid min-w-0 auto-cols-[minmax(3px,10px)] grid-flow-col items-center justify-start gap-0.5 max-sm:col-span-2'
                   >
                     {row.trend.map((bucket, index) => {
                       const text = monitoringIntervalText(bucket, language, t)
                       const pressed = selected && props.selectedBucket === index
                       return (
-                        <MonitoringHint key={bucket.from} hint={text}>
+                        <CanvasTooltip key={bucket.from} content={text}>
                           <button
                             type='button'
                             aria-label={`${row.effectiveDisplayName}. ${text.replaceAll('\n', '. ')}`}
                             aria-pressed={pressed}
                             className={cn(
-                              'focus-visible:ring-ring size-2.5 rounded-full border outline-none hover:ring-2 hover:ring-ring/50 focus-visible:ring-2',
+                              'focus-visible:ring-ring aspect-square w-full rounded-full border outline-none hover:ring-2 hover:ring-ring/50 focus-visible:ring-2',
                               monitoringCellClasses[
                                 monitoringCellTone(bucket, thresholds)
                               ],
@@ -368,7 +387,7 @@ export function ModelMonitoringList(props: {
                               props.onSelectBucket(row.modelKey, index)
                             }
                           />
-                        </MonitoringHint>
+                        </CanvasTooltip>
                       )
                     })}
                   </div>
@@ -384,7 +403,7 @@ export function ModelMonitoringList(props: {
       >
         {legend.map(([tone, label]) => (
           <li key={tone}>
-            <MonitoringHint hint={legendHints[tone]}>
+            <CanvasTooltip content={legendHints[tone]}>
               <button
                 type='button'
                 className='inline-flex cursor-help items-center gap-1.5'
@@ -398,7 +417,7 @@ export function ModelMonitoringList(props: {
                 />
                 {label}
               </button>
-            </MonitoringHint>
+            </CanvasTooltip>
           </li>
         ))}
       </ul>
