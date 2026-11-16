@@ -263,7 +263,8 @@ function positiveNumber(value, location, integer = false) {
 const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning", "inputTiers"];
 const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
 // Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
-const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens"];
+// Anthropic sends the system prompt apart from the messages.
+const CONVERSATION_BODY_FIELDS = ["model", "system", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens"];
 const CONVERSATION_PROTOCOL_NAMES = CONVERSATION_PROTOCOLS.join(" or ");
 // Text input is text only in the current scope, so text models cannot declare image input. The total is for an upstream
 // that reports one count only, which is a video task so far (VIDEO-TOKEN-BILLING-001).

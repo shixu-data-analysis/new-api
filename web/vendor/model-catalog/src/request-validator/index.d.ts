@@ -68,7 +68,7 @@ export declare const PROMPT_WHITESPACE_KINDS: readonly string[];
 export declare function collapsePromptWhitespaceIssue(value: unknown, kind: unknown): string | undefined;
 export declare function credentialHeaderName(securitySchemes: unknown, schemeName: unknown): string | undefined;
 export declare function idempotencyHeaderIssue(value: unknown, workflow: unknown, credentialHeader?: string): string | undefined;
-export type ConversationProtocol = "OPENAI_CHAT";
+export type ConversationProtocol = "OPENAI_CHAT" | "ANTHROPIC";
 export declare const CONVERSATION_PROTOCOLS: readonly ConversationProtocol[];
 export declare function conversationProtocolOf(profile: unknown): ConversationProtocol | null;
 export declare function inputLengthOf(usage: Partial<Record<string, string | number>> | null | undefined): bigint;

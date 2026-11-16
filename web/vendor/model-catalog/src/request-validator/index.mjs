@@ -1,5 +1,5 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.15.0";
+export const REQUEST_VALIDATOR_VERSION = "1.16.0";
 export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7220892a5fd6ed760563e63a786d99f72ff9332c982ae0f16e214a1b0d9078c1";
 
 export const CatalogRequestIssueCode = Object.freeze({
@@ -448,7 +448,7 @@ export function idempotencyHeaderIssue(value, workflow, credentialHeader) {
 }
 
 // The multi-turn protocols Cloud builds a conversation request for itself: messages, tools and their streamed calls.
-export const CONVERSATION_PROTOCOLS = Object.freeze(["OPENAI_CHAT"]);
+export const CONVERSATION_PROTOCOLS = Object.freeze(["OPENAI_CHAT", "ANTHROPIC"]);
 
 // A streamed sync text Profile whose usage Cloud reads in a conversation protocol speaks that protocol: the canvas
 // assistant's body is built by Cloud instead of the template. Null for any other Profile.
