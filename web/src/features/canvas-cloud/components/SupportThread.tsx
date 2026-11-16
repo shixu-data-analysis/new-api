@@ -89,6 +89,8 @@ function useSupportMessages(conversationId: string) {
       setMessages((previous) => {
         const known = new Set(previous.map((message) => message.seq))
         const fresh = incoming.filter((message) => !known.has(message.seq))
+        // An empty poll keeps the same list, so the thread neither renders again nor moves.
+        if (fresh.length === 0) return previous
         const next =
           where === 'end' ? [...previous, ...fresh] : [...fresh, ...previous]
         lastSeq.current = Math.max(
@@ -403,6 +405,8 @@ export function SupportThread(props: {
   const scroller = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const anchor = useRef<{ height: number; top: number } | null>(null)
+  // Whether the reader is at the newest message; reading history is never pulled away by a new one.
+  const pinned = useRef(true)
   const time = (iso: string) =>
     new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
       month: 'numeric',
@@ -411,7 +415,7 @@ export function SupportThread(props: {
       minute: '2-digit',
     }).format(new Date(iso))
 
-  // New messages scroll to the bottom; earlier ones keep what was on screen in place.
+  // Earlier messages keep what was on screen in place; new ones scroll to the bottom for a reader already there.
   useLayoutEffect(() => {
     const element = scroller.current
     if (!element) return
@@ -421,7 +425,7 @@ export function SupportThread(props: {
       anchor.current = null
       return
     }
-    element.scrollTop = element.scrollHeight
+    if (pinned.current) element.scrollTop = element.scrollHeight
   }, [thread.messages])
   useEffect(
     () => () => images.forEach((image) => URL.revokeObjectURL(image.preview)),
@@ -477,6 +481,7 @@ export function SupportThread(props: {
       })
     },
     onSuccess: (result) => {
+      pinned.current = true
       thread.append(result.messages)
       setDraft('')
       setImages([])
@@ -561,6 +566,11 @@ export function SupportThread(props: {
       <div
         ref={scroller}
         className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4'
+        onScroll={(event) => {
+          const element = event.currentTarget
+          pinned.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight < 80
+        }}
         aria-live='polite'
       >
         {thread.state === 'loading' ? (
