@@ -6,6 +6,10 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+// The Channel form's state: reads a Profile and contract into rows, and writes them back. Only what the form controls is
+// rewritten, so opening a Channel and changing nothing produces the same documents.
+import { conversationProtocolOf } from '@pixmiao/model-catalog/request-validator'
+
 import {
   compileParts,
   contentTemplate,
@@ -13,8 +17,6 @@ import {
   parseParts,
   type ShapeParts,
 } from './catalog-channel-shapes'
-// The Channel form's state: reads a Profile and contract into rows, and writes them back. Only what the form controls is
-// rewritten, so opening a Channel and changing nothing produces the same documents.
 import type { CatalogJson } from './catalog-edit-types'
 import { normalizedProviderRequest } from './executor-shared/providerRequestValues'
 import {
@@ -412,6 +414,8 @@ export interface ChannelDraft {
   errorPaths: string
   states: Record<'pending' | 'running' | 'succeeded' | 'failed', string>
   usageProtocol: string
+  // The upstream fields of each reasoning level, as JSON text (advanced.request.reasoningLevels).
+  reasoningLevels: string
   streaming: boolean
   submitTaskId: string
   submitStatus: string
@@ -689,6 +693,7 @@ export function blankChannelDraft(capability: string): ChannelDraft {
     errorPaths: isChat ? 'error.message' : '',
     states: { pending: '', running: '', succeeded: '', failed: '' },
     usageProtocol: isChat ? 'OPENAI_CHAT' : '',
+    reasoningLevels: '',
     streaming: isChat,
     submitTaskId: '',
     submitStatus: '',
@@ -796,6 +801,9 @@ export function channelDraftFrom(
       failed: (states.failed ?? []).join(', '),
     },
     usageProtocol: String(response.usageProtocol ?? ''),
+    reasoningLevels: request.reasoningLevels
+      ? JSON.stringify(request.reasoningLevels, null, 2)
+      : '',
     streaming: response.streaming === true,
     submitTaskId: pointersAsPaths(map.submitResponse?.taskId),
     submitStatus: pointersAsPaths(map.submitResponse?.status),
@@ -1041,7 +1049,86 @@ export function buildProfile(
     if (draft.streaming) response.streaming = true
     else delete response.streaming
   }
+  // Reasoning levels belong to a Channel the canvas assistant can talk through; kept only while they are valid.
+  const levels =
+    speaksConversation(draft) && !reasoningLevelsIssue(draft)
+      ? draft.reasoningLevels.trim()
+      : ''
+  if (levels) request.reasoningLevels = JSON.parse(levels)
+  else delete request.reasoningLevels
   return profile
+}
+
+/** Whether the canvas assistant can talk through this Channel: the shared rule on its sync, streaming and usage format. */
+export function speaksConversation(draft: ChannelDraft): boolean {
+  return (
+    conversationProtocolOf({
+      kind: draft.capability,
+      workflow: draft.workflow,
+      advanced: {
+        response: {
+          streaming: draft.streaming,
+          usageProtocol: draft.usageProtocol,
+        },
+      },
+    }) !== null
+  )
+}
+
+// Fields Cloud builds for a conversation itself; a reasoning level must not set them (pixmiao-catalog catalog-definitions).
+const CONVERSATION_BODY_FIELDS = [
+  'model',
+  'messages',
+  'tools',
+  'tool_choice',
+  'stream',
+  'stream_options',
+  'max_tokens',
+]
+
+/** Why typed reasoning-level fields are not valid; null when they are or the box is empty. */
+export function reasoningLevelsIssue(
+  draft: ChannelDraft
+): Omit<ChannelIssue, 'path'> | null {
+  const text = draft.reasoningLevels.trim()
+  if (!text) return null
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch {
+    return {
+      key: 'Not valid JSON: check the brackets, straight quotes and commas',
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      key: 'Write an object of levels, such as { "low": { "reasoning_effort": "low" } }',
+    }
+  }
+  for (const [level, fields] of Object.entries(value as CatalogJson)) {
+    if (!/^[a-z0-9_-]{1,32}$/.test(level)) {
+      return {
+        key: 'The level name {{level}} is 1-32 lowercase letters, digits, - or _',
+        values: { level },
+      }
+    }
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+      return {
+        key: 'The level {{level}} is an object of fields; {} sends nothing',
+        values: { level },
+      }
+    }
+    const built = Object.keys(fields).filter((field) =>
+      CONVERSATION_BODY_FIELDS.includes(field)
+    )
+    if (built.length) {
+      return {
+        key: 'The level {{level}} cannot set {{fields}}, which Cloud builds',
+        values: { level, fields: built.join(', ') },
+      }
+    }
+  }
+  return null
 }
 
 function bodySchema(
@@ -1303,6 +1390,10 @@ export function channelIssues(
   if (!/^\/\S*$/.test(draft.submit.path.trim())) {
     issues.push({ path: 'submit.path', key: 'Enter a path that starts with /' })
   }
+  const levelsIssue = speaksConversation(draft)
+    ? reasoningLevelsIssue(draft)
+    : null
+  if (levelsIssue) issues.push({ path: 'reasoningLevels', ...levelsIssue })
   if (draft.workflow !== 'sync') {
     if (!/^\/\S*$/.test(draft.poll.path.trim())) {
       issues.push({ path: 'poll.path', key: 'Enter a path that starts with /' })
@@ -1886,6 +1977,7 @@ const PROFILE_FIELDS_WITH_CONTROLS: KnownFields = {
       layers: true,
     },
     request: {
+      reasoningLevels: true,
       body: true,
       bodyWithImages: true,
       pollQuery: true,

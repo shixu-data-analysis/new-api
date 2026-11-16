@@ -12,8 +12,14 @@ import { useTranslation } from 'react-i18next'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Textarea } from '@/components/ui/textarea'
 
-import { movePollTaskId, type ChannelDraft } from '../../catalog-channel-draft'
+import {
+  movePollTaskId,
+  reasoningLevelsIssue,
+  speaksConversation,
+  type ChannelDraft,
+} from '../../catalog-channel-draft'
 import { OperationFields } from './ChannelFormParts'
 import { EditField, FoldTrigger, EditSection, SwitchField } from './EditFields'
 
@@ -357,6 +363,65 @@ export function ChannelResponseSection(props: {
           </NativeSelect>
         )}
       </EditField>
+      {isChat ? (
+        <AssistantFields draft={draft} set={set} errorOf={errorOf} />
+      ) : null}
     </EditSection>
+  )
+}
+
+// Whether the canvas assistant can talk through the Channel, and what each reasoning level adds to its request.
+function AssistantFields(props: {
+  draft: ChannelDraft
+  set: (next: Partial<ChannelDraft>) => void
+  errorOf: (path: string) => string | undefined
+}) {
+  const { t } = useTranslation()
+  const speaks = speaksConversation(props.draft)
+  const issue = speaks ? reasoningLevelsIssue(props.draft) : null
+  return (
+    <>
+      <SubHead
+        title={t('Canvas assistant (multi-turn)')}
+        note={
+          speaks
+            ? t(
+                'The canvas assistant can use it: streamed, with usage format {{format}}. Cloud builds the conversation request itself, not from the request fields. Turn on tool calling on a model for it to appear in the assistant.',
+                { format: props.draft.usageProtocol }
+              )
+            : t(
+                'The canvas assistant cannot use it: it needs a streamed response with a usage format the assistant speaks.'
+              )
+        }
+      />
+      {speaks ? (
+        <EditField
+          label={t('Upstream fields of the reasoning levels (JSON)')}
+          help={t(
+            'Optional. The fields a reasoning level adds to the request: the canvas assistant uses the level the user picks, a text node the model\u2019s default. Keys are level names, the value of a level on the model; {} adds nothing. For GPT: { "low": { "reasoning_effort": "low" } }.'
+          )}
+          error={
+            issue
+              ? t(issue.key, issue.values)
+              : props.errorOf('reasoningLevels')
+          }
+        >
+          {(id, describedBy) => (
+            <Textarea
+              id={id}
+              rows={6}
+              className='font-mono text-xs'
+              aria-describedby={describedBy}
+              aria-invalid={Boolean(issue)}
+              placeholder='{ "low": { "reasoning_effort": "low" }, "high": { "reasoning_effort": "high" } }'
+              value={props.draft.reasoningLevels}
+              onChange={(event) =>
+                props.set({ reasoningLevels: event.target.value })
+              }
+            />
+          )}
+        </EditField>
+      ) : null}
+    </>
   )
 }

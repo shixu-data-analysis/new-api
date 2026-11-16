@@ -27,6 +27,40 @@ import { catalogChannel } from './catalog-fixtures'
 const catalogRoot = path.resolve(process.cwd(), '../../pixmiao-catalog')
 
 describe('Channel form', () => {
+  it('keeps the reasoning levels of a Channel the assistant can talk through, and only valid ones', () => {
+    const chat = {
+      ...blankChannelDraft('chat.generate'),
+      reasoningLevels:
+        '{ "low": { "reasoning_effort": "low" }, "thinking": {} }',
+    }
+    const request = (draft: typeof chat) =>
+      (
+        buildProfile(draft, null, 'test').advanced as {
+          request?: { reasoningLevels?: unknown }
+        }
+      ).request
+    expect(request(chat)?.reasoningLevels).toEqual({
+      low: { reasoning_effort: 'low' },
+      thinking: {},
+    })
+    expect(
+      channelIssues(chat).some((issue) => issue.path === 'reasoningLevels')
+    ).toBe(false)
+    const building = {
+      ...chat,
+      reasoningLevels: '{ "low": { "max_tokens": 10 } }',
+    }
+    expect(
+      channelIssues(building).find((issue) => issue.path === 'reasoningLevels')
+        ?.key
+    ).toBe('The level {{level}} cannot set {{fields}}, which Cloud builds')
+    expect(request(building)?.reasoningLevels).toBeUndefined()
+    // A Channel that is not streamed cannot serve the assistant, so it keeps no levels.
+    expect(
+      request({ ...chat, streaming: false })?.reasoningLevels
+    ).toBeUndefined()
+  })
+
   it('converts dotted paths to pointers and back', () => {
     expect(pathToPointer('data.id')).toBe('/data/id')
     expect(pathToPointer('/data/id')).toBe('/data/id')
