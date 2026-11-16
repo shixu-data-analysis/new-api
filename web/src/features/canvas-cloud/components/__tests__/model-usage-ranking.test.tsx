@@ -136,6 +136,17 @@ describe('model usage ranking', () => {
       within(rows[0] as HTMLElement).getByRole('button', { name: 'video.fast' })
     )
     expect(onOpenModel).toHaveBeenCalledWith('video.fast')
+    // The rest of the row opens the model too, but its change button keeps its own action.
+    onOpenModel.mockClear()
+    fireEvent.click(within(rows[1] as HTMLElement).getByText('30'))
+    expect(onOpenModel).toHaveBeenCalledWith('video.old')
+    onOpenModel.mockClear()
+    fireEvent.click(
+      within(rows[1] as HTMLElement).getByRole('button', {
+        name: /^-50%\. Previous 60 → now 30 \(-30\)/,
+      })
+    )
+    expect(onOpenModel).not.toHaveBeenCalled()
   })
 
   it('sorts by customers and shows the rest of a long type on request', async () => {

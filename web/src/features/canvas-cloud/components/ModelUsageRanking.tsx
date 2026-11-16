@@ -10,7 +10,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StaticDataTable } from '@/components/data-table'
+import {
+  StaticDataTable,
+  staticDataTableClassNames,
+} from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
@@ -107,15 +110,30 @@ function TypeCard(props: {
       </CardHeader>
       <CardContent className='space-y-2'>
         <StaticDataTable
-          className='max-w-full overflow-x-auto'
+          className={cn(
+            staticDataTableClassNames.embeddedContainer,
+            'max-w-full overflow-x-auto'
+          )}
           containerProps={{
             role: 'region',
             'aria-label': t('{{type}} ranking', { type: typeName }),
             tabIndex: 0,
+            // A whole row opens the model, as in runtime monitoring; buttons inside it keep their own action.
+            onClick: (event) => {
+              const target = event.target as HTMLElement
+              if (target.closest('button')) return
+              const row = target.closest('tbody tr')
+              const model =
+                row instanceof HTMLTableRowElement
+                  ? shown[row.sectionRowIndex]
+                  : undefined
+              if (model) props.onOpenModel(model.modelKey)
+            },
           }}
           tableClassName='w-full table-fixed'
           data={shown}
           getRowKey={(row) => row.modelKey}
+          getRowClassName={() => 'cursor-pointer'}
           emptyContent={t('No usage in this period')}
           columns={[
             {
@@ -148,25 +166,20 @@ function TypeCard(props: {
                         </span>
                       )}
                     </div>
-                    {share > 0 ? (
-                      <div
-                        className='flex items-center gap-2'
-                        aria-hidden='true'
-                      >
-                        <div className='bg-muted h-1 flex-1 overflow-hidden rounded-full'>
-                          <div
-                            className='bg-primary/70 h-full rounded-full'
-                            style={{ width: `${share * 100}%` }}
-                          />
-                        </div>
-                        <span className='text-muted-foreground w-8 text-end text-xs tabular-nums'>
-                          {new Intl.NumberFormat(toIntlLocale(language), {
-                            style: 'percent',
-                            maximumFractionDigits: 0,
-                          }).format(share)}
-                        </span>
+                    <div className='flex items-center gap-2' aria-hidden='true'>
+                      <div className='bg-muted h-1 flex-1 overflow-hidden rounded-full'>
+                        <div
+                          className='bg-primary/70 h-full rounded-full'
+                          style={{ width: `${share * 100}%` }}
+                        />
                       </div>
-                    ) : null}
+                      <span className='text-muted-foreground w-8 text-end text-xs tabular-nums'>
+                        {new Intl.NumberFormat(toIntlLocale(language), {
+                          style: 'percent',
+                          maximumFractionDigits: 0,
+                        }).format(share)}
+                      </span>
+                    </div>
                   </div>
                 )
               },
