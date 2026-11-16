@@ -135,7 +135,7 @@ export function SupportFailureAlerts(props: {
                 className={cn(
                   'flex w-full min-w-0 flex-col gap-0.5 rounded-xl p-2.5 text-start',
                   item.modelKey === model.modelKey
-                    ? 'bg-primary/10'
+                    ? 'bg-muted'
                     : 'hover:bg-muted/60'
                 )}
                 onClick={() => {

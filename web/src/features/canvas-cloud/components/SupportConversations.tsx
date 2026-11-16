@@ -315,7 +315,7 @@ export function SupportConversations(props: {
                           aria-pressed={isSelected}
                           className={cn(
                             'grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-xl p-2.5 text-start',
-                            isSelected ? 'bg-primary/10' : 'hover:bg-muted/60'
+                            isSelected ? 'bg-muted' : 'hover:bg-muted/60'
                           )}
                           onClick={() => props.onConversationChange?.(row.id)}
                         >
