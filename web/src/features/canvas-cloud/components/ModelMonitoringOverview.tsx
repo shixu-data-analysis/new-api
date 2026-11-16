@@ -179,7 +179,9 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
   const [capability, setCapability] = useState('')
   const [providerId, setProviderId] = useState('')
   const [tagId, setTagId] = useState('')
-  const [search, setSearch] = useState(props.focusModelKey ?? '')
+  // A model opened from the usage ranking is filtered by its exact key; search would also match longer keys on other pages.
+  const [focusModelKey, setFocusModelKey] = useState(props.focusModelKey ?? '')
+  const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search.trim(), 300)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(10)
@@ -200,6 +202,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
         capability,
         providerId,
         tagId,
+        focusModelKey,
         debouncedSearch,
         sort.sortBy,
         sort.sortOrder,
@@ -213,6 +216,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
       capability,
       providerId,
       tagId,
+      focusModelKey,
       debouncedSearch,
       sort,
       page,
@@ -236,6 +240,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
           ...(providerId ? { providerId } : {}),
           ...(tagId === 'untagged' ? { untagged: true as const } : {}),
           ...(tagId && tagId !== 'untagged' ? { tagId } : {}),
+          ...(focusModelKey ? { modelKey: focusModelKey } : {}),
           ...(debouncedSearch ? { search: debouncedSearch } : {}),
         },
         signal
@@ -263,11 +268,8 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
     },
     getCoreRowModel: getCoreRowModel(),
   })
-  // A model opened from the usage ranking is selected by its exact key: the search also matches keys that only contain it.
   const selectedModel =
-    rows.find((row) => row.modelKey === (selectedKey ?? props.focusModelKey)) ??
-    rows[0] ??
-    null
+    rows.find((row) => row.modelKey === selectedKey) ?? rows[0] ?? null
 
   // The server returns a smaller page when the filters shrank the list; the previous query's data shown while the next page
   // loads is not such an answer.
@@ -297,6 +299,7 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
     setCapability('')
     setProviderId('')
     setTagId('')
+    setFocusModelKey('')
     setSearch('')
     resetPage()
   }
@@ -355,6 +358,19 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
   else if (paused) refreshHint = t('Paused; click to resume')
   const tagName = data?.tags.find((tag) => tag.id === tagId)?.name
   const filterTags = [
+    focusModelKey && {
+      key: 'model',
+      label: t('{{field}}: {{value}}', {
+        field: t('Model'),
+        value:
+          rows.find((row) => row.modelKey === focusModelKey)
+            ?.effectiveDisplayName ?? focusModelKey,
+      }),
+      remove: () => {
+        setFocusModelKey('')
+        resetPage()
+      },
+    },
     capability && {
       key: 'capability',
       label: t('{{field}}: {{value}}', {

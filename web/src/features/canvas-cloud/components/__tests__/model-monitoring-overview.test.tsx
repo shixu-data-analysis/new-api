@@ -532,29 +532,39 @@ describe('model monitoring', () => {
     await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeVisible())
   })
 
-  it('selects the exact model opened from the usage ranking, not a longer key the search also matches', async () => {
+  it('filters a model opened from the usage ranking by its exact key, wherever it ranks', async () => {
     const [alpha, beta] = overview.rows as [
       (typeof overview.rows)[number],
       (typeof overview.rows)[number],
     ]
-    mocks.getOverview.mockResolvedValue({
-      ...overview,
-      rows: [
-        {
-          ...beta,
-          modelKey: 'image.alpha.fast',
-          effectiveDisplayName: 'Alpha fast model',
-        },
-        alpha,
-      ],
-    })
+    // Without the exact filter the target ranks on page 2 behind ten longer keys.
+    mocks.getOverview.mockImplementation(async (query: { modelKey?: string }) =>
+      query.modelKey === 'image.alpha'
+        ? { ...overview, rows: [alpha], total: 1 }
+        : {
+            ...overview,
+            rows: [{ ...beta, modelKey: 'image.alpha.fast' }],
+            total: 11,
+          }
+    )
     mount('image.alpha')
     expect(
       await screen.findByRole('heading', { name: 'Alpha model' })
     ).toBeVisible()
-    expect(mocks.getOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ search: 'image.alpha' }),
-      expect.anything()
+    expect(mocks.getOverview).toHaveBeenCalledTimes(1)
+    expect(mocks.getOverview.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ modelKey: 'image.alpha' })
+    )
+    expect(mocks.getOverview.mock.calls[0]?.[0]).not.toHaveProperty('search')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove filter Model: Alpha model' })
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Beta model' })
+    ).toBeVisible()
+    expect(mocks.getOverview.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+      'modelKey'
     )
   })
 

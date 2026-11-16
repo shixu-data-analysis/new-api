@@ -1955,6 +1955,7 @@ export interface CanvasModelMonitoringOverviewQuery {
   tagId?: string
   untagged?: true
   search?: string
+  modelKey?: string
   page: number
   pageSize: 5 | 10 | 20 | 30 | 40 | 50 | 100
   sortBy: 'failures' | 'failureRate' | 'name'
