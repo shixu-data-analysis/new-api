@@ -132,7 +132,6 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
         message({ seq: 2, sender: 'ADMIN', adminName: '运营', text: '收到' }),
       ],
       hasEarlier: false,
-      hasLater: false,
     })
     apiMocks.replyCanvasAdminSupportConversation.mockResolvedValue({
       messages: [

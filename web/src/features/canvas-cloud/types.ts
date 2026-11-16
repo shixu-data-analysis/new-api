@@ -2391,7 +2391,6 @@ export interface CanvasAdminSupportMessage {
 export interface CanvasAdminSupportMessages {
   messages: CanvasAdminSupportMessage[]
   hasEarlier: boolean
-  hasLater: boolean
 }
 
 export interface CanvasAdminSupportConversation {
