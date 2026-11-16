@@ -32,6 +32,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorCode } from '@/lib/server-error-message'
@@ -120,6 +121,8 @@ export function SupportThread(props: {
   const name = conversation.customer.name ?? t('Customer')
   const thread = useSupportMessages(conversation.id)
   const [draft, setDraft] = useState('')
+  // Kept between replies; off sends a reply that lights the client's dot without the preview card.
+  const [popup, setPopup] = useState(true)
   const [images, setImages] = useState<PendingImage[]>([])
   const scroller = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -197,6 +200,7 @@ export function SupportThread(props: {
         input: {
           ...(text ? { text } : {}),
           ...(attachmentIds.length ? { attachmentIds } : {}),
+          popup,
         },
         idempotencyKey: crypto.randomUUID(),
       })
@@ -427,6 +431,13 @@ export function SupportThread(props: {
               replies={props.quickReplies}
               onPick={setDraft}
             />
+            <label className='flex items-center gap-1.5 text-xs'>
+              <Checkbox
+                checked={popup}
+                onCheckedChange={(checked) => setPopup(checked === true)}
+              />
+              {t('Pop up on the client')}
+            </label>
             <input
               ref={fileInput}
               type='file'

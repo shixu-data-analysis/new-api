@@ -2170,7 +2170,8 @@ export async function getCanvasAdminSupportMessages(
 
 export async function replyCanvasAdminSupportConversation(request: {
   conversationId: string
-  input: { text?: string; attachmentIds?: string[] }
+  /** popup false: the client lights its dot without the preview card. */
+  input: { text?: string; attachmentIds?: string[]; popup: boolean }
   idempotencyKey: string
 }): Promise<{ messages: CanvasAdminSupportMessage[] }> {
   return (

@@ -301,7 +301,7 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       expect(apiMocks.replyCanvasAdminSupportConversation).toHaveBeenCalledWith(
         {
           conversationId: xiaolin.id,
-          input: { text: '已恢复' },
+          input: { text: '已恢复', popup: true },
           idempotencyKey: expect.any(String),
         }
       )
@@ -326,6 +326,31 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       await screen.findByRole('menuitem', { name: '原因已经查明并修复。' })
     )
     expect(input).toHaveValue('原因已经查明并修复。')
+  })
+
+  it('sends a reply without the client pop-up when it is unchecked', async () => {
+    render(
+      wrap(
+        <SupportThread
+          conversation={xiaolin}
+          quickReplies={{ conversation: [], failureNotice: [] }}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Reply to 小林 (ID 10245)',
+    })
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Pop up on the client' })
+    )
+    fireEvent.change(input, { target: { value: '顺便说一下' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() =>
+      expect(apiMocks.replyCanvasAdminSupportConversation).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { text: '顺便说一下', popup: false } })
+      )
+    )
   })
 
   it('holds pasted images above the input until they are sent or removed', async () => {
