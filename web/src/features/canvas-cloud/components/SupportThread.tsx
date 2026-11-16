@@ -65,6 +65,7 @@ import type {
   CanvasAdminSupportConversation,
   CanvasAdminSupportMessage,
   CanvasSupportAttachment,
+  CanvasSupportQuickReplies,
 } from '../types'
 import { SupportQuickReplyMenu } from './SupportQuickReplyMenu'
 
@@ -392,7 +393,7 @@ interface PendingImage {
 
 export function SupportThread(props: {
   conversation: CanvasAdminSupportConversation
-  quickReplies: string[]
+  quickReplies: CanvasSupportQuickReplies
   onOpenCustomer: (customerId: string) => void
 }) {
   const { t, i18n } = useTranslation()

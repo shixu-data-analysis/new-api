@@ -53,7 +53,7 @@ export function SupportQuickRepliesField(props: {
         <ul className='space-y-1.5' aria-labelledby={`${id}-label`}>
           {props.values.map((value) => (
             <li key={value} className='flex items-start gap-1.5'>
-              <p className='flex-1 rounded-lg border px-2.5 py-1.5 text-sm whitespace-pre-wrap'>
+              <p className='flex-1 rounded-lg border px-2.5 py-1 text-xs leading-5 whitespace-pre-wrap'>
                 {value}
               </p>
               <Button

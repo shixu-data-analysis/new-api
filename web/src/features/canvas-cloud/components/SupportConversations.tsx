@@ -360,7 +360,12 @@ export function SupportConversations(props: {
               <SupportThread
                 key={selected.id}
                 conversation={selected}
-                quickReplies={settings.data?.quickReplies.conversation ?? []}
+                quickReplies={
+                  settings.data?.quickReplies ?? {
+                    conversation: [],
+                    failureNotice: [],
+                  }
+                }
                 onOpenCustomer={props.onOpenCustomer}
               />
             </div>

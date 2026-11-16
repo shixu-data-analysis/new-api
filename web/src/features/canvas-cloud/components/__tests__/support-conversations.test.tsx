@@ -199,7 +199,10 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       wrap(
         <SupportThread
           conversation={xiaolin}
-          quickReplies={['您好，我们已收到您的问题。']}
+          quickReplies={{
+            conversation: ['您好，我们已收到您的问题。'],
+            failureNotice: ['原因已经查明并修复。'],
+          }}
           onOpenCustomer={onOpenCustomer}
         />
       )
@@ -236,12 +239,12 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Quick replies' }))
+    // Both groups are offered, each under its name.
+    expect(await screen.findByText('Failure notices')).toBeInTheDocument()
     fireEvent.click(
-      await screen.findByRole('menuitem', {
-        name: '您好，我们已收到您的问题。',
-      })
+      await screen.findByRole('menuitem', { name: '原因已经查明并修复。' })
     )
-    expect(input).toHaveValue('您好，我们已收到您的问题。')
+    expect(input).toHaveValue('原因已经查明并修复。')
   })
 
   it('holds pasted images above the input until they are sent or removed', async () => {
@@ -249,7 +252,7 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       wrap(
         <SupportThread
           conversation={mia}
-          quickReplies={[]}
+          quickReplies={{ conversation: [], failureNotice: [] }}
           onOpenCustomer={vi.fn()}
         />
       )
