@@ -318,8 +318,12 @@ export function ModelMonitoringList(props: {
                       {row.capability ? t(row.capability) : t('Unknown')}
                     </p>
                   </div>
-                  <div role='cell' className='text-end tabular-nums'>
-                    <p
+                  {/* One line, as the header reads "failures / failure rate"; a rate without determined results is a dash. */}
+                  <div
+                    role='cell'
+                    className='text-end text-sm whitespace-nowrap tabular-nums'
+                  >
+                    <span
                       className={cn(
                         'font-semibold',
                         failureCountTone(row.health.status)
@@ -328,14 +332,17 @@ export function ModelMonitoringList(props: {
                       {row.summary.failures.toLocaleString(
                         toIntlLocale(language)
                       )}
-                    </p>
-                    <p className='text-muted-foreground text-xs'>
-                      {formatMonitoringPercent(
-                        row.summary.failureRate,
-                        language,
-                        t
-                      )}
-                    </p>
+                    </span>
+                    <span className='text-muted-foreground'>
+                      {' / '}
+                      {row.summary.failureRate === null
+                        ? '—'
+                        : formatMonitoringPercent(
+                            row.summary.failureRate,
+                            language,
+                            t
+                          )}
+                    </span>
                   </div>
                   <div
                     role='cell'
