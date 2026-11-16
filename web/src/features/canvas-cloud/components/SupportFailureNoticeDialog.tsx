@@ -84,10 +84,10 @@ export function SupportFailureNoticeDialog(props: {
         <DialogHeader>
           <DialogTitle>{t('Notify customers of the result')}</DialogTitle>
           <DialogDescription>
-            {t(
-              '{{model}} · sent to {{count}} customers, each as a system notice in their own conversation',
-              { model: props.modelName, count: props.alertIds.length }
-            )}
+            {t('{{model}} · {{count}} customers', {
+              model: props.modelName,
+              count: props.alertIds.length,
+            })}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -113,7 +113,7 @@ export function SupportFailureNoticeDialog(props: {
               className='min-h-24'
               value={text}
               maxLength={NOTICE_MAX}
-              placeholder={t('Write the result, or pick a quick reply')}
+              placeholder={t('Write the result')}
               onChange={(event) => setText(event.target.value)}
             />
           </div>
@@ -123,10 +123,7 @@ export function SupportFailureNoticeDialog(props: {
             </span>
             {`关于「${props.modelName}」：${trimmed || '……'}`}
           </div>
-          <DialogFooter className='sm:items-center sm:justify-between'>
-            <span className='text-muted-foreground text-xs'>
-              {t('The customer can reply in the same conversation.')}
-            </span>
+          <DialogFooter>
             <div className='flex gap-2'>
               <Button
                 type='button'

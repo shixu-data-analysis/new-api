@@ -224,15 +224,6 @@ export function SupportFailureAlerts(props: {
               })}
             </tbody>
           </table>
-          <p className='text-muted-foreground mt-3 text-xs'>
-            {t(
-              'Confirmed failures within {{hours}} hours; one task counts once. After a notice or a dismissal the earlier failures alert no more; {{threshold}} new failures alert again.',
-              {
-                hours: props.alerts.windowHours,
-                threshold: props.alerts.threshold,
-              }
-            )}
-          </p>
         </div>
       </Card>
 

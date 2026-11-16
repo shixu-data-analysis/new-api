@@ -254,7 +254,7 @@ export function SupportSettingsDialog(props: {
                         className='text-muted-foreground text-xs'
                       >
                         {t(
-                          'One alert when a conversation starts waiting for a reply, and one more if it still waits after 30 minutes.'
+                          'Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.'
                         )}
                       </p>
                     </div>
@@ -338,9 +338,7 @@ export function SupportSettingsDialog(props: {
                             id={`${id}-url-help`}
                             className='text-muted-foreground text-xs'
                           >
-                            {t(
-                              'HTTPS only. After saving only the host and the last four characters are shown.'
-                            )}
+                            {t('HTTPS only')}
                           </p>
                         )}
                         <div className='flex flex-wrap items-center gap-2'>
@@ -404,21 +402,13 @@ export function SupportSettingsDialog(props: {
                     <p role='alert' className='text-destructive text-xs'>
                       {failureRangeError}
                     </p>
-                  ) : (
-                    <p className='text-muted-foreground text-xs'>
-                      {t(
-                        'Confirmed failures of real tasks; one task counts once. The group hears at most once per model every 5 minutes.'
-                      )}
-                    </p>
-                  )}
+                  ) : null}
                 </section>
               </TabsContent>
 
               <TabsContent value='replies' className='space-y-5'>
                 <p className='text-muted-foreground text-xs'>
-                  {t(
-                    'Plain text, sent as it is or edited first. At most 20 in each group, 500 characters each.'
-                  )}
+                  {t('At most 20 in each group')}
                 </p>
                 <SupportQuickRepliesField
                   label={t('Conversation replies')}
