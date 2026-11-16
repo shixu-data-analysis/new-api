@@ -8,6 +8,7 @@ the Free Software Foundation, either version 3 of the License, or
 */
 import { useTranslation } from 'react-i18next'
 
+import { NavBadge } from '@/components/layout/components/nav-group'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
@@ -53,17 +54,14 @@ export function RuntimeManagement(props: {
             </Badge>
           ) : null}
           {attentionCount > 0 ? (
-            <>
-              <span
-                aria-hidden='true'
-                className='bg-destructive ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white tabular-nums'
-              >
-                {attentionCount}
-              </span>
-              <span className='sr-only'>
-                {t('{{count}} items need attention', { count: attentionCount })}
-              </span>
-            </>
+            <NavBadge
+              tone='alert'
+              label={t('{{count}} items need attention', {
+                count: attentionCount,
+              })}
+            >
+              {String(attentionCount)}
+            </NavBadge>
           ) : null}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='provider'>

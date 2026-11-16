@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
+import { NavBadge } from '@/components/layout/components/nav-group'
+
 import {
   getProviderBalanceAlerts,
   providerBalanceAlertsQueryKey,
@@ -35,18 +37,16 @@ export function ProviderBalanceAlertBadge() {
   const count = alerts.data?.alertCount ?? 0
   if (count === 0) return null
   return (
-    <>
-      <span
-        aria-hidden='true'
-        className='bg-destructive inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold text-white tabular-nums'
-      >
-        {count}
-      </span>
-      <span className='sr-only'>
-        {t('{{count}} API providers are below their balance alert threshold', {
+    <NavBadge
+      tone='alert'
+      label={t(
+        '{{count}} API providers are below their balance alert threshold',
+        {
           count,
-        })}
-      </span>
-    </>
+        }
+      )}
+    >
+      {String(count)}
+    </NavBadge>
   )
 }
