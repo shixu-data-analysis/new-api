@@ -309,17 +309,11 @@ export function SupportConversations(props: {
                           type='button'
                           aria-pressed={isSelected}
                           className={cn(
-                            'grid w-full grid-cols-[2.25rem_minmax(0,1fr)_auto] items-start gap-2.5 rounded-xl p-2.5 text-start',
+                            'grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-xl p-2.5 text-start',
                             isSelected ? 'bg-primary/10' : 'hover:bg-muted/60'
                           )}
                           onClick={() => props.onConversationChange?.(row.id)}
                         >
-                          <span
-                            aria-hidden='true'
-                            className='bg-secondary text-secondary-foreground grid size-9 place-items-center rounded-full text-sm font-semibold'
-                          >
-                            {[...name][0]}
-                          </span>
                           <span className='flex min-w-0 flex-col gap-0.5'>
                             <span className='flex items-baseline gap-1.5'>
                               <span className='truncate font-semibold'>
