@@ -240,13 +240,13 @@ it('keeps the first and last time labels while limiting dense ticks', () => {
   expect([...monitoringTickLabelIndexes(0)]).toEqual([])
 })
 
-function mount() {
+function mount(focusModelKey?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <ModelMonitoringOverview />
+      <ModelMonitoringOverview focusModelKey={focusModelKey} />
     </QueryClientProvider>
   )
 }
@@ -503,6 +503,59 @@ describe('model monitoring', () => {
         'The model state changed. Refresh and review before retrying.'
       )
     ).toBeVisible()
+  })
+
+  it('stays on the next page while it loads instead of falling back to the previous page', async () => {
+    let releaseSecondPage: (value: typeof overview) => void = () => undefined
+    mocks.getOverview.mockImplementation((query: { page: number }) =>
+      query.page === 2
+        ? new Promise((resolve) => {
+            releaseSecondPage = resolve
+          })
+        : Promise.resolve({ ...overview, total: 22 })
+    )
+    mount()
+    await screen.findByRole('table', { name: 'Models' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
+    await waitFor(() =>
+      expect(mocks.getOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.anything()
+      )
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.getByText('Page 2 of 3')).toBeVisible()
+    expect(mocks.getOverview.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ page: 2 })
+    )
+    releaseSecondPage({ ...overview, page: 2, total: 22 })
+    await waitFor(() => expect(screen.getByText('Page 2 of 3')).toBeVisible())
+  })
+
+  it('selects the exact model opened from the usage ranking, not a longer key the search also matches', async () => {
+    const [alpha, beta] = overview.rows as [
+      (typeof overview.rows)[number],
+      (typeof overview.rows)[number],
+    ]
+    mocks.getOverview.mockResolvedValue({
+      ...overview,
+      rows: [
+        {
+          ...beta,
+          modelKey: 'image.alpha.fast',
+          effectiveDisplayName: 'Alpha fast model',
+        },
+        alpha,
+      ],
+    })
+    mount('image.alpha')
+    expect(
+      await screen.findByRole('heading', { name: 'Alpha model' })
+    ).toBeVisible()
+    expect(mocks.getOverview).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'image.alpha' }),
+      expect.anything()
+    )
   })
 
   it('resets the selected interval on pagination and follows the server-clamped page', async () => {

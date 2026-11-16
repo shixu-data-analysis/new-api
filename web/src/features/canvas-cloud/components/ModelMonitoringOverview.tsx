@@ -263,18 +263,30 @@ export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
     },
     getCoreRowModel: getCoreRowModel(),
   })
+  // A model opened from the usage ranking is selected by its exact key: the search also matches keys that only contain it.
   const selectedModel =
-    rows.find((row) => row.modelKey === selectedKey) ?? rows[0] ?? null
+    rows.find((row) => row.modelKey === (selectedKey ?? props.focusModelKey)) ??
+    rows[0] ??
+    null
 
+  // The server returns a smaller page when the filters shrank the list; the previous query's data shown while the next page
+  // loads is not such an answer.
   useEffect(() => {
-    if (data && data.page !== page) {
+    if (data && !monitoring.isPlaceholderData && data.page !== page) {
       queryClient.setQueryData(
         [...queryKey.slice(0, -2), data.page, pageSize],
         data
       )
       setPage(data.page)
     }
-  }, [data, page, pageSize, queryClient, queryKey])
+  }, [
+    data,
+    monitoring.isPlaceholderData,
+    page,
+    pageSize,
+    queryClient,
+    queryKey,
+  ])
 
   const resetPage = () => {
     setPage(1)

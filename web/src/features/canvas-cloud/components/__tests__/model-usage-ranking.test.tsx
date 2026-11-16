@@ -146,6 +146,30 @@ describe('model usage ranking', () => {
     expect(within(image).getAllByRole('row')[1]).toHaveTextContent('image.8')
   })
 
+  it('keeps the ranking of a type that fell to zero this period', async () => {
+    mocks.getUsage.mockResolvedValue({
+      ...usage,
+      models: [
+        ...usage.models,
+        model('text.retired', 'chat.generate', 0, 0, 5),
+      ],
+    })
+    mount()
+    const text = await screen.findByRole('region', {
+      name: 'Text generation ranking',
+    })
+    expect(
+      within(text).getByRole('button', {
+        name: /^-100%\. Previous 5 → now 0 \(-5\)/,
+      })
+    ).toBeVisible()
+    expect(
+      screen
+        .getByRole('heading', { name: 'By generation type' })
+        .closest('[data-slot="card"]')
+    ).not.toHaveTextContent('Text generation')
+  })
+
   it('asks for a custom range of at most 30 days', async () => {
     mount()
     await screen.findByRole('region', { name: 'Video generation ranking' })

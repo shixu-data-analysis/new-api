@@ -24,7 +24,7 @@ export function formatMonitoringPercent(
     maximumFractionDigits: 1,
   }).format(value)
 }
-export function formatMonitoringDateTime(value: string, language: string) {
+function formatMonitoringDateTime(value: string, language: string) {
   return new Intl.DateTimeFormat(toIntlLocale(language), {
     dateStyle: 'short',
     timeStyle: 'medium',

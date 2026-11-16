@@ -328,7 +328,14 @@ export function ModelUsageRanking(props: {
     +draftTo - +draftFrom <= maximumCustomRangeMilliseconds
   )
   const customRangeStarted = Boolean(draftFrom || draftTo)
-  const types = usage.data?.types ?? []
+  // A ranking per type that has a model used in either period, most results first, so a type that fell to zero still shows its
+  // models' drop; the summary above compares only this period.
+  const currentResults = new Map(
+    (usage.data?.types ?? []).map((type) => [type.capability, type.results])
+  )
+  const rankedTypes = [
+    ...new Set((usage.data?.models ?? []).map((model) => model.capability)),
+  ].sort((a, b) => (currentResults.get(b) ?? 0) - (currentResults.get(a) ?? 0))
 
   return (
     <div className='space-y-4'>
@@ -421,12 +428,12 @@ export function ModelUsageRanking(props: {
         <>
           <TypeSummary usage={usage.data} />
           <div className='grid gap-4 xl:grid-cols-3'>
-            {types.map((type) => (
+            {rankedTypes.map((capability) => (
               <TypeCard
-                key={type.capability ?? 'none'}
-                capability={type.capability}
+                key={capability ?? 'none'}
+                capability={capability}
                 models={usage.data.models.filter(
-                  (model) => model.capability === type.capability
+                  (model) => model.capability === capability
                 )}
                 metric={metric}
                 onMetric={setMetric}
