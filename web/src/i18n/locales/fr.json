@@ -10955,6 +10955,7 @@
     "View convention": "Voir",
     "Customer mail": "E-mail client",
     "Skipped": "Ignorés",
-    "Change points expiry reminder": "Modifier le rappel d’expiration des points"
+    "Change points expiry reminder": "Modifier le rappel d’expiration des points",
+    "Has failed or pending results": "Avec résultats en échec ou en attente"
   }
 }

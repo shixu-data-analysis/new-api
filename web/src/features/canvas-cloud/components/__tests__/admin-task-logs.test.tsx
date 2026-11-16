@@ -143,10 +143,7 @@ describe('Canvas administrator task records', () => {
     await i18next.changeLanguage('en')
     apiMocks.getCanvasTaskLogOptions.mockResolvedValue({
       models: [
-        {
-          customerModelId: 'model-1',
-          displayNameSnapshot: 'Historical Canvas Image',
-        },
+        { modelKey: 'canvas.image', displayName: 'Historical Canvas Image' },
       ],
       credentialGroups: [
         { id: groupId, name: 'Default', providerName: 'HFSY API' },
@@ -236,7 +233,7 @@ describe('Canvas administrator task records', () => {
     )
     await waitFor(() =>
       expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
-        expect.objectContaining({ modelId: 'model-1' }),
+        expect.objectContaining({ modelKey: 'canvas.image' }),
         expect.any(AbortSignal)
       )
     )
@@ -313,6 +310,48 @@ describe('Canvas administrator task records', () => {
     // Its scrollbars stay visible and wide enough to drag, also with macOS overlay scrollbars.
     expect(table.parentElement).toHaveClass('overflow-auto', 'table-scrollbar')
     expect(table.querySelector('thead')).toHaveClass('sticky', 'top-0')
+  })
+
+  it('takes the runtime monitoring link: model key, accepted range, real calls and failed results', async () => {
+    routeState.set({
+      modelKey: 'canvas.image',
+      executionOrigin: 'REAL',
+      outcome: 'FAILED_OR_PENDING',
+      from: '2026-11-16T05:00:00.000Z',
+      to: '2026-11-16T06:00:00.000Z',
+    })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          modelKey: 'canvas.image',
+          executionOrigin: 'REAL',
+          outcome: 'FAILED_OR_PENDING',
+          from: '2026-11-16T05:00:00.000Z',
+          to: '2026-11-16T06:00:00.000Z',
+        }),
+        expect.any(AbortSignal)
+      )
+    )
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    expect(
+      await within(tags).findByText('Model: Historical Canvas Image')
+    ).toBeVisible()
+    expect(within(tags).getByText('Execution source: Real calls')).toBeVisible()
+    expect(
+      within(tags).getByText('Has failed or pending results')
+    ).toBeVisible()
+    fireEvent.click(
+      within(tags).getByRole('button', {
+        name: /Has failed or pending results/,
+      })
+    )
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ outcome: 'FAILED_OR_PENDING' }),
+        expect.any(AbortSignal)
+      )
+    )
   })
 
   it('opens the task record sheet from its task identifier', async () => {

@@ -10955,6 +10955,7 @@
     "View convention": "表示",
     "Customer mail": "顧客へのメール",
     "Skipped": "スキップ",
-    "Change points expiry reminder": "ポイント期限切れ通知を変更"
+    "Change points expiry reminder": "ポイント期限切れ通知を変更",
+    "Has failed or pending results": "失敗または確認待ちの結果あり"
   }
 }

@@ -81,6 +81,10 @@ const taskLogSearch = {
   unrecognizedStatus: z.literal('present').optional().catch(undefined),
   platformIssue: z.literal('present').optional().catch(undefined),
   from: z.string().datetime({ offset: true }).optional().catch(undefined),
+  to: z.string().datetime({ offset: true }).optional().catch(undefined),
+  modelKey: z.string().trim().min(1).max(128).optional().catch(undefined),
+  executionOrigin: z.enum(['REAL', 'MOCK']).optional().catch(undefined),
+  outcome: z.literal('FAILED_OR_PENDING').optional().catch(undefined),
 }
 
 export const canvasCloudSearchSchema = z.object({

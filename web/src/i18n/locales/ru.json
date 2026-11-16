@@ -10955,6 +10955,7 @@
     "View convention": "Просмотреть",
     "Customer mail": "Письмо клиентам",
     "Skipped": "Пропущено",
-    "Change points expiry reminder": "Изменить напоминание об истечении баллов"
+    "Change points expiry reminder": "Изменить напоминание об истечении баллов",
+    "Has failed or pending results": "Есть неудачные или неподтверждённые результаты"
   }
 }

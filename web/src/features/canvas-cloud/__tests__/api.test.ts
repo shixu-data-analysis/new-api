@@ -451,7 +451,8 @@ describe('Canvas Cloud API boundary', () => {
       page: 2,
       pageSize: 20 as const,
       customer: 'uatcustomer',
-      modelId: 'model-id',
+      modelKey: 'canvas.image',
+      outcome: 'FAILED_OR_PENDING' as const,
       sortBy: 'acceptedAt' as const,
       sortOrder: 'desc' as const,
     }

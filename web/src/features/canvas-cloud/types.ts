@@ -1902,7 +1902,8 @@ export type CanvasAdminTaskFailureReason =
 export interface CanvasAdminTaskLogQuery {
   taskId?: string
   customer?: string
-  modelId?: string
+  modelKey?: string
+  outcome?: 'FAILED_OR_PENDING'
   derivedExecutionStatus?: string
   settlementProgress?: string
   upstreamTaskId?: string
@@ -2001,8 +2002,8 @@ export interface CanvasModelMonitoringControlResult {
 
 export interface CanvasTaskLogOptions {
   models: Array<{
-    customerModelId: string
-    displayNameSnapshot: string
+    modelKey: string
+    displayName: string
   }>
   credentialGroups: Array<{ id: string; name: string; providerName: string }>
 }
