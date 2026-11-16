@@ -258,15 +258,18 @@ export function ModelMonitoringList(props: {
                 <span aria-hidden='true' className='text-muted-foreground'>
                   /
                 </span>
-                <SortHeader
-                  column='failureRate'
-                  label={t('Failure rate')}
-                  hint={t(
-                    'Failures divided by successes plus failures; processing results are left out'
-                  )}
-                  sort={props.sort}
-                  onSort={props.onSort}
-                />
+                {/* The sort button pulls itself left to line up with a column edge; undo that so the slash sits midway. */}
+                <span className='ms-3 inline-flex'>
+                  <SortHeader
+                    column='failureRate'
+                    label={t('Failure rate')}
+                    hint={t(
+                      'Failures divided by successes plus failures; processing results are left out'
+                    )}
+                    sort={props.sort}
+                    onSort={props.onSort}
+                  />
+                </span>
               </span>
               <span
                 role='columnheader'
