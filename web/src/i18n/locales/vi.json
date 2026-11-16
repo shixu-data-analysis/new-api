@@ -11132,6 +11132,7 @@
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "Cảnh báo khi có tin nhắn mới (mỗi hội thoại tối đa một lần mỗi 10 phút), và nhắc lại sau 30 phút chưa trả lời.",
     "HTTPS only": "Chỉ HTTPS",
     "At most 20 in each group": "Tối đa 20 mục mỗi nhóm",
-    "{{names}} and {{count}} customers in all": "{{names}} và những người khác ({{count}} khách hàng)"
+    "{{names}} and {{count}} customers in all": "{{names}} và những người khác ({{count}} khách hàng)",
+    "{{count}} customers with open failure alerts": "{{count}} khách hàng có cảnh báo thất bại chưa xử lý"
   }
 }

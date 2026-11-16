@@ -11132,6 +11132,7 @@
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "新しいメッセージで通知（同じ会話は 10 分に最大 1 回）、30 分返信がなければ再通知します。",
     "HTTPS only": "HTTPS のみ",
     "At most 20 in each group": "各グループ最大 20 件",
-    "{{names}} and {{count}} customers in all": "{{names}} ほか（計 {{count}} 人）"
+    "{{names}} and {{count}} customers in all": "{{names}} ほか（計 {{count}} 人）",
+    "{{count}} customers with open failure alerts": "未処理の失敗アラートがある顧客 {{count}} 人"
   }
 }

@@ -11132,6 +11132,7 @@
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "Оповещение о новых сообщениях (не чаще раза в 10 минут на диалог) и повторно через 30 минут без ответа.",
     "HTTPS only": "Только HTTPS",
     "At most 20 in each group": "Не более 20 в каждой группе",
-    "{{names}} and {{count}} customers in all": "{{names}} и другие (всего {{count}})"
+    "{{names}} and {{count}} customers in all": "{{names}} и другие (всего {{count}})",
+    "{{count}} customers with open failure alerts": "Клиентов с открытыми оповещениями об ошибках: {{count}}"
   }
 }

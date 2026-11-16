@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { NavBadge } from '@/components/layout/components/nav-group'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
+import { getCanvasAdminSupportPendingCount, supportQueryKeys } from '../api'
 import { AdminPointAdjustments } from './AdminPointAdjustments'
 import {
   CanvasManagementTabsList,
@@ -47,6 +50,13 @@ export function CustomerManagementPage(props: {
   }) => void
 }) {
   const { t } = useTranslation()
+  // The same query as the sidebar badge, so the tab adds no request.
+  const pendingSupport =
+    useQuery({
+      queryKey: supportQueryKeys.pendingCount,
+      queryFn: ({ signal }) => getCanvasAdminSupportPendingCount(signal),
+      refetchInterval: 60_000,
+    }).data ?? 0
   const [tab, setTab] = useState(
     props.tab === 'support' ? 'support' : 'customers'
   )
@@ -67,6 +77,16 @@ export function CustomerManagementPage(props: {
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='support'>
           {t('Support conversations')}
+          {pendingSupport > 0 ? (
+            <NavBadge
+              tone='alert'
+              label={t('{{count}} support conversations are awaiting a reply', {
+                count: pendingSupport,
+              })}
+            >
+              {String(pendingSupport)}
+            </NavBadge>
+          ) : null}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='mails'>
           {t('Email records')}

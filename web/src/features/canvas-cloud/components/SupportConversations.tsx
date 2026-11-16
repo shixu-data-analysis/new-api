@@ -23,6 +23,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTablePagination } from '@/components/data-table'
+import { NavBadge } from '@/components/layout/components/nav-group'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -212,9 +213,14 @@ export function SupportConversations(props: {
           >
             {t('Failure alerts')}
             {failureCustomers > 0 ? (
-              <Badge variant='destructive' className='ms-1 px-1.5'>
-                {failureCustomers}
-              </Badge>
+              <NavBadge
+                tone='alert'
+                label={t('{{count}} customers with open failure alerts', {
+                  count: failureCustomers,
+                })}
+              >
+                {String(failureCustomers)}
+              </NavBadge>
             ) : null}
           </FilterButton>
         </div>

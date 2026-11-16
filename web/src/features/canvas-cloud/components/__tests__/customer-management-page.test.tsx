@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import i18next from 'i18next'
 import { useState } from 'react'
@@ -51,6 +52,12 @@ vi.mock('../AdminPointAdjustments', () => ({
     )
   },
 }))
+vi.mock('../../api', () => ({
+  supportQueryKeys: {
+    pendingCount: ['canvas-cloud', 'admin', 'support', 'pending-count'],
+  },
+  getCanvasAdminSupportPendingCount: vi.fn().mockResolvedValue(2),
+}))
 vi.mock('../CustomerMailRecords', () => ({
   CustomerMailRecords: () => <p>mail records</p>,
 }))
@@ -60,11 +67,22 @@ describe('Customer management tabs', () => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
   })
 
-  it('keeps the customer list and its title action across a switch to the email records', () => {
+  it('keeps the customer list and its title action across a switch to the email records', async () => {
     const slot = document.createElement('div')
     document.body.append(slot)
-    render(<CustomerManagementPage titleActionSlot={slot} />)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage titleActionSlot={slot} />
+      </QueryClientProvider>
+    )
     fireEvent.click(screen.getByRole('checkbox', { name: 'alice' }))
+    // The support tab shows how many conversations wait for a reply, as the sidebar does.
+    expect(
+      await screen.findByText('2 support conversations are awaiting a reply')
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Email records' }))
     expect(screen.getByText('mail records')).toBeInTheDocument()

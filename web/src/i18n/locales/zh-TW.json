@@ -11132,6 +11132,7 @@
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "新訊息時提醒（同一會話 10 分鐘內最多一次），30 分鐘未回覆再提醒一次。",
     "HTTPS only": "僅限 HTTPS 位址",
     "At most 20 in each group": "每組最多 20 則",
-    "{{names}} and {{count}} customers in all": "{{names}} 等 {{count}} 位"
+    "{{names}} and {{count}} customers in all": "{{names}} 等 {{count}} 位",
+    "{{count}} customers with open failure alerts": "{{count}} 位客戶有未處理的失敗提醒"
   }
 }

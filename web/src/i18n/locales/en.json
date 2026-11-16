@@ -11132,6 +11132,7 @@
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.",
     "HTTPS only": "HTTPS only",
     "At most 20 in each group": "At most 20 in each group",
-    "{{names}} and {{count}} customers in all": "{{names}} and {{count}} customers in all"
+    "{{names}} and {{count}} customers in all": "{{names}} and {{count}} customers in all",
+    "{{count}} customers with open failure alerts": "{{count}} customers with open failure alerts"
   }
 }
