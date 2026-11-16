@@ -2360,3 +2360,103 @@ export interface CanvasBusinessFactDetail extends CanvasBusinessFact {
 export interface CanvasBusinessFactPage extends CanvasPage<CanvasBusinessFact> {
   fact?: CanvasBusinessFactDetail
 }
+
+// SUPPORT-CHAT-001: 客户管理 › 客服会话 and 客服设置.
+export type CanvasSupportMessageKind =
+  | 'TEXT'
+  | 'IMAGE'
+  | 'LOG'
+  | 'SYSTEM_NOTICE'
+
+export interface CanvasSupportAttachment {
+  id: string
+  kind: 'IMAGE' | 'LOG'
+  mimeType: string
+  sizeBytes: number
+  /** A 10-minute storage address, or a Cloud path read with credentials in the local Mock store. */
+  url: string | null
+  urlExpiresAt: string | null
+}
+
+export interface CanvasAdminSupportMessage {
+  seq: number
+  sender: 'CUSTOMER' | 'ADMIN' | 'SYSTEM'
+  adminName: string | null
+  kind: CanvasSupportMessageKind
+  text: string | null
+  attachment: CanvasSupportAttachment | null
+  createdAt: string
+}
+
+export interface CanvasAdminSupportMessages {
+  messages: CanvasAdminSupportMessage[]
+  hasEarlier: boolean
+  hasLater: boolean
+}
+
+export interface CanvasAdminSupportConversation {
+  id: string
+  customer: { id: string; userId: string; name: string | null }
+  pending: boolean
+  pendingSince: string | null
+  lastMessage: CanvasAdminSupportMessage | null
+}
+
+export interface CanvasAdminSupportConversationQuery {
+  filter: 'all' | 'pending'
+  q?: string
+  page: number
+  pageSize: number
+}
+
+export type CanvasSupportUpload =
+  | {
+      method: 'PUT'
+      url: string
+      headers: Record<string, string>
+      expiresAt: string
+    }
+  | {
+      method: 'POST'
+      url: string
+      fields: Record<string, string>
+      fileField: string
+      expiresAt: string
+    }
+
+export interface CanvasSupportAttachmentIssued {
+  attachmentId: string
+  upload: CanvasSupportUpload
+}
+
+export type CanvasSupportRetentionDays = 3 | 7 | 15 | 30
+export type CanvasSupportWebhookFormat =
+  | 'WECOM'
+  | 'DINGTALK'
+  | 'FEISHU'
+  | 'SLACK'
+  | 'JSON'
+
+export interface CanvasSupportSettings {
+  retentionDays: CanvasSupportRetentionDays
+  webhook: { format: CanvasSupportWebhookFormat; displayHint: string } | null
+  version: number | null
+  effectiveAt: string | null
+}
+
+export interface CanvasSupportSettingsInput {
+  retentionDays: CanvasSupportRetentionDays
+  /** null removes the Webhook; without url the saved address is kept and only the format changes. */
+  webhook: { format: CanvasSupportWebhookFormat; url?: string } | null
+}
+
+export interface CanvasSupportWebhookTest {
+  ok: boolean
+  reason:
+    | 'URL_REJECTED'
+    | 'NETWORK'
+    | 'TIMEOUT'
+    | 'HTTP_STATUS'
+    | 'BOT_ERROR'
+    | null
+}

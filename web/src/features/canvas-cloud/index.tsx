@@ -163,6 +163,12 @@ export function AdminContent(props: {
   initialOrderId?: string
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
+  customersTab?: 'support'
+  supportConversationId?: string
+  onSupportChange?: (support: {
+    open: boolean
+    conversationId?: string
+  }) => void
   onReturnToModelList?: () => void
   runtimeView?: RuntimeManagementView
   onRuntimeViewChange?: (view: RuntimeManagementView) => void
@@ -194,6 +200,9 @@ export function AdminContent(props: {
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
         titleActionSlot={props.titleActionSlot}
+        tab={props.customersTab}
+        supportConversationId={props.supportConversationId}
+        onSupportChange={props.onSupportChange}
       />
     )
   }
@@ -382,6 +391,20 @@ export function CanvasCloud() {
         initialCustomerId={search.customerId}
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
+        customersTab={search.tab === 'support' ? 'support' : undefined}
+        supportConversationId={search.conversation}
+        onSupportChange={(support) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'customers' },
+            search: (previous) => ({
+              ...previous,
+              tab: support.open ? 'support' : undefined,
+              conversation: support.open ? support.conversationId : undefined,
+            }),
+            replace: true,
+          })
+        }
         onCustomerChange={(customerId) =>
           void navigate({
             to: '/canvas-cloud/$section',

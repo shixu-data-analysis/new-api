@@ -111,6 +111,15 @@ import type {
   CanvasModelMonitoringOverview,
   CanvasModelMonitoringOverviewQuery,
   CanvasS3DriverConfig,
+  CanvasAdminSupportConversation,
+  CanvasAdminSupportConversationQuery,
+  CanvasAdminSupportMessage,
+  CanvasAdminSupportMessages,
+  CanvasSupportAttachmentIssued,
+  CanvasSupportSettings,
+  CanvasSupportSettingsInput,
+  CanvasSupportUpload,
+  CanvasSupportWebhookTest,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -2105,6 +2114,191 @@ export async function getCanvasCustomerBusinessFacts(
     await api.get<import('./types').CanvasBusinessFactPage>(
       `${webBase}/admin/customers/${encodeURIComponent(customerId)}/business-facts${suffix}`,
       { params: query, signal }
+    )
+  ).data
+}
+
+// SUPPORT-CHAT-001: 客户管理 › 客服会话 and 客服设置.
+export const supportQueryKeys = {
+  all: ['canvas-cloud', 'admin', 'support'] as const,
+  conversations: ['canvas-cloud', 'admin', 'support', 'conversations'] as const,
+  pendingCount: ['canvas-cloud', 'admin', 'support', 'pending-count'] as const,
+  settings: ['canvas-cloud', 'admin', 'support', 'settings'] as const,
+}
+
+export async function getCanvasAdminSupportConversations(
+  query: CanvasAdminSupportConversationQuery,
+  signal?: AbortSignal
+): Promise<CanvasPage<CanvasAdminSupportConversation>> {
+  return (
+    await api.get<CanvasPage<CanvasAdminSupportConversation>>(
+      `${webBase}/admin/support/conversations`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function getCanvasAdminSupportPendingCount(
+  signal?: AbortSignal
+): Promise<number> {
+  return (
+    await api.get<{ count: number }>(`${webBase}/admin/support/pending-count`, {
+      signal,
+    })
+  ).data.count
+}
+
+export async function getCanvasAdminSupportMessages(
+  conversationId: string,
+  query: { after?: number; before?: number; limit?: number },
+  signal?: AbortSignal
+): Promise<CanvasAdminSupportMessages> {
+  return (
+    await api.get<CanvasAdminSupportMessages>(
+      `${webBase}/admin/support/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { params: query, signal }
+    )
+  ).data
+}
+
+export async function replyCanvasAdminSupportConversation(request: {
+  conversationId: string
+  input: { text?: string; attachmentIds?: string[] }
+  idempotencyKey: string
+}): Promise<{ messages: CanvasAdminSupportMessage[] }> {
+  return (
+    await api.post<{ messages: CanvasAdminSupportMessage[] }>(
+      `${webBase}/admin/support/conversations/${encodeURIComponent(request.conversationId)}/messages`,
+      request.input,
+      {
+        headers: { 'Idempotency-Key': request.idempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function markCanvasAdminSupportHandled(request: {
+  conversationId: string
+  idempotencyKey: string
+}): Promise<void> {
+  await api.post(
+    `${webBase}/admin/support/conversations/${encodeURIComponent(request.conversationId)}/handled`,
+    undefined,
+    {
+      headers: { 'Idempotency-Key': request.idempotencyKey },
+      skipErrorHandler: true,
+    }
+  )
+}
+
+export async function issueCanvasAdminSupportAttachment(request: {
+  conversationId: string
+  input: {
+    kind: 'IMAGE'
+    mimeType: 'image/webp' | 'image/png' | 'image/jpeg'
+    sizeBytes: number
+    sha256: string
+  }
+  idempotencyKey: string
+}): Promise<CanvasSupportAttachmentIssued> {
+  return (
+    await api.post<CanvasSupportAttachmentIssued>(
+      `${webBase}/admin/support/conversations/${encodeURIComponent(request.conversationId)}/attachments`,
+      request.input,
+      {
+        headers: { 'Idempotency-Key': request.idempotencyKey },
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+// The local Mock store answers on Cloud paths (/v1/web/...), reached through the same proxy as every other Cloud call; object
+// storage answers on its own absolute address, which needs no credentials.
+const cloudPath = (url: string) => url.startsWith('/v1/')
+
+/** Sends the bytes where Cloud issued them: a signed PUT, a Qiniu form POST, or the local Mock store. */
+export async function uploadCanvasSupportAttachment(
+  upload: CanvasSupportUpload,
+  file: Blob
+): Promise<void> {
+  if (cloudPath(upload.url)) {
+    await api.put(`/canvas-api${upload.url}`, file, {
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      skipErrorHandler: true,
+    })
+    return
+  }
+  const response =
+    upload.method === 'PUT'
+      ? await fetch(upload.url, {
+          method: 'PUT',
+          headers: upload.headers,
+          body: file,
+        })
+      : await fetch(upload.url, {
+          method: 'POST',
+          body: (() => {
+            const form = new FormData()
+            for (const [name, value] of Object.entries(upload.fields)) {
+              form.append(name, value)
+            }
+            form.append(upload.fileField, file)
+            return form
+          })(),
+        })
+  if (!response.ok) {
+    throw new Error(`Upload failed with HTTP ${response.status}`)
+  }
+}
+
+/** An address the browser can open: storage addresses as they are, a local Mock path as a blob read with credentials. */
+export async function resolveCanvasSupportAttachmentUrl(
+  url: string
+): Promise<string> {
+  if (!cloudPath(url)) return url
+  const blob = (
+    await api.get<Blob>(`/canvas-api${url}`, { responseType: 'blob' })
+  ).data
+  return URL.createObjectURL(blob)
+}
+
+export async function getCanvasAdminSupportSettings(
+  signal?: AbortSignal
+): Promise<CanvasSupportSettings> {
+  return (
+    await api.get<CanvasSupportSettings>(`${webBase}/admin/support/settings`, {
+      signal,
+    })
+  ).data
+}
+
+export async function setCanvasAdminSupportSettings(
+  input: CanvasSupportSettingsInput
+): Promise<CanvasSupportSettings> {
+  return (
+    await api.put<CanvasSupportSettings>(
+      `${webBase}/admin/support/settings`,
+      input,
+      {
+        skipErrorHandler: true,
+      }
+    )
+  ).data
+}
+
+export async function testCanvasAdminSupportWebhook(
+  idempotencyKey: string
+): Promise<CanvasSupportWebhookTest> {
+  return (
+    await api.post<CanvasSupportWebhookTest>(
+      `${webBase}/admin/support/settings/test`,
+      undefined,
+      {
+        headers: { 'Idempotency-Key': idempotencyKey },
+        skipErrorHandler: true,
+      }
     )
   ).data
 }

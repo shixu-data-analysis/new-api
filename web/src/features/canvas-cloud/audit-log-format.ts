@@ -572,6 +572,34 @@ const SPECS: Record<string, ActionSpec> = {
       },
     ],
   },
+  'support.settings.updated': {
+    objectType: 'Support settings',
+    fields: [
+      {
+        key: 'retentionDays',
+        previous: 'previousRetentionDays',
+        label: 'Keep messages for (days)',
+        kind: 'number',
+      },
+      {
+        key: 'webhookFormat',
+        previous: 'previousWebhookFormat',
+        label: 'Message format',
+        kind: 'enum',
+      },
+      {
+        key: 'webhookHost',
+        previous: 'previousWebhookHost',
+        label: 'Webhook host',
+        kind: 'enum',
+      },
+      {
+        key: 'webhookReplaced',
+        label: 'Webhook address replaced',
+        kind: 'bool',
+      },
+    ],
+  },
   'model.tag.renamed': {
     objectType: 'Model category',
     objectName: meta('name'),
@@ -1282,6 +1310,7 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'announcement.tag.updated': 'Edit tag',
   'announcement.tag.deleted': 'Delete tag',
   'announcement.retention.updated': 'Change visible time and cleanup',
+  'support.settings.updated': 'Change support settings',
   'convention.published': 'Publish new version',
   'customer.suspended': 'Suspend account',
   'customer.restored': 'Restore account',
@@ -1464,6 +1493,24 @@ export interface AuditDetailRow {
 }
 
 const ENUM_LABEL_KEYS: Record<string, Record<string, string>> = {
+  webhookFormat: {
+    NONE: 'Not set',
+    WECOM: 'WeCom',
+    DINGTALK: 'DingTalk',
+    FEISHU: 'Feishu',
+    SLACK: 'Slack',
+    JSON: 'Generic JSON',
+  },
+  previousWebhookFormat: {
+    NONE: 'Not set',
+    WECOM: 'WeCom',
+    DINGTALK: 'DingTalk',
+    FEISHU: 'Feishu',
+    SLACK: 'Slack',
+    JSON: 'Generic JSON',
+  },
+  webhookHost: { NONE: 'Not set' },
+  previousWebhookHost: { NONE: 'Not set' },
   executionStatus: executionLabels,
   previousExecutionStatus: executionLabels,
   customerBillingStatus: billingLabels,

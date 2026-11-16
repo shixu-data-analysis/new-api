@@ -27,24 +27,45 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { CustomerMailRecords } from './CustomerMailRecords'
+import { SupportConversations } from './SupportConversations'
 
-// 业务 › 客户管理: the customers and, since COMMUNITY-CONVENTION-001, the mails sent to them, so writing a mail and reading
-// its result stay on one page. The customer list stays mounted on the other tab: its title action (发邮件给全部有效客户)
-// stays in the title row, and its selection and filters survive a switch.
+// 业务 › 客户管理: the customers, their support conversations (SUPPORT-CHAT-001) and, since COMMUNITY-CONVENTION-001, the
+// mails sent to them. The customer list stays mounted on the other tabs: its title action (发邮件给全部有效客户) stays in
+// the title row, and its selection and filters survive a switch. A Webhook alert links straight to one conversation.
 export function CustomerManagementPage(props: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
   orderId?: string
   pointLotId?: string
   titleActionSlot?: HTMLElement | null
+  tab?: 'support'
+  supportConversationId?: string
+  onSupportChange?: (support: {
+    open: boolean
+    conversationId?: string
+  }) => void
 }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState('customers')
+  const [tab, setTab] = useState(
+    props.tab === 'support' ? 'support' : 'customers'
+  )
+  const changeTab = (value: string) => {
+    setTab(value)
+    props.onSupportChange?.({
+      open: value === 'support',
+      ...(value === 'support' && props.supportConversationId
+        ? { conversationId: props.supportConversationId }
+        : {}),
+    })
+  }
   return (
-    <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+    <Tabs value={tab} onValueChange={(value) => changeTab(String(value))}>
       <CanvasManagementTabsList>
         <CanvasManagementTabsTrigger value='customers'>
           {t('Customer list')}
+        </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='support'>
+          {t('Support conversations')}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='mails'>
           {t('Email records')}
@@ -57,6 +78,21 @@ export function CustomerManagementPage(props: {
           orderId={props.orderId}
           pointLotId={props.pointLotId}
           titleActionSlot={props.titleActionSlot}
+        />
+      </TabsContent>
+      <TabsContent value='support'>
+        <SupportConversations
+          conversationId={props.supportConversationId}
+          onConversationChange={(conversationId) =>
+            props.onSupportChange?.({
+              open: true,
+              ...(conversationId ? { conversationId } : {}),
+            })
+          }
+          onOpenCustomer={(customerId) => {
+            changeTab('customers')
+            props.onCustomerChange?.(customerId)
+          }}
         />
       </TabsContent>
       <TabsContent value='mails'>
