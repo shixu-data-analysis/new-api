@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "自定义范围不自动刷新",
     "Abnormal": "异常",
     "Abnormal / needs attention": "异常 / 关注",
-    "Confirmed failures plus results pending confirmation": "确认失败加结果待确认",
+    "Confirmed failures plus results pending confirmation": "失败数 = 确认失败 + 结果待确认",
     "Confirmed failures {{count}}": "确认失败 {{count}}",
     "Counted together with earlier versions": "与之前的版本合并统计",
     "Each dot: {{interval}}": "每格 {{interval}}",

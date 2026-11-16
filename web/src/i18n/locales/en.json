@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "A custom range does not refresh",
     "Abnormal": "Abnormal",
     "Abnormal / needs attention": "Abnormal / needs attention",
-    "Confirmed failures plus results pending confirmation": "Confirmed failures plus results pending confirmation",
+    "Confirmed failures plus results pending confirmation": "Failures = confirmed failures + results pending confirmation",
     "Confirmed failures {{count}}": "Confirmed failures {{count}}",
     "Counted together with earlier versions": "Counted together with earlier versions",
     "Each dot: {{interval}}": "Each dot: {{interval}}",

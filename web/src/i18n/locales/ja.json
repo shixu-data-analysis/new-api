@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "カスタム期間は自動更新されません",
     "Abnormal": "異常",
     "Abnormal / needs attention": "異常 / 要注意",
-    "Confirmed failures plus results pending confirmation": "確定失敗と確認待ちの結果の合計",
+    "Confirmed failures plus results pending confirmation": "失敗数 = 確定失敗 + 確認待ちの結果",
     "Confirmed failures {{count}}": "確定失敗 {{count}}",
     "Counted together with earlier versions": "以前のバージョンと合算して集計",
     "Each dot: {{interval}}": "1 点 = {{interval}}",

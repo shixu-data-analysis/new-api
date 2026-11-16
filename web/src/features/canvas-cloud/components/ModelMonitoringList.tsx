@@ -242,7 +242,10 @@ export function ModelMonitoringList(props: {
                   onSort={props.onSort}
                 />
               </span>
-              <span role='columnheader' className='flex justify-end gap-1'>
+              <span
+                role='columnheader'
+                className='flex items-center justify-end gap-0.5'
+              >
                 <SortHeader
                   column='failures'
                   label={t('Failures')}

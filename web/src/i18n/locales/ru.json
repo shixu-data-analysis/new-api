@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "Произвольный период не обновляется автоматически",
     "Abnormal": "Сбой",
     "Abnormal / needs attention": "Сбой / требует внимания",
-    "Confirmed failures plus results pending confirmation": "Подтверждённые сбои и неподтверждённые результаты",
+    "Confirmed failures plus results pending confirmation": "Сбои = подтверждённые сбои + результаты, ожидающие подтверждения",
     "Confirmed failures {{count}}": "Подтверждённые сбои: {{count}}",
     "Counted together with earlier versions": "Учитывается вместе с прежними версиями",
     "Each dot: {{interval}}": "Каждая точка: {{interval}}",

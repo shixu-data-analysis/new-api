@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "自訂範圍不自動重新整理",
     "Abnormal": "異常",
     "Abnormal / needs attention": "異常 / 關注",
-    "Confirmed failures plus results pending confirmation": "確認失敗加結果待確認",
+    "Confirmed failures plus results pending confirmation": "失敗數 = 確認失敗 + 結果待確認",
     "Confirmed failures {{count}}": "確認失敗 {{count}}",
     "Counted together with earlier versions": "與先前的版本合併統計",
     "Each dot: {{interval}}": "每格 {{interval}}",

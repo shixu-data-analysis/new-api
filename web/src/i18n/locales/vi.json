@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "Khoảng tùy chỉnh không tự làm mới",
     "Abnormal": "Bất thường",
     "Abnormal / needs attention": "Bất thường / cần chú ý",
-    "Confirmed failures plus results pending confirmation": "Thất bại đã xác nhận cộng kết quả chờ xác nhận",
+    "Confirmed failures plus results pending confirmation": "Số lỗi = thất bại đã xác nhận + kết quả chờ xác nhận",
     "Confirmed failures {{count}}": "Thất bại đã xác nhận {{count}}",
     "Counted together with earlier versions": "Được thống kê gộp với các phiên bản trước",
     "Each dot: {{interval}}": "Mỗi chấm: {{interval}}",

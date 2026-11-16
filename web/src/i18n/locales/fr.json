@@ -10952,7 +10952,7 @@
     "A custom range does not refresh": "Une plage personnalisée ne s’actualise pas",
     "Abnormal": "Anormal",
     "Abnormal / needs attention": "Anormal / à surveiller",
-    "Confirmed failures plus results pending confirmation": "Échecs confirmés plus résultats en attente de confirmation",
+    "Confirmed failures plus results pending confirmation": "Échecs = échecs confirmés + résultats en attente de confirmation",
     "Confirmed failures {{count}}": "Échecs confirmés {{count}}",
     "Counted together with earlier versions": "Compté avec les versions précédentes",
     "Each dot: {{interval}}": "Chaque point : {{interval}}",
