@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { categoryTier } from '@pixmiao/model-catalog/request-validator'
 import { useMutation } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Copy } from 'lucide-react'
@@ -82,6 +83,18 @@ export type TokenCategoryCostReferenceDisplay = Omit<
   specialPoints: string | null
 }
 
+// A further input tier's category names its tier first ("第 2 档 · 输入").
+function costReferenceName(
+  key: string,
+  t: (value: string, options?: Record<string, unknown>) => string
+): string {
+  const { category, tierIndex } = categoryTier(key)
+  const name = t(`Token category ${category}`)
+  return tierIndex > 0
+    ? `${t('Input tier {{tier}}', { tier: tierIndex + 1 })} · ${name}`
+    : name
+}
+
 export function TokenCategoryCostReferences(props: {
   references: TokenCategoryCostReferenceDisplay[] | null
   historical?: boolean
@@ -106,7 +119,7 @@ export function TokenCategoryCostReferences(props: {
             key={reference.category}
           >
             <p className='font-medium'>
-              {t(`Token category ${reference.category}`)}
+              {costReferenceName(reference.category, t)}
             </p>
             <dl className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
               <TokenCategoryCostFact

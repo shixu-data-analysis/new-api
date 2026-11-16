@@ -19,6 +19,7 @@ import {
 import { toIntlLocale } from '@/i18n/languages'
 
 import { billingUnitLabelKey } from '../lib/billing-unit-labels'
+import { inputTiersSummary } from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
 import type {
   CanvasBillingUnit,
@@ -113,6 +114,25 @@ export function ModelPricingUnitSummary(props: {
           </span>
         )}
         {rate}
+        {/* Set in the model configuration, so shown here only (a text model's tiers and two cache writes). */}
+        {props.billingUnit === 'MILLION_TOKENS' && model.inputTiers?.length ? (
+          <span>
+            {t('{{label}}: ', { label: t('Input tiers') })}
+            {inputTiersSummary(model.inputTiers, t)}
+          </span>
+        ) : null}
+        {props.billingUnit === 'MILLION_TOKENS' &&
+        model.tokenCategories.includes('cacheWrite1h') ? (
+          <span>
+            {t('{{label}}: ', { label: t('Cache write') })}
+            {t('5-minute and 1-hour writes priced apart')}
+          </span>
+        ) : null}
+        {props.billingUnit === 'MILLION_TOKENS' &&
+        (model.inputTiers?.length ||
+          model.tokenCategories.includes('cacheWrite1h')) ? (
+          <span>{t('Change them in the model configuration')}</span>
+        ) : null}
         {props.billingUnit !== 'MILLION_TOKENS' && props.unitChosen ? (
           <InputSurchargeControls
             availability={model.inputSurcharge?.availability}

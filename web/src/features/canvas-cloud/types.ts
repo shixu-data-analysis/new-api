@@ -596,6 +596,10 @@ export type CanvasTokenCategory =
   | 'imageInput'
   | 'total'
   | 'totalWithVideoInput'
+/** A key of a Token price: a category, or "category@n" for input tier n of a text model (Catalog inputTiers). */
+export type CanvasTokenRateKey =
+  | CanvasTokenCategory
+  | `${CanvasTokenCategory}@${number}`
 export type CanvasTokenRateVector = Record<CanvasTokenCategory, string>
 // Text and image rates carry input and output, a video's only the total (VIDEO-TOKEN-BILLING-001).
 export type CanvasModelPricingTokenRateVector = {
@@ -609,7 +613,7 @@ export type CanvasModelPricingTokenRateVector = {
   totalWithVideoInput?: string
 }
 export interface CanvasTokenCategoryRisk {
-  category: CanvasTokenCategory
+  category: CanvasTokenRateKey
   providerRateRmb: string
   customerRatePoints: string
   breakEvenPointsCeil: string
@@ -1464,7 +1468,10 @@ export interface CanvasModelPricingModel {
   fixedRequestBatchSize?: number | null
   // A Token-billed image: per million Tokens one price for the whole model, published for every spec.
   oneTokenPrice?: boolean
-  tokenCategories: CanvasTokenCategory[]
+  // The keys its Token prices list: each category, and "category@n" for every further input tier.
+  tokenCategories: CanvasTokenRateKey[]
+  // A text model's input tiers (Catalog inputTiers); null without tiers.
+  inputTiers?: number[] | null
   // The published surcharge setting and what the model can be charged for (INPUT-ASSET-BILLING-001).
   inputSurcharge?: {
     setting: CanvasInputSurchargeSetting | null

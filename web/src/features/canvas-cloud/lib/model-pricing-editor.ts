@@ -21,7 +21,7 @@ import type {
   CanvasInputSurcharge,
   CanvasInputSurchargeCny,
   CanvasInputSurchargeSetting,
-  CanvasTokenCategory,
+  CanvasTokenRateKey,
 } from '../types'
 
 // The editable current-pricing table: one row per pricing scope × price plan (text models: × Token category).
@@ -35,7 +35,7 @@ export type SurchargeField =
   | 'surcharge:video'
   | `surcharge:video:${string}`
   | 'surcharge:image'
-export type PricingField = 'scalar' | CanvasTokenCategory | SurchargeField
+export type PricingField = 'scalar' | CanvasTokenRateKey | SurchargeField
 
 export function isSurchargeField(field: PricingField): field is SurchargeField {
   return field.startsWith('surcharge:')
@@ -58,9 +58,12 @@ function pricingFieldValue(
   if (isSurchargeField(field)) return values.surcharge[field] ?? ''
   const { whole } = values
   if (field === 'scalar') return typeof whole === 'string' ? whole : ''
-  // Anything else must be a Token category; a new kind of field stops compiling here until it is read above.
-  const category: CanvasTokenCategory = field
-  return typeof whole === 'object' && whole ? (whole[category] ?? '') : ''
+  // Anything else must be a Token price key (a category, or one of a further input tier); a new kind of field stops
+  // compiling here until it is read above.
+  const key: CanvasTokenRateKey = field
+  return typeof whole === 'object' && whole
+    ? ((whole as Partial<Record<string, string>>)[key] ?? '')
+    : ''
 }
 
 // A published surcharge's points per surcharge item.
@@ -153,7 +156,7 @@ export interface PricingEditorState {
   originals: PricingDrafts
   fields: PricingField[]
   billingUnit: CanvasBillingUnit
-  tokenCategories: CanvasTokenCategory[]
+  tokenCategories: CanvasTokenRateKey[]
   /** The chosen unit differs from the published one (or published units are mixed): every price is re-entered. */
   unitChange: boolean
   /** Mixed published units and no unit chosen yet: inputs stay locked. */
@@ -333,7 +336,7 @@ export function sharedTokenPrice(detail: CanvasModelPricingDetail): boolean {
 
 export function pricingFields(
   billingUnit: CanvasBillingUnit,
-  tokenCategories: CanvasTokenCategory[],
+  tokenCategories: CanvasTokenRateKey[],
   inputSurcharge?: CanvasInputSurchargeSetting | null
 ): PricingField[] {
   return billingUnit === 'MILLION_TOKENS'

@@ -28,8 +28,9 @@ import { cn } from '@/lib/utils'
 
 import { pointsUnitKey } from '../lib/billing-unit-labels'
 import {
-  tokenCategoryLabel,
   tokenCategoryLabelKey,
+  tokenRateKeyName,
+  tokenRateKeyOrder,
 } from '../lib/token-rate-summary'
 import { videoTotalPricing } from '../pricing-scope-label'
 import type {
@@ -116,13 +117,13 @@ export function ModelPriceRow(props: {
   if (props.billingUnit === 'MILLION_TOKENS' && props.tokenRates) {
     const rates = props.tokenRates
     const listed = props.categories ?? []
-    // Every category priced on either side keeps its line; a side without it shows a dash.
-    const categories = (
-      Object.keys(tokenCategoryLabel) as CanvasTokenCategory[]
-    ).filter(
-      (category) =>
-        typeof rates[category] === 'string' || listed.includes(category)
-    )
+    // Every key priced on either side keeps its line; a side without it shows a dash. A text model priced by input
+    // length lists each tier's categories after the first's ("第 2 档 · 输入").
+    const byKey = rates as Partial<Record<string, string>>
+    const categories = tokenRateKeyOrder([
+      ...Object.keys(rates).filter((key) => typeof byKey[key] === 'string'),
+      ...listed,
+    ]) as CanvasTokenCategory[]
     // A video priced by its totals has one line per pricing scope: "720p · 不含视频输入" (VIDEO-TOKEN-BILLING-001).
     if (videoTotalPricing(categories)) {
       return (
@@ -168,11 +169,11 @@ export function ModelPriceRow(props: {
             className='flex items-baseline justify-between gap-3'
           >
             <span className='font-medium'>
-              {t(tokenCategoryLabelKey(category, categories))}
+              {tokenRateKeyName(category, categories, t)}
             </span>
             <span className='tabular-nums'>
               <span className='text-[15px] font-bold'>
-                {rates[category] ?? '—'}
+                {byKey[category] ?? '—'}
               </span>
               <span className='text-muted-foreground ms-1 text-xs'>
                 {t(pointsUnitKey(props.billingUnit))}

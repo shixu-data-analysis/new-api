@@ -7,7 +7,9 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 
-import type { CanvasTokenCategory } from '../types'
+import { categoryTier } from '@pixmiao/model-catalog/request-validator'
+
+import type { CanvasTokenCategory, CanvasTokenRateKey } from '../types'
 
 /** Token categories in display order, with their translation keys. */
 export const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
@@ -49,4 +51,66 @@ export function isTextInput(
   priced: readonly string[]
 ): boolean {
   return category === 'input' && priced.includes('imageInput')
+}
+
+export type { CanvasTokenRateKey }
+
+/** The priced keys in display order: tier by tier, each in category order. */
+export function tokenRateKeyOrder(
+  keys: Iterable<string>
+): CanvasTokenRateKey[] {
+  const position = (key: string) => {
+    const { category, tierIndex } = categoryTier(key)
+    return (
+      tierIndex * tokenCategoryOrder.length +
+      tokenCategoryOrder.indexOf(category as CanvasTokenCategory)
+    )
+  }
+  return [...new Set(keys)]
+    .filter((key) =>
+      tokenCategoryOrder.includes(
+        categoryTier(key).category as CanvasTokenCategory
+      )
+    )
+    .sort((a, b) => position(a) - position(b)) as CanvasTokenRateKey[]
+}
+
+/** Whether a price lists further input tiers. */
+export function hasInputTiers(priced: readonly string[]): boolean {
+  return priced.some((key) => categoryTier(key).tierIndex > 0)
+}
+
+/**
+ * The name of a priced key: its category, named by the first tier's categories, after its tier when the price has
+ * tiers ("第 2 档 · 输入").
+ */
+export function tokenRateKeyName(
+  key: string,
+  priced: readonly string[],
+  t: (value: string, options?: Record<string, unknown>) => string
+): string {
+  const { category, tierIndex } = categoryTier(key)
+  const firstTier = priced.filter((item) => categoryTier(item).tierIndex === 0)
+  const name = t(
+    tokenCategoryLabelKey(category as CanvasTokenCategory, firstTier)
+  )
+  return hasInputTiers(priced)
+    ? `${t('Input tier {{tier}}', { tier: tierIndex + 1 })} · ${name}`
+    : name
+}
+
+/** "单次输入 ≤ 272,000 Token；单次输入 > 272,000 Token": what each input tier covers. */
+export function inputTiersSummary(
+  bounds: readonly number[],
+  t: (value: string, options?: Record<string, unknown>) => string
+): string {
+  const tokens = (value: number) => value.toLocaleString('en-US')
+  const last = bounds.at(-1)
+  if (last === undefined) return ''
+  return [
+    ...bounds.map((bound) =>
+      t('Input up to {{tokens}} Tokens', { tokens: tokens(bound) })
+    ),
+    t('Input over {{tokens}} Tokens', { tokens: tokens(last) }),
+  ].join('; ')
 }

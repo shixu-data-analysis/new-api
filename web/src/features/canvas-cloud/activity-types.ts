@@ -8,7 +8,7 @@ License, or (at your option) any later version.
 */
 import type {
   CanvasModelPricingTokenRateVector,
-  CanvasTokenCategory,
+  CanvasTokenRateKey,
 } from './types'
 
 export type CanvasActivityType =
@@ -288,7 +288,7 @@ export interface CanvasLimitedPriceActivity {
 export type CanvasTokenRateVector = CanvasModelPricingTokenRateVector
 
 export interface CanvasTokenCategoryCostReference {
-  category: CanvasTokenCategory
+  category: CanvasTokenRateKey
   basePoints: string
   specialPoints: string
   baseRatePointsPerRmb: string | null

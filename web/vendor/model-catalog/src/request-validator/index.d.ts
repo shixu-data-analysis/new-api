@@ -71,6 +71,13 @@ export declare function idempotencyHeaderIssue(value: unknown, workflow: unknown
 export type ConversationProtocol = "OPENAI_CHAT";
 export declare const CONVERSATION_PROTOCOLS: readonly ConversationProtocol[];
 export declare function conversationProtocolOf(profile: unknown): ConversationProtocol | null;
+export declare function inputLengthOf(usage: Partial<Record<string, string | number>> | null | undefined): bigint;
+export declare function inputTierIndex(inputLength: bigint | string | number, bounds: readonly number[] | null | undefined): number;
+export declare const MAX_INPUT_TIERS: number;
+export declare function tierCategory(category: string, tierIndex: number): string;
+export declare function categoryTier(key: string): { category: string; tierIndex: number };
+export declare function tieredTokenCategories(categories: readonly string[], bounds: readonly number[] | null | undefined): string[];
+export declare function usageAtTier<T extends Record<string, unknown>>(usage: T, tierIndex: number): Record<string, T[keyof T]>;
 export type TokenUsageCategory = "input" | "output" | "cacheRead" | "cacheWrite" | "cacheWrite1h" | "imageInput" | "total" | "totalWithVideoInput";
 export type PromptTokenizer = "openai" | "claude" | "gemini";
 export declare const TOKEN_USAGE_CATEGORIES: readonly TokenUsageCategory[];

@@ -32,10 +32,7 @@ import {
 } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
-import {
-  tokenCategoryLabelKey,
-  tokenCategoryOrder,
-} from '../lib/token-rate-summary'
+import { tokenRateKeyName, tokenRateKeyOrder } from '../lib/token-rate-summary'
 import {
   pricingLoadErrorTitle,
   pricingPublicationErrorTitle,
@@ -51,7 +48,6 @@ import type {
   CanvasModelPricingProviderRate,
   CanvasModelPricingPublication,
   CanvasModelPricingQuestionnaire,
-  CanvasTokenCategory,
   CanvasTokenCategoryAssumptions,
   CanvasTokenCategoryRisk,
 } from '../types'
@@ -958,22 +954,25 @@ function TokenCategoryAssumptionFacts(props: {
 }) {
   const { t } = useTranslation()
   const priced = Object.keys(props.tokenRates ?? {})
-  const categories = tokenCategoryOrder.filter(
-    (category) =>
-      category in (props.tokenRates ?? {}) ||
-      category in (props.assumptions ?? {}) ||
-      props.risks?.some((risk) => risk.category === category)
-  )
+  // Every key of a price by input tier too ("第 2 档 · 输入").
+  const assumptions = (props.assumptions ?? {}) as Partial<
+    Record<string, { otherVariableCostRmb?: string; riskBufferRmb?: string }>
+  >
+  const categories = tokenRateKeyOrder([
+    ...priced,
+    ...Object.keys(assumptions),
+    ...(props.risks ?? []).map((risk) => risk.category),
+  ])
   return (
     <div className='space-y-1'>
       {categories.map((category) => {
-        const assumption = props.assumptions?.[category]
+        const assumption = assumptions[category]
         const risk = props.risks?.find((value) => value.category === category)
         return (
           <div key={category} className='space-y-1'>
             {assumption || risk ? (
               <p className='font-medium'>
-                {t(tokenCategoryLabelKey(category, priced))}
+                {tokenRateKeyName(category, priced, t)}
               </p>
             ) : null}
             {hasRecordedValue(assumption?.otherVariableCostRmb) ? (
@@ -1356,7 +1355,7 @@ function tokenRateSummary(
         .filter(([, value]) => hasRecordedValue(value))
         .map(
           ([key, value]) =>
-            `${tokenCategoryOrder.includes(key as CanvasTokenCategory) ? t(tokenCategoryLabelKey(key as CanvasTokenCategory, Object.keys(rates))) : t('Unknown')} ${formatBusinessNumber(value, 8)}`
+            `${tokenRateKeyOrder([key]).length ? tokenRateKeyName(key, Object.keys(rates), t) : t('Unknown')} ${formatBusinessNumber(value, 8)}`
         )
         .join(', ')
     : undefined

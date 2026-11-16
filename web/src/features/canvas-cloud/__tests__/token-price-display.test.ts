@@ -10,7 +10,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { ModelCardPrice } from '../components/ModelCardPrices'
 import { oneTokenPrice } from '../lib/one-token-price'
-import { tokenCategoryLabelKey } from '../lib/token-rate-summary'
+import {
+  inputTiersSummary,
+  tokenCategoryLabelKey,
+  tokenRateKeyName,
+  tokenRateKeyOrder,
+} from '../lib/token-rate-summary'
 
 const spec = (
   quality: string,
@@ -34,6 +39,29 @@ describe('Token-billed image prices on cards (IMAGE-TOKEN-BILLING-001)', () => {
       tokenCategoryLabelKey('imageInput', ['input', 'imageInput', 'output'])
     ).toBe('Image input')
     expect(tokenCategoryLabelKey('input', ['input', 'output'])).toBe('Input')
+  })
+
+  it('lists a price by input tier tier by tier and names each key after its tier', () => {
+    const keys = ['output@2', 'input', 'input@2', 'output', 'prompt@2']
+    expect(tokenRateKeyOrder(keys)).toEqual([
+      'input',
+      'output',
+      'input@2',
+      'output@2',
+    ])
+    const t = (value: string, options?: Record<string, unknown>) =>
+      value
+        .replace('{{tier}}', String(options?.tier ?? ''))
+        .replace('{{tokens}}', String(options?.tokens ?? ''))
+    const priced = ['input', 'output', 'input@2', 'output@2']
+    expect(tokenRateKeyName('output@2', priced, t)).toBe(
+      'Input tier 2 · Output'
+    )
+    expect(tokenRateKeyName('input', priced, t)).toBe('Input tier 1 · Input')
+    expect(tokenRateKeyName('input', ['input', 'output'], t)).toBe('Input')
+    expect(inputTiersSummary([272000], t)).toBe(
+      'Input up to 272,000 Tokens; Input over 272,000 Tokens'
+    )
   })
 
   it('names the cache write the 5-minute one only beside the one-hour write', () => {

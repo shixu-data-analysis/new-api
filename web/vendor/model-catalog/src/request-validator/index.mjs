@@ -1,5 +1,5 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.14.0";
+export const REQUEST_VALIDATOR_VERSION = "1.15.0";
 export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7220892a5fd6ed760563e63a786d99f72ff9332c982ae0f16e214a1b0d9078c1";
 
 export const CatalogRequestIssueCode = Object.freeze({
@@ -456,6 +456,35 @@ export function conversationProtocolOf(profile) {
   const response = profile?.advanced?.response;
   if (profile?.kind !== "chat.generate" || profile.workflow !== "sync" || response?.streaming !== true) return null;
   return CONVERSATION_PROTOCOLS.find((protocol) => protocol === response.usageProtocol) ?? null;
+}
+
+// An upstream that prices a call by its input length counts the whole input, cached or not, and puts the call in the first
+// tier its length fits; above the last bound is the last tier. Shared by Cloud settlement and the client prices.
+export function inputLengthOf(usage) {
+  return ["input", "cacheRead", "cacheWrite", "cacheWrite1h"].reduce((sum, category) => sum + BigInt(usage?.[category] ?? 0), 0n);
+}
+export function inputTierIndex(inputLength, bounds) {
+  const length = BigInt(inputLength);
+  const index = (bounds ?? []).findIndex((bound) => length <= BigInt(bound));
+  return index === -1 ? (bounds ?? []).length : index;
+}
+
+// A price by input length keeps one rate per category and tier in the same vector: the first tier under the category's
+// own key, tier n (from 2) under "category@n". A call's usage is booked under its tier's keys, so points, costs and sums
+// stay a plain sum over keys and a turn still rounds once (rules 145).
+export const MAX_INPUT_TIERS = 9;
+export function tierCategory(category, tierIndex) {
+  return tierIndex === 0 ? category : `${category}@${tierIndex + 1}`;
+}
+export function categoryTier(key) {
+  const match = /^([A-Za-z0-9]+)@([2-9])$/.exec(String(key));
+  return match ? { category: match[1], tierIndex: Number(match[2]) - 1 } : { category: String(key), tierIndex: 0 };
+}
+export function tieredTokenCategories(categories, bounds) {
+  return Array.from({ length: (bounds ?? []).length + 1 }, (_, tierIndex) => categories.map((category) => tierCategory(category, tierIndex))).flat();
+}
+export function usageAtTier(usage, tierIndex) {
+  return Object.fromEntries(Object.entries(object(usage)).map(([category, count]) => [tierCategory(category, tierIndex), count]));
 }
 
 // Token usage estimates shared by the Cloud quote and the Canvas Web price, so the points a customer sees before

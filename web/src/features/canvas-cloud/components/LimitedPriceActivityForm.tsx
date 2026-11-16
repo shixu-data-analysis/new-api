@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { categoryTier } from '@pixmiao/model-catalog/request-validator'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useId, useMemo, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,9 +31,10 @@ import {
   referenceVideoTierName,
 } from '../lib/input-surcharge'
 import {
+  hasInputTiers,
   isTextInput,
-  tokenCategoryLabel,
-  tokenCategoryLabelKey,
+  tokenRateKeyName,
+  tokenRateKeyOrder,
 } from '../lib/token-rate-summary'
 import { pricingScopeLabel } from '../pricing-scope-label'
 import type {
@@ -40,6 +42,7 @@ import type {
   CanvasInputSurchargeCny,
   CanvasModelPricingPriceSnapshot,
   CanvasTokenCategory,
+  CanvasTokenRateKey,
   CanvasTokenCategoryRisk,
 } from '../types'
 import {
@@ -115,9 +118,6 @@ type PublishedPriceSource = {
 
 type TokenRateKey = CanvasTokenCategory
 
-// Every Token category a price may list, in display order: a special prices exactly the categories of its source price.
-const tokenRateKeys = Object.keys(tokenCategoryLabel) as TokenRateKey[]
-
 function fixedDecimal(value: string): bigint | undefined {
   const match = /^(0|[1-9]\d*)(?:\.(\d{1,8}))?$/u.exec(value)
   if (!match) return undefined
@@ -169,7 +169,7 @@ function tokenSpecialPriceRmb(
 }
 
 function tokenCategoryCostReference(
-  category: TokenRateKey,
+  category: CanvasTokenRateKey,
   risk: CanvasTokenCategoryRisk | undefined,
   baseRatePointsPerRmb: string | undefined,
   specialPoints: string
@@ -235,12 +235,10 @@ export function LimitedPriceActivityForm(props: {
   // Off by default: a surcharge is the provider's own charge and stays at its price unless the special includes it.
   const [surchargeDiscount, setSurchargeDiscount] = useState(false)
   const surchargeDiscountId = useId()
-  const [specialTokenRates, setSpecialTokenRates] = useState(
-    () =>
-      Object.fromEntries(
-        tokenRateKeys.map((category) => [category, ''])
-      ) as Record<TokenRateKey, string>
-  )
+  // Keyed by the source price's keys: a text model priced by input length has one rate per tier and category.
+  const [specialTokenRates, setSpecialTokenRates] = useState<
+    Record<string, string>
+  >({})
   const [startsAt, setStartsAt] = useState<Date>()
   const [endsAt, setEndsAt] = useState<Date>()
   const [approvalReason, setApprovalReason] = useState('')
@@ -287,8 +285,11 @@ export function LimitedPriceActivityForm(props: {
     (item) => item.id === modelId
   )
   const tokenPriced = source?.billingUnit === 'MILLION_TOKENS'
-  const requiredTokenCategories = tokenRateKeys.filter(
-    (category) => source?.tokenRates?.[category] !== undefined
+  const sourceRates = (source?.tokenRates ?? {}) as Partial<
+    Record<string, string>
+  >
+  const requiredTokenCategories = tokenRateKeyOrder(
+    Object.keys(sourceRates).filter((key) => sourceRates[key] !== undefined)
   )
   const save = useMutation({
     mutationFn: async () => {
@@ -308,15 +309,18 @@ export function LimitedPriceActivityForm(props: {
         if (
           !requiredTokenCategories.every(
             (category) =>
-              fixedDecimal(specialTokenRates[category].trim()) !== undefined
+              fixedDecimal((specialTokenRates[category] ?? '').trim()) !==
+              undefined
           )
         ) {
           throw new Error('Enter special token rates')
         }
         if (
           !requiredTokenCategories.every((category) => {
-            const special = fixedDecimal(specialTokenRates[category].trim())
-            const base = fixedDecimal(source.tokenRates?.[category] ?? '')
+            const special = fixedDecimal(
+              (specialTokenRates[category] ?? '').trim()
+            )
+            const base = fixedDecimal(sourceRates[category] ?? '')
             return (
               special !== undefined && base !== undefined && special <= base
             )
@@ -326,8 +330,10 @@ export function LimitedPriceActivityForm(props: {
         }
         if (
           !requiredTokenCategories.some((category) => {
-            const special = fixedDecimal(specialTokenRates[category].trim())
-            const base = fixedDecimal(source.tokenRates?.[category] ?? '')
+            const special = fixedDecimal(
+              (specialTokenRates[category] ?? '').trim()
+            )
+            const base = fixedDecimal(sourceRates[category] ?? '')
             return special !== undefined && base !== undefined && special < base
           })
         ) {
@@ -340,7 +346,7 @@ export function LimitedPriceActivityForm(props: {
           specialTokenRates: Object.fromEntries(
             requiredTokenCategories.map((category) => [
               category,
-              specialTokenRates[category].trim(),
+              (specialTokenRates[category] ?? '').trim(),
             ])
           ),
           startsAt: startsAt.toISOString(),
@@ -502,7 +508,7 @@ export function LimitedPriceActivityForm(props: {
                   {requiredTokenCategories
                     .map(
                       (category) =>
-                        `${t(tokenCategoryLabelKey(category, requiredTokenCategories))} ${source.tokenRates?.[category] ?? ''}`
+                        `${tokenRateKeyName(category, requiredTokenCategories, t)} ${sourceRates[category] ?? ''}`
                     )
                     .join(' · ')}
                 </p>
@@ -511,17 +517,17 @@ export function LimitedPriceActivityForm(props: {
                 <LimitedPriceRateInput
                   key={category}
                   label={t('{{label}} ({{detail}})', {
-                    label: t(
-                      isTextInput(category, requiredTokenCategories)
-                        ? 'Special text-input token rate'
-                        : specialRateLabelKey[category]
+                    label: specialRateLabel(
+                      category,
+                      requiredTokenCategories,
+                      t
                     ),
                     detail: t('points per million tokens'),
                   })}
-                  value={specialTokenRates[category]}
+                  value={specialTokenRates[category] ?? ''}
                   comparison={regularPriceComparison(
-                    source.tokenRates?.[category] ?? '',
-                    specialTokenRates[category],
+                    sourceRates[category] ?? '',
+                    specialTokenRates[category] ?? '',
                     'MILLION_TOKENS',
                     t
                   )}
@@ -725,6 +731,24 @@ const specialRateLabelKey: Record<TokenRateKey, string> = {
   totalWithVideoInput: 'Special with-video-input token rate',
 }
 
+// A special rate's field name; a further input tier's names its tier first ("第 2 档 · 特价输入 Token 费率").
+function specialRateLabel(
+  key: string,
+  priced: readonly string[],
+  t: (value: string, options?: Record<string, unknown>) => string
+): string {
+  const { category, tierIndex } = categoryTier(key)
+  const firstTier = priced.filter((item) => categoryTier(item).tierIndex === 0)
+  const name = t(
+    isTextInput(category as TokenRateKey, firstTier)
+      ? 'Special text-input token rate'
+      : specialRateLabelKey[category as TokenRateKey]
+  )
+  return hasInputTiers(priced)
+    ? `${t('Input tier {{tier}}', { tier: tierIndex + 1 })} · ${name}`
+    : name
+}
+
 // A hint only: how the entered special price compares with the current regular price. It sets no price bounds.
 function regularPriceComparison(
   regular: string,
@@ -770,23 +794,26 @@ function regularPriceComparison(
 function LimitedPriceCostReference(props: {
   source: PublishedPriceSource
   specialPoints: string
-  specialTokenRates: Record<TokenRateKey, string>
+  specialTokenRates: Record<string, string>
   surchargeDiscount: boolean
 }) {
   const { t } = useTranslation()
   if (props.source.billingUnit === 'MILLION_TOKENS') {
-    const references = tokenRateKeys
-      .filter((category) => props.source.tokenRates?.[category] !== undefined)
-      .map((category) =>
-        tokenCategoryCostReference(
-          category,
-          props.source.tokenCategoryRisks.find(
-            (risk) => risk.category === category
-          ),
-          props.source.calculation?.baseRatePointsPerRmb,
-          props.specialTokenRates[category].trim()
-        )
+    const rates = (props.source.tokenRates ?? {}) as Partial<
+      Record<string, string>
+    >
+    const references = tokenRateKeyOrder(
+      Object.keys(rates).filter((key) => rates[key] !== undefined)
+    ).map((category) =>
+      tokenCategoryCostReference(
+        category,
+        props.source.tokenCategoryRisks.find(
+          (risk) => risk.category === category
+        ),
+        props.source.calculation?.baseRatePointsPerRmb,
+        (props.specialTokenRates[category] ?? '').trim()
       )
+    )
     return <TokenCategoryCostReferences references={references} />
   }
   if (!props.source.calculation) {

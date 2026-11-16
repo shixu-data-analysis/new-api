@@ -1,5 +1,5 @@
 /** Catalog definition rules shared by the repository check and Cloud. */
-import { collapsePromptWhitespaceIssue, CONVERSATION_PROTOCOLS, conversationProtocolOf, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
+import { collapsePromptWhitespaceIssue, MAX_INPUT_TIERS, CONVERSATION_PROTOCOLS, conversationProtocolOf, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PROFILE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -258,8 +258,9 @@ function positiveNumber(value, location, integer = false) {
 // read, is listed with its fields and allowed for text models only. toolCalling marks a model checked by real calls to
 // answer multi-turn messages with tool calls, so the canvas assistant may use it; its Profile must speak a conversation.
 // reasoning lists the reasoning levels the model offers in a conversation, with their names and the default; its Profile
-// maps each level to the upstream's own fields (advanced.request.reasoningLevels).
-const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning"];
+// maps each level to the upstream's own fields (advanced.request.reasoningLevels). inputTiers lists, in ascending order,
+// the input length each price tier but the last goes up to, when the upstream prices a call by its input length.
+const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning", "inputTiers"];
 const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
 // Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
 const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens"];
@@ -349,6 +350,13 @@ function validateTextParamSchema(schema, location) {
   if (textCategories.includes("cacheWrite1h") && !textCategories.includes("cacheWrite")) fail(`${location}.tokenUsageCategories must list cacheWrite with cacheWrite1h, the 5-minute write`);
   if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
   if (schema.reasoning !== undefined) validateReasoning(object(schema.reasoning, `${location}.reasoning`), `${location}.reasoning`);
+  if (schema.inputTiers !== undefined) {
+    const tiers = array(schema.inputTiers, `${location}.inputTiers`, 1);
+    if (tiers.some((bound) => !Number.isSafeInteger(bound) || bound < 1)) fail(`${location}.inputTiers must list positive integers`);
+    if (tiers.some((bound, index) => index > 0 && bound <= tiers[index - 1])) fail(`${location}.inputTiers must ascend`);
+    if (tiers.at(-1) >= schema.contextTokens) fail(`${location}.inputTiers must stay below contextTokens`);
+    if (tiers.length + 1 > MAX_INPUT_TIERS) fail(`${location}.inputTiers must make at most ${MAX_INPUT_TIERS} tiers`);
+  }
 }
 
 // The levels a panel offers for the model: a value it sends, a short name, an optional one-line description, and

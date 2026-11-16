@@ -11,6 +11,7 @@ import type {
   CanvasInputSurchargeSetting,
   CanvasModelPricingDetail,
   CanvasTokenCategory,
+  CanvasTokenRateKey,
 } from '../types'
 import {
   chargedReferenceImagesName,
@@ -21,7 +22,7 @@ import {
   sharedTokenPrice,
   type PricingEditorRow,
 } from './model-pricing-editor'
-import { tokenCategoryLabelKey } from './token-rate-summary'
+import { tokenCategoryLabelKey, tokenRateKeyName } from './token-rate-summary'
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
@@ -33,7 +34,7 @@ export interface PricingRowLabeling {
   multipleScopes: boolean
   multiplePlans: boolean
   /** The categories the model is priced by, which name its text input apart from image input. */
-  tokenCategories: CanvasTokenCategory[]
+  tokenCategories: CanvasTokenRateKey[]
   /** How reference materials are charged, which names the surcharge rows (INPUT-ASSET-BILLING-001). */
   inputSurcharge: CanvasInputSurchargeSetting | null
   /** Beside surcharge rows the base rows say what they price: "生成视频 · 720P" or "生成图片 · 1K". */
@@ -91,12 +92,8 @@ export function pricingRowCombination(
       ? `${scope} · ${t(tokenCategoryLabelKey(row.field as CanvasTokenCategory, labeling.tokenCategories))}`
       : scope
   }
-  const category = t(
-    tokenCategoryLabelKey(
-      row.field as CanvasTokenCategory,
-      labeling.tokenCategories
-    )
-  )
+  // A text model priced by input length names the tier too: "第 2 档 · 输入".
+  const category = tokenRateKeyName(row.field, labeling.tokenCategories, t)
   return labeling.multipleScopes ? `${scope} · ${category}` : category
 }
 
