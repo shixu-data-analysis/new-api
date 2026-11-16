@@ -37,6 +37,7 @@ import type {
 } from '../../types'
 import { SupportConversations } from '../SupportConversations'
 import { SupportFailureAlerts } from '../SupportFailureAlerts'
+import { MessageContent } from '../SupportMessageContent'
 import { SupportSettingsDialog } from '../SupportSettingsDialog'
 import { SupportThread } from '../SupportThread'
 
@@ -162,6 +163,43 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       )
     ).toBe('Administrator: [Diagnostic log]')
     expect(lastMessagePreview(null, t)).toBe('')
+  })
+
+  it('views a log in a new tab and saves it through its download address', () => {
+    const view = 'https://r2.example/support/c/log?X-Amz-Signature=view'
+    const save = `${view}&response-content-disposition=attachment`
+    render(
+      wrap(
+        <MessageContent
+          mine={false}
+          message={message({
+            kind: 'LOG',
+            text: null,
+            attachment: {
+              id: '93000000-0000-7000-8000-000000000009',
+              kind: 'LOG',
+              mimeType: 'text/plain',
+              sizeBytes: 4096,
+              url: view,
+              downloadUrl: save,
+              urlExpiresAt: '2026-11-16T05:41:00.000Z',
+            },
+          })}
+        />
+      )
+    )
+    expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute(
+      'href',
+      view
+    )
+    expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute(
+      'target',
+      '_blank'
+    )
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+      'href',
+      save
+    )
   })
 
   it('puts a time line before the first message and after a five-minute gap', () => {

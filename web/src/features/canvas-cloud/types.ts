@@ -2377,6 +2377,8 @@ export interface CanvasSupportAttachment {
   sizeBytes: number
   /** A 10-minute storage address, or a Cloud path read with credentials in the local Mock store. */
   url: string | null
+  /** The same file saved instead of shown (Content-Disposition attachment); null with url. */
+  downloadUrl: string | null
   urlExpiresAt: string | null
 }
 

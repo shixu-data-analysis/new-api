@@ -57,6 +57,15 @@ function useAttachmentUrl(url: string | null) {
   return resolved
 }
 
+/**
+ * Where 下载 points. A storage address on another origin ignores <a download>, so Cloud signs a second address that saves
+ * the file; a local Mock path is already read into a blob of this page, where <a download> works.
+ */
+function saveHref(attachment: CanvasSupportAttachment, shown: string | null) {
+  if (attachment.downloadUrl?.startsWith('/v1/')) return shown
+  return attachment.downloadUrl
+}
+
 function ImageAttachment(props: {
   attachment: CanvasSupportAttachment
   label: string
@@ -109,7 +118,12 @@ function ImageAttachment(props: {
               <Button
                 variant='outline'
                 size='sm'
-                render={<a href={url} download='' />}
+                render={
+                  <a
+                    href={saveHref(props.attachment, url) ?? url}
+                    download=''
+                  />
+                }
               >
                 <Download aria-hidden='true' />
                 {t('Download')}
@@ -151,7 +165,7 @@ function LogAttachment(props: { attachment: CanvasSupportAttachment }) {
           </a>
           <a
             className='text-primary underline underline-offset-4'
-            href={url}
+            href={saveHref(props.attachment, url) ?? url}
             download=''
           >
             {t('Download')}
