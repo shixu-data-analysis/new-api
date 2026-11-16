@@ -25,7 +25,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
-import { lastMessagePreview } from '../../lib/support-labels'
+import {
+  lastMessagePreview,
+  startsTimeGroup,
+  supportTimeLabel,
+} from '../../lib/support-labels'
 import type {
   CanvasAdminSupportConversation,
   CanvasAdminSupportMessage,
@@ -159,6 +163,36 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       )
     ).toBe('Administrator: [Diagnostic log]')
     expect(lastMessagePreview(null, t)).toBe('')
+  })
+
+  it('puts a time line before the first message and after a five-minute gap', () => {
+    const t = i18next.t.bind(i18next) as never
+    const at = (createdAt: string) => message({ createdAt })
+    expect(startsTimeGroup(undefined, at('2026-11-16T14:57:00.000Z'))).toBe(
+      true
+    )
+    expect(
+      startsTimeGroup(
+        at('2026-11-16T14:57:00.000Z'),
+        at('2026-11-16T15:01:59.000Z')
+      )
+    ).toBe(false)
+    expect(
+      startsTimeGroup(
+        at('2026-11-16T14:57:00.000Z'),
+        at('2026-11-16T15:02:00.000Z')
+      )
+    ).toBe(true)
+    const now = new Date('2026-11-16T15:00:00')
+    expect(supportTimeLabel('2026-11-16T14:57:00', 'en-US', t, now)).toMatch(
+      /^Today 0?2:57/
+    )
+    expect(supportTimeLabel('2026-11-15T14:57:00', 'en-US', t, now)).toMatch(
+      /^Yesterday /
+    )
+    expect(supportTimeLabel('2026-11-14T21:40:00', 'en-US', t, now)).toMatch(
+      /^11\/14 /
+    )
   })
 
   it('lists conversations, filters the waiting ones and selects by id', async () => {

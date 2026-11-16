@@ -11094,7 +11094,6 @@
     "[Diagnostic log]": "[Nhật ký chẩn đoán]",
     "[Image]": "[Ảnh]",
     "{{count}} support conversations are awaiting a reply": "{{count}} cuộc hội thoại hỗ trợ đang chờ trả lời",
-    "{{name}} · {{time}}": "{{name}} · {{time}}",
     "{{name}}: {{text}}": "{{name}}: {{text}}",
     "Add a quick reply": "Thêm trả lời nhanh",
     "Alert when one customer fails on one model": "Cảnh báo khi một khách hàng thất bại trên một mô hình",
@@ -11135,6 +11134,8 @@
     "{{count}} customers failed {{threshold}} times or more": "{{count}} khách hàng thất bại từ {{threshold}} lần trở lên",
     "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · gửi cho {{count}} khách hàng, mỗi người nhận thông báo hệ thống trong hội thoại riêng",
     "Alerts": "Cảnh báo",
-    "Message retention": "Lưu giữ tin nhắn"
+    "Message retention": "Lưu giữ tin nhắn",
+    "Today {{time}}": "Hôm nay {{time}}",
+    "Yesterday {{time}}": "Hôm qua {{time}}"
   }
 }

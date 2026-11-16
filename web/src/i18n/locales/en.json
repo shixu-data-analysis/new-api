@@ -11094,7 +11094,6 @@
     "[Diagnostic log]": "[Diagnostic log]",
     "[Image]": "[Image]",
     "{{count}} support conversations are awaiting a reply": "{{count}} support conversations are awaiting a reply",
-    "{{name}} · {{time}}": "{{name}} · {{time}}",
     "{{name}}: {{text}}": "{{name}}: {{text}}",
     "Add a quick reply": "Add a quick reply",
     "Alert when one customer fails on one model": "Alert when one customer fails on one model",
@@ -11135,6 +11134,8 @@
     "{{count}} customers failed {{threshold}} times or more": "{{count}} customers failed {{threshold}} times or more",
     "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation",
     "Alerts": "Alerts",
-    "Message retention": "Message retention"
+    "Message retention": "Message retention",
+    "Today {{time}}": "Today {{time}}",
+    "Yesterday {{time}}": "Yesterday {{time}}"
   }
 }

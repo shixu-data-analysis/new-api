@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -61,6 +62,7 @@ import {
   SUPPORT_IMAGES_PER_SEND,
   SupportImageError,
 } from '../lib/support-attachments'
+import { startsTimeGroup, supportTimeLabel } from '../lib/support-labels'
 import type {
   CanvasAdminSupportConversation,
   CanvasAdminSupportMessage,
@@ -338,20 +340,20 @@ function MessageContent(props: {
 
 function Bubble(props: {
   message: CanvasAdminSupportMessage
-  initial: string
+  /** The exact time, shown on hover; the time lines between groups carry it on screen. */
   time: string
 }) {
   const { t } = useTranslation()
   const { message } = props
   if (message.sender === 'SYSTEM') {
     return (
-      <div className='bg-muted/50 grid gap-1 rounded-xl border px-3 py-2.5'>
+      <div
+        className='bg-muted/50 grid gap-1 rounded-xl border px-3 py-2.5'
+        title={props.time}
+      >
         <div className='flex items-center gap-1.5 text-sm font-semibold'>
           <BellRing className='size-3.5' aria-hidden='true' />
           {t('System notice')}
-          <span className='text-muted-foreground ms-auto text-xs font-normal'>
-            {props.time}
-          </span>
         </div>
         <p className='text-sm whitespace-pre-wrap'>{message.text}</p>
       </div>
@@ -361,26 +363,14 @@ function Bubble(props: {
   return (
     <div
       className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
+      title={props.time}
     >
-      <div className={cn('flex items-start gap-2', mine && 'flex-row-reverse')}>
-        {mine ? null : (
-          <span
-            aria-hidden='true'
-            className='bg-secondary text-secondary-foreground grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold'
-          >
-            {props.initial}
-          </span>
-        )}
-        <MessageContent message={message} mine={mine} />
-      </div>
-      <span className='text-muted-foreground text-xs'>
-        {mine
-          ? t('{{name}} · {{time}}', {
-              name: message.adminName ?? t('Administrator'),
-              time: props.time,
-            })
-          : props.time}
-      </span>
+      <MessageContent message={message} mine={mine} />
+      {mine ? (
+        <span className='text-muted-foreground text-xs'>
+          {message.adminName ?? t('Administrator')}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -401,7 +391,6 @@ export function SupportThread(props: {
   const inputId = useId()
   const { conversation } = props
   const name = conversation.customer.name ?? t('Customer')
-  const initial = [...name][0] ?? '?'
   const thread = useSupportMessages(conversation.id)
   const [draft, setDraft] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
@@ -410,8 +399,10 @@ export function SupportThread(props: {
   const anchor = useRef<{ height: number; top: number } | null>(null)
   // Whether the reader is at the newest message; reading history is never pulled away by a new one.
   const pinned = useRef(true)
-  const time = (iso: string) =>
-    new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
+  const locale = toIntlLocale(i18n.language)
+  const exactTime = (iso: string) =>
+    new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',
@@ -610,13 +601,15 @@ export function SupportThread(props: {
         {thread.state === 'ready' && thread.messages.length === 0 ? (
           <p className='text-muted-foreground text-sm'>{t('No messages')}</p>
         ) : null}
-        {thread.messages.map((message) => (
-          <Bubble
-            key={message.seq}
-            message={message}
-            initial={initial}
-            time={time(message.createdAt)}
-          />
+        {thread.messages.map((message, index) => (
+          <Fragment key={message.seq}>
+            {startsTimeGroup(thread.messages[index - 1], message) ? (
+              <p className='text-muted-foreground self-center text-xs tabular-nums'>
+                {supportTimeLabel(message.createdAt, locale, t)}
+              </p>
+            ) : null}
+            <Bubble message={message} time={exactTime(message.createdAt)} />
+          </Fragment>
         ))}
       </div>
 

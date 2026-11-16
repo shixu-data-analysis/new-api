@@ -11094,7 +11094,6 @@
     "[Diagnostic log]": "[诊断日志]",
     "[Image]": "[图片]",
     "{{count}} support conversations are awaiting a reply": "{{count}} 个客服会话待回复",
-    "{{name}} · {{time}}": "{{name}} · {{time}}",
     "{{name}}: {{text}}": "{{name}}：{{text}}",
     "Add a quick reply": "添加快捷回复",
     "Alert when one customer fails on one model": "同一客户在同一模型上失败",
@@ -11135,6 +11134,8 @@
     "{{count}} customers failed {{threshold}} times or more": "{{count}} 位客户失败 {{threshold}} 次及以上",
     "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · 发给 {{count}} 位客户，每人在自己的对话里收到一条系统通知",
     "Alerts": "提醒",
-    "Message retention": "消息保留"
+    "Message retention": "消息保留",
+    "Today {{time}}": "今天 {{time}}",
+    "Yesterday {{time}}": "昨天 {{time}}"
   }
 }

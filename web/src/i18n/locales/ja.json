@@ -11094,7 +11094,6 @@
     "[Diagnostic log]": "[診断ログ]",
     "[Image]": "[画像]",
     "{{count}} support conversations are awaiting a reply": "{{count}} 件のサポート会話が返信待ちです",
-    "{{name}} · {{time}}": "{{name}} · {{time}}",
     "{{name}}: {{text}}": "{{name}}：{{text}}",
     "Add a quick reply": "クイック返信を追加",
     "Alert when one customer fails on one model": "同じ顧客が同じモデルで失敗",
@@ -11135,6 +11134,8 @@
     "{{count}} customers failed {{threshold}} times or more": "{{count}} 人の顧客が {{threshold}} 回以上失敗",
     "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · {{count}} 人の顧客に、それぞれの会話でシステム通知として送信",
     "Alerts": "通知",
-    "Message retention": "メッセージの保存"
+    "Message retention": "メッセージの保存",
+    "Today {{time}}": "今日 {{time}}",
+    "Yesterday {{time}}": "昨日 {{time}}"
   }
 }

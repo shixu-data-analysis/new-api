@@ -11094,7 +11094,6 @@
     "[Diagnostic log]": "[Журнал диагностики]",
     "[Image]": "[Изображение]",
     "{{count}} support conversations are awaiting a reply": "Ожидают ответа диалогов поддержки: {{count}}",
-    "{{name}} · {{time}}": "{{name}} · {{time}}",
     "{{name}}: {{text}}": "{{name}}: {{text}}",
     "Add a quick reply": "Добавить быстрый ответ",
     "Alert when one customer fails on one model": "Оповещать, когда клиент получает ошибки на одной модели",
@@ -11135,6 +11134,8 @@
     "{{count}} customers failed {{threshold}} times or more": "У {{count}} клиентов {{threshold}} и более ошибок",
     "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · отправка {{count}} клиентам, каждому системным уведомлением в его диалоге",
     "Alerts": "Оповещения",
-    "Message retention": "Хранение сообщений"
+    "Message retention": "Хранение сообщений",
+    "Today {{time}}": "Сегодня {{time}}",
+    "Yesterday {{time}}": "Вчера {{time}}"
   }
 }
