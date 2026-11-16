@@ -11133,6 +11133,8 @@
     "Write the result, or pick a quick reply": "Viết kết quả, hoặc chọn một trả lời nhanh",
     "times within": "lần trong",
     "{{count}} customers failed {{threshold}} times or more": "{{count}} khách hàng thất bại từ {{threshold}} lần trở lên",
-    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · gửi cho {{count}} khách hàng, mỗi người nhận thông báo hệ thống trong hội thoại riêng"
+    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · gửi cho {{count}} khách hàng, mỗi người nhận thông báo hệ thống trong hội thoại riêng",
+    "Alerts": "Cảnh báo",
+    "Message retention": "Lưu giữ tin nhắn"
   }
 }

@@ -11133,6 +11133,8 @@
     "Write the result, or pick a quick reply": "結果を書くか、クイック返信を選んでください",
     "times within": "回、集計時間",
     "{{count}} customers failed {{threshold}} times or more": "{{count}} 人の顧客が {{threshold}} 回以上失敗",
-    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · {{count}} 人の顧客に、それぞれの会話でシステム通知として送信"
+    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · {{count}} 人の顧客に、それぞれの会話でシステム通知として送信",
+    "Alerts": "通知",
+    "Message retention": "メッセージの保存"
   }
 }

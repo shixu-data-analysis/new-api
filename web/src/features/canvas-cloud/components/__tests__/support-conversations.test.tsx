@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -296,6 +297,7 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
   })
 
   it('warns before shortening the retention and keeps the saved address when the field is empty', async () => {
+    const user = userEvent.setup()
     const onClose = vi.fn()
     render(wrap(<SupportSettingsDialog settings={saved} onClose={onClose} />))
     // The test i18n escapes interpolated values, so only the unescaped parts are matched.
@@ -304,14 +306,20 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     ).toMatch(
       /^Saved: qyapi\.weixin\.qq\.com.+3f2a\. Leave empty to keep it\.$/
     )
-    fireEvent.click(screen.getByRole('radio', { name: '3 days' }))
+    await user.click(screen.getByRole('tab', { name: 'Message retention' }))
+    await user.click(
+      screen.getByRole('combobox', { name: 'Keep messages for' })
+    )
+    await user.click(await screen.findByRole('option', { name: '3 days' }))
     expect(screen.getByRole('alert')).toHaveTextContent(
       'older than 3 days are deleted at the next cleanup'
     )
+    await user.click(screen.getByRole('tab', { name: 'Alerts' }))
     expect(
       screen.getByRole('button', { name: 'Send test message' })
     ).toBeDisabled()
-    fireEvent.click(screen.getByRole('radio', { name: 'Feishu' }))
+    await user.click(screen.getByRole('combobox', { name: 'Message format' }))
+    await user.click(await screen.findByRole('option', { name: 'Feishu' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
@@ -336,9 +344,7 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     const { unmount } = render(
       wrap(<SupportSettingsDialog settings={empty} onClose={vi.fn()} />)
     )
-    fireEvent.click(
-      screen.getByRole('checkbox', { name: 'Send Webhook alerts' })
-    )
+    fireEvent.click(screen.getByRole('switch', { name: 'Send Webhook alerts' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Enter the Webhook address'
@@ -386,8 +392,9 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Hours' }), {
       target: { value: '6' },
     })
+    fireEvent.click(screen.getByRole('tab', { name: 'Quick replies' }))
     fireEvent.click(
-      screen.getByRole('button', { name: 'Remove this quick reply' })
+      await screen.findByRole('button', { name: 'Remove this quick reply' })
     )
     const [, failureAdder] = screen.getAllByRole('textbox', {
       name: 'Add a quick reply',

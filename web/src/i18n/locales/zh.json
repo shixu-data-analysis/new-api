@@ -11133,6 +11133,8 @@
     "Write the result, or pick a quick reply": "写下调查结果，或选一条快捷回复",
     "times within": "次，统计",
     "{{count}} customers failed {{threshold}} times or more": "{{count}} 位客户失败 {{threshold}} 次及以上",
-    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · 发给 {{count}} 位客户，每人在自己的对话里收到一条系统通知"
+    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · 发给 {{count}} 位客户，每人在自己的对话里收到一条系统通知",
+    "Alerts": "提醒",
+    "Message retention": "消息保留"
   }
 }

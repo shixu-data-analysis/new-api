@@ -11133,6 +11133,8 @@
     "Write the result, or pick a quick reply": "Напишите результат или выберите быстрый ответ",
     "times within": "раз за",
     "{{count}} customers failed {{threshold}} times or more": "У {{count}} клиентов {{threshold}} и более ошибок",
-    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · отправка {{count}} клиентам, каждому системным уведомлением в его диалоге"
+    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · отправка {{count}} клиентам, каждому системным уведомлением в его диалоге",
+    "Alerts": "Оповещения",
+    "Message retention": "Хранение сообщений"
   }
 }

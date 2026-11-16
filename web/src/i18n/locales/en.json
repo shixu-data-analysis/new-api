@@ -11133,6 +11133,8 @@
     "Write the result, or pick a quick reply": "Write the result, or pick a quick reply",
     "times within": "times within",
     "{{count}} customers failed {{threshold}} times or more": "{{count}} customers failed {{threshold}} times or more",
-    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation"
+    "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation": "{{model}} · sent to {{count}} customers, each as a system notice in their own conversation",
+    "Alerts": "Alerts",
+    "Message retention": "Message retention"
   }
 }

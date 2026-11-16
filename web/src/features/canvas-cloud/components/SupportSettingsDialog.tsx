@@ -25,13 +25,21 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getServerErrorCode } from '@/lib/server-error-message'
 
 import {
@@ -49,6 +57,7 @@ import type {
 import { SupportQuickRepliesField } from './SupportQuickRepliesField'
 
 const RETENTION_DAYS: CanvasSupportRetentionDays[] = [3, 7, 15, 30]
+type SettingsTab = 'alerts' | 'replies' | 'retention'
 const THRESHOLD_RANGE = { min: 2, max: 20 }
 const WINDOW_HOURS_RANGE = { min: 1, max: 168 }
 
@@ -113,6 +122,7 @@ export function SupportSettingsDialog(props: {
   const [quickReplies, setQuickReplies] = useState<CanvasSupportQuickReplies>(
     props.settings.quickReplies
   )
+  const [tab, setTab] = useState<SettingsTab>('alerts')
   const [url, setUrl] = useState('')
   const [tried, setTried] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -187,240 +197,303 @@ export function SupportSettingsDialog(props: {
   })
   const busy = save.isPending || test.isPending
 
+  // Errors on submit are all in 提醒; the dialog shows that tab so they can be seen.
+  const submit = () => {
+    setTried(true)
+    if (localUrlError || failureRangeError) {
+      setTab('alerts')
+      return
+    }
+    save.mutate()
+  }
+
   return (
     <Dialog
       open
       onOpenChange={(open) => (!open && !busy ? props.onClose() : undefined)}
     >
-      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-lg'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg'>
+        <DialogHeader className='px-6 pt-6 pb-3'>
           <DialogTitle>{t('Support settings')}</DialogTitle>
         </DialogHeader>
         <form
-          className='space-y-5'
+          className='flex min-h-0 flex-1 flex-col'
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
-            setTried(true)
-            if (localUrlError || failureRangeError) return
-            save.mutate()
+            submit()
           }}
         >
-          <fieldset className='space-y-2'>
-            <legend className='text-sm font-medium'>
-              {t('Keep messages for')}
-            </legend>
-            <div className='flex flex-wrap gap-x-4 gap-y-2'>
-              {RETENTION_DAYS.map((days) => (
-                <label key={days} className='flex items-center gap-2 text-sm'>
-                  <input
-                    type='radio'
-                    name={`${id}-retention`}
-                    checked={retentionDays === days}
-                    onChange={() => setRetentionDays(days)}
-                  />
-                  {t('{{count}} days', { count: days })}
-                </label>
-              ))}
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setTab(value as SettingsTab)}
+            className='flex min-h-0 flex-1 flex-col gap-0'
+          >
+            <div className='px-6'>
+              <TabsList aria-label={t('Support settings')}>
+                <TabsTrigger value='alerts'>{t('Alerts')}</TabsTrigger>
+                <TabsTrigger value='replies'>{t('Quick replies')}</TabsTrigger>
+                <TabsTrigger value='retention'>
+                  {t('Message retention')}
+                </TabsTrigger>
+              </TabsList>
             </div>
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Messages and attachments past this are deleted every day and cannot be restored.'
-              )}
-            </p>
-            {shorter ? (
-              <p role='alert' className='text-destructive text-xs'>
-                {t(
-                  'After saving, messages and attachments older than {{count}} days are deleted at the next cleanup.',
-                  {
-                    count: retentionDays,
-                  }
-                )}
-              </p>
-            ) : null}
-          </fieldset>
-
-          <fieldset className='space-y-3 border-t border-dashed pt-4'>
-            <legend className='text-sm font-medium'>
-              {t('Webhook alerts')}
-            </legend>
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'One alert when a conversation starts waiting for a reply, and one more if it still waits after 30 minutes.'
-              )}
-            </p>
-            <label className='flex items-center gap-2 text-sm'>
-              <input
-                type='checkbox'
-                checked={hasWebhook}
-                onChange={(event) => setHasWebhook(event.target.checked)}
-              />
-              {t('Send Webhook alerts')}
-            </label>
-            {hasWebhook ? (
-              <>
-                <div className='space-y-2'>
-                  <span className='text-sm font-medium' id={`${id}-format`}>
-                    {t('Message format')}
-                  </span>
-                  <div
-                    className='flex flex-wrap gap-x-4 gap-y-2'
-                    role='radiogroup'
-                    aria-labelledby={`${id}-format`}
-                  >
-                    {FORMATS.map(([value, label]) => (
-                      <label
-                        key={value}
-                        className='flex items-center gap-2 text-sm'
+            <div className='min-h-80 flex-1 overflow-y-auto px-6 py-4'>
+              <TabsContent value='alerts' className='space-y-6'>
+                <section
+                  className='space-y-3'
+                  aria-labelledby={`${id}-webhook`}
+                >
+                  <div className='flex items-start gap-3'>
+                    <div className='flex-1 space-y-1'>
+                      <h3 id={`${id}-webhook`} className='text-sm font-medium'>
+                        {t('Webhook alerts')}
+                      </h3>
+                      <p
+                        id={`${id}-webhook-help`}
+                        className='text-muted-foreground text-xs'
                       >
-                        <input
-                          type='radio'
-                          name={`${id}-webhook-format`}
-                          checked={format === value}
-                          onChange={() => setFormat(value)}
-                        />
-                        {t(label)}
-                      </label>
-                    ))}
+                        {t(
+                          'One alert when a conversation starts waiting for a reply, and one more if it still waits after 30 minutes.'
+                        )}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={hasWebhook}
+                      aria-label={t('Send Webhook alerts')}
+                      aria-describedby={`${id}-webhook-help`}
+                      onCheckedChange={setHasWebhook}
+                    />
                   </div>
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor={`${id}-url`}>{t('Webhook address')}</Label>
-                  <Input
-                    id={`${id}-url`}
-                    type='url'
-                    autoComplete='off'
-                    value={url}
-                    placeholder={
-                      saved
-                        ? t('Saved: {{hint}}. Leave empty to keep it.', {
-                            hint: saved.displayHint,
-                          })
-                        : 'https://'
-                    }
-                    aria-invalid={Boolean(shownUrlError)}
-                    aria-describedby={
-                      shownUrlError ? `${id}-url-error` : `${id}-url-help`
-                    }
-                    onChange={(event) => {
-                      setUrl(event.target.value)
-                      setUrlError(null)
-                    }}
-                  />
-                  {shownUrlError ? (
-                    <p
-                      id={`${id}-url-error`}
-                      role='alert'
-                      className='text-destructive text-xs'
-                    >
-                      {shownUrlError}
+                  {hasWebhook ? (
+                    <div className='grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]'>
+                      <div className='space-y-2'>
+                        <Label htmlFor={`${id}-format`}>
+                          {t('Message format')}
+                        </Label>
+                        <Select
+                          value={format}
+                          onValueChange={(value) =>
+                            value
+                              ? setFormat(value as CanvasSupportWebhookFormat)
+                              : undefined
+                          }
+                        >
+                          <SelectTrigger id={`${id}-format`} className='w-full'>
+                            <SelectValue>
+                              {(value: string) =>
+                                t(
+                                  FORMATS.find(([key]) => key === value)?.[1] ??
+                                    'Unknown'
+                                )
+                              }
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FORMATS.map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {t(label)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className='min-w-0 space-y-2'>
+                        <Label htmlFor={`${id}-url`}>
+                          {t('Webhook address')}
+                        </Label>
+                        <Input
+                          id={`${id}-url`}
+                          type='url'
+                          autoComplete='off'
+                          value={url}
+                          placeholder={
+                            saved
+                              ? t('Saved: {{hint}}. Leave empty to keep it.', {
+                                  hint: saved.displayHint,
+                                })
+                              : 'https://'
+                          }
+                          aria-invalid={Boolean(shownUrlError)}
+                          aria-describedby={
+                            shownUrlError ? `${id}-url-error` : `${id}-url-help`
+                          }
+                          onChange={(event) => {
+                            setUrl(event.target.value)
+                            setUrlError(null)
+                          }}
+                        />
+                      </div>
+                      <div className='space-y-2 sm:col-span-2'>
+                        {shownUrlError ? (
+                          <p
+                            id={`${id}-url-error`}
+                            role='alert'
+                            className='text-destructive text-xs'
+                          >
+                            {shownUrlError}
+                          </p>
+                        ) : (
+                          <p
+                            id={`${id}-url-help`}
+                            className='text-muted-foreground text-xs'
+                          >
+                            {t(
+                              'HTTPS only. After saving only the host and the last four characters are shown.'
+                            )}
+                          </p>
+                        )}
+                        <div className='flex flex-wrap items-center gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            disabled={busy || !saved || dirty}
+                            onClick={() => test.mutate()}
+                          >
+                            {t('Send test message')}
+                          </Button>
+                          {saved && dirty ? (
+                            <span className='text-muted-foreground text-xs'>
+                              {t(
+                                'Save the changes before sending a test message.'
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section
+                  className='space-y-2 border-t pt-5'
+                  aria-labelledby={`${id}-failures`}
+                >
+                  <h3 id={`${id}-failures`} className='text-sm font-medium'>
+                    {t('Failure alerts')}
+                  </h3>
+                  <div className='flex flex-wrap items-center gap-2 text-sm'>
+                    <span>
+                      {t('Alert when one customer fails on one model')}
+                    </span>
+                    <Input
+                      className='w-16 text-center tabular-nums'
+                      inputMode='numeric'
+                      aria-label={t('Failures')}
+                      aria-invalid={tried && Boolean(failureRangeError)}
+                      value={threshold}
+                      onChange={(event) =>
+                        setThreshold(event.target.value.trim())
+                      }
+                    />
+                    <span>{t('times within')}</span>
+                    <Input
+                      className='w-16 text-center tabular-nums'
+                      inputMode='numeric'
+                      aria-label={t('Hours')}
+                      aria-invalid={tried && Boolean(failureRangeError)}
+                      value={windowHours}
+                      onChange={(event) =>
+                        setWindowHours(event.target.value.trim())
+                      }
+                    />
+                    <span>{t('hours')}</span>
+                  </div>
+                  {tried && failureRangeError ? (
+                    <p role='alert' className='text-destructive text-xs'>
+                      {failureRangeError}
                     </p>
                   ) : (
-                    <p
-                      id={`${id}-url-help`}
-                      className='text-muted-foreground text-xs'
-                    >
+                    <p className='text-muted-foreground text-xs'>
                       {t(
-                        'HTTPS only. After saving only the host and the last four characters are shown.'
+                        'Confirmed failures of real tasks; one task counts once. The group hears at most once per model every 5 minutes.'
                       )}
                     </p>
                   )}
-                </div>
-              </>
-            ) : null}
-          </fieldset>
+                </section>
+              </TabsContent>
 
-          <fieldset className='space-y-2 border-t border-dashed pt-4'>
-            <legend className='text-sm font-medium'>
-              {t('Failure alerts')}
-            </legend>
-            <div className='flex flex-wrap items-center gap-2 text-sm'>
-              <span>{t('Alert when one customer fails on one model')}</span>
-              <Input
-                className='w-20'
-                inputMode='numeric'
-                aria-label={t('Failures')}
-                aria-invalid={tried && Boolean(failureRangeError)}
-                value={threshold}
-                onChange={(event) => setThreshold(event.target.value.trim())}
-              />
-              <span>{t('times within')}</span>
-              <Input
-                className='w-20'
-                inputMode='numeric'
-                aria-label={t('Hours')}
-                aria-invalid={tried && Boolean(failureRangeError)}
-                value={windowHours}
-                onChange={(event) => setWindowHours(event.target.value.trim())}
-              />
-              <span>{t('hours')}</span>
+              <TabsContent value='replies' className='space-y-5'>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Plain text, sent as it is or edited first. At most 20 in each group, 500 characters each.'
+                  )}
+                </p>
+                <SupportQuickRepliesField
+                  label={t('Conversation replies')}
+                  values={quickReplies.conversation}
+                  onChange={(conversation) =>
+                    setQuickReplies({ ...quickReplies, conversation })
+                  }
+                />
+                <SupportQuickRepliesField
+                  label={t('Failure notices')}
+                  values={quickReplies.failureNotice}
+                  onChange={(failureNotice) =>
+                    setQuickReplies({ ...quickReplies, failureNotice })
+                  }
+                />
+              </TabsContent>
+
+              <TabsContent value='retention' className='space-y-2'>
+                <Label htmlFor={`${id}-retention`}>
+                  {t('Keep messages for')}
+                </Label>
+                <Select
+                  value={String(retentionDays)}
+                  onValueChange={(value) =>
+                    value
+                      ? setRetentionDays(
+                          Number(value) as CanvasSupportRetentionDays
+                        )
+                      : undefined
+                  }
+                >
+                  <SelectTrigger id={`${id}-retention`} className='w-40'>
+                    <SelectValue>
+                      {(value: string) =>
+                        t('{{count}} days', { count: Number(value) })
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETENTION_DAYS.map((days) => (
+                      <SelectItem key={days} value={String(days)}>
+                        {t('{{count}} days', { count: days })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Messages and attachments past this are deleted every day and cannot be restored.'
+                  )}
+                </p>
+                {shorter ? (
+                  <p role='alert' className='text-destructive text-xs'>
+                    {t(
+                      'After saving, messages and attachments older than {{count}} days are deleted at the next cleanup.',
+                      { count: retentionDays }
+                    )}
+                  </p>
+                ) : null}
+              </TabsContent>
             </div>
-            {tried && failureRangeError ? (
-              <p role='alert' className='text-destructive text-xs'>
-                {failureRangeError}
-              </p>
-            ) : (
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'Confirmed failures of real tasks; one task counts once. The group hears at most once per model every 5 minutes.'
-                )}
-              </p>
-            )}
-          </fieldset>
-
-          <fieldset className='space-y-3 border-t border-dashed pt-4'>
-            <legend className='text-sm font-medium'>
-              {t('Quick replies')}
-            </legend>
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Plain text, sent as it is or edited first. At most 20 in each group, 500 characters each.'
-              )}
-            </p>
-            <SupportQuickRepliesField
-              label={t('Conversation replies')}
-              values={quickReplies.conversation}
-              onChange={(conversation) =>
-                setQuickReplies({ ...quickReplies, conversation })
-              }
-            />
-            <SupportQuickRepliesField
-              label={t('Failure notices')}
-              values={quickReplies.failureNotice}
-              onChange={(failureNotice) =>
-                setQuickReplies({ ...quickReplies, failureNotice })
-              }
-            />
-          </fieldset>
-
-          <DialogFooter className='sm:justify-between'>
+          </Tabs>
+          <DialogFooter className='border-t px-6 py-4'>
             <Button
               type='button'
               variant='outline'
-              disabled={busy || !saved || dirty}
-              onClick={() => test.mutate()}
+              disabled={busy}
+              onClick={props.onClose}
             >
-              {t('Send test message')}
+              {t('Cancel')}
             </Button>
-            <div className='flex gap-2'>
-              <Button
-                type='button'
-                variant='outline'
-                disabled={busy}
-                onClick={props.onClose}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button type='submit' disabled={busy}>
-                {t('Save')}
-              </Button>
-            </div>
+            <Button type='submit' disabled={busy}>
+              {t('Save')}
+            </Button>
           </DialogFooter>
-          {saved && dirty ? (
-            <DialogDescription className='text-xs'>
-              {t('Save the changes before sending a test message.')}
-            </DialogDescription>
-          ) : null}
         </form>
       </DialogContent>
     </Dialog>
