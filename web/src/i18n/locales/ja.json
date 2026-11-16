@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "期限を過ぎたメッセージと添付ファイルは毎日自動的に削除され、復元できません。",
     "No conversations yet": "まだ会話はありません",
     "No matching conversations": "一致する会話はありません",
+    "No conversations awaiting reply": "返信待ちの会話はありません",
     "No messages": "メッセージはありません",
     "Remove image": "画像を削除",
     "Reply to {{name}} (ID {{id}})": "{{name}}（ID {{id}}）に返信",

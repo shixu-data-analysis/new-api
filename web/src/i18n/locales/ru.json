@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "Сообщения и вложения старше этого срока удаляются ежедневно без возможности восстановления.",
     "No conversations yet": "Пока нет диалогов",
     "No matching conversations": "Нет подходящих диалогов",
+    "No conversations awaiting reply": "Нет разговоров, ожидающих ответа",
     "No messages": "Нет сообщений",
     "Remove image": "Убрать изображение",
     "Reply to {{name}} (ID {{id}})": "Ответить {{name}} (ID {{id}})",

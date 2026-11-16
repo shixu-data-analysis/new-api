@@ -154,7 +154,10 @@ export function SupportConversations(props: {
   const selected: CanvasAdminSupportConversation | null =
     rows.find((row) => row.id === props.conversationId) ??
     (props.conversationId ? null : (rows[0] ?? null))
-  const filtered = filter === 'pending' || debouncedSearch !== ''
+  const searching = debouncedSearch !== ''
+  let emptyText = t('No conversations yet')
+  if (filter === 'pending') emptyText = t('No conversations awaiting reply')
+  if (searching) emptyText = t('No matching conversations')
   const time = (iso: string) => {
     const date = new Date(iso)
     const locale = toIntlLocale(i18n.language)
@@ -284,17 +287,13 @@ export function SupportConversations(props: {
               ) : null}
               {!conversations.isPending && rows.length === 0 ? (
                 <div className='space-y-3 p-3' role='status'>
-                  <p className='text-muted-foreground text-sm'>
-                    {filtered
-                      ? t('No matching conversations')
-                      : t('No conversations yet')}
-                  </p>
-                  {filtered ? (
+                  <p className='text-muted-foreground text-sm'>{emptyText}</p>
+                  {/* 待回复 is a view of its own; only a search is a filter to clear. */}
+                  {searching ? (
                     <Button
                       variant='outline'
                       size='sm'
                       onClick={() => {
-                        setFilter('all')
                         setSearch('')
                         resetPage()
                       }}

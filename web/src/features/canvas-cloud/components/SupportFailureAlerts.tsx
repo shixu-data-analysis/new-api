@@ -24,6 +24,14 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
@@ -105,16 +113,18 @@ export function SupportFailureAlerts(props: {
 
   if (!model) {
     return (
-      <Card className='p-4'>
-        <p className='text-muted-foreground text-sm' role='status'>
-          {t('No open failure alerts')}
-        </p>
-      </Card>
+      <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
+        <Card className='gap-0 p-2'>
+          <p className='text-muted-foreground p-3 text-sm' role='status'>
+            {t('No open failure alerts')}
+          </p>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]'>
+    <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
       <Card className='gap-0 p-2'>
         <ul className='grid gap-0.5' aria-label={t('Failure alerts')}>
           {props.alerts.models.map((item) => (
@@ -123,7 +133,7 @@ export function SupportFailureAlerts(props: {
                 type='button'
                 aria-pressed={item.modelKey === model.modelKey}
                 className={cn(
-                  'grid w-full gap-0.5 rounded-xl p-3 text-start',
+                  'flex w-full min-w-0 flex-col gap-0.5 rounded-xl p-2.5 text-start',
                   item.modelKey === model.modelKey
                     ? 'bg-primary/10'
                     : 'hover:bg-muted/60'
@@ -133,7 +143,7 @@ export function SupportFailureAlerts(props: {
                   setLeftOut(new Set())
                 }}
               >
-                <span className='font-semibold'>{item.modelName}</span>
+                <span className='truncate font-semibold'>{item.modelName}</span>
                 <span className='text-muted-foreground truncate text-sm'>
                   {customerNames(item, t)}
                 </span>
@@ -174,32 +184,28 @@ export function SupportFailureAlerts(props: {
             </Button>
           </div>
         </div>
-        <div className='overflow-x-auto p-4'>
-          <table className='w-full text-sm'>
-            <thead className='text-muted-foreground text-start'>
-              <tr className='border-b'>
-                <th className='w-10 py-2 font-medium'>
+        <div className='p-4'>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-10'>
                   <span className='sr-only'>{t('Choose')}</span>
-                </th>
-                <th className='py-2 text-start font-medium'>{t('Customer')}</th>
-                <th className='py-2 text-start font-medium'>{t('Failures')}</th>
-                <th className='py-2 text-start font-medium'>
-                  {t('Latest failure')}
-                </th>
-                <th className='py-2 text-start font-medium'>
-                  {t('Last notice')}
-                </th>
-                <th className='py-2'>
+                </TableHead>
+                <TableHead>{t('Customer')}</TableHead>
+                <TableHead>{t('Failures')}</TableHead>
+                <TableHead>{t('Latest failure')}</TableHead>
+                <TableHead>{t('Last notice')}</TableHead>
+                <TableHead>
                   <span className='sr-only'>{t('Actions')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {model.customers.map((row) => {
                 const name = row.customer.name ?? t('Customer')
                 return (
-                  <tr key={row.alertId} className='border-b last:border-0'>
-                    <td className='py-2'>
+                  <TableRow key={row.alertId}>
+                    <TableCell>
                       <Checkbox
                         aria-label={t('Choose {{name}}', { name })}
                         checked={!leftOut.has(row.alertId)}
@@ -212,25 +218,27 @@ export function SupportFailureAlerts(props: {
                           })
                         }
                       />
-                    </td>
-                    <td className='py-2'>
+                    </TableCell>
+                    <TableCell>
                       {name}{' '}
                       <span className='text-muted-foreground text-xs'>
                         ID {row.customer.userId}
                       </span>
-                    </td>
-                    <td className='py-2 tabular-nums'>{row.failureCount}</td>
-                    <td className='py-2 tabular-nums'>
+                    </TableCell>
+                    <TableCell className='tabular-nums'>
+                      {row.failureCount}
+                    </TableCell>
+                    <TableCell className='tabular-nums'>
                       {time(row.lastFailedAt)}
-                    </td>
-                    <td className='text-muted-foreground py-2 tabular-nums'>
+                    </TableCell>
+                    <TableCell className='text-muted-foreground tabular-nums'>
                       {row.lastNotifiedAt
                         ? t('Still being worked on · {{time}}', {
                             time: time(row.lastNotifiedAt),
                           })
                         : '—'}
-                    </td>
-                    <td className='py-2 text-end'>
+                    </TableCell>
+                    <TableCell className='text-end'>
                       <Button
                         type='button'
                         variant='link'
@@ -239,12 +247,12 @@ export function SupportFailureAlerts(props: {
                       >
                         {t('Customer details')}
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </Card>
 

@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "Messages and attachments past this are deleted every day and cannot be restored.",
     "No conversations yet": "No conversations yet",
     "No matching conversations": "No matching conversations",
+    "No conversations awaiting reply": "No conversations awaiting reply",
     "No messages": "No messages",
     "Remove image": "Remove image",
     "Reply to {{name}} (ID {{id}})": "Reply to {{name}} (ID {{id}})",

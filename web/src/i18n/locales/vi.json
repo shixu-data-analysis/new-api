@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "Tin nhắn và tệp đính kèm quá hạn sẽ bị xóa hằng ngày và không thể khôi phục.",
     "No conversations yet": "Chưa có cuộc trò chuyện",
     "No matching conversations": "Không có cuộc trò chuyện phù hợp",
+    "No conversations awaiting reply": "Không có cuộc trò chuyện nào đang chờ phản hồi",
     "No messages": "Không có tin nhắn",
     "Remove image": "Gỡ ảnh",
     "Reply to {{name}} (ID {{id}})": "Trả lời {{name}} (ID {{id}})",

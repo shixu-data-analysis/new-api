@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "Les messages et pièces jointes au-delà de ce délai sont supprimés chaque jour et ne peuvent pas être restaurés.",
     "No conversations yet": "Aucune conversation pour l'instant",
     "No matching conversations": "Aucune conversation correspondante",
+    "No conversations awaiting reply": "Aucune conversation en attente de réponse",
     "No messages": "Aucun message",
     "Remove image": "Retirer l'image",
     "Reply to {{name}} (ID {{id}})": "Répondre à {{name}} (ID {{id}})",

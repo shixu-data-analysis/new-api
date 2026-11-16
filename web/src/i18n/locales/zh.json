@@ -11051,6 +11051,7 @@
     "Messages and attachments past this are deleted every day and cannot be restored.": "到期的消息和附件每天自动删除，删除后无法恢复。",
     "No conversations yet": "还没有会话",
     "No matching conversations": "没有匹配的会话",
+    "No conversations awaiting reply": "没有待回复的会话",
     "No messages": "没有消息",
     "Remove image": "移除图片",
     "Reply to {{name}} (ID {{id}})": "回复 {{name}}（ID {{id}}）",
