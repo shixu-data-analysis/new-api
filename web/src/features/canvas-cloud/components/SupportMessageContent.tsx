@@ -73,6 +73,9 @@ function ImageAttachment(props: {
   const { t } = useTranslation()
   const url = useAttachmentUrl(props.attachment.url)
   const [open, setOpen] = useState(false)
+  // A thumbnail keeps the address it loaded from: a renewed address would download the same image again. One that has not
+  // loaded yet follows the renewals, and one that fails falls back to the newest.
+  const [loaded, setLoaded] = useState<string | null>(null)
   if (!url) {
     return (
       <span className='bg-muted text-muted-foreground inline-flex h-28 w-44 items-center justify-center rounded-lg text-xs'>
@@ -89,10 +92,12 @@ function ImageAttachment(props: {
         onClick={() => setOpen(true)}
       >
         <img
-          src={url}
+          src={loaded ?? url}
           alt=''
           loading='lazy'
           className='size-full object-cover'
+          onLoad={(event) => setLoaded(event.currentTarget.src)}
+          onError={() => setLoaded(null)}
         />
       </button>
       {open ? (

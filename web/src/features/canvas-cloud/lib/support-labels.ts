@@ -52,7 +52,7 @@ export function lastMessagePreview(
 }
 
 /** A time line goes before the first message and after each gap of five minutes or more, as in the customer's chat. */
-export const TIME_GROUP_GAP_MILLISECONDS = 5 * 60_000
+const TIME_GROUP_GAP_MILLISECONDS = 5 * 60_000
 
 export function startsTimeGroup(
   previous: CanvasAdminSupportMessage | undefined,

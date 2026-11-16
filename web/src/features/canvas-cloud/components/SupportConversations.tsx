@@ -30,7 +30,6 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
-import { cn } from '@/lib/utils'
 
 import {
   getCanvasAdminSupportConversations,
@@ -41,6 +40,7 @@ import {
 import { lastMessagePreview } from '../lib/support-labels'
 import type { CanvasAdminSupportConversation } from '../types'
 import { SupportFailureAlerts } from './SupportFailureAlerts'
+import { SUPPORT_SPLIT_LAYOUT, SupportListItem } from './SupportListItem'
 import { SupportSettingsDialog } from './SupportSettingsDialog'
 import { SupportThread } from './SupportThread'
 
@@ -164,6 +164,8 @@ export function SupportConversations(props: {
       props.conversationId !== undefined &&
       conversations.data !== undefined &&
       !onPage,
+    // It stands in for the list row, so it refreshes like the list (for 待回复 and 标记为已处理).
+    refetchInterval: refreshWhileVisible(REFRESH_MILLISECONDS),
   })
   const selected: CanvasAdminSupportConversation | null =
     onPage ??
@@ -292,7 +294,7 @@ export function SupportConversations(props: {
         </Card>
       ) : null}
       {showConversations ? (
-        <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
+        <div className={SUPPORT_SPLIT_LAYOUT}>
           <div className='min-w-0'>
             <Card className='gap-0 p-2'>
               {conversations.isPending ? (
@@ -322,46 +324,40 @@ export function SupportConversations(props: {
                 <ul className='grid gap-0.5' aria-label={t('Conversations')}>
                   {rows.map((row) => {
                     const name = row.customer.name ?? t('Customer')
-                    const isSelected = selected?.id === row.id
                     return (
-                      <li key={row.id}>
-                        <button
-                          type='button'
-                          aria-pressed={isSelected}
-                          className={cn(
-                            'grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-lg p-2.5 text-start',
-                            isSelected ? 'bg-muted/60' : 'hover:bg-muted/40'
-                          )}
-                          onClick={() => props.onConversationChange?.(row.id)}
-                        >
-                          <span className='flex min-w-0 flex-col gap-0.5'>
-                            <span className='flex items-baseline gap-1.5'>
-                              <span className='truncate font-semibold'>
-                                {name}
-                              </span>
-                              <span className='text-muted-foreground shrink-0 text-xs'>
-                                ID {row.customer.userId}
-                              </span>
+                      <SupportListItem
+                        key={row.id}
+                        selected={selected?.id === row.id}
+                        className='grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5'
+                        onClick={() => props.onConversationChange?.(row.id)}
+                      >
+                        <span className='flex min-w-0 flex-col gap-0.5'>
+                          <span className='flex items-baseline gap-1.5'>
+                            <span className='truncate font-semibold'>
+                              {name}
                             </span>
-                            <span className='text-muted-foreground truncate text-sm'>
-                              {lastMessagePreview(row.lastMessage, t)}
+                            <span className='text-muted-foreground shrink-0 text-xs'>
+                              ID {row.customer.userId}
                             </span>
                           </span>
-                          <span className='text-muted-foreground flex flex-col items-end gap-1 text-xs whitespace-nowrap'>
-                            {row.lastMessage ? (
-                              <span>{time(row.lastMessage.createdAt)}</span>
-                            ) : null}
-                            {row.pending ? (
-                              <Badge
-                                variant='outline'
-                                className='border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                              >
-                                {t('Awaiting reply')}
-                              </Badge>
-                            ) : null}
+                          <span className='text-muted-foreground truncate text-sm'>
+                            {lastMessagePreview(row.lastMessage, t)}
                           </span>
-                        </button>
-                      </li>
+                        </span>
+                        <span className='text-muted-foreground flex flex-col items-end gap-1 text-xs whitespace-nowrap'>
+                          {row.lastMessage ? (
+                            <span>{time(row.lastMessage.createdAt)}</span>
+                          ) : null}
+                          {row.pending ? (
+                            <Badge
+                              variant='outline'
+                              className='border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                            >
+                              {t('Awaiting reply')}
+                            </Badge>
+                          ) : null}
+                        </span>
+                      </SupportListItem>
                     )
                   })}
                 </ul>
@@ -388,7 +384,9 @@ export function SupportConversations(props: {
               />
             </div>
           ) : null}
-          {!selected && props.conversationId && linked.data ? (
+          {!selected &&
+          props.conversationId &&
+          (linked.data || linked.isError) ? (
             <Card className='p-4'>
               <p className='text-muted-foreground text-sm'>
                 {t('This conversation does not exist')}

@@ -20,8 +20,8 @@ import SparkMD5 from 'spark-md5'
 
 // Support reply images (SUPPORT-CHAT-001 spec 4.4): at most 10 MB before compression, sent as one WebP of at most 2048 px on
 // the long edge, declared to Cloud by size, SHA-256 and MD5 before the upload.
-export const SUPPORT_IMAGE_SOURCE_MAX_BYTES = 10 * 1024 * 1024
-export const SUPPORT_IMAGE_MAX_EDGE = 2048
+const SUPPORT_IMAGE_SOURCE_MAX_BYTES = 10 * 1024 * 1024
+const SUPPORT_IMAGE_MAX_EDGE = 2048
 export const SUPPORT_IMAGES_PER_SEND = 9
 const WEBP_QUALITY = 0.85
 

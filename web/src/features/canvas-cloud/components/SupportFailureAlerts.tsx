@@ -33,7 +33,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
-import { cn } from '@/lib/utils'
 
 import {
   dismissCanvasAdminSupportFailureAlerts,
@@ -41,6 +40,7 @@ import {
 } from '../api'
 import type { CanvasSupportFailureAlerts } from '../types'
 import { SupportFailureNoticeDialog } from './SupportFailureNoticeDialog'
+import { SUPPORT_SPLIT_LAYOUT, SupportListItem } from './SupportListItem'
 
 const NAMES_SHOWN = 3
 
@@ -113,7 +113,7 @@ export function SupportFailureAlerts(props: {
 
   if (!model) {
     return (
-      <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
+      <div className={SUPPORT_SPLIT_LAYOUT}>
         <Card className='gap-0 p-2'>
           <p className='text-muted-foreground p-3 text-sm' role='status'>
             {t('No open failure alerts')}
@@ -124,31 +124,24 @@ export function SupportFailureAlerts(props: {
   }
 
   return (
-    <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
+    <div className={SUPPORT_SPLIT_LAYOUT}>
       <Card className='gap-0 p-2'>
         <ul className='grid gap-0.5' aria-label={t('Failure alerts')}>
           {props.alerts.models.map((item) => (
-            <li key={item.modelKey}>
-              <button
-                type='button'
-                aria-pressed={item.modelKey === model.modelKey}
-                className={cn(
-                  'flex w-full min-w-0 flex-col gap-0.5 rounded-lg p-2.5 text-start',
-                  item.modelKey === model.modelKey
-                    ? 'bg-muted/60'
-                    : 'hover:bg-muted/40'
-                )}
-                onClick={() => {
-                  setModelKey(item.modelKey)
-                  setLeftOut(new Set())
-                }}
-              >
-                <span className='truncate font-semibold'>{item.modelName}</span>
-                <span className='text-muted-foreground truncate text-sm'>
-                  {customerNames(item, t)}
-                </span>
-              </button>
-            </li>
+            <SupportListItem
+              key={item.modelKey}
+              selected={item.modelKey === model.modelKey}
+              className='flex min-w-0 flex-col gap-0.5'
+              onClick={() => {
+                setModelKey(item.modelKey)
+                setLeftOut(new Set())
+              }}
+            >
+              <span className='truncate font-semibold'>{item.modelName}</span>
+              <span className='text-muted-foreground truncate text-sm'>
+                {customerNames(item, t)}
+              </span>
+            </SupportListItem>
           ))}
         </ul>
       </Card>
