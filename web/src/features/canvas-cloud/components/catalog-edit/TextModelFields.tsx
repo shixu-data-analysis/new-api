@@ -6,7 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Textarea } from '@/components/ui/textarea'
@@ -16,13 +16,27 @@ import { EditField, EditSection, SwitchField } from './EditFields'
 import type { SectionProps } from './ModelEditorSections'
 import { inputTiersIssue, reasoningIssue } from './text-model-fields'
 
+const shownJson = (value: unknown) =>
+  value === undefined ? '' : JSON.stringify(value, null, 2)
+const sameJson = (text: string, value: unknown) => {
+  try {
+    return (
+      JSON.stringify(text.trim() ? JSON.parse(text) : undefined) ===
+      JSON.stringify(value)
+    )
+  } catch {
+    return false
+  }
+}
+
 /**
  * A JSON field that keeps what is typed until it is valid: the draft changes only then, and the issue shows under the
- * box while typing. The editor collects the issue so publishing waits for a fix.
+ * box while typing. The editor collects the issue so publishing waits for a fix. A draft replaced from outside (filled
+ * from JSON, merged with a newer version) replaces the box and its issue; typing never does.
  */
-function JsonValueField(props: {
+export function JsonValueField(props: {
   label: string
-  help: string
+  help?: string
   value: unknown
   rows: number
   placeholder?: string
@@ -32,9 +46,20 @@ function JsonValueField(props: {
   onValid: (next: unknown) => void
   onIssue: (issue: string | undefined) => void
 }) {
-  const [text, setText] = useState(() =>
-    props.value === undefined ? '' : JSON.stringify(props.value, null, 2)
-  )
+  const [text, setText] = useState(() => shownJson(props.value))
+  const typed = useRef(text)
+  // Read through refs, so only a change of the value itself (by its serialized form) runs the effect.
+  const latest = useRef({ value: props.value, onIssue: props.onIssue })
+  latest.current = { value: props.value, onIssue: props.onIssue }
+  const value = JSON.stringify(props.value)
+  useEffect(() => {
+    // The value changed: by this box's own valid typing, which it already shows, or from outside, which replaces it.
+    if (sameJson(typed.current, latest.current.value)) return
+    const shown = shownJson(latest.current.value)
+    typed.current = shown
+    setText(shown)
+    latest.current.onIssue(undefined)
+  }, [value])
   const issue = props.issueOf(text)
   return (
     <EditField
@@ -54,6 +79,7 @@ function JsonValueField(props: {
           value={text}
           onChange={(event) => {
             const next = event.target.value
+            typed.current = next
             setText(next)
             const found = props.issueOf(next)
             props.onIssue(found || undefined)

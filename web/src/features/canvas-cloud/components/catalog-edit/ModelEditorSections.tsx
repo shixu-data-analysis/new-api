@@ -16,7 +16,6 @@ import { useTranslation } from 'react-i18next'
 import { StaticDataTable } from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { Textarea } from '@/components/ui/textarea'
 
 import type { Accepts } from '../../catalog-channel-draft'
 import {
@@ -42,7 +41,7 @@ import {
   ValueAdder,
   ValuePills,
 } from './EditFields'
-import { InputTiersField } from './TextModelFields'
+import { InputTiersField, JsonValueField } from './TextModelFields'
 
 const RATIO_ORDER = [
   '1:1',
@@ -1270,46 +1269,29 @@ export function ModelTokenSection(
         <InputTiersField {...props} onJsonIssue={props.onJsonIssue} />
       ) : null}
       {usageProtocol && cap !== 'chat.generate' ? (
-        <EditField
+        <JsonValueField
           label={t('Usage estimate (JSON)')}
-          wide
+          rows={10}
+          value={schema.usageEstimate}
           error={
             errorAt('usageEstimate') ??
             (!schema.usageEstimate && categories.length
               ? t('A Token-billed image or video model needs a usage estimate')
               : undefined)
           }
-        >
-          {(id) => (
-            <Textarea
-              id={id}
-              rows={10}
-              className='font-mono text-xs'
-              defaultValue={
-                schema.usageEstimate
-                  ? JSON.stringify(schema.usageEstimate, null, 2)
-                  : ''
-              }
-              onChange={(event) => {
-                const text = event.target.value.trim()
-                if (!text) {
-                  props.onJsonIssue('usageEstimate', undefined)
-                  set(['paramSchema', 'usageEstimate'], undefined)
-                  return
-                }
-                try {
-                  set(['paramSchema', 'usageEstimate'], JSON.parse(text))
-                  props.onJsonIssue('usageEstimate', undefined)
-                } catch {
-                  props.onJsonIssue(
-                    'usageEstimate',
-                    t('The usage estimate is not valid JSON')
-                  )
-                }
-              }}
-            />
-          )}
-        </EditField>
+          was={undefined}
+          issueOf={(text) => {
+            if (!text.trim()) return ''
+            try {
+              JSON.parse(text)
+              return ''
+            } catch {
+              return t('The usage estimate is not valid JSON')
+            }
+          }}
+          onValid={(next) => set(['paramSchema', 'usageEstimate'], next)}
+          onIssue={(issue) => props.onJsonIssue('usageEstimate', issue)}
+        />
       ) : null}
     </EditSection>
   )
