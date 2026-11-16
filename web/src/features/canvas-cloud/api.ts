@@ -2206,6 +2206,7 @@ export async function issueCanvasAdminSupportAttachment(request: {
     mimeType: 'image/webp' | 'image/png' | 'image/jpeg'
     sizeBytes: number
     sha256: string
+    md5: string
   }
   idempotencyKey: string
 }): Promise<CanvasSupportAttachmentIssued> {

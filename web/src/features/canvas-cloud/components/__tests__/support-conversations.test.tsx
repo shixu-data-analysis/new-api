@@ -25,6 +25,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
+import { attachmentDigests } from '../../lib/support-attachments'
 import {
   lastMessagePreview,
   startsTimeGroup,
@@ -200,6 +201,15 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       'href',
       save
     )
+  })
+
+  it('declares both digests of an upload, so the storage may check either', async () => {
+    const digests = await attachmentDigests(new Blob(['abc']))
+    expect(digests).toEqual({
+      sha256:
+        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      md5: '900150983cd24fb0d6963f7d28e17f72',
+    })
   })
 
   it('puts a time line before the first message and after a five-minute gap', () => {

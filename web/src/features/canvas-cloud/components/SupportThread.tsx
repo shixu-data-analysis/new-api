@@ -45,8 +45,8 @@ import {
   uploadCanvasSupportAttachment,
 } from '../api'
 import {
+  attachmentDigests,
   compressSupportImage,
-  sha256Hex,
   SUPPORT_IMAGES_PER_SEND,
   SupportImageError,
 } from '../lib/support-attachments'
@@ -184,7 +184,7 @@ export function SupportThread(props: {
             kind: 'IMAGE',
             mimeType: 'image/webp',
             sizeBytes: blob.size,
-            sha256: await sha256Hex(blob),
+            ...(await attachmentDigests(blob)),
           },
           idempotencyKey: crypto.randomUUID(),
         })
