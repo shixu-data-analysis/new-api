@@ -1137,7 +1137,13 @@ export function ModelParametersSection(props: SectionProps) {
 }
 
 const TOKEN_CATEGORIES: Record<CatalogCapability, string[]> = {
-  'chat.generate': ['input', 'output', 'cacheRead', 'cacheWrite'],
+  'chat.generate': [
+    'input',
+    'output',
+    'cacheRead',
+    'cacheWrite',
+    'cacheWrite1h',
+  ],
   'image.generate': [
     'input',
     'output',
@@ -1175,7 +1181,7 @@ export function ModelTokenSection(
   // What to price, by type: the rules of IMAGE-TOKEN-BILLING-001 and VIDEO-TOKEN-BILLING-001.
   const categoryGuide: Record<CatalogCapability, string> = {
     'chat.generate': t(
-      'Input and output are always priced. Add cache read and cache write when the API you call prices them apart.'
+      'Input and output are always priced. Add cache read and cache write when the API you call prices them apart. When it reports the 5-minute and 1-hour cache writes apart, add both cache writes; when it reports one cache write, add only cache write and every write is priced by it.'
     ),
     'image.generate': t(
       'Input and output are always priced. Add image input when the upstream prices input images apart; input then counts the text only.'

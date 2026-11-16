@@ -720,6 +720,7 @@ const specialRateLabelKey: Record<TokenRateKey, string> = {
   output: 'Special output token rate',
   cacheRead: 'Special cache-read token rate',
   cacheWrite: 'Special cache-write token rate',
+  cacheWrite1h: 'Special one-hour cache-write token rate',
   total: 'Special without-video-input token rate',
   totalWithVideoInput: 'Special with-video-input token rate',
 }

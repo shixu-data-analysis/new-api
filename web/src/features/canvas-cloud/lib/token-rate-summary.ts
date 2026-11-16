@@ -16,6 +16,7 @@ export const tokenCategoryLabel: Record<CanvasTokenCategory, string> = {
   output: 'Output',
   cacheRead: 'Cache read',
   cacheWrite: 'Cache write',
+  cacheWrite1h: 'Cache write (1 hour)',
   // A video's two totals are named by the video input wherever they show (VIDEO-TOKEN-BILLING-001).
   total: 'Without video input',
   totalWithVideoInput: 'With video input',
@@ -28,15 +29,18 @@ export const tokenCategoryOrder = Object.keys(
 
 /**
  * The translation key of a category among those a model is priced by: a model that prices image input apart calls its
- * text input "Text input" (IMAGE-TOKEN-BILLING-001).
+ * text input "Text input" (IMAGE-TOKEN-BILLING-001), and one that prices the one-hour cache write apart calls its other
+ * cache write the 5-minute one (Cloud rules 4).
  */
 export function tokenCategoryLabelKey(
   category: CanvasTokenCategory,
   priced: readonly string[]
 ): string {
-  return isTextInput(category, priced)
-    ? 'Text input'
-    : tokenCategoryLabel[category]
+  if (isTextInput(category, priced)) return 'Text input'
+  if (category === 'cacheWrite' && priced.includes('cacheWrite1h')) {
+    return 'Cache write (5 minutes)'
+  }
+  return tokenCategoryLabel[category]
 }
 
 /** Whether a category is the text input of a model that prices image input apart, and is named so. */

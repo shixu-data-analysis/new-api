@@ -268,7 +268,8 @@ const CONVERSATION_PROTOCOL_NAMES = CONVERSATION_PROTOCOLS.join(" or ");
 // that reports one count only, which is a video task so far (VIDEO-TOKEN-BILLING-001).
 const VIDEO_TOKEN_USAGE_CATEGORIES = ["total", "totalWithVideoInput"];
 const TEXT_TOKEN_USAGE_CATEGORIES = TOKEN_USAGE_CATEGORIES.filter((category) => category !== "imageInput" && !VIDEO_TOKEN_USAGE_CATEGORIES.includes(category));
-const IMAGE_TOKEN_USAGE_CATEGORIES = TOKEN_USAGE_CATEGORIES.filter((category) => !VIDEO_TOKEN_USAGE_CATEGORIES.includes(category));
+// Only text upstreams report the one-hour cache write apart so far.
+const IMAGE_TOKEN_USAGE_CATEGORIES = TOKEN_USAGE_CATEGORIES.filter((category) => category !== "cacheWrite1h" && !VIDEO_TOKEN_USAGE_CATEGORIES.includes(category));
 // An image model billed by Token declares its categories and how the shared estimator predicts its usage; both or
 // neither, since Cloud offers MILLION_TOKENS only when it can hold and settle the request.
 const IMAGE_TOKEN_PARAM_SCHEMA_FIELDS = ["tokenUsageCategories", "usageEstimate"];
@@ -344,7 +345,8 @@ function validateTextParamSchema(schema, location) {
     if (!Number.isSafeInteger(schema.minOutputTokens) || schema.minOutputTokens < 1) fail(`${location}.minOutputTokens must be a positive integer`);
     if (schema.minOutputTokens > schema.maxTokens) fail(`${location}.minOutputTokens must not exceed maxTokens`);
   }
-  validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
+  const textCategories = validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
+  if (textCategories.includes("cacheWrite1h") && !textCategories.includes("cacheWrite")) fail(`${location}.tokenUsageCategories must list cacheWrite with cacheWrite1h, the 5-minute write`);
   if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
   if (schema.reasoning !== undefined) validateReasoning(object(schema.reasoning, `${location}.reasoning`), `${location}.reasoning`);
 }

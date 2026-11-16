@@ -1,5 +1,5 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.13.1";
+export const REQUEST_VALIDATOR_VERSION = "1.14.0";
 export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7220892a5fd6ed760563e63a786d99f72ff9332c982ae0f16e214a1b0d9078c1";
 
 export const CatalogRequestIssueCode = Object.freeze({
@@ -463,7 +463,9 @@ export function conversationProtocolOf(profile) {
 // implements these generic methods and never infers a model's numbers from its name.
 // total and totalWithVideoInput are the whole usage of an upstream that reports only one count and prices it by whether
 // the request has a video input (a Seedance video task, VIDEO-TOKEN-BILLING-001): a request bills one of them.
-export const TOKEN_USAGE_CATEGORIES = Object.freeze(["input", "output", "cacheRead", "cacheWrite", "imageInput", "total", "totalWithVideoInput"]);
+// cacheWrite1h is the one-hour cache write of an upstream that reports the 5-minute and 1-hour writes apart (Claude); a
+// model that lists it bills cacheWrite as the 5-minute write, and one that does not bills every write as cacheWrite.
+export const TOKEN_USAGE_CATEGORIES = Object.freeze(["input", "output", "cacheRead", "cacheWrite", "cacheWrite1h", "imageInput", "total", "totalWithVideoInput"]);
 export const PROMPT_TOKENIZERS = Object.freeze(["openai", "claude", "gemini"]);
 export const IMAGE_OUTPUT_ESTIMATE_METHODS = Object.freeze(["openai-image-grid", "lookup-table"]);
 export const IMAGE_REFERENCE_ESTIMATE_METHODS = Object.freeze(["per-input-image"]);

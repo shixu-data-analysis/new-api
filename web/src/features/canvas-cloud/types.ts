@@ -433,6 +433,7 @@ export interface CanvasAgentModelUsageRow {
     outputTokens: string | null
     cacheReadTokens: string | null
     cacheWriteTokens: string | null
+    cacheWrite1hTokens: string | null
     imageInputTokens: string | null
     totalTokens: string | null
     totalWithVideoInputTokens: string | null
@@ -591,6 +592,7 @@ export type CanvasTokenCategory =
   | 'output'
   | 'cacheRead'
   | 'cacheWrite'
+  | 'cacheWrite1h'
   | 'imageInput'
   | 'total'
   | 'totalWithVideoInput'
@@ -601,6 +603,7 @@ export type CanvasModelPricingTokenRateVector = {
   output?: string
   cacheRead?: string
   cacheWrite?: string
+  cacheWrite1h?: string
   imageInput?: string
   total?: string
   totalWithVideoInput?: string

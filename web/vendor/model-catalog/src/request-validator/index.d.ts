@@ -71,7 +71,7 @@ export declare function idempotencyHeaderIssue(value: unknown, workflow: unknown
 export type ConversationProtocol = "OPENAI_CHAT";
 export declare const CONVERSATION_PROTOCOLS: readonly ConversationProtocol[];
 export declare function conversationProtocolOf(profile: unknown): ConversationProtocol | null;
-export type TokenUsageCategory = "input" | "output" | "cacheRead" | "cacheWrite" | "imageInput" | "total" | "totalWithVideoInput";
+export type TokenUsageCategory = "input" | "output" | "cacheRead" | "cacheWrite" | "cacheWrite1h" | "imageInput" | "total" | "totalWithVideoInput";
 export type PromptTokenizer = "openai" | "claude" | "gemini";
 export declare const TOKEN_USAGE_CATEGORIES: readonly TokenUsageCategory[];
 export declare const PROMPT_TOKENIZERS: readonly PromptTokenizer[];

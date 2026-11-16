@@ -36,6 +36,19 @@ describe('Token-billed image prices on cards (IMAGE-TOKEN-BILLING-001)', () => {
     expect(tokenCategoryLabelKey('input', ['input', 'output'])).toBe('Input')
   })
 
+  it('names the cache write the 5-minute one only beside the one-hour write', () => {
+    const split = ['input', 'output', 'cacheWrite', 'cacheWrite1h']
+    expect(tokenCategoryLabelKey('cacheWrite', split)).toBe(
+      'Cache write (5 minutes)'
+    )
+    expect(tokenCategoryLabelKey('cacheWrite1h', split)).toBe(
+      'Cache write (1 hour)'
+    )
+    expect(
+      tokenCategoryLabelKey('cacheWrite', ['input', 'output', 'cacheWrite'])
+    ).toBe('Cache write')
+  })
+
   it('shows one block without a spec name when every spec bills the same', () => {
     expect(oneTokenPrice([spec('1K'), spec('2K'), spec('4K')])).toEqual([
       { ...spec('1K'), parameters: {} },

@@ -45,6 +45,7 @@ const usageFields: Record<
   output: 'outputTokens',
   cacheRead: 'cacheReadTokens',
   cacheWrite: 'cacheWriteTokens',
+  cacheWrite1h: 'cacheWrite1hTokens',
   total: 'totalTokens',
   totalWithVideoInput: 'totalWithVideoInputTokens',
 }
