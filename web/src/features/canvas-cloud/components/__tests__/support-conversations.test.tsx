@@ -509,8 +509,9 @@ describe('SUPPORT-CHAT-001 失败提醒', () => {
     )
     const send = await screen.findByRole('button', { name: 'Send' })
     expect(send).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Quick replies' }))
     fireEvent.click(
-      screen.getByRole('button', { name: '原因已经查明并修复。' })
+      await screen.findByRole('menuitem', { name: '原因已经查明并修复。' })
     )
     expect(
       screen.getByText('关于「Seedance 2.0」：原因已经查明并修复。')

@@ -34,6 +34,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
 import { notifyCanvasAdminSupportFailureAlerts, supportQueryKeys } from '../api'
+import { SupportQuickReplyMenu } from './SupportQuickReplyMenu'
 
 // The customer reads the model's name before the text; Cloud adds it and keeps the whole notice within 2000 characters.
 const NOTICE_MAX = 1800
@@ -96,32 +97,17 @@ export function SupportFailureNoticeDialog(props: {
             if (trimmed) notify.mutate()
           }}
         >
-          {props.quickReplies.length > 0 ? (
-            <div className='space-y-2'>
-              <span className='text-sm font-medium' id={`${id}-quick`}>
-                {t('Quick replies')}
-              </span>
-              <div
-                className='grid gap-1.5'
-                role='group'
-                aria-labelledby={`${id}-quick`}
-              >
-                {props.quickReplies.map((reply) => (
-                  <Button
-                    key={reply}
-                    type='button'
-                    variant='outline'
-                    className='h-auto justify-start py-2 text-start whitespace-normal'
-                    onClick={() => setText(reply)}
-                  >
-                    {reply}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           <div className='space-y-2'>
-            <Label htmlFor={`${id}-text`}>{t('Notice')}</Label>
+            <div className='flex items-center justify-between gap-2'>
+              <Label htmlFor={`${id}-text`}>{t('Notice')}</Label>
+              <SupportQuickReplyMenu
+                replies={{
+                  conversation: [],
+                  failureNotice: props.quickReplies,
+                }}
+                onPick={setText}
+              />
+            </div>
             <Textarea
               id={`${id}-text`}
               className='min-h-24'

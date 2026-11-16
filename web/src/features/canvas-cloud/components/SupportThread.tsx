@@ -17,18 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { t as translate } from 'i18next'
-import {
-  BellRing,
-  Download,
-  ExternalLink,
-  FileText,
-  ImagePlus,
-  X,
-} from 'lucide-react'
+import { BellRing, ImagePlus, X } from 'lucide-react'
 import {
   Fragment,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -41,18 +32,15 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorCode } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
-  getCanvasAdminSupportMessages,
   issueCanvasAdminSupportAttachment,
   markCanvasAdminSupportHandled,
   replyCanvasAdminSupportConversation,
-  resolveCanvasSupportAttachmentUrl,
   supportQueryKeys,
   uploadCanvasSupportAttachment,
 } from '../api'
@@ -66,277 +54,13 @@ import { startsTimeGroup, supportTimeLabel } from '../lib/support-labels'
 import type {
   CanvasAdminSupportConversation,
   CanvasAdminSupportMessage,
-  CanvasSupportAttachment,
   CanvasSupportQuickReplies,
 } from '../types'
+import { useSupportMessages } from '../use-support-messages'
+import { MessageContent } from './SupportMessageContent'
 import { SupportQuickReplyMenu } from './SupportQuickReplyMenu'
 
-const POLL_MILLISECONDS = 10_000
-const PAGE = 50
 const TEXT_MAX = 2000
-
-/**
- * One conversation's messages, oldest first: the newest page on open, new messages polled after the last sequence number,
- * and earlier pages on request. A response for another conversation (the selection changed meanwhile) is dropped.
- */
-function useSupportMessages(conversationId: string) {
-  const [messages, setMessages] = useState<CanvasAdminSupportMessage[]>([])
-  const [hasEarlier, setHasEarlier] = useState(false)
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [loadingEarlier, setLoadingEarlier] = useState(false)
-  const lastSeq = useRef(0)
-  const current = useRef(conversationId)
-  current.current = conversationId
-
-  const merge = useCallback(
-    (incoming: CanvasAdminSupportMessage[], where: 'start' | 'end') => {
-      setMessages((previous) => {
-        const known = new Set(previous.map((message) => message.seq))
-        const fresh = incoming.filter((message) => !known.has(message.seq))
-        // An empty poll keeps the same list, so the thread neither renders again nor moves.
-        if (fresh.length === 0) return previous
-        const next =
-          where === 'end' ? [...previous, ...fresh] : [...fresh, ...previous]
-        lastSeq.current = Math.max(
-          lastSeq.current,
-          ...next.map((message) => message.seq)
-        )
-        return next
-      })
-    },
-    []
-  )
-
-  const poll = useCallback(async () => {
-    const id = conversationId
-    try {
-      const page = await getCanvasAdminSupportMessages(id, {
-        after: lastSeq.current,
-        limit: 100,
-      })
-      if (current.current === id) merge(page.messages, 'end')
-    } catch {
-      // A failed poll keeps the thread as it is; the next one tries again.
-    }
-  }, [conversationId, merge])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    lastSeq.current = 0
-    setMessages([])
-    setState('loading')
-    getCanvasAdminSupportMessages(
-      conversationId,
-      { limit: PAGE },
-      controller.signal
-    )
-      .then((page) => {
-        merge(page.messages, 'end')
-        setHasEarlier(page.hasEarlier)
-        setState('ready')
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setState('error')
-      })
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void poll()
-    }, POLL_MILLISECONDS)
-    return () => {
-      controller.abort()
-      window.clearInterval(timer)
-    }
-  }, [conversationId, merge, poll])
-
-  const loadEarlier = async () => {
-    const id = conversationId
-    const first = messages[0]?.seq
-    if (!first) return
-    setLoadingEarlier(true)
-    try {
-      const page = await getCanvasAdminSupportMessages(id, {
-        before: first,
-        limit: PAGE,
-      })
-      if (current.current !== id) return
-      merge(page.messages, 'start')
-      setHasEarlier(page.hasEarlier)
-    } catch {
-      toast.error(translate('Unable to load earlier messages'))
-    } finally {
-      setLoadingEarlier(false)
-    }
-  }
-
-  return {
-    messages,
-    hasEarlier,
-    state,
-    loadingEarlier,
-    loadEarlier,
-    append: (sent: CanvasAdminSupportMessage[]) => merge(sent, 'end'),
-  }
-}
-
-/** Storage addresses open as they are; a local Mock path is read with credentials into a blob address. */
-function useAttachmentUrl(url: string | null) {
-  const [resolved, setResolved] = useState<string | null>(
-    url && !url.startsWith('/v1/') ? url : null
-  )
-  useEffect(() => {
-    if (!url || !url.startsWith('/v1/')) {
-      setResolved(url)
-      return
-    }
-    let revoked = false
-    let blobUrl: string | null = null
-    resolveCanvasSupportAttachmentUrl(url)
-      .then((value) => {
-        blobUrl = value
-        if (!revoked) setResolved(value)
-      })
-      .catch(() => setResolved(null))
-    return () => {
-      revoked = true
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
-    }
-  }, [url])
-  return resolved
-}
-
-function ImageAttachment(props: {
-  attachment: CanvasSupportAttachment
-  label: string
-}) {
-  const { t } = useTranslation()
-  const url = useAttachmentUrl(props.attachment.url)
-  const [open, setOpen] = useState(false)
-  if (!url) {
-    return (
-      <span className='bg-muted text-muted-foreground inline-flex h-28 w-44 items-center justify-center rounded-lg text-xs'>
-        {t('Image unavailable')}
-      </span>
-    )
-  }
-  return (
-    <>
-      <button
-        type='button'
-        className='block h-28 w-44 cursor-zoom-in overflow-hidden rounded-lg border'
-        aria-label={t('View image')}
-        onClick={() => setOpen(true)}
-      >
-        <img
-          src={url}
-          alt=''
-          loading='lazy'
-          className='size-full object-cover'
-        />
-      </button>
-      {open ? (
-        <Dialog open onOpenChange={setOpen}>
-          <DialogContent className='max-w-[min(90vw,64rem)] p-3'>
-            <DialogTitle className='sr-only'>{props.label}</DialogTitle>
-            <img
-              src={url}
-              alt={props.label}
-              className='max-h-[75vh] w-full rounded-md object-contain'
-            />
-            <div className='flex flex-wrap justify-end gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                render={
-                  <a href={url} target='_blank' rel='noopener noreferrer' />
-                }
-              >
-                <ExternalLink aria-hidden='true' />
-                {t('Open in new tab')}
-              </Button>
-              <Button
-                variant='outline'
-                size='sm'
-                render={<a href={url} download='' />}
-              >
-                <Download aria-hidden='true' />
-                {t('Download')}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </>
-  )
-}
-
-function LogAttachment(props: { attachment: CanvasSupportAttachment }) {
-  const { t, i18n } = useTranslation()
-  const url = useAttachmentUrl(props.attachment.url)
-  const size = new Intl.NumberFormat(toIntlLocale(i18n.language), {
-    style: 'unit',
-    unit: 'kilobyte',
-    maximumFractionDigits: 0,
-  }).format(Math.max(1, props.attachment.sizeBytes / 1024))
-  return (
-    <div className='bg-card flex w-72 items-center gap-3 rounded-xl border px-3 py-2.5'>
-      <span className='bg-muted grid size-9 shrink-0 place-items-center rounded-lg'>
-        <FileText className='size-4' aria-hidden='true' />
-      </span>
-      <span className='flex min-w-0 flex-1 flex-col'>
-        <span className='text-sm font-medium'>{t('Diagnostic log')}</span>
-        <span className='text-muted-foreground text-xs'>{size}</span>
-      </span>
-      {url ? (
-        <span className='flex gap-3 text-sm'>
-          <a
-            className='text-primary underline underline-offset-4'
-            href={url}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            {t('View')}
-          </a>
-          <a
-            className='text-primary underline underline-offset-4'
-            href={url}
-            download=''
-          >
-            {t('Download')}
-          </a>
-        </span>
-      ) : (
-        <span className='text-muted-foreground text-xs'>
-          {t('Unavailable')}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function MessageContent(props: {
-  message: CanvasAdminSupportMessage
-  mine: boolean
-}) {
-  const { t } = useTranslation()
-  const { attachment } = props.message
-  if (attachment?.kind === 'IMAGE') {
-    return <ImageAttachment attachment={attachment} label={t('Image')} />
-  }
-  if (attachment?.kind === 'LOG') {
-    return <LogAttachment attachment={attachment} />
-  }
-  return (
-    <div
-      className={cn(
-        'max-w-[28rem] rounded-2xl px-3 py-2 text-sm break-words whitespace-pre-wrap',
-        props.mine
-          ? 'bg-primary text-primary-foreground rounded-tr-sm'
-          : 'bg-muted rounded-tl-sm'
-      )}
-    >
-      {props.message.text}
-    </div>
-  )
-}
 
 function Bubble(props: {
   message: CanvasAdminSupportMessage
