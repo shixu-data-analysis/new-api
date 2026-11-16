@@ -8,23 +8,30 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it } from 'vitest'
 
-import {
-  monitoringDeterminedCount,
-  monitoringRateTone,
-} from '../model-monitoring-overview'
+import { monitoringCellTone } from '../model-monitoring-overview'
 
-describe('model monitoring success-rate color', () => {
+const thresholds = { watchRate: 0.1, badRate: 0.3 }
+const stats = (failed: number, pending: number, determined: number) => ({
+  failed,
+  pending,
+  determined,
+  failureRate: determined ? (failed + pending) / determined : null,
+})
+
+describe('model monitoring interval color', () => {
   it.each([
-    [{ succeeded: 0, failed: 0 }, 'none'],
-    [{ succeeded: 1, failed: 0 }, 'good'],
-    [{ succeeded: 9, failed: 1 }, 'good'],
-    [{ succeeded: 7, failed: 3 }, 'watch'],
-    [{ succeeded: 8995, failed: 1005 }, 'watch'],
-    [{ succeeded: 6, failed: 4 }, 'bad'],
-  ] as const)('uses raw counts for %j, yielding %s', (stats, expected) => {
-    expect(monitoringRateTone(stats)).toBe(expected)
-    expect(monitoringDeterminedCount(stats)).toBe(
-      stats.succeeded + stats.failed
-    )
-  })
+    [stats(0, 0, 0), 'none'],
+    [stats(0, 0, 10), 'ok'],
+    [stats(1, 0, 11), 'ok'],
+    [stats(1, 0, 10), 'watch'],
+    [stats(2, 0, 10), 'watch'],
+    [stats(3, 0, 10), 'bad'],
+    [stats(1, 2, 10), 'pending'],
+    [stats(2, 2, 10), 'bad'],
+  ] as const)(
+    'colors %j as %s with the server thresholds',
+    (value, expected) => {
+      expect(monitoringCellTone(value, thresholds)).toBe(expected)
+    }
+  )
 })

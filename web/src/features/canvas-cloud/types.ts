@@ -1933,27 +1933,21 @@ export interface CanvasAdminTaskLogQuery {
   pageSize: 10 | 20 | 30 | 40 | 50 | 100
 }
 
-export type CanvasModelMonitoringWindow =
-  | 'hour'
-  | 'day'
-  | 'week'
-  | 'month'
-  | 'custom'
-  | 'round'
+export type CanvasModelMonitoringWindow = 'hour' | 'day' | 'week' | 'custom'
 
+/** Pending: unknown results and successes released after the timeout; failures = failed + pending. */
 export interface CanvasModelMonitoringStats {
   succeeded: number
   failed: number
-  unknown: number
+  pending: number
   processing: number
-  resultCount: number
-  sampleCount: number
-  successRate: number | null
+  determined: number
+  failures: number
+  failureRate: number | null
 }
 
 export interface CanvasModelMonitoringOverviewQuery {
   window: CanvasModelMonitoringWindow
-  origin: 'REAL' | 'MOCK'
   from?: string
   to?: string
   capability?: string
@@ -1963,17 +1957,38 @@ export interface CanvasModelMonitoringOverviewQuery {
   search?: string
   page: number
   pageSize: 5 | 10 | 20 | 30 | 40 | 50 | 100
+  sortBy: 'failures' | 'failureRate' | 'name'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type CanvasModelHealthStatus = 'off' | 'thin' | 'bad' | 'watch' | 'ok'
+
+export interface CanvasModelMonitoringThresholds {
+  watchRate: number
+  badRate: number
+  minDetermined: number
 }
 
 export interface CanvasModelMonitoringOverview {
   window: CanvasModelMonitoringWindow
-  origin: 'REAL' | 'MOCK'
   from: string
   to: string
   bucketSeconds: number
   page: number
   pageSize: number
   total: number
+  thresholds: CanvasModelMonitoringThresholds
+  /** Over every filtered model, not only the page. */
+  totals: {
+    models: number
+    bad: number
+    watch: number
+    determined: number
+    failed: number
+    pending: number
+    pendingFrozen: number
+    pendingUnqueryable: number
+  }
   capabilities: Array<{ value: string; count: number }>
   providers: Array<{ id: string; name: string; count: number }>
   preTagTotal: number
@@ -1983,13 +1998,39 @@ export interface CanvasModelMonitoringOverview {
     modelKey: string
     effectiveDisplayName: string
     catalogDefaultName: string
+    upstreamModelIds: string[]
     capability: string | null
     provider: { id: string; name: string }
     tags: CanvasModelTag[]
     manualEnabled: boolean
     controlVersion: number
+    health: {
+      status: CanvasModelHealthStatus
+      trigger: 'rate' | 'lastBucket' | null
+    }
     summary: CanvasModelMonitoringStats
     trend: Array<CanvasModelMonitoringStats & { from: string; to: string }>
+  }>
+}
+
+export interface CanvasModelMonitoringFailures {
+  modelKey: string
+  from: string
+  to: string
+  causes: Array<{ errorCode: string | null; count: number }>
+  pending: {
+    queryable: number
+    unqueryable: number
+    releasedTimeout: number
+    releasedByAdmin: number
+    lateSuccess: number
+  }
+  versions: Array<{
+    version: number
+    effectiveAt: string
+    source: string
+    upstreamModelIds: string[]
+    upstreamChanged: boolean
   }>
 }
 

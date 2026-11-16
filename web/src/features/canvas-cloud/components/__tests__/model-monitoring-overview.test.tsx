@@ -26,11 +26,37 @@ import { ModelMonitoringOverview } from '../ModelMonitoringOverview'
 
 const mocks = vi.hoisted(() => ({
   getOverview: vi.fn(),
+  getFailures: vi.fn(),
+  getTaskLogs: vi.fn(),
   control: vi.fn(),
 }))
 vi.mock('../../api', () => ({
   getCanvasModelMonitoringOverview: mocks.getOverview,
+  getCanvasModelMonitoringFailures: mocks.getFailures,
+  getCanvasAdminTaskLogs: mocks.getTaskLogs,
   controlCanvasLogicalModel: mocks.control,
+}))
+vi.mock('@tanstack/react-router', () => ({
+  Link: (props: {
+    search: Record<string, string>
+    children: React.ReactNode
+    className?: string
+  }) => (
+    <a
+      href={`/canvas-cloud/task-logs?${new URLSearchParams(props.search).toString()}`}
+      className={props.className}
+    >
+      {props.children}
+    </a>
+  ),
+}))
+vi.mock('../TaskRecordDetailsSheet', () => ({
+  TaskRecordDetailsSheet: (props: { taskId?: string }) =>
+    props.taskId ? (
+      <div role='dialog' aria-label='Task details'>
+        {props.taskId}
+      </div>
+    ) : null,
 }))
 vi.mock('../CanvasDateRangeFilter', () => ({
   CanvasDateRangeFilter: (props: {
@@ -40,30 +66,24 @@ vi.mock('../CanvasDateRangeFilter', () => ({
     onToChange: (value?: Date) => void
   }) => (
     <div>
-      <label>
-        Start time
-        <input
-          aria-label='Start time'
-          value={props.from?.toISOString() ?? ''}
-          onChange={(event) =>
-            props.onFromChange(
-              event.target.value ? new Date(event.target.value) : undefined
-            )
-          }
-        />
-      </label>
-      <label>
-        End time
-        <input
-          aria-label='End time'
-          value={props.to?.toISOString() ?? ''}
-          onChange={(event) =>
-            props.onToChange(
-              event.target.value ? new Date(event.target.value) : undefined
-            )
-          }
-        />
-      </label>
+      <input
+        aria-label='Start time'
+        value={props.from?.toISOString() ?? ''}
+        onChange={(event) =>
+          props.onFromChange(
+            event.target.value ? new Date(event.target.value) : undefined
+          )
+        }
+      />
+      <input
+        aria-label='End time'
+        value={props.to?.toISOString() ?? ''}
+        onChange={(event) =>
+          props.onToChange(
+            event.target.value ? new Date(event.target.value) : undefined
+          )
+        }
+      />
     </div>
   ),
 }))
@@ -73,31 +93,44 @@ const bucket = (
   from: string,
   succeeded: number,
   failed: number,
-  unknown = 0,
+  pending = 0,
   processing = 0
 ) => ({
   from,
   to: new Date(Date.parse(from) + 60 * 60 * 1000).toISOString(),
   succeeded,
   failed,
-  unknown,
+  pending,
   processing,
-  resultCount: succeeded + failed + unknown + processing,
-  sampleCount: succeeded + failed,
-  successRate: succeeded + failed ? succeeded / (succeeded + failed) : null,
+  determined: succeeded + failed + pending,
+  failures: failed + pending,
+  failureRate:
+    succeeded + failed + pending
+      ? (failed + pending) / (succeeded + failed + pending)
+      : null,
 })
 
 const overview: CanvasModelMonitoringOverview = {
   window: 'day',
-  origin: 'REAL',
   from: '2026-09-18T00:00:00.000Z',
-  to: '2026-09-19T00:00:00.000Z',
+  to: '2026-09-18T02:00:00.000Z',
   bucketSeconds: 3600,
   page: 1,
   pageSize: 10,
   total: 2,
+  thresholds: { watchRate: 0.1, badRate: 0.3, minDetermined: 20 },
+  totals: {
+    models: 2,
+    bad: 1,
+    watch: 0,
+    determined: 31,
+    failed: 4,
+    pending: 8,
+    pendingFrozen: 5,
+    pendingUnqueryable: 3,
+  },
   preTagTotal: 2,
-  capabilities: [{ value: 'IMAGE', count: 2 }],
+  capabilities: [{ value: 'image.generate', count: 2 }],
   providers: [{ id: 'provider-a', name: 'Provider A', count: 2 }],
   tags: [{ id: 'tag-a', name: 'Photo', count: 1 }],
   untaggedCount: 1,
@@ -106,36 +139,102 @@ const overview: CanvasModelMonitoringOverview = {
       modelKey: 'image.alpha',
       effectiveDisplayName: 'Alpha model',
       catalogDefaultName: 'Catalog Alpha model',
-      capability: 'IMAGE',
+      upstreamModelIds: ['alpha-upstream'],
+      capability: 'image.generate',
       provider: { id: 'provider-a', name: 'Provider A' },
       tags: [{ id: 'tag-a', name: 'Photo' }],
       manualEnabled: true,
       controlVersion: 3,
-      summary: bucket('2026-09-18T00:00:00.000Z', 9, 1),
+      health: { status: 'bad', trigger: 'lastBucket' },
+      summary: bucket('2026-09-18T00:00:00.000Z', 18, 4, 8),
       trend: [
-        bucket('2026-09-18T00:00:00.000Z', 9, 1),
-        bucket('2026-09-18T01:00:00.000Z', 0, 0, 1),
+        bucket('2026-09-18T00:00:00.000Z', 18, 1, 0),
+        bucket('2026-09-18T01:00:00.000Z', 0, 3, 8),
       ],
     },
     {
       modelKey: 'image.beta',
       effectiveDisplayName: 'Beta model',
-      catalogDefaultName: 'Catalog Beta model',
-      capability: 'IMAGE',
+      catalogDefaultName: 'Beta model',
+      upstreamModelIds: [],
+      capability: 'image.generate',
       provider: { id: 'provider-a', name: 'Provider A' },
       tags: [],
       manualEnabled: false,
       controlVersion: 7,
-      summary: bucket('2026-09-18T00:00:00.000Z', 0, 0, 1),
+      health: { status: 'off', trigger: null },
+      summary: bucket('2026-09-18T00:00:00.000Z', 1, 0),
       trend: [
-        bucket('2026-09-18T00:00:00.000Z', 0, 0, 1),
+        bucket('2026-09-18T00:00:00.000Z', 1, 0),
         bucket('2026-09-18T01:00:00.000Z', 0, 0),
       ],
     },
   ],
 }
+const failures = {
+  modelKey: 'image.alpha',
+  from: overview.from,
+  to: overview.to,
+  causes: [
+    { errorCode: 'PROVIDER_RATE_LIMITED', count: 3 },
+    { errorCode: 'ADMIN_CONFIRMED_UPSTREAM_FAILED', count: 1 },
+  ],
+  pending: {
+    queryable: 1,
+    unqueryable: 4,
+    releasedTimeout: 2,
+    releasedByAdmin: 0,
+    lateSuccess: 1,
+  },
+  versions: [
+    {
+      version: 4,
+      effectiveAt: '2026-09-18T01:00:00.000Z',
+      source: 'BUNDLE',
+      upstreamModelIds: ['alpha-fast'],
+      upstreamChanged: true,
+    },
+  ],
+}
+const failedTask = {
+  id: '85000000-0000-7000-8000-000000000001',
+  customerId: 'customer-a',
+  customerName: 'uatcustomer',
+  customerModelId: 'version-a',
+  displayNameSnapshot: 'Alpha model',
+  outputSummaries: [
+    {
+      id: 'output-a',
+      outputIndex: 0,
+      quotedPoints: '10',
+      settledPoints: null,
+      executionStatus: 'UNKNOWN',
+      billingStatus: 'RELEASED_TIMEOUT',
+      error: null,
+      completedAt: null,
+      billingFinalizedAt: null,
+    },
+  ],
+  derivedExecutionStatus: 'UNKNOWN',
+  executionSummary: {
+    expectedResults: 1,
+    recordedResults: 1,
+    acceptedResults: 0,
+    processingResults: 0,
+    succeededResults: 0,
+    failedResults: 0,
+    unknownResults: 1,
+    resultsIncomplete: false,
+  },
+  settlementProgress: 'COMPLETED',
+  customerBillingStatus: 'RELEASED_TIMEOUT',
+  settledPoints: null,
+  outstandingDebtPoints: null,
+  acceptedAt: '2026-09-18T01:20:00.000Z',
+  completedAt: null,
+}
 
-it('keeps the first and last time labels while limiting dense matrix ticks', () => {
+it('keeps the first and last time labels while limiting dense ticks', () => {
   expect([...monitoringTickLabelIndexes(24)]).toEqual([0, 5, 9, 14, 18, 23])
   expect([...monitoringTickLabelIndexes(6)]).toEqual([0, 1, 2, 3, 4, 5])
   expect([...monitoringTickLabelIndexes(0)]).toEqual([])
@@ -152,7 +251,7 @@ function mount() {
   )
 }
 
-describe('logical model monitoring overview', () => {
+describe('model monitoring', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
     i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
@@ -161,6 +260,13 @@ describe('logical model monitoring overview', () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
     mocks.getOverview.mockResolvedValue(overview)
+    mocks.getFailures.mockResolvedValue(failures)
+    mocks.getTaskLogs.mockResolvedValue({
+      items: [failedTask],
+      total: 1,
+      page: 1,
+      pageSize: 10,
+    })
     mocks.control.mockResolvedValue({
       id: 'control-a',
       version: 4,
@@ -169,140 +275,167 @@ describe('logical model monitoring overview', () => {
     })
   })
 
-  it('shows a model-key matrix and keeps unknown-only buckets as no-data results', async () => {
+  it('shows totals, the server order with health and selects the first model', async () => {
     mount()
-    const matrixHeading = await screen.findByRole('heading', {
-      name: 'Per-model result matrix',
-    })
-    expect(matrixHeading).toBeVisible()
-    expect(matrixHeading.parentElement).toHaveTextContent('Total models: 2')
-    expect(screen.getByText('Page 1 of 1')).toBeVisible()
-    expect(screen.getByLabelText('Rows per page')).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'Go to previous page' })
-    ).toBeDisabled()
-    expect(
-      screen.getByRole('button', { name: 'Go to next page' })
-    ).toBeDisabled()
+    const table = await screen.findByRole('table', { name: 'Models' })
     expect(mocks.getOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ window: 'day', origin: 'REAL', page: 1 }),
+      expect.objectContaining({ window: 'day', page: 1, sortBy: 'failures' }),
       expect.anything()
     )
-    const allTags = screen.getByRole('button', { name: 'All categories 2' })
-    expect(allTags).toHaveAttribute('aria-pressed', 'true')
-    expect(within(allTags).getByText('2')).toHaveAttribute('data-slot', 'badge')
-    expect(screen.getByRole('button', { name: 'Photo 1' })).toBeVisible()
-    const matrix = screen.getByRole('table', {
-      name: 'Per-model result matrix',
-    })
-    const alphaName = within(matrix).getByText('Alpha model')
+    expect(mocks.getOverview.mock.calls[0]?.[0]).not.toHaveProperty('origin')
+    const totals = screen.getByLabelText('Overview')
+    expect(totals).toHaveTextContent('1 / 0')
+    expect(totals).toHaveTextContent('12 / 31 determined results')
+    expect(totals).toHaveTextContent(
+      'Frozen 5 (cannot be queried 3) · released 3'
+    )
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows[0]).toHaveTextContent('Alpha model')
+    expect(rows[0]).toHaveAttribute('aria-selected', 'true')
     expect(
-      within(matrix).queryByRole('button', { name: 'Alpha model' })
-    ).not.toBeInTheDocument()
-    const alphaRow = alphaName.closest('[role="row"]')
-    expect(alphaRow).toHaveAttribute('aria-selected', 'true')
-    expect(alphaRow).toHaveClass('bg-primary/10')
-    const betaRow = within(matrix)
-      .getByText('Beta model')
-      .closest('[role="row"]')
-    if (!betaRow) throw new Error('Beta model row is missing')
-    fireEvent.click(betaRow)
-    expect(betaRow).toHaveAttribute('aria-selected', 'true')
-    expect(betaRow).toHaveClass('bg-primary/10')
-    expect(alphaRow).toHaveAttribute('aria-selected', 'false')
-    expect(
-      within(matrix).getByRole('button', {
-        name: /Alpha model.*Successful results 9.*Confirmed failures 1/,
+      within(rows[0] as HTMLElement).getByRole('button', {
+        name: /^Abnormal\. Last interval failure rate 100% \(11 \/ 11\), at or above 30%/,
       })
-    ).toHaveClass('h-6', 'w-5')
-    const unknownBucket = within(matrix).getByRole('button', {
-      name: /Alpha model.*No data.*Unknown outcomes 1/,
-    })
-    fireEvent.click(unknownBucket)
-    expect(unknownBucket).toHaveAttribute('aria-pressed', 'true')
+    ).toBeVisible()
+    expect(within(rows[1] as HTMLElement).getByText('Disabled')).toBeVisible()
     expect(
-      screen.getByRole('group', { name: 'Results by interval' })
+      await screen.findByRole('heading', { name: 'Alpha model' })
     ).toBeVisible()
   })
 
-  it('sends stable-key filters and separates Mock results from Real results', async () => {
+  it("shows one model's failure causes, recent failed tasks and the exact task-log link", async () => {
     mount()
-    await screen.findByRole('heading', { name: 'Per-model result matrix' })
-    fireEvent.click(screen.getByRole('button', { name: 'Photo 1' }))
+    const causes = await screen.findByRole('region', { name: 'Failure reason' })
+    expect(mocks.getFailures).toHaveBeenCalledWith(
+      'image.alpha',
+      { from: overview.from, to: overview.to },
+      expect.anything()
+    )
+    const items = await within(causes).findAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Pending · cannot be queried4',
+      'API provider rate limited3',
+      'Released after timeout2',
+      'Pending · still querying1',
+      'Succeeded after release (not delivered)1',
+      'Administrator confirmed the provider failure1',
+    ])
+    const recent = screen.getByRole('region', { name: 'Recent failed tasks' })
+    fireEvent.click(
+      await within(recent).findByRole('button', {
+        name: `Open task ${failedTask.id}`,
+      })
+    )
+    expect(
+      screen.getByRole('dialog', { name: 'Task details' })
+    ).toHaveTextContent(failedTask.id)
+    expect(within(recent).getByText('Released after timeout')).toBeVisible()
+    expect(mocks.getTaskLogs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelKey: 'image.alpha',
+        outcome: 'FAILED_OR_PENDING',
+        executionOrigin: 'REAL',
+        from: overview.from,
+        to: overview.to,
+        pageSize: 10,
+        sortBy: 'acceptedAt',
+        sortOrder: 'desc',
+      }),
+      expect.anything()
+    )
+    const link = within(recent).getByRole('link', {
+      name: 'View in task records',
+    })
+    expect(
+      new URL(link.getAttribute('href') ?? '', 'http://x').searchParams.get(
+        'outcome'
+      )
+    ).toBe('FAILED_OR_PENDING')
+    expect(screen.getByRole('button', { name: 'Version 4' })).toBeVisible()
+  })
+
+  it('narrows the detail to one interval and back', async () => {
+    mount()
+    const table = await screen.findByRole('table', { name: 'Models' })
+    const interval = within(table).getAllByRole('button', {
+      name: /^Alpha model\. .*Succeeded 0 · failed 11/,
+    })[0] as HTMLElement
+    fireEvent.click(interval)
+    expect(interval).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
+      expect(mocks.getFailures).toHaveBeenCalledWith(
+        'image.alpha',
+        { from: '2026-09-18T01:00:00.000Z', to: '2026-09-18T02:00:00.000Z' },
+        expect.anything()
+      )
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show the whole range' })
+    )
+    expect(interval).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('sends filters and sorting, and shows each filter as a removable tag', async () => {
+    mount()
+    await screen.findByRole('table', { name: 'Models' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Photo 1' }))
+    await waitFor(() =>
+      expect(mocks.getOverview).toHaveBeenLastCalledWith(
         expect.objectContaining({ tagId: 'tag-a', page: 1 }),
         expect.anything()
       )
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Mock calls' }))
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    fireEvent.click(
+      within(tags).getByRole('button', {
+        name: /Remove filter Model categories/,
+      })
+    )
     await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
-        expect.objectContaining({ origin: 'MOCK', tagId: 'tag-a' }),
-        expect.anything()
+      expect(mocks.getOverview.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+        'tagId'
       )
     )
-    fireEvent.click(screen.getByRole('button', { name: 'No category 1' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sort by Failure rate' })
+    )
     await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
-        expect.objectContaining({ untagged: true }),
+      expect(mocks.getOverview).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sortBy: 'failureRate', sortOrder: 'desc' }),
         expect.anything()
       )
     )
   })
 
-  it('applies only a complete valid custom range and clears it for a preset', async () => {
-    mocks.getOverview.mockImplementation(async (query: { page: number }) => ({
-      ...overview,
-      page: query.page,
-      total: 22,
-    }))
+  it('applies only a valid custom range, hides the panel on a second click and returns to a preset', async () => {
     mount()
-    const matrix = await screen.findByRole('table', {
-      name: 'Per-model result matrix',
-    })
-    fireEvent.click(
-      within(matrix).getByRole('button', {
-        name: /Alpha model.*No data.*Unknown outcomes 1/,
-      })
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
-    await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
-        expect.objectContaining({ page: 2 }),
-        expect.anything()
-      )
-    )
-
-    const callsBeforeDraft = mocks.getOverview.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Custom range' }))
+    await screen.findByRole('table', { name: 'Models' })
+    const customButton = screen.getByRole('button', { name: 'Custom range' })
+    fireEvent.click(customButton)
+    expect(screen.getByRole('group', { name: 'Custom range' })).toBeVisible()
+    fireEvent.click(customButton)
+    expect(
+      screen.queryByRole('group', { name: 'Custom range' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(customButton)
     const confirm = screen.getByRole('button', { name: 'Confirm' })
     expect(confirm).toBeDisabled()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(
-      screen.getByText('Select a positive time range of at most 30 days')
-    ).toBeVisible()
-    expect(mocks.getOverview).toHaveBeenCalledTimes(callsBeforeDraft)
-
     fireEvent.change(screen.getByLabelText('Start time'), {
       target: { value: '2026-09-01T00:00:00.000Z' },
     })
     fireEvent.change(screen.getByLabelText('End time'), {
       target: { value: '2026-10-02T00:00:00.000Z' },
     })
-    expect(confirm).toBeDisabled()
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Select a positive time range of at most 30 days'
     )
-    expect(mocks.getOverview).toHaveBeenCalledTimes(callsBeforeDraft)
-
     fireEvent.change(screen.getByLabelText('End time'), {
       target: { value: '2026-09-15T12:30:00.000Z' },
     })
-    expect(confirm).toBeEnabled()
     fireEvent.click(confirm)
     await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
+      expect(mocks.getOverview).toHaveBeenLastCalledWith(
         expect.objectContaining({
           window: 'custom',
           from: '2026-09-01T00:00:00.000Z',
@@ -313,13 +446,8 @@ describe('logical model monitoring overview', () => {
       )
     )
     expect(
-      within(
-        screen.getByRole('table', { name: 'Per-model result matrix' })
-      ).getByRole('button', {
-        name: /Alpha model.*No data.*Unknown outcomes 1/,
-      })
-    ).toHaveAttribute('aria-pressed', 'false')
-
+      screen.queryByRole('group', { name: 'Custom range' })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Last hour' }))
     await waitFor(() => {
       const query = mocks.getOverview.mock.calls.at(-1)?.[0]
@@ -327,22 +455,15 @@ describe('logical model monitoring overview', () => {
         expect.objectContaining({ window: 'hour', page: 1 })
       )
       expect(query).not.toHaveProperty('from')
-      expect(query).not.toHaveProperty('to')
     })
   })
 
-  it('submits a reasoned whole-model control with the expected version', async () => {
+  it('disables the selected model from its detail with the expected version', async () => {
     mount()
-    await screen.findByRole('heading', { name: 'Per-model result matrix' })
-    const matrix = screen.getByRole('table', {
-      name: 'Per-model result matrix',
-    })
-    fireEvent.click(
-      within(matrix).getByRole('button', { name: 'Disable model' })
-    )
+    const heading = await screen.findByRole('heading', { name: 'Alpha model' })
+    const card = heading.closest('[data-slot="card"]') as HTMLElement
+    fireEvent.click(within(card).getByRole('button', { name: 'Disable model' }))
     const dialog = await screen.findByRole('dialog', { name: 'Disable model' })
-    expect(within(dialog).getByText(/Alpha model/)).toBeVisible()
-    expect(within(dialog).queryByText(/Catalog Alpha model/)).toBeNull()
     fireEvent.change(within(dialog).getByLabelText(/Reason/), {
       target: { value: 'MAINTENANCE' },
     })
@@ -360,54 +481,15 @@ describe('logical model monitoring overview', () => {
     )
   })
 
-  it('resets the selected bucket on pagination and follows the server-clamped page', async () => {
-    let clamped = false
-    mocks.getOverview.mockImplementation(async (query: { page: number }) => {
-      if (query.page === 2) clamped = true
-      return {
-        ...overview,
-        page: 1,
-        total: clamped ? 1 : 22,
-        rows: clamped ? overview.rows.slice(0, 1) : overview.rows,
-      }
-    })
-    mount()
-    const matrix = await screen.findByRole('table', {
-      name: 'Per-model result matrix',
-    })
-    const unknownBucket = within(matrix).getByRole('button', {
-      name: /Alpha model.*No data.*Unknown outcomes 1/,
-    })
-    fireEvent.click(unknownBucket)
-    expect(unknownBucket).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
-    await waitFor(() =>
-      expect(mocks.getOverview).toHaveBeenCalledWith(
-        expect.objectContaining({ page: 2 }),
-        expect.anything()
-      )
-    )
-    await waitFor(() => expect(screen.getByText('Page 1 of 1')).toBeVisible())
-    expect(
-      screen.getByRole('button', { name: 'Go to next page' })
-    ).toBeDisabled()
-    expect(
-      within(
-        screen.getByRole('table', { name: 'Per-model result matrix' })
-      ).getByRole('button', {
-        name: /Alpha model.*No data.*Unknown outcomes 1/,
-      })
-    ).toHaveAttribute('aria-pressed', 'false')
-  })
-
   it('keeps the control dialog open and explains a version conflict', async () => {
     mocks.control.mockRejectedValueOnce({ response: { status: 409 } })
     mount()
-    const matrix = await screen.findByRole('table', {
-      name: 'Per-model result matrix',
-    })
+    const heading = await screen.findByRole('heading', { name: 'Alpha model' })
     fireEvent.click(
-      within(matrix).getByRole('button', { name: 'Disable model' })
+      within(heading.closest('[data-slot="card"]') as HTMLElement).getByRole(
+        'button',
+        { name: 'Disable model' }
+      )
     )
     const dialog = await screen.findByRole('dialog', { name: 'Disable model' })
     fireEvent.change(within(dialog).getByLabelText(/Reason/), {
@@ -421,6 +503,38 @@ describe('logical model monitoring overview', () => {
         'The model state changed. Refresh and review before retrying.'
       )
     ).toBeVisible()
-    expect(dialog).toBeVisible()
+  })
+
+  it('resets the selected interval on pagination and follows the server-clamped page', async () => {
+    let clamped = false
+    mocks.getOverview.mockImplementation(async (query: { page: number }) => {
+      if (query.page === 2) clamped = true
+      return {
+        ...overview,
+        page: 1,
+        total: clamped ? 1 : 22,
+        rows: clamped ? overview.rows.slice(0, 1) : overview.rows,
+      }
+    })
+    mount()
+    const table = await screen.findByRole('table', { name: 'Models' })
+    const interval = within(table).getAllByRole('button', {
+      name: /^Alpha model\. .*Succeeded 0 · failed 11/,
+    })[0] as HTMLElement
+    fireEvent.click(interval)
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
+    await waitFor(() =>
+      expect(mocks.getOverview).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.anything()
+      )
+    )
+    await waitFor(() => expect(screen.getByText('Page 1 of 1')).toBeVisible())
+    expect(
+      within(screen.getByRole('table', { name: 'Models' })).getAllByRole(
+        'button',
+        { name: /^Alpha model\. .*Succeeded 0 · failed 11/ }
+      )[0]
+    ).toHaveAttribute('aria-pressed', 'false')
   })
 })

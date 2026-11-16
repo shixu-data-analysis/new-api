@@ -47,6 +47,7 @@ import {
   tokenCategoryLabelKey,
 } from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
+import { taskErrorCategoryLabels } from '../task-error-categories'
 import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
@@ -83,28 +84,6 @@ const failureLocations: Record<string, string> = {
   OUTPUT_DOWNLOAD: 'Output download',
   RESPONSE_PROCESSING: 'Response processing',
   STORAGE: 'Storage',
-}
-const errorCategories: Record<string, string> = {
-  EXECUTOR_RESOURCE_CONFIRMED_NOT_SENT: 'Executor request confirmed not sent',
-  PROVIDER_PREFLIGHT: 'Generation request preparation failed',
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
-  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
-  PROVIDER_OUTPUT_LOCATION_REJECTED: 'Result address rejected',
-  PROVIDER_OUTPUT_DOWNLOAD_FAILED: 'Result download failed',
-  PROVIDER_OUTPUT_UNSUPPORTED_MEDIA: 'Result is not usable media',
-  PROVIDER_OUTPUT_INVALID: 'Result file invalid',
-  OUTPUT_STORAGE_FAILED: 'Result storage failed',
 }
 // Mirrors Cloud SAFE_TASK_PARAMETER_KEYS; the prompt and input media are never shown.
 const taskParameterKeys = new Set([
@@ -845,7 +824,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   if (task.taskError?.code === ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE) {
     failure = t('Administrator confirmed the upstream failure')
   } else if (task.failureLocation && task.taskError?.code) {
-    failure = `${t(failureLocations[task.failureLocation] ?? 'Unknown')} · ${t(errorCategories[task.taskError.code] ?? 'Unknown error category')}`
+    failure = `${t(failureLocations[task.failureLocation] ?? 'Unknown')} · ${t(taskErrorCategoryLabels[task.taskError.code] ?? 'Unknown error category')}`
   }
   const pendingFrozenOutputs = task.outputs.filter(
     (output) =>
@@ -1155,7 +1134,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
                           manualResultFailureReasons[
                             manual.failureReasonCode
                           ] ??
-                            errorCategories[manual.failureReasonCode] ??
+                            taskErrorCategoryLabels[manual.failureReasonCode] ??
                             'Unknown error category'
                         )}
                       </p>
