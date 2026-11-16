@@ -319,7 +319,7 @@ export function AdminModelCatalog(props: {
     props.tab === undefined ? uncontrolledModelKey : props.presentationModelKey
   const presentationView =
     props.tab === undefined ? uncontrolledView : props.presentationView
-  // A model opened from the usage ranking: runtime monitoring searches for its key.
+  // A model opened from the usage ranking: runtime monitoring filters by its exact key.
   let monitoringModelKey = props.monitoringModelKey
   if (props.tab === undefined) {
     monitoringModelKey =
