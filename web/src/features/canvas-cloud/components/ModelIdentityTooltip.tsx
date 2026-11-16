@@ -45,7 +45,16 @@ export function ModelIdentityTooltip(props: ModelIdentityTooltipProps) {
       !shownUpstreamModelIds.has(id)
   )
 
-  if (props.effectiveDisplayName === props.catalogDefaultName) return null
+  const catalogNameDiffers =
+    props.effectiveDisplayName !== props.catalogDefaultName
+  // The control hides only when it would add nothing to what the page already shows.
+  if (
+    !catalogNameDiffers &&
+    props.modelKeyShown &&
+    upstreamModelIds.length === 0
+  ) {
+    return null
+  }
 
   const trigger = (
     <Button
@@ -67,8 +76,14 @@ export function ModelIdentityTooltip(props: ModelIdentityTooltipProps) {
         <TooltipTrigger render={trigger} />
         <TooltipContent className='block max-w-80 space-y-2 p-3 leading-relaxed'>
           <dl className='grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5'>
-            <dt className='text-background/70'>{t('Catalog default name')}</dt>
-            <dd className='break-words'>{props.catalogDefaultName}</dd>
+            {catalogNameDiffers && (
+              <>
+                <dt className='text-background/70'>
+                  {t('Catalog default name')}
+                </dt>
+                <dd className='break-words'>{props.catalogDefaultName}</dd>
+              </>
+            )}
             {!props.modelKeyShown && (
               <>
                 <dt className='text-background/70'>{t('Model key')}</dt>

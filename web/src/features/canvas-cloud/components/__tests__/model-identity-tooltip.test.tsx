@@ -35,12 +35,29 @@ it('opens the same model identity content by keyboard focus and click', async ()
   expect(trigger).toHaveAttribute('aria-expanded', 'true')
 })
 
-it('hides the identity control when the effective and catalog names match', () => {
+it('keeps the identity control when the names match but the model key or upstream IDs are not on the page', async () => {
   render(
     <ModelIdentityTooltip
       {...identity}
       effectiveDisplayName='Same model'
       catalogDefaultName='Same model'
+    />
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'View model identity' }))
+  expect(await screen.findByText('canvas.image.alpha')).toBeVisible()
+  expect(screen.getByText('provider-alpha-v2')).toBeVisible()
+  expect(screen.queryByText('Catalog default name')).toBeNull()
+})
+
+it('hides the identity control when it would add nothing to the page', () => {
+  render(
+    <ModelIdentityTooltip
+      {...identity}
+      effectiveDisplayName='Same model'
+      catalogDefaultName='Same model'
+      modelKeyShown
+      upstreamModelIdShown
     />
   )
 
