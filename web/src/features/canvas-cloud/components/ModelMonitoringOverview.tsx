@@ -172,8 +172,9 @@ export function ModelMonitoringOverview(props: {
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  // Opens on the usage ranking's default range, so a model opened from it shows the same period.
   const [appliedWindow, setAppliedWindow] = useState<PresetWindow | 'custom'>(
-    'day'
+    'week'
   )
   const [customOpen, setCustomOpen] = useState(false)
   const [draftFrom, setDraftFrom] = useState<Date>()
@@ -349,7 +350,7 @@ export function ModelMonitoringOverview(props: {
     ? customLabel
     : t(
         presets.find((item) => item.value === appliedWindow)?.label ??
-          'Last 24 hours'
+          'Last 7 days'
       )
   const updatedAt = monitoring.dataUpdatedAt
     ? new Intl.DateTimeFormat(toIntlLocale(language), {

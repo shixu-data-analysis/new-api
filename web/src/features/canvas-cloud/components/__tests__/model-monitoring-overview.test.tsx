@@ -295,7 +295,7 @@ describe('model monitoring', () => {
     mount()
     const table = await screen.findByRole('table', { name: 'Models' })
     expect(mocks.getOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ window: 'day', page: 1, sortBy: 'failures' }),
+      expect.objectContaining({ window: 'week', page: 1, sortBy: 'failures' }),
       expect.anything()
     )
     expect(mocks.getOverview.mock.calls[0]?.[0]).not.toHaveProperty('origin')
