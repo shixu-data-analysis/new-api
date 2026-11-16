@@ -283,6 +283,14 @@ describe('model monitoring', () => {
     })
   })
 
+  it('formats numbers in the app language code zhCN, which Intl does not accept directly', async () => {
+    await i18next.changeLanguage('zhCN')
+    mount()
+    expect(
+      await screen.findByRole('heading', { name: 'Alpha model' })
+    ).toBeVisible()
+  })
+
   it('shows totals, the server order with health and selects the first model', async () => {
     mount()
     const table = await screen.findByRole('table', { name: 'Models' })

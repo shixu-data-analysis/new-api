@@ -52,8 +52,8 @@ function ChangeCell(props: { model: UsageModel; metric: Metric }) {
     signDisplay: 'exceptZero',
   }).format(change)
   const hint = t('Previous {{before}} → now {{now}} ({{delta}})', {
-    before: before.toLocaleString(i18n.language),
-    now: now.toLocaleString(i18n.language),
+    before: before.toLocaleString(toIntlLocale(i18n.language)),
+    now: now.toLocaleString(toIntlLocale(i18n.language)),
     delta: new Intl.NumberFormat(toIntlLocale(i18n.language), {
       signDisplay: 'exceptZero',
     }).format(now - before),
@@ -100,7 +100,9 @@ function TypeCard(props: {
           <h2>{typeName}</h2>
         </CardTitle>
         <span className='text-muted-foreground text-sm tabular-nums'>
-          {t('{{total}} results', { total: total.toLocaleString(language) })}
+          {t('{{total}} results', {
+            total: total.toLocaleString(toIntlLocale(language)),
+          })}
         </span>
       </CardHeader>
       <CardContent className='space-y-2'>
@@ -180,7 +182,7 @@ function TypeCard(props: {
                   </span>
                 </MonitoringHint>
               ),
-              cell: (row) => row.results.toLocaleString(language),
+              cell: (row) => row.results.toLocaleString(toIntlLocale(language)),
             },
             {
               id: 'customers',
@@ -198,7 +200,8 @@ function TypeCard(props: {
                   </span>
                 </MonitoringHint>
               ),
-              cell: (row) => row.customers.toLocaleString(language),
+              cell: (row) =>
+                row.customers.toLocaleString(toIntlLocale(language)),
             },
             {
               id: 'change',
@@ -253,7 +256,9 @@ function TypeSummary(props: { usage: CanvasModelUsage }) {
           <h2>{t('By generation type')}</h2>
         </CardTitle>
         <span className='text-muted-foreground text-sm tabular-nums'>
-          {t('{{total}} results', { total: total.toLocaleString(language) })}
+          {t('{{total}} results', {
+            total: total.toLocaleString(toIntlLocale(language)),
+          })}
         </span>
       </CardHeader>
       <CardContent className='space-y-4'>
@@ -283,14 +288,16 @@ function TypeSummary(props: { usage: CanvasModelUsage }) {
                 {type.capability ? t(type.capability) : t('Unknown')}
               </dt>
               <dd className='text-lg font-semibold tabular-nums'>
-                {type.results.toLocaleString(language)}
+                {type.results.toLocaleString(toIntlLocale(language))}
                 <span className='text-muted-foreground ms-1.5 text-sm font-normal'>
                   {percent(type.results)}
                 </span>
               </dd>
               <dd className='text-muted-foreground text-xs tabular-nums'>
                 {t('{{customers}} users · {{models}} models', {
-                  customers: type.customers.toLocaleString(language),
+                  customers: type.customers.toLocaleString(
+                    toIntlLocale(language)
+                  ),
                   models: type.models,
                 })}
               </dd>

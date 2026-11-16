@@ -17,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
 import {
@@ -318,7 +319,9 @@ export function ModelMonitoringList(props: {
                         failureCountTone(row.health.status)
                       )}
                     >
-                      {row.summary.failures.toLocaleString(language)}
+                      {row.summary.failures.toLocaleString(
+                        toIntlLocale(language)
+                      )}
                     </p>
                     <p className='text-muted-foreground text-xs'>
                       {formatMonitoringPercent(

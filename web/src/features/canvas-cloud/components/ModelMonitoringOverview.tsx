@@ -87,7 +87,7 @@ function Totals(props: { data: CanvasModelMonitoringOverview }) {
   const language = i18n.language
   const totals = props.data.totals
   const failures = totals.failed + totals.pending
-  const number = (value: number) => value.toLocaleString(language)
+  const number = (value: number) => value.toLocaleString(toIntlLocale(language))
   const rate = totals.determined
     ? new Intl.NumberFormat(toIntlLocale(language), {
         style: 'percent',

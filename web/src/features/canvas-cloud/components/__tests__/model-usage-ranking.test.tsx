@@ -100,6 +100,12 @@ describe('model usage ranking', () => {
     mocks.getUsage.mockResolvedValue(usage)
   })
 
+  it('formats numbers in the app language code zhCN, which Intl does not accept directly', async () => {
+    await i18next.changeLanguage('zhCN')
+    mount()
+    expect((await screen.findAllByText('video.fast')).length).toBeGreaterThan(0)
+  })
+
   it('compares the types and ranks each type by results with the change against the previous period', async () => {
     const onOpenModel = mount()
     const video = await screen.findByRole('region', {

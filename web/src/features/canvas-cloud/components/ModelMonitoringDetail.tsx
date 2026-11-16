@@ -430,7 +430,9 @@ export function ModelMonitoringDetail(props: {
             {t('Failure reason')}
             <span className='text-muted-foreground ms-auto text-xs font-normal tabular-nums'>
               {t('{{failures}} failures · {{rate}}', {
-                failures: summary.failures.toLocaleString(language),
+                failures: summary.failures.toLocaleString(
+                  toIntlLocale(language)
+                ),
                 rate: formatMonitoringPercent(summary.failureRate, language, t),
               })}
             </span>
@@ -453,7 +455,7 @@ export function ModelMonitoringDetail(props: {
                     </button>
                   </MonitoringHint>
                   <span className='text-primary ms-auto tabular-nums'>
-                    {cause.count.toLocaleString(language)}
+                    {cause.count.toLocaleString(toIntlLocale(language))}
                   </span>
                 </div>
                 <div
