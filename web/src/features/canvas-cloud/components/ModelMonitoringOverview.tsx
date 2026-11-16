@@ -165,7 +165,7 @@ function Totals(props: { data: CanvasModelMonitoringOverview }) {
   )
 }
 
-export function ModelMonitoringOverview() {
+export function ModelMonitoringOverview(props: { focusModelKey?: string }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [appliedWindow, setAppliedWindow] = useState<PresetWindow | 'custom'>(
@@ -179,7 +179,7 @@ export function ModelMonitoringOverview() {
   const [capability, setCapability] = useState('')
   const [providerId, setProviderId] = useState('')
   const [tagId, setTagId] = useState('')
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(props.focusModelKey ?? '')
   const debouncedSearch = useDebounce(search.trim(), 300)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(10)

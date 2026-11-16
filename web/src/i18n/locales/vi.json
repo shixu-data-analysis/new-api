@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "{{failures}} thất bại · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "{{low}} đến {{high}}",
-    "{{rate}} or above": "Từ {{rate}} trở lên"
+    "{{rate}} or above": "Từ {{rate}} trở lên",
+    "Accepted results, failed ones included": "Số kết quả đã tiếp nhận, kể cả thất bại",
+    "Compared with the period of the same length just before, on the sorted column": "So với khoảng cùng độ dài ngay trước đó, theo cột đang sắp xếp",
+    "Customers who submitted tasks": "Số khách hàng đã gửi tác vụ",
+    "Model usage could not be loaded": "Không tải được bảng xếp hạng mức dùng",
+    "New in ranking": "Mới vào bảng",
+    "No usage in this period": "Không có lượt dùng trong khoảng này",
+    "Previous {{before}} → now {{now}} ({{delta}})": "Trước {{before}} → nay {{now}} ({{delta}})",
+    "Result count": "Số kết quả",
+    "Show all {{count}}": "Hiện tất cả {{count}}",
+    "Show less": "Thu gọn",
+    "Usage ranking": "Xếp hạng mức dùng",
+    "Vs. previous": "So với kỳ trước",
+    "{{customers}} users · {{models}} models": "{{customers}} người · {{models}} mô hình",
+    "{{total}} results": "{{total}} kết quả",
+    "{{type}} ranking": "Xếp hạng {{type}}"
   }
 }

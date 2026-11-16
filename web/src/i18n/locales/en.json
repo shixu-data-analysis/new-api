@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "{{failures}} failures · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "{{low}} to {{high}}",
-    "{{rate}} or above": "{{rate}} or above"
+    "{{rate}} or above": "{{rate}} or above",
+    "Accepted results, failed ones included": "Accepted results, failed ones included",
+    "Compared with the period of the same length just before, on the sorted column": "Compared with the period of the same length just before, on the sorted column",
+    "Customers who submitted tasks": "Customers who submitted tasks",
+    "Model usage could not be loaded": "Model usage could not be loaded",
+    "New in ranking": "New in ranking",
+    "No usage in this period": "No usage in this period",
+    "Previous {{before}} → now {{now}} ({{delta}})": "Previous {{before}} → now {{now}} ({{delta}})",
+    "Result count": "Result count",
+    "Show all {{count}}": "Show all {{count}}",
+    "Show less": "Show less",
+    "Usage ranking": "Usage ranking",
+    "Vs. previous": "Vs. previous",
+    "{{customers}} users · {{models}} models": "{{customers}} users · {{models}} models",
+    "{{total}} results": "{{total}} results",
+    "{{type}} ranking": "{{type}} ranking"
   }
 }

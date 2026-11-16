@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "{{failures}} échecs · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "{{low}} à {{high}}",
-    "{{rate}} or above": "{{rate}} ou plus"
+    "{{rate}} or above": "{{rate}} ou plus",
+    "Accepted results, failed ones included": "Résultats acceptés, échecs compris",
+    "Compared with the period of the same length just before, on the sorted column": "Comparé à la période de même durée juste avant, sur la colonne triée",
+    "Customers who submitted tasks": "Clients ayant soumis des tâches",
+    "Model usage could not be loaded": "Impossible de charger l’utilisation des modèles",
+    "New in ranking": "Nouveau",
+    "No usage in this period": "Aucune utilisation sur cette période",
+    "Previous {{before}} → now {{now}} ({{delta}})": "Avant {{before}} → maintenant {{now}} ({{delta}})",
+    "Result count": "Résultats",
+    "Show all {{count}}": "Afficher les {{count}}",
+    "Show less": "Afficher moins",
+    "Usage ranking": "Classement d’utilisation",
+    "Vs. previous": "Vs période préc.",
+    "{{customers}} users · {{models}} models": "{{customers}} clients · {{models}} modèles",
+    "{{total}} results": "{{total}} résultats",
+    "{{type}} ranking": "Classement {{type}}"
   }
 }

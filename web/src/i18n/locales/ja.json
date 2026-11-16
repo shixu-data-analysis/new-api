@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "失敗 {{failures}} 件 · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "{{low}}〜{{high}}",
-    "{{rate}} or above": "{{rate}} 以上"
+    "{{rate}} or above": "{{rate}} 以上",
+    "Accepted results, failed ones included": "受け付けた結果の数（失敗を含む）",
+    "Compared with the period of the same length just before, on the sorted column": "直前の同じ長さの期間と、並べ替え中の列で比較します",
+    "Customers who submitted tasks": "タスクを送信した顧客の数",
+    "Model usage could not be loaded": "利用量ランキングを読み込めませんでした",
+    "New in ranking": "新規ランクイン",
+    "No usage in this period": "この期間の利用はありません",
+    "Previous {{before}} → now {{now}} ({{delta}})": "前期間 {{before}} → 今期間 {{now}}（{{delta}}）",
+    "Result count": "結果数",
+    "Show all {{count}}": "{{count}} 件すべて表示",
+    "Show less": "折りたたむ",
+    "Usage ranking": "利用量ランキング",
+    "Vs. previous": "前期間比",
+    "{{customers}} users · {{models}} models": "{{customers}} 人 · {{models}} モデル",
+    "{{total}} results": "{{total}} 件の結果",
+    "{{type}} ranking": "{{type}}ランキング"
   }
 }

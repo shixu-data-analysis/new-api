@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "{{failures}} 個失敗 · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "{{low}}–{{high}}",
-    "{{rate}} or above": "{{rate}} 以上"
+    "{{rate}} or above": "{{rate}} 以上",
+    "Accepted results, failed ones included": "受理的結果數，含失敗",
+    "Compared with the period of the same length just before, on the sorted column": "與緊鄰的上一段等長時間相比，按目前排序欄計算",
+    "Customers who submitted tasks": "提交過任務的客戶數",
+    "Model usage could not be loaded": "用量排行載入失敗",
+    "New in ranking": "新上榜",
+    "No usage in this period": "這段時間沒有用量",
+    "Previous {{before}} → now {{now}} ({{delta}})": "上期 {{before}} → 本期 {{now}}（{{delta}}）",
+    "Result count": "結果數",
+    "Show all {{count}}": "顯示全部 {{count}} 個",
+    "Show less": "收起",
+    "Usage ranking": "用量排行",
+    "Vs. previous": "較上期",
+    "{{customers}} users · {{models}} models": "{{customers}} 人 · {{models}} 個模型",
+    "{{total}} results": "{{total}} 個結果",
+    "{{type}} ranking": "{{type}}排行"
   }
 }

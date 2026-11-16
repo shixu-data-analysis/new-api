@@ -2013,6 +2013,36 @@ export interface CanvasModelMonitoringOverview {
   }>
 }
 
+export interface CanvasModelUsageQuery {
+  window: 'week' | 'month' | 'custom'
+  from?: string
+  to?: string
+}
+
+/** Real-call results (failed and processing included) and distinct customers; the previous period is [previousFrom, from). */
+export interface CanvasModelUsage {
+  window: CanvasModelUsageQuery['window']
+  from: string
+  to: string
+  previousFrom: string
+  types: Array<{
+    capability: string | null
+    results: number
+    customers: number
+    models: number
+  }>
+  models: Array<{
+    modelKey: string
+    displayName: string
+    capability: string | null
+    manualEnabled: boolean
+    results: number
+    customers: number
+    previousResults: number
+    previousCustomers: number
+  }>
+}
+
 export interface CanvasModelMonitoringFailures {
   modelKey: string
   from: string

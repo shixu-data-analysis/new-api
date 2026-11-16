@@ -11006,6 +11006,21 @@
     "{{failures}} failures · {{rate}}": "Сбоев: {{failures}} · {{rate}}",
     "{{from}} – {{to}}": "{{from}} – {{to}}",
     "{{low}} to {{high}}": "от {{low}} до {{high}}",
-    "{{rate}} or above": "{{rate}} и выше"
+    "{{rate}} or above": "{{rate}} и выше",
+    "Accepted results, failed ones included": "Принятые результаты, включая сбои",
+    "Compared with the period of the same length just before, on the sorted column": "Сравнение с предыдущим периодом той же длины по столбцу сортировки",
+    "Customers who submitted tasks": "Клиенты, отправившие задачи",
+    "Model usage could not be loaded": "Не удалось загрузить рейтинг использования",
+    "New in ranking": "Новинка",
+    "No usage in this period": "За этот период использования нет",
+    "Previous {{before}} → now {{now}} ({{delta}})": "Было {{before}} → стало {{now}} ({{delta}})",
+    "Result count": "Результаты",
+    "Show all {{count}}": "Показать все ({{count}})",
+    "Show less": "Свернуть",
+    "Usage ranking": "Рейтинг использования",
+    "Vs. previous": "К прошлому",
+    "{{customers}} users · {{models}} models": "Клиентов: {{customers}} · моделей: {{models}}",
+    "{{total}} results": "Результатов: {{total}}",
+    "{{type}} ranking": "Рейтинг: {{type}}"
   }
 }

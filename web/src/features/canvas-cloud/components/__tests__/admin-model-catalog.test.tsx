@@ -43,7 +43,16 @@ vi.mock('../UnifiedModelPricing', () => ({
   ),
 }))
 vi.mock('../ModelMonitoringOverview', () => ({
-  ModelMonitoringOverview: () => <div>Logical model monitoring overview</div>,
+  ModelMonitoringOverview: (props: { focusModelKey?: string }) => (
+    <div>Logical model monitoring overview {props.focusModelKey ?? ''}</div>
+  ),
+}))
+vi.mock('../ModelUsageRanking', () => ({
+  ModelUsageRanking: (props: { onOpenModel: (modelKey: string) => void }) => (
+    <button type='button' onClick={() => props.onOpenModel('image.alpha')}>
+      Open ranked model
+    </button>
+  ),
 }))
 vi.mock('../../api', async (original) => ({
   isCanvasAccessForbidden: (await original<typeof import('../../api')>())
@@ -313,6 +322,27 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Runtime monitoring' }))
     expect(
       await screen.findByText('Logical model monitoring overview')
+    ).toBeVisible()
+  })
+  it('opens a model from the usage ranking in runtime monitoring', async () => {
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Usage ranking' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open ranked model' })
+    )
+    expect(
+      screen.getByRole('tab', { name: 'Runtime monitoring' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      await screen.findByText('Logical model monitoring overview image.alpha')
     ).toBeVisible()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {

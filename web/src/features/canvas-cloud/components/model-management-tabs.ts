@@ -14,6 +14,7 @@ export type ModelManagementTab =
   | 'display'
   | 'import'
   | 'monitoring'
+  | 'usage'
   | 'availability'
 
 const modelManagementTabs: ModelManagementTab[] = [
@@ -23,6 +24,7 @@ const modelManagementTabs: ModelManagementTab[] = [
   'display',
   'import',
   'monitoring',
+  'usage',
   'availability',
 ]
 

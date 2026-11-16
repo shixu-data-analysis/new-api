@@ -61,6 +61,7 @@ function ModelManagementIndex() {
       tab={tab}
       presentationModelKey={tab === 'display' ? search.modelKey : undefined}
       presentationView={tab === 'display' ? search.view : undefined}
+      monitoringModelKey={tab === 'monitoring' ? search.modelKey : undefined}
       onTabChange={(next, options) =>
         void navigate({
           to: '/canvas-cloud/model-management',
