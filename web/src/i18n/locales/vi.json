@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "Tỷ lệ thất bại của khoảng này đạt {{rate}}",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "Tỷ lệ thất bại đạt {{rate}} và số chờ xác nhận nhiều hơn thất bại đã xác nhận",
     "The interval has no succeeded, failed or pending results": "Khoảng này không có kết quả thành công, thất bại hoặc chờ xác nhận",
-    "Too few results": "Quá ít kết quả",
     "Updated {{time}}": "Cập nhật lúc {{time}}",
     "Upstream model ID changed: {{ids}}": "ID mô hình thượng nguồn đã đổi: {{ids}}",
     "Upstream model ID unchanged": "ID mô hình thượng nguồn không đổi",

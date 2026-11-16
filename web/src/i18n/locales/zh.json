@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "这一格的失败率达到 {{rate}}",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "这一格失败率 ≥ {{rate}}，且待确认多于确认失败",
     "The interval has no succeeded, failed or pending results": "这一格没有成功、失败或待确认的结果",
-    "Too few results": "样本不足",
     "Updated {{time}}": "{{time}} 更新",
     "Upstream model ID changed: {{ids}}": "上游模型 ID 已变更：{{ids}}",
     "Upstream model ID unchanged": "上游模型 ID 未变",

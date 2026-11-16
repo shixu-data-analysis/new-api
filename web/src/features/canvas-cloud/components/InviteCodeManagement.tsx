@@ -46,12 +46,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { useDebounce } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -81,6 +75,7 @@ import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
+import { CanvasTooltip } from './CanvasTooltip'
 import type { InvitationNavigationGuard } from './InvitationManagement'
 import { InviteCodeEditSheet } from './InviteCodeEditSheet'
 import {
@@ -1575,29 +1570,22 @@ export function InviteCodeManagement(props: {
                 <code className='bg-muted max-w-full overflow-x-auto rounded px-3 py-2 text-sm'>
                   {issuedCode}
                 </code>
-                <TooltipProvider delay={200}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          aria-label={t('Copy invite code')}
-                          size='icon-sm'
-                          type='button'
-                          variant='outline'
-                          onClick={() =>
-                            void copyText(issuedCode, {
-                              copied: t('Invite code copied'),
-                              failed: t('Failed to copy to clipboard'),
-                            })
-                          }
-                        >
-                          <Copy aria-hidden='true' />
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>{t('Copy invite code')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <CanvasTooltip content={t('Copy invite code')}>
+                  <Button
+                    aria-label={t('Copy invite code')}
+                    size='icon-sm'
+                    type='button'
+                    variant='outline'
+                    onClick={() =>
+                      void copyText(issuedCode, {
+                        copied: t('Invite code copied'),
+                        failed: t('Failed to copy to clipboard'),
+                      })
+                    }
+                  >
+                    <Copy aria-hidden='true' />
+                  </Button>
+                </CanvasTooltip>
                 <Button variant='outline' onClick={downloadIssuedCode}>
                   <Download /> {t('Download TXT')}
                 </Button>

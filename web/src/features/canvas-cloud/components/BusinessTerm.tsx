@@ -20,17 +20,11 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-
-import {
   getCanvasBusinessTerm,
   type CanvasBusinessTermKind,
 } from '../business-terms'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
+import { CanvasTooltip } from './CanvasTooltip'
 
 export function BusinessTermText(props: {
   kind: CanvasBusinessTermKind
@@ -70,14 +64,5 @@ export function BusinessTerm(props: {
     </button>
   )
 
-  return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger render={trigger} />
-        <TooltipContent className='max-w-72 leading-relaxed'>
-          {help}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
+  return <CanvasTooltip content={help}>{trigger}</CanvasTooltip>
 }

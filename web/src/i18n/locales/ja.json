@@ -10989,7 +10989,6 @@
     "The interval failure rate reaches {{rate}}": "この時間帯の失敗率は {{rate}} 以上です",
     "The interval failure rate reaches {{rate}} and pending results outnumber confirmed failures": "失敗率が {{rate}} 以上で、確認待ちが確定失敗より多い時間帯です",
     "The interval has no succeeded, failed or pending results": "この時間帯には成功・失敗・確認待ちの結果がありません",
-    "Too few results": "件数不足",
     "Updated {{time}}": "{{time}} 更新",
     "Upstream model ID changed: {{ids}}": "上流モデル ID が変更されました：{{ids}}",
     "Upstream model ID unchanged": "上流モデル ID は変更なし",

@@ -21,15 +21,10 @@ import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import { copyText as copyToClipboardWithFeedback } from '../copy-text'
+import { CanvasTooltip } from './CanvasTooltip'
 
 /**
  * A block of code-like text (JSON, request lines, codes) shared by the Canvas pages. It is as wide as its
@@ -66,35 +61,33 @@ export function CodeBlock(props: {
         {shown}
       </pre>
       {actionCount > 0 ? (
-        <TooltipProvider delay={200}>
-          <div className='absolute top-1.5 right-1.5 flex items-center gap-0.5'>
-            {collapsible ? (
-              <CodeBlockAction
-                label={t(expanded ? 'Collapse' : 'Show full content')}
-                onClick={() => setExpanded((value) => !value)}
-              >
-                {expanded ? (
-                  <ChevronsDownUp aria-hidden='true' className='size-4' />
-                ) : (
-                  <ChevronsUpDown aria-hidden='true' className='size-4' />
-                )}
-              </CodeBlockAction>
-            ) : null}
-            {copied !== null ? (
-              <CodeBlockAction
-                label={t('Copy')}
-                onClick={() =>
-                  void copyToClipboardWithFeedback(copied, {
-                    copied: t('Copied'),
-                    failed: t('Failed to copy to clipboard'),
-                  })
-                }
-              >
-                <Copy aria-hidden='true' className='size-4' />
-              </CodeBlockAction>
-            ) : null}
-          </div>
-        </TooltipProvider>
+        <div className='absolute top-1.5 right-1.5 flex items-center gap-0.5'>
+          {collapsible ? (
+            <CodeBlockAction
+              label={t(expanded ? 'Collapse' : 'Show full content')}
+              onClick={() => setExpanded((value) => !value)}
+            >
+              {expanded ? (
+                <ChevronsDownUp aria-hidden='true' className='size-4' />
+              ) : (
+                <ChevronsUpDown aria-hidden='true' className='size-4' />
+              )}
+            </CodeBlockAction>
+          ) : null}
+          {copied !== null ? (
+            <CodeBlockAction
+              label={t('Copy')}
+              onClick={() =>
+                void copyToClipboardWithFeedback(copied, {
+                  copied: t('Copied'),
+                  failed: t('Failed to copy to clipboard'),
+                })
+              }
+            >
+              <Copy aria-hidden='true' className='size-4' />
+            </CodeBlockAction>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -107,22 +100,17 @@ export function CodeBlockAction(props: {
   children: ReactNode
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon-sm'
-            aria-label={props.label}
-            className='bg-muted hover:bg-background'
-            onClick={props.onClick}
-          >
-            {props.children}
-          </Button>
-        }
-      />
-      <TooltipContent>{props.label}</TooltipContent>
-    </Tooltip>
+    <CanvasTooltip content={props.label}>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon-sm'
+        aria-label={props.label}
+        className='bg-muted hover:bg-background'
+        onClick={props.onClick}
+      >
+        {props.children}
+      </Button>
+    </CanvasTooltip>
   )
 }

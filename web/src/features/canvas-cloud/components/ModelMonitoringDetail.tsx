@@ -28,12 +28,13 @@ import {
 } from '../model-monitoring-overview'
 import { taskErrorCategoryLabels } from '../task-error-categories'
 import type { CanvasModelMonitoringFailures } from '../types'
+import { CanvasTooltip } from './CanvasTooltip'
 import {
   formatMonitoringPercent,
   monitoringIntervalText,
 } from './model-monitoring-utils'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
-import { MonitoringHint, type ModelMonitoringRow } from './ModelMonitoringList'
+import type { ModelMonitoringRow } from './ModelMonitoringList'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const segments = [
@@ -218,7 +219,7 @@ function ResultsChart(props: {
               const dimmed =
                 props.selectedBucket !== null && props.selectedBucket !== index
               return (
-                <MonitoringHint key={bucket.from} hint={text}>
+                <CanvasTooltip key={bucket.from} content={text}>
                   <button
                     type='button'
                     aria-label={text.replaceAll('\n', '. ')}
@@ -245,7 +246,7 @@ function ResultsChart(props: {
                       ) : null
                     )}
                   </button>
-                </MonitoringHint>
+                </CanvasTooltip>
               )
             })}
           </div>
@@ -279,14 +280,14 @@ function ResultsChart(props: {
                 className='border-foreground pointer-events-none absolute inset-y-0 border-s border-dashed'
                 style={{ left: `${left}%` }}
               >
-                <MonitoringHint hint={hint}>
+                <CanvasTooltip content={hint}>
                   <button
                     type='button'
                     className='bg-card pointer-events-auto ms-1 cursor-help px-0.5 text-xs leading-none'
                   >
                     {t('Version {{version}}', { version: version.version })}
                   </button>
-                </MonitoringHint>
+                </CanvasTooltip>
               </div>
             )
           })}
@@ -475,7 +476,7 @@ export function ModelMonitoringDetail(props: {
             {causes.map((cause) => (
               <li key={cause.key} className='space-y-1.5'>
                 <div className='flex items-baseline gap-2 text-sm'>
-                  <MonitoringHint hint={cause.hint}>
+                  <CanvasTooltip content={cause.hint}>
                     <button
                       type='button'
                       className='cursor-help border-b border-dotted border-current text-start'
@@ -483,7 +484,7 @@ export function ModelMonitoringDetail(props: {
                     >
                       {cause.label}
                     </button>
-                  </MonitoringHint>
+                  </CanvasTooltip>
                   <span className='text-primary ms-auto tabular-nums'>
                     {cause.count.toLocaleString(toIntlLocale(language))}
                   </span>
@@ -538,8 +539,8 @@ export function ModelMonitoringDetail(props: {
               </li>
             ))}
           </ul>
-          <MonitoringHint
-            hint={t(
+          <CanvasTooltip
+            content={t(
               'Opens task records with:\nModel key {{modelKey}}\nAccepted {{from}} – {{to}}\nResults with confirmed failures or pending confirmation',
               {
                 modelKey: linkSearch.modelKey,
@@ -556,7 +557,7 @@ export function ModelMonitoringDetail(props: {
             >
               {t('View in task records')}
             </Link>
-          </MonitoringHint>
+          </CanvasTooltip>
         </section>
       </CardContent>
       <TaskRecordDetailsSheet

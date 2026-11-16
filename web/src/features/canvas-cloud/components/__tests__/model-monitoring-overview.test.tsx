@@ -344,6 +344,32 @@ describe('model monitoring', () => {
     ).toBeVisible()
   })
 
+  it('shows no status for too few results and explains it on the faint failure rate', async () => {
+    const thin = {
+      ...overview.rows[1],
+      modelKey: 'image.gamma',
+      effectiveDisplayName: 'Gamma model',
+      manualEnabled: true,
+      health: { status: 'thin', trigger: null },
+      summary: bucket('2026-09-18T00:00:00.000Z', 2, 1),
+    }
+    mocks.getOverview.mockResolvedValue({
+      ...overview,
+      total: 3,
+      rows: [...overview.rows, thin],
+    })
+    mount()
+    const table = await screen.findByRole('table', { name: 'Models' })
+    const row = within(table).getAllByRole('row')[3] as HTMLElement
+    expect(row).toHaveTextContent('Gamma model')
+    expect(row).not.toHaveTextContent('Too few results')
+    expect(
+      within(row).getByLabelText(
+        /^33(\.3)?%\. Only 3 determined results; fewer than 20 are not judged/
+      )
+    ).toHaveClass('text-muted-foreground/65')
+  })
+
   it("shows one model's failure causes, recent failed tasks and the exact task-log link", async () => {
     mount()
     const causes = await screen.findByRole('region', { name: 'Failure reason' })

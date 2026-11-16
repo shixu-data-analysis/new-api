@@ -2035,6 +2035,8 @@ export interface CanvasModelUsage {
   models: Array<{
     modelKey: string
     displayName: string
+    catalogDefaultName: string
+    upstreamModelIds: string[]
     capability: string | null
     manualEnabled: boolean
     results: number
