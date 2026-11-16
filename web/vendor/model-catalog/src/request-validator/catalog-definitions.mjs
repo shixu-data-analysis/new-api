@@ -196,14 +196,14 @@ function validateRequestOptions(profile, request, location) {
   if (issue) fail(`${location}.${issue}`);
   if (Object.hasOwn(request, "conversationProtocol")) fail(`${location}.conversationProtocol is no longer supported; a streamed sync chat Profile speaks the conversation of its usageProtocol`);
   if (Object.hasOwn(request, "reasoningLevels")) {
-    // The upstream fields of each reasoning level, merged into the conversation body Cloud builds.
+    // The upstream fields of each reasoning level, merged into the conversation body Cloud builds. A level may send nothing:
+    // the upstream then uses its own default, as a model that thinks by default does for its "thinking" level.
     if (!conversationProtocolOf(profile)) fail(`${location}.reasoningLevels requires a Profile that speaks a conversation: sync chat.generate, streamed, usageProtocol ${CONVERSATION_PROTOCOL_NAMES}`);
     const levels = object(request.reasoningLevels, `${location}.reasoningLevels`);
     if (!Object.keys(levels).length) fail(`${location}.reasoningLevels must map at least one level`);
     for (const [level, fields] of Object.entries(levels)) {
       if (!REASONING_LEVEL.test(level)) fail(`${location}.reasoningLevels.${level} must be 1-32 lowercase letters, digits, - or _`);
       const body = object(fields, `${location}.reasoningLevels.${level}`);
-      if (!Object.keys(body).length) fail(`${location}.reasoningLevels.${level} must set at least one field`);
       const built = Object.keys(body).filter((field) => CONVERSATION_BODY_FIELDS.includes(field));
       if (built.length) fail(`${location}.reasoningLevels.${level} must not set ${built.join(", ")}, which Cloud builds`);
     }
@@ -262,7 +262,7 @@ function positiveNumber(value, location, integer = false) {
 const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning"];
 const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
 // Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
-const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "stream", "stream_options", "max_tokens"];
+const CONVERSATION_BODY_FIELDS = ["model", "messages", "tools", "tool_choice", "stream", "stream_options", "max_tokens"];
 const CONVERSATION_PROTOCOL_NAMES = CONVERSATION_PROTOCOLS.join(" or ");
 // Text input is text only in the current scope, so text models cannot declare image input. The total is for an upstream
 // that reports one count only, which is a video task so far (VIDEO-TOKEN-BILLING-001).
