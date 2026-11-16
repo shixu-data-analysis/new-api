@@ -202,7 +202,8 @@ function ResultsChart(props: {
                     aria-label={text.replaceAll('\n', '. ')}
                     aria-pressed={props.selectedBucket === index}
                     className={cn(
-                      'focus-visible:ring-ring flex h-full flex-1 flex-col-reverse items-stretch px-[12%] outline-none hover:bg-muted/60 focus-visible:ring-2',
+                      // Percent padding would follow the chart width, not the interval's, and push the intervals out of the chart.
+                      'focus-visible:ring-ring flex h-full min-w-0 flex-1 flex-col-reverse items-center outline-none hover:bg-muted/60 focus-visible:ring-2',
                       props.selectedBucket === index && 'bg-muted',
                       dimmed && 'opacity-40'
                     )}
@@ -213,7 +214,7 @@ function ResultsChart(props: {
                         <span
                           key={key}
                           aria-hidden='true'
-                          className={cn('block w-full', color)}
+                          className={cn('block w-3/4', color)}
                           style={{
                             height: `${(bucket[key] / top) * 100}%`,
                             minHeight: 2,
