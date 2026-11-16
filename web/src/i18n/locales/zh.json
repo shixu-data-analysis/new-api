@@ -11123,7 +11123,6 @@
     "Unable to send the notice. Please try again.": "无法发送通知，请重试。",
     "What the customer sees": "客户看到的系统通知",
     "times within": "次，统计",
-    "{{count}} customers failed {{threshold}} times or more": "{{count}} 位客户失败 {{threshold}} 次及以上",
     "Alerts": "提醒",
     "Message retention": "消息保留",
     "Today {{time}}": "今天 {{time}}",
@@ -11132,6 +11131,7 @@
     "Write the result": "写下处理结果",
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "新消息时提醒（同一会话 10 分钟内最多一次），30 分钟未回复再提醒一次。",
     "HTTPS only": "仅限 HTTPS 地址",
-    "At most 20 in each group": "每组最多 20 条"
+    "At most 20 in each group": "每组最多 20 条",
+    "{{names}} and {{count}} customers in all": "{{names}} 等 {{count}} 位"
   }
 }

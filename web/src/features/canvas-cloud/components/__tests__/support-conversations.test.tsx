@@ -551,6 +551,8 @@ describe('SUPPORT-CHAT-001 失败提醒', () => {
         />
       )
     )
+    // The model in the list names who failed.
+    expect(screen.getByText('小林, Mia')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Choose Mia' }))
     fireEvent.click(
       screen.getByRole('button', { name: 'Notify customers of the result' })

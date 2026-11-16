@@ -11123,7 +11123,6 @@
     "Unable to send the notice. Please try again.": "Unable to send the notice. Please try again.",
     "What the customer sees": "What the customer sees",
     "times within": "times within",
-    "{{count}} customers failed {{threshold}} times or more": "{{count}} customers failed {{threshold}} times or more",
     "Alerts": "Alerts",
     "Message retention": "Message retention",
     "Today {{time}}": "Today {{time}}",
@@ -11132,6 +11131,7 @@
     "Write the result": "Write the result",
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.",
     "HTTPS only": "HTTPS only",
-    "At most 20 in each group": "At most 20 in each group"
+    "At most 20 in each group": "At most 20 in each group",
+    "{{names}} and {{count}} customers in all": "{{names}} and {{count}} customers in all"
   }
 }

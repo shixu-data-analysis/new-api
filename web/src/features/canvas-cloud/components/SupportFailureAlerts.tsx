@@ -34,6 +34,26 @@ import {
 import type { CanvasSupportFailureAlerts } from '../types'
 import { SupportFailureNoticeDialog } from './SupportFailureNoticeDialog'
 
+const NAMES_SHOWN = 3
+
+/** Who failed on the model: up to three names, then how many in all. */
+function customerNames(
+  model: CanvasSupportFailureAlerts['models'][number],
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  const names = model.customers
+    .slice(0, NAMES_SHOWN)
+    .map((row) => row.customer.name ?? t('Customer'))
+    .join(t('、'))
+  if (model.customers.length <= NAMES_SHOWN) {
+    return names
+  }
+  return t('{{names}} and {{count}} customers in all', {
+    names,
+    count: model.customers.length,
+  })
+}
+
 /**
  * 客服会话 › 失败提醒: customers whose tasks on one model failed repeatedly, by model. The administrator investigates, then
  * notifies the chosen customers of the result or dismisses their alerts.
@@ -114,11 +134,8 @@ export function SupportFailureAlerts(props: {
                 }}
               >
                 <span className='font-semibold'>{item.modelName}</span>
-                <span className='text-muted-foreground text-sm'>
-                  {t('{{count}} customers failed {{threshold}} times or more', {
-                    count: item.customers.length,
-                    threshold: props.alerts.threshold,
-                  })}
+                <span className='text-muted-foreground truncate text-sm'>
+                  {customerNames(item, t)}
                 </span>
               </button>
             </li>

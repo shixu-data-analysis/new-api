@@ -11123,7 +11123,6 @@
     "Unable to send the notice. Please try again.": "Không thể gửi thông báo. Vui lòng thử lại.",
     "What the customer sees": "Khách hàng sẽ thấy",
     "times within": "lần trong",
-    "{{count}} customers failed {{threshold}} times or more": "{{count}} khách hàng thất bại từ {{threshold}} lần trở lên",
     "Alerts": "Cảnh báo",
     "Message retention": "Lưu giữ tin nhắn",
     "Today {{time}}": "Hôm nay {{time}}",
@@ -11132,6 +11131,7 @@
     "Write the result": "Viết kết quả xử lý",
     "Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.": "Cảnh báo khi có tin nhắn mới (mỗi hội thoại tối đa một lần mỗi 10 phút), và nhắc lại sau 30 phút chưa trả lời.",
     "HTTPS only": "Chỉ HTTPS",
-    "At most 20 in each group": "Tối đa 20 mục mỗi nhóm"
+    "At most 20 in each group": "Tối đa 20 mục mỗi nhóm",
+    "{{names}} and {{count}} customers in all": "{{names}} và những người khác ({{count}} khách hàng)"
   }
 }
