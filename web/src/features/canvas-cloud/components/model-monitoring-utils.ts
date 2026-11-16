@@ -33,7 +33,7 @@ function formatMonitoringDateTime(value: string, language: string) {
 
 export const monitoringCellClasses: Record<MonitoringCellTone, string> = {
   none: 'border-border bg-muted',
-  ok: 'border-transparent bg-muted-foreground/25',
+  ok: 'border-transparent bg-success/70',
   watch: 'border-transparent bg-destructive/45',
   bad: 'border-transparent bg-destructive',
   pending: 'border-transparent bg-amber-500',
