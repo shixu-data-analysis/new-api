@@ -278,7 +278,7 @@ export function SupportConversations(props: {
       ) : null}
       {showConversations ? (
         <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]'>
-          <div className='min-w-0 space-y-2'>
+          <div className='min-w-0'>
             <Card className='gap-0 p-2'>
               {conversations.isPending ? (
                 <p className='text-muted-foreground p-3 text-sm' role='status'>
@@ -314,8 +314,8 @@ export function SupportConversations(props: {
                           type='button'
                           aria-pressed={isSelected}
                           className={cn(
-                            'grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-xl p-2.5 text-start',
-                            isSelected ? 'bg-muted' : 'hover:bg-muted/60'
+                            'grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 rounded-lg p-2.5 text-start',
+                            isSelected ? 'bg-muted/60' : 'hover:bg-muted/40'
                           )}
                           onClick={() => props.onConversationChange?.(row.id)}
                         >
@@ -351,8 +351,12 @@ export function SupportConversations(props: {
                   })}
                 </ul>
               ) : null}
+              {total > 0 ? (
+                <div className='mt-2 border-t px-1 pt-2'>
+                  <DataTablePagination table={paginationTable} />
+                </div>
+              ) : null}
             </Card>
-            {total > 0 ? <DataTablePagination table={paginationTable} /> : null}
           </div>
           {selected ? (
             <div className='min-w-0'>

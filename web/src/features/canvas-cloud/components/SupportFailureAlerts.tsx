@@ -133,10 +133,10 @@ export function SupportFailureAlerts(props: {
                 type='button'
                 aria-pressed={item.modelKey === model.modelKey}
                 className={cn(
-                  'flex w-full min-w-0 flex-col gap-0.5 rounded-xl p-2.5 text-start',
+                  'flex w-full min-w-0 flex-col gap-0.5 rounded-lg p-2.5 text-start',
                   item.modelKey === model.modelKey
-                    ? 'bg-muted'
-                    : 'hover:bg-muted/60'
+                    ? 'bg-muted/60'
+                    : 'hover:bg-muted/40'
                 )}
                 onClick={() => {
                   setModelKey(item.modelKey)
