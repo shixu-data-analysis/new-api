@@ -34,7 +34,7 @@ import type { CanvasSupportQuickReplies } from '../types'
 
 /**
  * 快捷回复 in the reply box: both groups of 客服设置, each under its name; a chosen text replaces the draft, which can be
- * sent as it is or edited first. A long text shows two lines and the rest on hover.
+ * sent as it is or edited first.
  */
 export function SupportQuickReplyMenu(props: {
   replies: CanvasSupportQuickReplies
@@ -65,11 +65,10 @@ export function SupportQuickReplyMenu(props: {
             {group.replies.map((reply) => (
               <DropdownMenuItem
                 key={reply}
-                title={reply}
-                className='text-xs leading-5'
+                className='text-xs leading-5 whitespace-normal'
                 onClick={() => props.onPick(reply)}
               >
-                <span className='line-clamp-2 whitespace-normal'>{reply}</span>
+                {reply}
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>

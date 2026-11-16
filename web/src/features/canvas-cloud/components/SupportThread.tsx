@@ -57,6 +57,7 @@ import type {
   CanvasSupportQuickReplies,
 } from '../types'
 import { useSupportMessages } from '../use-support-messages'
+import { CanvasTooltip } from './CanvasTooltip'
 import { MessageContent } from './SupportMessageContent'
 import { SupportQuickReplyMenu } from './SupportQuickReplyMenu'
 
@@ -71,25 +72,27 @@ function Bubble(props: {
   const { message } = props
   if (message.sender === 'SYSTEM') {
     return (
-      <div
-        className='bg-muted/50 grid gap-1 rounded-xl border px-3 py-2.5'
-        title={props.time}
-      >
-        <div className='flex items-center gap-1.5 text-sm font-semibold'>
-          <BellRing className='size-3.5' aria-hidden='true' />
-          {t('System notice')}
+      <CanvasTooltip content={props.time}>
+        <div className='bg-muted/50 grid gap-1 rounded-xl border px-3 py-2.5'>
+          <div className='flex items-center gap-1.5 text-sm font-semibold'>
+            <BellRing className='size-3.5' aria-hidden='true' />
+            {t('System notice')}
+          </div>
+          <p className='text-sm whitespace-pre-wrap'>{message.text}</p>
         </div>
-        <p className='text-sm whitespace-pre-wrap'>{message.text}</p>
-      </div>
+      </CanvasTooltip>
     )
   }
   const mine = message.sender === 'ADMIN'
   return (
     <div
       className={cn('flex flex-col gap-1', mine ? 'items-end' : 'items-start')}
-      title={props.time}
     >
-      <MessageContent message={message} mine={mine} />
+      <CanvasTooltip content={props.time}>
+        <div>
+          <MessageContent message={message} mine={mine} />
+        </div>
+      </CanvasTooltip>
       {mine ? (
         <span className='text-muted-foreground text-xs'>
           {message.adminName ?? t('Administrator')}
