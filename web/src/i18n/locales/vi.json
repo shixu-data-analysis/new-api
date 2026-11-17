@@ -11211,6 +11211,8 @@
     "API provider balance low": "Số dư nhà cung cấp API thấp",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "Số dư ước tính thấp hơn ngưỡng cảnh báo; mỗi nhà cung cấp tối đa một lần mỗi ngày",
     "Agent withdrawal request": "Yêu cầu rút tiền của đại lý",
-    "An agent submits a withdrawal request; once per request": "Đại lý gửi yêu cầu rút tiền; mỗi yêu cầu một lần"
+    "An agent submits a withdrawal request; once per request": "Đại lý gửi yêu cầu rút tiền; mỗi yêu cầu một lần",
+    "Model health turned poor": "Tình trạng mô hình kém đi",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "Mô hình chuyển sang Kém trong Giám sát vận hành theo ngày gần nhất hoặc giờ gần nhất; mỗi lần chuyển sang Kém một lần"
   }
 }

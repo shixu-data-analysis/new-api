@@ -54,6 +54,10 @@ const EVENT_LABELS: Record<string, { name: string; when: string }> = {
     name: 'Probing paused',
     when: 'A probe request succeeded or timed out, so it may have been charged',
   },
+  'monitoring.bad': {
+    name: 'Model health turned poor',
+    when: 'A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor',
+  },
   'balance.low': {
     name: 'API provider balance low',
     when: 'The estimated balance falls below its alert threshold; at most once per provider a day',

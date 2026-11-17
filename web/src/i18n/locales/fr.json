@@ -11211,6 +11211,8 @@
     "API provider balance low": "Solde du fournisseur d'API bas",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "Le solde estimé passe sous son seuil d'alerte ; au plus une fois par jour et par fournisseur",
     "Agent withdrawal request": "Demande de retrait d'un agent",
-    "An agent submits a withdrawal request; once per request": "Un agent soumet une demande de retrait ; une fois par demande"
+    "An agent submits a withdrawal request; once per request": "Un agent soumet une demande de retrait ; une fois par demande",
+    "Model health turned poor": "Santé du modèle dégradée",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "Un modèle passe à Mauvais dans la surveillance d’exécution sur le dernier jour ou sa dernière heure ; une fois à chaque passage à Mauvais"
   }
 }

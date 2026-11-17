@@ -11211,6 +11211,8 @@
     "API provider balance low": "API 服务商余额不足",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "估算余额低于预警值；每家 API 服务商每天最多一次",
     "Agent withdrawal request": "代理商提现申请",
-    "An agent submits a withdrawal request; once per request": "代理商提交提现申请；每笔一次"
+    "An agent submits a withdrawal request; once per request": "代理商提交提现申请；每笔一次",
+    "Model health turned poor": "模型健康变差",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "模型在运行监控中按最近 1 天或最近 1 小时变为“差”；每次变为“差”时发送一次"
   }
 }

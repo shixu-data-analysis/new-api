@@ -11211,6 +11211,8 @@
     "API provider balance low": "API プロバイダーの残高不足",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "推定残高がアラートしきい値を下回ったとき。プロバイダーごとに 1 日 1 回まで",
     "Agent withdrawal request": "代理店の出金申請",
-    "An agent submits a withdrawal request; once per request": "代理店が出金を申請したとき。申請ごとに 1 回"
+    "An agent submits a withdrawal request; once per request": "代理店が出金を申請したとき。申請ごとに 1 回",
+    "Model health turned poor": "モデルの状態が悪化",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "実行時監視で、直近 1 日または直近 1 時間によりモデルが「悪い」になったとき。「悪い」になるたびに 1 回"
   }
 }

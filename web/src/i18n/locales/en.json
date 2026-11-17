@@ -11211,6 +11211,8 @@
     "API provider balance low": "API provider balance low",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "The estimated balance falls below its alert threshold; at most once per provider a day",
     "Agent withdrawal request": "Agent withdrawal request",
-    "An agent submits a withdrawal request; once per request": "An agent submits a withdrawal request; once per request"
+    "An agent submits a withdrawal request; once per request": "An agent submits a withdrawal request; once per request",
+    "Model health turned poor": "Model health turned poor",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor"
   }
 }

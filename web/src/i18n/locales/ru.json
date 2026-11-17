@@ -11211,6 +11211,8 @@
     "API provider balance low": "Низкий баланс API-поставщика",
     "The estimated balance falls below its alert threshold; at most once per provider a day": "Оценочный баланс ниже порога оповещения; не чаще раза в день для каждого поставщика",
     "Agent withdrawal request": "Заявка агента на вывод",
-    "An agent submits a withdrawal request; once per request": "Агент подаёт заявку на вывод; один раз на заявку"
+    "An agent submits a withdrawal request; once per request": "Агент подаёт заявку на вывод; один раз на заявку",
+    "Model health turned poor": "Состояние модели ухудшилось",
+    "A model turns Poor in Runtime monitoring over the last day or its last hour; once each time it turns Poor": "Модель становится «Плохо» в мониторинге выполнения за последний день или последний час; один раз при каждом переходе в «Плохо»"
   }
 }
