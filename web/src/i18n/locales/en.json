@@ -11209,6 +11209,8 @@
     "Notification not delivered": "Notification not delivered",
     "Test message": "Test message",
     "API provider balance low": "API provider balance low",
-    "The estimated balance falls below its alert threshold; at most once per provider a day": "The estimated balance falls below its alert threshold; at most once per provider a day"
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "The estimated balance falls below its alert threshold; at most once per provider a day",
+    "Agent withdrawal request": "Agent withdrawal request",
+    "An agent submits a withdrawal request; once per request": "An agent submits a withdrawal request; once per request"
   }
 }

@@ -58,12 +58,17 @@ const EVENT_LABELS: Record<string, { name: string; when: string }> = {
     name: 'API provider balance low',
     when: 'The estimated balance falls below its alert threshold; at most once per provider a day',
   },
+  'agent.withdrawal': {
+    name: 'Agent withdrawal request',
+    when: 'An agent submits a withdrawal request; once per request',
+  },
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
   SUPPORT: 'Support',
   MODEL: 'Models',
   PROVIDER: 'API providers',
+  AGENT: 'Inviters',
 }
 
 export const NOTIFICATION_FAILURE_LABELS: Record<string, string> = {

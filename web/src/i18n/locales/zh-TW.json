@@ -11209,6 +11209,8 @@
     "Notification not delivered": "通知未送達",
     "Test message": "測試訊息",
     "API provider balance low": "API 服務商餘額不足",
-    "The estimated balance falls below its alert threshold; at most once per provider a day": "估算餘額低於預警值；每家 API 服務商每天最多一次"
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "估算餘額低於預警值；每家 API 服務商每天最多一次",
+    "Agent withdrawal request": "代理商提現申請",
+    "An agent submits a withdrawal request; once per request": "代理商提交提現申請；每筆一次"
   }
 }
