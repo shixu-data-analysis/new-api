@@ -46,6 +46,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
+import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorCode } from '@/lib/server-error-message'
 
 import {
@@ -84,8 +85,9 @@ const fieldOf = (error: unknown): string | undefined =>
   (error as { response?: { data?: { details?: { field?: string } } } }).response
     ?.data?.details?.field
 
+// The page's language codes (zhCN, zhTW) are not Intl tags, so they go through toIntlLocale.
 const dateTime = (value: string, language: string) =>
-  new Intl.DateTimeFormat(language, {
+  new Intl.DateTimeFormat(toIntlLocale(language), {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(new Date(value))
