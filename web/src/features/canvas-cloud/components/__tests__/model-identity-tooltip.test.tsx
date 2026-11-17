@@ -23,6 +23,9 @@ it('opens the same model identity content by keyboard focus and click', async ()
   render(<ModelIdentityTooltip {...identity} />)
 
   const trigger = screen.getByRole('button', { name: 'View model identity' })
+  // A plain icon that darkens on hover, not a ghost button with a hover background.
+  expect(trigger).not.toHaveAttribute('data-slot', 'button')
+  expect(trigger.className).not.toMatch(/hover:bg-/)
   fireEvent.focus(trigger)
   expect(await screen.findByText('Catalog Alpha')).toBeVisible()
   expect(screen.getByText('canvas.image.alpha')).toBeVisible()
@@ -35,12 +38,29 @@ it('opens the same model identity content by keyboard focus and click', async ()
   expect(trigger).toHaveAttribute('aria-expanded', 'true')
 })
 
-it('hides the identity control when the effective and catalog names match', () => {
+it('keeps the identity control when the names match but the model key or upstream IDs are not on the page', async () => {
   render(
     <ModelIdentityTooltip
       {...identity}
       effectiveDisplayName='Same model'
       catalogDefaultName='Same model'
+    />
+  )
+
+  fireEvent.click(screen.getByRole('button', { name: 'View model identity' }))
+  expect(await screen.findByText('canvas.image.alpha')).toBeVisible()
+  expect(screen.getByText('provider-alpha-v2')).toBeVisible()
+  expect(screen.queryByText('Catalog default name')).toBeNull()
+})
+
+it('hides the identity control when it would add nothing to the page', () => {
+  render(
+    <ModelIdentityTooltip
+      {...identity}
+      effectiveDisplayName='Same model'
+      catalogDefaultName='Same model'
+      modelKeyShown
+      upstreamModelIdShown
     />
   )
 

@@ -105,6 +105,9 @@ import type {
   CanvasModelPricingCnyCalculationIdentity,
   CanvasModelPricingWorkspace,
   CanvasModelMonitoringControlResult,
+  CanvasModelMonitoringFailures,
+  CanvasModelUsage,
+  CanvasModelUsageQuery,
   CanvasModelMonitoringOverview,
   CanvasModelMonitoringOverviewQuery,
   CanvasS3DriverConfig,
@@ -482,6 +485,32 @@ export async function getCanvasModelMonitoringOverview(
       `${webBase}/admin/model-monitoring`,
       { params: query, signal, skipErrorHandler: true }
     )
+  ).data
+}
+
+export async function getCanvasModelMonitoringFailures(
+  modelKey: string,
+  range: { from: string; to: string },
+  signal?: AbortSignal
+): Promise<CanvasModelMonitoringFailures> {
+  return (
+    await api.get<CanvasModelMonitoringFailures>(
+      `${webBase}/admin/model-monitoring/models/${encodeURIComponent(modelKey)}/failures`,
+      { params: range, signal, skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function getCanvasModelUsage(
+  query: CanvasModelUsageQuery,
+  signal?: AbortSignal
+): Promise<CanvasModelUsage> {
+  return (
+    await api.get<CanvasModelUsage>(`${webBase}/admin/model-usage`, {
+      params: query,
+      signal,
+      skipErrorHandler: true,
+    })
   ).data
 }
 

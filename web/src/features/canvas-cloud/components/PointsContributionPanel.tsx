@@ -40,12 +40,6 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 import { beijingMonthOf } from '../agent-earnings-format'
 import { isCanvasAccessForbidden } from '../api'
@@ -72,6 +66,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasTooltip } from './CanvasTooltip'
 import { CopyableText } from './CopyableText'
 import {
   ALL_OPTION_VALUE,
@@ -148,23 +143,14 @@ const modelStatusLabels: Record<string, string> = {
 /** Inline text that is itself a tooltip trigger, drawn like a business term. */
 function HelpText(props: { help: string; children: ReactNode }) {
   return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type='button'
-              className='focus-visible:ring-ring/50 cursor-help border-b border-dotted border-current text-start focus-visible:rounded-sm focus-visible:ring-2 focus-visible:outline-none'
-            >
-              {props.children}
-            </button>
-          }
-        />
-        <TooltipContent className='max-w-72 leading-relaxed'>
-          {props.help}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <CanvasTooltip content={props.help}>
+      <button
+        type='button'
+        className='focus-visible:ring-ring/50 cursor-help border-b border-dotted border-current text-start focus-visible:rounded-sm focus-visible:ring-2 focus-visible:outline-none'
+      >
+        {props.children}
+      </button>
+    </CanvasTooltip>
   )
 }
 
@@ -208,27 +194,24 @@ function PreviousLine(props: {
     text = t('vs previous period ↓ {{percent}}%', { percent: change.percent })
   }
   return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <button
-              type='button'
-              className='text-muted-foreground focus-visible:ring-ring/50 cursor-help rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none'
-            >
-              {text}
-            </button>
-          }
-        />
-        <TooltipContent className='max-w-72 leading-relaxed'>
+    <CanvasTooltip
+      content={
+        <>
           {t('Previous period {{range}}: {{value}}', {
             range: props.range,
             value: props.previousLabel,
           })}
           {props.extra ? <span className='block'>{props.extra}</span> : null}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </>
+      }
+    >
+      <button
+        type='button'
+        className='text-muted-foreground focus-visible:ring-ring/50 cursor-help rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none'
+      >
+        {text}
+      </button>
+    </CanvasTooltip>
   )
 }
 

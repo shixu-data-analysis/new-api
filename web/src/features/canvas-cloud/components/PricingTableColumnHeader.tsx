@@ -20,14 +20,9 @@ import type { Column } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 import { getCanvasBusinessTerm } from '../business-terms'
+import { CanvasTooltip } from './CanvasTooltip'
 
 export function PricingTableColumnHeader<TData>(props: {
   column: Column<TData, unknown>
@@ -39,23 +34,14 @@ export function PricingTableColumnHeader<TData>(props: {
   const help = definition ? t(definition.helpKey, { term: label }) : label
 
   return (
-    <TooltipProvider delay={200}>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <div
-              className='focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none'
-              aria-label={`${label}. ${help}`}
-              tabIndex={0}
-            />
-          }
-        >
-          <DataTableColumnHeader column={props.column} title={label} />
-        </TooltipTrigger>
-        <TooltipContent className='max-w-72 leading-relaxed'>
-          {help}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <CanvasTooltip content={help}>
+      <div
+        className='focus-visible:ring-ring/50 rounded-sm focus-visible:ring-2 focus-visible:outline-none'
+        aria-label={`${label}. ${help}`}
+        tabIndex={0}
+      >
+        <DataTableColumnHeader column={props.column} title={label} />
+      </div>
+    </CanvasTooltip>
   )
 }

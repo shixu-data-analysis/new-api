@@ -150,12 +150,10 @@ export function AdminTaskLogs() {
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [taskId, setTaskId] = useState('')
   const [customer, setCustomer] = useState('')
-  const [model, setModel] = useState('')
   const [settlementProgress, setSettlementProgress] = useState('')
   const [specificUpstreamTask, setSpecificUpstreamTask] = useState(false)
   const [upstreamTaskId, setUpstreamTaskId] = useState('')
   const [billingStatus, setBillingStatus] = useState('')
-  const [to, setTo] = useState<Date>()
   // Filters other pages carry in live in the address; editing them keeps the address in step.
   const search = route.useSearch()
   const navigate = route.useNavigate()
@@ -166,9 +164,16 @@ export function AdminTaskLogs() {
   const failureReason = search.failureReason
   const unrecognizedStatus = search.unrecognizedStatus
   const platformIssue = search.platformIssue
+  const model = search.modelKey ?? ''
+  const executionOrigin = search.executionOrigin
+  const outcome = search.outcome
   const from = useMemo(
     () => (search.from ? new Date(search.from) : undefined),
     [search.from]
+  )
+  const to = useMemo(
+    () => (search.to ? new Date(search.to) : undefined),
+    [search.to]
   )
   const setSearch = (values: Partial<typeof search>) =>
     void navigate({
@@ -182,6 +187,10 @@ export function AdminTaskLogs() {
     })
   const setFrom = (value: Date | undefined) =>
     setSearch({ from: value?.toISOString() })
+  const setTo = (value: Date | undefined) =>
+    setSearch({ to: value?.toISOString() })
+  const setModel = (value: string) =>
+    setSearch({ modelKey: value || undefined })
   const upstreamMode = upstreamTask ?? (specificUpstreamTask ? 'specific' : '')
   const debouncedTaskId = useDebounce(taskId.trim(), 300)
   const debouncedCustomer = useDebounce(customer.trim(), 300)
@@ -209,6 +218,8 @@ export function AdminTaskLogs() {
     from,
     frozenResultsOnly,
     model,
+    executionOrigin,
+    outcome,
     settlementProgress,
     setPagination,
     to,
@@ -223,6 +234,8 @@ export function AdminTaskLogs() {
       debouncedTaskId,
       debouncedCustomer,
       model,
+      executionOrigin,
+      outcome,
       derivedExecutionStatus,
       settlementProgress,
       upstreamTask,
@@ -245,7 +258,9 @@ export function AdminTaskLogs() {
           sortOrder: state.query.sortOrder,
           ...(debouncedTaskId ? { taskId: debouncedTaskId } : {}),
           ...(debouncedCustomer ? { customer: debouncedCustomer } : {}),
-          ...(model ? { modelId: model } : {}),
+          ...(model ? { modelKey: model } : {}),
+          ...(executionOrigin ? { executionOrigin } : {}),
+          ...(outcome ? { outcome } : {}),
           ...(derivedExecutionStatus ? { derivedExecutionStatus } : {}),
           ...(settlementProgress ? { settlementProgress } : {}),
           ...(upstreamTask ? { upstreamTask } : {}),
@@ -419,8 +434,8 @@ export function AdminTaskLogs() {
     else credentialGroupLabel = t('Unknown API Key group')
   }
   const modelLabel = options.data?.models.find(
-    (option) => option.customerModelId === model
-  )?.displayNameSnapshot
+    (option) => option.modelKey === model
+  )?.displayName
   const tag = (field: string, value: string) =>
     t('{{field}}: {{value}}', { field, value })
   const tags = [
@@ -438,6 +453,19 @@ export function AdminTaskLogs() {
       key: 'model',
       label: tag(t('Model'), modelLabel ?? t('Loading')),
       remove: () => setModel(''),
+    },
+    executionOrigin && {
+      key: 'executionOrigin',
+      label: tag(
+        t('Execution source'),
+        t(executionOrigin === 'REAL' ? 'Real calls' : 'Mock calls')
+      ),
+      remove: () => setSearch({ executionOrigin: undefined }),
+    },
+    outcome && {
+      key: 'outcome',
+      label: t('Has failed or pending results'),
+      remove: () => setSearch({ outcome: undefined }),
     },
     derivedExecutionStatus && {
       key: 'derivedExecutionStatus',
@@ -546,22 +574,15 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={model}
-              displayValue={
-                options.data?.models.find(
-                  (option) => option.customerModelId === model
-                )?.displayNameSnapshot
-              }
+              displayValue={modelLabel}
               emptyLabelKey='All models'
             />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL'>{t('All models')}</SelectItem>
             {(options.data?.models ?? []).map((option) => (
-              <SelectItem
-                key={option.customerModelId}
-                value={option.customerModelId}
-              >
-                {option.displayNameSnapshot}
+              <SelectItem key={option.modelKey} value={option.modelKey}>
+                {option.displayName}
               </SelectItem>
             ))}
           </SelectContent>
@@ -844,13 +865,15 @@ export function AdminTaskLogs() {
         onResetFilters={() => {
           setTaskId('')
           setCustomer('')
-          setModel('')
           setSettlementProgress('')
           setSpecificUpstreamTask(false)
           setUpstreamTaskId('')
           setBillingStatus('')
-          setTo(undefined)
           setSearch({
+            modelKey: undefined,
+            executionOrigin: undefined,
+            outcome: undefined,
+            to: undefined,
             derivedExecutionStatus: undefined,
             upstreamTask: undefined,
             frozenResultsOnly: undefined,

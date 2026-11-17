@@ -11,13 +11,11 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  CanvasTooltip,
+  CanvasTooltipRows,
+  canvasInfoTriggerClassName,
+} from './CanvasTooltip'
 
 export interface ModelIdentityTooltipProps {
   effectiveDisplayName: string
@@ -45,49 +43,59 @@ export function ModelIdentityTooltip(props: ModelIdentityTooltipProps) {
       !shownUpstreamModelIds.has(id)
   )
 
-  if (props.effectiveDisplayName === props.catalogDefaultName) return null
+  const catalogNameDiffers =
+    props.effectiveDisplayName !== props.catalogDefaultName
+  // The control hides only when it would add nothing to what the page already shows.
+  if (
+    !catalogNameDiffers &&
+    props.modelKeyShown &&
+    upstreamModelIds.length === 0
+  ) {
+    return null
+  }
 
-  const trigger = (
-    <Button
-      type='button'
-      variant='ghost'
-      size='icon-xs'
-      className='text-muted-foreground hover:text-foreground ms-1 inline-flex align-middle'
-      aria-label={t('View model identity')}
-      aria-expanded={open}
-      onClick={() => setOpen((current) => !current)}
-    >
-      <HugeiconsIcon icon={InformationCircleIcon} aria-hidden='true' />
-    </Button>
-  )
+  const rows = [
+    ...(catalogNameDiffers
+      ? [{ label: t('Catalog default name'), value: props.catalogDefaultName }]
+      : []),
+    ...(props.modelKeyShown
+      ? []
+      : [{ label: t('Model key'), value: props.modelKey, code: true }]),
+    ...(upstreamModelIds.length > 0
+      ? [
+          {
+            label: t('Upstream model ID'),
+            value: (
+              <span className='block space-y-1'>
+                {upstreamModelIds.map((upstreamModelId) => (
+                  <span key={upstreamModelId} className='block'>
+                    {upstreamModelId}
+                  </span>
+                ))}
+              </span>
+            ),
+            code: true,
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <TooltipProvider delay={200}>
-      <Tooltip open={open} onOpenChange={setOpen}>
-        <TooltipTrigger render={trigger} />
-        <TooltipContent className='block max-w-80 space-y-2 p-3 leading-relaxed'>
-          <dl className='grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5'>
-            <dt className='text-background/70'>{t('Catalog default name')}</dt>
-            <dd className='break-words'>{props.catalogDefaultName}</dd>
-            {!props.modelKeyShown && (
-              <>
-                <dt className='text-background/70'>{t('Model key')}</dt>
-                <dd className='font-mono break-all'>{props.modelKey}</dd>
-              </>
-            )}
-            {upstreamModelIds.length > 0 && (
-              <>
-                <dt className='text-background/70'>{t('Upstream model ID')}</dt>
-                <dd className='space-y-1 font-mono break-all'>
-                  {upstreamModelIds.map((upstreamModelId) => (
-                    <div key={upstreamModelId}>{upstreamModelId}</div>
-                  ))}
-                </dd>
-              </>
-            )}
-          </dl>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <CanvasTooltip
+      open={open}
+      onOpenChange={setOpen}
+      contentClassName='block max-w-80 p-3'
+      content={<CanvasTooltipRows rows={rows} />}
+    >
+      <button
+        type='button'
+        className={`${canvasInfoTriggerClassName} ms-1`}
+        aria-label={t('View model identity')}
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <HugeiconsIcon icon={InformationCircleIcon} aria-hidden='true' />
+      </button>
+    </CanvasTooltip>
   )
 }

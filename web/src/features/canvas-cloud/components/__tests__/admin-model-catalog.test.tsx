@@ -43,7 +43,35 @@ vi.mock('../UnifiedModelPricing', () => ({
   ),
 }))
 vi.mock('../ModelMonitoringOverview', () => ({
-  ModelMonitoringOverview: () => <div>Logical model monitoring overview</div>,
+  ModelMonitoringOverview: (props: {
+    focusModelKey?: string
+    onClearFocus: () => void
+    range?: { window: string }
+    onRangeChange: (range: { window: 'hour' }) => void
+  }) => (
+    <div>
+      <span>
+        Logical model monitoring overview {props.focusModelKey ?? ''}{' '}
+        {props.range?.window ?? ''}
+      </span>
+      <button type='button' onClick={props.onClearFocus}>
+        Clear monitoring focus
+      </button>
+      <button
+        type='button'
+        onClick={() => props.onRangeChange({ window: 'hour' })}
+      >
+        Pick the last hour
+      </button>
+    </div>
+  ),
+}))
+vi.mock('../ModelUsageRanking', () => ({
+  ModelUsageRanking: (props: { onOpenModel: (modelKey: string) => void }) => (
+    <button type='button' onClick={() => props.onOpenModel('image.alpha')}>
+      Open ranked model
+    </button>
+  ),
 }))
 vi.mock('../../api', async (original) => ({
   isCanvasAccessForbidden: (await original<typeof import('../../api')>())
@@ -313,6 +341,43 @@ describe('Canvas model catalog folder upload', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Runtime monitoring' }))
     expect(
       await screen.findByText('Logical model monitoring overview')
+    ).toBeVisible()
+  })
+  it('opens a model from the usage ranking in runtime monitoring', async () => {
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Usage ranking' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open ranked model' })
+    )
+    expect(
+      screen.getByRole('tab', { name: 'Runtime monitoring' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      await screen.findByText('Logical model monitoring overview image.alpha')
+    ).toBeVisible()
+    // Changing the range keeps the focused model, and clearing the model keeps the range.
+    fireEvent.click(screen.getByRole('button', { name: 'Pick the last hour' }))
+    expect(
+      await screen.findByText(
+        'Logical model monitoring overview image.alpha hour'
+      )
+    ).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Clear monitoring focus' })
+    )
+    expect(
+      screen.getByRole('tab', { name: 'Runtime monitoring' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      await screen.findByText('Logical model monitoring overview hour')
     ).toBeVisible()
   })
   it('carries one selected model into pricing and preserves list filters and pagination on return', async () => {

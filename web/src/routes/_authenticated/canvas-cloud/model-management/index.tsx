@@ -15,12 +15,16 @@ import { LoadingState } from '@/components/loading-state'
 import { AdminModelCatalog } from '@/features/canvas-cloud/components/AdminModelCatalog'
 import { isModelManagementTab } from '@/features/canvas-cloud/components/model-management-tabs'
 import { modelManagementReturnStateKey } from '@/features/canvas-cloud/model-management-navigation-state'
+import { monitoringRangeFromSearch } from '@/features/canvas-cloud/model-monitoring-overview'
 import { useCanvasSession } from '@/features/canvas-cloud/use-canvas-session'
 
 const searchSchema = z.object({
   tab: z.string().optional(),
   modelKey: z.string().optional(),
   view: z.enum(['models', 'categories']).optional(),
+  window: z.enum(['hour', 'day', 'week', 'custom']).optional().catch(undefined),
+  from: z.string().datetime({ offset: true }).optional().catch(undefined),
+  to: z.string().datetime({ offset: true }).optional().catch(undefined),
   legacyError: z
     .enum(['invalid-model', 'invalid-publication', 'missing-model'])
     .optional(),
@@ -61,6 +65,10 @@ function ModelManagementIndex() {
       tab={tab}
       presentationModelKey={tab === 'display' ? search.modelKey : undefined}
       presentationView={tab === 'display' ? search.view : undefined}
+      monitoringModelKey={tab === 'monitoring' ? search.modelKey : undefined}
+      monitoringRange={
+        tab === 'monitoring' ? monitoringRangeFromSearch(search) : undefined
+      }
       onTabChange={(next, options) =>
         void navigate({
           to: '/canvas-cloud/model-management',
@@ -71,6 +79,10 @@ function ModelManagementIndex() {
                   tab: next,
                   ...(options?.modelKey ? { modelKey: options.modelKey } : {}),
                   ...(options?.view ? { view: options.view } : {}),
+                  ...(options?.range ? { window: options.range.window } : {}),
+                  ...(options?.range?.window === 'custom'
+                    ? { from: options.range.from, to: options.range.to }
+                    : {}),
                 },
         })
       }

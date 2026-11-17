@@ -65,6 +65,7 @@ import type {
 } from '../generated/model-catalog-import'
 import { useModelManagementEditing } from '../model-management-editor-page-context'
 import type { ModelManagementReturnContext } from '../model-management-navigation-state'
+import type { MonitoringRange } from '../model-monitoring-overview'
 import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
@@ -99,6 +100,7 @@ import {
 import { ModelAvailabilityAlertBadge } from './ModelAvailabilityAlertBadge'
 import { ModelAvailabilityPanel } from './ModelAvailabilityPanel'
 import { ModelMonitoringOverview } from './ModelMonitoringOverview'
+import { ModelUsageRanking } from './ModelUsageRanking'
 import { PricingActionConfirmation } from './PricingActionConfirmation'
 import {
   PublishedModelCatalog,
@@ -283,9 +285,17 @@ export function AdminModelCatalog(props: {
   presentationModelKey?: string
   /** View the 展示与分类 tab opens on. */
   presentationView?: PresentationView
+  /** Model key runtime monitoring opens on, from the usage ranking. */
+  monitoringModelKey?: string
+  /** Runtime monitoring's time range from the address. */
+  monitoringRange?: MonitoringRange
   onTabChange?: (
     tab: ModelManagementTab,
-    options?: { modelKey?: string; view?: PresentationView }
+    options?: {
+      modelKey?: string
+      view?: PresentationView
+      range?: MonitoringRange
+    }
   ) => void
   onManagePricing?: (
     modelId: string,
@@ -311,22 +321,38 @@ export function AdminModelCatalog(props: {
     useState<ModelManagementTab>('published')
   const [uncontrolledModelKey, setUncontrolledModelKey] = useState<string>()
   const [uncontrolledView, setUncontrolledView] = useState<PresentationView>()
+  const [uncontrolledMonitoringRange, setUncontrolledMonitoringRange] =
+    useState<MonitoringRange>()
   const activeTab = props.tab ?? uncontrolledActiveTab
   const presentationModelKey =
     props.tab === undefined ? uncontrolledModelKey : props.presentationModelKey
   const presentationView =
     props.tab === undefined ? uncontrolledView : props.presentationView
+  // A model opened from the usage ranking: runtime monitoring filters by its exact key.
+  let monitoringModelKey = props.monitoringModelKey
+  let monitoringRange = props.monitoringRange
+  if (props.tab === undefined) {
+    monitoringModelKey =
+      activeTab === 'monitoring' ? uncontrolledModelKey : undefined
+    monitoringRange =
+      activeTab === 'monitoring' ? uncontrolledMonitoringRange : undefined
+  }
   // The 展示与分类 tab loads on first visit and then stays mounted, so its draft survives tab switches.
   const [displayVisited, setDisplayVisited] = useState(activeTab === 'display')
   if (activeTab === 'display' && !displayVisited) setDisplayVisited(true)
   function changeTab(
     tab: ModelManagementTab,
-    options?: { modelKey?: string; view?: PresentationView }
+    options?: {
+      modelKey?: string
+      view?: PresentationView
+      range?: MonitoringRange
+    }
   ) {
     if (props.tab === undefined) {
       setUncontrolledActiveTab(tab)
       setUncontrolledModelKey(options?.modelKey)
       setUncontrolledView(options?.view)
+      setUncontrolledMonitoringRange(options?.range)
     }
     props.onTabChange?.(tab, options)
   }
@@ -688,6 +714,9 @@ export function AdminModelCatalog(props: {
             <CanvasManagementTabsTrigger value='monitoring'>
               {t('Runtime monitoring')}
             </CanvasManagementTabsTrigger>
+            <CanvasManagementTabsTrigger value='usage'>
+              {t('Usage ranking')}
+            </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='availability'>
               {t('Availability alert')}
               <ModelAvailabilityAlertBadge />
@@ -743,7 +772,21 @@ export function AdminModelCatalog(props: {
             )}
           </TabsContent>
           <TabsContent value='monitoring' className='mt-4'>
-            <ModelMonitoringOverview />
+            <ModelMonitoringOverview
+              focusModelKey={monitoringModelKey}
+              onClearFocus={() =>
+                changeTab('monitoring', { range: monitoringRange })
+              }
+              range={monitoringRange}
+              onRangeChange={(range) =>
+                changeTab('monitoring', { modelKey: monitoringModelKey, range })
+              }
+            />
+          </TabsContent>
+          <TabsContent value='usage' className='mt-4'>
+            <ModelUsageRanking
+              onOpenModel={(modelKey) => changeTab('monitoring', { modelKey })}
+            />
           </TabsContent>
           <TabsContent value='availability' className='mt-4'>
             <ModelAvailabilityPanel />

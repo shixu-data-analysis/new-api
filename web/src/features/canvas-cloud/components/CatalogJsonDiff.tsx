@@ -20,7 +20,6 @@ import { ChevronsDownUp, ChevronsUpDown, Copy } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import {
@@ -131,35 +130,33 @@ export function CatalogJsonDiff(props: {
           })}
         </div>
         {actionCount > 0 ? (
-          <TooltipProvider delay={200}>
-            <div className='absolute top-1.5 right-1.5 flex items-center gap-0.5'>
-              {changed ? (
-                <CodeBlockAction
-                  label={t(showAll ? 'Show changes only' : 'Show full text')}
-                  onClick={() => setShowAll((value) => !value)}
-                >
-                  {showAll ? (
-                    <ChevronsDownUp aria-hidden='true' className='size-4' />
-                  ) : (
-                    <ChevronsUpDown aria-hidden='true' className='size-4' />
-                  )}
-                </CodeBlockAction>
-              ) : null}
-              {copyText !== undefined ? (
-                <CodeBlockAction
-                  label={t('Copy JSON')}
-                  onClick={() =>
-                    void copyToClipboardWithFeedback(copyText, {
-                      copied: t('Copied'),
-                      failed: t('Failed to copy to clipboard'),
-                    })
-                  }
-                >
-                  <Copy aria-hidden='true' className='size-4' />
-                </CodeBlockAction>
-              ) : null}
-            </div>
-          </TooltipProvider>
+          <div className='absolute top-1.5 right-1.5 flex items-center gap-0.5'>
+            {changed ? (
+              <CodeBlockAction
+                label={t(showAll ? 'Show changes only' : 'Show full text')}
+                onClick={() => setShowAll((value) => !value)}
+              >
+                {showAll ? (
+                  <ChevronsDownUp aria-hidden='true' className='size-4' />
+                ) : (
+                  <ChevronsUpDown aria-hidden='true' className='size-4' />
+                )}
+              </CodeBlockAction>
+            ) : null}
+            {copyText !== undefined ? (
+              <CodeBlockAction
+                label={t('Copy JSON')}
+                onClick={() =>
+                  void copyToClipboardWithFeedback(copyText, {
+                    copied: t('Copied'),
+                    failed: t('Failed to copy to clipboard'),
+                  })
+                }
+              >
+                <Copy aria-hidden='true' className='size-4' />
+              </CodeBlockAction>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>
