@@ -2435,13 +2435,6 @@ export interface CanvasSupportAttachmentIssued {
 }
 
 export type CanvasSupportRetentionDays = 3 | 7 | 15 | 30
-export type CanvasSupportWebhookFormat =
-  | 'WECOM'
-  | 'DINGTALK'
-  | 'FEISHU'
-  | 'SLACK'
-  | 'JSON'
-
 /** A customer whose tasks on one model fail `threshold` times within `windowHours` alerts the internal group. */
 export interface CanvasSupportFailureAlertSettings {
   threshold: number
@@ -2458,7 +2451,6 @@ export interface CanvasSupportSettings {
   retentionDays: CanvasSupportRetentionDays
   failureAlerts: CanvasSupportFailureAlertSettings
   quickReplies: CanvasSupportQuickReplies
-  webhook: { format: CanvasSupportWebhookFormat; displayHint: string } | null
   version: number | null
   effectiveAt: string | null
 }
@@ -2467,19 +2459,63 @@ export interface CanvasSupportSettingsInput {
   retentionDays: CanvasSupportRetentionDays
   failureAlerts: CanvasSupportFailureAlertSettings
   quickReplies: CanvasSupportQuickReplies
-  /** null removes the Webhook; without url the saved address is kept and only the format changes. */
-  webhook: { format: CanvasSupportWebhookFormat; url?: string } | null
 }
 
-export interface CanvasSupportWebhookTest {
+// NOTIFICATIONS-001: 运行管理 › 通知, where operations notices go.
+export type CanvasNotificationAddressType =
+  | 'WECOM'
+  | 'DINGTALK'
+  | 'FEISHU'
+  | 'SLACK'
+  | 'JSON'
+  | 'EMAIL'
+
+/** A saved address; hint is a Webhook's host and last four characters, or the masked email. */
+export interface CanvasNotificationAddress {
+  id: string
+  name: string
+  type: CanvasNotificationAddressType
+  hint: string
+}
+
+export interface CanvasNotificationEvent {
+  category: string
+  enabled: boolean
+  addressIds: string[]
+}
+
+export interface CanvasNotificationDelivery {
+  at: string
   ok: boolean
-  reason:
-    | 'URL_REJECTED'
-    | 'NETWORK'
-    | 'TIMEOUT'
-    | 'HTTP_STATUS'
-    | 'BOT_ERROR'
-    | null
+  reason: string | null
+}
+
+export interface CanvasNotificationSettings {
+  /** 0 before the first save; sent back as expectedVersion. */
+  version: number
+  addresses: CanvasNotificationAddress[]
+  /** Every event Cloud can notify, keyed by event ID. */
+  events: Record<string, CanvasNotificationEvent>
+  addressTypes: CanvasNotificationAddressType[]
+  lastDeliveries: Record<string, CanvasNotificationDelivery>
+}
+
+export interface CanvasNotificationSettingsInput {
+  expectedVersion: number
+  /** Every address to keep; a new one brings its own id. url / email only when new or changed. */
+  addresses: Array<{
+    id: string
+    name: string
+    type: CanvasNotificationAddressType
+    url?: string
+    email?: string
+  }>
+  events: Record<string, { enabled: boolean; addressIds: string[] }>
+}
+
+export interface CanvasNotificationTest {
+  ok: boolean
+  reason: string | null
 }
 
 export interface CanvasSupportFailureAlertCustomer {

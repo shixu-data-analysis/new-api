@@ -20,12 +20,17 @@ import {
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
 import { ExecutionSettings } from './ExecutionSettings'
+import { NotificationSettings } from './NotificationSettings'
 import {
   RuntimeConfiguration,
   type CanvasProviderNavigationTarget,
 } from './RuntimeConfiguration'
 
-export type RuntimeManagementView = 'execution' | 'provider' | 'taskMedia'
+export type RuntimeManagementView =
+  | 'execution'
+  | 'provider'
+  | 'taskMedia'
+  | 'notifications'
 
 export function RuntimeManagement(props: {
   initialView?: RuntimeManagementView
@@ -70,6 +75,9 @@ export function RuntimeManagement(props: {
         <CanvasManagementTabsTrigger value='taskMedia'>
           {t('Task media')}
         </CanvasManagementTabsTrigger>
+        <CanvasManagementTabsTrigger value='notifications'>
+          {t('Notifications')}
+        </CanvasManagementTabsTrigger>
       </CanvasManagementTabsList>
 
       {props.onReturnToModelList && view === 'provider' ? (
@@ -93,6 +101,9 @@ export function RuntimeManagement(props: {
       </TabsContent>
       <TabsContent value='taskMedia'>
         <RuntimeConfiguration view='taskMedia' />
+      </TabsContent>
+      <TabsContent value='notifications'>
+        <NotificationSettings />
       </TabsContent>
     </Tabs>
   )

@@ -38,7 +38,6 @@ const api = vi.hoisted(() => ({
   saveModelAvailabilitySettings: vi.fn(),
   testModelAvailabilityList: vi.fn(),
   testModelAvailabilityRequest: vi.fn(),
-  testModelAvailabilityEmail: vi.fn(),
   judgeModelAvailabilityRule: vi.fn(),
 }))
 const controlCanvasLogicalModel = vi.hoisted(() => vi.fn())
@@ -47,9 +46,16 @@ vi.mock('../../model-availability-api', async (original) => ({
   ...(await original<object>()),
   ...api,
 }))
+const getCanvasAdminNotificationSettings = vi.hoisted(() => vi.fn())
 vi.mock('../../api', async (original) => ({
   ...(await original<object>()),
   controlCanvasLogicalModel,
+  getCanvasAdminNotificationSettings,
+}))
+const navigate = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => navigate,
 }))
 
 const missing = (modelKey: string, enabled = true) => ({
@@ -82,7 +88,6 @@ const overview = (change: object = {}) => ({
     autoProbeEnabled: false,
     intervalHours: 3,
     threshold: 2,
-    alertEmails: [],
     version: 4,
   },
   providers: [provider],
@@ -257,7 +262,6 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
           autoProbeEnabled: false,
           intervalHours: 3,
           threshold: 10,
-          alertEmails: [],
           version: 4,
         },
         targets: [
@@ -466,7 +470,6 @@ describe('ModelAvailabilitySettingsDialog', () => {
               autoProbeEnabled: false,
               intervalHours: 3,
               threshold: 2,
-              alertEmails: [],
               version: 4,
               ...settings,
             },
@@ -477,59 +480,34 @@ describe('ModelAvailabilitySettingsDialog', () => {
         onSaved={vi.fn()}
       />
     )
-  const emailField = () => screen.getByLabelText('Alert email addresses')
 
-  it('saves the alert addresses as Cloud keeps them', async () => {
+  it('shows where the alerts go, from the notification settings, and saves no addresses', async () => {
+    getCanvasAdminNotificationSettings.mockResolvedValue({
+      version: 2,
+      addresses: [
+        { id: 'a-1', name: 'Ops', type: 'EMAIL', hint: 'o***@example.com' },
+      ],
+      events: {
+        'availability.missing': {
+          category: 'MODEL',
+          enabled: true,
+          addressIds: ['a-1'],
+        },
+      },
+      addressTypes: ['EMAIL'],
+      lastDeliveries: {},
+    })
     api.saveModelAvailabilitySettings.mockResolvedValue({ version: 5 })
     openDialog()
-    fireEvent.change(emailField(), {
-      target: { value: 'A@Example.com\nb@example.com' },
-    })
+    expect(await screen.findByText('Ops (Email)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Alert email addresses')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
-      expect(api.saveModelAvailabilitySettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          alertEmails: ['a@example.com', 'b@example.com'],
-        })
-      )
+      expect(api.saveModelAvailabilitySettings).toHaveBeenCalled()
     )
-  })
-
-  it('shows a wrong address only once the field was left, and keeps it from being saved', () => {
-    openDialog()
-    fireEvent.change(emailField(), { target: { value: 'nope' } })
-    expect(screen.queryByText('An email address is not valid.')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    fireEvent.blur(emailField())
     expect(
-      screen.getByText('An email address is not valid.')
-    ).toBeInTheDocument()
-    expect(emailField()).toHaveAttribute('aria-invalid', 'true')
-  })
-
-  it('tests what is typed and reports each address', async () => {
-    api.testModelAvailabilityEmail.mockResolvedValue({
-      results: [
-        { to: 'a@example.com', ok: true, reason: null },
-        { to: 'b@example.com', ok: false, reason: 'REJECTED' },
-      ],
-    })
-    openDialog()
-    const send = screen.getByRole('button', { name: 'Send a test email' })
-    expect(send).toBeDisabled()
-    fireEvent.change(emailField(), {
-      target: { value: 'a@example.com\nb@example.com' },
-    })
-    fireEvent.click(send)
-    expect(await screen.findByText(/a@example.com.*Sent/)).toBeInTheDocument()
-    expect(
-      screen.getByText(/b@example.com.*did not accept/)
-    ).toBeInTheDocument()
-    expect(api.testModelAvailabilityEmail).toHaveBeenCalledWith([
-      'a@example.com',
-      'b@example.com',
-    ])
-    expect(api.saveModelAvailabilitySettings).not.toHaveBeenCalled()
+      api.saveModelAvailabilitySettings.mock.calls[0]?.[0]
+    ).not.toHaveProperty('alertEmails')
   })
 
   it('asks before discarding, and saves what was edited with the version it read', async () => {
@@ -572,7 +550,6 @@ describe('ModelAvailabilitySettingsDialog', () => {
                 autoProbeEnabled: false,
                 intervalHours: 3,
                 threshold: 2,
-                alertEmails: [],
                 version,
               },
             }) as never

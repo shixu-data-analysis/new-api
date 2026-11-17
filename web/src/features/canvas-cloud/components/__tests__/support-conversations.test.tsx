@@ -59,12 +59,20 @@ const apiMocks = vi.hoisted(() => ({
   uploadCanvasSupportAttachment: vi.fn(),
   resolveCanvasSupportAttachmentUrl: vi.fn(),
   setCanvasAdminSupportSettings: vi.fn(),
-  testCanvasAdminSupportWebhook: vi.fn(),
+  notificationQueryKeys: {
+    settings: ['canvas-cloud', 'admin', 'notifications', 'settings'],
+  },
+  getCanvasAdminNotificationSettings: vi.fn(),
   getCanvasAdminSupportFailureAlerts: vi.fn(),
   notifyCanvasAdminSupportFailureAlerts: vi.fn(),
   dismissCanvasAdminSupportFailureAlerts: vi.fn(),
 }))
 vi.mock('../../api', () => apiMocks)
+const navigate = vi.hoisted(() => vi.fn())
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  useNavigate: () => navigate,
+}))
 
 const message = (
   overrides: Partial<CanvasAdminSupportMessage>
@@ -532,7 +540,6 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     retentionDays: 7,
     failureAlerts: { threshold: 3, windowHours: 24 },
     quickReplies: { conversation: ['收到'], failureNotice: [] },
-    webhook: { format: 'WECOM', displayHint: 'qyapi.weixin.qq.com/…3f2a' },
     version: 2,
     effectiveAt: '2026-11-16T03:00:00.000Z',
   }
@@ -543,22 +550,41 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     vi.clearAllMocks()
     await i18next.changeLanguage('en')
     apiMocks.setCanvasAdminSupportSettings.mockResolvedValue(saved)
-    apiMocks.testCanvasAdminSupportWebhook.mockResolvedValue({
-      ok: true,
-      reason: null,
+    apiMocks.getCanvasAdminNotificationSettings.mockResolvedValue({
+      version: 3,
+      addresses: [
+        {
+          id: 'a-1',
+          name: '运营群',
+          type: 'WECOM',
+          hint: 'qyapi.weixin.qq.com/…3f2a',
+        },
+        {
+          id: 'a-2',
+          name: '运营群',
+          type: 'FEISHU',
+          hint: 'open.feishu.cn/…77d0',
+        },
+      ],
+      events: {
+        'support.pending': {
+          category: 'SUPPORT',
+          enabled: true,
+          addressIds: ['a-1', 'a-2'],
+        },
+      },
+      addressTypes: ['WECOM', 'FEISHU', 'EMAIL'],
+      lastDeliveries: {},
     })
   })
 
-  it('warns before shortening the retention and keeps the saved address when the field is empty', async () => {
+  it('warns before shortening the retention, shows where the alerts go and saves without them', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     render(wrap(<SupportSettingsDialog settings={saved} onClose={onClose} />))
-    // The test i18n escapes interpolated values, so only the unescaped parts are matched.
-    expect(
-      screen.getByLabelText('Webhook address').getAttribute('placeholder')
-    ).toMatch(
-      /^Saved: qyapi\.weixin\.qq\.com.+3f2a\. Leave empty to keep it\.$/
-    )
+    expect(await screen.findByText('运营群 (WeCom)')).toBeInTheDocument()
+    expect(screen.getByText('运营群 (Feishu)')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Webhook address')).not.toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'Message retention' }))
     await user.click(
       screen.getByRole('combobox', { name: 'Keep messages for' })
@@ -567,68 +593,38 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'older than 3 days are deleted at the next cleanup'
     )
-    await user.click(screen.getByRole('tab', { name: 'Alerts' }))
-    expect(
-      screen.getByRole('button', { name: 'Send test message' })
-    ).toBeDisabled()
-    await user.click(screen.getByRole('combobox', { name: 'Message format' }))
-    await user.click(await screen.findByRole('option', { name: 'Feishu' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
         retentionDays: 3,
         failureAlerts: { threshold: 3, windowHours: 24 },
         quickReplies: { conversation: ['收到'], failureNotice: [] },
-        webhook: { format: 'FEISHU' },
       })
     )
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
-  it('asks for an HTTPS address before the first save and sends the test of a saved Webhook', async () => {
-    const empty: CanvasSupportSettings = {
-      retentionDays: 3,
-      failureAlerts: { threshold: 3, windowHours: 24 },
-      quickReplies: { conversation: [], failureNotice: [] },
-      webhook: null,
-      version: null,
-      effectiveAt: null,
-    }
-    const { unmount } = render(
-      wrap(<SupportSettingsDialog settings={empty} onClose={vi.fn()} />)
-    )
-    fireEvent.click(screen.getByRole('switch', { name: 'Send Webhook alerts' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Enter the Webhook address'
-    )
-    fireEvent.change(screen.getByLabelText('Webhook address'), {
-      target: { value: 'http://hooks.example.com/x' },
-    })
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Enter an address that starts with https://'
-    )
-    fireEvent.change(screen.getByLabelText('Webhook address'), {
-      target: { value: ' https://hooks.example.com/x ' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() =>
-      expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
-        retentionDays: 3,
-        failureAlerts: { threshold: 3, windowHours: 24 },
-        quickReplies: { conversation: [], failureNotice: [] },
-        webhook: { format: 'WECOM', url: 'https://hooks.example.com/x' },
-      })
-    )
-    unmount()
-
+  it('opens the notification settings only without unsaved changes', async () => {
     render(wrap(<SupportSettingsDialog settings={saved} onClose={vi.fn()} />))
-    fireEvent.click(screen.getByRole('button', { name: 'Send test message' }))
-    await waitFor(() =>
-      expect(apiMocks.testCanvasAdminSupportWebhook).toHaveBeenCalledWith(
-        expect.any(String)
-      )
+    await screen.findByText('运营群 (WeCom)')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Failures' }), {
+      target: { value: '5' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Change in Notifications' })
     )
+    expect(navigate).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Failures' }), {
+      target: { value: '3' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Change in Notifications' })
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/canvas-cloud/$section',
+      params: { section: 'runtime' },
+      search: { view: 'notifications' },
+    })
   })
 
   it('checks the failure alert range and saves the quick replies with the settings', async () => {
@@ -663,7 +659,6 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
         retentionDays: 7,
         failureAlerts: { threshold: 5, windowHours: 6 },
         quickReplies: { conversation: [], failureNotice: ['已修复，可以再试'] },
-        webhook: { format: 'WECOM' },
       })
     )
   })

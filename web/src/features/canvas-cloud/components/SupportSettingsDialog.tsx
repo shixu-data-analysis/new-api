@@ -38,22 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getServerErrorCode } from '@/lib/server-error-message'
 
-import {
-  setCanvasAdminSupportSettings,
-  supportQueryKeys,
-  testCanvasAdminSupportWebhook,
-} from '../api'
+import { setCanvasAdminSupportSettings, supportQueryKeys } from '../api'
 import type {
   CanvasSupportQuickReplies,
   CanvasSupportRetentionDays,
   CanvasSupportSettings,
-  CanvasSupportWebhookFormat,
-  CanvasSupportWebhookTest,
 } from '../types'
+import { NotificationSendTo } from './NotificationSendTo'
 import { SupportQuickRepliesField } from './SupportQuickRepliesField'
 
 const RETENTION_DAYS: CanvasSupportRetentionDays[] = [3, 7, 15, 30]
@@ -65,40 +58,7 @@ const inRange = (value: string, range: { min: number; max: number }) =>
   /^\d+$/.test(value) &&
   Number(value) >= range.min &&
   Number(value) <= range.max
-const FORMATS: Array<[CanvasSupportWebhookFormat, string]> = [
-  ['WECOM', 'WeCom'],
-  ['DINGTALK', 'DingTalk'],
-  ['FEISHU', 'Feishu'],
-  ['SLACK', 'Slack'],
-  ['JSON', 'Generic JSON'],
-]
-const TEST_FAILURES: Record<
-  NonNullable<CanvasSupportWebhookTest['reason']>,
-  string
-> = {
-  URL_REJECTED: 'The Webhook address is not allowed',
-  NETWORK: 'The Webhook could not be reached',
-  TIMEOUT: 'The Webhook did not answer in time',
-  HTTP_STATUS: 'The Webhook answered with an error',
-  BOT_ERROR:
-    'The bot refused the message; check the address and its security settings',
-}
-
-function webhookUrlError(
-  missing: boolean,
-  notHttps: boolean,
-  t: (key: string) => string
-): string | null {
-  if (missing) {
-    return t('Enter the Webhook address')
-  }
-  if (notHttps) {
-    return t('Enter an address that starts with https://')
-  }
-  return null
-}
-
-/** 客服设置: message retention, the Webhook that alerts the internal group, failure alerts and quick replies. */
+/** 客服设置: message retention, failure alerts and quick replies; where the alerts go is set in 运行管理 › 通知. */
 export function SupportSettingsDialog(props: {
   settings: CanvasSupportSettings
   onClose: () => void
@@ -108,10 +68,6 @@ export function SupportSettingsDialog(props: {
   const id = useId()
   const [retentionDays, setRetentionDays] = useState(
     props.settings.retentionDays
-  )
-  const [hasWebhook, setHasWebhook] = useState(props.settings.webhook !== null)
-  const [format, setFormat] = useState<CanvasSupportWebhookFormat>(
-    props.settings.webhook?.format ?? 'WECOM'
   )
   const [threshold, setThreshold] = useState(
     String(props.settings.failureAlerts.threshold)
@@ -123,16 +79,7 @@ export function SupportSettingsDialog(props: {
     props.settings.quickReplies
   )
   const [tab, setTab] = useState<SettingsTab>('alerts')
-  const [url, setUrl] = useState('')
   const [tried, setTried] = useState(false)
-  const [urlError, setUrlError] = useState<string | null>(null)
-  const saved = props.settings.webhook
-  const trimmedUrl = url.trim()
-  // A saved address may stay as it is; a new one, or the first one, must be HTTPS.
-  const urlMissing = hasWebhook && !saved && trimmedUrl === ''
-  const urlNotHttps = trimmedUrl !== '' && !/^https:\/\/\S+$/i.test(trimmedUrl)
-  const localUrlError = webhookUrlError(urlMissing, urlNotHttps, t)
-  const shownUrlError = tried ? (localUrlError ?? urlError) : urlError
   const shorter = retentionDays < props.settings.retentionDays
   const failureRangeError =
     inRange(threshold, THRESHOLD_RANGE) &&
@@ -151,10 +98,7 @@ export function SupportSettingsDialog(props: {
     retentionDays !== props.settings.retentionDays ||
     threshold !== String(props.settings.failureAlerts.threshold) ||
     windowHours !== String(props.settings.failureAlerts.windowHours) ||
-    JSON.stringify(quickReplies) !==
-      JSON.stringify(props.settings.quickReplies) ||
-    hasWebhook !== (saved !== null) ||
-    (hasWebhook && (format !== saved?.format || trimmedUrl !== ''))
+    JSON.stringify(quickReplies) !== JSON.stringify(props.settings.quickReplies)
 
   const save = useMutation({
     mutationFn: () =>
@@ -165,42 +109,21 @@ export function SupportSettingsDialog(props: {
           windowHours: Number(windowHours),
         },
         quickReplies,
-        webhook: hasWebhook
-          ? { format, ...(trimmedUrl ? { url: trimmedUrl } : {}) }
-          : null,
       }),
     onSuccess: (result) => {
       queryClient.setQueryData(supportQueryKeys.settings, result)
       toast.success(t('Settings saved'))
       props.onClose()
     },
-    onError: (error) => {
-      if (getServerErrorCode(error) === 'SUPPORT_WEBHOOK_REJECTED') {
-        setUrlError(
-          t(
-            'This address is not allowed. Use an HTTPS address on the public internet.'
-          )
-        )
-        return
-      }
-      toast.error(t('Unable to save the settings. Please try again.'))
-    },
-  })
-  const test = useMutation({
-    mutationFn: () => testCanvasAdminSupportWebhook(crypto.randomUUID()),
-    onSuccess: (result) =>
-      result.ok
-        ? toast.success(t('Test message sent'))
-        : toast.error(t(TEST_FAILURES[result.reason ?? 'NETWORK'])),
     onError: () =>
-      toast.error(t('Unable to send the test message. Please try again.')),
+      toast.error(t('Unable to save the settings. Please try again.')),
   })
-  const busy = save.isPending || test.isPending
+  const busy = save.isPending
 
   // Errors on submit are all in 提醒; the dialog shows that tab so they can be seen.
   const submit = () => {
     setTried(true)
-    if (localUrlError || failureRangeError) {
+    if (failureRangeError) {
       setTab('alerts')
       return
     }
@@ -240,129 +163,18 @@ export function SupportSettingsDialog(props: {
             </div>
             <div className='min-h-80 flex-1 overflow-y-auto px-6 py-4'>
               <TabsContent value='alerts' className='space-y-6'>
-                <section
-                  className='space-y-3'
-                  aria-labelledby={`${id}-webhook`}
-                >
-                  <div className='flex items-start gap-3'>
-                    <div className='flex-1 space-y-1'>
-                      <h3 id={`${id}-webhook`} className='text-sm font-medium'>
-                        {t('Webhook alerts')}
-                      </h3>
-                      <p
-                        id={`${id}-webhook-help`}
-                        className='text-muted-foreground text-xs'
-                      >
-                        {t(
-                          'Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.'
-                        )}
-                      </p>
-                    </div>
-                    <Switch
-                      checked={hasWebhook}
-                      aria-label={t('Send Webhook alerts')}
-                      aria-describedby={`${id}-webhook-help`}
-                      onCheckedChange={setHasWebhook}
-                    />
-                  </div>
-                  {hasWebhook ? (
-                    <div className='grid gap-3 sm:grid-cols-[9rem_minmax(0,1fr)]'>
-                      <div className='space-y-2'>
-                        <Label htmlFor={`${id}-format`}>
-                          {t('Message format')}
-                        </Label>
-                        <Select
-                          value={format}
-                          onValueChange={(value) =>
-                            value
-                              ? setFormat(value as CanvasSupportWebhookFormat)
-                              : undefined
-                          }
-                        >
-                          <SelectTrigger id={`${id}-format`} className='w-full'>
-                            <SelectValue>
-                              {(value: string) =>
-                                t(
-                                  FORMATS.find(([key]) => key === value)?.[1] ??
-                                    'Unknown'
-                                )
-                              }
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FORMATS.map(([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {t(label)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className='min-w-0 space-y-2'>
-                        <Label htmlFor={`${id}-url`}>
-                          {t('Webhook address')}
-                        </Label>
-                        <Input
-                          id={`${id}-url`}
-                          type='url'
-                          autoComplete='off'
-                          value={url}
-                          placeholder={
-                            saved
-                              ? t('Saved: {{hint}}. Leave empty to keep it.', {
-                                  hint: saved.displayHint,
-                                })
-                              : 'https://'
-                          }
-                          aria-invalid={Boolean(shownUrlError)}
-                          aria-describedby={
-                            shownUrlError ? `${id}-url-error` : `${id}-url-help`
-                          }
-                          onChange={(event) => {
-                            setUrl(event.target.value)
-                            setUrlError(null)
-                          }}
-                        />
-                      </div>
-                      <div className='space-y-2 sm:col-span-2'>
-                        {shownUrlError ? (
-                          <p
-                            id={`${id}-url-error`}
-                            role='alert'
-                            className='text-destructive text-xs'
-                          >
-                            {shownUrlError}
-                          </p>
-                        ) : (
-                          <p
-                            id={`${id}-url-help`}
-                            className='text-muted-foreground text-xs'
-                          >
-                            {t('HTTPS only')}
-                          </p>
-                        )}
-                        <div className='flex flex-wrap items-center gap-2'>
-                          <Button
-                            type='button'
-                            variant='outline'
-                            size='sm'
-                            disabled={busy || !saved || dirty}
-                            onClick={() => test.mutate()}
-                          >
-                            {t('Send test message')}
-                          </Button>
-                          {saved && dirty ? (
-                            <span className='text-muted-foreground text-xs'>
-                              {t(
-                                'Save the changes before sending a test message.'
-                              )}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
+                <NotificationSendTo
+                  eventId='support.pending'
+                  label={t('Alerts go to')}
+                  help={t(
+                    'Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.'
+                  )}
+                  onBeforeLeave={() => {
+                    if (!dirty) return true
+                    toast.error(t('Save or cancel the changes before leaving.'))
+                    return false
+                  }}
+                />
 
                 <section
                   className='space-y-2 border-t pt-5'

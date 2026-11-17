@@ -113,7 +113,6 @@ export interface AvailabilityOverview {
     autoProbeEnabled: boolean
     intervalHours: number
     threshold: number
-    alertEmails: string[]
     version: number
   }
   providers: AvailabilityProvider[]
@@ -185,7 +184,6 @@ export interface SaveSettingsInput {
   autoProbeEnabled: boolean
   intervalHours: number
   threshold: number
-  alertEmails: string[]
   providers: Record<
     string,
     { source: ListSource; rule: CustomRule | null; confirmUntested: boolean }
@@ -280,22 +278,6 @@ export async function saveModelAvailabilitySettings(
     await api.put<{ version: number }>(`${base}/settings`, input, {
       skipErrorHandler: true,
     })
-  ).data
-}
-
-export interface EmailTestResult {
-  results: { to: string; ok: boolean; reason: string | null }[]
-}
-
-export async function testModelAvailabilityEmail(
-  emails: string[]
-): Promise<EmailTestResult> {
-  return (
-    await api.post<EmailTestResult>(
-      `${base}/test-email`,
-      { emails },
-      { skipErrorHandler: true }
-    )
   ).data
 }
 

@@ -50,6 +50,7 @@ const canvasViewSearch = z
       value === 'execution' ||
       value === 'provider' ||
       value === 'taskMedia' ||
+      value === 'notifications' ||
       value === 'redeem' ||
       value === 'lots' ||
       value === 'ledger'

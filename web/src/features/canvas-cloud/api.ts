@@ -120,7 +120,9 @@ import type {
   CanvasSupportSettings,
   CanvasSupportSettingsInput,
   CanvasSupportUpload,
-  CanvasSupportWebhookTest,
+  CanvasNotificationSettings,
+  CanvasNotificationSettingsInput,
+  CanvasNotificationTest,
 } from './types'
 
 const webBase = '/canvas-api/v1/web'
@@ -2350,12 +2352,41 @@ export async function dismissCanvasAdminSupportFailureAlerts(request: {
   ).data
 }
 
-export async function testCanvasAdminSupportWebhook(
-  idempotencyKey: string
-): Promise<CanvasSupportWebhookTest> {
+// NOTIFICATIONS-001: 运行管理 › 通知.
+export const notificationQueryKeys = {
+  settings: ['canvas-cloud', 'admin', 'notifications', 'settings'] as const,
+}
+
+export async function getCanvasAdminNotificationSettings(
+  signal?: AbortSignal
+): Promise<CanvasNotificationSettings> {
   return (
-    await api.post<CanvasSupportWebhookTest>(
-      `${webBase}/admin/support/settings/test`,
+    await api.get<CanvasNotificationSettings>(
+      `${webBase}/admin/notifications/settings`,
+      { signal }
+    )
+  ).data
+}
+
+export async function setCanvasAdminNotificationSettings(
+  input: CanvasNotificationSettingsInput
+): Promise<CanvasNotificationSettings> {
+  return (
+    await api.put<CanvasNotificationSettings>(
+      `${webBase}/admin/notifications/settings`,
+      input,
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
+export async function testCanvasAdminNotificationAddress(
+  addressId: string,
+  idempotencyKey: string
+): Promise<CanvasNotificationTest> {
+  return (
+    await api.post<CanvasNotificationTest>(
+      `${webBase}/admin/notifications/addresses/${addressId}/test`,
       undefined,
       {
         headers: { 'Idempotency-Key': idempotencyKey },

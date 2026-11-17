@@ -440,7 +440,8 @@ export function CanvasCloud() {
         runtimeView={
           search.view === 'execution' ||
           search.view === 'provider' ||
-          search.view === 'taskMedia'
+          search.view === 'taskMedia' ||
+          search.view === 'notifications'
             ? search.view
             : undefined
         }
