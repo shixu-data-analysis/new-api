@@ -54,14 +54,25 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
-/** Why a row cannot be saved, or null; a saved address may stay empty to keep what it has. */
+/**
+ * Whether a row left empty keeps its saved Webhook or email: Cloud keeps a Webhook across bot kinds and an email as an
+ * email, but a row turned from one to the other has nothing to keep.
+ */
+function keepsSaved(
+  row: NotificationAddressDraft,
+  saved: CanvasNotificationAddress | undefined
+): boolean {
+  return Boolean(saved) && (saved?.type === 'EMAIL') === (row.type === 'EMAIL')
+}
+
+/** Why a row cannot be saved, or null; a row that keeps its saved address may stay empty. */
 function rowIssue(
   row: NotificationAddressDraft,
-  saved: boolean,
+  keeps: boolean,
   t: Translate
 ): string | null {
   const value = row.value.trim()
-  if (!value) return saved ? null : t('Enter the address')
+  if (!value) return keeps ? null : t('Enter the address')
   if (row.type === 'EMAIL') {
     return EMAIL.test(value) ? null : t('Enter a valid email address')
   }
@@ -79,7 +90,7 @@ function nameIssueOf(name: string, t: Translate): string | null {
   return null
 }
 
-/** The saved address's hint while the row keeps its kind; otherwise what an address of the kind looks like. */
+/** The saved address's hint while the row keeps it; otherwise what an address of the kind looks like. */
 function placeholderOf(
   row: NotificationAddressDraft,
   savedHint: string | null,
@@ -120,11 +131,12 @@ export function NotificationAddressDialog(props: {
   )
   const [tried, setTried] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  const savedIds = new Set(settings.addresses.map((address) => address.id))
-  const hintOf = (rowId: string) =>
-    settings.addresses.find((address) => address.id === rowId)?.hint
+  const savedOf = (rowId: string) =>
+    settings.addresses.find((address) => address.id === rowId)
   const nameIssue = nameIssueOf(name, t)
-  const issues = rows.map((row) => rowIssue(row, savedIds.has(row.id), t))
+  const issues = rows.map((row) =>
+    rowIssue(row, keepsSaved(row, savedOf(row.id)), t)
+  )
   const invalid = Boolean(nameIssue) || issues.some(Boolean)
   const removed = editing && !rows.some((row) => row.id === editing.id)
   const dirty =
@@ -206,7 +218,7 @@ export function NotificationAddressDialog(props: {
               {rows.map((row, index) => {
                 const issue =
                   (tried ? issues[index] : null) ?? props.errors[row.id]
-                const hint = hintOf(row.id)
+                const saved = savedOf(row.id)
                 return (
                   <div key={row.id} className='space-y-1'>
                     <div className='grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-2'>
@@ -238,7 +250,7 @@ export function NotificationAddressDialog(props: {
                         value={row.value}
                         placeholder={placeholderOf(
                           row,
-                          hint && row.type === editing?.type ? hint : null,
+                          saved && keepsSaved(row, saved) ? saved.hint : null,
                           t
                         )}
                         onChange={(event) =>

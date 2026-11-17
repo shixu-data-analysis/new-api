@@ -30,6 +30,8 @@ import { toast } from 'sonner'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import zhTW from '@/i18n/locales/zh-TW.json'
+import zh from '@/i18n/locales/zh.json'
 
 import type { CanvasNotificationSettings } from '../../types'
 import { NotificationSettings } from '../NotificationSettings'
@@ -79,6 +81,14 @@ function wrap(children: ReactNode) {
 describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+    i18next.addResourceBundle('zhCN', 'translation', zh.translation, true, true)
+    i18next.addResourceBundle(
+      'zhTW',
+      'translation',
+      zhTW.translation,
+      true,
+      true
+    )
   })
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -104,6 +114,63 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     expect(
       within(events).getByText('No address is chosen, so nothing is sent')
     ).toBeInTheDocument()
+  })
+
+  it('shows the last delivery times in Chinese, whose language codes are not Intl tags', async () => {
+    api.getCanvasAdminNotificationSettings.mockResolvedValue({
+      ...settings,
+      addresses: [
+        ...settings.addresses,
+        {
+          id: 'mail',
+          name: '运维邮箱',
+          type: 'EMAIL',
+          hint: 'o***@example.com',
+        },
+      ],
+      lastDeliveries: {
+        ...settings.lastDeliveries,
+        mail: { at: '2026-11-17T12:40:00.000Z', ok: true, reason: null },
+      },
+    })
+    for (const [language, failed] of [
+      ['zhCN', /· 失败/],
+      ['zhTW', /· 失敗/],
+    ] as const) {
+      await i18next.changeLanguage(language)
+      const { unmount } = render(wrap(<NotificationSettings />))
+      expect(await screen.findByText(failed)).toBeInTheDocument()
+      expect(screen.getByText(/· 成功/)).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('keeps a saved Webhook left empty across bot kinds, but asks for an email when it turns into one', async () => {
+    render(wrap(<NotificationSettings />))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Type of address 1'), {
+      target: { value: 'EMAIL' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    expect(
+      await within(dialog).findByText('Enter the address')
+    ).toBeInTheDocument()
+    expect(api.setCanvasAdminNotificationSettings).not.toHaveBeenCalled()
+    fireEvent.change(within(dialog).getByLabelText('Type of address 1'), {
+      target: { value: 'FEISHU' },
+    })
+    expect(within(dialog).getByLabelText('Address 1')).toHaveAttribute(
+      'placeholder',
+      expect.stringContaining('…a1f3')
+    )
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.setCanvasAdminNotificationSettings).toHaveBeenCalled()
+    )
+    expect(
+      api.setCanvasAdminNotificationSettings.mock.calls[0]?.[0].addresses[0]
+    ).toEqual({ id: 'hook', name: '运营群', type: 'FEISHU' })
   })
 
   it('adds two addresses under one name for the chosen event in one save', async () => {
