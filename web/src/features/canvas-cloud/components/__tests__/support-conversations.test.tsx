@@ -307,6 +307,78 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     )
   })
 
+  it('waits for a slow first load instead of starting another one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let fail!: (reason: Error) => void
+    apiMocks.getCanvasAdminSupportMessages.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject
+        })
+    )
+    try {
+      render(
+        wrap(
+          <SupportThread
+            conversation={xiaolin}
+            quickReplies={{ conversation: [], failureNotice: [] }}
+            onOpenCustomer={vi.fn()}
+          />
+        )
+      )
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(apiMocks.getCanvasAdminSupportMessages).toHaveBeenCalledTimes(1)
+      fail(new Error('timeout'))
+      expect(
+        await screen.findByText(
+          'Unable to load the messages. Please try again.'
+        )
+      ).toBeInTheDocument()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(await screen.findByText('收到')).toBeInTheDocument()
+      expect(
+        screen.queryByText('Unable to load the messages. Please try again.')
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('loads the newest page again on the next poll after the first load failed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    apiMocks.getCanvasAdminSupportMessages.mockRejectedValueOnce(
+      new Error('offline')
+    )
+    try {
+      render(
+        wrap(
+          <SupportThread
+            conversation={xiaolin}
+            quickReplies={{ conversation: [], failureNotice: [] }}
+            onOpenCustomer={vi.fn()}
+          />
+        )
+      )
+      expect(
+        await screen.findByText(
+          'Unable to load the messages. Please try again.'
+        )
+      ).toBeInTheDocument()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(apiMocks.getCanvasAdminSupportMessages).toHaveBeenLastCalledWith(
+        xiaolin.id,
+        { limit: 50 },
+        undefined
+      )
+      expect(await screen.findByText('收到')).toBeInTheDocument()
+      expect(
+        screen.queryByText('Unable to load the messages. Please try again.')
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('still polls a customer message that arrived before the reply', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     apiMocks.replyCanvasAdminSupportConversation.mockResolvedValueOnce({

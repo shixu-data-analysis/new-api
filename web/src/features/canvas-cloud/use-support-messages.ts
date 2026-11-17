@@ -49,6 +49,10 @@ export function useSupportMessages(conversationId: string) {
   // customer message that arrived between the last poll and the reply is still fetched.
   const polledThrough = useRef(0)
   const shown = useRef<CanvasAdminSupportMessage[]>([])
+  // Until the newest page has loaded, a poll loads it again instead of reading after sequence 0 from the start. One load runs
+  // at a time, so a slow first load that fails cannot undo a later one that succeeded.
+  const loaded = useRef(false)
+  const loadingNewest = useRef<Promise<void> | null>(null)
   const current = useRef(conversationId)
   current.current = conversationId
 
@@ -81,9 +85,42 @@ export function useSupportMessages(conversationId: string) {
     })
   }, [])
 
+  /** The newest page: the messages shown first, where polling starts and whether earlier pages exist. */
+  const loadNewest = useCallback(
+    (signal?: AbortSignal) => {
+      if (loadingNewest.current) return loadingNewest.current
+      const id = conversationId
+      const load = (async () => {
+        const page = await getCanvasAdminSupportMessages(
+          id,
+          { limit: PAGE },
+          signal
+        )
+        if (current.current !== id) return
+        merge(page.messages)
+        polledThrough.current = Math.max(
+          polledThrough.current,
+          ...page.messages.map((message) => message.seq)
+        )
+        setHasEarlier(page.hasEarlier)
+        setState('ready')
+        loaded.current = true
+      })().finally(() => {
+        if (loadingNewest.current === load) loadingNewest.current = null
+      })
+      loadingNewest.current = load
+      return load
+    },
+    [conversationId, merge]
+  )
+
   const poll = useCallback(async () => {
     const id = conversationId
     try {
+      if (!loaded.current) {
+        await loadNewest()
+        return
+      }
       const page = await getCanvasAdminSupportMessages(id, {
         after: polledThrough.current,
         limit: POLL_PAGE,
@@ -106,31 +143,19 @@ export function useSupportMessages(conversationId: string) {
     } catch {
       // A failed poll keeps the thread as it is; the next one tries again.
     }
-  }, [conversationId, merge])
+  }, [conversationId, loadNewest, merge])
 
   useEffect(() => {
     const controller = new AbortController()
     polledThrough.current = 0
     shown.current = []
+    loaded.current = false
+    loadingNewest.current = null
     setMessages([])
     setState('loading')
-    getCanvasAdminSupportMessages(
-      conversationId,
-      { limit: PAGE },
-      controller.signal
-    )
-      .then((page) => {
-        merge(page.messages)
-        polledThrough.current = Math.max(
-          0,
-          ...page.messages.map((message) => message.seq)
-        )
-        setHasEarlier(page.hasEarlier)
-        setState('ready')
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setState('error')
-      })
+    loadNewest(controller.signal).catch(() => {
+      if (!controller.signal.aborted) setState('error')
+    })
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void poll()
     }, POLL_MILLISECONDS)
@@ -138,7 +163,7 @@ export function useSupportMessages(conversationId: string) {
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [conversationId, merge, poll])
+  }, [conversationId, loadNewest, poll])
 
   const loadEarlier = async () => {
     const id = conversationId
