@@ -132,17 +132,19 @@ export function NotificationSettings() {
         )
         return
       }
-      if (code === 'NOTIFICATION_ADDRESS_REJECTED') {
-        setErrors({
-          [fieldOf(error) ?? 'form']: t(
+      const rejected = code === 'NOTIFICATION_ADDRESS_REJECTED'
+      const message = rejected
+        ? t(
             'This address is not allowed. Use an HTTPS address on the public internet.'
-          ),
-        })
+          )
+        : t('Unable to save the notification settings. Please try again.')
+      // Only the address and event dialogs show an error in place; a switch or a deletion has nowhere to, so it toasts.
+      if (dialog?.kind === 'address' || dialog?.kind === 'event') {
+        const field = rejected ? fieldOf(error) : undefined
+        setErrors({ [field ?? 'form']: message })
         return
       }
-      setErrors({
-        form: t('Unable to save the notification settings. Please try again.'),
-      })
+      toast.error(message)
     },
   })
   const test = useMutation({

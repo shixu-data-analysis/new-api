@@ -163,6 +163,25 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     expect(input.events['support.pending'].addressIds).toEqual(['hook'])
   })
 
+  it('tells why a switch or a deletion was not saved, as neither has a dialog to show it', async () => {
+    api.setCanvasAdminNotificationSettings.mockRejectedValue({
+      response: { status: 500, data: { code: 'INTERNAL_ERROR' } },
+    })
+    render(wrap(<NotificationSettings />))
+    fireEvent.click(
+      await screen.findByRole('switch', { name: 'Send Probing paused' })
+    )
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        'Unable to save the notification settings. Please try again.'
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const confirm = await screen.findByRole('alertdialog')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2))
+  })
+
   it('reloads after a change made elsewhere meanwhile, and names why a test failed', async () => {
     api.setCanvasAdminNotificationSettings.mockRejectedValueOnce({
       response: {
