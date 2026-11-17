@@ -11207,6 +11207,8 @@
     "Change notification settings": "Modifier les paramètres de notification",
     "Send a notification": "Envoyer une notification",
     "Notification not delivered": "Notification non distribuée",
-    "Test message": "Message de test"
+    "Test message": "Message de test",
+    "API provider balance low": "Solde du fournisseur d'API bas",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "Le solde estimé passe sous son seuil d'alerte ; au plus une fois par jour et par fournisseur"
   }
 }

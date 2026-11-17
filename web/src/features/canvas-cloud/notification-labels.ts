@@ -54,11 +54,16 @@ const EVENT_LABELS: Record<string, { name: string; when: string }> = {
     name: 'Probing paused',
     when: 'A probe request succeeded or timed out, so it may have been charged',
   },
+  'balance.low': {
+    name: 'API provider balance low',
+    when: 'The estimated balance falls below its alert threshold; at most once per provider a day',
+  },
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
   SUPPORT: 'Support',
   MODEL: 'Models',
+  PROVIDER: 'API providers',
 }
 
 export const NOTIFICATION_FAILURE_LABELS: Record<string, string> = {

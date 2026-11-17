@@ -29,10 +29,15 @@ import { PointsContributionPanel } from './PointsContributionPanel'
 import { ProviderBalanceAlertBadge } from './ProviderBalanceAlertBadge'
 import { ProviderBalancesPanel } from './ProviderBalancesPanel'
 
-/** "Operating dashboard": the administrator home page. Each tab keeps its own filters; the tab is not written to the URL. */
-export function OperatingDashboard() {
+/**
+ * "Operating dashboard": the administrator home page. Each tab keeps its own filters; the tab is not written to the URL, but
+ * a link may open the balances tab (the 余额不足 notification, NOTIFICATIONS-001).
+ */
+export function OperatingDashboard(props: { tab?: 'provider-balances' }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState<'points' | 'provider-balances'>('points')
+  const [tab, setTab] = useState<'points' | 'provider-balances'>(
+    props.tab ?? 'points'
+  )
   return (
     <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
       <CanvasManagementTabsList>

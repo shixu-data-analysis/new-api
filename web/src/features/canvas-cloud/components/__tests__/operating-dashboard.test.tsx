@@ -13,6 +13,7 @@ import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
 import type { DashboardSummary } from '../../operating-dashboard-types'
+import { OperatingDashboard } from '../OperatingDashboard'
 import { PointsContributionPanel } from '../PointsContributionPanel'
 import { ProviderBalancesPanel } from '../ProviderBalancesPanel'
 
@@ -561,6 +562,14 @@ describe('ADMIN-REWORK-008 API provider balances', () => {
       asOf: '2026-09-26T01:20:00.000Z',
       alertCount: 2,
     })
+  })
+
+  it('opens on the balances tab when a 余额不足 notification links to it', async () => {
+    mount(<OperatingDashboard tab='provider-balances' />)
+    expect(
+      await screen.findByRole('tab', { name: /API provider balances/u })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByText('Negative balance')).toBeInTheDocument()
   })
 
   it('marks providers below their threshold and opens the drawer or dialog each hint leads to', async () => {

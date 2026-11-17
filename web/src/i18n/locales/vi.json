@@ -11207,6 +11207,8 @@
     "Change notification settings": "Thay đổi cài đặt thông báo",
     "Send a notification": "Gửi thông báo",
     "Notification not delivered": "Thông báo chưa gửi được",
-    "Test message": "Tin nhắn thử"
+    "Test message": "Tin nhắn thử",
+    "API provider balance low": "Số dư nhà cung cấp API thấp",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "Số dư ước tính thấp hơn ngưỡng cảnh báo; mỗi nhà cung cấp tối đa một lần mỗi ngày"
   }
 }

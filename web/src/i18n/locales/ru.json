@@ -11207,6 +11207,8 @@
     "Change notification settings": "Изменить настройки уведомлений",
     "Send a notification": "Отправить уведомление",
     "Notification not delivered": "Уведомление не доставлено",
-    "Test message": "Тестовое сообщение"
+    "Test message": "Тестовое сообщение",
+    "API provider balance low": "Низкий баланс API-поставщика",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "Оценочный баланс ниже порога оповещения; не чаще раза в день для каждого поставщика"
   }
 }

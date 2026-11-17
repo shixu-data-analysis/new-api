@@ -164,6 +164,7 @@ export function AdminContent(props: {
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   customersTab?: 'support'
+  dashboardTab?: 'provider-balances'
   supportView?: 'failures'
   supportConversationId?: string
   onSupportChange?: (support: {
@@ -254,7 +255,9 @@ export function AdminContent(props: {
   if (props.section === 'point-campaigns') {
     return <ActivityManagement titleActionSlot={props.titleActionSlot} />
   }
-  if (props.section === 'dashboard') return <OperatingDashboard />
+  if (props.section === 'dashboard') {
+    return <OperatingDashboard tab={props.dashboardTab} />
+  }
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -394,6 +397,9 @@ export function CanvasCloud() {
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
         customersTab={search.tab === 'support' ? 'support' : undefined}
+        dashboardTab={
+          search.tab === 'provider-balances' ? 'provider-balances' : undefined
+        }
         supportView={search.supportView === 'failures' ? 'failures' : undefined}
         supportConversationId={search.conversation}
         onSupportChange={(support) =>

@@ -11207,6 +11207,8 @@
     "Change notification settings": "修改通知设置",
     "Send a notification": "发送通知",
     "Notification not delivered": "通知未送达",
-    "Test message": "测试消息"
+    "Test message": "测试消息",
+    "API provider balance low": "API 服务商余额不足",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "估算余额低于预警值；每家 API 服务商每天最多一次"
   }
 }

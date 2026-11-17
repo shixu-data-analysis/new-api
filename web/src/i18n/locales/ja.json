@@ -11207,6 +11207,8 @@
     "Change notification settings": "通知設定を変更",
     "Send a notification": "通知を送信",
     "Notification not delivered": "通知を配信できませんでした",
-    "Test message": "テストメッセージ"
+    "Test message": "テストメッセージ",
+    "API provider balance low": "API プロバイダーの残高不足",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "推定残高がアラートしきい値を下回ったとき。プロバイダーごとに 1 日 1 回まで"
   }
 }

@@ -11207,6 +11207,8 @@
     "Change notification settings": "Change notification settings",
     "Send a notification": "Send a notification",
     "Notification not delivered": "Notification not delivered",
-    "Test message": "Test message"
+    "Test message": "Test message",
+    "API provider balance low": "API provider balance low",
+    "The estimated balance falls below its alert threshold; at most once per provider a day": "The estimated balance falls below its alert threshold; at most once per provider a day"
   }
 }
