@@ -72,7 +72,7 @@ function renderMedia(video: Record<string, unknown>) {
   render(<Harness />)
   return () =>
     (
-      latest.draft.release.publicInteraction as {
+      latest.draft.release.publicInteraction as unknown as {
         mediaConstraints: { video: Record<string, unknown> }
       }
     ).mediaConstraints.video
