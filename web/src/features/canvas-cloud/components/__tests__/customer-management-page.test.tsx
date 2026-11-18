@@ -84,7 +84,7 @@ describe('Customer management tabs', () => {
       await screen.findByText('2 support conversations are awaiting a reply')
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Email records' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Customer emails' }))
     expect(screen.getByText('mail records')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Email every active customer' })

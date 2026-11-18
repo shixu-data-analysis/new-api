@@ -89,7 +89,7 @@ export function CustomerManagementPage(props: {
           ) : null}
         </CanvasManagementTabsTrigger>
         <CanvasManagementTabsTrigger value='mails'>
-          {t('Email records')}
+          {t('Customer emails')}
         </CanvasManagementTabsTrigger>
       </CanvasManagementTabsList>
       <TabsContent value='customers' keepMounted>

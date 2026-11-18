@@ -41,6 +41,8 @@ export interface ConventionVersion {
 }
 
 export type CustomerMailKind = 'MANUAL' | 'POINTS_EXPIRY'
+/** A mail Cloud sends on its own; MANUAL is the one an administrator writes. */
+export type AutomaticMailKind = Exclude<CustomerMailKind, 'MANUAL'>
 export type CustomerMailFailureReason =
   | 'NOT_CONFIGURED'
   | 'REJECTED'
@@ -197,7 +199,7 @@ export async function sendCustomerMail(request: {
 export async function sendTestCustomerMail(
   input:
     | { kind: 'MANUAL'; subject: string; body: string }
-    | { kind: 'POINTS_EXPIRY' }
+    | { kind: AutomaticMailKind }
 ) {
   return (
     await api.post<{ addressMasked: string | null }>(

@@ -397,6 +397,57 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     expect(screen.getByText('Refused by the mail server')).toBeInTheDocument()
   })
 
+  it('lists each automatic mail as one row: switch, settings and preview, saving only its settings', async () => {
+    apiMocks.getPointsExpiryReminderPreview.mockResolvedValue({
+      subject: '积分即将到期',
+      html: '<p>示例</p>',
+    })
+    apiMocks.sendTestCustomerMail.mockResolvedValue({ addressMasked: null })
+    renderWithClient(<CustomerMailRecords />)
+    const list = (await screen.findByText('Automatic emails')).closest(
+      '[data-slot="card"]'
+    ) as HTMLElement
+    expect(await within(list).findByText(/within 7 days/)).toBeInTheDocument()
+    const toggle = within(list).getByRole('switch', {
+      name: 'Points expiry reminder',
+    })
+    expect(toggle).toBeChecked()
+    fireEvent.click(toggle)
+    // Only the settings go to Cloud; version is its answer, not part of the request.
+    await waitFor(() =>
+      expect(apiMocks.setPointsExpiryReminder).toHaveBeenCalledWith({
+        enabled: false,
+        daysBefore: 7,
+      })
+    )
+    fireEvent.click(within(list).getByRole('button', { name: 'Settings' }))
+    const settings = await screen.findByRole('dialog')
+    fireEvent.click(within(settings).getByRole('radio', { name: '15 days' }))
+    fireEvent.click(within(settings).getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(apiMocks.setPointsExpiryReminder).toHaveBeenLastCalledWith({
+        enabled: true,
+        daysBefore: 15,
+      })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    fireEvent.click(within(list).getByRole('button', { name: 'Preview' }))
+    const preview = await screen.findByRole('dialog')
+    expect(
+      await within(preview).findByTitle('Points expiry reminder')
+    ).toBeInTheDocument()
+    fireEvent.click(
+      within(preview).getByRole('button', { name: 'Send a test mail to me' })
+    )
+    await waitFor(() =>
+      expect(apiMocks.sendTestCustomerMail).toHaveBeenCalledWith({
+        kind: 'POINTS_EXPIRY',
+      })
+    )
+  })
+
   it('counts only customers with an address while a send is still going out', async () => {
     apiMocks.getCustomerMails.mockResolvedValue({
       page: 1,

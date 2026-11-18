@@ -50,6 +50,9 @@ export const MAIL_FAILURE_REASON_KEYS: Record<
   INTERNAL_ERROR: 'System error',
 }
 
+/** Whether Cloud sent it on its own rather than an administrator writing it. */
+export const isAutomaticMail = (kind: CustomerMailKind) => kind !== 'MANUAL'
+
 export const MAIL_KINDS: readonly CustomerMailKind[] = [
   'MANUAL',
   'POINTS_EXPIRY',
