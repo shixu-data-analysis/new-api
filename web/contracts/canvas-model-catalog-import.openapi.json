@@ -114,6 +114,11 @@
               }
             ]
           },
+          "maximumSource": {
+            "description": "MEDIA_TOTAL_DURATION_EXCEEDED: the maximum is the requested output length (mediaConstraints.video.totalDurationWithinOutput).",
+            "enum": ["OUTPUT_DURATION"],
+            "type": "string"
+          },
           "mediaKind": {
             "enum": ["image", "video", "audio"],
             "type": "string"
@@ -137,6 +142,15 @@
         "properties": {
           "code": {
             "enum": [
+              "NOTIFICATION_ADDRESS_NOT_FOUND",
+              "NOTIFICATION_ADDRESS_REJECTED",
+              "NOTIFICATION_ADDRESS_REQUIRED",
+              "NOTIFICATION_ADDRESS_UNAVAILABLE",
+              "NOTIFICATION_ADDRESS_UNKNOWN",
+              "NOTIFICATION_EVENT_UNKNOWN",
+              "NOTIFICATION_SETTINGS_CONFLICT",
+              "NOTIFICATION_TEST_IN_PROGRESS",
+              "NOTIFICATION_WEBHOOK_UNAVAILABLE",
               "UNAUTHORIZED",
               "FORBIDDEN",
               "INVITE_REGISTRATION_REQUIRED",
@@ -188,7 +202,20 @@
               "CREDENTIAL_SCHEME_MISMATCH",
               "NO_CHANGES",
               "CREDENTIAL_GROUP_HAS_BINDINGS",
-              "CREDENTIAL_GROUP_ACTIVE"
+              "CREDENTIAL_GROUP_ACTIVE",
+              "CONSENT_REQUIRED",
+              "CONVENTION_UNCHANGED",
+              "CONVENTION_VERSION_CHANGED",
+              "EMAIL_NOT_CONFIGURED",
+              "EMAIL_NOT_SENT",
+              "TASK_DEBT_OUTSTANDING",
+              "USER_OUTPUT_LIMIT",
+              "SUPPORT_CONVERSATION_NOT_FOUND",
+              "SUPPORT_RATE_LIMITED",
+              "SUPPORT_ATTACHMENT_NOT_FOUND",
+              "SUPPORT_ATTACHMENT_LIMIT",
+              "SUPPORT_ATTACHMENT_NOT_UPLOADED",
+              "SUPPORT_STORAGE_UNAVAILABLE"
             ],
             "type": "string"
           },
