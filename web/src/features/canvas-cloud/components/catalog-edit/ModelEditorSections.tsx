@@ -1790,17 +1790,20 @@ export function ModelReferenceSection(
   )
 }
 
-type MediaScale = 'list' | 'mb' | 'sec' | ''
+type MediaScale = 'list' | 'mb' | 'sec' | 'flag' | ''
 
 // The shared validator lists the constraints in the order the form shows them; the unit follows the field name.
 function mediaScale(field: string): MediaScale {
   if (field === 'formats') return 'list'
+  if (field === 'totalDurationWithinOutput') return 'flag'
   if (field.endsWith('Bytes')) return 'mb'
   if (field.endsWith('Ms')) return 'sec'
   return ''
 }
 
 function mediaApplies(kind: string, field: string) {
+  // Only reference videos are capped at the output length.
+  if (field === 'totalDurationWithinOutput') return kind === 'video'
   if (kind === 'image' && /Duration|FrameRate/.test(field)) return false
   return !(kind === 'audio' && /Px$|AspectRatio|FrameRate/.test(field))
 }
@@ -1838,6 +1841,7 @@ export function ModelMediaSection(props: SectionProps & { accepted: Accepts }) {
     minDurationMs: t('Shortest length (seconds)'),
     maxDurationMs: t('Longest length (seconds)'),
     maxTotalDurationMs: t('Longest total (seconds)'),
+    totalDurationWithinOutput: t('Total within output length'),
     minShortEdgePx: t('Smallest short edge (px)'),
     maxShortEdgePx: t('Largest short edge (px)'),
     minWidthPx: t('Smallest width (px)'),
@@ -1881,6 +1885,9 @@ export function ModelMediaSection(props: SectionProps & { accepted: Accepts }) {
         </strong>
         <p className='text-muted-foreground text-xs'>
           {t('Empty means no limit. Separate formats with commas.')}
+          {kinds.includes('video')
+            ? ` ${t('With “Total within output length” on, the reference videos together cannot be longer than the output length the user picks; with “Longest total” as well, both are checked.')}`
+            : null}
         </p>
       </div>
       <StaticDataTable
@@ -1905,6 +1912,23 @@ export function ModelMediaSection(props: SectionProps & { accepted: Accepts }) {
             cell: ([field, scale]: readonly [string, MediaScale]) => {
               if (!mediaApplies(kind, field)) {
                 return <span className='text-muted-foreground'>—</span>
+              }
+              if (scale === 'flag') {
+                const on = constraints[kind]?.[field] === true
+                return (
+                  <SwitchField
+                    label={
+                      on
+                        ? t('Blocked before submitting')
+                        : t('No output length check')
+                    }
+                    checked={on}
+                    onChange={(next) =>
+                      // Off leaves the field out; the Catalog accepts only true.
+                      set(['mediaConstraints', kind, field], next || undefined)
+                    }
+                  />
+                )
               }
               return (
                 <Input
