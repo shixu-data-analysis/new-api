@@ -538,6 +538,7 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
 describe('SUPPORT-CHAT-001 客服设置', () => {
   const saved: CanvasSupportSettings = {
     retentionDays: 7,
+    messageAlerts: { followUpMinutes: 10, reminderMinutes: 30 },
     failureAlerts: { threshold: 3, windowHours: 24 },
     quickReplies: { conversation: ['收到'], failureNotice: [] },
     version: 2,
@@ -597,6 +598,7 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
         retentionDays: 3,
+        messageAlerts: { followUpMinutes: 10, reminderMinutes: 30 },
         failureAlerts: { threshold: 3, windowHours: 24 },
         quickReplies: { conversation: ['收到'], failureNotice: [] },
       })
@@ -657,9 +659,98 @@ describe('SUPPORT-CHAT-001 客服设置', () => {
     await waitFor(() =>
       expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
         retentionDays: 7,
+        messageAlerts: { followUpMinutes: 10, reminderMinutes: 30 },
         failureAlerts: { threshold: 5, windowHours: 6 },
         quickReplies: { conversation: [], failureNotice: ['已修复，可以再试'] },
       })
+    )
+  })
+})
+
+describe('NOTIFICATIONS-001 客服设置 › 提醒时间', () => {
+  const saved: CanvasSupportSettings = {
+    retentionDays: 7,
+    messageAlerts: { followUpMinutes: 10, reminderMinutes: 30 },
+    failureAlerts: { threshold: 3, windowHours: 24 },
+    quickReplies: { conversation: [], failureNotice: [] },
+    version: 2,
+    effectiveAt: '2026-11-16T03:00:00.000Z',
+  }
+  beforeAll(() => {
+    i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+  })
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18next.changeLanguage('en')
+    apiMocks.setCanvasAdminSupportSettings.mockResolvedValue(saved)
+    apiMocks.getCanvasAdminNotificationSettings.mockResolvedValue({
+      version: 1,
+      addresses: [],
+      events: {},
+      addressTypes: ['EMAIL'],
+      lastDeliveries: {},
+    })
+  })
+
+  it('checks each time against its own range, next to its field, and saves both', async () => {
+    render(wrap(<SupportSettingsDialog settings={saved} onClose={vi.fn()} />))
+    const followUp = () =>
+      screen.getByRole('textbox', { name: 'Alert again after (minutes)' })
+    const reminder = () =>
+      screen.getByRole('textbox', { name: 'Reminder after (minutes)' })
+    expect(
+      [followUp(), reminder()].map((input) => (input as HTMLInputElement).value)
+    ).toEqual(['10', '30'])
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.change(followUp(), { target: { value: '0' } })
+    fireEvent.change(reminder(), { target: { value: '241' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Quick replies' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    // A failed save shows the tab holding the errors.
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      'Enter 1–60 minutes',
+      'Enter 5–240 minutes',
+    ])
+    expect(followUp()).toHaveAttribute('aria-invalid', 'true')
+    expect(followUp()).toHaveAccessibleDescription('Enter 1–60 minutes')
+    expect(reminder()).toHaveAccessibleDescription('Enter 5–240 minutes')
+    expect(apiMocks.setCanvasAdminSupportSettings).not.toHaveBeenCalled()
+    fireEvent.change(followUp(), { target: { value: '1.5' } })
+    fireEvent.change(reminder(), { target: { value: '240' } })
+    expect(
+      screen.getAllByRole('alert').map((alert) => alert.textContent)
+    ).toEqual(['Enter 1–60 minutes'])
+    expect(reminder()).toHaveAttribute('aria-invalid', 'false')
+    fireEvent.change(followUp(), { target: { value: '60' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith({
+        retentionDays: 7,
+        messageAlerts: { followUpMinutes: 60, reminderMinutes: 240 },
+        failureAlerts: { threshold: 3, windowHours: 24 },
+        quickReplies: { conversation: [], failureNotice: [] },
+      })
+    )
+  })
+
+  it('accepts the lowest times', async () => {
+    render(wrap(<SupportSettingsDialog settings={saved} onClose={vi.fn()} />))
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Alert again after (minutes)' }),
+      { target: { value: '1' } }
+    )
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Reminder after (minutes)' }),
+      { target: { value: '5' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(apiMocks.setCanvasAdminSupportSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageAlerts: { followUpMinutes: 1, reminderMinutes: 5 },
+        })
+      )
     )
   })
 })

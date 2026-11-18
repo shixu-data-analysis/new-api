@@ -36,11 +36,11 @@ export const NOTIFICATION_ADDRESS_TYPE_LABELS: Record<
 const EVENT_LABELS: Record<string, { name: string; when: string }> = {
   'support.pending': {
     name: 'New support message',
-    when: 'A customer sends a message; at most once per conversation every 10 minutes',
+    when: 'A customer sends a message; more messages in the same wait alert again after the time set in Support settings',
   },
   'support.reminder': {
     name: 'Support message unanswered',
-    when: 'Still no reply 30 minutes later',
+    when: 'Still no reply after the time set in Support settings',
   },
   'support.failures': {
     name: 'Model failure alert',

@@ -53,12 +53,14 @@ const RETENTION_DAYS: CanvasSupportRetentionDays[] = [3, 7, 15, 30]
 type SettingsTab = 'alerts' | 'replies' | 'retention'
 const THRESHOLD_RANGE = { min: 2, max: 20 }
 const WINDOW_HOURS_RANGE = { min: 1, max: 168 }
+const FOLLOW_UP_MINUTES_RANGE = { min: 1, max: 60 }
+const REMINDER_MINUTES_RANGE = { min: 5, max: 240 }
 
 const inRange = (value: string, range: { min: number; max: number }) =>
   /^\d+$/.test(value) &&
   Number(value) >= range.min &&
   Number(value) <= range.max
-/** 客服设置: message retention, failure alerts and quick replies; where the alerts go is set in 运行管理 › 通知. */
+/** 客服设置: message retention, alert times, failure alerts and quick replies; where the alerts go is set in 运行管理 › 通知. */
 export function SupportSettingsDialog(props: {
   settings: CanvasSupportSettings
   onClose: () => void
@@ -68,6 +70,12 @@ export function SupportSettingsDialog(props: {
   const id = useId()
   const [retentionDays, setRetentionDays] = useState(
     props.settings.retentionDays
+  )
+  const [followUpMinutes, setFollowUpMinutes] = useState(
+    String(props.settings.messageAlerts.followUpMinutes)
+  )
+  const [reminderMinutes, setReminderMinutes] = useState(
+    String(props.settings.messageAlerts.reminderMinutes)
   )
   const [threshold, setThreshold] = useState(
     String(props.settings.failureAlerts.threshold)
@@ -81,6 +89,10 @@ export function SupportSettingsDialog(props: {
   const [tab, setTab] = useState<SettingsTab>('alerts')
   const [tried, setTried] = useState(false)
   const shorter = retentionDays < props.settings.retentionDays
+  const minutesError = (value: string, range: { min: number; max: number }) =>
+    inRange(value, range) ? null : t('Enter {{min}}–{{max}} minutes', range)
+  const followUpError = minutesError(followUpMinutes, FOLLOW_UP_MINUTES_RANGE)
+  const reminderError = minutesError(reminderMinutes, REMINDER_MINUTES_RANGE)
   const failureRangeError =
     inRange(threshold, THRESHOLD_RANGE) &&
     inRange(windowHours, WINDOW_HOURS_RANGE)
@@ -96,6 +108,8 @@ export function SupportSettingsDialog(props: {
         )
   const dirty =
     retentionDays !== props.settings.retentionDays ||
+    followUpMinutes !== String(props.settings.messageAlerts.followUpMinutes) ||
+    reminderMinutes !== String(props.settings.messageAlerts.reminderMinutes) ||
     threshold !== String(props.settings.failureAlerts.threshold) ||
     windowHours !== String(props.settings.failureAlerts.windowHours) ||
     JSON.stringify(quickReplies) !== JSON.stringify(props.settings.quickReplies)
@@ -104,6 +118,10 @@ export function SupportSettingsDialog(props: {
     mutationFn: () =>
       setCanvasAdminSupportSettings({
         retentionDays,
+        messageAlerts: {
+          followUpMinutes: Number(followUpMinutes),
+          reminderMinutes: Number(reminderMinutes),
+        },
         failureAlerts: {
           threshold: Number(threshold),
           windowHours: Number(windowHours),
@@ -123,7 +141,7 @@ export function SupportSettingsDialog(props: {
   // Errors on submit are all in 提醒; the dialog shows that tab so they can be seen.
   const submit = () => {
     setTried(true)
-    if (failureRangeError) {
+    if (followUpError || reminderError || failureRangeError) {
       setTab('alerts')
       return
     }
@@ -167,7 +185,7 @@ export function SupportSettingsDialog(props: {
                   eventId='support.pending'
                   label={t('Alerts go to')}
                   help={t(
-                    'Alerts on new messages (at most once per conversation every 10 minutes) and again after 30 minutes without a reply.'
+                    'Alerts on new messages, and once more when a conversation stays unanswered, at the times below.'
                   )}
                   onBeforeLeave={() => {
                     if (!dirty) return true
@@ -175,6 +193,79 @@ export function SupportSettingsDialog(props: {
                     return false
                   }}
                 />
+
+                <section
+                  className='space-y-3 border-t pt-5'
+                  aria-labelledby={`${id}-waiting`}
+                >
+                  <h3 id={`${id}-waiting`} className='text-sm font-medium'>
+                    {t('Conversations awaiting reply')}
+                  </h3>
+                  <div className='space-y-1'>
+                    <div className='flex flex-wrap items-center gap-2 text-sm'>
+                      <span>
+                        {t('More messages in the same wait alert again after')}
+                      </span>
+                      <Input
+                        className='w-16 text-center tabular-nums'
+                        inputMode='numeric'
+                        aria-label={t('Alert again after (minutes)')}
+                        aria-invalid={tried && Boolean(followUpError)}
+                        aria-describedby={
+                          tried && followUpError
+                            ? `${id}-follow-up-error`
+                            : undefined
+                        }
+                        value={followUpMinutes}
+                        onChange={(event) =>
+                          setFollowUpMinutes(event.target.value.trim())
+                        }
+                      />
+                      <span>{t('minutes')}</span>
+                    </div>
+                    {tried && followUpError ? (
+                      <p
+                        id={`${id}-follow-up-error`}
+                        role='alert'
+                        className='text-destructive text-xs'
+                      >
+                        {followUpError}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className='space-y-1'>
+                    <div className='flex flex-wrap items-center gap-2 text-sm'>
+                      <span>
+                        {t('Remind once when still unanswered after')}
+                      </span>
+                      <Input
+                        className='w-16 text-center tabular-nums'
+                        inputMode='numeric'
+                        aria-label={t('Reminder after (minutes)')}
+                        aria-invalid={tried && Boolean(reminderError)}
+                        aria-describedby={
+                          tried && reminderError
+                            ? `${id}-reminder-error`
+                            : undefined
+                        }
+                        value={reminderMinutes}
+                        onChange={(event) =>
+                          setReminderMinutes(event.target.value.trim())
+                        }
+                      />
+                      <span>{t('minutes')}</span>
+                    </div>
+                    {tried && reminderError ? (
+                      <p
+                        id={`${id}-reminder-error`}
+                        role='alert'
+                        className='text-destructive text-xs'
+                      >
+                        {reminderError}
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
 
                 <section
                   className='space-y-2 border-t pt-5'

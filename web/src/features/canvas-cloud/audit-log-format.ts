@@ -587,6 +587,18 @@ const SPECS: Record<string, ActionSpec> = {
         kind: 'number',
       },
       {
+        key: 'followUpMinutes',
+        previous: 'previousFollowUpMinutes',
+        label: 'Alert again after (minutes)',
+        kind: 'number',
+      },
+      {
+        key: 'reminderMinutes',
+        previous: 'previousReminderMinutes',
+        label: 'Reminder after (minutes)',
+        kind: 'number',
+      },
+      {
         key: 'webhookFormat',
         previous: 'previousWebhookFormat',
         label: 'Message format',

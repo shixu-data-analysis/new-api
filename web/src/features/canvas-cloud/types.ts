@@ -2435,6 +2435,14 @@ export interface CanvasSupportAttachmentIssued {
 }
 
 export type CanvasSupportRetentionDays = 3 | 7 | 15 | 30
+/**
+ * A customer message while the conversation already waits alerts again once the last alert is `followUpMinutes` old; a
+ * wait unanswered after `reminderMinutes` is reminded once.
+ */
+export interface CanvasSupportMessageAlertSettings {
+  followUpMinutes: number
+  reminderMinutes: number
+}
 /** A customer whose tasks on one model fail `threshold` times within `windowHours` alerts the internal group. */
 export interface CanvasSupportFailureAlertSettings {
   threshold: number
@@ -2449,6 +2457,7 @@ export interface CanvasSupportQuickReplies {
 
 export interface CanvasSupportSettings {
   retentionDays: CanvasSupportRetentionDays
+  messageAlerts: CanvasSupportMessageAlertSettings
   failureAlerts: CanvasSupportFailureAlertSettings
   quickReplies: CanvasSupportQuickReplies
   version: number | null
@@ -2457,6 +2466,7 @@ export interface CanvasSupportSettings {
 
 export interface CanvasSupportSettingsInput {
   retentionDays: CanvasSupportRetentionDays
+  messageAlerts: CanvasSupportMessageAlertSettings
   failureAlerts: CanvasSupportFailureAlertSettings
   quickReplies: CanvasSupportQuickReplies
 }
