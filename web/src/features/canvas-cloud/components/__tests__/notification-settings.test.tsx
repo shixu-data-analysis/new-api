@@ -71,11 +71,37 @@ const settings: CanvasNotificationSettings = {
   },
 }
 
-function wrap(children: ReactNode) {
-  const client = new QueryClient({
+function wrap(children: ReactNode, client = testClient()) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+}
+
+function testClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+}
+
+/** What another administrator saved meanwhile: the group renamed, an email added and chosen for new messages. */
+const changedElsewhere: CanvasNotificationSettings = {
+  ...settings,
+  version: 4,
+  addresses: [
+    {
+      id: 'hook',
+      name: '客服群',
+      type: 'WECOM',
+      hint: 'qyapi.weixin.qq.com/…a1f3',
+    },
+    { id: 'mail', name: '值班邮箱', type: 'EMAIL', hint: 'o***@example.com' },
+  ],
+  events: {
+    ...settings.events,
+    'support.pending': {
+      category: 'SUPPORT',
+      enabled: true,
+      addressIds: ['hook', 'mail'],
+    },
+  },
 }
 
 describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
@@ -247,6 +273,66 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     const confirm = await screen.findByRole('alertdialog')
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2))
+  })
+
+  it('saves an address edited across a refetch against the version it opened on', async () => {
+    api.testCanvasAdminNotificationAddress.mockResolvedValue({
+      ok: true,
+      reason: null,
+    })
+    render(wrap(<NotificationSettings />))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const dialog = await screen.findByRole('dialog')
+    // The test send reloads the page's settings, now the ones saved elsewhere.
+    api.getCanvasAdminNotificationSettings.mockResolvedValue(changedElsewhere)
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Send test message' })
+    )
+    await waitFor(() =>
+      expect(api.getCanvasAdminNotificationSettings).toHaveBeenCalledTimes(2)
+    )
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('运营群')
+    fireEvent.change(within(dialog).getByLabelText('Name'), {
+      target: { value: '运营一群' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.setCanvasAdminNotificationSettings).toHaveBeenCalled()
+    )
+    const input = api.setCanvasAdminNotificationSettings.mock.calls[0]?.[0]
+    expect(input.expectedVersion).toBe(3)
+    expect(input.addresses).toEqual([
+      { id: 'hook', name: '运营一群', type: 'WECOM' },
+    ])
+  })
+
+  it('saves an event chosen across a refetch against the version it opened on', async () => {
+    const client = testClient()
+    render(wrap(<NotificationSettings />, client))
+    const changeButtons = await screen.findAllByRole('button', {
+      name: 'Change',
+    })
+    const [changeNewMessage] = changeButtons
+    if (!changeNewMessage) throw new Error('No event to change')
+    fireEvent.click(changeNewMessage)
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('New support message')
+    api.getCanvasAdminNotificationSettings.mockResolvedValue(changedElsewhere)
+    await client.invalidateQueries({
+      queryKey: api.notificationQueryKeys.settings,
+    })
+    await waitFor(() =>
+      expect(api.getCanvasAdminNotificationSettings).toHaveBeenCalledTimes(2)
+    )
+    // The dialog keeps showing the addresses it opened on, and saves its choice against them.
+    expect(within(dialog).queryByText(/值班邮箱/)).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.setCanvasAdminNotificationSettings).toHaveBeenCalled()
+    )
+    const input = api.setCanvasAdminNotificationSettings.mock.calls[0]?.[0]
+    expect(input.expectedVersion).toBe(3)
+    expect(input.events['support.pending'].addressIds).toEqual(['hook'])
   })
 
   it('reloads after a change made elsewhere meanwhile, and names why a test failed', async () => {

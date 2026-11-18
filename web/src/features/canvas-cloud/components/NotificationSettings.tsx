@@ -75,10 +75,14 @@ import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { NotificationAddressDialog } from './NotificationAddressDialog'
 import { NotificationEventDialog } from './NotificationEventDialog'
 
+// A dialog keeps the settings it opened on: it shows them and saves its draft against them, so a change saved meanwhile by
+// someone else answers NOTIFICATION_SETTINGS_CONFLICT instead of being overwritten by a refetch the draft never saw.
 type OpenDialog =
-  | { kind: 'address'; editing: CanvasNotificationAddress | null }
-  | { kind: 'event'; eventId: string }
-  | { kind: 'delete'; address: CanvasNotificationAddress }
+  | ({ base: CanvasNotificationSettings } & (
+      | { kind: 'address'; editing: CanvasNotificationAddress | null }
+      | { kind: 'event'; eventId: string }
+      | { kind: 'delete'; address: CanvasNotificationAddress }
+    ))
   | null
 
 const fieldOf = (error: unknown): string | undefined =>
@@ -181,8 +185,13 @@ export function NotificationSettings() {
   if (!settings) {
     return <p className='text-muted-foreground text-sm'>{t('Loading...')}</p>
   }
+  // A switch has no draft, so it saves against the settings shown; a dialog saves against the ones it opened on.
   const change = (next: NotificationChange) =>
     save.mutate({ settings, change: next })
+  const saveDialog = (
+    base: CanvasNotificationSettings,
+    next: NotificationChange
+  ) => save.mutate({ settings: base, change: next })
   const nameOf = (id: string) =>
     settings.addresses.find((address) => address.id === id)
 
@@ -267,7 +276,7 @@ export function NotificationSettings() {
             className='h-auto p-0'
             onClick={() => {
               setErrors({})
-              setDialog({ kind: 'address', editing: address })
+              setDialog({ kind: 'address', editing: address, base: settings })
             }}
           >
             {t('Edit')}
@@ -275,7 +284,9 @@ export function NotificationSettings() {
           <Button
             variant='link'
             className='text-destructive h-auto p-0'
-            onClick={() => setDialog({ kind: 'delete', address })}
+            onClick={() =>
+              setDialog({ kind: 'delete', address, base: settings })
+            }
           >
             {t('Delete')}
           </Button>
@@ -334,7 +345,7 @@ export function NotificationSettings() {
               className='h-auto p-0'
               onClick={() => {
                 setErrors({})
-                setDialog({ kind: 'event', eventId: event.id })
+                setDialog({ kind: 'event', eventId: event.id, base: settings })
               }}
             >
               {t('Change')}
@@ -369,7 +380,7 @@ export function NotificationSettings() {
 
   const deletedUses =
     dialog?.kind === 'delete'
-      ? eventsOfAddress(settings, dialog.address.id).length
+      ? eventsOfAddress(dialog.base, dialog.address.id).length
       : 0
   const deleteImpact = deletedUses
     ? t(
@@ -392,7 +403,7 @@ export function NotificationSettings() {
             <Button
               onClick={() => {
                 setErrors({})
-                setDialog({ kind: 'address', editing: null })
+                setDialog({ kind: 'address', editing: null, base: settings })
               }}
             >
               {t('New address')}
@@ -442,24 +453,28 @@ export function NotificationSettings() {
 
       {dialog?.kind === 'address' ? (
         <NotificationAddressDialog
-          settings={settings}
+          settings={dialog.base}
           editing={dialog.editing}
           saving={save.isPending}
           errors={errors}
           testing={test.isPending}
           onTest={(id) => test.mutate(id)}
-          onSave={change}
+          onSave={(next) => saveDialog(dialog.base, next)}
           onClose={() => setDialog(null)}
         />
       ) : null}
       {dialog?.kind === 'event' ? (
         <NotificationEventDialog
-          settings={settings}
+          settings={dialog.base}
           eventId={dialog.eventId}
           saving={save.isPending}
           error={errors.form ?? null}
           onSave={(addressIds) =>
-            change({ kind: 'event', eventId: dialog.eventId, addressIds })
+            saveDialog(dialog.base, {
+              kind: 'event',
+              eventId: dialog.eventId,
+              addressIds,
+            })
           }
           onClose={() => setDialog(null)}
         />
@@ -488,7 +503,10 @@ export function NotificationSettings() {
               disabled={save.isPending}
               onClick={() =>
                 dialog?.kind === 'delete' &&
-                change({ kind: 'delete', addressId: dialog.address.id })
+                saveDialog(dialog.base, {
+                  kind: 'delete',
+                  addressId: dialog.address.id,
+                })
               }
             >
               {t('Delete')}

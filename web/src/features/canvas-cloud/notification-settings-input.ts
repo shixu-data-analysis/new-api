@@ -22,8 +22,8 @@ import type {
   CanvasNotificationSettingsInput,
 } from './types'
 
-// NOTIFICATIONS-001: every change on 运行管理 › 通知 saves the whole settings at once, from the version the page shows, so a
-// change made elsewhere meanwhile is refused instead of overwritten. A saved address goes back by id only; Cloud keeps its
+// NOTIFICATIONS-001: every change on 运行管理 › 通知 saves the whole settings at once, from the version it was made on (a
+// dialog's, the one it opened on), so a change made elsewhere meanwhile is refused instead of overwritten. A saved address goes back by id only; Cloud keeps its
 // Webhook or email unless a new one is entered.
 
 export interface NotificationAddressDraft {
