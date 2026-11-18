@@ -404,9 +404,15 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     })
     apiMocks.sendTestCustomerMail.mockResolvedValue({ addressMasked: null })
     renderWithClient(<CustomerMailRecords />)
-    const list = (await screen.findByText('Automatic emails')).closest(
-      '[data-slot="card"]'
-    ) as HTMLElement
+    // Laid out like the notification events: one table row per kind.
+    const list = await screen.findByRole('region', {
+      name: 'Automatic emails',
+    })
+    expect(
+      within(list)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent)
+    ).toEqual(['Type', 'When it is sent', 'Enabled', 'Actions'])
     expect(await within(list).findByText(/within 7 days/)).toBeInTheDocument()
     const toggle = within(list).getByRole('switch', {
       name: 'Points expiry reminder',
@@ -420,7 +426,11 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
         daysBefore: 7,
       })
     )
-    fireEvent.click(within(list).getByRole('button', { name: 'Settings' }))
+    fireEvent.click(
+      within(list).getByRole('button', {
+        name: 'Points expiry reminder settings',
+      })
+    )
     const settings = await screen.findByRole('dialog')
     fireEvent.click(within(settings).getByRole('radio', { name: '15 days' }))
     fireEvent.click(within(settings).getByRole('button', { name: 'Save' }))
@@ -433,7 +443,11 @@ describe('COMMUNITY-CONVENTION-001 admin', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     )
-    fireEvent.click(within(list).getByRole('button', { name: 'Preview' }))
+    fireEvent.click(
+      within(list).getByRole('button', {
+        name: 'Preview Points expiry reminder',
+      })
+    )
     const preview = await screen.findByRole('dialog')
     expect(
       await within(preview).findByTitle('Points expiry reminder')

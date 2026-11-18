@@ -23,9 +23,19 @@ import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  StaticDataTable,
+  type StaticDataTableColumn,
+} from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -72,6 +82,7 @@ import {
   mailFailureMessageKey,
 } from '../lib/customer-mail-messages'
 import { useServerTableState } from '../use-server-table-state'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -406,20 +417,23 @@ const POINTS_EXPIRY_MAIL: AutomaticMail<PointsExpiryReminder> = {
   preview: getPointsExpiryReminderPreview,
 }
 
-function AutomaticMailRow<Settings extends { enabled: boolean }>(props: {
+/** One automatic mail's settings as Cloud has them; every cell of its row reads the same query. */
+function useAutomaticMailSettings<Settings extends { enabled: boolean }>(
   mail: AutomaticMail<Settings>
-}) {
-  const { mail } = props
-  const { t } = useTranslation()
-  const queryClient = useQueryClient()
-  const titleId = useId()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const current = useQuery({
+) {
+  return useQuery({
     queryKey: mail.queryKey,
     queryFn: ({ signal }) => mail.read(signal),
   })
-  const save = useMutation({
+}
+
+/** Saves one automatic mail's settings and puts Cloud's answer back into the query its row reads. */
+function useSaveAutomaticMail<Settings extends { enabled: boolean }>(
+  mail: AutomaticMail<Settings>
+) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  return useMutation({
     mutationFn: mail.save,
     onSuccess: async (result) => {
       queryClient.setQueryData(mail.queryKey, result)
@@ -427,46 +441,66 @@ function AutomaticMailRow<Settings extends { enabled: boolean }>(props: {
     },
     onError: () => toast.error(t('Unable to save. Please try again.')),
   })
-  const settings = current.data
-  let summary = t('Loading...')
-  if (settings) summary = mail.summary(settings, t)
-  else if (current.isError) summary = t('Unable to load. Please try again.')
-  const { SettingsDialog } = mail
+}
+
+function AutomaticMailSummary<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { t } = useTranslation()
+  const current = useAutomaticMailSettings(props.mail)
+  if (current.data) return props.mail.summary(current.data, t)
+  if (current.isError) return t('Unable to load. Please try again.')
+  return t('Loading...')
+}
+
+function AutomaticMailSwitch<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { t } = useTranslation()
+  const settings = useAutomaticMailSettings(props.mail).data
+  const save = useSaveAutomaticMail(props.mail)
   return (
-    <div className='flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0'>
-      <div className='min-w-0 space-y-1'>
-        <p id={titleId} className='font-medium'>
-          {t(mail.name)}
-        </p>
-        <p className='text-muted-foreground text-sm'>{summary}</p>
-      </div>
-      <div className='flex flex-wrap items-center gap-2'>
-        <Switch
-          aria-labelledby={titleId}
-          checked={settings?.enabled ?? false}
-          disabled={!settings || save.isPending}
-          onCheckedChange={(enabled) =>
-            settings && save.mutate({ ...settings, enabled })
-          }
-        />
-        <Button
-          variant='outline'
-          size='sm'
-          disabled={!settings}
-          aria-describedby={titleId}
-          onClick={() => setSettingsOpen(true)}
-        >
-          {t('Settings')}
-        </Button>
-        <Button
-          variant='outline'
-          size='sm'
-          aria-describedby={titleId}
-          onClick={() => setPreviewOpen(true)}
-        >
-          {t('Preview')}
-        </Button>
-      </div>
+    <Switch
+      aria-label={t(props.mail.name)}
+      checked={settings?.enabled ?? false}
+      disabled={!settings || save.isPending}
+      onCheckedChange={(enabled) =>
+        settings && save.mutate({ ...settings, enabled })
+      }
+    />
+  )
+}
+
+function AutomaticMailActions<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { mail } = props
+  const { t } = useTranslation()
+  const settings = useAutomaticMailSettings(mail).data
+  const save = useSaveAutomaticMail(mail)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const { SettingsDialog } = mail
+  const name = t(mail.name)
+  return (
+    <div className='flex flex-wrap items-center gap-3'>
+      <Button
+        variant='link'
+        className='h-auto p-0'
+        disabled={!settings}
+        aria-label={t('{{name}} settings', { name })}
+        onClick={() => setSettingsOpen(true)}
+      >
+        {t('Settings')}
+      </Button>
+      <Button
+        variant='link'
+        className='h-auto p-0'
+        aria-label={t('Preview {{name}}', { name })}
+        onClick={() => setPreviewOpen(true)}
+      >
+        {t('Preview')}
+      </Button>
       {settingsOpen && settings ? (
         <SettingsDialog
           settings={settings}
@@ -488,18 +522,61 @@ function AutomaticMailRow<Settings extends { enabled: boolean }>(props: {
 }
 
 /** The kinds Cloud sends on its own, one row each. */
-const AUTOMATIC_MAILS = [
-  <AutomaticMailRow key={POINTS_EXPIRY_MAIL.kind} mail={POINTS_EXPIRY_MAIL} />,
-]
+const AUTOMATIC_MAILS = [POINTS_EXPIRY_MAIL]
+type AnyAutomaticMail = (typeof AUTOMATIC_MAILS)[number]
 
+/** Laid out as 运行管理 › 通知 lays out its events: what it is, when it goes, its switch, its actions. */
 function AutomaticMails() {
   const { t } = useTranslation()
+  const columns: StaticDataTableColumn<AnyAutomaticMail>[] = [
+    {
+      id: 'type',
+      header: t('Type'),
+      className: canvasStaticColumnWidth.wide,
+      cellClassName: 'whitespace-normal font-medium',
+      cell: (mail) => t(mail.name),
+    },
+    {
+      id: 'when',
+      header: t('When it is sent'),
+      className: canvasStaticColumnWidth.detail,
+      cellClassName: 'whitespace-normal text-muted-foreground',
+      cell: (mail) => <AutomaticMailSummary mail={mail} />,
+    },
+    {
+      id: 'status',
+      header: t('Enabled'),
+      className: canvasStaticColumnWidth.compact,
+      cell: (mail) => <AutomaticMailSwitch mail={mail} />,
+    },
+    {
+      id: 'actions',
+      header: t('Actions'),
+      className: canvasStaticColumnWidth.compact,
+      cell: (mail) => <AutomaticMailActions mail={mail} />,
+    },
+  ]
   return (
-    <Card size='sm'>
+    <Card>
       <CardHeader>
         <CardTitle>{t('Automatic emails')}</CardTitle>
+        <CardDescription>
+          {t('Mails the system sends to customers on its own, on schedule.')}
+        </CardDescription>
       </CardHeader>
-      <CardContent className='divide-y'>{AUTOMATIC_MAILS}</CardContent>
+      <CardContent>
+        {/* Bounded: one row per kind of automatic mail. */}
+        <StaticDataTable
+          columns={columns}
+          data={AUTOMATIC_MAILS}
+          getRowKey={(mail) => mail.kind}
+          containerProps={{
+            tabIndex: 0,
+            role: 'region',
+            'aria-label': t('Automatic emails'),
+          }}
+        />
+      </CardContent>
     </Card>
   )
 }
