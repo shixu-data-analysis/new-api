@@ -21,13 +21,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -47,6 +40,7 @@ import type {
   CanvasNotificationAddressType,
   CanvasNotificationSettings,
 } from '../types'
+import { CanvasFormDialog } from './CanvasFormDialog'
 
 const ROWS_PER_SAVE = 10
 const NAME_LENGTH = 20
@@ -173,224 +167,208 @@ export function NotificationAddressDialog(props: {
   }
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : close())}>
-      <DialogContent className='flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-lg'>
-        <DialogHeader className='px-6 pt-6 pb-3'>
-          <DialogTitle>
-            {editing ? t('Edit address') : t('New address')}
-          </DialogTitle>
-        </DialogHeader>
-        <form
-          className='flex min-h-0 flex-1 flex-col'
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            submit()
-          }}
-        >
-          <div className='min-h-80 flex-1 space-y-5 overflow-y-auto px-6 py-4'>
-            <div className='space-y-2'>
-              <Label htmlFor={`${id}-name`}>{t('Name')}</Label>
-              <Input
-                id={`${id}-name`}
-                value={name}
-                maxLength={NAME_LENGTH}
-                placeholder={t('For example: Operations group')}
-                aria-invalid={tried && Boolean(nameIssue)}
-                aria-describedby={
-                  tried && nameIssue ? `${id}-name-error` : undefined
-                }
-                onChange={(event) => setName(event.target.value)}
-              />
-              {tried && nameIssue ? (
-                <p
-                  id={`${id}-name-error`}
-                  role='alert'
-                  className='text-destructive text-xs'
-                >
-                  {nameIssue}
-                </p>
-              ) : null}
-            </div>
+    <CanvasFormDialog
+      title={editing ? t('Edit address') : t('New address')}
+      onRequestClose={close}
+      onSubmit={submit}
+      footerClassName='items-center'
+      footer={
+        confirmDiscard ? (
+          <>
+            <span className='text-muted-foreground me-auto text-sm'>
+              {t('Discard the unsaved changes?')}
+            </span>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setConfirmDiscard(false)}
+            >
+              {t('Keep editing')}
+            </Button>
+            <Button type='button' variant='destructive' onClick={props.onClose}>
+              {t('Discard changes')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={props.saving}
+              onClick={close}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button type='submit' disabled={props.saving}>
+              {props.saving ? t('Saving...') : t('Save')}
+            </Button>
+          </>
+        )
+      }
+    >
+      <div className='min-h-80 flex-1 space-y-5 overflow-y-auto px-6 py-4'>
+        <div className='space-y-2'>
+          <Label htmlFor={`${id}-name`}>{t('Name')}</Label>
+          <Input
+            id={`${id}-name`}
+            value={name}
+            maxLength={NAME_LENGTH}
+            placeholder={t('For example: Operations group')}
+            aria-invalid={tried && Boolean(nameIssue)}
+            aria-describedby={
+              tried && nameIssue ? `${id}-name-error` : undefined
+            }
+            onChange={(event) => setName(event.target.value)}
+          />
+          {tried && nameIssue ? (
+            <p
+              id={`${id}-name-error`}
+              role='alert'
+              className='text-destructive text-xs'
+            >
+              {nameIssue}
+            </p>
+          ) : null}
+        </div>
 
-            <fieldset className='space-y-2'>
-              <legend className='text-sm font-medium'>{t('Addresses')}</legend>
-              {rows.map((row, index) => {
-                const issue =
-                  (tried ? issues[index] : null) ?? props.errors[row.id]
-                const saved = savedOf(row.id)
-                return (
-                  <div key={row.id} className='space-y-1'>
-                    <div className='grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-2'>
-                      <NativeSelect
-                        aria-label={t('Type of address {{index}}', {
-                          index: index + 1,
-                        })}
-                        value={row.type}
-                        onChange={(event) =>
-                          updateRow(index, {
-                            type: event.target
-                              .value as CanvasNotificationAddressType,
-                          })
-                        }
-                      >
-                        {settings.addressTypes.map((type) => (
-                          <NativeSelectOption key={type} value={type}>
-                            {t(NOTIFICATION_ADDRESS_TYPE_LABELS[type] ?? type)}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                      <Input
-                        type={row.type === 'EMAIL' ? 'email' : 'url'}
-                        autoComplete='off'
-                        aria-label={t('Address {{index}}', {
-                          index: index + 1,
-                        })}
-                        aria-invalid={Boolean(issue)}
-                        value={row.value}
-                        placeholder={placeholderOf(
-                          row,
-                          saved && keepsSaved(row, saved) ? saved.hint : null,
-                          t
-                        )}
-                        onChange={(event) =>
-                          updateRow(index, { value: event.target.value })
-                        }
-                      />
-                      <Button
-                        type='button'
-                        variant='link'
-                        className='text-destructive h-auto p-0'
-                        disabled={rows.length === 1}
-                        onClick={() =>
-                          setRows((current) =>
-                            current.filter((_, at) => at !== index)
-                          )
-                        }
-                      >
-                        {t('Delete')}
-                      </Button>
-                    </div>
-                    {issue ? (
-                      <p role='alert' className='text-destructive text-xs'>
-                        {issue}
-                      </p>
-                    ) : null}
-                  </div>
-                )
-              })}
-              <div className='flex flex-wrap items-center gap-2'>
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='sm'
-                  disabled={rows.length >= ROWS_PER_SAVE}
-                  onClick={() =>
-                    setRows((current) => [
-                      ...current,
-                      {
-                        id: crypto.randomUUID(),
-                        type: current.at(-1)?.type ?? 'WECOM',
-                        value: '',
-                      },
-                    ])
-                  }
-                >
-                  {t('Add a row')}
-                </Button>
-                <span className='text-muted-foreground text-xs'>
-                  {t(
-                    'Webhooks take HTTPS addresses only. Each row is saved as its own address and sent to on its own. Leave a saved address empty to keep it.'
-                  )}
-                </span>
-              </div>
-            </fieldset>
-
-            <fieldset className='space-y-1'>
-              <legend className='mb-1 text-sm font-medium'>
-                {t('Used for these events')}
-              </legend>
-              {Object.entries(settings.events).map(([eventId, event]) => (
-                <label
-                  key={eventId}
-                  className='hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2'
-                >
-                  <Checkbox
-                    checked={events.includes(eventId)}
-                    onCheckedChange={(checked) =>
-                      setEvents((current) =>
-                        checked
-                          ? [...current, eventId]
-                          : current.filter((entry) => entry !== eventId)
-                      )
+        <fieldset className='space-y-2'>
+          <legend className='text-sm font-medium'>{t('Addresses')}</legend>
+          {rows.map((row, index) => {
+            const issue = (tried ? issues[index] : null) ?? props.errors[row.id]
+            const saved = savedOf(row.id)
+            return (
+              <div key={row.id} className='space-y-1'>
+                <div className='grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-2'>
+                  <NativeSelect
+                    aria-label={t('Type of address {{index}}', {
+                      index: index + 1,
+                    })}
+                    value={row.type}
+                    onChange={(event) =>
+                      updateRow(index, {
+                        type: event.target
+                          .value as CanvasNotificationAddressType,
+                      })
+                    }
+                  >
+                    {settings.addressTypes.map((type) => (
+                      <NativeSelectOption key={type} value={type}>
+                        {t(NOTIFICATION_ADDRESS_TYPE_LABELS[type] ?? type)}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  <Input
+                    type={row.type === 'EMAIL' ? 'email' : 'url'}
+                    autoComplete='off'
+                    aria-label={t('Address {{index}}', {
+                      index: index + 1,
+                    })}
+                    aria-invalid={Boolean(issue)}
+                    value={row.value}
+                    placeholder={placeholderOf(
+                      row,
+                      saved && keepsSaved(row, saved) ? saved.hint : null,
+                      t
+                    )}
+                    onChange={(event) =>
+                      updateRow(index, { value: event.target.value })
                     }
                   />
-                  <span className='text-sm font-medium'>
-                    {notificationEventName(eventId, t)}
-                  </span>
-                  <span className='text-muted-foreground text-sm'>
-                    {notificationCategoryName(event.category, t)}
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-
-            {editing ? (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                disabled={props.testing || dirty}
-                onClick={() => props.onTest(editing.id)}
-              >
-                {t('Send test message')}
-              </Button>
-            ) : null}
-            {props.errors.form ? (
-              <p role='alert' className='text-destructive text-sm'>
-                {props.errors.form}
-              </p>
-            ) : null}
+                  <Button
+                    type='button'
+                    variant='link'
+                    className='text-destructive h-auto p-0'
+                    disabled={rows.length === 1}
+                    onClick={() =>
+                      setRows((current) =>
+                        current.filter((_, at) => at !== index)
+                      )
+                    }
+                  >
+                    {t('Delete')}
+                  </Button>
+                </div>
+                {issue ? (
+                  <p role='alert' className='text-destructive text-xs'>
+                    {issue}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })}
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={rows.length >= ROWS_PER_SAVE}
+              onClick={() =>
+                setRows((current) => [
+                  ...current,
+                  {
+                    id: crypto.randomUUID(),
+                    type: current.at(-1)?.type ?? 'WECOM',
+                    value: '',
+                  },
+                ])
+              }
+            >
+              {t('Add a row')}
+            </Button>
+            <span className='text-muted-foreground text-xs'>
+              {t(
+                'Webhooks take HTTPS addresses only. Each row is saved as its own address and sent to on its own. Leave a saved address empty to keep it.'
+              )}
+            </span>
           </div>
-          <DialogFooter className='items-center border-t px-6 py-4'>
-            {confirmDiscard ? (
-              <>
-                <span className='text-muted-foreground me-auto text-sm'>
-                  {t('Discard the unsaved changes?')}
-                </span>
-                <Button
-                  type='button'
-                  variant='outline'
-                  onClick={() => setConfirmDiscard(false)}
-                >
-                  {t('Keep editing')}
-                </Button>
-                <Button
-                  type='button'
-                  variant='destructive'
-                  onClick={props.onClose}
-                >
-                  {t('Discard changes')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  type='button'
-                  variant='outline'
-                  disabled={props.saving}
-                  onClick={close}
-                >
-                  {t('Cancel')}
-                </Button>
-                <Button type='submit' disabled={props.saving}>
-                  {props.saving ? t('Saving...') : t('Save')}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </fieldset>
+
+        <fieldset className='space-y-1'>
+          <legend className='mb-1 text-sm font-medium'>
+            {t('Used for these events')}
+          </legend>
+          {Object.entries(settings.events).map(([eventId, event]) => (
+            <label
+              key={eventId}
+              className='hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2'
+            >
+              <Checkbox
+                checked={events.includes(eventId)}
+                onCheckedChange={(checked) =>
+                  setEvents((current) =>
+                    checked
+                      ? [...current, eventId]
+                      : current.filter((entry) => entry !== eventId)
+                  )
+                }
+              />
+              <span className='text-sm font-medium'>
+                {notificationEventName(eventId, t)}
+              </span>
+              <span className='text-muted-foreground text-sm'>
+                {notificationCategoryName(event.category, t)}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        {editing ? (
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            disabled={props.testing || dirty}
+            onClick={() => props.onTest(editing.id)}
+          >
+            {t('Send test message')}
+          </Button>
+        ) : null}
+        {props.errors.form ? (
+          <p role='alert' className='text-destructive text-sm'>
+            {props.errors.form}
+          </p>
+        ) : null}
+      </div>
+    </CanvasFormDialog>
   )
 }
