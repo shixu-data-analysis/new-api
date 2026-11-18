@@ -73,14 +73,12 @@ import type {
 } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { NotificationAddressDialog } from './NotificationAddressDialog'
-import { NotificationEventDialog } from './NotificationEventDialog'
 
 // A dialog keeps the settings it opened on: it shows them and saves its draft against them, so a change saved meanwhile by
 // someone else answers NOTIFICATION_SETTINGS_CONFLICT instead of being overwritten by a refetch the draft never saw.
 type OpenDialog =
   | ({ base: CanvasNotificationSettings } & (
       | { kind: 'address'; editing: CanvasNotificationAddress | null }
-      | { kind: 'event'; eventId: string }
       | { kind: 'delete'; address: CanvasNotificationAddress }
     ))
   | null
@@ -144,8 +142,8 @@ export function NotificationSettings() {
             'This address is not allowed. Use an HTTPS address on the public internet.'
           )
         : t('Unable to save the notification settings. Please try again.')
-      // Only the address and event dialogs show an error in place; a switch or a deletion has nowhere to, so it toasts.
-      if (dialog?.kind === 'address' || dialog?.kind === 'event') {
+      // Only the address dialog shows an error in place; a switch or a deletion has nowhere to, so it toasts.
+      if (dialog?.kind === 'address') {
         const field = rejected ? fieldOf(error) : undefined
         setErrors({ [field ?? 'form']: message })
         return
@@ -340,16 +338,6 @@ export function NotificationSettings() {
             {event.addressIds.length ? null : (
               <span className='text-muted-foreground'>{t('None chosen')}</span>
             )}
-            <Button
-              variant='link'
-              className='h-auto p-0'
-              onClick={() => {
-                setErrors({})
-                setDialog({ kind: 'event', eventId: event.id, base: settings })
-              }}
-            >
-              {t('Change')}
-            </Button>
           </div>
           {event.enabled && !event.addressIds.length ? (
             <p className='text-destructive text-xs'>
@@ -460,22 +448,6 @@ export function NotificationSettings() {
           testing={test.isPending}
           onTest={(id) => test.mutate(id)}
           onSave={(next) => saveDialog(dialog.base, next)}
-          onClose={() => setDialog(null)}
-        />
-      ) : null}
-      {dialog?.kind === 'event' ? (
-        <NotificationEventDialog
-          settings={dialog.base}
-          eventId={dialog.eventId}
-          saving={save.isPending}
-          error={errors.form ?? null}
-          onSave={(addressIds) =>
-            saveDialog(dialog.base, {
-              kind: 'event',
-              eventId: dialog.eventId,
-              addressIds,
-            })
-          }
           onClose={() => setDialog(null)}
         />
       ) : null}

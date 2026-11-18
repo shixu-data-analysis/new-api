@@ -121,12 +121,6 @@ describe('NOTIFICATIONS-001 settings sent on each change', () => {
       enabled: true,
       addressIds: ['hook', 'mail'],
     })
-    const chosen = notificationSettingsInput(settings, {
-      kind: 'event',
-      eventId: 'support.pending',
-      addressIds: ['mail'],
-    })
-    expect(chosen.events['support.pending'].addressIds).toEqual(['mail'])
     expect(settings.events['support.pending'].addressIds).toEqual(['hook'])
   })
 

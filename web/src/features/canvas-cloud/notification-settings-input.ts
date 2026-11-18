@@ -45,7 +45,6 @@ export type NotificationChange =
       events: string[] | null
     }
   | { kind: 'delete'; addressId: string }
-  | { kind: 'event'; eventId: string; addressIds: string[] }
   | { kind: 'toggle'; eventId: string; enabled: boolean }
 
 /** The typed Webhook or email under its field; nothing when it is left empty, so the saved one is kept. */
@@ -109,9 +108,6 @@ export function notificationSettingsInput(
         (id) => id !== change.addressId
       )
     }
-  }
-  if (change.kind === 'event' && events[change.eventId]) {
-    events[change.eventId].addressIds = change.addressIds
   }
   if (change.kind === 'toggle' && events[change.eventId]) {
     events[change.eventId].enabled = change.enabled

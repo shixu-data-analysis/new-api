@@ -140,6 +140,11 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     expect(
       within(events).getByText('No address is chosen, so nothing is sent')
     ).toBeInTheDocument()
+    // Where an event goes is chosen in its addresses' dialogs; the table only shows it.
+    expect(within(events).getByText('运营群 (WeCom)')).toBeInTheDocument()
+    expect(
+      within(events).queryByRole('button', { name: 'Change' })
+    ).not.toBeInTheDocument()
   })
 
   it('shows the last delivery times in Chinese, whose language codes are not Intl tags', async () => {
@@ -304,35 +309,6 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     expect(input.addresses).toEqual([
       { id: 'hook', name: '运营一群', type: 'WECOM' },
     ])
-  })
-
-  it('saves an event chosen across a refetch against the version it opened on', async () => {
-    const client = testClient()
-    render(wrap(<NotificationSettings />, client))
-    const changeButtons = await screen.findAllByRole('button', {
-      name: 'Change',
-    })
-    const [changeNewMessage] = changeButtons
-    if (!changeNewMessage) throw new Error('No event to change')
-    fireEvent.click(changeNewMessage)
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('New support message')
-    api.getCanvasAdminNotificationSettings.mockResolvedValue(changedElsewhere)
-    await client.invalidateQueries({
-      queryKey: api.notificationQueryKeys.settings,
-    })
-    await waitFor(() =>
-      expect(api.getCanvasAdminNotificationSettings).toHaveBeenCalledTimes(2)
-    )
-    // The dialog keeps showing the addresses it opened on, and saves its choice against them.
-    expect(within(dialog).queryByText(/值班邮箱/)).not.toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
-    await waitFor(() =>
-      expect(api.setCanvasAdminNotificationSettings).toHaveBeenCalled()
-    )
-    const input = api.setCanvasAdminNotificationSettings.mock.calls[0]?.[0]
-    expect(input.expectedVersion).toBe(3)
-    expect(input.events['support.pending'].addressIds).toEqual(['hook'])
   })
 
   it('reloads after a change made elsewhere meanwhile, and names why a test failed', async () => {
