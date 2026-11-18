@@ -29,6 +29,7 @@ import {
   NOTIFICATION_ADDRESS_TYPE_LABELS,
   notificationCategoryName,
   notificationEventName,
+  notificationEventWhen,
 } from '../notification-labels'
 import {
   eventsOfAddress,
@@ -330,9 +331,10 @@ export function NotificationAddressDialog(props: {
           {Object.entries(settings.events).map(([eventId, event]) => (
             <label
               key={eventId}
-              className='hover:bg-muted flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2'
+              className='hover:bg-muted flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2'
             >
               <Checkbox
+                className='mt-0.5'
                 checked={events.includes(eventId)}
                 onCheckedChange={(checked) =>
                   setEvents((current) =>
@@ -342,11 +344,19 @@ export function NotificationAddressDialog(props: {
                   )
                 }
               />
-              <span className='text-sm font-medium'>
-                {notificationEventName(eventId, t)}
-              </span>
-              <span className='text-muted-foreground text-sm'>
-                {notificationCategoryName(event.category, t)}
+              <span className='min-w-0 space-y-0.5'>
+                <span className='flex flex-wrap items-baseline gap-x-3'>
+                  <span className='text-sm font-medium'>
+                    {notificationEventName(eventId, t)}
+                  </span>
+                  <span className='text-muted-foreground text-sm'>
+                    {notificationCategoryName(event.category, t)}
+                  </span>
+                </span>
+                {/* The same sentence as the events table's 何时发送, so the address can be chosen without leaving the dialog. */}
+                <span className='text-muted-foreground block text-xs'>
+                  {notificationEventWhen(eventId, t)}
+                </span>
               </span>
             </label>
           ))}

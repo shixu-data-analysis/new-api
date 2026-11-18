@@ -208,6 +208,12 @@ describe('NOTIFICATIONS-001 运行管理 › 通知', () => {
     render(wrap(<NotificationSettings />))
     fireEvent.click(await screen.findByRole('button', { name: 'New address' }))
     const dialog = await screen.findByRole('dialog')
+    // Each event says when it is sent, as the events table does.
+    expect(
+      within(dialog).getByRole('checkbox', { name: /Probing paused/ })
+    ).toHaveAccessibleName(
+      expect.stringContaining('A probe request succeeded or timed out')
+    )
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
     expect(await within(dialog).findByText('Enter a name')).toBeInTheDocument()
     expect(within(dialog).getByText('Enter the address')).toBeInTheDocument()
