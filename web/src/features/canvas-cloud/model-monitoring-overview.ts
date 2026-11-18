@@ -8,6 +8,8 @@ License, or (at your option) any later version.
 */
 import type { TFunction } from 'i18next'
 
+import { normalizeInterfaceLanguage } from '@/i18n/languages'
+
 import { taskErrorCategoryLabels } from './task-error-categories'
 import type {
   CanvasAdminTaskLog,
@@ -91,15 +93,20 @@ export function monitoringTickLabelIndexes(
   )
 }
 
-/** Why one task failed, from its first failed or pending result; a legacy task without results speaks for itself. */
-export function taskFailureLabelKey(task: CanvasAdminTaskLog): string {
-  const output = task.outputSummaries.find(
+/** A task's first failed or pending result, the one its failure is told by. */
+function firstProblemOutput(task: CanvasAdminTaskLog) {
+  return task.outputSummaries.find(
     (item) =>
       item.executionStatus === 'CONFIRMED_FAILED' ||
       item.executionStatus === 'UNKNOWN' ||
       (item.executionStatus === 'SUCCEEDED' &&
         item.billingStatus === 'RELEASED_TIMEOUT')
   )
+}
+
+/** Why one task failed, from its first failed or pending result; a legacy task without results speaks for itself. */
+export function taskFailureLabelKey(task: CanvasAdminTaskLog): string {
+  const output = firstProblemOutput(task)
   const status = output?.executionStatus ?? task.derivedExecutionStatus
   const billing = output?.billingStatus ?? task.customerBillingStatus
   const code = output?.error?.code ?? null
@@ -115,4 +122,22 @@ export function taskFailureLabelKey(task: CanvasAdminTaskLog): string {
   return code
     ? (taskErrorCategoryLabels[code] ?? 'Unknown error category')
     : 'Unknown error category'
+}
+
+/**
+ * The reason the customer's node shows for that result (GENERATION-FEEDBACK-001): the provider's reason Cloud attached
+ * for customers, else Cloud's message in the page language; null when the result did not fail or carries neither.
+ */
+export function taskFailureReason(
+  task: CanvasAdminTaskLog,
+  language: string
+): string | null {
+  const output = firstProblemOutput(task)
+  if (output?.executionStatus !== 'CONFIRMED_FAILED') return null
+  const locale = normalizeInterfaceLanguage(language)
+  return (
+    output.error?.upstreamReason?.trim() ||
+    output.error?.messages?.[locale]?.trim() ||
+    null
+  )
 }

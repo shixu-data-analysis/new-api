@@ -8298,6 +8298,7 @@
     "Customer task view points released": "Đã hoàn",
     "Customer task view points released amount": "Đã hoàn {{points}} điểm",
     "Customer task view error": "Lỗi",
+    "Customer task view node reason": "Hiển thị trên nút",
     "Customer task view upstream reason": "Lý do từ nhà cung cấp: {{reason}}",
     "Provider address check": "Kiểm tra địa chỉ nhà cung cấp",
     "The provider address is not credential-free HTTPS": "Địa chỉ nhà cung cấp không phải HTTPS không kèm thông tin đăng nhập",

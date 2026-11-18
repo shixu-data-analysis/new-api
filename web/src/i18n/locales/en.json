@@ -8298,6 +8298,7 @@
     "Customer task view points released": "Released",
     "Customer task view points released amount": "Released {{points}} points",
     "Customer task view error": "Error",
+    "Customer task view node reason": "Shown on the node",
     "Customer task view upstream reason": "Provider reason: {{reason}}",
     "Provider address check": "Provider address check",
     "The provider address is not credential-free HTTPS": "The provider address is not credential-free HTTPS",

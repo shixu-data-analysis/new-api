@@ -8298,6 +8298,7 @@
     "Customer task view points released": "Libérés",
     "Customer task view points released amount": "Libérés {{points}} points",
     "Customer task view error": "Erreur",
+    "Customer task view node reason": "Affiché sur le nœud",
     "Customer task view upstream reason": "Raison du fournisseur : {{reason}}",
     "Provider address check": "Vérification de l’adresse du fournisseur",
     "The provider address is not credential-free HTTPS": "L’adresse du fournisseur n’est pas en HTTPS sans identifiants",

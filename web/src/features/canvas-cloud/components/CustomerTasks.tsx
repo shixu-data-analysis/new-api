@@ -325,7 +325,9 @@ export function CustomerTasks() {
                   className='text-muted-foreground text-xs break-words'
                 >
                   {t('Result')} {output.outputIndex + 1}:{' '}
-                  {output.error?.messages?.[language] ||
+                  {/* One reason per result, as on the canvas node: the provider's own words when Cloud attached them, else Cloud's message. */}
+                  {output.error?.upstreamReason?.trim() ||
+                    output.error?.messages?.[language] ||
                     output.error?.messages?.en ||
                     (output.error?.code &&
                     customerTaskErrorMessageKeys[output.error.code]
@@ -334,13 +336,6 @@ export function CustomerTasks() {
                     t(
                       'The task failed. Please retry later or contact an administrator.'
                     )}
-                  {output.error?.upstreamReason ? (
-                    <span className='block'>
-                      {t('Customer task view upstream reason', {
-                        reason: output.error.upstreamReason,
-                      })}
-                    </span>
-                  ) : null}
                 </p>
               ))}
               {assets.length ? (

@@ -8298,6 +8298,7 @@
     "Customer task view points released": "解放済み",
     "Customer task view points released amount": "解放済み {{points}} ポイント",
     "Customer task view error": "エラー",
+    "Customer task view node reason": "ノードに表示",
     "Customer task view upstream reason": "プロバイダーの理由：{{reason}}",
     "Provider address check": "プロバイダーアドレスの確認",
     "The provider address is not credential-free HTTPS": "プロバイダーアドレスが認証情報なしの HTTPS ではありません",

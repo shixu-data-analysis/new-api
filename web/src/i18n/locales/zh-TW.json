@@ -8298,6 +8298,7 @@
     "Customer task view points released": "已釋放",
     "Customer task view points released amount": "已釋放 {{points}} 點數",
     "Customer task view error": "錯誤說明",
+    "Customer task view node reason": "節點上顯示",
     "Customer task view upstream reason": "服務商原因：{{reason}}",
     "Provider address check": "服務商位址檢查",
     "The provider address is not credential-free HTTPS": "服務商位址不是不帶憑證的 HTTPS",

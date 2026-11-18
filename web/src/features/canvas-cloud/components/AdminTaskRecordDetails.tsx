@@ -37,6 +37,7 @@ import {
   ADMIN_CONFIRMED_UPSTREAM_FAILURE_CODE,
   customerDeadline,
   customerErrorMessage,
+  customerNodeReason,
   customerUpstreamReason,
   customerNodeStatus,
   customerOutputLabelKey,
@@ -57,6 +58,7 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasServerTable } from './CanvasServerTable'
+import { CanvasTooltip } from './CanvasTooltip'
 import { CopyableText } from './CopyableText'
 import { DetailValue } from './DetailValue'
 import { EndTaskDialog } from './EndTaskDialog'
@@ -847,6 +849,18 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
   )
   const upstreamReason = customerUpstreamReason(task)
   const showCustomerError = nodeStatus.failed
+  const nodeReasonMessage = customerNodeReason(
+    task,
+    i18n.resolvedLanguage || i18n.language
+  )
+  // The node shows a failure's status as a small line over its reason, as the canvas does.
+  let nodeReason: string | null = null
+  if (nodeStatus.failed) {
+    nodeReason =
+      nodeReasonMessage.kind === 'key'
+        ? t(nodeReasonMessage.key)
+        : nodeReasonMessage.text
+  }
   const platformIssue = task.platformIssue
   let latestReleaseAt: string | null | undefined
   if (platformIssue) latestReleaseAt = platformIssue.releaseAt ?? undefined
@@ -980,10 +994,23 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
             <AccordionContent>
               <div className='space-y-4 rounded-lg border p-4'>
                 <div className='flex flex-wrap items-center justify-between gap-2'>
-                  <span className='grid gap-0.5'>
-                    <span className={nodeStatusClassName}>
+                  <span className='grid min-w-0 gap-0.5'>
+                    <span
+                      className={
+                        nodeReason
+                          ? 'text-destructive text-xs font-medium'
+                          : nodeStatusClassName
+                      }
+                    >
                       {t(nodeStatus.key)}
                     </span>
+                    {nodeReason ? (
+                      <CanvasTooltip content={nodeReason}>
+                        <span className='line-clamp-3 text-sm [overflow-wrap:anywhere]'>
+                          {nodeReason}
+                        </span>
+                      </CanvasTooltip>
+                    ) : null}
                     {platformIssue ? (
                       <span className='text-muted-foreground text-xs'>
                         {t('Customer task view retry at', {

@@ -346,3 +346,17 @@ export function customerUpstreamReason(task: CustomerTask): string | null {
     ) ?? null
   )
 }
+
+/**
+ * The one reason a failed node shows the customer (GENERATION-FEEDBACK-001): the provider's reason when Cloud attached
+ * one, else Cloud's own message. Task information keeps both.
+ */
+export function customerNodeReason(
+  task: CustomerTask,
+  language: string
+): CustomerErrorMessage {
+  const upstream = customerUpstreamReason(task)
+  return upstream
+    ? { kind: 'text', text: upstream }
+    : customerErrorMessage(task, language)
+}

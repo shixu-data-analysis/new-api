@@ -8298,6 +8298,7 @@
     "Customer task view points released": "Освобождены",
     "Customer task view points released amount": "Освобождены {{points}} баллов",
     "Customer task view error": "Ошибка",
+    "Customer task view node reason": "Показывается на узле",
     "Customer task view upstream reason": "Причина от поставщика: {{reason}}",
     "Provider address check": "Проверка адреса поставщика",
     "The provider address is not credential-free HTTPS": "Адрес поставщика не является HTTPS без учётных данных",
