@@ -10,5 +10,7 @@ export type CatalogDefinitionSummary = {
   adapterProfiles: number;
 };
 export declare function validateCatalogDefinitions(read: (file: string) => unknown, options?: { tag?: string; partial?: boolean }): CatalogDefinitionSummary;
+/** The first problem of a model's `mediaConstraints` (named `location` in the message), or undefined when they are valid. */
+export declare function mediaConstraintsIssue(value: unknown, location?: string): string | undefined;
 /** The first structural problem of one model definition of models.json, or undefined when its structure is valid. */
 export declare function modelDefinitionIssue(model: unknown): string | undefined;

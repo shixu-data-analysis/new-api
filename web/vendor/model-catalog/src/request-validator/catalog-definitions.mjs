@@ -660,6 +660,19 @@ function validateModelShape(raw, location) {
   return value;
 }
 
+/**
+ * The first problem of a model's `mediaConstraints`, or undefined. Cloud checks imported and stored models with it, so the
+ * media rules live only here (GENERATION-FEEDBACK-001).
+ */
+export function mediaConstraintsIssue(value, location = "mediaConstraints") {
+  try {
+    validateMediaConstraints(value, location);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 /** The first structural problem of one model definition of models.json, or undefined; see validateModelShape. */
 export function modelDefinitionIssue(model) {
   try {
