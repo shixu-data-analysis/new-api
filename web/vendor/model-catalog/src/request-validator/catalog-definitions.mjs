@@ -198,7 +198,7 @@ function validateRequestOptions(profile, request, location) {
 
 const MEDIA_KINDS = new Set(["image", "video", "audio"]);
 const MEDIA_CONSTRAINT_FIELDS = [
-  "formats", "minDurationMs", "maxDurationMs", "maxTotalDurationMs", "maxFileSizeBytes", "maxTotalFileSizeBytes",
+  "formats", "minDurationMs", "maxDurationMs", "maxTotalDurationMs", "totalDurationWithinOutput", "maxFileSizeBytes", "maxTotalFileSizeBytes",
   "minShortEdgePx", "maxShortEdgePx", "minWidthPx", "maxWidthPx", "minHeightPx", "maxHeightPx",
   "minAspectRatio", "maxAspectRatio", "minFrameRate", "maxFrameRate",
 ];
@@ -502,6 +502,10 @@ function validateMediaConstraints(raw, location) {
       const formats = array(constraint.formats, `${location}.${kind}.formats`, 1);
       formats.forEach((format, index) => string(format, `${location}.${kind}.formats[${index}]`, 128));
       unique(formats, (format) => format, `${location}.${kind}.formats`);
+    }
+    if (constraint.totalDurationWithinOutput !== undefined) {
+      if (kind !== "video") fail(`${location}.${kind}.totalDurationWithinOutput is only for video`);
+      if (constraint.totalDurationWithinOutput !== true) fail(`${location}.${kind}.totalDurationWithinOutput must be true; omit it to turn the check off`);
     }
     for (const field of ["minDurationMs", "maxDurationMs", "maxTotalDurationMs", "maxFileSizeBytes", "maxTotalFileSizeBytes", "minWidthPx", "maxWidthPx", "minHeightPx", "maxHeightPx"]) {
       if (constraint[field] !== undefined) positiveNumber(constraint[field], `${location}.${kind}.${field}`, true);
