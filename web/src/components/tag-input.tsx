@@ -30,6 +30,10 @@ interface TagInputProps {
   placeholder?: string
   className?: string
   disabled?: boolean
+  /** For a `<Label htmlFor>`; the text box carries it. */
+  inputId?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean
 }
 
 export function TagInput({
@@ -38,6 +42,9 @@ export function TagInput({
   placeholder,
   className,
   disabled = false,
+  inputId,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: TagInputProps) {
   const { t } = useTranslation()
   const placeholderText = placeholder ?? t('Add tags...')
@@ -60,8 +67,11 @@ export function TagInput({
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
       addTag(inputValue)
-    } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      removeTag(value[value.length - 1])
+      return
+    }
+    const last = value.at(-1)
+    if (e.key === 'Backspace' && !inputValue && last !== undefined) {
+      removeTag(last)
     }
   }
 
@@ -101,6 +111,9 @@ export function TagInput({
       ))}
       <input
         ref={inputRef}
+        id={inputId}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         type='text'
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}

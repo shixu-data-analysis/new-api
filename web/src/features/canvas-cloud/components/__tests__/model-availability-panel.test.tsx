@@ -88,12 +88,14 @@ const overview = (change: object = {}) => ({
     autoProbeEnabled: false,
     intervalHours: 3,
     threshold: 2,
+    listingKeywords: [],
+    listingRetentionDays: 14,
     version: 4,
   },
   providers: [provider],
   targets: [],
   models: [],
-  counts: { missing: 0, failed: 0, paused: 0, badge: 0 },
+  counts: { missing: 0, failed: 0, paused: 0, listed: 0, badge: 0 },
   coverage: {
     probedTargets: 0,
     totalTargets: 1,
@@ -102,6 +104,11 @@ const overview = (change: object = {}) => ({
     unboundModels: [],
   },
   lastSuccessAt: null,
+  listing: {
+    models: [],
+    pendingBaselineProviders: [],
+    requestRuleProviders: [],
+  },
   run: null,
   ...change,
 })
@@ -470,6 +477,8 @@ describe('ModelAvailabilitySettingsDialog', () => {
               autoProbeEnabled: false,
               intervalHours: 3,
               threshold: 2,
+              listingKeywords: [],
+              listingRetentionDays: 14,
               version: 4,
               ...settings,
             },
@@ -508,6 +517,38 @@ describe('ModelAvailabilitySettingsDialog', () => {
     expect(
       api.saveModelAvailabilitySettings.mock.calls[0]?.[0]
     ).not.toHaveProperty('alertEmails')
+  })
+
+  it('saves the keywords lower-cased without repeats, with the retention days', async () => {
+    api.saveModelAvailabilitySettings.mockResolvedValue({ version: 5 })
+    openDialog({ listingKeywords: ['veo'] })
+    const keywords = screen.getByLabelText('Keywords')
+    fireEvent.change(keywords, { target: { value: ' Kling ' } })
+    fireEvent.keyDown(keywords, { key: 'Enter' })
+    fireEvent.change(keywords, { target: { value: 'VEO' } })
+    fireEvent.keyDown(keywords, { key: 'Enter' })
+    fireEvent.change(
+      screen.getByLabelText('Keep in the list for how many days'),
+      { target: { value: '30' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.saveModelAvailabilitySettings).toHaveBeenCalled()
+    )
+    expect(api.saveModelAvailabilitySettings.mock.calls[0]?.[0]).toMatchObject({
+      listingKeywords: ['veo', 'kling'],
+      listingRetentionDays: 30,
+    })
+  })
+
+  it('blocks saving a retention outside 1 to 90 days and marks the field', () => {
+    openDialog()
+    const retention = screen.getByLabelText(
+      'Keep in the list for how many days'
+    )
+    fireEvent.change(retention, { target: { value: '91' } })
+    expect(retention).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('asks before discarding, and saves what was edited with the version it read', async () => {
@@ -550,6 +591,8 @@ describe('ModelAvailabilitySettingsDialog', () => {
                 autoProbeEnabled: false,
                 intervalHours: 3,
                 threshold: 2,
+                listingKeywords: [],
+                listingRetentionDays: 14,
                 version,
               },
             }) as never

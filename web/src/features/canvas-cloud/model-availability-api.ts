@@ -108,17 +108,33 @@ export interface MissingModel {
   controlVersion: number
 }
 
+/** A new provider model ID that contains a keyword and is not in that provider's Catalog (MODEL-LISTING-ALERT-001). */
+export interface ListedModel {
+  providerId: string
+  providerName: string
+  upstreamId: string
+  firstSeenAt: string
+}
+
 export interface AvailabilityOverview {
   settings: {
     autoProbeEnabled: boolean
     intervalHours: number
     threshold: number
+    listingKeywords: string[]
+    listingRetentionDays: number
     version: number
   }
   providers: AvailabilityProvider[]
   targets: AvailabilityTarget[]
   models: MissingModel[]
-  counts: { missing: number; failed: number; paused: number; badge: number }
+  counts: {
+    missing: number
+    failed: number
+    paused: number
+    listed: number
+    badge: number
+  }
   coverage: {
     probedTargets: number
     totalTargets: number
@@ -127,6 +143,11 @@ export interface AvailabilityOverview {
     unboundModels: string[]
   }
   lastSuccessAt: string | null
+  listing: {
+    models: ListedModel[]
+    pendingBaselineProviders: string[]
+    requestRuleProviders: string[]
+  }
   run: {
     trigger: 'MANUAL' | 'SCHEDULED' | 'TEST'
     doneTargets: number
@@ -184,6 +205,8 @@ export interface SaveSettingsInput {
   autoProbeEnabled: boolean
   intervalHours: number
   threshold: number
+  listingKeywords: string[]
+  listingRetentionDays: number
   providers: Record<
     string,
     { source: ListSource; rule: CustomRule | null; confirmUntested: boolean }
@@ -265,6 +288,19 @@ export async function saveModelAvailabilitySettings(
     await api.put<{ version: number }>(`${base}/settings`, input, {
       skipErrorHandler: true,
     })
+  ).data
+}
+
+/** Removes exactly these entries; one found after the page loaded stays listed. */
+export async function ignoreModelListings(
+  items: { providerId: string; upstreamId: string }[]
+): Promise<{ removed: number }> {
+  return (
+    await api.post<{ removed: number }>(
+      `${base}/listings/ignore`,
+      { items },
+      { skipErrorHandler: true }
+    )
   ).data
 }
 

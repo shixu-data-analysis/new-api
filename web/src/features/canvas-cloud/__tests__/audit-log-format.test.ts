@@ -265,7 +265,7 @@ describe('operation log value names', () => {
     )
     expect(
       auditActionOptionLabel('model.availability.settings_updated', i18next.t)
-    ).toBe('修改下架预警设置')
+    ).toBe('修改上下架监测设置')
     expect(auditActionOptionLabel('catalog.model.retired', i18next.t)).toBe(
       '删除模型'
     )

@@ -45,6 +45,10 @@ import { probedUpstreamIds } from '../model-availability-rules'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelAvailabilityBulkDisableDialog } from './ModelAvailabilityBulkDisableDialog'
 import { ModelAvailabilitySettingsDialog } from './ModelAvailabilitySettingsDialog'
+import {
+  IgnoreAllListingsButton,
+  ModelListingTable,
+} from './ModelListingSection'
 
 function MissingTable(props: {
   title: string
@@ -157,7 +161,7 @@ export function ModelAvailabilityPanel() {
   if (query.isError) {
     return (
       <div className='space-y-3 py-10 text-center'>
-        <p className='font-medium'>{t('The alert failed to load')}</p>
+        <p className='font-medium'>{t('The listing monitor failed to load')}</p>
         <Button variant='outline' onClick={() => void query.refetch()}>
           {t('Retry')}
         </Button>
@@ -169,7 +173,7 @@ export function ModelAvailabilityPanel() {
     return <p className='text-muted-foreground text-sm'>{t('Loading...')}</p>
   }
 
-  const { counts, coverage, settings, run } = data
+  const { counts, coverage, settings, run, listing } = data
   const pending = data.models.filter((model) => model.enabled)
   const handled = data.models.filter((model) => !model.enabled)
   const failed = data.targets.filter(
@@ -221,7 +225,7 @@ export function ModelAvailabilityPanel() {
         <div className='space-y-1'>
           <p className='text-sm font-medium'>
             {t(
-              'Missing models {{missing}} · Failed probes {{failed}} · Paused {{paused}}',
+              'Missing models {{missing}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}',
               counts
             )}
           </p>
@@ -249,6 +253,12 @@ export function ModelAvailabilityPanel() {
             {coverage.offProviders.length
               ? `${t('{{count}} providers are set not to probe: {{names}}.', { count: coverage.offProviders.length, names: coverage.offProviders.join(', ') })} `
               : ''}
+            {listing.pendingBaselineProviders.length
+              ? `${t('{{count}} providers have no listing baseline yet: {{names}}.', { count: listing.pendingBaselineProviders.length, names: listing.pendingBaselineProviders.join(', ') })} `
+              : ''}
+            {listing.requestRuleProviders.length
+              ? `${t('{{count}} providers use a per-model request rule and are not checked for new models: {{names}}.', { count: listing.requestRuleProviders.length, names: listing.requestRuleProviders.join(', ') })} `
+              : ''}
             {t('Last successful probe: {{time}}', {
               time: data.lastSuccessAt
                 ? formatCanvasDateTime(data.lastSuccessAt)
@@ -271,6 +281,10 @@ export function ModelAvailabilityPanel() {
           >
             {t('Disable all ({{count}})', { count: pending.length })}
           </Button>
+          <IgnoreAllListingsButton
+            models={listing.models}
+            onChanged={refresh}
+          />
           <Button variant='outline' onClick={() => setSettingsOpen(true)}>
             {t('Settings')}
           </Button>
@@ -420,6 +434,8 @@ export function ModelAvailabilityPanel() {
           ) : null}
         </>
       )}
+
+      <ModelListingTable models={listing.models} onChanged={refresh} />
 
       {settingsOpen ? (
         <ModelAvailabilitySettingsDialog
