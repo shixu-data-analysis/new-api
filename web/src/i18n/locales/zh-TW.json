@@ -11244,6 +11244,7 @@
     "A whole number from 1 to 90, counted from when it was found.": "可填 1 到 90 的整數。從首次發現算起。",
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}}（API Key 組：{{group}}）：{{reason}} 最近成功：{{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}：{{reason}} 最近成功：{{time}}",
-    "Open API provider configuration": "前往 API 服務商設定"
+    "Open API provider configuration": "前往 API 服務商設定",
+    "Remove {{tag}}": "刪除 {{tag}}"
   }
 }

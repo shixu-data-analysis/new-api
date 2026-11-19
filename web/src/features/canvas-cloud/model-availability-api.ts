@@ -311,7 +311,6 @@ export async function saveModelAvailabilitySettings(
   ).data
 }
 
-/** Removes exactly these entries; one found after the page loaded stays listed. */
 /**
  * One row by its ID, or everything the page showed: every entry found no later than `firstSeenThrough`, so one found
  * while the administrator confirmed stays listed.

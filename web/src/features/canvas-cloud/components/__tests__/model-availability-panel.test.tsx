@@ -297,11 +297,13 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
     renderWithQuery(<ModelAvailabilityPanel />)
     expect(
       await screen.findByText(
-        /no API Key group and cannot be probed: Even, GWay/
+        /no API Key group and cannot be probed: Even and GWay/
       )
     ).toBeInTheDocument()
     expect(screen.getByText(/set not to probe: AI666/)).toBeInTheDocument()
-    expect(screen.getByText(/are not probed: Z5-a, Z5-b/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/are not probed: Z5-a and Z5-b/)
+    ).toBeInTheDocument()
   })
 
   it('offers to take over a round whose process died', async () => {

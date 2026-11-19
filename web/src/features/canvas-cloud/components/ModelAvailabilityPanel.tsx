@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorStatus } from '@/lib/server-error-message'
 
 import { formatCanvasDateTime } from '../formatters'
@@ -128,7 +129,7 @@ function failureText(
 }
 
 export function ModelAvailabilityPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -187,9 +188,14 @@ export function ModelAvailabilityPanel() {
       : t('None'),
   })
   // What the probes do not cover, one kind per line, so long name lists stay readable.
+  // Names joined the way the language joins a list: “A、B和C” in Chinese, “A, B, and C” in English.
+  const nameList = new Intl.ListFormat(
+    toIntlLocale(i18n.resolvedLanguage || i18n.language),
+    { type: 'conjunction' }
+  )
   const named = (names: string[]) => ({
     count: names.length,
-    names: names.join(', '),
+    names: nameList.format(names),
   })
   const gaps = [
     coverage.unboundProviders.length

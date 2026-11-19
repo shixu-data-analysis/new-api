@@ -11244,6 +11244,7 @@
     "A whole number from 1 to 90, counted from when it was found.": "Целое число от 1 до 90, считая с момента обнаружения.",
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (группа API Key: {{group}}): {{reason}} Последний успех: {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Последний успех: {{time}}",
-    "Open API provider configuration": "Открыть настройку API-поставщика"
+    "Open API provider configuration": "Открыть настройку API-поставщика",
+    "Remove {{tag}}": "Удалить {{tag}}"
   }
 }

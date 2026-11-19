@@ -97,7 +97,7 @@ export function TagInput({
               type='button'
               variant='ghost'
               size='icon-sm'
-              aria-label='Remove tag'
+              aria-label={t('Remove {{tag}}', { tag })}
               onClick={(e) => {
                 e.stopPropagation()
                 removeTag(tag)

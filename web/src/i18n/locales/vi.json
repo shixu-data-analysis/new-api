@@ -11244,6 +11244,7 @@
     "A whole number from 1 to 90, counted from when it was found.": "Số nguyên từ 1 đến 90, tính từ lúc phát hiện.",
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (nhóm API Key: {{group}}): {{reason}} Thành công gần nhất: {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Thành công gần nhất: {{time}}",
-    "Open API provider configuration": "Mở cấu hình nhà cung cấp API"
+    "Open API provider configuration": "Mở cấu hình nhà cung cấp API",
+    "Remove {{tag}}": "Xóa {{tag}}"
   }
 }

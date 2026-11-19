@@ -11244,6 +11244,7 @@
     "A whole number from 1 to 90, counted from when it was found.": "Un nombre entier de 1 à 90, compté depuis la découverte.",
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (groupe de clés API : {{group}}) : {{reason}} Dernier succès : {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}} : {{reason}} Dernier succès : {{time}}",
-    "Open API provider configuration": "Ouvrir la configuration du fournisseur d’API"
+    "Open API provider configuration": "Ouvrir la configuration du fournisseur d’API",
+    "Remove {{tag}}": "Retirer {{tag}}"
   }
 }
