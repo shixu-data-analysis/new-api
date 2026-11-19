@@ -1,6 +1,6 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
 export const REQUEST_VALIDATOR_VERSION = "1.18.0";
-export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7297d77a039dde8a7026ed66fc15d60b168e9057e539f0b56055ac68472c2c4c";
+export const REQUEST_VALIDATOR_VECTORS_SHA256 = "6398f466c4c876b4e547db47f154819972f26511690fc26f1afc0d74132762b7";
 
 export const CatalogRequestIssueCode = Object.freeze({
   PROMPT_TOO_LONG: "PROMPT_TOO_LONG",
@@ -264,7 +264,9 @@ function checkMedia(interaction, metadata, issues, mode, outputSeconds) {
   const referenceFlags = [["image", "supportsImageReference"], ["video", "supportsVideoReference"], ["audio", "supportsAudioReference"]];
   if (mode === "image-reference" && !referenceFlags.some(([, flag]) => limits[flag] === true)) add(issues, CatalogRequestIssueCode.REFERENCE_COMBINATION_UNSUPPORTED, "mode", { actual: mode });
   for (const [kind, flag] of referenceFlags) {
-    const unsupported = mode === "image-reference" ? limits[flag] !== true : mode === undefined && limits[flag] === false;
+    // A model takes images only when it says so (supportsImageReference: true), whatever it generates (design 9.33);
+    // video and audio references keep their own rule.
+    const unsupported = mode === "image-reference" ? limits[flag] !== true : mode === undefined && (kind === "image" ? limits[flag] !== true : limits[flag] === false);
     if (unsupported && groups[kind].length > 0) add(issues, CatalogRequestIssueCode.REFERENCE_COMBINATION_UNSUPPORTED, "inputAssetIds", { mediaKind: kind });
   }
   if (mode === "text-to-video" && limits.supportsTextToVideo === false) add(issues, CatalogRequestIssueCode.REFERENCE_COMBINATION_UNSUPPORTED, "mode", { actual: mode });

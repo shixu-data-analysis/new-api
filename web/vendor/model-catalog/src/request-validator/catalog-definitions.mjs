@@ -350,8 +350,8 @@ function validateTextParamSchema(schema, location) {
   const textCategories = validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
   if (textCategories.includes("cacheWrite1h") && !textCategories.includes("cacheWrite")) fail(`${location}.tokenUsageCategories must list cacheWrite with cacheWrite1h, the 5-minute write`);
   if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
-  // The most input Tokens one image of a conversation counts, sent at most 512 px on its longest side: Cloud holds it per
-  // image and the canvas assistant sends images only to a model that declares it (design 9.33). Billed as input.
+  // The most input Tokens one image counts, of any size, as the provider resizes it: Cloud holds it per image of a text
+  // request or an assistant call (design 9.33). Billed as input. It comes with supportsImageReference: true.
   if (schema.imageInputTokens !== undefined && (!Number.isSafeInteger(schema.imageInputTokens) || schema.imageInputTokens < 1)) fail(`${location}.imageInputTokens must be a positive integer`);
   if (schema.reasoning !== undefined) validateReasoning(object(schema.reasoning, `${location}.reasoning`), `${location}.reasoning`);
   if (schema.inputTiers !== undefined) {
@@ -869,7 +869,9 @@ export function validateCatalogDefinitions(read, options = {}) {
     }
     if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
-    if (paramSchema.imageInputTokens !== undefined && (!conversationProtocolOf(channel.profile) || referenceLimits.supportsImageReference === false)) fail(`Model ${productKey} declares imageInputTokens but Profile ${channel.profile.id} does not speak a conversation or the model takes no image reference`);
+    // A text model takes images only when it says so, with how many and what one counts, so every image can be held.
+    if (value.capability === "chat.generate" && (referenceLimits.supportsImageReference === true) !== (paramSchema.imageInputTokens !== undefined)) fail(`Model ${productKey} must declare supportsImageReference: true and imageInputTokens together`);
+    if (value.capability === "chat.generate" && referenceLimits.supportsImageReference === true && !(Number.isSafeInteger(referenceLimits.maxImageReferences) && referenceLimits.maxImageReferences >= 1)) fail(`Model ${productKey} takes images and must declare maxImageReferences`);
     if (paramSchema.toolCalling && !conversationProtocolOf(channel.profile)) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} does not speak a conversation: sync chat.generate, streamed, usageProtocol ${CONVERSATION_PROTOCOL_NAMES}`);
     const unmapped = (paramSchema.reasoning?.levels ?? []).map((level) => level.value).filter((level) => !Object.hasOwn(channel.profile.advanced?.request?.reasoningLevels ?? {}, level));
     if (unmapped.length) fail(`Model ${productKey} offers reasoning levels ${unmapped.join(", ")} that Profile ${channel.profile.id} does not map in reasoningLevels`);
