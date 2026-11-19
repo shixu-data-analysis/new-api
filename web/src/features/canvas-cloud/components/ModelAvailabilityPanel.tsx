@@ -174,6 +174,43 @@ export function ModelAvailabilityPanel() {
   }
 
   const { counts, coverage, settings, run, listing } = data
+  // What the probes do not cover, one kind per line, so long name lists stay readable.
+  const named = (names: string[]) => ({
+    count: names.length,
+    names: names.join(', '),
+  })
+  const gaps = [
+    coverage.unboundProviders.length
+      ? t(
+          '{{count}} providers have no API Key group and cannot be probed: {{names}}.',
+          named(coverage.unboundProviders)
+        )
+      : null,
+    coverage.unboundModels.length
+      ? t(
+          '{{count}} models have no API Key group and are not probed: {{names}}.',
+          named(coverage.unboundModels)
+        )
+      : null,
+    coverage.offProviders.length
+      ? t(
+          '{{count}} providers are set not to probe: {{names}}.',
+          named(coverage.offProviders)
+        )
+      : null,
+    listing.pendingBaselineProviders.length
+      ? t(
+          '{{count}} providers have no listing baseline yet: {{names}}.',
+          named(listing.pendingBaselineProviders)
+        )
+      : null,
+    listing.requestRuleProviders.length
+      ? t(
+          '{{count}} providers use a per-model request rule and are not checked for new models: {{names}}.',
+          named(listing.requestRuleProviders)
+        )
+      : null,
+  ].filter((gap): gap is string => gap !== null)
   const pending = data.models.filter((model) => model.enabled)
   const handled = data.models.filter((model) => !model.enabled)
   const failed = data.targets.filter(
@@ -244,27 +281,19 @@ export function ModelAvailabilityPanel() {
               done: coverage.probedTargets,
               total: coverage.totalTargets,
             })}{' '}
-            {coverage.unboundProviders.length
-              ? `${t('{{count}} providers have no API Key group and cannot be probed: {{names}}.', { count: coverage.unboundProviders.length, names: coverage.unboundProviders.join(', ') })} `
-              : ''}
-            {coverage.unboundModels.length
-              ? `${t('{{count}} models have no API Key group and are not probed: {{names}}.', { count: coverage.unboundModels.length, names: coverage.unboundModels.join(', ') })} `
-              : ''}
-            {coverage.offProviders.length
-              ? `${t('{{count}} providers are set not to probe: {{names}}.', { count: coverage.offProviders.length, names: coverage.offProviders.join(', ') })} `
-              : ''}
-            {listing.pendingBaselineProviders.length
-              ? `${t('{{count}} providers have no listing baseline yet: {{names}}.', { count: listing.pendingBaselineProviders.length, names: listing.pendingBaselineProviders.join(', ') })} `
-              : ''}
-            {listing.requestRuleProviders.length
-              ? `${t('{{count}} providers use a per-model request rule and are not checked for new models: {{names}}.', { count: listing.requestRuleProviders.length, names: listing.requestRuleProviders.join(', ') })} `
-              : ''}
             {t('Last successful probe: {{time}}', {
               time: data.lastSuccessAt
                 ? formatCanvasDateTime(data.lastSuccessAt)
                 : t('None'),
             })}
           </p>
+          {gaps.length ? (
+            <ul className='text-muted-foreground list-disc space-y-0.5 ps-5 text-sm'>
+              {gaps.map((gap) => (
+                <li key={gap}>{gap}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className='flex flex-wrap gap-2'>
           <Button
