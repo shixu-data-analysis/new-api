@@ -260,7 +260,7 @@ function positiveNumber(value, location, integer = false) {
 // reasoning lists the reasoning levels the model offers in a conversation, with their names and the default; its Profile
 // maps each level to the upstream's own fields (advanced.request.reasoningLevels). inputTiers lists, in ascending order,
 // the input length each price tier but the last goes up to, when the upstream prices a call by its input length.
-const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning", "inputTiers"];
+const TEXT_PARAM_SCHEMA_FIELDS = ["maxTokens", "contextTokens", "tokenUsageCategories", "toolCalling", "reasoning", "inputTiers", "imageInputTokens"];
 const REASONING_LEVEL = /^[a-z0-9_-]{1,32}$/;
 // Body fields Cloud builds for a conversation itself; a reasoning level must not change them.
 // Anthropic sends the system prompt apart from the messages.
@@ -350,6 +350,9 @@ function validateTextParamSchema(schema, location) {
   const textCategories = validateTokenUsageCategories(schema.tokenUsageCategories, `${location}.tokenUsageCategories`, TEXT_TOKEN_USAGE_CATEGORIES);
   if (textCategories.includes("cacheWrite1h") && !textCategories.includes("cacheWrite")) fail(`${location}.tokenUsageCategories must list cacheWrite with cacheWrite1h, the 5-minute write`);
   if (schema.toolCalling !== undefined && schema.toolCalling !== true) fail(`${location}.toolCalling must be true when declared`);
+  // The most input Tokens one image of a conversation counts, sent at most 512 px on its longest side: Cloud holds it per
+  // image and the canvas assistant sends images only to a model that declares it (design 9.33). Billed as input.
+  if (schema.imageInputTokens !== undefined && (!Number.isSafeInteger(schema.imageInputTokens) || schema.imageInputTokens < 1)) fail(`${location}.imageInputTokens must be a positive integer`);
   if (schema.reasoning !== undefined) validateReasoning(object(schema.reasoning, `${location}.reasoning`), `${location}.reasoning`);
   if (schema.inputTiers !== undefined) {
     const tiers = array(schema.inputTiers, `${location}.inputTiers`, 1);
@@ -866,6 +869,7 @@ export function validateCatalogDefinitions(read, options = {}) {
     }
     if (videoUpscaleOperation(referenceLimits)) validateVideoUpscaleModel(productKey, value.capability, interaction);
     if (paramSchema.usageEstimate !== undefined) validateTokenBilledModel(productKey, value.capability, interaction, channel.profile);
+    if (paramSchema.imageInputTokens !== undefined && (!conversationProtocolOf(channel.profile) || referenceLimits.supportsImageReference === false)) fail(`Model ${productKey} declares imageInputTokens but Profile ${channel.profile.id} does not speak a conversation or the model takes no image reference`);
     if (paramSchema.toolCalling && !conversationProtocolOf(channel.profile)) fail(`Model ${productKey} declares toolCalling but Profile ${channel.profile.id} does not speak a conversation: sync chat.generate, streamed, usageProtocol ${CONVERSATION_PROTOCOL_NAMES}`);
     const unmapped = (paramSchema.reasoning?.levels ?? []).map((level) => level.value).filter((level) => !Object.hasOwn(channel.profile.advanced?.request?.reasoningLevels ?? {}, level));
     if (unmapped.length) fail(`Model ${productKey} offers reasoning levels ${unmapped.join(", ")} that Profile ${channel.profile.id} does not map in reasoningLevels`);
