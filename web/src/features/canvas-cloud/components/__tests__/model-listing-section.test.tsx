@@ -38,11 +38,15 @@ vi.mock('../../model-availability-api', async (original) => ({
   ignoreModelListings,
 }))
 
-const listed = (upstreamId: string, providerName = 'MangoAI'): ListedModel => ({
+const listed = (
+  upstreamId: string,
+  providerName = 'MangoAI',
+  firstSeenAt = '2026-11-19T01:00:12.000Z'
+): ListedModel => ({
   providerId: `${providerName}-id`,
   providerName,
   upstreamId,
-  firstSeenAt: '2026-11-19T01:00:12.000Z',
+  firstSeenAt,
 })
 
 function renderWithQuery(element: React.ReactElement) {
@@ -84,9 +88,9 @@ describe('ModelListingTable', () => {
       screen.getByRole('button', { name: 'Ignore kling-4.0（特价）' })
     )
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
-    expect(ignoreModelListings).toHaveBeenCalledWith([
-      { providerId: 'MangoAI-id', upstreamId: 'kling-4.0（特价）' },
-    ])
+    expect(ignoreModelListings).toHaveBeenCalledWith({
+      items: [{ providerId: 'MangoAI-id', upstreamId: 'kling-4.0（特价）' }],
+    })
   })
 
   it('keeps the rows and says so when ignoring fails', async () => {
@@ -120,25 +124,30 @@ describe('IgnoreAllListingsButton', () => {
     expect(ignoreModelListings).not.toHaveBeenCalled()
   })
 
-  it('sends the entries shown when it was clicked, not one found while confirming', async () => {
+  it('ignores up to the newest entry shown when it was clicked, not one found while confirming', async () => {
     ignoreModelListings.mockResolvedValue({ removed: 2 })
     const onChanged = vi.fn()
-    const shown = [listed('veo-3'), listed('kling-4')]
+    const shown = [
+      listed('veo-3', 'MangoAI', '2026-11-19T04:00:00.000Z'),
+      listed('kling-4', 'GWay', '2026-11-19T01:00:00.000Z'),
+    ]
     const view = renderWithQuery(
       <IgnoreAllListingsButton models={shown} onChanged={onChanged} />
     )
     fireEvent.click(screen.getByRole('button', { name: /^Ignore all \(/ }))
     view.rerender(
       <IgnoreAllListingsButton
-        models={[...shown, listed('veo-4')]}
+        models={[
+          ...shown,
+          listed('veo-4', 'MangoAI', '2026-11-19T07:00:00.000Z'),
+        ]}
         onChanged={onChanged}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: 'Ignore all' }))
     await waitFor(() => expect(onChanged).toHaveBeenCalled())
-    expect(ignoreModelListings).toHaveBeenCalledWith([
-      { providerId: 'MangoAI-id', upstreamId: 'veo-3' },
-      { providerId: 'MangoAI-id', upstreamId: 'kling-4' },
-    ])
+    expect(ignoreModelListings).toHaveBeenCalledWith({
+      firstSeenThrough: '2026-11-19T04:00:00.000Z',
+    })
   })
 })

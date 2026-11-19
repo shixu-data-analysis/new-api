@@ -9602,7 +9602,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "Автопроверка выключена. Нажмите «Проверить сейчас», чтобы проверить вручную.",
     "An alert appears after {{count}} absences in a row.": "Оповещение появится после {{count}} отсутствий подряд.",
     "Last successful probe: {{time}}": "Последняя успешная проверка: {{time}}",
-    "Last success: {{time}}": "Последний успех: {{time}}",
     "Probe now": "Проверить сейчас",
     "Probing ({{done}} / {{total}})": "Проверка ({{done}} / {{total}})",
     "System probing ({{done}} / {{total}})": "Системная проверка ({{done}} / {{total}})",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "Новые модели",
     "Type a keyword and press Enter": "Введите слово и нажмите Enter",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "Оповещение, если ID модели содержит любое ключевое слово, без учёта регистра. Нет слов — нет оповещений. До 50 слов, каждое до 64 символов.",
-    "A whole number from 1 to 90, counted from when it was found.": "Целое число от 1 до 90, считая с момента обнаружения."
+    "A whole number from 1 to 90, counted from when it was found.": "Целое число от 1 до 90, считая с момента обнаружения.",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (группа API Key: {{group}}): {{reason}} Последний успех: {{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Последний успех: {{time}}",
+    "Open API provider configuration": "Открыть настройку API-поставщика"
   }
 }

@@ -44,16 +44,19 @@ const entryKey = (model: ListedModel) =>
 
 function useIgnoreListings(onChanged: () => void) {
   return useMutation({
-    mutationFn: (models: ListedModel[]) =>
-      ignoreModelListings(
-        models.map((model) => ({
-          providerId: model.providerId,
-          upstreamId: model.upstreamId,
-        }))
-      ),
+    mutationFn: (selection: Parameters<typeof ignoreModelListings>[0]) =>
+      ignoreModelListings(selection),
     onSettled: onChanged,
   })
 }
+
+/** The newest time among the rows shown; ISO times of one format compare as text. */
+const newestFirstSeen = (models: ListedModel[]) =>
+  models.reduce(
+    (newest, model) =>
+      model.firstSeenAt > newest ? model.firstSeenAt : newest,
+    ''
+  )
 
 function IgnoreFailed() {
   const { t } = useTranslation()
@@ -64,7 +67,7 @@ function IgnoreFailed() {
   )
 }
 
-/** Sends exactly the entries shown when it was clicked, so one found while the administrator confirmed stays listed. */
+/** Ignores what was shown when it was clicked: one found while the administrator confirmed is newer and stays listed. */
 export function IgnoreAllListingsButton(props: {
   models: ListedModel[]
   onChanged: () => void
@@ -95,7 +98,10 @@ export function IgnoreAllListingsButton(props: {
         isLoading={ignore.isPending}
         handleConfirm={() => {
           if (!confirming) return
-          ignore.mutate(confirming, { onSuccess: () => setConfirming(null) })
+          ignore.mutate(
+            { firstSeenThrough: newestFirstSeen(confirming) },
+            { onSuccess: () => setConfirming(null) }
+          )
         }}
       >
         {ignore.isError ? <IgnoreFailed /> : null}
@@ -150,7 +156,16 @@ export function ModelListingTable(props: {
                     aria-label={t('Ignore {{model}}', {
                       model: model.upstreamId,
                     })}
-                    onClick={() => ignore.mutate([model])}
+                    onClick={() =>
+                      ignore.mutate({
+                        items: [
+                          {
+                            providerId: model.providerId,
+                            upstreamId: model.upstreamId,
+                          },
+                        ],
+                      })
+                    }
                   >
                     {t('Ignore')}
                   </Button>

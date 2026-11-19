@@ -9602,7 +9602,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "自動検出はオフです。「今すぐ検出」で手動検出できます。",
     "An alert appears after {{count}} absences in a row.": "{{count}} 回連続で一覧にないとアラートになります。",
     "Last successful probe: {{time}}": "最終成功検出：{{time}}",
-    "Last success: {{time}}": "最終成功：{{time}}",
     "Probe now": "今すぐ検出",
     "Probing ({{done}} / {{total}})": "検出中（{{done}} / {{total}}）",
     "System probing ({{done}} / {{total}})": "システム検出中（{{done}} / {{total}}）",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "新規掲載",
     "Type a keyword and press Enter": "入力して Enter",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "モデル ID がいずれかのキーワードを含むと通知します（大文字・小文字は区別しません）。未入力なら通知しません。最大 50 個、各 64 文字まで。",
-    "A whole number from 1 to 90, counted from when it was found.": "1〜90 の整数。初回検出から数えます。"
+    "A whole number from 1 to 90, counted from when it was found.": "1〜90 の整数。初回検出から数えます。",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}}（API Key グループ：{{group}}）：{{reason}} 最終成功：{{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}：{{reason}} 最終成功：{{time}}",
+    "Open API provider configuration": "API プロバイダー設定を開く"
   }
 }

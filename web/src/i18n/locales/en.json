@@ -9601,7 +9601,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "Automatic probing is off. Click Probe now to probe by hand.",
     "An alert appears after {{count}} absences in a row.": "An alert appears after {{count}} absences in a row.",
     "Last successful probe: {{time}}": "Last successful probe: {{time}}",
-    "Last success: {{time}}": "Last success: {{time}}",
     "Probe now": "Probe now",
     "Probing ({{done}} / {{total}})": "Probing ({{done}} / {{total}})",
     "System probing ({{done}} / {{total}})": "System probing ({{done}} / {{total}})",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "Newly listed models",
     "Type a keyword and press Enter": "Type a keyword and press Enter",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.",
-    "A whole number from 1 to 90, counted from when it was found.": "A whole number from 1 to 90, counted from when it was found."
+    "A whole number from 1 to 90, counted from when it was found.": "A whole number from 1 to 90, counted from when it was found.",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Last success: {{time}}",
+    "Open API provider configuration": "Open API provider configuration"
   }
 }

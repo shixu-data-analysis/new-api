@@ -9602,7 +9602,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "自動探測已關閉，可以點「立即探測」手動探測。",
     "An alert appears after {{count}} absences in a row.": "連續 {{count}} 次不在列表中產生預警。",
     "Last successful probe: {{time}}": "最近成功探測：{{time}}",
-    "Last success: {{time}}": "最近成功：{{time}}",
     "Probe now": "立即探測",
     "Probing ({{done}} / {{total}})": "探測中（{{done}} / {{total}}）",
     "System probing ({{done}} / {{total}})": "系統探測中（{{done}} / {{total}}）",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "上架",
     "Type a keyword and press Enter": "輸入後按 Enter",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "模型 ID 含任一關鍵字時提醒，不區分大小寫。不填則不提醒。最多 50 個，每個最多 64 個字元。",
-    "A whole number from 1 to 90, counted from when it was found.": "可填 1 到 90 的整數。從首次發現算起。"
+    "A whole number from 1 to 90, counted from when it was found.": "可填 1 到 90 的整數。從首次發現算起。",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}}（API Key 組：{{group}}）：{{reason}} 最近成功：{{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}：{{reason}} 最近成功：{{time}}",
+    "Open API provider configuration": "前往 API 服務商設定"
   }
 }

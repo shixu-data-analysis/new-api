@@ -9602,7 +9602,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "Tự động dò đang tắt. Bấm Dò ngay để dò thủ công.",
     "An alert appears after {{count}} absences in a row.": "Cảnh báo sau {{count}} lần liên tiếp không có trong danh sách.",
     "Last successful probe: {{time}}": "Lần dò thành công gần nhất: {{time}}",
-    "Last success: {{time}}": "Thành công gần nhất: {{time}}",
     "Probe now": "Dò ngay",
     "Probing ({{done}} / {{total}})": "Đang dò ({{done}} / {{total}})",
     "System probing ({{done}} / {{total}})": "Hệ thống đang dò ({{done}} / {{total}})",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "Lên kệ",
     "Type a keyword and press Enter": "Nhập rồi nhấn Enter",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "Báo khi ID mô hình chứa bất kỳ từ khóa nào, không phân biệt hoa thường. Không có từ khóa thì không báo. Tối đa 50, mỗi từ tối đa 64 ký tự.",
-    "A whole number from 1 to 90, counted from when it was found.": "Số nguyên từ 1 đến 90, tính từ lúc phát hiện."
+    "A whole number from 1 to 90, counted from when it was found.": "Số nguyên từ 1 đến 90, tính từ lúc phát hiện.",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (nhóm API Key: {{group}}): {{reason}} Thành công gần nhất: {{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Thành công gần nhất: {{time}}",
+    "Open API provider configuration": "Mở cấu hình nhà cung cấp API"
   }
 }

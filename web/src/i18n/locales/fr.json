@@ -9602,7 +9602,6 @@
     "Automatic probing is off. Click Probe now to probe by hand.": "Le sondage automatique est désactivé. Cliquez sur Sonder maintenant pour sonder manuellement.",
     "An alert appears after {{count}} absences in a row.": "Une alerte apparaît après {{count}} absences consécutives.",
     "Last successful probe: {{time}}": "Dernier sondage réussi : {{time}}",
-    "Last success: {{time}}": "Dernier succès : {{time}}",
     "Probe now": "Sonder maintenant",
     "Probing ({{done}} / {{total}})": "Sondage ({{done}} / {{total}})",
     "System probing ({{done}} / {{total}})": "Sondage système ({{done}} / {{total}})",
@@ -11242,6 +11241,9 @@
     "Newly listed models": "Nouveaux modèles listés",
     "Type a keyword and press Enter": "Saisissez un mot-clé puis Entrée",
     "Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.": "Alerte quand l'ID d'un modèle contient un mot-clé, sans tenir compte de la casse. Sans mot-clé, aucune alerte. 50 au plus, 64 caractères chacun au plus.",
-    "A whole number from 1 to 90, counted from when it was found.": "Un nombre entier de 1 à 90, compté depuis la découverte."
+    "A whole number from 1 to 90, counted from when it was found.": "Un nombre entier de 1 à 90, compté depuis la découverte.",
+    "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (groupe de clés API : {{group}}) : {{reason}} Dernier succès : {{time}}",
+    "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}} : {{reason}} Dernier succès : {{time}}",
+    "Open API provider configuration": "Ouvrir la configuration du fournisseur d’API"
   }
 }

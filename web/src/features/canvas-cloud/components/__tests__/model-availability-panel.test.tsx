@@ -206,6 +206,66 @@ describe('ModelAvailabilityPanel', () => {
     expect(screen.getByText(/The API Key is invalid/)).toBeInTheDocument()
   })
 
+  const failedTarget = (failureReason: string) => ({
+    key: 'p1:g',
+    providerId: 'p1',
+    providerName: 'Even',
+    credentialGroupId: 'g',
+    credentialGroupName: 'Main',
+    failureCount: 2,
+    failureReason,
+    failureDetail: null,
+    alerting: true,
+    awaitingConfirmation: false,
+    lastProbedAt: 'x',
+    lastSuccessAt: null,
+  })
+
+  it('writes a failed probe as one sentence and sends an invalid Key to the API provider configuration', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('AUTH')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByText(
+        'Even (API Key group: Main): The API Key is invalid or has no access Last success: None'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View settings' })).toBeNull()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open API provider configuration' })
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/canvas-cloud/$section',
+      params: { section: 'runtime' },
+      search: { view: 'provider' },
+    })
+  })
+
+  it('offers nothing to change for a network failure', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('NETWORK')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByText(/The network failed or timed out/)
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View settings' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Open API provider configuration' })
+    ).toBeNull()
+  })
+
+  it('opens the settings for a list that cannot be read', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('UNSUPPORTED')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByRole('button', { name: 'View settings' })
+    ).toBeInTheDocument()
+  })
+
   it('keeps disabled models folded under handled', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({

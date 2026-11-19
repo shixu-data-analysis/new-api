@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,6 +37,7 @@ import {
   getModelAvailability,
   modelAvailabilityBadgeQueryKey,
   modelAvailabilityQueryKey,
+  probeFailureAction,
   probeFailureKey,
   startModelAvailabilityProbe,
   type AvailabilityTarget,
@@ -128,6 +130,7 @@ function failureText(
 export function ModelAvailabilityPanel() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editRuleFor, setEditRuleFor] = useState<string | null>(null)
@@ -174,6 +177,15 @@ export function ModelAvailabilityPanel() {
   }
 
   const { counts, coverage, settings, run, listing } = data
+  // One sentence per failed target, punctuated by each language.
+  const failedRowValues = (target: AvailabilityTarget) => ({
+    provider: target.providerName,
+    group: target.credentialGroupName,
+    reason: failureText(target, t, settings.autoProbeEnabled),
+    time: target.lastSuccessAt
+      ? formatCanvasDateTime(target.lastSuccessAt)
+      : t('None'),
+  })
   // What the probes do not cover, one kind per line, so long name lists stay readable.
   const named = (names: string[]) => ({
     count: names.length,
@@ -379,17 +391,15 @@ export function ModelAvailabilityPanel() {
               >
                 <div className='text-muted-foreground min-w-0 text-sm'>
                   <p>
-                    {target.providerName}
                     {target.credentialGroupName
-                      ? ` (${t('API Key group: {{name}}', { name: target.credentialGroupName })})`
-                      : ''}
-                    {': '}
-                    {failureText(target, t, settings.autoProbeEnabled)}{' '}
-                    {t('Last success: {{time}}', {
-                      time: target.lastSuccessAt
-                        ? formatCanvasDateTime(target.lastSuccessAt)
-                        : t('None'),
-                    })}
+                      ? t(
+                          '{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}',
+                          failedRowValues(target)
+                        )
+                      : t(
+                          '{{provider}}: {{reason}} Last success: {{time}}',
+                          failedRowValues(target)
+                        )}
                   </p>
                   {target.failureDetail?.models?.length ? (
                     <p className='font-mono text-xs break-all'>
@@ -402,13 +412,30 @@ export function ModelAvailabilityPanel() {
                     </p>
                   ) : null}
                 </div>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={() => openRule(target.providerId)}
-                >
-                  {t('View settings')}
-                </Button>
+                {probeFailureAction(target) === 'SETTINGS' ? (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => openRule(target.providerId)}
+                  >
+                    {t('View settings')}
+                  </Button>
+                ) : null}
+                {probeFailureAction(target) === 'PROVIDER_CONFIG' ? (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() =>
+                      void navigate({
+                        to: '/canvas-cloud/$section',
+                        params: { section: 'runtime' },
+                        search: { view: 'provider' },
+                      })
+                    }
+                  >
+                    {t('Open API provider configuration')}
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>

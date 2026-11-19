@@ -239,6 +239,26 @@ const PROBE_FAILURE_KEYS: Record<string, string> = {
   UNSUPPORTED: 'The list cannot be read from this provider',
 }
 
+/**
+ * Where a failed probe is handled. `SETTINGS` opens the alert settings (a custom rule opens its editor); `PROVIDER_CONFIG`
+ * is where the API Key group is replaced. A network, rate or server failure has nothing to change, so it gets none.
+ */
+export type ProbeFailureAction = 'SETTINGS' | 'PROVIDER_CONFIG' | null
+
+export function probeFailureAction(
+  target: Pick<AvailabilityTarget, 'failureReason' | 'awaitingConfirmation'>
+): ProbeFailureAction {
+  if (target.awaitingConfirmation) return 'SETTINGS'
+  if (target.failureReason === 'AUTH') return 'PROVIDER_CONFIG'
+  if (
+    target.failureReason === 'UNDETERMINED' ||
+    target.failureReason === 'UNSUPPORTED'
+  ) {
+    return 'SETTINGS'
+  }
+  return null
+}
+
 /** An unknown reason shows as it is rather than as a reason it is not. */
 export function probeFailureKey(reason: string | null): string {
   return PROBE_FAILURE_KEYS[reason ?? ''] ?? reason ?? ''
@@ -292,15 +312,19 @@ export async function saveModelAvailabilitySettings(
 }
 
 /** Removes exactly these entries; one found after the page loaded stays listed. */
+/**
+ * One row by its ID, or everything the page showed: every entry found no later than `firstSeenThrough`, so one found
+ * while the administrator confirmed stays listed.
+ */
 export async function ignoreModelListings(
-  items: { providerId: string; upstreamId: string }[]
+  selection:
+    | { items: { providerId: string; upstreamId: string }[] }
+    | { firstSeenThrough: string }
 ): Promise<{ removed: number }> {
   return (
-    await api.post<{ removed: number }>(
-      `${base}/listings/ignore`,
-      { items },
-      { skipErrorHandler: true }
-    )
+    await api.post<{ removed: number }>(`${base}/listings/ignore`, selection, {
+      skipErrorHandler: true,
+    })
   ).data
 }
 
