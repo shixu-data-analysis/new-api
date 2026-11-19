@@ -1,6 +1,6 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.16.0";
-export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7220892a5fd6ed760563e63a786d99f72ff9332c982ae0f16e214a1b0d9078c1";
+export const REQUEST_VALIDATOR_VERSION = "1.17.0";
+export const REQUEST_VALIDATOR_VECTORS_SHA256 = "7297d77a039dde8a7026ed66fc15d60b168e9057e539f0b56055ac68472c2c4c";
 
 export const CatalogRequestIssueCode = Object.freeze({
   PROMPT_TOO_LONG: "PROMPT_TOO_LONG",
@@ -40,7 +40,7 @@ export const REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS = Object.freeze([
   "requiresImageInputWithVideo", "requiresVisualInputWithAudio", "videoOperations",
 ]);
 export const REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS = Object.freeze([
-  "formats", "minDurationMs", "maxDurationMs", "maxTotalDurationMs", "maxFileSizeBytes", "maxTotalFileSizeBytes",
+  "formats", "minDurationMs", "maxDurationMs", "maxTotalDurationMs", "totalDurationWithinOutput", "maxFileSizeBytes", "maxTotalFileSizeBytes",
   "minShortEdgePx", "maxShortEdgePx", "minWidthPx", "maxWidthPx", "minHeightPx", "maxHeightPx", "minAspectRatio", "maxAspectRatio", "minFrameRate", "maxFrameRate",
 ]);
 
@@ -247,7 +247,7 @@ function derivedRangeIssue(issues, code, field, value, rules, details, entry) {
   rangeIssue(issues, code, field, value, rules, details);
 }
 
-function checkMedia(interaction, metadata, issues, mode) {
+function checkMedia(interaction, metadata, issues, mode, outputSeconds) {
   const limits = object(interaction.referenceLimits);
   const groups = { image: [], video: [], audio: [] };
   for (const entry of metadata) groups[entry.mediaType === "IMAGE" ? "image" : entry.mediaType === "VIDEO" ? "video" : "audio"].push(entry);
@@ -296,7 +296,11 @@ function checkMedia(interaction, metadata, issues, mode) {
     const totalSize = groups[kind].reduce((sum, entry) => sum + entry.fileSizeBytes, 0);
     if (positiveInteger(rules.maxTotalFileSizeBytes) && totalSize > rules.maxTotalFileSizeBytes) add(issues, CatalogRequestIssueCode.MEDIA_TOTAL_SIZE_EXCEEDED, "fileSizeBytes", { mediaKind: kind, actual: totalSize, maximum: rules.maxTotalFileSizeBytes });
     const totalDuration = groups[kind].reduce((sum, entry) => sum + (entry.durationMs ?? 0), 0);
-    if (positiveInteger(rules.maxTotalDurationMs) && totalDuration > rules.maxTotalDurationMs) add(issues, CatalogRequestIssueCode.MEDIA_TOTAL_DURATION_EXCEEDED, "durationMs", { mediaKind: kind, actual: totalDuration, maximum: rules.maxTotalDurationMs });
+    // A model may also cap the reference videos at the length of the video it makes; only the tighter cap is reported.
+    const outputMs = rules.totalDurationWithinOutput === true && positiveInteger(outputSeconds) ? outputSeconds * 1000 : undefined;
+    const fixedMs = positiveInteger(rules.maxTotalDurationMs) ? rules.maxTotalDurationMs : undefined;
+    const maximum = outputMs !== undefined && (fixedMs === undefined || outputMs < fixedMs) ? outputMs : fixedMs;
+    if (maximum !== undefined && totalDuration > maximum) add(issues, CatalogRequestIssueCode.MEDIA_TOTAL_DURATION_EXCEEDED, "durationMs", { mediaKind: kind, actual: totalDuration, maximum, ...(maximum === outputMs ? { maximumSource: "OUTPUT_DURATION" } : {}) });
   }
 }
 
@@ -394,7 +398,7 @@ export function validateCatalogRequest({ model, interaction, request = {} } = {}
   if (nonNegativeInteger(limits.minPromptCharacters) && limits.minPromptCharacters > 0 && typeof value.prompt === "string" && Array.from(value.prompt.trim()).length < limits.minPromptCharacters) add(issues, CatalogRequestIssueCode.PROMPT_TOO_SHORT, "prompt", { actual: Array.from(value.prompt.trim()).length, minimum: limits.minPromptCharacters });
   checkRequestParameters(capability, value, issues);
   const metadata = metadataFromRequest(value, issues);
-  checkMedia(capability, metadata, issues, value.mode);
+  checkMedia(capability, metadata, issues, value.mode, value.durationSeconds ?? object(capability.defaultParams).durationSeconds);
   checkImageCombinations(capability, value, metadata, issues);
   checkVideoUpscale(capability, value, metadata, issues);
   return { ok: issues.length === 0, issues, validatorVersion: REQUEST_VALIDATOR_VERSION };

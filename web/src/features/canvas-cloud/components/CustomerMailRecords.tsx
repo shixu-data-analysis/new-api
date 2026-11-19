@@ -18,13 +18,24 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
+import type { TFunction } from 'i18next'
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  StaticDataTable,
+  type StaticDataTableColumn,
+} from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -57,17 +68,21 @@ import {
   getPointsExpiryReminderPreview,
   sendTestCustomerMail,
   setPointsExpiryReminder,
+  type AutomaticMailKind,
   type CustomerMailBatch,
   type CustomerMailKind,
+  type PointsExpiryReminder,
 } from '../customer-notices-api'
 import { formatCanvasDateTimeMinutes } from '../formatters'
 import {
+  isAutomaticMail,
   MAIL_FAILURE_REASON_KEYS,
   MAIL_KIND_KEYS,
   MAIL_KINDS,
   mailFailureMessageKey,
 } from '../lib/customer-mail-messages'
 import { useServerTableState } from '../use-server-table-state'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -94,7 +109,7 @@ function MailResult(props: { batch: CustomerMailBatch }) {
       <CanvasStatusBadge
         status='OFFLINE'
         label={t(
-          batch.kind === 'POINTS_EXPIRY' ? 'No one to remind' : 'No recipients'
+          isAutomaticMail(batch.kind) ? 'No one to remind' : 'No recipients'
         )}
       />
     )
@@ -199,7 +214,7 @@ function useMailColumns(onDetail: (batch: CustomerMailBatch) => void) {
         header: () => t('Sender'),
         cell: ({ row }) => (
           <span className='text-muted-foreground'>
-            {row.original.kind === 'POINTS_EXPIRY'
+            {isAutomaticMail(row.original.kind)
               ? t('System')
               : (row.original.sender ?? '—')}
           </span>
@@ -363,98 +378,218 @@ function MailFailuresDialog(props: {
   )
 }
 
-function PointsExpiryReminderCard() {
+/**
+ * A mail Cloud sends on its own (客户邮件 › 自动邮件): its name, how its settings read in one line, where they are read
+ * and saved, its own settings dialog, and its preview. The list, its switch, the preview and the test mail work the same
+ * for every kind; a new kind is one more entry in AUTOMATIC_MAILS with its settings dialog.
+ */
+interface AutomaticMail<Settings extends { enabled: boolean }> {
+  kind: AutomaticMailKind
+  /** The translation key of its name, the same as its type in the records. */
+  name: string
+  queryKey: readonly unknown[]
+  read: (signal: AbortSignal) => Promise<Settings>
+  save: (settings: Settings) => Promise<Settings>
+  summary: (settings: Settings, t: TFunction) => string
+  SettingsDialog: (props: {
+    settings: Settings
+    saving: boolean
+    onSave: (settings: Settings) => void
+    onClose: () => void
+  }) => ReactNode
+  preview: (signal: AbortSignal) => Promise<{ subject: string; html: string }>
+}
+
+const POINTS_EXPIRY_MAIL: AutomaticMail<PointsExpiryReminder> = {
+  kind: 'POINTS_EXPIRY',
+  name: MAIL_KIND_KEYS.POINTS_EXPIRY,
+  queryKey: customerNoticeQueryKeys.reminder,
+  read: getPointsExpiryReminder,
+  // The request carries the two settings only; version is Cloud's answer.
+  save: ({ enabled, daysBefore }) =>
+    setPointsExpiryReminder({ enabled, daysBefore }),
+  summary: (settings, t) =>
+    t(
+      'Every day at 10:00, to customers with points expiring within {{days}} days. Each batch of points is reminded once.',
+      { days: settings.daysBefore }
+    ),
+  SettingsDialog: PointsExpirySettingsDialog,
+  preview: getPointsExpiryReminderPreview,
+}
+
+/** One automatic mail's settings as Cloud has them; every cell of its row reads the same query. */
+function useAutomaticMailSettings<Settings extends { enabled: boolean }>(
+  mail: AutomaticMail<Settings>
+) {
+  return useQuery({
+    queryKey: mail.queryKey,
+    queryFn: ({ signal }) => mail.read(signal),
+  })
+}
+
+/** Saves one automatic mail's settings and puts Cloud's answer back into the query its row reads. */
+function useSaveAutomaticMail<Settings extends { enabled: boolean }>(
+  mail: AutomaticMail<Settings>
+) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const reminder = useQuery({
-    queryKey: customerNoticeQueryKeys.reminder,
-    queryFn: ({ signal }) => getPointsExpiryReminder(signal),
-  })
-  const save = useMutation({
-    mutationFn: setPointsExpiryReminder,
+  return useMutation({
+    mutationFn: mail.save,
     onSuccess: async (result) => {
-      queryClient.setQueryData(customerNoticeQueryKeys.reminder, result)
+      queryClient.setQueryData(mail.queryKey, result)
       toast.success(t('Saved'))
     },
     onError: () => toast.error(t('Unable to save. Please try again.')),
   })
-  const settings = reminder.data
-  let reminderSummary = t('Loading...')
-  if (settings) {
-    reminderSummary = t(
-      'Every day at 10:00, to customers with points expiring within {{days}} days. Each batch of points is reminded once.',
-      { days: settings.daysBefore }
-    )
-  } else if (reminder.isError) {
-    reminderSummary = t('Unable to load. Please try again.')
-  }
+}
+
+function AutomaticMailSummary<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { t } = useTranslation()
+  const current = useAutomaticMailSettings(props.mail)
+  if (current.data) return props.mail.summary(current.data, t)
+  if (current.isError) return t('Unable to load. Please try again.')
+  return t('Loading...')
+}
+
+function AutomaticMailSwitch<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { t } = useTranslation()
+  const settings = useAutomaticMailSettings(props.mail).data
+  const save = useSaveAutomaticMail(props.mail)
   return (
-    <Card size='sm'>
-      <CardContent className='flex flex-wrap items-center justify-between gap-3'>
-        <div className='min-w-0 space-y-1'>
-          <p id='points-expiry-reminder-title' className='font-medium'>
-            {t('Points expiry reminder')}
-          </p>
-          <p className='text-muted-foreground text-sm'>{reminderSummary}</p>
-        </div>
-        <div className='flex flex-wrap items-center gap-2'>
-          <Switch
-            aria-labelledby='points-expiry-reminder-title'
-            checked={settings?.enabled ?? false}
-            disabled={!settings || save.isPending}
-            onCheckedChange={(enabled) =>
-              settings &&
-              save.mutate({ enabled, daysBefore: settings.daysBefore })
-            }
-          />
-          <Button
-            variant='outline'
-            size='sm'
-            disabled={!settings}
-            onClick={() => setSettingsOpen(true)}
-          >
-            {t('Settings')}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={() => setPreviewOpen(true)}
-          >
-            {t('Preview')}
-          </Button>
-        </div>
-      </CardContent>
+    <Switch
+      aria-label={t(props.mail.name)}
+      checked={settings?.enabled ?? false}
+      disabled={!settings || save.isPending}
+      onCheckedChange={(enabled) =>
+        settings && save.mutate({ ...settings, enabled })
+      }
+    />
+  )
+}
+
+function AutomaticMailActions<Settings extends { enabled: boolean }>(props: {
+  mail: AutomaticMail<Settings>
+}) {
+  const { mail } = props
+  const { t } = useTranslation()
+  const settings = useAutomaticMailSettings(mail).data
+  const save = useSaveAutomaticMail(mail)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const { SettingsDialog } = mail
+  const name = t(mail.name)
+  return (
+    <div className='flex flex-wrap items-center gap-3'>
+      <Button
+        variant='link'
+        className='h-auto p-0'
+        disabled={!settings}
+        aria-label={t('{{name}} settings', { name })}
+        onClick={() => setSettingsOpen(true)}
+      >
+        {t('Settings')}
+      </Button>
+      <Button
+        variant='link'
+        className='h-auto p-0'
+        aria-label={t('Preview {{name}}', { name })}
+        onClick={() => setPreviewOpen(true)}
+      >
+        {t('Preview')}
+      </Button>
       {settingsOpen && settings ? (
-        <ReminderSettingsDialog
-          daysBefore={settings.daysBefore}
+        <SettingsDialog
+          settings={settings}
           saving={save.isPending}
-          onSave={(daysBefore) =>
-            save.mutate(
-              { enabled: settings.enabled, daysBefore },
-              { onSuccess: () => setSettingsOpen(false) }
-            )
+          onSave={(next) =>
+            save.mutate(next, { onSuccess: () => setSettingsOpen(false) })
           }
           onClose={() => setSettingsOpen(false)}
         />
       ) : null}
       {previewOpen ? (
-        <ReminderPreviewDialog onClose={() => setPreviewOpen(false)} />
+        <AutomaticMailPreviewDialog
+          mail={mail}
+          onClose={() => setPreviewOpen(false)}
+        />
       ) : null}
+    </div>
+  )
+}
+
+/** The kinds Cloud sends on its own, one row each. */
+const AUTOMATIC_MAILS = [POINTS_EXPIRY_MAIL]
+type AnyAutomaticMail = (typeof AUTOMATIC_MAILS)[number]
+
+/** Laid out as 运行管理 › 通知 lays out its events: what it is, when it goes, its switch, its actions. */
+function AutomaticMails() {
+  const { t } = useTranslation()
+  const columns: StaticDataTableColumn<AnyAutomaticMail>[] = [
+    {
+      id: 'type',
+      header: t('Type'),
+      className: canvasStaticColumnWidth.wide,
+      cellClassName: 'whitespace-normal font-medium',
+      cell: (mail) => t(mail.name),
+    },
+    {
+      id: 'when',
+      header: t('When it is sent'),
+      className: canvasStaticColumnWidth.detail,
+      cellClassName: 'whitespace-normal text-muted-foreground',
+      cell: (mail) => <AutomaticMailSummary mail={mail} />,
+    },
+    {
+      id: 'status',
+      header: t('Enabled'),
+      className: canvasStaticColumnWidth.compact,
+      cell: (mail) => <AutomaticMailSwitch mail={mail} />,
+    },
+    {
+      id: 'actions',
+      header: t('Actions'),
+      className: canvasStaticColumnWidth.compact,
+      cell: (mail) => <AutomaticMailActions mail={mail} />,
+    },
+  ]
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('Automatic emails')}</CardTitle>
+        <CardDescription>
+          {t('Mails the system sends to customers on its own, on schedule.')}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Bounded: one row per kind of automatic mail. */}
+        <StaticDataTable
+          columns={columns}
+          data={AUTOMATIC_MAILS}
+          getRowKey={(mail) => mail.kind}
+          containerProps={{
+            tabIndex: 0,
+            role: 'region',
+            'aria-label': t('Automatic emails'),
+          }}
+        />
+      </CardContent>
     </Card>
   )
 }
 
-function ReminderSettingsDialog(props: {
-  daysBefore: number
+function PointsExpirySettingsDialog(props: {
+  settings: PointsExpiryReminder
   saving: boolean
-  onSave: (days: number) => void
+  onSave: (settings: PointsExpiryReminder) => void
   onClose: () => void
 }) {
   const { t } = useTranslation()
   const id = useId()
-  const [days, setDays] = useState(props.daysBefore)
+  const [days, setDays] = useState(props.settings.daysBefore)
   return (
     <Dialog
       open
@@ -495,7 +630,12 @@ function ReminderSettingsDialog(props: {
           >
             {t('Cancel')}
           </Button>
-          <Button disabled={props.saving} onClick={() => props.onSave(days)}>
+          <Button
+            disabled={props.saving}
+            onClick={() =>
+              props.onSave({ ...props.settings, daysBefore: days })
+            }
+          >
             {t('Save')}
           </Button>
         </DialogFooter>
@@ -509,14 +649,17 @@ function mailPreviewDocument(html: string, brand: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#F3F4F6;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif}</style></head><body><div style="max-width:600px;margin:24px auto;padding:32px 32px 28px;background:#fff;border:1px solid #E5E7EB;border-radius:12px;font-size:15px;line-height:24px;color:#374151"><div style="margin:0 0 28px;font-size:20px;line-height:28px;font-weight:700;color:#111827">${brand}</div>${html}<div style="margin-top:24px;border-bottom:1px dashed #E5E7EB"></div><p style="margin:16px 0 0;font-size:12px;line-height:20px;color:#9CA3AF">此邮件由系统自动发送，请勿直接回复。</p></div></body></html>`
 }
 
-function ReminderPreviewDialog(props: { onClose: () => void }) {
+function AutomaticMailPreviewDialog<
+  Settings extends { enabled: boolean },
+>(props: { mail: AutomaticMail<Settings>; onClose: () => void }) {
+  const { mail } = props
   const { t } = useTranslation()
   const preview = useQuery({
-    queryKey: [...customerNoticeQueryKeys.reminder, 'preview'],
-    queryFn: ({ signal }) => getPointsExpiryReminderPreview(signal),
+    queryKey: [...mail.queryKey, 'preview'],
+    queryFn: ({ signal }) => mail.preview(signal),
   })
   const test = useMutation({
-    mutationFn: () => sendTestCustomerMail({ kind: 'POINTS_EXPIRY' }),
+    mutationFn: () => sendTestCustomerMail({ kind: mail.kind }),
     onSuccess: (result) =>
       toast.success(
         result.addressMasked
@@ -543,7 +686,7 @@ function ReminderPreviewDialog(props: { onClose: () => void }) {
         </DialogHeader>
         {preview.data ? (
           <iframe
-            title={t('Points expiry reminder')}
+            title={t(mail.name)}
             sandbox=''
             className='h-[60vh] w-full rounded-lg border'
             srcDoc={mailPreviewDocument(preview.data.html, brand)}
@@ -571,12 +714,12 @@ function ReminderPreviewDialog(props: { onClose: () => void }) {
   )
 }
 
-// COMMUNITY-CONVENTION-001: 客户管理 › 邮件记录. Every mail sent to customers, from the customer list or by the daily
-// points expiry reminder, under the reminder's settings.
+// COMMUNITY-CONVENTION-001: 客户管理 › 客户邮件. The mails Cloud sends on its own, then every mail sent to customers, from
+// the customer list or by an automatic mail.
 export function CustomerMailRecords() {
   return (
     <div className='space-y-4'>
-      <PointsExpiryReminderCard />
+      <AutomaticMails />
       <MailRecords />
     </div>
   )

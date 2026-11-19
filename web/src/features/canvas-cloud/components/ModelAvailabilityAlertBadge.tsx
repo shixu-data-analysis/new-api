@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
+import { NavBadge } from '@/components/layout/components/nav-group'
+
 import {
   getModelAvailabilityBadge,
   modelAvailabilityBadgeQueryKey,
@@ -35,16 +37,11 @@ export function ModelAvailabilityAlertBadge() {
   const count = badge.data?.count ?? 0
   if (count === 0) return null
   return (
-    <>
-      <span
-        aria-hidden='true'
-        className='bg-destructive ms-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium text-white'
-      >
-        {count}
-      </span>
-      <span className='sr-only'>
-        {t('{{count}} model availability alerts', { count })}
-      </span>
-    </>
+    <NavBadge
+      tone='alert'
+      label={t('{{count}} model availability alerts', { count })}
+    >
+      {String(count)}
+    </NavBadge>
   )
 }

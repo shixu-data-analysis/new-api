@@ -2372,3 +2372,190 @@ export interface CanvasBusinessFactDetail extends CanvasBusinessFact {
 export interface CanvasBusinessFactPage extends CanvasPage<CanvasBusinessFact> {
   fact?: CanvasBusinessFactDetail
 }
+
+// SUPPORT-CHAT-001: 客户管理 › 客服会话 and 客服设置.
+export type CanvasSupportMessageKind =
+  | 'TEXT'
+  | 'IMAGE'
+  | 'LOG'
+  | 'SYSTEM_NOTICE'
+
+export interface CanvasSupportAttachment {
+  id: string
+  kind: 'IMAGE' | 'LOG'
+  mimeType: string
+  sizeBytes: number
+  /** A 10-minute storage address, or a Cloud path read with credentials in the local Mock store. */
+  url: string | null
+  /** The same file saved instead of shown (Content-Disposition attachment); null with url. */
+  downloadUrl: string | null
+  urlExpiresAt: string | null
+}
+
+export interface CanvasAdminSupportMessage {
+  seq: number
+  sender: 'CUSTOMER' | 'ADMIN' | 'SYSTEM'
+  adminName: string | null
+  kind: CanvasSupportMessageKind
+  text: string | null
+  attachment: CanvasSupportAttachment | null
+  createdAt: string
+}
+
+export interface CanvasAdminSupportMessages {
+  messages: CanvasAdminSupportMessage[]
+  hasEarlier: boolean
+}
+
+export interface CanvasAdminSupportConversation {
+  id: string
+  customer: { id: string; userId: string; name: string | null }
+  pending: boolean
+  pendingSince: string | null
+  lastMessage: CanvasAdminSupportMessage | null
+}
+
+export interface CanvasAdminSupportConversationQuery {
+  filter: 'all' | 'pending'
+  /** Only this conversation, for a link to one that is not on the current page. */
+  id?: string
+  q?: string
+  page: number
+  pageSize: number
+}
+
+export type CanvasSupportUpload =
+  | {
+      method: 'PUT'
+      url: string
+      headers: Record<string, string>
+      expiresAt: string
+    }
+  | {
+      method: 'POST'
+      url: string
+      fields: Record<string, string>
+      fileField: string
+      expiresAt: string
+    }
+
+export interface CanvasSupportAttachmentIssued {
+  attachmentId: string
+  upload: CanvasSupportUpload
+}
+
+export type CanvasSupportRetentionDays = 3 | 7 | 15 | 30
+/**
+ * A customer message while the conversation already waits alerts again once the last alert is `followUpMinutes` old; a
+ * wait unanswered after `reminderMinutes` is reminded once.
+ */
+export interface CanvasSupportMessageAlertSettings {
+  followUpMinutes: number
+  reminderMinutes: number
+}
+/** A customer whose tasks on one model fail `threshold` times within `windowHours` alerts the internal group. */
+export interface CanvasSupportFailureAlertSettings {
+  threshold: number
+  windowHours: number
+}
+
+/** Plain texts inserted into a reply (conversation) or a failure notice. */
+export interface CanvasSupportQuickReplies {
+  conversation: string[]
+  failureNotice: string[]
+}
+
+export interface CanvasSupportSettings {
+  retentionDays: CanvasSupportRetentionDays
+  messageAlerts: CanvasSupportMessageAlertSettings
+  failureAlerts: CanvasSupportFailureAlertSettings
+  quickReplies: CanvasSupportQuickReplies
+  version: number | null
+  effectiveAt: string | null
+}
+
+export interface CanvasSupportSettingsInput {
+  retentionDays: CanvasSupportRetentionDays
+  messageAlerts: CanvasSupportMessageAlertSettings
+  failureAlerts: CanvasSupportFailureAlertSettings
+  quickReplies: CanvasSupportQuickReplies
+}
+
+// NOTIFICATIONS-001: 运行管理 › 通知, where operations notices go.
+export type CanvasNotificationAddressType =
+  | 'WECOM'
+  | 'DINGTALK'
+  | 'FEISHU'
+  | 'SLACK'
+  | 'JSON'
+  | 'EMAIL'
+
+/** A saved address; hint is a Webhook's host and last four characters, or the masked email. */
+export interface CanvasNotificationAddress {
+  id: string
+  name: string
+  type: CanvasNotificationAddressType
+  hint: string
+}
+
+export interface CanvasNotificationEvent {
+  category: string
+  enabled: boolean
+  addressIds: string[]
+}
+
+export interface CanvasNotificationDelivery {
+  at: string
+  ok: boolean
+  reason: string | null
+}
+
+export interface CanvasNotificationSettings {
+  /** 0 before the first save; sent back as expectedVersion. */
+  version: number
+  addresses: CanvasNotificationAddress[]
+  /** Every event Cloud can notify, keyed by event ID. */
+  events: Record<string, CanvasNotificationEvent>
+  addressTypes: CanvasNotificationAddressType[]
+  lastDeliveries: Record<string, CanvasNotificationDelivery>
+}
+
+export interface CanvasNotificationSettingsInput {
+  expectedVersion: number
+  /** Every address to keep; a new one brings its own id. url / email only when new or changed. */
+  addresses: Array<{
+    id: string
+    name: string
+    type: CanvasNotificationAddressType
+    url?: string
+    email?: string
+  }>
+  events: Record<string, { enabled: boolean; addressIds: string[] }>
+}
+
+export interface CanvasNotificationTest {
+  ok: boolean
+  reason: string | null
+}
+
+export interface CanvasSupportFailureAlertCustomer {
+  alertId: string
+  customer: { id: string; userId: string; name: string | null }
+  failureCount: number
+  firstFailedAt: string
+  lastFailedAt: string
+  /** When the customer was last told the failure is still being worked on. */
+  lastNotifiedAt: string | null
+}
+
+export interface CanvasSupportFailureAlertModel {
+  modelKey: string
+  modelName: string
+  customers: CanvasSupportFailureAlertCustomer[]
+}
+
+export interface CanvasSupportFailureAlerts {
+  threshold: number
+  windowHours: number
+  models: CanvasSupportFailureAlertModel[]
+}

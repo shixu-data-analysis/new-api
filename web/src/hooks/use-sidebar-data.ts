@@ -54,6 +54,10 @@ import {
   getAgentUnreadWithdrawalCount,
 } from '@/features/canvas-cloud/agent-earnings-api'
 import {
+  getCanvasAdminSupportPendingCount,
+  supportQueryKeys,
+} from '@/features/canvas-cloud/api'
+import {
   getModelAvailabilityBadge,
   modelAvailabilityBadgeQueryKey,
 } from '@/features/canvas-cloud/model-availability-api'
@@ -103,6 +107,14 @@ export function useSidebarData(): SidebarData {
     refetchInterval: 5 * 60_000,
   })
   const pendingWithdrawalCount = pendingWithdrawals.data ?? 0
+  // Support conversations waiting for a reply mark customer management (SUPPORT-CHAT-001).
+  const pendingSupport = useQuery({
+    queryKey: supportQueryKeys.pendingCount,
+    queryFn: ({ signal }) => getCanvasAdminSupportPendingCount(signal),
+    enabled: isAdministrator,
+    refetchInterval: 60_000,
+  })
+  const pendingSupportCount = pendingSupport.data ?? 0
   const inviterStatus = canvasSession.isSuccess
     ? canvasSession.data.inviterStatus
     : null
@@ -167,6 +179,16 @@ export function useSidebarData(): SidebarData {
                 title: t('Customer management'),
                 url: '/canvas-cloud/customers',
                 icon: Users,
+                ...(pendingSupportCount > 0
+                  ? {
+                      badge: String(pendingSupportCount),
+                      badgeTone: 'alert' as const,
+                      badgeLabel: t(
+                        '{{count}} support conversations are awaiting a reply',
+                        { count: pendingSupportCount }
+                      ),
+                    }
+                  : {}),
               },
               {
                 title: t('Activity management'),

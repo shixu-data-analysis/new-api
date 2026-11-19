@@ -30,6 +30,11 @@ import { formatCanvasDateTime, formatMoneyMinor } from './formatters'
 import { ANNOUNCEMENT_DELETE_AFTER_LABEL_KEYS } from './lib/announcement-labels'
 import { MODEL_COLOR_LABEL_KEYS } from './lib/model-presentation-labels'
 import {
+  NOTIFICATION_ADDRESS_TYPE_LABELS,
+  NOTIFICATION_EVENT_NAME_LABELS,
+  NOTIFICATION_FAILURE_LABELS,
+} from './notification-labels'
+import {
   formatBusinessNumber,
   formatBusinessPercentFromRate,
   formatExactPointQuantity,
@@ -570,6 +575,111 @@ const SPECS: Record<string, ActionSpec> = {
         label: 'Delete after going offline',
         kind: 'enum',
       },
+    ],
+  },
+  'support.settings.updated': {
+    objectType: 'Support settings',
+    fields: [
+      {
+        key: 'retentionDays',
+        previous: 'previousRetentionDays',
+        label: 'Keep messages for (days)',
+        kind: 'number',
+      },
+      {
+        key: 'followUpMinutes',
+        previous: 'previousFollowUpMinutes',
+        label: 'Alert again after (minutes)',
+        kind: 'number',
+      },
+      {
+        key: 'reminderMinutes',
+        previous: 'previousReminderMinutes',
+        label: 'Reminder after (minutes)',
+        kind: 'number',
+      },
+      {
+        key: 'webhookFormat',
+        previous: 'previousWebhookFormat',
+        label: 'Message format',
+        kind: 'enum',
+      },
+      {
+        key: 'webhookHost',
+        previous: 'previousWebhookHost',
+        label: 'Webhook host',
+        kind: 'enum',
+      },
+      {
+        key: 'webhookReplaced',
+        label: 'Webhook address replaced',
+        kind: 'bool',
+      },
+      {
+        key: 'failureThreshold',
+        previous: 'previousFailureThreshold',
+        label: 'Failure alert count',
+        kind: 'number',
+      },
+      {
+        key: 'failureWindowHours',
+        previous: 'previousFailureWindowHours',
+        label: 'Failure alert window (hours)',
+        kind: 'number',
+      },
+      {
+        key: 'quickReplyCount',
+        previous: 'previousQuickReplyCount',
+        label: 'Quick replies',
+        kind: 'number',
+      },
+    ],
+  },
+  'notification.settings.updated': {
+    objectType: 'Notification settings',
+    fields: [
+      {
+        key: 'addressCount',
+        previous: 'previousAddressCount',
+        label: 'Addresses',
+        kind: 'number',
+      },
+      {
+        key: 'webhooksReplaced',
+        label: 'Webhook addresses replaced',
+        kind: 'number',
+      },
+      {
+        key: 'enabledEventCount',
+        previous: 'previousEnabledEventCount',
+        label: 'Events sent',
+        kind: 'number',
+      },
+    ],
+  },
+  'notification.delivered': {
+    objectType: 'Notification address',
+    fields: [
+      { key: 'eventId', label: 'Event', kind: 'enum' },
+      { key: 'addressType', label: 'Type', kind: 'enum' },
+    ],
+  },
+  'notification.failed': {
+    objectType: 'Notification address',
+    fields: [
+      { key: 'eventId', label: 'Event', kind: 'enum' },
+      { key: 'addressType', label: 'Type', kind: 'enum' },
+      { key: 'failure', label: 'Why it was not delivered', kind: 'enum' },
+    ],
+  },
+  'support.failure.notified': {
+    objectType: 'Model',
+    objectName: resourceKey,
+    fields: [
+      { key: 'customers', label: 'Customers notified', kind: 'number' },
+      { key: 'textLength', label: 'Notice length', kind: 'number' },
+      { key: 'resolved', label: 'Resolved', kind: 'bool' },
+      { key: 'popup', label: 'Pop-up on the client', kind: 'bool' },
     ],
   },
   'model.tag.renamed': {
@@ -1282,6 +1392,11 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'announcement.tag.updated': 'Edit tag',
   'announcement.tag.deleted': 'Delete tag',
   'announcement.retention.updated': 'Change visible time and cleanup',
+  'support.settings.updated': 'Change support settings',
+  'support.failure.notified': 'Notify customers of a failure result',
+  'notification.settings.updated': 'Change notification settings',
+  'notification.delivered': 'Send a notification',
+  'notification.failed': 'Notification not delivered',
   'convention.published': 'Publish new version',
   'customer.suspended': 'Suspend account',
   'customer.restored': 'Restore account',
@@ -1464,6 +1579,30 @@ export interface AuditDetailRow {
 }
 
 const ENUM_LABEL_KEYS: Record<string, Record<string, string>> = {
+  webhookFormat: {
+    NONE: 'Not set',
+    WECOM: 'WeCom',
+    DINGTALK: 'DingTalk',
+    FEISHU: 'Feishu',
+    SLACK: 'Slack',
+    JSON: 'Generic JSON',
+  },
+  previousWebhookFormat: {
+    NONE: 'Not set',
+    WECOM: 'WeCom',
+    DINGTALK: 'DingTalk',
+    FEISHU: 'Feishu',
+    SLACK: 'Slack',
+    JSON: 'Generic JSON',
+  },
+  webhookHost: { NONE: 'Not set' },
+  eventId: {
+    ...NOTIFICATION_EVENT_NAME_LABELS,
+    'notification.test': 'Test message',
+  },
+  addressType: NOTIFICATION_ADDRESS_TYPE_LABELS,
+  failure: NOTIFICATION_FAILURE_LABELS,
+  previousWebhookHost: { NONE: 'Not set' },
   executionStatus: executionLabels,
   previousExecutionStatus: executionLabels,
   customerBillingStatus: billingLabels,

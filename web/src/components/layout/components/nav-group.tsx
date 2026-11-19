@@ -127,7 +127,7 @@ export function NavBadge({
       <>
         <Badge
           aria-hidden='true'
-          className='bg-destructive min-w-5 shrink-0 justify-center px-1.5 py-0 text-xs font-semibold text-white tabular-nums'
+          className='bg-destructive h-5 min-w-5 shrink-0 justify-center rounded-full border-0 px-1.5 py-0 text-xs leading-none font-semibold text-white tabular-nums'
         >
           {children}
         </Badge>

@@ -126,7 +126,7 @@ export function CustomerMailDialog(props: {
     onSuccess: async (result) => {
       setConfirming(false)
       toast.success(
-        t('Sending {{count}} mails; see Email records for the results', {
+        t('Sending {{count}} mails; see Customer emails for the results', {
           count: result.queued,
         })
       )
@@ -228,7 +228,7 @@ export function CustomerMailDialog(props: {
             ) : null}
             <p className='text-muted-foreground text-xs'>
               {t(
-                'Customers with no email address on file cannot receive it; Email records counts them separately.'
+                'Customers with no email address on file cannot receive it; Customer emails counts them separately.'
               )}
             </p>
           </div>

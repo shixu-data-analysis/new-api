@@ -3476,6 +3476,18 @@ function ErrorSection(props: {
                     {previewFailed ? (
                       <div>
                         <dt className='text-muted-foreground'>
+                          {t('Customer task view node reason')}
+                        </dt>
+                        {/* The one line the canvas node shows: the provider's reason when it is shown, else the message. */}
+                        <dd className='[overflow-wrap:anywhere]'>
+                          {preview.data.customerView.upstreamReason ||
+                            preview.data.customerView.message}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {previewFailed ? (
+                      <div>
+                        <dt className='text-muted-foreground'>
                           {t('Customer task view error')}
                         </dt>
                         <dd>{preview.data.customerView.message}</dd>

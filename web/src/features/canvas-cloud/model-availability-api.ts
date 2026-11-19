@@ -113,7 +113,6 @@ export interface AvailabilityOverview {
     autoProbeEnabled: boolean
     intervalHours: number
     threshold: number
-    alertEmails: string[]
     version: number
   }
   providers: AvailabilityProvider[]
@@ -185,7 +184,6 @@ export interface SaveSettingsInput {
   autoProbeEnabled: boolean
   intervalHours: number
   threshold: number
-  alertEmails: string[]
   providers: Record<
     string,
     { source: ListSource; rule: CustomRule | null; confirmUntested: boolean }
@@ -216,19 +214,6 @@ const PROBE_FAILURE_KEYS: Record<string, string> = {
   NETWORK: 'The network failed or timed out',
   SERVER: 'The provider returned an error',
   UNSUPPORTED: 'The list cannot be read from this provider',
-}
-
-const EMAIL_FAILURE_KEYS: Record<string, string> = {
-  NOT_CONFIGURED: 'The mail server is not configured',
-  RATE_LIMITED: 'Too many mails. Try again in a minute',
-  REJECTED: 'The mail server did not accept this mail',
-  UNREACHABLE: 'The mail service could not be reached',
-}
-
-export function emailFailureKey(reason: string | null): string {
-  return (
-    EMAIL_FAILURE_KEYS[reason ?? ''] ?? 'The mail service could not be reached'
-  )
 }
 
 /** An unknown reason shows as it is rather than as a reason it is not. */
@@ -280,22 +265,6 @@ export async function saveModelAvailabilitySettings(
     await api.put<{ version: number }>(`${base}/settings`, input, {
       skipErrorHandler: true,
     })
-  ).data
-}
-
-export interface EmailTestResult {
-  results: { to: string; ok: boolean; reason: string | null }[]
-}
-
-export async function testModelAvailabilityEmail(
-  emails: string[]
-): Promise<EmailTestResult> {
-  return (
-    await api.post<EmailTestResult>(
-      `${base}/test-email`,
-      { emails },
-      { skipErrorHandler: true }
-    )
   ).data
 }
 

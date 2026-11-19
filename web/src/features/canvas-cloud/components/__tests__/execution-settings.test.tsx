@@ -1008,9 +1008,10 @@ describe('execution settings', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
 
+    // Without a provider reason the node line shows the message, so it appears twice.
     expect(
-      await screen.findByText('Generation service is unavailable.')
-    ).toBeVisible()
+      await screen.findAllByText('Generation service is unavailable.')
+    ).toHaveLength(2)
     expect(
       screen.getByText(
         'System rule: a 4xx response means the API provider rejected the request'

@@ -25,6 +25,7 @@ import {
   monitoringTickLabelIndexes,
   monitoringVersionSourceLabel,
   taskFailureLabelKey,
+  taskFailureReason,
 } from '../model-monitoring-overview'
 import { taskErrorCategoryLabels } from '../task-error-categories'
 import type { CanvasModelMonitoringFailures } from '../types'
@@ -513,31 +514,45 @@ export function ModelMonitoringDetail(props: {
             </p>
           ) : null}
           <ul className='divide-y'>
-            {(recent.data?.items ?? []).map((task) => (
-              <li key={task.id}>
-                <button
-                  type='button'
-                  className='hover:bg-muted/60 grid w-full grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1.5 py-2 text-start text-sm'
-                  aria-label={t('Open task {{id}}', { id: task.id })}
-                  onClick={() => setTaskId(task.id)}
-                >
-                  <span className='text-muted-foreground whitespace-nowrap tabular-nums'>
-                    {timeFormat.format(new Date(task.acceptedAt))}
-                  </span>
-                  <span className='min-w-0'>
-                    <span className='block truncate'>
-                      {t(taskFailureLabelKey(task))}
+            {(recent.data?.items ?? []).map((task) => {
+              const reason = taskFailureReason(
+                task,
+                i18n.resolvedLanguage || i18n.language
+              )
+              return (
+                <li key={task.id}>
+                  <button
+                    type='button'
+                    className='hover:bg-muted/60 grid w-full grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-1.5 py-2 text-start text-sm'
+                    aria-label={t('Open task {{id}}', { id: task.id })}
+                    onClick={() => setTaskId(task.id)}
+                  >
+                    <span className='text-muted-foreground whitespace-nowrap tabular-nums'>
+                      {timeFormat.format(new Date(task.acceptedAt))}
                     </span>
-                    <span className='text-muted-foreground block truncate text-xs'>
-                      {task.customerName ?? t('Unknown customer')}
+                    <span className='min-w-0'>
+                      <span className='block truncate'>
+                        {t(taskFailureLabelKey(task))}
+                      </span>
+                      {/* What the customer's node says, cut to one line; the full text is in the tooltip. */}
+                      {reason ? (
+                        <CanvasTooltip content={reason}>
+                          <span className='text-muted-foreground block truncate text-xs'>
+                            {reason}
+                          </span>
+                        </CanvasTooltip>
+                      ) : null}
                     </span>
-                  </span>
-                  <span className='text-muted-foreground font-mono text-xs'>
-                    {task.id.slice(0, 8)}
-                  </span>
-                </button>
-              </li>
-            ))}
+                    <span className='text-muted-foreground grid justify-items-end text-xs'>
+                      <span className='max-w-[10rem] truncate'>
+                        {task.customerName ?? t('Unknown customer')}
+                      </span>
+                      <span className='font-mono'>{task.id.slice(0, 8)}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
           <CanvasTooltip
             content={t(

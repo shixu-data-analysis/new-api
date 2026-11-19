@@ -9,6 +9,8 @@ export type CatalogRequestValidationIssue = {
   minimum?: string | number;
   maximum?: string | number;
   allowed?: Array<string | number>;
+  /** MEDIA_TOTAL_DURATION_EXCEEDED: the maximum is the requested output length (mediaConstraints.video.totalDurationWithinOutput). */
+  maximumSource?: "OUTPUT_DURATION";
   /** A video upscale tier the source size rules out, with the source's short edge. */
   reason?: VideoUpscaleTierBlock;
   sourceShortEdgePx?: number;

@@ -897,7 +897,8 @@ describe('AdminTaskRecordDetails UAT-018', () => {
 
     expect(await screen.findByText('云端生成失败，积分已释放')).toBeVisible()
     expect(screen.getByText(/^已释放 14 积分（/)).toBeVisible()
-    expect(screen.getByText('生成服务暂不可用。')).toBeVisible()
+    // Once as the reason under the node's status, once in task information.
+    expect(screen.getAllByText('生成服务暂不可用。')).toHaveLength(2)
     expect(
       screen.queryByText('English must stay hidden')
     ).not.toBeInTheDocument()

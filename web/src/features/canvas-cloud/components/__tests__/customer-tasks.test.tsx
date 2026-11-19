@@ -389,12 +389,12 @@ describe('Canvas customer tasks', () => {
             displayNameSnapshot: 'GPT Image 2 Pro',
             derivedExecutionStatus: 'CONFIRMED_FAILED',
             executionSummary: {
-              expectedResults: 4,
-              recordedResults: 4,
+              expectedResults: 5,
+              recordedResults: 5,
               acceptedResults: 0,
               processingResults: 0,
               succeededResults: 0,
-              failedResults: 4,
+              failedResults: 5,
               unknownResults: 0,
               resultsIncomplete: false,
             },
@@ -408,7 +408,6 @@ describe('Canvas customer tasks', () => {
                     en: 'english-snapshot',
                     [messageLocale]: `localized-${locale}`,
                   },
-                  upstreamReason: 'provider-reason-text',
                 },
               },
               {
@@ -429,6 +428,18 @@ describe('Canvas customer tasks', () => {
                 executionStatus: 'CONFIRMED_FAILED',
                 error: { code: 'INTERNAL_SECRET_CODE', messages: null },
               },
+              {
+                outputIndex: 4,
+                executionStatus: 'CONFIRMED_FAILED',
+                error: {
+                  code: 'PROVIDER_REJECTED_REQUEST',
+                  messages: {
+                    en: 'cloud-message-replaced',
+                    [messageLocale]: 'cloud-message-replaced',
+                  },
+                  upstreamReason: 'provider-reason-text',
+                },
+              },
             ],
             settlementProgress: 'COMPLETED',
             customerBillingStatus: 'SETTLED',
@@ -445,13 +456,11 @@ describe('Canvas customer tasks', () => {
         await screen.findByText(new RegExp(`localized-${locale}`))
       ).toBeVisible()
       expect(screen.getByText(/english-fallback/)).toBeVisible()
+      // A result with the provider's reason shows that reason instead of Cloud's message, as the canvas node does.
+      expect(screen.getByText(/provider-reason-text/)).toBeVisible()
       expect(
-        screen.getByText(
-          i18next.t('Customer task view upstream reason', {
-            reason: 'provider-reason-text',
-          })
-        )
-      ).toBeVisible()
+        screen.queryByText(/cloud-message-replaced/)
+      ).not.toBeInTheDocument()
       expect(
         screen.getByText((content) =>
           content.includes(

@@ -163,6 +163,14 @@ export function AdminContent(props: {
   initialOrderId?: string
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
+  customersTab?: 'support'
+  dashboardTab?: 'provider-balances'
+  supportView?: 'failures'
+  supportConversationId?: string
+  onSupportChange?: (support: {
+    open: boolean
+    conversationId?: string
+  }) => void
   onReturnToModelList?: () => void
   runtimeView?: RuntimeManagementView
   onRuntimeViewChange?: (view: RuntimeManagementView) => void
@@ -194,6 +202,10 @@ export function AdminContent(props: {
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
         titleActionSlot={props.titleActionSlot}
+        tab={props.customersTab}
+        supportView={props.supportView}
+        supportConversationId={props.supportConversationId}
+        onSupportChange={props.onSupportChange}
       />
     )
   }
@@ -243,7 +255,9 @@ export function AdminContent(props: {
   if (props.section === 'point-campaigns') {
     return <ActivityManagement titleActionSlot={props.titleActionSlot} />
   }
-  if (props.section === 'dashboard') return <OperatingDashboard />
+  if (props.section === 'dashboard') {
+    return <OperatingDashboard tab={props.dashboardTab} />
+  }
   if (workspace.isPending) return <LoadingState />
   if (workspace.isError) {
     return <ErrorState onRetry={() => void workspace.refetch()} />
@@ -382,6 +396,26 @@ export function CanvasCloud() {
         initialCustomerId={search.customerId}
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
+        customersTab={search.tab === 'support' ? 'support' : undefined}
+        dashboardTab={
+          search.tab === 'provider-balances' ? 'provider-balances' : undefined
+        }
+        supportView={search.supportView === 'failures' ? 'failures' : undefined}
+        supportConversationId={search.conversation}
+        onSupportChange={(support) =>
+          void navigate({
+            to: '/canvas-cloud/$section',
+            params: { section: 'customers' },
+            search: (previous) => ({
+              ...previous,
+              tab: support.open ? 'support' : undefined,
+              conversation: support.open ? support.conversationId : undefined,
+              // The failure alert link opens 失败提醒 once; later choices stay on the page.
+              supportView: undefined,
+            }),
+            replace: true,
+          })
+        }
         onCustomerChange={(customerId) =>
           void navigate({
             to: '/canvas-cloud/$section',
@@ -412,7 +446,8 @@ export function CanvasCloud() {
         runtimeView={
           search.view === 'execution' ||
           search.view === 'provider' ||
-          search.view === 'taskMedia'
+          search.view === 'taskMedia' ||
+          search.view === 'notifications'
             ? search.view
             : undefined
         }
