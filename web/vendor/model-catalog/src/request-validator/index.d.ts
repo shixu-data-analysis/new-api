@@ -88,6 +88,8 @@ export declare const IMAGE_OUTPUT_ESTIMATE_METHODS: readonly string[];
 export declare const IMAGE_REFERENCE_ESTIMATE_METHODS: readonly string[];
 export declare function estimatePromptTokens(tokenizer: PromptTokenizer, text: unknown): string;
 export declare function estimateTokensByModel(model: string, text: string): string;
+export declare const TEXT_OUTPUT_CONTEXT_MARGIN_TOKENS: number;
+export declare function textContextImageLimit(paramSchema: { contextTokens?: unknown; imageInputTokens?: unknown; minOutputTokens?: unknown } | undefined): number | null;
 export declare function openAiImageOutputTokens(width: number, height: number, base: number): string;
 export declare function estimateImageTokenUsage(input?: { interaction?: CatalogInteraction; request?: Record<string, unknown>; imageReferenceCount?: number }): Partial<Record<TokenUsageCategory, string>>;
 export declare function tokenUsagePoints(usage: Partial<Record<string, string | number | bigint>>, rates: Partial<Record<string, string>>, multiplierHundredths?: bigint | number): string;

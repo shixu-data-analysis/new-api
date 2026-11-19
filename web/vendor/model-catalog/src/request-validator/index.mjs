@@ -274,7 +274,10 @@ function checkMedia(interaction, metadata, issues, mode, outputSeconds) {
     const roles = metadata.map((entry) => entry.inputRole).filter((value) => value !== undefined);
     if (roles.length !== 2 || !roles.includes("first-frame") || !roles.includes("last-frame")) add(issues, CatalogRequestIssueCode.REFERENCE_COMBINATION_UNSUPPORTED, "inputRole", { mediaKind: "image" });
   }
-  for (const [kind, limit] of [["image", "maxImageReferences"], ["video", "maxVideoReferences"], ["audio", "maxAudioReferences"]]) if (nonNegativeInteger(limits[limit]) && groups[kind].length > limits[limit]) add(issues, CatalogRequestIssueCode.REFERENCE_COUNT_EXCEEDS_MAXIMUM, "inputAssetIds", { mediaKind: kind, actual: groups[kind].length, maximum: limits[limit] });
+  // A text model's images also fit its context, each at what one counts (textContextImageLimit, design 9.33).
+  const contextImages = textContextImageLimit(object(interaction.paramSchema));
+  const maximumOf = { image: contextImages === null ? limits.maxImageReferences : Math.min(contextImages, nonNegativeInteger(limits.maxImageReferences) ? limits.maxImageReferences : contextImages), video: limits.maxVideoReferences, audio: limits.maxAudioReferences };
+  for (const kind of ["image", "video", "audio"]) if (nonNegativeInteger(maximumOf[kind]) && groups[kind].length > maximumOf[kind]) add(issues, CatalogRequestIssueCode.REFERENCE_COUNT_EXCEEDS_MAXIMUM, "inputAssetIds", { mediaKind: kind, actual: groups[kind].length, maximum: maximumOf[kind] });
   if (nonNegativeInteger(limits.minImageReferences) && groups.image.length < limits.minImageReferences) add(issues, CatalogRequestIssueCode.REFERENCE_COUNT_BELOW_MINIMUM, "inputAssetIds", { mediaKind: "image", actual: groups.image.length, minimum: limits.minImageReferences });
   if (nonNegativeInteger(limits.maxTotalReferences) && metadata.length > limits.maxTotalReferences) add(issues, CatalogRequestIssueCode.TOTAL_REFERENCE_COUNT_EXCEEDS_MAXIMUM, "inputAssetIds", { actual: metadata.length, maximum: limits.maxTotalReferences });
   if (limits.requiresImageInputWithVideo === true && groups.video.length > 0 && groups.image.length === 0) add(issues, CatalogRequestIssueCode.REFERENCE_COMBINATION_UNSUPPORTED, "inputAssetIds", { mediaKind: "video" });
@@ -546,6 +549,23 @@ export function estimatePromptTokens(tokenizer, text) {
 
 // Text models pick the weights from the upstream model ID, as New API does. Image models declare their tokenizer
 // instead, because the Canvas Web price never sees the upstream model ID.
+/** The context a text request keeps beyond its input and its answer (Cloud rules section 4). */
+export const TEXT_OUTPUT_CONTEXT_MARGIN_TOKENS = 4096;
+
+/**
+ * The most reference images a text model takes within its context (design 9.33): each counts its
+ * paramSchema.imageInputTokens, and the context keeps the margin and the least answer (minOutputTokens, else 1). The
+ * page offers no more, and Cloud refuses a request whose input leaves less. Null when the model declares no context or
+ * no image Tokens.
+ */
+export function textContextImageLimit(paramSchema) {
+  const context = paramSchema?.contextTokens;
+  const each = paramSchema?.imageInputTokens;
+  const least = positiveInteger(paramSchema?.minOutputTokens) ? paramSchema.minOutputTokens : 1;
+  if (!positiveInteger(context) || !positiveInteger(each)) return null;
+  return Math.max(0, Math.floor((context - TEXT_OUTPUT_CONTEXT_MARGIN_TOKENS - least) / each));
+}
+
 export function estimateTokensByModel(model, text) {
   const lower = String(model).toLowerCase();
   return estimatePromptTokens(lower.includes("gemini") ? "gemini" : lower.includes("claude") ? "claude" : "openai", text);
