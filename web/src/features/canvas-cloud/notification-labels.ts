@@ -48,11 +48,15 @@ const EVENT_LABELS: Record<string, { name: string; when: string }> = {
   },
   'availability.missing': {
     name: 'Models gone from a provider list',
-    when: 'Missing from the list as many times in a row as set in Model availability alert settings',
+    when: 'Missing from the list as many times in a row as set in Model listing monitor settings',
   },
   'availability.paused': {
     name: 'Probing paused',
     when: 'A probe request succeeded or timed out, so it may have been charged',
+  },
+  'availability.listed': {
+    name: 'New models on a provider list',
+    when: 'A provider list shows a new model whose ID contains a keyword and is not yet added; once per model',
   },
   'monitoring.bad': {
     name: 'Model health turned poor',

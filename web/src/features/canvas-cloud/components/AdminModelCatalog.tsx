@@ -718,7 +718,7 @@ export function AdminModelCatalog(props: {
               {t('Usage ranking')}
             </CanvasManagementTabsTrigger>
             <CanvasManagementTabsTrigger value='availability'>
-              {t('Availability alert')}
+              {t('Model listing monitor')}
               <ModelAvailabilityAlertBadge />
             </CanvasManagementTabsTrigger>
           </CanvasManagementTabsList>

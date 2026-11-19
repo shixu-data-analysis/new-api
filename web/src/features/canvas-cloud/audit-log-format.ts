@@ -428,8 +428,15 @@ const SPECS: Record<string, ActionSpec> = {
       { key: 'channels', label: 'Channel configurations', kind: 'number' },
     ],
   },
+  'model.availability.listing_ignored': {
+    objectType: 'Model listing monitor · New models',
+    fields: [
+      { key: 'removed', label: 'Ignored count', kind: 'number' },
+      { key: 'providerIds', label: 'API providers', kind: 'count' },
+    ],
+  },
   'model.availability.settings_updated': {
-    objectType: 'Model availability alert settings',
+    objectType: 'Model listing monitor settings',
     fields: [
       { key: 'version', label: 'Version', kind: 'number' },
       {
@@ -1379,8 +1386,8 @@ const ACTION_LABEL_KEYS: Record<string, string> = {
   'catalog.model.retired': 'Delete the model',
   'catalog.channel.retired': 'Delete the Channel configuration',
   'catalog.real_call.sent': 'Call the upstream for real',
-  'model.availability.settings_updated':
-    'Edit model availability alert settings',
+  'model.availability.settings_updated': 'Edit model listing monitor settings',
+  'model.availability.listing_ignored': 'Ignore new models',
   'model.key.monitoring.enabled': 'Restore model',
   'model.key.monitoring.disabled': 'Disable model',
   'model.tag.created': 'New category',
@@ -1755,6 +1762,8 @@ const AVAILABILITY_FIELD_LABEL_KEYS: Record<string, string> = {
   autoProbeEnabled: 'Automatic probing',
   intervalHours: 'Probe every how many hours',
   threshold: 'Times in a row before an alert',
+  listingKeywords: 'Keywords',
+  listingRetentionDays: 'Keep in the list for how many days',
   alertEmails: 'Alert email addresses',
 }
 

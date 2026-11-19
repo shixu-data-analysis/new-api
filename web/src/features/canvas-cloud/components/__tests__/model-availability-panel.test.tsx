@@ -88,12 +88,14 @@ const overview = (change: object = {}) => ({
     autoProbeEnabled: false,
     intervalHours: 3,
     threshold: 2,
+    listingKeywords: [],
+    listingRetentionDays: 14,
     version: 4,
   },
   providers: [provider],
   targets: [],
   models: [],
-  counts: { missing: 0, failed: 0, paused: 0, badge: 0 },
+  counts: { missing: 0, failed: 0, paused: 0, listed: 0, badge: 0 },
   coverage: {
     probedTargets: 0,
     totalTargets: 1,
@@ -102,6 +104,11 @@ const overview = (change: object = {}) => ({
     unboundModels: [],
   },
   lastSuccessAt: null,
+  listing: {
+    models: [],
+    pendingBaselineProviders: [],
+    requestRuleProviders: [],
+  },
   run: null,
   ...change,
 })
@@ -199,6 +206,66 @@ describe('ModelAvailabilityPanel', () => {
     expect(screen.getByText(/The API Key is invalid/)).toBeInTheDocument()
   })
 
+  const failedTarget = (failureReason: string) => ({
+    key: 'p1:g',
+    providerId: 'p1',
+    providerName: 'Even',
+    credentialGroupId: 'g',
+    credentialGroupName: 'Main',
+    failureCount: 2,
+    failureReason,
+    failureDetail: null,
+    alerting: true,
+    awaitingConfirmation: false,
+    lastProbedAt: 'x',
+    lastSuccessAt: null,
+  })
+
+  it('writes a failed probe as one sentence and sends an invalid Key to the API provider configuration', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('AUTH')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByText(
+        'Even (API Key group: Main): The API Key is invalid or has no access Last success: None'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View settings' })).toBeNull()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open API provider configuration' })
+    )
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/canvas-cloud/$section',
+      params: { section: 'runtime' },
+      search: { view: 'provider' },
+    })
+  })
+
+  it('offers nothing to change for a network failure', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('NETWORK')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByText(/The network failed or timed out/)
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View settings' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Open API provider configuration' })
+    ).toBeNull()
+  })
+
+  it('opens the settings for a list that cannot be read', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ targets: [failedTarget('UNSUPPORTED')] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByRole('button', { name: 'View settings' })
+    ).toBeInTheDocument()
+  })
+
   it('keeps disabled models folded under handled', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({
@@ -230,11 +297,13 @@ describe('ModelAvailabilityPanel coverage and rounds', () => {
     renderWithQuery(<ModelAvailabilityPanel />)
     expect(
       await screen.findByText(
-        /no API Key group and cannot be probed: Even, GWay/
+        /no API Key group and cannot be probed: Even and GWay/
       )
     ).toBeInTheDocument()
     expect(screen.getByText(/set not to probe: AI666/)).toBeInTheDocument()
-    expect(screen.getByText(/are not probed: Z5-a, Z5-b/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/are not probed: Z5-a and Z5-b/)
+    ).toBeInTheDocument()
   })
 
   it('offers to take over a round whose process died', async () => {
@@ -470,6 +539,8 @@ describe('ModelAvailabilitySettingsDialog', () => {
               autoProbeEnabled: false,
               intervalHours: 3,
               threshold: 2,
+              listingKeywords: [],
+              listingRetentionDays: 14,
               version: 4,
               ...settings,
             },
@@ -508,6 +579,38 @@ describe('ModelAvailabilitySettingsDialog', () => {
     expect(
       api.saveModelAvailabilitySettings.mock.calls[0]?.[0]
     ).not.toHaveProperty('alertEmails')
+  })
+
+  it('saves the keywords lower-cased without repeats, with the retention days', async () => {
+    api.saveModelAvailabilitySettings.mockResolvedValue({ version: 5 })
+    openDialog({ listingKeywords: ['veo'] })
+    const keywords = screen.getByLabelText('Keywords')
+    fireEvent.change(keywords, { target: { value: ' Kling ' } })
+    fireEvent.keyDown(keywords, { key: 'Enter' })
+    fireEvent.change(keywords, { target: { value: 'VEO' } })
+    fireEvent.keyDown(keywords, { key: 'Enter' })
+    fireEvent.change(
+      screen.getByLabelText('Keep in the list for how many days'),
+      { target: { value: '30' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(api.saveModelAvailabilitySettings).toHaveBeenCalled()
+    )
+    expect(api.saveModelAvailabilitySettings.mock.calls[0]?.[0]).toMatchObject({
+      listingKeywords: ['veo', 'kling'],
+      listingRetentionDays: 30,
+    })
+  })
+
+  it('blocks saving a retention outside 1 to 90 days and marks the field', () => {
+    openDialog()
+    const retention = screen.getByLabelText(
+      'Keep in the list for how many days'
+    )
+    fireEvent.change(retention, { target: { value: '91' } })
+    expect(retention).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('asks before discarding, and saves what was edited with the version it read', async () => {
@@ -550,6 +653,8 @@ describe('ModelAvailabilitySettingsDialog', () => {
                 autoProbeEnabled: false,
                 intervalHours: 3,
                 threshold: 2,
+                listingKeywords: [],
+                listingRetentionDays: 14,
                 version,
               },
             }) as never

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorStatus } from '@/lib/server-error-message'
 
 import { formatCanvasDateTime } from '../formatters'
@@ -36,6 +38,7 @@ import {
   getModelAvailability,
   modelAvailabilityBadgeQueryKey,
   modelAvailabilityQueryKey,
+  probeFailureAction,
   probeFailureKey,
   startModelAvailabilityProbe,
   type AvailabilityTarget,
@@ -45,6 +48,10 @@ import { probedUpstreamIds } from '../model-availability-rules'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelAvailabilityBulkDisableDialog } from './ModelAvailabilityBulkDisableDialog'
 import { ModelAvailabilitySettingsDialog } from './ModelAvailabilitySettingsDialog'
+import {
+  IgnoreAllListingsButton,
+  ModelListingTable,
+} from './ModelListingSection'
 
 function MissingTable(props: {
   title: string
@@ -122,8 +129,9 @@ function failureText(
 }
 
 export function ModelAvailabilityPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editRuleFor, setEditRuleFor] = useState<string | null>(null)
@@ -157,7 +165,7 @@ export function ModelAvailabilityPanel() {
   if (query.isError) {
     return (
       <div className='space-y-3 py-10 text-center'>
-        <p className='font-medium'>{t('The alert failed to load')}</p>
+        <p className='font-medium'>{t('The listing monitor failed to load')}</p>
         <Button variant='outline' onClick={() => void query.refetch()}>
           {t('Retry')}
         </Button>
@@ -169,7 +177,58 @@ export function ModelAvailabilityPanel() {
     return <p className='text-muted-foreground text-sm'>{t('Loading...')}</p>
   }
 
-  const { counts, coverage, settings, run } = data
+  const { counts, coverage, settings, run, listing } = data
+  // One sentence per failed target, punctuated by each language.
+  const failedRowValues = (target: AvailabilityTarget) => ({
+    provider: target.providerName,
+    group: target.credentialGroupName,
+    reason: failureText(target, t, settings.autoProbeEnabled),
+    time: target.lastSuccessAt
+      ? formatCanvasDateTime(target.lastSuccessAt)
+      : t('None'),
+  })
+  // What the probes do not cover, one kind per line, so long name lists stay readable.
+  // Names joined the way the language joins a list: “A、B和C” in Chinese, “A, B, and C” in English.
+  const nameList = new Intl.ListFormat(
+    toIntlLocale(i18n.resolvedLanguage || i18n.language),
+    { type: 'conjunction' }
+  )
+  const named = (names: string[]) => ({
+    count: names.length,
+    names: nameList.format(names),
+  })
+  const gaps = [
+    coverage.unboundProviders.length
+      ? t(
+          '{{count}} providers have no API Key group and cannot be probed: {{names}}.',
+          named(coverage.unboundProviders)
+        )
+      : null,
+    coverage.unboundModels.length
+      ? t(
+          '{{count}} models have no API Key group and are not probed: {{names}}.',
+          named(coverage.unboundModels)
+        )
+      : null,
+    coverage.offProviders.length
+      ? t(
+          '{{count}} providers are set not to probe: {{names}}.',
+          named(coverage.offProviders)
+        )
+      : null,
+    listing.pendingBaselineProviders.length
+      ? t(
+          '{{count}} providers have no listing baseline yet: {{names}}.',
+          named(listing.pendingBaselineProviders)
+        )
+      : null,
+    listing.requestRuleProviders.length
+      ? t(
+          '{{count}} providers use a per-model request rule and are not checked for new models: {{names}}.',
+          named(listing.requestRuleProviders)
+        )
+      : null,
+  ].filter((gap): gap is string => gap !== null)
   const pending = data.models.filter((model) => model.enabled)
   const handled = data.models.filter((model) => !model.enabled)
   const failed = data.targets.filter(
@@ -221,7 +280,7 @@ export function ModelAvailabilityPanel() {
         <div className='space-y-1'>
           <p className='text-sm font-medium'>
             {t(
-              'Missing models {{missing}} · Failed probes {{failed}} · Paused {{paused}}',
+              'Missing models {{missing}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}',
               counts
             )}
           </p>
@@ -240,21 +299,19 @@ export function ModelAvailabilityPanel() {
               done: coverage.probedTargets,
               total: coverage.totalTargets,
             })}{' '}
-            {coverage.unboundProviders.length
-              ? `${t('{{count}} providers have no API Key group and cannot be probed: {{names}}.', { count: coverage.unboundProviders.length, names: coverage.unboundProviders.join(', ') })} `
-              : ''}
-            {coverage.unboundModels.length
-              ? `${t('{{count}} models have no API Key group and are not probed: {{names}}.', { count: coverage.unboundModels.length, names: coverage.unboundModels.join(', ') })} `
-              : ''}
-            {coverage.offProviders.length
-              ? `${t('{{count}} providers are set not to probe: {{names}}.', { count: coverage.offProviders.length, names: coverage.offProviders.join(', ') })} `
-              : ''}
             {t('Last successful probe: {{time}}', {
               time: data.lastSuccessAt
                 ? formatCanvasDateTime(data.lastSuccessAt)
                 : t('None'),
             })}
           </p>
+          {gaps.length ? (
+            <ul className='text-muted-foreground list-disc space-y-0.5 ps-5 text-sm'>
+              {gaps.map((gap) => (
+                <li key={gap}>{gap}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className='flex flex-wrap gap-2'>
           <Button
@@ -271,6 +328,10 @@ export function ModelAvailabilityPanel() {
           >
             {t('Disable all ({{count}})', { count: pending.length })}
           </Button>
+          <IgnoreAllListingsButton
+            models={listing.models}
+            onChanged={refresh}
+          />
           <Button variant='outline' onClick={() => setSettingsOpen(true)}>
             {t('Settings')}
           </Button>
@@ -336,17 +397,15 @@ export function ModelAvailabilityPanel() {
               >
                 <div className='text-muted-foreground min-w-0 text-sm'>
                   <p>
-                    {target.providerName}
                     {target.credentialGroupName
-                      ? ` (${t('API Key group: {{name}}', { name: target.credentialGroupName })})`
-                      : ''}
-                    {': '}
-                    {failureText(target, t, settings.autoProbeEnabled)}{' '}
-                    {t('Last success: {{time}}', {
-                      time: target.lastSuccessAt
-                        ? formatCanvasDateTime(target.lastSuccessAt)
-                        : t('None'),
-                    })}
+                      ? t(
+                          '{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}',
+                          failedRowValues(target)
+                        )
+                      : t(
+                          '{{provider}}: {{reason}} Last success: {{time}}',
+                          failedRowValues(target)
+                        )}
                   </p>
                   {target.failureDetail?.models?.length ? (
                     <p className='font-mono text-xs break-all'>
@@ -359,13 +418,30 @@ export function ModelAvailabilityPanel() {
                     </p>
                   ) : null}
                 </div>
-                <Button
-                  size='sm'
-                  variant='outline'
-                  onClick={() => openRule(target.providerId)}
-                >
-                  {t('View settings')}
-                </Button>
+                {probeFailureAction(target) === 'SETTINGS' ? (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() => openRule(target.providerId)}
+                  >
+                    {t('View settings')}
+                  </Button>
+                ) : null}
+                {probeFailureAction(target) === 'PROVIDER_CONFIG' ? (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    onClick={() =>
+                      void navigate({
+                        to: '/canvas-cloud/$section',
+                        params: { section: 'runtime' },
+                        search: { view: 'provider' },
+                      })
+                    }
+                  >
+                    {t('Open API provider configuration')}
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -420,6 +496,8 @@ export function ModelAvailabilityPanel() {
           ) : null}
         </>
       )}
+
+      <ModelListingTable models={listing.models} onChanged={refresh} />
 
       {settingsOpen ? (
         <ModelAvailabilitySettingsDialog

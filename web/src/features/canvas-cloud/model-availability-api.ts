@@ -108,17 +108,33 @@ export interface MissingModel {
   controlVersion: number
 }
 
+/** A new provider model ID that contains a keyword and is not in that provider's Catalog (MODEL-LISTING-ALERT-001). */
+export interface ListedModel {
+  providerId: string
+  providerName: string
+  upstreamId: string
+  firstSeenAt: string
+}
+
 export interface AvailabilityOverview {
   settings: {
     autoProbeEnabled: boolean
     intervalHours: number
     threshold: number
+    listingKeywords: string[]
+    listingRetentionDays: number
     version: number
   }
   providers: AvailabilityProvider[]
   targets: AvailabilityTarget[]
   models: MissingModel[]
-  counts: { missing: number; failed: number; paused: number; badge: number }
+  counts: {
+    missing: number
+    failed: number
+    paused: number
+    listed: number
+    badge: number
+  }
   coverage: {
     probedTargets: number
     totalTargets: number
@@ -127,6 +143,11 @@ export interface AvailabilityOverview {
     unboundModels: string[]
   }
   lastSuccessAt: string | null
+  listing: {
+    models: ListedModel[]
+    pendingBaselineProviders: string[]
+    requestRuleProviders: string[]
+  }
   run: {
     trigger: 'MANUAL' | 'SCHEDULED' | 'TEST'
     doneTargets: number
@@ -184,6 +205,8 @@ export interface SaveSettingsInput {
   autoProbeEnabled: boolean
   intervalHours: number
   threshold: number
+  listingKeywords: string[]
+  listingRetentionDays: number
   providers: Record<
     string,
     { source: ListSource; rule: CustomRule | null; confirmUntested: boolean }
@@ -214,6 +237,26 @@ const PROBE_FAILURE_KEYS: Record<string, string> = {
   NETWORK: 'The network failed or timed out',
   SERVER: 'The provider returned an error',
   UNSUPPORTED: 'The list cannot be read from this provider',
+}
+
+/**
+ * Where a failed probe is handled. `SETTINGS` opens the alert settings (a custom rule opens its editor); `PROVIDER_CONFIG`
+ * is where the API Key group is replaced. A network, rate or server failure has nothing to change, so it gets none.
+ */
+export type ProbeFailureAction = 'SETTINGS' | 'PROVIDER_CONFIG' | null
+
+export function probeFailureAction(
+  target: Pick<AvailabilityTarget, 'failureReason' | 'awaitingConfirmation'>
+): ProbeFailureAction {
+  if (target.awaitingConfirmation) return 'SETTINGS'
+  if (target.failureReason === 'AUTH') return 'PROVIDER_CONFIG'
+  if (
+    target.failureReason === 'UNDETERMINED' ||
+    target.failureReason === 'UNSUPPORTED'
+  ) {
+    return 'SETTINGS'
+  }
+  return null
 }
 
 /** An unknown reason shows as it is rather than as a reason it is not. */
@@ -263,6 +306,22 @@ export async function saveModelAvailabilitySettings(
 ): Promise<{ version: number }> {
   return (
     await api.put<{ version: number }>(`${base}/settings`, input, {
+      skipErrorHandler: true,
+    })
+  ).data
+}
+
+/**
+ * One row by its ID, or everything the page showed: every entry found no later than `firstSeenThrough`, so one found
+ * while the administrator confirmed stays listed.
+ */
+export async function ignoreModelListings(
+  selection:
+    | { items: { providerId: string; upstreamId: string }[] }
+    | { firstSeenThrough: string }
+): Promise<{ removed: number }> {
+  return (
+    await api.post<{ removed: number }>(`${base}/listings/ignore`, selection, {
       skipErrorHandler: true,
     })
   ).data

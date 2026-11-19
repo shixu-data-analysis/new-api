@@ -20,6 +20,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { TagInput } from '@/components/tag-input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -68,6 +69,62 @@ interface ProviderDraft {
 const wholeNumber = (value: string, max: number) =>
   /^\d+$/.test(value.trim()) && Number(value) >= 1 && Number(value) <= max
 
+// The server stores keywords lower-cased without repeats (MODEL-LISTING-ALERT-001); the page shows them the same way.
+const KEYWORD_LIMIT = 50
+const KEYWORD_LENGTH = 64
+const normalKeywords = (keywords: string[]) => [
+  ...new Set(keywords.map((keyword) => keyword.trim().toLowerCase())),
+]
+
+/** A bounded whole number: a narrow box, its range below, red while out of range. */
+function WholeNumberField(props: {
+  id: string
+  label: string
+  help: string
+  value: string
+  valid: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className='space-y-1'>
+      <Label htmlFor={props.id}>{props.label}</Label>
+      <Input
+        id={props.id}
+        inputMode='numeric'
+        className='w-28'
+        value={props.value}
+        aria-invalid={!props.valid}
+        aria-describedby={`${props.id}-help`}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+      <p
+        id={`${props.id}-help`}
+        className={
+          props.valid
+            ? 'text-muted-foreground text-sm'
+            : 'text-destructive text-sm'
+        }
+      >
+        {props.help}
+      </p>
+    </div>
+  )
+}
+
+function GroupTitle(props: { children: string; first?: boolean }) {
+  return (
+    <h3
+      className={
+        props.first
+          ? 'text-sm font-semibold'
+          : 'border-t pt-4 text-sm font-semibold'
+      }
+    >
+      {props.children}
+    </h3>
+  )
+}
+
 export function ModelAvailabilitySettingsDialog(props: {
   overview: AvailabilityOverview
   initialRuleProviderId: string | null
@@ -82,6 +139,10 @@ export function ModelAvailabilitySettingsDialog(props: {
   const [autoProbe, setAutoProbe] = useState(settings.autoProbeEnabled)
   const [interval, setInterval] = useState(String(settings.intervalHours))
   const [threshold, setThreshold] = useState(String(settings.threshold))
+  const [keywords, setKeywords] = useState(settings.listingKeywords)
+  const [retention, setRetention] = useState(
+    String(settings.listingRetentionDays)
+  )
   const [drafts, setDrafts] = useState<Record<string, ProviderDraft>>(() =>
     Object.fromEntries(
       providers.map((provider) => [
@@ -109,11 +170,17 @@ export function ModelAvailabilitySettingsDialog(props: {
   )
   const intervalValid = wholeNumber(interval, 24)
   const thresholdValid = wholeNumber(threshold, 10)
+  const retentionValid = wholeNumber(retention, 90)
+  const keywordsValid =
+    keywords.length <= KEYWORD_LIMIT &&
+    keywords.every((keyword) => keyword.length <= KEYWORD_LENGTH)
 
   const isDirty =
     autoProbe !== settings.autoProbeEnabled ||
     interval !== String(settings.intervalHours) ||
     threshold !== String(settings.threshold) ||
+    retention !== String(settings.listingRetentionDays) ||
+    JSON.stringify(keywords) !== JSON.stringify(settings.listingKeywords) ||
     providers.some((provider) => {
       const draft = drafts[provider.providerId]
       return (
@@ -129,6 +196,8 @@ export function ModelAvailabilitySettingsDialog(props: {
         autoProbeEnabled: autoProbe,
         intervalHours: Number(interval),
         threshold: Number(threshold),
+        listingKeywords: keywords,
+        listingRetentionDays: Number(retention),
         providers: Object.fromEntries(
           Object.entries(drafts).map(([providerId, draft]) => [
             providerId,
@@ -180,6 +249,11 @@ export function ModelAvailabilitySettingsDialog(props: {
     )
   }
 
+  const leaveForNotifications = () => {
+    if (!isDirty) return true
+    setConfirmDiscard(true)
+    return false
+  }
   const hours = Number(interval) || settings.intervalHours
   const times = Number(threshold) || settings.threshold
 
@@ -190,11 +264,12 @@ export function ModelAvailabilitySettingsDialog(props: {
         if (!open) close()
       }}
     >
-      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-3xl'>
+      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>{t('Model availability alert settings')}</DialogTitle>
+          <DialogTitle>{t('Model listing monitor settings')}</DialogTitle>
         </DialogHeader>
         <div className='max-h-[60vh] space-y-4 overflow-y-auto pe-1'>
+          <GroupTitle first>{t('Probing')}</GroupTitle>
           <div className='flex items-start gap-3'>
             <Switch
               id='availability-auto-probe'
@@ -212,60 +287,14 @@ export function ModelAvailabilitySettingsDialog(props: {
               </p>
             </div>
           </div>
-          <div className='grid gap-4 sm:grid-cols-2'>
-            <div className='space-y-1'>
-              <Label htmlFor='availability-interval'>
-                {t('Probe every how many hours')}
-              </Label>
-              <Input
-                id='availability-interval'
-                inputMode='numeric'
-                value={interval}
-                aria-invalid={!intervalValid}
-                onChange={(event) => setInterval(event.target.value)}
-              />
-              <p
-                className={
-                  intervalValid
-                    ? 'text-muted-foreground text-sm'
-                    : 'text-destructive text-sm'
-                }
-              >
-                {t('A whole number from 1 to 24.')}
-              </p>
-            </div>
-            <div className='space-y-1'>
-              <Label htmlFor='availability-threshold'>
-                {t('Times in a row before an alert')}
-              </Label>
-              <Input
-                id='availability-threshold'
-                inputMode='numeric'
-                value={threshold}
-                aria-invalid={!thresholdValid}
-                onChange={(event) => setThreshold(event.target.value)}
-              />
-              <p
-                className={
-                  thresholdValid
-                    ? 'text-muted-foreground text-sm'
-                    : 'text-destructive text-sm'
-                }
-              >
-                {t(
-                  'A whole number from 1 to 10. It applies to missing models and failed probes.'
-                )}
-              </p>
-            </div>
-          </div>
-          {autoProbe ? (
-            <p className='text-muted-foreground text-sm'>
-              {t(
-                'While probes keep succeeding, an alert appears at most about {{hours}} hours after a model is removed.',
-                { hours: hours * times }
-              )}
-            </p>
-          ) : null}
+          <WholeNumberField
+            id='availability-interval'
+            label={t('Probe every how many hours')}
+            help={t('A whole number from 1 to 24.')}
+            value={interval}
+            valid={intervalValid}
+            onChange={setInterval}
+          />
           <div className='overflow-x-auto rounded-lg border'>
             <Table className='min-w-[560px]'>
               <TableHeader>
@@ -351,14 +380,70 @@ export function ModelAvailabilitySettingsDialog(props: {
               </TableBody>
             </Table>
           </div>
+
+          <GroupTitle>{t('Delisted models')}</GroupTitle>
+          <WholeNumberField
+            id='availability-threshold'
+            label={t('Times in a row before an alert')}
+            help={t(
+              'A whole number from 1 to 10. It applies to missing models and failed probes.'
+            )}
+            value={threshold}
+            valid={thresholdValid}
+            onChange={setThreshold}
+          />
+          {autoProbe ? (
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'While probes keep succeeding, an alert appears at most about {{hours}} hours after a model is removed.',
+                { hours: hours * times }
+              )}
+            </p>
+          ) : null}
           <NotificationSendTo
             eventId='availability.missing'
             label={t('Alerts go to')}
-            onBeforeLeave={() => {
-              if (!isDirty) return true
-              setConfirmDiscard(true)
-              return false
-            }}
+            onBeforeLeave={leaveForNotifications}
+          />
+
+          <GroupTitle>{t('Newly listed models')}</GroupTitle>
+          <div className='space-y-1'>
+            <Label htmlFor='listing-keywords'>{t('Keywords')}</Label>
+            <TagInput
+              inputId='listing-keywords'
+              aria-describedby='listing-keywords-help'
+              aria-invalid={!keywordsValid}
+              placeholder={t('Type a keyword and press Enter')}
+              value={keywords}
+              onChange={(next) => setKeywords(normalKeywords(next))}
+            />
+            <p
+              id='listing-keywords-help'
+              className={
+                keywordsValid
+                  ? 'text-muted-foreground text-sm'
+                  : 'text-destructive text-sm'
+              }
+            >
+              {t(
+                'Alerts when a model ID contains any keyword, ignoring case. No keywords, no alerts. Up to 50, each up to 64 characters.'
+              )}
+            </p>
+          </div>
+          <WholeNumberField
+            id='listing-retention'
+            label={t('Keep in the list for how many days')}
+            help={t(
+              'A whole number from 1 to 90, counted from when it was found.'
+            )}
+            value={retention}
+            valid={retentionValid}
+            onChange={setRetention}
+          />
+          <NotificationSendTo
+            eventId='availability.listed'
+            label={t('Alerts go to')}
+            onBeforeLeave={leaveForNotifications}
           />
         </div>
         {save.isError ? (
@@ -399,6 +484,8 @@ export function ModelAvailabilitySettingsDialog(props: {
                 disabled={
                   !intervalValid ||
                   !thresholdValid ||
+                  !retentionValid ||
+                  !keywordsValid ||
                   ruleMissing ||
                   save.isPending
                 }
