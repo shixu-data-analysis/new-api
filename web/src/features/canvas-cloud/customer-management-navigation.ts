@@ -17,6 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+/** The customer detail tab an address opens: `tab=agent-statistics` from the customer list's referring agent link. */
+export function customerDetailTabOf(
+  tab: string | undefined
+): 'agent-statistics' | undefined {
+  return tab === 'agent-statistics' ? tab : undefined
+}
+
 /** The address after the administrator opens another customer or returns to the list. Links into one customer's
  * records (an order, a lot, the agent statistics tab) belong to that customer and are dropped. */
 export function customerChangeSearch<
@@ -34,6 +41,6 @@ export function customerChangeSearch<
     orderId: undefined,
     pointLotId: undefined,
     orderNumber: undefined,
-    tab: previous.tab === 'agent-statistics' ? undefined : previous.tab,
+    tab: customerDetailTabOf(previous.tab) ? undefined : previous.tab,
   }
 }

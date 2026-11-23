@@ -77,6 +77,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 
+import { agentFilterQuery } from '../agent-filter-query'
 import {
   deductCanvasPointLot,
   createCanvasOrderPointReturn,
@@ -121,7 +122,6 @@ import { CustomerSuspensionDialog } from './CustomerSuspensionDialog'
 import {
   ALL_OPTION_VALUE,
   DashboardAgentSelect,
-  NO_AGENT_OPTION_VALUE,
   type DashboardSelectOption,
 } from './DashboardSearchSelect'
 
@@ -247,13 +247,7 @@ export function AdminPointAdjustments({
             ? { status: customerStatus as 'ACTIVE' | 'SUSPENDED' | 'CLOSED' }
             : {}),
           agentIdentity,
-          ...(referralAgent.value === NO_AGENT_OPTION_VALUE
-            ? { noAgent: true }
-            : {}),
-          ...(referralAgent.value !== ALL_OPTION_VALUE &&
-          referralAgent.value !== NO_AGENT_OPTION_VALUE
-            ? { agentPrincipalId: referralAgent.value }
-            : {}),
+          ...agentFilterQuery(referralAgent),
           ...(recharge ? { recharge } : {}),
         },
         signal

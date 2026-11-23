@@ -42,6 +42,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { beijingMonthOf } from '../agent-earnings-format'
+import { agentFilterQuery } from '../agent-filter-query'
 import { isCanvasAccessForbidden } from '../api'
 import { getCanvasBusinessTerm } from '../business-terms'
 import { getOperatingDashboard } from '../operating-dashboard-api'
@@ -72,7 +73,6 @@ import {
   ALL_OPTION_VALUE,
   DashboardAgentSelect,
   DashboardCustomerSelect,
-  NO_AGENT_OPTION_VALUE,
   type DashboardSelectOption,
 } from './DashboardSearchSelect'
 import {
@@ -308,11 +308,7 @@ export function PointsContributionPanel() {
   const scopeQuery = (from: Date): DashboardScopeQuery => ({
     from: from.toISOString(),
     timeZone,
-    ...(agent.value === NO_AGENT_OPTION_VALUE ? { noAgent: true } : {}),
-    ...(agent.value !== ALL_OPTION_VALUE &&
-    agent.value !== NO_AGENT_OPTION_VALUE
-      ? { agentPrincipalId: agent.value }
-      : {}),
+    ...agentFilterQuery(agent),
     ...(customer.value !== ALL_OPTION_VALUE
       ? { customerId: customer.value }
       : {}),

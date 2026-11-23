@@ -18,7 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { customerChangeSearch } from '../customer-management-navigation'
+import {
+  customerChangeSearch,
+  customerDetailTabOf,
+} from '../customer-management-navigation'
+
+describe('customerDetailTabOf', () => {
+  it('opens agent statistics for the referring agent link', () => {
+    expect(customerDetailTabOf('agent-statistics')).toBe('agent-statistics')
+  })
+
+  it("ignores another section's tab and a missing tab", () => {
+    expect(customerDetailTabOf('support')).toBeUndefined()
+    expect(customerDetailTabOf(undefined)).toBeUndefined()
+  })
+})
 
 describe('customerChangeSearch', () => {
   it('drops the agent statistics tab when the administrator returns to the list', () => {

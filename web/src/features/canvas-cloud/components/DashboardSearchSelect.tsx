@@ -77,10 +77,14 @@ export function DashboardSearchSelect(props: {
         !props.fixedOptions.some((fixed) => fixed.value === option.value)
     ),
   ]
+  // A fixed option shows its label in the current language, not the one saved when it was chosen.
+  const value =
+    props.fixedOptions.find((fixed) => fixed.value === props.value.value) ??
+    props.value
   return (
     <Combobox<DashboardSelectOption>
       items={items}
-      value={props.value}
+      value={value}
       filter={null}
       itemToStringLabel={(option) => option.label}
       isItemEqualToValue={(left, right) => left.value === right.value}

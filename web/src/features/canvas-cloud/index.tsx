@@ -69,7 +69,10 @@ import {
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
 import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
-import { customerChangeSearch } from './customer-management-navigation'
+import {
+  customerChangeSearch,
+  customerDetailTabOf,
+} from './customer-management-navigation'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
@@ -401,9 +404,7 @@ export function CanvasCloud() {
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
         customersTab={search.tab === 'support' ? 'support' : undefined}
-        customerDetailTab={
-          search.tab === 'agent-statistics' ? 'agent-statistics' : undefined
-        }
+        customerDetailTab={customerDetailTabOf(search.tab)}
         dashboardTab={
           search.tab === 'provider-balances' ? 'provider-balances' : undefined
         }
