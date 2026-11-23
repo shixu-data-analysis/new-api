@@ -901,18 +901,16 @@ describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
       'href',
       `/canvas-cloud/customers?customerId=${agentCustomerId}&tab=agent-statistics`
     )
-    const directRow = screen.getByRole('link', { name: 'kite' }).closest('tr')!
+    const directRow = screen.getByRole('row', { name: /kite/ })
     expect(within(directRow).getByText('No agent')).toBeVisible()
   })
 
   it('shows recharge points and Not recharged at zero', async () => {
     renderWithQuery(<AdminPointAdjustments />)
 
-    const referredRow = (
-      await screen.findByRole('link', { name: 'uatcustomer' })
-    ).closest('tr')!
+    const referredRow = await screen.findByRole('row', { name: /uatcustomer/ })
     expect(within(referredRow).getByText('50,000')).toBeVisible()
-    const directRow = screen.getByRole('link', { name: 'kite' }).closest('tr')!
+    const directRow = screen.getByRole('row', { name: /kite/ })
     expect(within(directRow).getByText('Not recharged')).toBeVisible()
   })
 
@@ -972,6 +970,84 @@ describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
     expect(
       within(screen.getByRole('button', { name: /^Filters/ })).getByText('2')
     ).toBeVisible()
+  })
+
+  it('returns to the first page when a filter changes', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 45,
+      items: [referred, direct],
+    })
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+    fireEvent.click(screen.getByRole('button', { name: 'Go to next page' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2 }),
+        expect.anything()
+      )
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    await user.click(screen.getByRole('combobox', { name: 'Recharge status' }))
+    await user.click(await screen.findByRole('option', { name: 'Recharged' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ recharge: 'RECHARGED', page: 1 }),
+        expect.anything()
+      )
+    )
+  })
+
+  it('clears the referring agent and recharge filters with Clear filters', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    await user.click(screen.getByRole('combobox', { name: 'Recharge status' }))
+    await user.click(await screen.findByRole('option', { name: 'Recharged' }))
+    await user.click(screen.getByRole('combobox', { name: 'Referring agent' }))
+    await user.click(await screen.findByRole('option', { name: 'No agent' }))
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ recharge: 'RECHARGED', noAgent: true }),
+        expect.anything()
+      )
+    )
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+
+    await waitFor(() => {
+      const [query] = apiMocks.getCanvasAdminCustomers.mock.lastCall ?? []
+      expect(query).not.toHaveProperty('recharge')
+      expect(query).not.toHaveProperty('noAgent')
+      expect(query).not.toHaveProperty('agentPrincipalId')
+    })
+  })
+
+  it('sorts by recharge points from the column header', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+
+    await user.click(
+      screen.getByRole('button', { name: 'Total recharged points' })
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Desc' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sortBy: 'rechargedPoints',
+          sortOrder: 'desc',
+        }),
+        expect.anything()
+      )
+    )
   })
 
   it('sends the chosen agent as the referring agent filter', async () => {

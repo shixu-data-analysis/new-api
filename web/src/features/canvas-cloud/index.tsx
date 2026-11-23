@@ -69,6 +69,7 @@ import {
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
 import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
+import { customerChangeSearch } from './customer-management-navigation'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
@@ -426,16 +427,7 @@ export function CanvasCloud() {
           void navigate({
             to: '/canvas-cloud/$section',
             params: { section: 'customers' },
-            search: (previous) => ({
-              ...previous,
-              customerId,
-              orderId: undefined,
-              pointLotId: undefined,
-              orderNumber: undefined,
-              // A detail tab opened by a link belongs to that customer only.
-              tab:
-                previous.tab === 'agent-statistics' ? undefined : previous.tab,
-            }),
+            search: (previous) => customerChangeSearch(previous, customerId),
             replace: true,
           })
         }
