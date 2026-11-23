@@ -11245,6 +11245,12 @@
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (nhóm API Key: {{group}}): {{reason}} Thành công gần nhất: {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Thành công gần nhất: {{time}}",
     "Open API provider configuration": "Mở cấu hình nhà cung cấp API",
-    "Remove {{tag}}": "Xóa {{tag}}"
+    "Remove {{tag}}": "Xóa {{tag}}",
+    "Referring agent": "Đại lý giới thiệu",
+    "Total granted bonus points": "Tổng điểm thưởng đã tặng",
+    "Recharge status": "Tình trạng nạp",
+    "All recharge statuses": "Tất cả tình trạng nạp",
+    "Recharged": "Đã nạp",
+    "Not recharged": "Chưa nạp"
   }
 }

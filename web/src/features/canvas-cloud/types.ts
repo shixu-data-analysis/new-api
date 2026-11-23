@@ -1723,6 +1723,20 @@ export interface CanvasAdminCustomerPointBalance {
   createdAt?: string
 }
 
+/** A row of the administrator customer list (CUSTOMER-AGENT-RECHARGE-001). */
+export interface CanvasAdminCustomerListItem extends CanvasAdminCustomerPointBalance {
+  /** The agent whose invite code activated the customer; `customerId` is the agent's own customer record. */
+  referralAgent: {
+    principalId: string
+    customerId: string | null
+    username: string | null
+  } | null
+  /** Points bought with recharge codes; Bonus and point returns do not change it. */
+  rechargedPoints: string
+  /** Bonus points ever granted, used or not. */
+  grantedBonusPoints: string
+}
+
 export interface CanvasAdminRechargeOrder {
   id: string
   orderNumber: string

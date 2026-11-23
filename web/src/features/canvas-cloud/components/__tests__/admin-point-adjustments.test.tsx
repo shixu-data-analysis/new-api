@@ -23,6 +23,7 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminCustomerPointLedger: vi.fn(),
   getCanvasAdminCustomerTasks: vi.fn(),
   getCanvasAdminCustomers: vi.fn(),
+  getCanvasAgents: vi.fn(),
   getCanvasAdminAgentStatistics: vi.fn(),
   getCanvasAdminAgentModelPrices: vi.fn(),
   getCanvasAdminAgentCustomers: vi.fn(),
@@ -41,6 +42,24 @@ const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('../../api', () => apiMocks)
 vi.mock('sonner', () => ({ toast: toastMocks }))
 // The shared task details have their own tests; here only which task opens matters.
+// The agent link is a router Link; here it renders the address it would open.
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: (props: {
+    to: string
+    params: { section: string }
+    search: Record<string, string>
+    className?: string
+    children: ReactNode
+  }) => (
+    <a
+      className={props.className}
+      href={`${props.to.replace('$section', props.params.section)}?${new URLSearchParams(props.search)}`}
+    >
+      {props.children}
+    </a>
+  ),
+}))
 vi.mock('../AdminTaskRecordDetails', () => ({
   AdminTaskRecordDetails: (props: { taskId: string }) => (
     <p>Shared task record {props.taskId}</p>
@@ -68,6 +87,13 @@ const customer = {
   bonusAvailablePoints: '400',
   debtPoints: '20',
   netAvailablePoints: '880',
+}
+// The list row adds the referring agent and the recharge and Bonus totals.
+const customerListItem = {
+  ...customer,
+  referralAgent: null,
+  rechargedPoints: '500',
+  grantedBonusPoints: '400',
 }
 const order = {
   id: '85000000-0000-7000-8000-000000000002',
@@ -110,7 +136,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       page: 1,
       pageSize: 20,
       total: 1,
-      items: [customer],
+      items: [customerListItem],
     })
     apiMocks.getCanvasAdminCustomer.mockResolvedValue(customer)
     apiMocks.getCanvasAdminRechargeOrders.mockResolvedValue({
@@ -276,7 +302,7 @@ describe('ADMIN-REWORK-004 customer management', () => {
       page: 1,
       pageSize: 20,
       total: 1,
-      items: [{ ...customer, isAgent: true, agentStatus: 'DISABLED' }],
+      items: [{ ...customerListItem, isAgent: true, agentStatus: 'DISABLED' }],
     })
     renderWithQuery(<AdminPointAdjustments />)
     expect(await screen.findByText('Agent')).toBeVisible()
@@ -815,5 +841,199 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(
       await screen.findByText('The linked recharge order is unavailable')
     ).toBeVisible()
+  })
+})
+
+describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
+  const agentCustomerId = '85000000-0000-7000-8000-0000000000a1'
+  const referred = {
+    ...customer,
+    referralAgent: {
+      principalId: '85000000-0000-7000-8000-0000000000b1',
+      customerId: agentCustomerId,
+      username: 'linxiao',
+    },
+    rechargedPoints: '50000',
+    grantedBonusPoints: '3300',
+  }
+  const direct = {
+    ...customer,
+    customerId: '85000000-0000-7000-8000-0000000000c1',
+    username: 'kite',
+    referralAgent: null,
+    rechargedPoints: '0',
+    grantedBonusPoints: '300',
+  }
+
+  beforeAll(() =>
+    i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+  )
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18next.changeLanguage('en')
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [referred, direct],
+    })
+    apiMocks.getCanvasAgents.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          principalId: referred.referralAgent.principalId,
+          username: 'linxiao',
+          status: 'ACTIVE',
+        },
+      ],
+    })
+  })
+
+  it("links the referring agent to the agent's statistics tab and names customers without one", async () => {
+    renderWithQuery(<AdminPointAdjustments />)
+
+    expect(
+      await screen.findByRole('link', { name: 'linxiao' })
+    ).toHaveAttribute(
+      'href',
+      `/canvas-cloud/customers?customerId=${agentCustomerId}&tab=agent-statistics`
+    )
+    const directRow = screen.getByRole('link', { name: 'kite' }).closest('tr')!
+    expect(within(directRow).getByText('No agent')).toBeVisible()
+  })
+
+  it('shows recharge points and Not recharged at zero', async () => {
+    renderWithQuery(<AdminPointAdjustments />)
+
+    const referredRow = (
+      await screen.findByRole('link', { name: 'uatcustomer' })
+    ).closest('tr')!
+    expect(within(referredRow).getByText('50,000')).toBeVisible()
+    const directRow = screen.getByRole('link', { name: 'kite' }).closest('tr')!
+    expect(within(directRow).getByText('Not recharged')).toBeVisible()
+  })
+
+  it('hides granted Bonus points until shown from View, and never offers to hide the username', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+    expect(
+      screen.queryByRole('columnheader', { name: 'Total granted bonus points' })
+    ).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'Username' })
+    ).toBeNull()
+    await user.click(
+      screen.getByRole('menuitemcheckbox', {
+        name: 'Total granted bonus points',
+      })
+    )
+
+    expect(
+      await screen.findByRole('columnheader', {
+        name: 'Total granted bonus points',
+      })
+    ).toBeVisible()
+    expect(screen.getByText('3,300')).toBeVisible()
+  })
+
+  it('sends the recharge and no-agent filters and counts both on the Filters button', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+
+    await user.click(screen.getByRole('combobox', { name: 'Recharge status' }))
+    await user.click(
+      await screen.findByRole('option', { name: 'Not recharged' })
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Referring agent' }))
+    await user.click(await screen.findByRole('option', { name: 'No agent' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          recharge: 'NOT_RECHARGED',
+          noAgent: true,
+          page: 1,
+        }),
+        expect.anything()
+      )
+    )
+    expect(apiMocks.getCanvasAdminCustomers).not.toHaveBeenLastCalledWith(
+      expect.objectContaining({ agentPrincipalId: expect.anything() }),
+      expect.anything()
+    )
+    expect(
+      within(screen.getByRole('button', { name: /^Filters/ })).getByText('2')
+    ).toBeVisible()
+  })
+
+  it('sends the chosen agent as the referring agent filter', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('link', { name: 'linxiao' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+
+    await user.click(screen.getByRole('combobox', { name: 'Referring agent' }))
+    await user.click(await screen.findByRole('option', { name: 'linxiao' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          agentPrincipalId: referred.referralAgent.principalId,
+        }),
+        expect.anything()
+      )
+    )
+  })
+
+  it("opens an agent's customer details on the agent statistics tab when the link asks for it", async () => {
+    apiMocks.getCanvasAdminCustomer.mockResolvedValue({
+      ...customer,
+      customerId: agentCustomerId,
+      username: 'linxiao',
+      isAgent: true,
+      agentStatus: 'ACTIVE',
+    })
+    apiMocks.getCanvasAdminAgentStatistics.mockReturnValue(
+      new Promise(() => {})
+    )
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={agentCustomerId}
+        customerDetailTab='agent-statistics'
+      />
+    )
+
+    expect(
+      await screen.findByRole('tab', { name: 'Agent statistics' })
+    ).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps a regular customer on recharge records when the link asks for agent statistics', async () => {
+    apiMocks.getCanvasAdminCustomer.mockResolvedValue(customer)
+    apiMocks.getCanvasAdminRechargeOrders.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={customer.customerId}
+        customerDetailTab='agent-statistics'
+      />
+    )
+
+    expect(
+      await screen.findByRole('tab', { name: 'Recharge records' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('tab', { name: 'Agent statistics' })).toBeNull()
   })
 })

@@ -11245,6 +11245,12 @@
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}}（API Key グループ：{{group}}）：{{reason}} 最終成功：{{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}：{{reason}} 最終成功：{{time}}",
     "Open API provider configuration": "API プロバイダー設定を開く",
-    "Remove {{tag}}": "{{tag}} を削除"
+    "Remove {{tag}}": "{{tag}} を削除",
+    "Referring agent": "紹介代理店",
+    "Total granted bonus points": "累計付与ボーナスポイント",
+    "Recharge status": "チャージ状況",
+    "All recharge statuses": "すべてのチャージ状況",
+    "Recharged": "チャージ済み",
+    "Not recharged": "未チャージ"
   }
 }

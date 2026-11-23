@@ -11245,6 +11245,12 @@
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}}（API Key 組：{{group}}）：{{reason}} 最近成功：{{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}：{{reason}} 最近成功：{{time}}",
     "Open API provider configuration": "前往 API 服務商設定",
-    "Remove {{tag}}": "刪除 {{tag}}"
+    "Remove {{tag}}": "刪除 {{tag}}",
+    "Referring agent": "歸屬代理商",
+    "Total granted bonus points": "累計贈送積分",
+    "Recharge status": "充值情況",
+    "All recharge statuses": "全部充值情況",
+    "Recharged": "已充值",
+    "Not recharged": "未充值"
   }
 }

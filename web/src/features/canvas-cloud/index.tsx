@@ -164,6 +164,8 @@ export function AdminContent(props: {
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   customersTab?: 'support'
+  /** 客户管理: the customer detail tab a link opens (CUSTOMER-AGENT-RECHARGE-001). */
+  customerDetailTab?: 'agent-statistics'
   dashboardTab?: 'provider-balances'
   supportView?: 'failures'
   supportConversationId?: string
@@ -201,6 +203,7 @@ export function AdminContent(props: {
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
+        customerDetailTab={props.customerDetailTab}
         titleActionSlot={props.titleActionSlot}
         tab={props.customersTab}
         supportView={props.supportView}
@@ -397,6 +400,9 @@ export function CanvasCloud() {
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
         customersTab={search.tab === 'support' ? 'support' : undefined}
+        customerDetailTab={
+          search.tab === 'agent-statistics' ? 'agent-statistics' : undefined
+        }
         dashboardTab={
           search.tab === 'provider-balances' ? 'provider-balances' : undefined
         }
@@ -426,6 +432,9 @@ export function CanvasCloud() {
               orderId: undefined,
               pointLotId: undefined,
               orderNumber: undefined,
+              // A detail tab opened by a link belongs to that customer only.
+              tab:
+                previous.tab === 'agent-statistics' ? undefined : previous.tab,
             }),
             replace: true,
           })

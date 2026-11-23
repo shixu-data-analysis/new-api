@@ -11245,6 +11245,12 @@
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (группа API Key: {{group}}): {{reason}} Последний успех: {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Последний успех: {{time}}",
     "Open API provider configuration": "Открыть настройку API-поставщика",
-    "Remove {{tag}}": "Удалить {{tag}}"
+    "Remove {{tag}}": "Удалить {{tag}}",
+    "Referring agent": "Агент-реферер",
+    "Total granted bonus points": "Всего начислено бонусных баллов",
+    "Recharge status": "Статус пополнения",
+    "All recharge statuses": "Все статусы пополнения",
+    "Recharged": "Пополнял",
+    "Not recharged": "Не пополнял"
   }
 }

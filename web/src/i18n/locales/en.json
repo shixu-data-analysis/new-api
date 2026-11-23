@@ -11245,6 +11245,12 @@
     "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}": "{{provider}} (API Key group: {{group}}): {{reason}} Last success: {{time}}",
     "{{provider}}: {{reason}} Last success: {{time}}": "{{provider}}: {{reason}} Last success: {{time}}",
     "Open API provider configuration": "Open API provider configuration",
-    "Remove {{tag}}": "Remove {{tag}}"
+    "Remove {{tag}}": "Remove {{tag}}",
+    "Referring agent": "Referring agent",
+    "Total granted bonus points": "Total granted bonus points",
+    "Recharge status": "Recharge status",
+    "All recharge statuses": "All recharge statuses",
+    "Recharged": "Recharged",
+    "Not recharged": "Not recharged"
   }
 }
