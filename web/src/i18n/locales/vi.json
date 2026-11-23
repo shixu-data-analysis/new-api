@@ -11255,10 +11255,10 @@
     "First missing {{time}}": "Thiếu lần đầu {{time}}",
     "Last read {{time}}": "Đọc gần nhất {{time}}",
     "Model enabled": "Đang bật",
-    "Model disabled": "Đã tắt",
+    "Model disabled": "Đã vô hiệu hóa",
     "Reason: {{reason}}": "Lý do: {{reason}}",
-    "Disable reason": "Lý do tắt",
-    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Mô hình bị thiếu {{missing}} · Đã tắt {{disabled}} · Kiểm tra lỗi {{failed}} · Tạm dừng {{paused}} · Mô hình mới {{listed}}",
+    "Disable reason": "Lý do vô hiệu hóa",
+    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Mô hình bị thiếu {{missing}} · Đã vô hiệu hóa {{disabled}} · Kiểm tra lỗi {{failed}} · Tạm dừng {{paused}} · Mô hình mới {{listed}}",
     "Disable model: {{model}}": "Vô hiệu hóa mô hình: {{model}}",
     "Restore model: {{model}}": "Khôi phục mô hình: {{model}}",
     "Delete the model: {{model}}": "Xóa mô hình: {{model}}"

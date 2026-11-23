@@ -11255,10 +11255,10 @@
     "First missing {{time}}": "初回欠落 {{time}}",
     "Last read {{time}}": "最終確認 {{time}}",
     "Model enabled": "有効",
-    "Model disabled": "停止中",
+    "Model disabled": "無効",
     "Reason: {{reason}}": "理由：{{reason}}",
-    "Disable reason": "停止理由",
-    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "欠落モデル {{missing}} · 停止中 {{disabled}} · 検査失敗 {{failed}} · 一時停止 {{paused}} · 新規掲載 {{listed}}",
+    "Disable reason": "無効化の理由",
+    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "欠落モデル {{missing}} · 無効 {{disabled}} · 検査失敗 {{failed}} · 一時停止 {{paused}} · 新規掲載 {{listed}}",
     "Disable model: {{model}}": "モデルを無効化：{{model}}",
     "Restore model: {{model}}": "モデルを復元：{{model}}",
     "Delete the model: {{model}}": "モデルを削除：{{model}}"

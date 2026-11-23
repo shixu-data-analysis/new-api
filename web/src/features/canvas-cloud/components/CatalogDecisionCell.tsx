@@ -39,7 +39,7 @@ export function CatalogDecisionCell(props: {
           'An administrator changed this object; the current version stays by default.'
         )}
       </p>
-      <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Checkbox
           id={id}
           checked={decision.overridden}
