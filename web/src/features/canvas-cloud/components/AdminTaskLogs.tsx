@@ -601,6 +601,7 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={derivedExecutionStatus}
+              valueLabelKey={executionLabels[derivedExecutionStatus]}
               emptyLabelKey='All execution statuses'
             />
           </SelectTrigger>
@@ -627,6 +628,7 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={settlementProgress}
+              valueLabelKey={settlementLabels[settlementProgress]}
               emptyLabelKey='All settlement progresses'
             />
           </SelectTrigger>
@@ -757,6 +759,7 @@ export function AdminTaskLogs() {
                 >
                   <CanvasLocalizedSelectValue
                     value={billingStatus}
+                    valueLabelKey={billingLabels[billingStatus]}
                     emptyLabelKey='All billing statuses'
                   />
                 </SelectTrigger>

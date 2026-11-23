@@ -387,6 +387,21 @@ describe('Canvas administrator task records', () => {
     ).toBeVisible()
   })
 
+  it('shows a chosen status in its filter by its label, never as the raw value', async () => {
+    routeState.set({ derivedExecutionStatus: 'PARTIAL_SUCCESS' })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ derivedExecutionStatus: 'PARTIAL_SUCCESS' }),
+        expect.any(AbortSignal)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+    const status = screen.getByRole('combobox', { name: 'Execution status' })
+    expect(status).toHaveTextContent('Partial success')
+    expect(status).not.toHaveTextContent('PARTIAL_SUCCESS')
+  })
+
   it('applies filters carried in the address and shows them as removable tags', async () => {
     const user = userEvent.setup()
     let releaseOptions!: () => void

@@ -464,6 +464,7 @@ export function LimitedPriceActivityForm(props: {
               >
                 <CanvasLocalizedSelectValue
                   value={source?.label ?? (model.isLoading ? t('Loading') : '')}
+                  displayValue={source?.label ?? t('Loading')}
                   placeholderKey={
                     modelId
                       ? 'Choose an applicable price'

@@ -535,6 +535,7 @@ export function ActivityManagement(props: {
                 >
                   <CanvasLocalizedSelectValue
                     value={type}
+                    valueLabelKey={type || undefined}
                     emptyLabelKey='All activity types'
                   />
                 </SelectTrigger>

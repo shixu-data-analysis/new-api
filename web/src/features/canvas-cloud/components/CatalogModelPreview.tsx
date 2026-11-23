@@ -670,6 +670,7 @@ export function CatalogModelPreview(props: {
             <SelectTrigger className='w-full' aria-label={t('Capability')}>
               <CanvasLocalizedSelectValue
                 value={filters.capability === 'ALL' ? '' : filters.capability}
+                valueLabelKey={filters.capability}
                 emptyLabelKey='All capabilities'
               />
             </SelectTrigger>
