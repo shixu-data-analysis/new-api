@@ -144,9 +144,7 @@ export function ModelAvailabilityBulkDisableDialog(props: {
     try {
       const latest = await getModelAvailability()
       const current = new Map(
-        latest.models
-          .filter((model) => model.enabled)
-          .map((model) => [model.modelKey, model])
+        latest.missingModels.map((model) => [model.modelKey, model])
       )
       const models = failures.flatMap((failure) => {
         const model = current.get(failure.model.modelKey)

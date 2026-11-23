@@ -1186,6 +1186,8 @@ export interface CanvasAdminTestingModel {
   description: string
   resourceEnabled: boolean
   modelDisabled: boolean
+  /** The model key's current control: its version, which a restore names, and why it disabled the model. */
+  modelControl: { version: number; disabledReason: string | null }
   presentationVersion: number | null
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
   customerVisible: boolean

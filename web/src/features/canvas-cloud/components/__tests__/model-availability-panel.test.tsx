@@ -23,6 +23,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,16 +59,32 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => navigate,
 }))
 
-const missing = (modelKey: string, enabled = true) => ({
+const identity = (modelKey: string) => ({
   modelKey,
   displayName: `Name ${modelKey}`,
   upstreamIds: [`up-${modelKey}`],
   providerId: 'p1',
   providerName: 'Even',
   credentialGroupName: 'Main',
-  firstMissingAt: '2026-10-31T00:00:00.000Z',
-  enabled,
   controlVersion: 3,
+})
+
+const missing = (modelKey: string) => ({
+  ...identity(modelKey),
+  firstMissingAt: '2026-10-31T00:00:00.000Z',
+})
+
+const disabled = (
+  modelKey: string,
+  upstreamStatus: 'AVAILABLE' | 'SUSPECTED' | 'MISSING' | null
+) => ({
+  ...identity(modelKey),
+  disabledReason: 'MODEL_DELISTED',
+  upstreamStatus,
+  lastListedAt:
+    upstreamStatus === 'AVAILABLE' ? '2026-11-23T04:23:38.000Z' : null,
+  firstMissingAt:
+    upstreamStatus === 'MISSING' ? '2026-11-18T06:00:00.000Z' : null,
 })
 
 const provider = {
@@ -94,8 +111,16 @@ const overview = (change: object = {}) => ({
   },
   providers: [provider],
   targets: [],
-  models: [],
-  counts: { missing: 0, failed: 0, paused: 0, listed: 0, badge: 0 },
+  missingModels: [],
+  disabledModels: [],
+  counts: {
+    missing: 0,
+    disabled: 0,
+    failed: 0,
+    paused: 0,
+    listed: 0,
+    badge: 0,
+  },
   coverage: {
     probedTargets: 0,
     totalTargets: 1,
@@ -180,7 +205,7 @@ describe('ModelAvailabilityPanel', () => {
   it('states that a failed probe does not mean a model is gone', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({
-        counts: { missing: 0, failed: 1, paused: 0, badge: 1 },
+        counts: { missing: 0, disabled: 0, failed: 1, paused: 0, badge: 1 },
         targets: [
           {
             key: 'p1:g',
@@ -266,18 +291,81 @@ describe('ModelAvailabilityPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps disabled models folded under handled', async () => {
+  it('shows every disabled model in a table with the same columns, the ones listed again first', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({
-        models: [missing('a'), missing('b', false)],
-        counts: { missing: 1, failed: 0, paused: 0, badge: 1 },
+        missingModels: [missing('a')],
+        disabledModels: [disabled('b', 'MISSING'), disabled('c', 'AVAILABLE')],
+        counts: { missing: 1, disabled: 2, failed: 0, paused: 0, badge: 1 },
       })
     )
     renderWithQuery(<ModelAvailabilityPanel />)
     expect(await screen.findByText('Name a')).toBeInTheDocument()
-    expect(screen.queryByText('Name b')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Show handled/ }))
-    expect(screen.getByText('Name b')).toBeInTheDocument()
+    const [missingTable, disabledTable] = screen.getAllByRole('table')
+    const headers = (table: HTMLElement) =>
+      within(table)
+        .getAllByRole('columnheader')
+        .slice(1)
+        .map((item) => item.textContent)
+    expect(headers(missingTable as HTMLElement)).toEqual(
+      headers(disabledTable as HTMLElement)
+    )
+    const disabledRows = within(disabledTable as HTMLElement).getAllByRole(
+      'row'
+    )
+    expect(disabledRows[1]).toHaveTextContent('Name c')
+    expect(disabledRows[1]).toHaveTextContent('Listed by the provider')
+    expect(disabledRows[1]).toHaveTextContent('Removed by the provider')
+    expect(disabledRows[2]).toHaveTextContent('Name b')
+    expect(disabledRows[2]).toHaveTextContent('Missing from the provider')
+    expect(
+      within(missingTable as HTMLElement).getByRole('button', {
+        name: 'Disable model',
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(disabledTable as HTMLElement).getAllByRole('button', {
+        name: 'Restore model',
+      })
+    ).toHaveLength(2)
+  })
+
+  it('restores a disabled model the provider lists again, at its control version', async () => {
+    controlCanvasLogicalModel.mockResolvedValue({})
+    api.getModelAvailability.mockResolvedValue(
+      overview({
+        disabledModels: [{ ...disabled('c', 'AVAILABLE'), controlVersion: 5 }],
+        counts: { missing: 0, disabled: 1, failed: 0, paused: 0, badge: 0 },
+      })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(
+      await screen.findByText('No confirmed model absences')
+    ).toBeInTheDocument()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Restore model' })
+    )
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('combobox'), {
+      target: { value: 'UPSTREAM_RESTORED' },
+    })
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Restore model' })
+    )
+    await waitFor(() =>
+      expect(controlCanvasLogicalModel).toHaveBeenCalledWith(
+        'c',
+        expect.objectContaining({ enabled: true, expectedVersion: 5 })
+      )
+    )
+  })
+
+  it('says a disabled model has no answer yet instead of a status', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({ disabledModels: [disabled('d', null)] })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(await screen.findByText('Not probed yet')).toBeInTheDocument()
   })
 })
 
@@ -420,7 +508,7 @@ describe('ModelAvailabilityBulkDisableDialog', () => {
       return {}
     })
     api.getModelAvailability.mockResolvedValue(
-      overview({ models: [missing('b')] })
+      overview({ missingModels: [missing('b')] })
     )
     open([missing('a'), missing('b'), missing('c')])
     fireEvent.click(screen.getByRole('checkbox', { name: 'Name c' }))
@@ -470,7 +558,7 @@ describe('ModelAvailabilityBulkDisableDialog', () => {
     })
     controlCanvasLogicalModel.mockResolvedValueOnce({})
     api.getModelAvailability.mockResolvedValue(
-      overview({ models: [{ ...missing('a'), controlVersion: 7 }] })
+      overview({ missingModels: [{ ...missing('a'), controlVersion: 7 }] })
     )
     open([missing('a')])
     chooseReason()
@@ -496,9 +584,7 @@ describe('ModelAvailabilityBulkDisableDialog', () => {
     controlCanvasLogicalModel.mockRejectedValueOnce({
       response: { status: 409, data: {} },
     })
-    api.getModelAvailability.mockResolvedValue(
-      overview({ models: [missing('a', false)] })
-    )
+    api.getModelAvailability.mockResolvedValue(overview({ missingModels: [] }))
     open([missing('a')])
     chooseReason()
     fireEvent.click(screen.getByRole('button', { name: /Disable 1 models/ }))

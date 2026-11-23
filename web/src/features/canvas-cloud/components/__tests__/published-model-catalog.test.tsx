@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   publishTargetPresentation: vi.fn(),
   publishParameterCombinationControl: vi.fn(),
   catalog: vi.fn(),
+  controlModel: vi.fn(),
   navigation: { current: null as unknown },
 }))
 
@@ -40,6 +41,7 @@ vi.mock('../../api', () => ({
   publishCanvasExecutionTargetPresentation: mocks.publishTargetPresentation,
   publishCanvasParameterCombinationControl:
     mocks.publishParameterCombinationControl,
+  controlCanvasLogicalModel: mocks.controlModel,
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('../../catalog-edit-api', () => ({
@@ -126,6 +128,7 @@ function model(
     description: 'Client description',
     resourceEnabled: true,
     modelDisabled: false,
+    modelControl: { version: 0, disabledReason: null },
     presentationVersion: 0,
     status: 'ACTIVE',
     customerVisible: true,
@@ -295,6 +298,7 @@ describe('Published model catalog', () => {
     const models = () => [
       model({
         modelDisabled: true,
+        modelControl: { version: 2, disabledReason: 'MODEL_DELISTED' },
         effectiveDisplayName: 'Stopped model',
         catalogDefaultName: 'Stopped model',
         modelKey: 'canvas.image.stopped',
@@ -361,6 +365,41 @@ describe('Published model catalog', () => {
       )
     })
 
+    it('can be restored from their table at the version they were disabled with', async () => {
+      const user = userEvent.setup()
+      mocks.list.mockResolvedValue(models())
+      mocks.controlModel.mockResolvedValue({})
+      renderCatalog()
+      await user.click(
+        await screen.findByRole('button', { name: 'Show disabled models (1)' })
+      )
+      const [enabled] = screen.getAllByRole('table')
+      expect(
+        within(enabled as HTMLElement).queryByRole('button', {
+          name: 'Restore model',
+        })
+      ).toBeNull()
+      await user.click(
+        within(disabledTable()).getByRole('button', { name: 'Restore model' })
+      )
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).toHaveTextContent('Stopped model')
+      await user.selectOptions(
+        within(dialog).getByRole('combobox'),
+        'UPSTREAM_RESTORED'
+      )
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Restore model' })
+      )
+      await waitFor(() =>
+        expect(mocks.controlModel).toHaveBeenCalledWith(
+          'canvas.image.stopped',
+          expect.objectContaining({ enabled: true, expectedVersion: 2 })
+        )
+      )
+      await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2))
+    })
+
     it('unfold into a plain table, and fold again', async () => {
       const user = userEvent.setup()
       mocks.list.mockResolvedValue(models())
@@ -371,8 +410,15 @@ describe('Published model catalog', () => {
       const disabled = within(disabledTable())
       expect(
         disabled.getAllByRole('columnheader').map((item) => item.textContent)
-      ).toEqual(['Model', 'API provider', 'Generation type', 'Model actions'])
+      ).toEqual([
+        'Model',
+        'API provider',
+        'Generation type',
+        'Disable reason',
+        'Model actions',
+      ])
       expect(disabled.getByText('Stopped model')).toBeInTheDocument()
+      expect(disabled.getByText('Removed by the provider')).toBeInTheDocument()
       expect(disabled.queryByText('Execution targets')).toBeNull()
       expect(
         disabled.queryByRole('button', { name: 'Manage prices' })
@@ -520,7 +566,13 @@ describe('Published model catalog', () => {
         within(disabledTable())
           .getAllByRole('columnheader')
           .map((item) => item.textContent)
-      ).toEqual(['Model', 'API provider', 'Generation type', 'Model actions'])
+      ).toEqual([
+        'Model',
+        'API provider',
+        'Generation type',
+        'Disable reason',
+        'Model actions',
+      ])
     })
 
     it('appear under their own heading when only they match a search', async () => {
