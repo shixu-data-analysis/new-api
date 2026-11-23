@@ -1890,6 +1890,16 @@ export interface CanvasAdminTaskLog {
   outstandingDebtPoints: string | null
   acceptedAt: string
   completedAt: string | null
+  upstreamTasks: CanvasAdminTaskUpstreamTask[]
+}
+
+/**
+ * A Provider task ID the task's submissions received, with the result positions submitted under it; Cloud lists them by
+ * the latest submission that received each, so the last one covering a position is its latest submission.
+ */
+export interface CanvasAdminTaskUpstreamTask {
+  upstreamTaskId: string
+  outputIndices: number[]
 }
 
 export interface CanvasTaskOutputSummary {
@@ -1912,6 +1922,7 @@ export type CanvasAdminTaskUpstreamFilter = 'present' | 'absent'
 export type CanvasAdminTaskFailureReason =
   | 'PROVIDER_OUTPUT_TOO_LARGE'
   | 'RETRY_EXHAUSTED'
+  | 'PROVIDER_OUTPUT_MISSING'
 
 export interface CanvasAdminTaskLogQuery {
   taskId?: string
