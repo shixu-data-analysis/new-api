@@ -27,5 +27,8 @@ export const taskErrorCategoryLabels: Record<string, string> = {
   PROVIDER_OUTPUT_DOWNLOAD_FAILED: 'Result download failed',
   PROVIDER_OUTPUT_UNSUPPORTED_MEDIA: 'Result is not usable media',
   PROVIDER_OUTPUT_INVALID: 'Result file invalid',
+  PROVIDER_OUTPUT_MISSING: 'Provider returned fewer results than requested',
+  PROVIDER_OUTPUT_REQUIRES_RECONCILIATION:
+    'Result to be confirmed with the provider',
   OUTPUT_STORAGE_FAILED: 'Result storage failed',
 }

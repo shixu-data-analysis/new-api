@@ -114,6 +114,7 @@ const taskDetail = {
   ...task,
   manualResultTargets: [],
   manualResults: [],
+  outputRetrievalAttempts: [],
   quotedPoints: '20',
   deductedPoints: '12',
   releasedPoints: '8',

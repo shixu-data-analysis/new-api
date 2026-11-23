@@ -2177,6 +2177,20 @@ export interface CanvasAdminTaskProviderCost {
 }
 
 /** An administrator's manual result for one UNKNOWN output with frozen points, applied by the Executor that next claims the task. */
+export interface CanvasAdminOutputRetrievalAttempt {
+  outputIndex: number
+  attemptNumber: number
+  reasonCode: string
+  step: 'DOWNLOAD' | 'VALIDATION' | 'STORAGE'
+  outcome: 'RETRY_SCHEDULED' | 'CONFIRMED_FAILED'
+  details: {
+    httpStatus?: number
+    failure?: 'CONNECTION' | 'TIMEOUT'
+  } & Record<string, unknown>
+  occurredAt: string
+  nextRetryAt: string | null
+}
+
 export interface CanvasAdminTaskManualResult {
   id: string
   outputIndex: number
@@ -2272,6 +2286,9 @@ export interface CanvasAdminTaskRecordDetail {
     detail?: string
   } | null
   outputs: CanvasAdminTaskRecordOutput[]
+  /** Every failed attempt to download, check or store a result after the Provider returned it (at most 5 per result). */
+  outputRetrievalAttempts: CanvasAdminOutputRetrievalAttempt[]
+  upstreamTasks: CanvasAdminTaskUpstreamTask[]
   inputAssets: CanvasAdminTaskInputAsset[]
   upstreamTaskId: string | null
   taskError: {

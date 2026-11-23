@@ -1,0 +1,111 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+*/
+import type {
+  CanvasAdminOutputRetrievalAttempt,
+  CanvasAdminTaskManualResult,
+  CanvasAdminTaskRecordOutput,
+} from './types'
+
+/**
+ * A result that did not simply succeed, as the task details list it under the call it was last submitted in: failed,
+ * still open, entered manually, or retrieved only after failed attempts. A call's judgement covers every result it
+ * returned, so a result the Provider left out, or one that failed while downloading or storing, shows only here.
+ */
+export interface TaskOutputOutcome {
+  outputIndex: number
+  executionStatus: string
+  billingStatus: string
+  /** The error category Cloud recorded on the result, such as PROVIDER_OUTPUT_MISSING; null without one. */
+  errorCode: string | null
+  /** Settled points of a settled result, else the points held or given back for it; null when not known. */
+  points: string | null
+  /**
+   * Priced as part of one whole request: a fixed-count model quotes the request on its first result and 0 on the others.
+   * A task free in full quotes every result 0 and is not one.
+   */
+  wholeRequest: boolean
+  manualResult: boolean
+  retrieval: {
+    step: CanvasAdminOutputRetrievalAttempt['step']
+    failures: number
+    lastAt: string
+    lastDetails: CanvasAdminOutputRetrievalAttempt['details']
+    lastReasonCode: string
+  } | null
+}
+
+export function taskOutputOutcomes(
+  outputs: ReadonlyArray<CanvasAdminTaskRecordOutput>,
+  attempts: ReadonlyArray<CanvasAdminOutputRetrievalAttempt>,
+  manualResults: ReadonlyArray<CanvasAdminTaskManualResult>
+): TaskOutputOutcome[] {
+  const anyQuoted = outputs.some((output) => output.quotedPoints !== '0')
+  return outputs.flatMap((output) => {
+    const failedAttempts = attempts
+      .filter((attempt) => attempt.outputIndex === output.outputIndex)
+      .sort((left, right) => left.attemptNumber - right.attemptNumber)
+    const last = failedAttempts.at(-1)
+    const manualResult = manualResults.some(
+      (manual) =>
+        manual.outputIndex === output.outputIndex && manual.status === 'APPLIED'
+    )
+    if (output.executionStatus === 'SUCCEEDED' && !last && !manualResult) {
+      return []
+    }
+    const settled = output.billingStatus === 'SETTLED'
+    return [
+      {
+        outputIndex: output.outputIndex,
+        executionStatus: output.executionStatus,
+        billingStatus: output.billingStatus,
+        errorCode: output.error?.code ?? null,
+        points: settled ? output.settledPoints : output.quotedPoints,
+        wholeRequest: anyQuoted && output.quotedPoints === '0',
+        manualResult,
+        retrieval: last
+          ? {
+              step: last.step,
+              failures: failedAttempts.length,
+              lastAt: last.occurredAt,
+              lastDetails: last.details,
+              lastReasonCode: last.reasonCode,
+            }
+          : null,
+      },
+    ]
+  })
+}
+
+/**
+ * The call each result was last submitted in, among the calls read: a result submitted again (a retried submission)
+ * belongs to its latest submission only, so an earlier call does not show the outcome its retry produced.
+ */
+export function latestSubmissionByOutput(
+  calls: ReadonlyArray<{
+    localCallId: string
+    callType: string
+    outputIndices: number[]
+    startedAt: string | null
+  }>
+): Map<number, string> {
+  const latest = new Map<number, { callId: string; startedAt: number }>()
+  for (const call of calls) {
+    if (call.callType !== 'SUBMIT') continue
+    const startedAt = call.startedAt ? Date.parse(call.startedAt) : 0
+    for (const index of call.outputIndices) {
+      const current = latest.get(index)
+      if (!current || startedAt >= current.startedAt) {
+        latest.set(index, { callId: call.localCallId, startedAt })
+      }
+    }
+  }
+  return new Map(
+    [...latest].map(([index, { callId }]) => [index, callId] as const)
+  )
+}

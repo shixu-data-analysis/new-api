@@ -78,6 +78,11 @@ const task = {
   failureLocation: 'PROVIDER_RESPONSE',
   inputAssets: [],
   outputs: [],
+  outputRetrievalAttempts: [],
+  upstreamTasks: [] as Array<{
+    upstreamTaskId: string
+    outputIndices: number[]
+  }>,
   upstreamTaskId: null,
   taskError: {
     code: 'PROVIDER_AUTH_FAILED',
@@ -247,6 +252,77 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         expect.any(AbortSignal)
       )
     )
+  })
+
+  it('shows how long the task took and every provider task ID, red where a result failed', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      acceptedAt: '2026-11-05T15:31:31.000Z',
+      completedAt: '2026-11-05T15:33:23.000Z',
+      outputs: [
+        {
+          id: null,
+          quotedPoints: '7',
+          settledPoints: '7',
+          billingStatus: 'SETTLED',
+          error: null,
+          usageSnapshot: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+          outputIndex: 0,
+          executionStatus: 'SUCCEEDED',
+          completedAt: '2026-11-05T15:32:12.000Z',
+        },
+        {
+          id: null,
+          quotedPoints: '7',
+          settledPoints: '7',
+          billingStatus: 'SETTLED',
+          error: null,
+          usageSnapshot: null,
+          billingFinalizedAt: null,
+          customerSafeErrorDetail: null,
+          outputIndex: 1,
+          executionStatus: 'CONFIRMED_FAILED',
+          completedAt: '2026-11-05T15:33:23.000Z',
+        },
+      ],
+      upstreamTasks: [
+        { upstreamTaskId: 'task_7f3c2a11', outputIndices: [0] },
+        { upstreamTaskId: 'task_7f3c2a12', outputIndices: [1] },
+      ],
+    })
+    mount()
+    const elapsed = (await screen.findByText('Elapsed')).closest(
+      'div'
+    ) as HTMLElement
+    expect(elapsed).toHaveTextContent('1 min 52 s')
+    expect(elapsed).toHaveTextContent('Fastest 41 seconds, slowest 1 min 52 s')
+    const ids = screen
+      .getByText('Provider task ID')
+      .closest('div') as HTMLElement
+    expect(
+      within(ids).getByText('task_7f3c2a11').closest('.font-mono')
+    ).not.toHaveClass('text-destructive')
+    expect(
+      within(ids).getByText('task_7f3c2a12').closest('.font-mono')
+    ).toHaveClass('text-destructive')
+    expect(within(ids).getByText('Result 2')).toHaveClass('text-destructive')
+    expect(
+      screen.queryByText(
+        'Each result was submitted separately; see each provider call.'
+      )
+    ).toBeNull()
+  })
+
+  it('falls back to the task provider task ID for a task recorded before its calls were kept', async () => {
+    api.getCanvasAdminTaskRecord.mockResolvedValueOnce({
+      ...task,
+      upstreamTaskId: 'legacy-up',
+      upstreamTasks: [],
+    })
+    mount()
+    expect(await screen.findByText('legacy-up')).toBeVisible()
   })
 
   it('opens the call of an unfinished result by default and can collapse it', async () => {

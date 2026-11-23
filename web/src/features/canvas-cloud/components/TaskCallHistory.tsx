@@ -17,8 +17,13 @@ import {
 import { formatErrorRuleMatch } from '../error-rule-format'
 import { newApiCodeTableMatch, newApiRecognitionKeys } from '../new-api-errors'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
+import {
+  latestSubmissionByOutput,
+  type TaskOutputOutcome,
+} from '../task-output-outcomes'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CallResults } from './CallResults'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CodeBlock } from './CodeBlock'
@@ -76,8 +81,8 @@ const overviewHints: Record<string, string> = {
     'The Canvas error category given by the matched mapping; it selects the default customer message.',
   'Matched mapping':
     'The error mapping this call matched, with its rule ID and version.',
-  'Execution judgement':
-    'Whether this call made the result confirmed failed or pending confirmation, and whether a mapping or the system decided it.',
+  'Provider response judgement':
+    "How this call's provider response was judged, confirmed failed or pending confirmation, and whether a mapping or the system decided it. Downloading and storing the results come after it; see Results.",
   'Administrator rationale':
     'The rationale entered with the mapping; visible only to administrators and audit records.',
 }
@@ -253,11 +258,14 @@ function orderedInputMedia(
 export function CallDetails({
   call,
   inputAssets,
+  outcomes = [],
   openingInput,
   onOpenInput,
 }: {
   call: CanvasTaskCall
   inputAssets: CanvasAdminTaskInputAsset[]
+  /** The results this call was last submitted for that did not simply succeed. */
+  outcomes?: ReadonlyArray<TaskOutputOutcome>
   openingInput: string | null
   onOpenInput: (asset: CanvasAdminTaskInputAsset) => void
 }) {
@@ -337,18 +345,33 @@ export function CallDetails({
     [
       'Canvas error code',
       <div key='canvas-error-code'>
-        <div>{present(call.canvasErrorCode)}</div>
+        <div className={call.canvasErrorCode ? 'text-destructive' : undefined}>
+          {present(call.canvasErrorCode)}
+        </div>
         {schemaNote ? (
           <p className='text-muted-foreground mt-1 text-xs'>{schemaNote}</p>
         ) : null}
       </div>,
     ],
-    ['Upstream error code', present(call.upstreamErrorCode)],
+    [
+      'Upstream error code',
+      call.upstreamErrorCode ? (
+        <span key='upstream-error-code' className='text-destructive'>
+          {call.upstreamErrorCode}
+        </span>
+      ) : (
+        '—'
+      ),
+    ],
     [
       'Error category',
-      call.errorCategory
-        ? t(errorCategories[call.errorCategory] ?? 'Unknown error category')
-        : '—',
+      call.errorCategory ? (
+        <span key='error-category' className='text-destructive'>
+          {t(errorCategories[call.errorCategory] ?? 'Unknown error category')}
+        </span>
+      ) : (
+        '—'
+      ),
     ],
     [
       'Matched mapping',
@@ -371,7 +394,19 @@ export function CallDetails({
           ['Recognition', t(newApiRecognitionKeys[call.gatewayError.kind])],
         ] as Array<[string, ReactNode, boolean?]>)
       : []),
-    ['Execution judgement', executionJudgementText(call.executionJudgement, t)],
+    [
+      'Provider response judgement',
+      <span
+        key='judgement'
+        className={
+          call.executionJudgement?.status === 'CONFIRMED_FAILED'
+            ? 'text-destructive'
+            : undefined
+        }
+      >
+        {executionJudgementText(call.executionJudgement, t)}
+      </span>,
+    ],
     ...(call.unrecognizedStatus
       ? ([
           [
@@ -530,6 +565,7 @@ export function CallDetails({
               </ul>
             </section>
           ) : null}
+          <CallResults outcomes={outcomes} />
         </TabsContent>
         <TabsContent value='response' className='mt-4'>
           {call.sanitizedResponse !== null ? (
@@ -568,12 +604,15 @@ export function TaskCallHistory({
   taskId,
   inputAssets = [],
   outputs = [],
+  outcomes = [],
   taskSucceeded = false,
   renderCallCost,
 }: {
   taskId: string
   inputAssets?: CanvasAdminTaskInputAsset[]
   outputs?: Array<{ outputIndex: number; executionStatus: string }>
+  /** The task's results that did not simply succeed; each shows under the call it was last submitted in. */
+  outcomes?: ReadonlyArray<TaskOutputOutcome>
   taskSucceeded?: boolean
   /** Provider cost line of a submit call (its completeness and settlement), shown under the call. */
   renderCallCost?: (call: CanvasTaskCall) => ReactNode
@@ -630,6 +669,20 @@ export function TaskCallHistory({
     retry: false,
   })
   const items = query.data?.items ?? []
+  const latestSubmission = latestSubmissionByOutput(items)
+  const outcomesOf = (call: CanvasTaskCall) =>
+    outcomes.filter(
+      (outcome) =>
+        latestSubmission.get(outcome.outputIndex) === call.localCallId
+    )
+  // A failed result is marked on the call it was last submitted in, so a collapsed row still shows it.
+  const failedHere = (call: CanvasTaskCall, index: number) =>
+    latestSubmission.get(index) === call.localCallId &&
+    outputs.some(
+      (output) =>
+        output.outputIndex === index &&
+        output.executionStatus === 'CONFIRMED_FAILED'
+    )
   const anyUnsettled = items.some(
     (item) => !callIsSettled(item, outputs, taskSucceeded)
   )
@@ -668,12 +721,20 @@ export function TaskCallHistory({
       header: t('Related object'),
       cell: ({ row }) =>
         row.original.outputIndices.length
-          ? row.original.outputIndices
-              .map(
-                (index) =>
-                  `${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`
-              )
-              .join(' · ')
+          ? row.original.outputIndices.map((index, position) => (
+              <Fragment key={index}>
+                {position ? ' · ' : ''}
+                <span
+                  className={
+                    failedHere(row.original, index)
+                      ? 'text-destructive'
+                      : undefined
+                  }
+                >
+                  {`${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`}
+                </span>
+              </Fragment>
+            ))
           : '—',
     },
     {
@@ -756,6 +817,7 @@ export function TaskCallHistory({
                 <CallDetails
                   call={row.original}
                   inputAssets={inputAssets}
+                  outcomes={outcomesOf(row.original)}
                   openingInput={openingInput}
                   onOpenInput={(asset) => void openInput(asset)}
                 />
@@ -786,6 +848,7 @@ export function TaskCallHistory({
             <CallDetails
               call={row.original}
               inputAssets={inputAssets}
+              outcomes={outcomesOf(row.original)}
               openingInput={openingInput}
               onOpenInput={(asset) => void openInput(asset)}
             />

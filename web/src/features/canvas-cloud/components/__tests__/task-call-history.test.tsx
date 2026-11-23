@@ -22,6 +22,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import en from '@/i18n/locales/en.json'
 
 import type { CanvasTaskCall } from '../../task-call-api'
+import type { TaskOutputOutcome } from '../../task-output-outcomes'
 import { CallDetails, TaskCallHistory } from '../TaskCallHistory'
 
 const mocks = vi.hoisted(() => ({ getCanvasTaskCalls: vi.fn() }))
@@ -77,24 +78,28 @@ beforeEach(() => {
   })
 })
 
-function mount() {
+function mount(props: Partial<Parameters<typeof TaskCallHistory>[0]> = {}) {
   return render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <TaskCallHistory taskId='task-1' />
+      <TaskCallHistory taskId='task-1' {...props} />
     </QueryClientProvider>
   )
 }
 
-function mountDetails(details: typeof call) {
+function mountDetails(
+  details: typeof call,
+  outcomes: TaskOutputOutcome[] = []
+) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <CallDetails
         call={details}
         inputAssets={[]}
+        outcomes={outcomes}
         openingInput={null}
         onOpenInput={() => undefined}
       />
@@ -422,5 +427,120 @@ describe('TaskCallHistory', () => {
     ).not.toBeInTheDocument()
     expect(screen.queryByText('raw-provider-body')).not.toBeInTheDocument()
     expect(screen.queryByText('secret-value')).not.toBeInTheDocument()
+  })
+
+  it('lists the results this call left unfinished or failed, with their reason, points and failed downloads', () => {
+    const outcome = (
+      overrides: Partial<TaskOutputOutcome>
+    ): TaskOutputOutcome => ({
+      outputIndex: 0,
+      executionStatus: 'SUCCEEDED',
+      billingStatus: 'SETTLED',
+      errorCode: null,
+      points: '9',
+      wholeRequest: false,
+      manualResult: false,
+      retrieval: null,
+      ...overrides,
+    })
+    mountDetails(call, [
+      outcome({
+        outputIndex: 0,
+        executionStatus: 'CONFIRMED_FAILED',
+        billingStatus: 'RELEASED_FAILED',
+        errorCode: 'PROVIDER_OUTPUT_MISSING',
+      }),
+      outcome({
+        outputIndex: 1,
+        retrieval: {
+          step: 'DOWNLOAD',
+          failures: 1,
+          lastAt: '2026-11-05T15:34:31.000Z',
+          lastDetails: { failure: 'TIMEOUT' },
+          lastReasonCode: 'PROVIDER_OUTPUT_DOWNLOAD_FAILED',
+        },
+      }),
+      outcome({ outputIndex: 2, manualResult: true }),
+      outcome({
+        outputIndex: 3,
+        executionStatus: 'CONFIRMED_FAILED',
+        billingStatus: 'RELEASED_FAILED',
+        errorCode: 'PROVIDER_OUTPUT_MISSING',
+        wholeRequest: true,
+      }),
+    ])
+    const section = screen
+      .getByRole('heading', { name: 'Results' })
+      .closest('section') as HTMLElement
+    const rows = within(section).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent(
+      'Result 1Confirmed failed · Provider returned fewer results than requested · Released after failure 9 points'
+    )
+    expect(
+      within(rows[0] as HTMLElement).getByText('Confirmed failed')
+    ).toHaveClass('text-destructive')
+    expect(rows[1]).toHaveTextContent('Succeeded · Settled 9 points')
+    expect(rows[1]).toHaveTextContent(
+      /Result download failed 1 times, last at .+: Connection timed out; then succeeded/
+    )
+    expect(rows[2]).toHaveTextContent('Succeeded · Applied · Settled 9 points')
+    expect(rows[3]).toHaveTextContent(
+      'Billed per whole request, no points of its own'
+    )
+  })
+
+  it('names the judgement as the provider response one and marks failures red', () => {
+    mountDetails({
+      ...call,
+      upstreamErrorCode: 'InvalidParameter',
+      errorCategory: 'PROVIDER_INTERNAL_ERROR',
+      executionJudgement: { source: 'SYSTEM', status: 'CONFIRMED_FAILED' },
+    } as typeof call)
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    expect(screen.queryByText('Execution judgement')).toBeNull()
+    const judgement = screen
+      .getByText('Provider response judgement')
+      .closest('div') as HTMLElement
+    expect(within(judgement).getByText(/Confirmed failed/)).toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('InvalidParameter')).toHaveClass('text-destructive')
+    expect(screen.queryByRole('heading', { name: 'Results' })).toBeNull()
+  })
+
+  it('marks a failed result red only on the call it was last submitted in', async () => {
+    mocks.getCanvasTaskCalls.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [
+        {
+          ...call,
+          localCallId: 'first',
+          outputIndices: [0, 1],
+          startedAt: '2026-09-06T00:00:00Z',
+        },
+        {
+          ...call,
+          localCallId: 'retry',
+          outputIndices: [1],
+          startedAt: '2026-09-06T00:01:00Z',
+        },
+      ],
+    })
+    mount({
+      outputs: [
+        { outputIndex: 0, executionStatus: 'SUCCEEDED' },
+        { outputIndex: 1, executionStatus: 'CONFIRMED_FAILED' },
+      ],
+    })
+    await screen.findAllByText(/^Submit task/)
+    const rows = screen.getAllByRole('row')
+    const related = rows
+      .map((row) => within(row).queryAllByText(/^Result \d$/))
+      .filter((cells) => cells.length)
+    // First call: results 1 and 2, neither red there; retry: result 2, red.
+    expect(related[0]?.map((cell) => cell.className)).toEqual(['', ''])
+    expect(related[1]?.[0]).toHaveClass('text-destructive')
   })
 })
