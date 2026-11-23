@@ -87,7 +87,7 @@ export function ModelAvailabilityModelTable(props: {
           <col className={canvasStaticColumnWidth.wide} />
           <col className={canvasStaticColumnWidth.wide} />
           <col className={canvasStaticColumnWidth.standard} />
-          <col className={canvasStaticColumnWidth.compact} />
+          <col className={canvasStaticColumnWidth.wide} />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -141,7 +141,9 @@ export function ModelAvailabilityModelTable(props: {
                   <CanvasRowAction
                     tone={enabled ? 'danger' : 'primary'}
                     aria-label={t(
-                      enabled ? 'Disable {{model}}' : 'Restore {{model}}',
+                      enabled
+                        ? 'Disable model: {{model}}'
+                        : 'Restore model: {{model}}',
                       { model: model.displayName }
                     )}
                     onClick={() =>

@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 
 import { diffCatalogJson } from '../catalog-json-diff'
 import type { ModelCatalogDecision } from '../generated/model-catalog-import'
+import { CanvasRowAction } from './CanvasRowAction'
 import { useCatalogDecision } from './catalog-decision-context'
 import { CatalogJsonDiff } from './CatalogJsonDiff'
 
@@ -48,14 +49,13 @@ export function CatalogDecisionCell(props: {
         <Label htmlFor={id} className='font-normal'>
           {t('Overwrite with the Bundle')}
         </Label>
-        <button
+        <CanvasRowAction
           type='button'
-          className='text-primary text-sm hover:underline'
           aria-expanded={open}
           onClick={() => setOpen((current) => !current)}
         >
           {open ? t('Collapse') : t('View details')}
-        </button>
+        </CanvasRowAction>
       </div>
       {decision.overridden && decision.impact.length > 0 ? (
         <p

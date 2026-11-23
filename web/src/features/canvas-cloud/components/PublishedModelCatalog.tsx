@@ -677,6 +677,9 @@ export function PublishedModelCatalog(props: {
           <div className='flex flex-wrap items-center gap-2'>
             <CanvasRowAction
               tone='primary'
+              aria-label={t('Restore model: {{model}}', {
+                model: row.original.effectiveDisplayName,
+              })}
               onClick={() => setRestoring(row.original)}
             >
               {t('Restore model')}
@@ -700,7 +703,7 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='flex w-60 flex-wrap items-center gap-2'>
+            <div className='flex min-w-60 flex-wrap items-center gap-2'>
               <CanvasRowAction
                 tone='primary'
                 disabled={presentationBusy}

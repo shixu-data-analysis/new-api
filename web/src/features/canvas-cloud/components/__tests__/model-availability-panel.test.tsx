@@ -320,17 +320,17 @@ describe('ModelAvailabilityPanel', () => {
     expect(disabledRows[2]).toHaveTextContent('Missing from the provider')
     expect(
       within(missingTable as HTMLElement).getByRole('button', {
-        name: 'Disable Name a',
+        name: 'Disable model: Name a',
       })
     ).toHaveAttribute('data-row-action', 'danger')
     expect(
       within(disabledTable as HTMLElement).getAllByRole('button', {
-        name: /^Restore Name /,
+        name: /^Restore model: Name /,
       })
     ).toHaveLength(2)
     for (const restore of within(disabledTable as HTMLElement).getAllByRole(
       'button',
-      { name: /^Restore Name / }
+      { name: /^Restore model: Name / }
     )) {
       expect(restore).toHaveAttribute('data-row-action', 'primary')
     }
@@ -349,7 +349,7 @@ describe('ModelAvailabilityPanel', () => {
       await screen.findByText('No confirmed model absences')
     ).toBeInTheDocument()
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Restore Name c' })
+      await screen.findByRole('button', { name: 'Restore model: Name c' })
     )
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByRole('combobox'), {
