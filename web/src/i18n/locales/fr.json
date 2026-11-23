@@ -6785,7 +6785,6 @@
     "2. Enter correction": "2. Saisir la correction",
     "3. Review and confirm": "3. Vérifier et confirmer",
     "Selected order": "Commande sélectionnée",
-    "Selected": "Sélectionnée",
     "Choose another order": "Choisir une autre commande",
     "Correct Paid points for this order": "Corriger les points payés de cette commande",
     "Task-reserved points": "Points réservés aux tâches",
@@ -11261,6 +11260,7 @@
     "Disable reason": "Raison de la désactivation",
     "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Modèles absents {{missing}} · Désactivés {{disabled}} · Vérifications échouées {{failed}} · En pause {{paused}} · Nouveaux modèles {{listed}}",
     "Disable model: {{model}}": "Désactiver le modèle : {{model}}",
-    "Restore model: {{model}}": "Restaurer le modèle : {{model}}"
+    "Restore model: {{model}}": "Restaurer le modèle : {{model}}",
+    "Delete the model: {{model}}": "Supprimer le modèle : {{model}}"
   }
 }

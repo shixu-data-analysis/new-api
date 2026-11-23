@@ -6785,7 +6785,6 @@
     "2. Enter correction": "2. 補正内容を入力",
     "3. Review and confirm": "3. 確認して実行",
     "Selected order": "選択した注文",
-    "Selected": "選択済み",
     "Choose another order": "別の注文を選択",
     "Correct Paid points for this order": "この注文の有償ポイントを補正",
     "Task-reserved points": "タスク予約ポイント",
@@ -11261,6 +11260,7 @@
     "Disable reason": "停止理由",
     "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "欠落モデル {{missing}} · 停止中 {{disabled}} · 検査失敗 {{failed}} · 一時停止 {{paused}} · 新規掲載 {{listed}}",
     "Disable model: {{model}}": "モデルを無効化：{{model}}",
-    "Restore model: {{model}}": "モデルを復元：{{model}}"
+    "Restore model: {{model}}": "モデルを復元：{{model}}",
+    "Delete the model: {{model}}": "モデルを削除：{{model}}"
   }
 }

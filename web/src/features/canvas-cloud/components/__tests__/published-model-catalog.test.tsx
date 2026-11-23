@@ -352,12 +352,12 @@ describe('Published model catalog', () => {
       const [enabled] = screen.getAllByRole('table')
       expect(
         within(enabled as HTMLElement).queryByRole('button', {
-          name: 'Delete the model',
+          name: /^Delete the model/,
         })
       ).toBeNull()
       await user.click(
         within(disabledTable()).getByRole('button', {
-          name: 'Delete the model',
+          name: 'Delete the model: Stopped model',
         })
       )
       expect(await screen.findByRole('dialog')).toHaveTextContent(
@@ -386,7 +386,7 @@ describe('Published model catalog', () => {
       ).toHaveAttribute('data-row-action', 'primary')
       expect(
         within(disabledTable()).getByRole('button', {
-          name: 'Delete the model',
+          name: 'Delete the model: Stopped model',
         })
       ).toHaveAttribute('data-row-action', 'danger')
       await user.click(

@@ -686,6 +686,9 @@ export function PublishedModelCatalog(props: {
             </CanvasRowAction>
             <CanvasRowAction
               tone='danger'
+              aria-label={t('Delete the model: {{model}}', {
+                model: row.original.effectiveDisplayName,
+              })}
               onClick={() => setRetiring(row.original)}
             >
               {t('Delete the model')}

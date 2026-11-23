@@ -81,12 +81,13 @@ export function ModelAvailabilityModelTable(props: {
   return (
     <div className='overflow-x-auto rounded-lg border'>
       <Table className='table-fixed'>
-        {/* The table guide's width tiers, the same in both tables, so their columns line up. */}
+        {/* The table guide's tiers, the same in both tables so their columns line up: the model state carries the reason
+            (detail); the action column is wide, not compact, so the longest translations of its labels fit. */}
         <colgroup>
+          <col className={canvasStaticColumnWidth.wide} />
+          <col className={canvasStaticColumnWidth.wide} />
+          <col className={canvasStaticColumnWidth.wide} />
           <col className={canvasStaticColumnWidth.detail} />
-          <col className={canvasStaticColumnWidth.wide} />
-          <col className={canvasStaticColumnWidth.wide} />
-          <col className={canvasStaticColumnWidth.standard} />
           <col className={canvasStaticColumnWidth.wide} />
         </colgroup>
         <TableHeader>

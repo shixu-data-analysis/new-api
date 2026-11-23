@@ -352,8 +352,6 @@ export function CustomerTasks() {
                         key={asset.assetId}
                         type='button'
                         disabled={downloadingAsset !== null}
-                        aria-label={label}
-                        title={label}
                         onClick={() =>
                           void downloadResult(row.original.id, asset)
                         }

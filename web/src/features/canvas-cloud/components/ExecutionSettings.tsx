@@ -1922,7 +1922,7 @@ function LimitSection(props: {
                   .getValues('rules')
                   .findIndex((item) => item.id === rule.id)
                 return (
-                  <div className='flex gap-2'>
+                  <div className='flex flex-wrap items-center gap-2'>
                     <CanvasRowAction
                       tone='primary'
                       type='button'
@@ -3048,7 +3048,7 @@ function ErrorSection(props: {
             {hasCustomMessage ? ` · ${t('Custom message')}` : ''}
           </span>
         </div>
-        <div className='flex justify-end gap-2'>
+        <div className='flex flex-wrap justify-end gap-2'>
           <CanvasRowAction
             tone='primary'
             type='button'

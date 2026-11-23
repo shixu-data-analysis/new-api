@@ -256,7 +256,7 @@ export function AdminAnnouncements(props: {
         enableSorting: false,
         header: () => t('Actions'),
         cell: ({ row }) => (
-          <div className='flex gap-2 whitespace-nowrap'>
+          <div className='flex flex-wrap items-center gap-2'>
             <CanvasRowAction
               tone='primary'
               onClick={() =>

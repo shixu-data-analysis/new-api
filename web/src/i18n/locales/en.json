@@ -6785,7 +6785,6 @@
     "2. Enter correction": "2. Enter correction",
     "3. Review and confirm": "3. Review and confirm",
     "Selected order": "Selected order",
-    "Selected": "Selected",
     "Choose another order": "Choose another order",
     "Correct Paid points for this order": "Correct Paid points for this order",
     "Task-reserved points": "Task-reserved points",
@@ -11261,6 +11260,7 @@
     "Disable reason": "Disable reason",
     "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}",
     "Disable model: {{model}}": "Disable model: {{model}}",
-    "Restore model: {{model}}": "Restore model: {{model}}"
+    "Restore model: {{model}}": "Restore model: {{model}}",
+    "Delete the model: {{model}}": "Delete the model: {{model}}"
   }
 }

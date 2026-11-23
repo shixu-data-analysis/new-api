@@ -955,7 +955,7 @@ export function InviteCodeManagement(props: {
           return <span aria-label={t('No actions')}>—</span>
         }
         return (
-          <div className='flex min-w-max items-center justify-end gap-2'>
+          <div className='flex flex-wrap items-center justify-end gap-2'>
             {actions.map(({ action, label }) => (
               <CanvasRowAction
                 key={action}
