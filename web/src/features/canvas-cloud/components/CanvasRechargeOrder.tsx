@@ -209,6 +209,7 @@ export function useCanvasRechargeOrderColumns({
               type='button'
               disabled={!selectable}
               tone={selectedOrderId === row.original.id ? 'primary' : 'normal'}
+              aria-pressed={selectedOrderId === row.original.id}
               onClick={() => onSelect(row.original)}
             >
               {label}

@@ -35,7 +35,7 @@ const variantOf = {
 
 // Tinted like a dangerous action, so the main action stands out without a column of solid blocks down the page.
 const primaryClass =
-  'bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary dark:bg-primary/20 dark:hover:bg-primary/30'
+  'bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary aria-expanded:bg-primary/20 aria-expanded:text-primary dark:bg-primary/20 dark:hover:bg-primary/30'
 
 /** A text action in a table row: every Canvas Cloud table uses this one size and these three tones. */
 export function CanvasRowAction({

@@ -7,7 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +31,7 @@ import {
   modelDisableReasons,
   modelEnableReasons,
   modelMonitoringReasonLabels,
+  refreshModelControlViews,
 } from '../model-monitoring-control'
 
 type ReasonForm = { reasonCode: string; note: string }
@@ -41,9 +42,10 @@ export function LogicalModelControlDialog(props: {
   manualEnabled: boolean
   controlVersion: number
   onClose: () => void
-  onChanged: () => void
+  onChanged?: () => void
 }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const enabled = !props.manualEnabled
   const form = useForm<ReasonForm>({
     resolver: zodResolver(modelControlFormSchema(enabled)),
@@ -60,7 +62,8 @@ export function LogicalModelControlDialog(props: {
         confirmed: true,
       }),
     onSuccess: () => {
-      props.onChanged()
+      refreshModelControlViews(queryClient)
+      props.onChanged?.()
       props.onClose()
     },
   })

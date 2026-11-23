@@ -81,7 +81,7 @@ import {
 import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
 import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
-import { modelMonitoringReasonLabels } from '../model-monitoring-control'
+import { modelControlReasonLabel } from '../model-monitoring-control'
 import type { CanvasAdminTestingModel } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
@@ -663,7 +663,7 @@ export function PublishedModelCatalog(props: {
         meta: { label: t('Disable reason') },
         cell: ({ row }) => {
           const reason = row.original.modelControl.disabledReason
-          return reason ? t(modelMonitoringReasonLabels[reason] ?? reason) : '—'
+          return reason ? t(modelControlReasonLabel(reason)) : '—'
         },
       },
       {
@@ -692,7 +692,7 @@ export function PublishedModelCatalog(props: {
       },
       {
         id: 'actions',
-        size: 208,
+        size: 256,
         header: t('Model actions'),
         meta: { label: t('Model actions') },
         enableSorting: false,
@@ -700,79 +700,76 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='grid gap-2'>
-              <div className='grid w-max gap-2'>
-                <CanvasRowAction
-                  tone='primary'
-                  disabled={presentationBusy}
-                  data-model-navigation-id={`${model.id}:pricing`}
-                  onClick={(event) => {
-                    const returnContext = navigation?.captureReturnContext(
-                      `${model.id}:pricing`
-                    )
-                    event.currentTarget.focus()
-                    onManagePricing(model.id, returnContext)
-                  }}
+            <div className='flex flex-wrap items-center gap-2'>
+              <CanvasRowAction
+                tone='primary'
+                disabled={presentationBusy}
+                data-model-navigation-id={`${model.id}:pricing`}
+                onClick={(event) => {
+                  const returnContext = navigation?.captureReturnContext(
+                    `${model.id}:pricing`
+                  )
+                  event.currentTarget.focus()
+                  onManagePricing(model.id, returnContext)
+                }}
+              >
+                {t('Manage prices')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy || !props.onManageBindings}
+                data-model-navigation-id={`${model.id}:bindings`}
+                onClick={() => {
+                  props.onManageBindings?.(
+                    {
+                      providerId: model.provider.id,
+                      ...(model.binding.credentialGroupId
+                        ? {
+                            credentialGroupId: model.binding.credentialGroupId,
+                          }
+                        : {}),
+                    },
+                    navigation?.captureReturnContext(`${model.id}:bindings`)
+                  )
+                }}
+              >
+                {t('Manage API Key bindings')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy}
+                onClick={() => props.onEditPresentation(model.modelKey)}
+              >
+                {t('Edit display information')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy}
+                onClick={() =>
+                  setEditor({ kind: 'edit', modelKey: model.modelKey })
+                }
+              >
+                {t('Edit model configuration')}
+              </CanvasRowAction>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<CanvasRowAction disabled={presentationBusy} />}
                 >
-                  {t('Manage prices')}
-                </CanvasRowAction>
-                <CanvasRowAction
-                  disabled={presentationBusy || !props.onManageBindings}
-                  data-model-navigation-id={`${model.id}:bindings`}
-                  onClick={() => {
-                    props.onManageBindings?.(
-                      {
-                        providerId: model.provider.id,
-                        ...(model.binding.credentialGroupId
-                          ? {
-                              credentialGroupId:
-                                model.binding.credentialGroupId,
-                            }
-                          : {}),
-                      },
-                      navigation?.captureReturnContext(`${model.id}:bindings`)
-                    )
-                  }}
-                >
-                  {t('Manage API Key bindings')}
-                </CanvasRowAction>
-                <CanvasRowAction
-                  disabled={presentationBusy}
-                  onClick={() => props.onEditPresentation(model.modelKey)}
-                >
-                  {t('Edit display information')}
-                </CanvasRowAction>
-                <CanvasRowAction
-                  disabled={presentationBusy}
-                  onClick={() =>
-                    setEditor({ kind: 'edit', modelKey: model.modelKey })
-                  }
-                >
-                  {t('Edit model configuration')}
-                </CanvasRowAction>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={<CanvasRowAction disabled={presentationBusy} />}
+                  {t('More')}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setEditor({ kind: 'copy', modelKey: model.modelKey })
+                    }
                   >
-                    {t('More')}
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setEditor({ kind: 'copy', modelKey: model.modelKey })
-                      }
-                    >
-                      {t('Copy as a new model')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant='destructive'
-                      onClick={() => setRetiring(model)}
-                    >
-                      {t('Delete the model')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                    {t('Copy as a new model')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant='destructive'
+                    onClick={() => setRetiring(model)}
+                  >
+                    {t('Delete the model')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )
         },
@@ -993,11 +990,6 @@ export function PublishedModelCatalog(props: {
           manualEnabled={false}
           controlVersion={restoring.modelControl.version}
           onClose={() => setRestoring(null)}
-          onChanged={() =>
-            void queryClient.invalidateQueries({
-              queryKey: ['canvas-cloud', 'admin-testing-models'],
-            })
-          }
         />
       ) : null}
       <CardContent className='min-w-0'>

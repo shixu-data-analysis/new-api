@@ -420,6 +420,7 @@ export function CustomerPointHistory({
             <CanvasRowAction
               type='button'
               tone={selectedLotId === row.original.id ? 'primary' : 'normal'}
+              aria-pressed={selectedLotId === row.original.id}
               onClick={() => onDeductLot(row.original)}
             >
               {t('Deduct points')}

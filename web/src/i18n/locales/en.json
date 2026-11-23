@@ -11259,6 +11259,8 @@
     "Model disabled": "Disabled",
     "Reason: {{reason}}": "Reason: {{reason}}",
     "Disable reason": "Disable reason",
-    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}"
+    "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}": "Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}",
+    "Disable {{model}}": "Disable {{model}}",
+    "Restore {{model}}": "Restore {{model}}"
   }
 }

@@ -6,7 +6,28 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type { QueryClient } from '@tanstack/react-query'
 import * as z from 'zod'
+
+import {
+  modelAvailabilityBadgeQueryKey,
+  modelAvailabilityQueryKey,
+} from './model-availability-api'
+
+/**
+ * A model key's control shows on the model list, the availability page and its badge, and model monitoring:
+ * a change made on one of them refreshes all of them, so none offers an action on a stale version.
+ */
+export function refreshModelControlViews(queryClient: QueryClient) {
+  for (const queryKey of [
+    ['canvas-cloud', 'admin-testing-models'],
+    modelAvailabilityQueryKey,
+    modelAvailabilityBadgeQueryKey,
+    ['canvas-cloud', 'model-monitoring-overview'],
+  ]) {
+    void queryClient.invalidateQueries({ queryKey })
+  }
+}
 
 export const modelDisableReasons = [
   'AUTHENTICATION',
@@ -46,6 +67,11 @@ export const modelMonitoringReasonLabels: Record<string, string> = {
   MAINTENANCE_COMPLETED: 'Maintenance completed',
   REQUEST: 'Parameter or content rejection',
   UNCLASSIFIED: 'Unclassified failure',
+}
+
+/** The label key of a control reason; an unknown code shows as itself, so a reason is never left out. */
+export function modelControlReasonLabel(reason: string): string {
+  return modelMonitoringReasonLabels[reason] ?? reason
 }
 
 export function modelControlFormSchema(enabled: boolean) {

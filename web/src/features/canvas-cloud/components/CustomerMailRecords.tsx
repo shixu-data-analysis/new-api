@@ -480,24 +480,21 @@ function AutomaticMailActions<Settings extends { enabled: boolean }>(props: {
   const { SettingsDialog } = mail
   const name = t(mail.name)
   return (
-    <div className='flex flex-wrap items-center gap-3'>
-      <Button
-        variant='link'
-        className='h-auto p-0'
+    <div className='flex flex-wrap items-center gap-2'>
+      <CanvasRowAction
+        tone='primary'
         disabled={!settings}
         aria-label={t('{{name}} settings', { name })}
         onClick={() => setSettingsOpen(true)}
       >
         {t('Settings')}
-      </Button>
-      <Button
-        variant='link'
-        className='h-auto p-0'
+      </CanvasRowAction>
+      <CanvasRowAction
         aria-label={t('Preview {{name}}', { name })}
         onClick={() => setPreviewOpen(true)}
       >
         {t('Preview')}
-      </Button>
+      </CanvasRowAction>
       {settingsOpen && settings ? (
         <SettingsDialog
           settings={settings}

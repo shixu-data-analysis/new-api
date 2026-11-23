@@ -705,12 +705,7 @@ export function ModelMonitoringOverview(props: {
           manualEnabled={control.manualEnabled}
           controlVersion={control.controlVersion}
           onClose={() => setControl(null)}
-          onChanged={() => {
-            toast.success(t('Model state updated'))
-            void queryClient.invalidateQueries({
-              queryKey: ['canvas-cloud', 'model-monitoring-overview'],
-            })
-          }}
+          onChanged={() => toast.success(t('Model state updated'))}
         />
       ) : null}
     </div>

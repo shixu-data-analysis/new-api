@@ -431,7 +431,6 @@ export function ModelAvailabilityPanel() {
         <ModelAvailabilityBulkDisableDialog
           models={pending}
           onClose={() => setBulkOpen(false)}
-          onChanged={refresh}
         />
       ) : null}
       {control ? (
@@ -441,7 +440,6 @@ export function ModelAvailabilityPanel() {
           manualEnabled={control.enabled}
           controlVersion={control.controlVersion}
           onClose={() => setControl(null)}
-          onChanged={refresh}
         />
       ) : null}
     </div>

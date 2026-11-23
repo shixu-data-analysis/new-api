@@ -33,7 +33,8 @@ import type {
   AvailabilityControl,
   AvailabilityModelRow,
 } from '../model-availability-rows'
-import { modelMonitoringReasonLabels } from '../model-monitoring-control'
+import { modelControlReasonLabel } from '../model-monitoring-control'
+import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasRowAction } from './CanvasRowAction'
 
 const upstreamLabels: Record<Exclude<UpstreamStatus, null>, string> = {
@@ -79,13 +80,14 @@ export function ModelAvailabilityModelTable(props: {
   const { t } = useTranslation()
   return (
     <div className='overflow-x-auto rounded-lg border'>
-      <Table className='min-w-[840px] table-fixed'>
+      <Table className='table-fixed'>
+        {/* The table guide's width tiers, the same in both tables, so their columns line up. */}
         <colgroup>
-          <col className='w-[28%]' />
-          <col className='w-[20%]' />
-          <col className='w-[20%]' />
-          <col className='w-[16%]' />
-          <col />
+          <col className={canvasStaticColumnWidth.detail} />
+          <col className={canvasStaticColumnWidth.wide} />
+          <col className={canvasStaticColumnWidth.wide} />
+          <col className={canvasStaticColumnWidth.standard} />
+          <col className={canvasStaticColumnWidth.compact} />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -102,7 +104,7 @@ export function ModelAvailabilityModelTable(props: {
             const enabled = row.kind === 'missing'
             const reason =
               row.kind === 'disabled' && row.model.disabledReason
-                ? modelMonitoringReasonLabels[row.model.disabledReason]
+                ? modelControlReasonLabel(row.model.disabledReason)
                 : undefined
             return (
               <TableRow key={model.modelKey}>
@@ -138,6 +140,10 @@ export function ModelAvailabilityModelTable(props: {
                 <TableCell className='text-center'>
                   <CanvasRowAction
                     tone={enabled ? 'danger' : 'primary'}
+                    aria-label={t(
+                      enabled ? 'Disable {{model}}' : 'Restore {{model}}',
+                      { model: model.displayName }
+                    )}
                     onClick={() =>
                       props.onControl({
                         modelKey: model.modelKey,

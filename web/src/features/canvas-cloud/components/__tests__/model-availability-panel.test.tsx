@@ -320,17 +320,17 @@ describe('ModelAvailabilityPanel', () => {
     expect(disabledRows[2]).toHaveTextContent('Missing from the provider')
     expect(
       within(missingTable as HTMLElement).getByRole('button', {
-        name: 'Disable model',
+        name: 'Disable Name a',
       })
     ).toHaveAttribute('data-row-action', 'danger')
     expect(
       within(disabledTable as HTMLElement).getAllByRole('button', {
-        name: 'Restore model',
+        name: /^Restore Name /,
       })
     ).toHaveLength(2)
     for (const restore of within(disabledTable as HTMLElement).getAllByRole(
       'button',
-      { name: 'Restore model' }
+      { name: /^Restore Name / }
     )) {
       expect(restore).toHaveAttribute('data-row-action', 'primary')
     }
@@ -349,7 +349,7 @@ describe('ModelAvailabilityPanel', () => {
       await screen.findByText('No confirmed model absences')
     ).toBeInTheDocument()
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Restore model' })
+      await screen.findByRole('button', { name: 'Restore Name c' })
     )
     const dialog = await screen.findByRole('dialog')
     fireEvent.change(within(dialog).getByRole('combobox'), {
@@ -496,12 +496,8 @@ describe('the cost notice before a round', () => {
 
 describe('ModelAvailabilityBulkDisableDialog', () => {
   const open = (models: ReturnType<typeof missing>[]) =>
-    render(
-      <ModelAvailabilityBulkDisableDialog
-        models={models}
-        onClose={vi.fn()}
-        onChanged={vi.fn()}
-      />
+    renderWithQuery(
+      <ModelAvailabilityBulkDisableDialog models={models} onClose={vi.fn()} />
     )
   const chooseReason = () =>
     fireEvent.change(screen.getByLabelText(/Reason/), {
