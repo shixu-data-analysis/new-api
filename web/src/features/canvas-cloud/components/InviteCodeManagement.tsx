@@ -73,6 +73,7 @@ import { useDirectAsync } from '../use-direct-async'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasCodeRevealButton } from './CanvasCodeRevealButton'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction, type CanvasRowActionTone } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CanvasTooltip } from './CanvasTooltip'
@@ -128,6 +129,14 @@ function formatTokyoDate(value: string, language: string): string {
     timeZone: 'Asia/Tokyo',
   }).format(new Date(value))
 }
+
+// Editing is the row's main action; pausing and revoking stop the code and come last.
+const inviteCodeActionTone = {
+  edit: 'primary',
+  resume: 'normal',
+  pause: 'danger',
+  revoke: 'danger',
+} as const satisfies Record<string, CanvasRowActionTone>
 
 function inviteCodeAllowedActions(item: CanvasAdminInviteCode): string[] {
   return item.allowedActions
@@ -946,17 +955,12 @@ export function InviteCodeManagement(props: {
           return <span aria-label={t('No actions')}>—</span>
         }
         return (
-          <div className='flex min-w-max items-center justify-end gap-1'>
+          <div className='flex min-w-max items-center justify-end gap-2'>
             {actions.map(({ action, label }) => (
-              <Button
+              <CanvasRowAction
                 key={action}
-                className={
-                  action === 'revoke'
-                    ? 'text-destructive hover:text-destructive'
-                    : undefined
-                }
+                tone={inviteCodeActionTone[action]}
                 type='button'
-                variant='outline'
                 disabled={
                   action !== 'edit' &&
                   changeStatus.isPending &&
@@ -973,7 +977,7 @@ export function InviteCodeManagement(props: {
                 }}
               >
                 {label}
-              </Button>
+              </CanvasRowAction>
             ))}
           </div>
         )

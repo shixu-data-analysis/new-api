@@ -57,6 +57,7 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ModelPricingScheduleCancelDialog } from './ModelPricingScheduleCancelDialog'
 
@@ -221,8 +222,7 @@ export function UnifiedModelPricingHistory(props: {
       header: t('Actions'),
       cell: ({ row }) => (
         <div className='flex flex-wrap items-center gap-2'>
-          <Button
-            variant='outline'
+          <CanvasRowAction
             aria-expanded={expandedId === row.original.id}
             onClick={(event) => {
               event.stopPropagation()
@@ -232,18 +232,18 @@ export function UnifiedModelPricingHistory(props: {
             }}
           >
             {expandedId === row.original.id ? t('Collapse') : t('Details')}
-          </Button>
+          </CanvasRowAction>
           {row.original.source === 'UNIFIED' &&
           row.original.status === 'SCHEDULED' ? (
-            <Button
-              variant='outline'
+            <CanvasRowAction
+              tone='danger'
               onClick={(event) => {
                 event.stopPropagation()
                 setCancellingId(row.original.id)
               }}
             >
               {t('Cancel schedule')}
-            </Button>
+            </CanvasRowAction>
           ) : null}
         </div>
       ),

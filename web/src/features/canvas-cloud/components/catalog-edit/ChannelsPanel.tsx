@@ -26,6 +26,7 @@ import { getCurrentCatalog } from '../../catalog-edit-api'
 import { contractOfProfile, profileOfChannel } from '../../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../../model-management-navigation-hooks'
 import { initialListState } from '../../model-management-navigation-state'
+import { CanvasRowAction } from '../CanvasRowAction'
 import { ChannelEditor, type ChannelEditorMode } from './ChannelEditor'
 import { ChannelRetireDialog } from './ChannelRetireDialog'
 import { UnsupportedFieldsBadge } from './EditFields'
@@ -338,26 +339,19 @@ export function ChannelsPanel(props: {
               header: t('Actions'),
               cell: (channel) => (
                 <div className='flex flex-wrap gap-2'>
-                  <Button
-                    variant='outline'
-                    size='sm'
-                    onClick={() => setAddingModel(channel.id)}
-                  >
-                    {t('Add a model')}
-                  </Button>
-                  <Button
-                    variant='outline'
-                    size='sm'
+                  <CanvasRowAction
+                    tone='primary'
                     onClick={() =>
                       setEditor({ kind: 'edit', channelId: channel.id })
                     }
                   >
                     {t('Edit')}
-                  </Button>
+                  </CanvasRowAction>
+                  <CanvasRowAction onClick={() => setAddingModel(channel.id)}>
+                    {t('Add a model')}
+                  </CanvasRowAction>
                   <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={<Button variant='outline' size='sm' />}
-                    >
+                    <DropdownMenuTrigger render={<CanvasRowAction />}>
                       {t('More')}
                       <ChevronDown aria-hidden='true' />
                     </DropdownMenuTrigger>

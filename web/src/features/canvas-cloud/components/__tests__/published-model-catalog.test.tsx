@@ -379,6 +379,14 @@ describe('Published model catalog', () => {
           name: 'Restore model',
         })
       ).toBeNull()
+      expect(
+        within(disabledTable()).getByRole('button', { name: 'Restore model' })
+      ).toHaveAttribute('data-row-action', 'primary')
+      expect(
+        within(disabledTable()).getByRole('button', {
+          name: 'Delete the model',
+        })
+      ).toHaveAttribute('data-row-action', 'danger')
       await user.click(
         within(disabledTable()).getByRole('button', { name: 'Restore model' })
       )

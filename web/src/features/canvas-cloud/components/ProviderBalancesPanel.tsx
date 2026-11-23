@@ -80,6 +80,7 @@ import type {
 import { useDashboardFormatters } from '../use-dashboard-formatters'
 import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import {
   type DashboardDrawerRequest,
@@ -922,23 +923,20 @@ export function ProviderBalancesPanel() {
       enableSorting: false,
       enableHiding: false,
       cell: ({ row }) => (
-        <div className='flex flex-wrap items-center gap-x-4 gap-y-1'>
-          <Button
+        <div className='flex flex-wrap items-center gap-2'>
+          <CanvasRowAction
+            tone='primary'
             type='button'
-            variant='link'
-            className='h-auto p-0'
             onClick={() => setAdding(row.original)}
           >
             {t('Add record')}
-          </Button>
-          <Button
+          </CanvasRowAction>
+          <CanvasRowAction
             type='button'
-            variant='link'
-            className='h-auto p-0'
             onClick={() => setThreshold({ provider: row.original })}
           >
             {t('Set alert')}
-          </Button>
+          </CanvasRowAction>
           {row.original.websiteUrl ? (
             <>
               <a
@@ -961,14 +959,12 @@ export function ProviderBalancesPanel() {
               </Button>
             </>
           ) : (
-            <Button
+            <CanvasRowAction
               type='button'
-              variant='link'
-              className='h-auto p-0'
               onClick={() => setWebsite(row.original)}
             >
               {t('Set website')}
-            </Button>
+            </CanvasRowAction>
           )}
         </div>
       ),

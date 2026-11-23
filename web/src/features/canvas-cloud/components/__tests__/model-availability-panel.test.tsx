@@ -322,12 +322,18 @@ describe('ModelAvailabilityPanel', () => {
       within(missingTable as HTMLElement).getByRole('button', {
         name: 'Disable model',
       })
-    ).toBeInTheDocument()
+    ).toHaveAttribute('data-row-action', 'danger')
     expect(
       within(disabledTable as HTMLElement).getAllByRole('button', {
         name: 'Restore model',
       })
     ).toHaveLength(2)
+    for (const restore of within(disabledTable as HTMLElement).getAllByRole(
+      'button',
+      { name: 'Restore model' }
+    )) {
+      expect(restore).toHaveAttribute('data-row-action', 'primary')
+    }
   })
 
   it('restores a disabled model the provider lists again, at its control version', async () => {

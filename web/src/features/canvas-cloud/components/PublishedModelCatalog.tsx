@@ -86,6 +86,7 @@ import type { CanvasAdminTestingModel } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
 import { ModelBulkRetireDialog } from './catalog-edit/ModelBulkRetireDialog'
 import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
@@ -674,21 +675,18 @@ export function PublishedModelCatalog(props: {
         meta: { label: t('Model actions') },
         cell: ({ row }) => (
           <div className='flex flex-wrap items-center gap-2'>
-            <Button
-              variant='outline'
-              size='sm'
+            <CanvasRowAction
+              tone='primary'
               onClick={() => setRestoring(row.original)}
             >
               {t('Restore model')}
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='text-destructive hover:text-destructive'
+            </CanvasRowAction>
+            <CanvasRowAction
+              tone='danger'
               onClick={() => setRetiring(row.original)}
             >
               {t('Delete the model')}
-            </Button>
+            </CanvasRowAction>
           </div>
         ),
       },
@@ -704,8 +702,8 @@ export function PublishedModelCatalog(props: {
           return (
             <div className='grid gap-2'>
               <div className='grid w-max gap-2'>
-                <Button
-                  variant='outline'
+                <CanvasRowAction
+                  tone='primary'
                   disabled={presentationBusy}
                   data-model-navigation-id={`${model.id}:pricing`}
                   onClick={(event) => {
@@ -717,9 +715,8 @@ export function PublishedModelCatalog(props: {
                   }}
                 >
                   {t('Manage prices')}
-                </Button>
-                <Button
-                  variant='outline'
+                </CanvasRowAction>
+                <CanvasRowAction
                   disabled={presentationBusy || !props.onManageBindings}
                   data-model-navigation-id={`${model.id}:bindings`}
                   onClick={() => {
@@ -738,28 +735,24 @@ export function PublishedModelCatalog(props: {
                   }}
                 >
                   {t('Manage API Key bindings')}
-                </Button>
-                <Button
-                  variant='outline'
+                </CanvasRowAction>
+                <CanvasRowAction
                   disabled={presentationBusy}
                   onClick={() => props.onEditPresentation(model.modelKey)}
                 >
                   {t('Edit display information')}
-                </Button>
-                <Button
-                  variant='outline'
+                </CanvasRowAction>
+                <CanvasRowAction
                   disabled={presentationBusy}
                   onClick={() =>
                     setEditor({ kind: 'edit', modelKey: model.modelKey })
                   }
                 >
                   {t('Edit model configuration')}
-                </Button>
+                </CanvasRowAction>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    render={
-                      <Button variant='outline' disabled={presentationBusy} />
-                    }
+                    render={<CanvasRowAction disabled={presentationBusy} />}
                   >
                     {t('More')}
                   </DropdownMenuTrigger>

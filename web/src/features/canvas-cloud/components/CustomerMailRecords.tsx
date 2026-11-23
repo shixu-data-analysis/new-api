@@ -84,6 +84,7 @@ import {
 import { useServerTableState } from '../use-server-table-state'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 
@@ -228,13 +229,9 @@ function useMailColumns(onDetail: (batch: CustomerMailBatch) => void) {
         header: () => t('Actions'),
         cell: ({ row }) =>
           row.original.failed > 0 ? (
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => onDetail(row.original)}
-            >
+            <CanvasRowAction onClick={() => onDetail(row.original)}>
               {t('Details')}
-            </Button>
+            </CanvasRowAction>
           ) : null,
         meta: { label: t('Actions') },
       },

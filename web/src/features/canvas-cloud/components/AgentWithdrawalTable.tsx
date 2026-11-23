@@ -22,7 +22,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -57,6 +56,7 @@ import {
 import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 
@@ -171,17 +171,16 @@ export function AgentWithdrawalTable(
       header: t('Action'),
       cell: ({ row }) =>
         admin && row.original.status === 'REQUESTED' ? (
-          <Button size='sm' onClick={() => setProcessId(row.original.id)}>
-            {t('Process')}
-          </Button>
-        ) : (
-          <Button
-            size='sm'
-            variant='outline'
-            onClick={() => setViewId(row.original.id)}
+          <CanvasRowAction
+            tone='primary'
+            onClick={() => setProcessId(row.original.id)}
           >
+            {t('Process')}
+          </CanvasRowAction>
+        ) : (
+          <CanvasRowAction onClick={() => setViewId(row.original.id)}>
             {t('Withdrawal action view')}
-          </Button>
+          </CanvasRowAction>
         ),
     },
   ]

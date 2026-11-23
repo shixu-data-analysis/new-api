@@ -36,6 +36,7 @@ import {
   ignoreModelListings,
   type ListedModel,
 } from '../model-availability-api'
+import { CanvasRowAction } from './CanvasRowAction'
 
 // MODEL-LISTING-ALERT-001: the new provider models on the 上下架监测 page and the way to dismiss them.
 
@@ -149,9 +150,7 @@ export function ModelListingTable(props: {
                   {formatCanvasDateTime(model.firstSeenAt)}
                 </TableCell>
                 <TableCell className='text-center'>
-                  <Button
-                    size='sm'
-                    variant='outline'
+                  <CanvasRowAction
                     disabled={ignore.isPending}
                     aria-label={t('Ignore {{model}}', {
                       model: model.upstreamId,
@@ -168,7 +167,7 @@ export function ModelListingTable(props: {
                     }
                   >
                     {t('Ignore')}
-                  </Button>
+                  </CanvasRowAction>
                 </TableCell>
               </TableRow>
             ))}

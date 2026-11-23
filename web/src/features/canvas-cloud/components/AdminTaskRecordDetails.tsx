@@ -57,6 +57,7 @@ import type {
   CanvasTokenCategory,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CopyableText } from './CopyableText'
@@ -700,10 +701,8 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
         header: t('Actions'),
         enableHiding: false,
         cell: ({ row }) => (
-          <Button
+          <CanvasRowAction
             type='button'
-            variant='link'
-            className='h-auto p-0'
             aria-expanded={expanded === row.original.id}
             onClick={() =>
               setExpanded((current) =>
@@ -712,7 +711,7 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
             }
           >
             {t(expanded === row.original.id ? 'Hide details' : 'Details')}
-          </Button>
+          </CanvasRowAction>
         ),
       },
     ],

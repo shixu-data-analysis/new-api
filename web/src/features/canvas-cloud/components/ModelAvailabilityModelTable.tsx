@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -35,6 +34,7 @@ import type {
   AvailabilityModelRow,
 } from '../model-availability-rows'
 import { modelMonitoringReasonLabels } from '../model-monitoring-control'
+import { CanvasRowAction } from './CanvasRowAction'
 
 const upstreamLabels: Record<Exclude<UpstreamStatus, null>, string> = {
   AVAILABLE: 'Listed by the provider',
@@ -136,9 +136,8 @@ export function ModelAvailabilityModelTable(props: {
                   ) : null}
                 </TableCell>
                 <TableCell className='text-center'>
-                  <Button
-                    size='sm'
-                    variant={enabled ? 'destructive' : 'outline'}
+                  <CanvasRowAction
+                    tone={enabled ? 'danger' : 'primary'}
                     onClick={() =>
                       props.onControl({
                         modelKey: model.modelKey,
@@ -149,7 +148,7 @@ export function ModelAvailabilityModelTable(props: {
                     }
                   >
                     {enabled ? t('Disable model') : t('Restore model')}
-                  </Button>
+                  </CanvasRowAction>
                 </TableCell>
               </TableRow>
             )

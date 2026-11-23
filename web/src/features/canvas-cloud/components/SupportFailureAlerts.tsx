@@ -39,6 +39,7 @@ import {
   supportQueryKeys,
 } from '../api'
 import type { CanvasSupportFailureAlerts } from '../types'
+import { CanvasRowAction } from './CanvasRowAction'
 import { SupportFailureNoticeDialog } from './SupportFailureNoticeDialog'
 import { SUPPORT_SPLIT_LAYOUT, SupportListItem } from './SupportListItem'
 
@@ -232,14 +233,12 @@ export function SupportFailureAlerts(props: {
                         : '—'}
                     </TableCell>
                     <TableCell className='text-end'>
-                      <Button
+                      <CanvasRowAction
                         type='button'
-                        variant='link'
-                        size='sm'
                         onClick={() => props.onOpenCustomer(row.customer.id)}
                       >
                         {t('Customer details')}
-                      </Button>
+                      </CanvasRowAction>
                     </TableCell>
                   </TableRow>
                 )

@@ -72,6 +72,7 @@ import type {
   CanvasNotificationSettings,
 } from '../types'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { CanvasRowAction } from './CanvasRowAction'
 import { NotificationAddressDialog } from './NotificationAddressDialog'
 
 // A dialog keeps the settings it opened on: it shows them and saves its draft against them, so a change saved meanwhile by
@@ -260,34 +261,30 @@ export function NotificationSettings() {
       header: t('Actions'),
       className: canvasStaticColumnWidth.detail,
       cell: (address) => (
-        <div className='flex flex-wrap items-center gap-3'>
-          <Button
-            variant='link'
-            className='h-auto p-0'
-            disabled={test.isPending}
-            onClick={() => test.mutate(address.id)}
-          >
-            {t('Send test')}
-          </Button>
-          <Button
-            variant='link'
-            className='h-auto p-0'
+        <div className='flex flex-wrap items-center gap-2'>
+          <CanvasRowAction
+            tone='primary'
             onClick={() => {
               setErrors({})
               setDialog({ kind: 'address', editing: address, base: settings })
             }}
           >
             {t('Edit')}
-          </Button>
-          <Button
-            variant='link'
-            className='text-destructive h-auto p-0'
+          </CanvasRowAction>
+          <CanvasRowAction
+            disabled={test.isPending}
+            onClick={() => test.mutate(address.id)}
+          >
+            {t('Send test')}
+          </CanvasRowAction>
+          <CanvasRowAction
+            tone='danger'
             onClick={() =>
               setDialog({ kind: 'delete', address, base: settings })
             }
           >
             {t('Delete')}
-          </Button>
+          </CanvasRowAction>
         </div>
       ),
     },

@@ -57,6 +57,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { AnnouncementEditorDialog } from './AnnouncementEditorDialog'
 import { AnnouncementRetentionDialog } from './AnnouncementRetentionDialog'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 
@@ -255,24 +256,21 @@ export function AdminAnnouncements(props: {
         enableSorting: false,
         header: () => t('Actions'),
         cell: ({ row }) => (
-          <div className='flex gap-1 whitespace-nowrap'>
-            <Button
-              variant='ghost'
-              size='sm'
+          <div className='flex gap-2 whitespace-nowrap'>
+            <CanvasRowAction
+              tone='primary'
               onClick={() =>
                 setEditing({ kind: 'edit', announcement: row.original })
               }
             >
               {t('Edit')}
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='text-destructive'
+            </CanvasRowAction>
+            <CanvasRowAction
+              tone='danger'
               onClick={() => setDeleting([row.original])}
             >
               {t('Delete')}
-            </Button>
+            </CanvasRowAction>
           </div>
         ),
         meta: { label: t('Actions') },

@@ -22,11 +22,11 @@ import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
-import { Button } from '@/components/ui/button'
 
 import { formatCanvasDateTime } from '../formatters'
 import type { CanvasAdminRechargeOrder } from '../types'
 import { BusinessTerm } from './BusinessTerm'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CopyableText } from './CopyableText'
 
 const alwaysSelectable = () => true
@@ -205,17 +205,14 @@ export function useCanvasRechargeOrderColumns({
                 : t('Select'))
           }
           return (
-            <Button
+            <CanvasRowAction
               type='button'
-              size='sm'
               disabled={!selectable}
-              variant={
-                selectedOrderId === row.original.id ? 'default' : 'outline'
-              }
+              tone={selectedOrderId === row.original.id ? 'primary' : 'normal'}
               onClick={() => onSelect(row.original)}
             >
               {label}
-            </Button>
+            </CanvasRowAction>
           )
         },
       })

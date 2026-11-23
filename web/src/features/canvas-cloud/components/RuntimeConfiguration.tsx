@@ -88,6 +88,7 @@ import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ExecutionSettings } from './ExecutionSettings'
 import { InputStorages } from './InputStorages'
@@ -885,14 +886,9 @@ export function RuntimeConfiguration(
                     ? t('Older technical version')
                     : t('Current version unavailable')}
                 </span>
-                <Button
-                  type='button'
-                  size='sm'
-                  variant='outline'
-                  onClick={openManagementDrawer}
-                >
+                <CanvasRowAction type='button' onClick={openManagementDrawer}>
                   {t('Manage binding cleanup')}
-                </Button>
+                </CanvasRowAction>
               </div>
             )
           }
