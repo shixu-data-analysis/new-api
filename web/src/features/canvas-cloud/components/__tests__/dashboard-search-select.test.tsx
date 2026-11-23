@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 
 import { agentFilterQuery } from '../../agent-filter-query'
 import { DashboardAgentSelect } from '../DashboardSearchSelect'
@@ -85,5 +87,67 @@ describe('DashboardAgentSelect', () => {
     )
 
     expect(screen.getByRole('combobox')).toHaveValue('All agents')
+  })
+  it('keeps the typed search text when the page re-renders while All agents is selected', async () => {
+    const user = userEvent.setup()
+    const client = new QueryClient()
+    const value = { value: '__all__', label: 'All agents' }
+    const onChange = vi.fn()
+    const view = render(
+      <QueryClientProvider client={client}>
+        <DashboardAgentSelect id='agent' value={value} onChange={onChange} />
+      </QueryClientProvider>
+    )
+
+    const input = screen.getByRole('combobox')
+    await user.type(input, 'lin', {
+      initialSelectionStart: 0,
+      initialSelectionEnd: 'All agents'.length,
+    })
+    // The page re-renders while the administrator types, for example when the customer list arrives.
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <DashboardAgentSelect id='agent' value={value} onChange={onChange} />
+      </QueryClientProvider>
+    )
+
+    expect(input).toHaveValue('lin')
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgents).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'lin' }),
+        expect.anything()
+      )
+    )
+  })
+  it('marks a disabled agent with the agent qualification status 已停用', async () => {
+    const user = userEvent.setup()
+    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
+    await i18next.changeLanguage('zh')
+    apiMocks.getCanvasAgents.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          principalId: 'agent-off',
+          username: 'uatagentoff',
+          status: 'DISABLED',
+        },
+      ],
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DashboardAgentSelect
+          id='agent'
+          value={{ value: '__all__', label: '全部代理商' }}
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+
+    await user.click(screen.getByRole('combobox'))
+
+    const option = await screen.findByRole('option', { name: /uatagentoff/ })
+    expect(option).toHaveTextContent('已停用')
   })
 })

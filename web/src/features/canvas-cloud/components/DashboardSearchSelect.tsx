@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/combobox'
 import { useDebounce } from '@/hooks'
 
+import { agentQualificationLabelKey } from '../agent-earnings-format'
 import { getCanvasAdminCustomers, getCanvasAgents } from '../api'
 import { getOperatingDashboardModelOptions } from '../operating-dashboard-api'
 
@@ -77,16 +78,17 @@ export function DashboardSearchSelect(props: {
         !props.fixedOptions.some((fixed) => fixed.value === option.value)
     ),
   ]
-  // A fixed option shows its label in the current language, not the one saved when it was chosen.
-  const value =
-    props.fixedOptions.find((fixed) => fixed.value === props.value.value) ??
-    props.value
   return (
     <Combobox<DashboardSelectOption>
       items={items}
-      value={value}
+      value={props.value}
       filter={null}
-      itemToStringLabel={(option) => option.label}
+      // A fixed option shows its label in the current language, not the one saved when it was chosen. The value object
+      // itself stays as chosen: a new object on every render would make the combobox overwrite the typed search.
+      itemToStringLabel={(option) =>
+        props.fixedOptions.find((fixed) => fixed.value === option.value)
+          ?.label ?? option.label
+      }
       isItemEqualToValue={(left, right) => left.value === right.value}
       onInputValueChange={(value, details) => {
         if (details.reason === 'input-change') setSearch(value)
@@ -156,7 +158,9 @@ export function DashboardAgentSelect(props: {
         ).items.map((agent) => ({
           value: agent.principalId,
           label: agent.username,
-          ...(agent.status === 'DISABLED' ? { hint: t('Disabled') } : {}),
+          ...(agent.status === 'DISABLED'
+            ? { hint: t(agentQualificationLabelKey('DISABLED')) }
+            : {}),
         }))
       }
       onChange={props.onChange}
