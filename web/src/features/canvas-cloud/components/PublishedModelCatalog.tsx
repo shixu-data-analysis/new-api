@@ -700,7 +700,7 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='flex flex-wrap items-center gap-2'>
+            <div className='flex w-60 flex-wrap items-center gap-2'>
               <CanvasRowAction
                 tone='primary'
                 disabled={presentationBusy}
