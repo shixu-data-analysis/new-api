@@ -2142,6 +2142,8 @@ export interface CanvasAdminTaskRecordOutput {
   completedAt: string | null
   billingFinalizedAt: string | null
   customerSafeErrorDetail: string | null
+  /** Task details only: the provider call this result was last submitted in; null when never submitted. */
+  latestSubmissionCallId?: string | null
 }
 
 export interface CanvasAdminTaskInputAsset {

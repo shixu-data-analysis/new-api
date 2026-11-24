@@ -92,11 +92,11 @@ export function CallResults({
                   <span className='text-muted-foreground mt-1 block text-xs'>
                     {t(
                       outcome.executionStatus === 'SUCCEEDED'
-                        ? '{{step}} failed {{count}} times, last at {{time}}: {{detail}}; then succeeded'
-                        : '{{step}} failed {{count}} times, last at {{time}}: {{detail}}',
+                        ? '{{step}} failures: {{failures}}, last at {{time}}: {{detail}}; then succeeded'
+                        : '{{step}} failures: {{failures}}, last at {{time}}: {{detail}}',
                       {
                         step: t(retrievalSteps[retrieval.step]),
-                        count: retrieval.failures,
+                        failures: retrieval.failures,
                         time: time.format(new Date(retrieval.lastAt)),
                         detail: retrievalDetail(retrieval, t),
                         interpolation: { escapeValue: false },

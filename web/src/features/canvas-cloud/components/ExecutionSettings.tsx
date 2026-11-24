@@ -91,6 +91,7 @@ import {
   newApiForwardedCodes,
   newApiRecognitionKeys,
 } from '../new-api-errors'
+import { taskErrorCategoryLabels } from '../task-error-categories'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
@@ -476,21 +477,6 @@ const limitMetricLabelKeys: Record<LimitRule['metric'], string> = {
   RPM: 'RPM · Requests per minute',
   TPM: 'TPM · Tokens per minute',
   ASYNC_IN_FLIGHT: 'Unfinished asynchronous tasks',
-}
-const categoryDescriptionKeys: Record<ErrorCategory, string> = {
-  INVALID_REQUEST: 'Invalid request',
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
 }
 
 // Mirrors Cloud `HTTP_DEFAULTS`: the HTTP status each system rule maps to its category.
@@ -3044,7 +3030,7 @@ function ErrorSection(props: {
             {t(errorRuleOutcomeLabelKeys[outcome])}
           </Badge>
           <span className='text-muted-foreground text-xs'>
-            {t(categoryDescriptionKeys[rule.category])}
+            {t(taskErrorCategoryLabels[rule.category])}
             {hasCustomMessage ? ` · ${t('Custom message')}` : ''}
           </span>
         </div>
@@ -3370,7 +3356,7 @@ function ErrorSection(props: {
                       {t('Error category')}
                     </dt>
                     <dd>
-                      {t(categoryDescriptionKeys[preview.data.errorCategory])}
+                      {t(taskErrorCategoryLabels[preview.data.errorCategory])}
                     </dd>
                     {preview.data.adminNote &&
                     matchedDraft?.executionDisposition ? (
@@ -3587,7 +3573,7 @@ function ErrorSection(props: {
                   name: t(newApiErrorGroupNameKey(group.id)),
                   codes: group.codes,
                   uncodedStatus: group.uncodedStatus,
-                  category: t(categoryDescriptionKeys[group.category]),
+                  category: t(taskErrorCategoryLabels[group.category]),
                   description: group.hasDescription
                     ? t(newApiErrorGroupDescriptionKey(group.id))
                     : '',
@@ -3955,9 +3941,9 @@ function ErrorSection(props: {
                     {categories.map((category) => (
                       <NativeSelectOption key={category} value={category}>
                         {systemDefaultStatusByCategory[category] === undefined
-                          ? t(categoryDescriptionKeys[category])
+                          ? t(taskErrorCategoryLabels[category])
                           : t('{{label}} ({{detail}})', {
-                              label: t(categoryDescriptionKeys[category]),
+                              label: t(taskErrorCategoryLabels[category]),
                               detail: systemDefaultStatusByCategory[category],
                             })}
                       </NativeSelectOption>

@@ -8,10 +8,7 @@ License, or (at your option) any later version.
 */
 import { describe, expect, it } from 'vitest'
 
-import {
-  latestSubmissionByOutput,
-  taskOutputOutcomes,
-} from '../task-output-outcomes'
+import { taskOutputOutcomes } from '../task-output-outcomes'
 import type {
   CanvasAdminOutputRetrievalAttempt,
   CanvasAdminTaskManualResult,
@@ -128,30 +125,21 @@ describe('taskOutputOutcomes', () => {
       points: '0',
     })
   })
-})
 
-describe('latestSubmissionByOutput', () => {
-  it('gives each result to the latest submission that covered it, leaving media preparation out', () => {
-    const latest = latestSubmissionByOutput([
-      {
-        localCallId: 'first',
-        callType: 'SUBMIT',
-        outputIndices: [0, 1],
-        startedAt: '2026-11-05T15:00:00.000Z',
-      },
-      {
-        localCallId: 'prepare',
-        callType: 'PREPARE_ASSET',
-        outputIndices: [0],
-        startedAt: '2026-11-05T15:05:00.000Z',
-      },
-      {
-        localCallId: 'retry',
-        callType: 'SUBMIT',
-        outputIndices: [1],
-        startedAt: '2026-11-05T15:01:00.000Z',
-      },
-    ])
-    expect(Object.fromEntries(latest)).toEqual({ 0: 'first', 1: 'retry' })
+  it('counts the failures of the step it names, not every retrieval failure of the result', () => {
+    const [outcome] = taskOutputOutcomes(
+      [output(0)],
+      [
+        attempt(0, 1, { details: { httpStatus: 503 } }),
+        attempt(0, 2, { details: { httpStatus: 503 } }),
+        attempt(0, 3, {
+          step: 'STORAGE',
+          reasonCode: 'OUTPUT_STORAGE_FAILED',
+          details: {},
+        }),
+      ],
+      []
+    )
+    expect(outcome?.retrieval).toMatchObject({ step: 'STORAGE', failures: 1 })
   })
 })

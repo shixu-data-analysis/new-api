@@ -297,7 +297,7 @@ describe('AdminTaskRecordDetails UAT-018', () => {
       'div'
     ) as HTMLElement
     expect(elapsed).toHaveTextContent('1 min 52 s')
-    expect(elapsed).toHaveTextContent('Fastest 41 seconds, slowest 1 min 52 s')
+    expect(elapsed).toHaveTextContent('Fastest 41 s, slowest 1 min 52 s')
     const ids = screen
       .getByText('Provider task ID')
       .closest('div') as HTMLElement

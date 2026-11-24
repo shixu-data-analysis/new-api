@@ -51,6 +51,10 @@ export function taskOutputOutcomes(
       .filter((attempt) => attempt.outputIndex === output.outputIndex)
       .sort((left, right) => left.attemptNumber - right.attemptNumber)
     const last = failedAttempts.at(-1)
+    // attempt_number counts every step of a result; the line names the last step, so it counts that step's failures.
+    const stepFailures = failedAttempts.filter(
+      (attempt) => attempt.step === last?.step
+    ).length
     const manualResult = manualResults.some(
       (manual) =>
         manual.outputIndex === output.outputIndex && manual.status === 'APPLIED'
@@ -71,7 +75,7 @@ export function taskOutputOutcomes(
         retrieval: last
           ? {
               step: last.step,
-              failures: failedAttempts.length,
+              failures: stepFailures,
               lastAt: last.occurredAt,
               lastDetails: last.details,
               lastReasonCode: last.reasonCode,
@@ -80,32 +84,4 @@ export function taskOutputOutcomes(
       },
     ]
   })
-}
-
-/**
- * The call each result was last submitted in, among the calls read: a result submitted again (a retried submission)
- * belongs to its latest submission only, so an earlier call does not show the outcome its retry produced.
- */
-export function latestSubmissionByOutput(
-  calls: ReadonlyArray<{
-    localCallId: string
-    callType: string
-    outputIndices: number[]
-    startedAt: string | null
-  }>
-): Map<number, string> {
-  const latest = new Map<number, { callId: string; startedAt: number }>()
-  for (const call of calls) {
-    if (call.callType !== 'SUBMIT') continue
-    const startedAt = call.startedAt ? Date.parse(call.startedAt) : 0
-    for (const index of call.outputIndices) {
-      const current = latest.get(index)
-      if (!current || startedAt >= current.startedAt) {
-        latest.set(index, { callId: call.localCallId, startedAt })
-      }
-    }
-  }
-  return new Map(
-    [...latest].map(([index, { callId }]) => [index, callId] as const)
-  )
 }

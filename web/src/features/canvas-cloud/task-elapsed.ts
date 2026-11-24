@@ -41,7 +41,7 @@ export function taskElapsed(
 /** A duration in whole seconds, minutes and seconds, or hours and minutes. */
 export function formatElapsed(ms: number, t: TFunction): string {
   const seconds = Math.max(0, Math.floor(ms / 1000))
-  if (seconds < 60) return t('Duration seconds', { count: seconds })
+  if (seconds < 60) return t('{{seconds}} s', { seconds })
   if (seconds < 3600) {
     return t('{{minutes}} min {{seconds}} s', {
       minutes: Math.floor(seconds / 60),

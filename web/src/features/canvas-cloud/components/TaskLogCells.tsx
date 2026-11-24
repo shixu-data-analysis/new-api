@@ -51,7 +51,11 @@ export function TaskUpstreamIdsCell({ task }: { task: CanvasAdminTaskLog }) {
           <CanvasTooltip content={upstreamTask.upstreamTaskId}>
             <span
               className={
-                upstreamTaskFailed(upstreamTask, task.outputSummaries)
+                upstreamTaskFailed(
+                  upstreamTask,
+                  task.upstreamTasks,
+                  task.outputSummaries
+                )
                   ? 'text-destructive font-mono'
                   : 'font-mono'
               }

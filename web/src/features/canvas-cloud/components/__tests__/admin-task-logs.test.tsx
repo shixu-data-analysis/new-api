@@ -320,9 +320,7 @@ describe('Canvas administrator task records', () => {
       'Provider task ID',
     ])
     expect(screen.getByText('Elapsed 1 min 52 s')).toBeVisible()
-    expect(
-      screen.getByText('Fastest 41 seconds, slowest 1 min 52 s')
-    ).toBeVisible()
+    expect(screen.getByText('Fastest 41 s, slowest 1 min 52 s')).toBeVisible()
     expect(screen.getByText('Elapsed 1 hr 5 min')).toBeVisible()
     expect(screen.getAllByText(/^Elapsed /)).toHaveLength(2)
     expect(screen.getAllByText(/^Fastest /)).toHaveLength(1)
@@ -666,6 +664,42 @@ describe('Canvas administrator task records', () => {
         expect.any(AbortSignal)
       )
     )
+  })
+
+  it('marks only the provider task ID a failed result was last submitted under', async () => {
+    apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          ...task,
+          upstreamTasks: [
+            { upstreamTaskId: 'fan-first', outputIndices: [0] },
+            { upstreamTaskId: 'fan-second', outputIndices: [1] },
+            { upstreamTaskId: 'fan-first-again', outputIndices: [0] },
+          ],
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'CONFIRMED_FAILED',
+              completedAt: task.completedAt,
+            },
+            {
+              outputIndex: 1,
+              executionStatus: 'SUCCEEDED',
+              completedAt: task.completedAt,
+            },
+          ],
+        },
+      ],
+    })
+    mount()
+    expect(await screen.findByText('fan-first-again')).toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('fan-first')).not.toHaveClass('text-destructive')
+    expect(screen.getByText('fan-second')).not.toHaveClass('text-destructive')
   })
 
   it('offers results the provider did not return as a failure reason, and shows it by its label', async () => {

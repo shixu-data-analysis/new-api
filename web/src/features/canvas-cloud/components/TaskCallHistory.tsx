@@ -17,10 +17,9 @@ import {
 import { formatErrorRuleMatch } from '../error-rule-format'
 import { newApiCodeTableMatch, newApiRecognitionKeys } from '../new-api-errors'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
-import {
-  latestSubmissionByOutput,
-  type TaskOutputOutcome,
-} from '../task-output-outcomes'
+import { taskErrorCategoryLabels } from '../task-error-categories'
+import type { TaskOutputOutcome } from '../task-output-outcomes'
+import { executionLabels } from '../task-status-labels'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CallResults } from './CallResults'
@@ -39,26 +38,6 @@ const chainStates: Record<string, string> = {
   AWAITING_RESPONSE: 'Awaiting response',
   RESPONDED: 'Responded',
   OUTCOME_UNKNOWN: 'Outcome pending confirmation',
-}
-const errorCategories: Record<string, string> = {
-  INVALID_REQUEST: 'Invalid request',
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
-}
-const judgementStatuses: Record<string, string> = {
-  SUCCEEDED: 'Succeeded',
-  CONFIRMED_FAILED: 'Confirmed failed',
-  UNKNOWN: 'Result pending confirmation',
 }
 // Tooltip text for overview labels whose meaning is not obvious.
 const overviewHints: Record<string, string> = {
@@ -188,7 +167,7 @@ function executionJudgementText(
     const status = t(
       judgement.status === 'UNKNOWN'
         ? 'Processing, still querying'
-        : judgementStatuses[judgement.status]
+        : executionLabels[judgement.status]
     )
     return judgement.providerStatus
       ? t('{{status}} (provider status {{providerStatus}})', {
@@ -202,7 +181,7 @@ function executionJudgementText(
     judgement.source === 'RULE'
       ? '{{status}} (set by mapping)'
       : '{{status}} (system judgement)',
-    { status: t(judgementStatuses[judgement.status]) }
+    { status: t(executionLabels[judgement.status]) }
   )
 }
 
@@ -367,7 +346,10 @@ export function CallDetails({
       'Error category',
       call.errorCategory ? (
         <span key='error-category' className='text-destructive'>
-          {t(errorCategories[call.errorCategory] ?? 'Unknown error category')}
+          {t(
+            taskErrorCategoryLabels[call.errorCategory] ??
+              'Unknown error category'
+          )}
         </span>
       ) : (
         '—'
@@ -610,7 +592,11 @@ export function TaskCallHistory({
 }: {
   taskId: string
   inputAssets?: CanvasAdminTaskInputAsset[]
-  outputs?: Array<{ outputIndex: number; executionStatus: string }>
+  outputs?: Array<{
+    outputIndex: number
+    executionStatus: string
+    latestSubmissionCallId?: string | null
+  }>
   /** The task's results that did not simply succeed; each shows under the call it was last submitted in. */
   outcomes?: ReadonlyArray<TaskOutputOutcome>
   taskSucceeded?: boolean
@@ -669,7 +655,10 @@ export function TaskCallHistory({
     retry: false,
   })
   const items = query.data?.items ?? []
-  const latestSubmission = latestSubmissionByOutput(items)
+  // Cloud names each result's latest submission, whichever page of calls it is on.
+  const latestSubmission = new Map(
+    outputs.map((output) => [output.outputIndex, output.latestSubmissionCallId])
+  )
   const outcomesOf = (call: CanvasTaskCall) =>
     outcomes.filter(
       (outcome) =>

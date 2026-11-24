@@ -481,7 +481,7 @@ describe('TaskCallHistory', () => {
     ).toHaveClass('text-destructive')
     expect(rows[1]).toHaveTextContent('Succeeded · Settled 9 points')
     expect(rows[1]).toHaveTextContent(
-      /Result download failed 1 times, last at .+: Connection timed out; then succeeded/
+      /Result download failures: 1, last at .+: Connection timed out; then succeeded/
     )
     expect(rows[2]).toHaveTextContent('Succeeded · Applied · Settled 9 points')
     expect(rows[3]).toHaveTextContent(
@@ -528,10 +528,19 @@ describe('TaskCallHistory', () => {
         },
       ],
     })
+    // Cloud names each result's latest submission, so a retry on another page is not mistaken for this one.
     mount({
       outputs: [
-        { outputIndex: 0, executionStatus: 'SUCCEEDED' },
-        { outputIndex: 1, executionStatus: 'CONFIRMED_FAILED' },
+        {
+          outputIndex: 0,
+          executionStatus: 'SUCCEEDED',
+          latestSubmissionCallId: 'first',
+        },
+        {
+          outputIndex: 1,
+          executionStatus: 'CONFIRMED_FAILED',
+          latestSubmissionCallId: 'retry',
+        },
       ],
     })
     await screen.findAllByText(/^Submit task/)
@@ -542,5 +551,63 @@ describe('TaskCallHistory', () => {
     // First call: results 1 and 2, neither red there; retry: result 2, red.
     expect(related[0]?.map((cell) => cell.className)).toEqual(['', ''])
     expect(related[1]?.[0]).toHaveClass('text-destructive')
+  })
+
+  it('names every error code Cloud records on a result, never as an unknown category', () => {
+    const outcome = (
+      outputIndex: number,
+      errorCode: string
+    ): TaskOutputOutcome => ({
+      outputIndex,
+      executionStatus: 'UNKNOWN',
+      billingStatus: 'FROZEN',
+      errorCode,
+      points: '9',
+      wholeRequest: false,
+      manualResult: false,
+      retrieval: null,
+    })
+    mountDetails(call, [
+      outcome(0, 'INVALID_REQUEST'),
+      outcome(2, 'PROVIDER_SUBMISSION_OUTCOME_UNKNOWN'),
+    ])
+    expect(screen.queryByText(/Unknown error category/)).toBeNull()
+    expect(screen.getByText(/Invalid request/)).toBeVisible()
+    expect(
+      screen.getByText(/Unknown whether the provider accepted the submission/)
+    ).toBeVisible()
+  })
+
+  it('leaves out a result whose latest submission is another call, even when that call is on another page', async () => {
+    mocks.getCanvasTaskCalls.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 21,
+      items: [{ ...call, localCallId: 'first', outputIndices: [0] }],
+    })
+    mount({
+      outputs: [
+        {
+          outputIndex: 0,
+          executionStatus: 'CONFIRMED_FAILED',
+          latestSubmissionCallId: 'on-page-2',
+        },
+      ],
+      outcomes: [
+        {
+          outputIndex: 0,
+          executionStatus: 'CONFIRMED_FAILED',
+          billingStatus: 'RELEASED_FAILED',
+          errorCode: 'PROVIDER_OUTPUT_MISSING',
+          points: '9',
+          wholeRequest: false,
+          manualResult: false,
+          retrieval: null,
+        },
+      ],
+    })
+    await screen.findAllByText(/^Submit task/)
+    expect(screen.getByText('Result 1')).not.toHaveClass('text-destructive')
+    expect(screen.queryByRole('heading', { name: 'Results' })).toBeNull()
   })
 })
