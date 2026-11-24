@@ -40,6 +40,7 @@ export function CustomerManagementPage(props: {
   onCustomerChange?: (customerId?: string) => void
   orderId?: string
   pointLotId?: string
+  customerDetailTab?: 'agent-statistics'
   titleActionSlot?: HTMLElement | null
   tab?: 'support'
   supportView?: 'failures'
@@ -98,6 +99,7 @@ export function CustomerManagementPage(props: {
           onCustomerChange={props.onCustomerChange}
           orderId={props.orderId}
           pointLotId={props.pointLotId}
+          customerDetailTab={props.customerDetailTab}
           titleActionSlot={props.titleActionSlot}
         />
       </TabsContent>

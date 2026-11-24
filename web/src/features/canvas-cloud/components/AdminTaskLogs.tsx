@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils'
 import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
+import { taskErrorCategoryLabels } from '../task-error-categories'
 import { billingLabels, executionLabels } from '../task-status-labels'
 import type {
   CanvasAdminTaskFailureReason,
@@ -42,11 +43,13 @@ import type {
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { ActiveFilterTags } from './ActiveFilterTags'
+import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
+import { TaskAcceptedCell, TaskUpstreamIdsCell } from './TaskLogCells'
 import { TaskRecordDetailsSheet } from './TaskRecordDetailsSheet'
 
 const executionStatuses = [
@@ -68,10 +71,13 @@ const route = getRouteApi('/_authenticated/canvas-cloud/$section')
 const failureReasons: CanvasAdminTaskFailureReason[] = [
   'PROVIDER_OUTPUT_TOO_LARGE',
   'RETRY_EXHAUSTED',
+  'PROVIDER_OUTPUT_MISSING',
 ]
+// The two reasons that are error codes read their label from the shared table; RETRY_EXHAUSTED groups several codes.
 const failureReasonLabels: Record<CanvasAdminTaskFailureReason, string> = {
-  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
+  PROVIDER_OUTPUT_TOO_LARGE: taskErrorCategoryLabels.PROVIDER_OUTPUT_TOO_LARGE,
   RETRY_EXHAUSTED: 'Failed after repeated result fetches',
+  PROVIDER_OUTPUT_MISSING: taskErrorCategoryLabels.PROVIDER_OUTPUT_MISSING,
 }
 const upstreamTaskLabels: Record<
   CanvasAdminTaskUpstreamFilter | 'specific',
@@ -291,22 +297,27 @@ export function AdminTaskLogs() {
   const columns = useMemo<ColumnDef<CanvasAdminTaskLog, unknown>[]>(
     () => [
       {
-        id: 'customer',
-        accessorKey: 'customerName',
-        header: t('Customer'),
-        cell: ({ row }) =>
-          row.original.customerName ? (
-            <a
-              href={`/canvas-cloud/customers?customerId=${encodeURIComponent(row.original.customerId)}`}
-              className='text-primary min-w-0 break-words underline underline-offset-4'
-            >
-              {row.original.customerName}
-            </a>
-          ) : (
-            t('Unknown customer')
-          ),
+        size: CANVAS_COLUMN_SIZES.wide,
+        id: 'acceptedAt',
+        accessorKey: 'acceptedAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Accepted at')} />
+        ),
+        meta: { label: t('Accepted at') },
+        cell: ({ row }) => <TaskAcceptedCell task={row.original} />,
       },
       {
+        size: CANVAS_COLUMN_SIZES.wide,
+        id: 'completedAt',
+        accessorKey: 'completedAt',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Completed at')} />
+        ),
+        meta: { label: t('Completed at') },
+        cell: ({ row }) => formatCanvasDateTime(row.original.completedAt),
+      },
+      {
+        size: CANVAS_COLUMN_SIZES.wide,
         id: 'taskId',
         accessorKey: 'id',
         enableHiding: false,
@@ -339,6 +350,24 @@ export function AdminTaskLogs() {
         ),
       },
       {
+        size: CANVAS_COLUMN_SIZES.standard,
+        id: 'customer',
+        accessorKey: 'customerName',
+        header: t('Customer'),
+        cell: ({ row }) =>
+          row.original.customerName ? (
+            <a
+              href={`/canvas-cloud/customers?customerId=${encodeURIComponent(row.original.customerId)}`}
+              className='text-primary min-w-0 break-words underline underline-offset-4'
+            >
+              {row.original.customerName}
+            </a>
+          ) : (
+            t('Unknown customer')
+          ),
+      },
+      {
+        size: CANVAS_COLUMN_SIZES.compact,
         id: 'derivedExecutionStatus',
         accessorKey: 'derivedExecutionStatus',
         header: t('Execution status'),
@@ -363,6 +392,7 @@ export function AdminTaskLogs() {
         ),
       },
       {
+        size: CANVAS_COLUMN_SIZES.compact,
         id: 'settledPoints',
         accessorKey: 'settledPoints',
         meta: { label: t('Settled points'), align: 'end' },
@@ -398,22 +428,11 @@ export function AdminTaskLogs() {
         ),
       },
       {
-        id: 'acceptedAt',
-        accessorKey: 'acceptedAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Accepted at')} />
-        ),
-        meta: { label: t('Accepted at') },
-        cell: ({ row }) => formatCanvasDateTime(row.original.acceptedAt),
-      },
-      {
-        id: 'completedAt',
-        accessorKey: 'completedAt',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Completed at')} />
-        ),
-        meta: { label: t('Completed at') },
-        cell: ({ row }) => formatCanvasDateTime(row.original.completedAt),
+        size: CANVAS_COLUMN_SIZES.wide,
+        id: 'upstreamTasks',
+        header: t('Upstream task ID'),
+        meta: { label: t('Upstream task ID') },
+        cell: ({ row }) => <TaskUpstreamIdsCell task={row.original} />,
       },
     ],
     [i18n.language, i18n.resolvedLanguage, selectedTaskId, t]
@@ -601,6 +620,7 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={derivedExecutionStatus}
+              valueLabelKey={executionLabels[derivedExecutionStatus]}
               emptyLabelKey='All execution statuses'
             />
           </SelectTrigger>
@@ -627,6 +647,7 @@ export function AdminTaskLogs() {
           >
             <CanvasLocalizedSelectValue
               value={settlementProgress}
+              valueLabelKey={settlementLabels[settlementProgress]}
               emptyLabelKey='All settlement progresses'
             />
           </SelectTrigger>
@@ -757,6 +778,7 @@ export function AdminTaskLogs() {
                 >
                   <CanvasLocalizedSelectValue
                     value={billingStatus}
+                    valueLabelKey={billingLabels[billingStatus]}
                     emptyLabelKey='All billing statuses'
                   />
                 </SelectTrigger>
@@ -860,6 +882,7 @@ export function AdminTaskLogs() {
         filteredEmptyTitle={t('No matching results')}
         additionalFilters={filters}
         filterTags={<ActiveFilterTags tags={tags} />}
+        initialColumnVisibility={{ completedAt: false }}
         hasActiveFilters={tags.length > 0}
         activeFilterCount={tags.length}
         onResetFilters={() => {
@@ -885,9 +908,14 @@ export function AdminTaskLogs() {
           })
         }}
         getRowId={(row) => row.id}
-        getColumnClassName={(columnId) =>
-          columnId === 'settledPoints' ? 'text-right' : undefined
-        }
+        getColumnClassName={(columnId, kind) => {
+          if (columnId === 'settledPoints') return 'text-right'
+          // The fastest and slowest durations wrap inside the wide column instead of widening it.
+          if (kind === 'cell' && columnId === 'acceptedAt') {
+            return 'whitespace-normal'
+          }
+          return undefined
+        }}
       />
       <TaskRecordDetailsSheet
         taskId={selectedTaskId}

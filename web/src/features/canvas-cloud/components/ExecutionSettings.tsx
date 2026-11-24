@@ -91,8 +91,10 @@ import {
   newApiForwardedCodes,
   newApiRecognitionKeys,
 } from '../new-api-errors'
+import { taskErrorCategoryLabels } from '../task-error-categories'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CodeBlock } from './CodeBlock'
 import { ExecutionAttentionCard } from './ExecutionAttention'
@@ -476,21 +478,6 @@ const limitMetricLabelKeys: Record<LimitRule['metric'], string> = {
   RPM: 'RPM · Requests per minute',
   TPM: 'TPM · Tokens per minute',
   ASYNC_IN_FLIGHT: 'Unfinished asynchronous tasks',
-}
-const categoryDescriptionKeys: Record<ErrorCategory, string> = {
-  INVALID_REQUEST: 'Invalid request',
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
 }
 
 // Mirrors Cloud `HTTP_DEFAULTS`: the HTTP status each system rule maps to its category.
@@ -1921,19 +1908,18 @@ function LimitSection(props: {
                   .getValues('rules')
                   .findIndex((item) => item.id === rule.id)
                 return (
-                  <div className='flex gap-2'>
-                    <Button
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <CanvasRowAction
+                      tone='primary'
                       type='button'
-                      variant='outline'
                       disabled={editingIndex !== null}
                       onClick={() => setEditingIndex(index)}
                     >
                       {t('Edit')}
-                    </Button>
-                    <Button
+                    </CanvasRowAction>
+                    <CanvasRowAction
+                      tone='danger'
                       type='button'
-                      variant='outline'
-                      className='text-destructive hover:text-destructive'
                       disabled={editingIndex !== null}
                       onClick={() =>
                         showReview(
@@ -1947,7 +1933,7 @@ function LimitSection(props: {
                       }
                     >
                       {t('Delete')}
-                    </Button>
+                    </CanvasRowAction>
                   </div>
                 )
               },
@@ -3044,42 +3030,37 @@ function ErrorSection(props: {
             {t(errorRuleOutcomeLabelKeys[outcome])}
           </Badge>
           <span className='text-muted-foreground text-xs'>
-            {t(categoryDescriptionKeys[rule.category])}
+            {t(taskErrorCategoryLabels[rule.category])}
             {hasCustomMessage ? ` · ${t('Custom message')}` : ''}
           </span>
         </div>
-        <div className='flex justify-end gap-1'>
-          <Button
+        <div className='flex flex-wrap justify-end gap-2'>
+          <CanvasRowAction
+            tone='primary'
             type='button'
-            size='sm'
-            variant='ghost'
             onClick={() => openEditor(index)}
           >
             {t('Edit')}
-          </Button>
+          </CanvasRowAction>
           {rule.source === 'CUSTOM' ? (
-            <Button
+            <CanvasRowAction
+              tone='danger'
               type='button'
-              size='sm'
-              variant='ghost'
-              className='text-destructive'
               onClick={() => {
                 fields.remove(index)
                 toast.success(t('Deleted. It takes effect after publishing.'))
               }}
             >
               {t('Delete')}
-            </Button>
+            </CanvasRowAction>
           ) : null}
           {rule.source !== 'CUSTOM' && isOverride ? (
-            <Button
+            <CanvasRowAction
               type='button'
-              size='sm'
-              variant='ghost'
               onClick={() => restoreSystemDefault(index)}
             >
               {t('Restore')}
-            </Button>
+            </CanvasRowAction>
           ) : null}
         </div>
       </div>
@@ -3370,7 +3351,7 @@ function ErrorSection(props: {
                       {t('Error category')}
                     </dt>
                     <dd>
-                      {t(categoryDescriptionKeys[preview.data.errorCategory])}
+                      {t(taskErrorCategoryLabels[preview.data.errorCategory])}
                     </dd>
                     {preview.data.adminNote &&
                     matchedDraft?.executionDisposition ? (
@@ -3587,7 +3568,7 @@ function ErrorSection(props: {
                   name: t(newApiErrorGroupNameKey(group.id)),
                   codes: group.codes,
                   uncodedStatus: group.uncodedStatus,
-                  category: t(categoryDescriptionKeys[group.category]),
+                  category: t(taskErrorCategoryLabels[group.category]),
                   description: group.hasDescription
                     ? t(newApiErrorGroupDescriptionKey(group.id))
                     : '',
@@ -3955,9 +3936,9 @@ function ErrorSection(props: {
                     {categories.map((category) => (
                       <NativeSelectOption key={category} value={category}>
                         {systemDefaultStatusByCategory[category] === undefined
-                          ? t(categoryDescriptionKeys[category])
+                          ? t(taskErrorCategoryLabels[category])
                           : t('{{label}} ({{detail}})', {
-                              label: t(categoryDescriptionKeys[category]),
+                              label: t(taskErrorCategoryLabels[category]),
                               detail: systemDefaultStatusByCategory[category],
                             })}
                       </NativeSelectOption>

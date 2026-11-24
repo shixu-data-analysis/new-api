@@ -48,7 +48,11 @@ import {
   tokenCategoryLabelKey,
 } from '../lib/token-rate-summary'
 import { formatExactRmbReference } from '../number-format'
+import { formatElapsed, taskElapsed } from '../task-elapsed'
 import { taskErrorCategoryLabels } from '../task-error-categories'
+import { taskOutputOutcomes } from '../task-output-outcomes'
+import { executionLabels } from '../task-status-labels'
+import { shownUpstreamTasks, upstreamTaskFailed } from '../task-upstream-tasks'
 import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
@@ -57,6 +61,7 @@ import type {
   CanvasTokenCategory,
 } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CopyableText } from './CopyableText'
@@ -71,14 +76,6 @@ import {
 import { TableRowPanel } from './TableRowPanel'
 import { JsonSnapshot, TaskCallHistory } from './TaskCallHistory'
 
-const executionLabels: Record<string, string> = {
-  ACCEPTED: 'Accepted',
-  PROCESSING: 'Processing',
-  SUCCEEDED: 'Succeeded',
-  CONFIRMED_FAILED: 'Confirmed failed',
-  PARTIAL_SUCCESS: 'Partial success',
-  UNKNOWN: 'Result pending confirmation',
-}
 const failureLocations: Record<string, string> = {
   EXECUTOR_PREFLIGHT: 'Executor preflight',
   PROVIDER_NETWORK: 'Provider network',
@@ -474,6 +471,12 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
           taskId={task.id}
           inputAssets={task.inputAssets}
           outputs={task.outputs}
+          outcomes={taskOutputOutcomes(
+            task.outputs,
+            task.outputRetrievalAttempts,
+            task.manualResults,
+            task.requestBatchPricing
+          )}
           taskSucceeded={task.derivedExecutionStatus === 'SUCCEEDED'}
           renderCallCost={(call) =>
             // No row at all when the call has nothing to show; an empty cost row is a blank strip.
@@ -700,10 +703,8 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
         header: t('Actions'),
         enableHiding: false,
         cell: ({ row }) => (
-          <Button
+          <CanvasRowAction
             type='button'
-            variant='link'
-            className='h-auto p-0'
             aria-expanded={expanded === row.original.id}
             onClick={() =>
               setExpanded((current) =>
@@ -712,7 +713,7 @@ function TaskPointRecords({ taskId }: { taskId: string }) {
             }
           >
             {t(expanded === row.original.id ? 'Hide details' : 'Details')}
-          </Button>
+          </CanvasRowAction>
         ),
       },
     ],
@@ -872,8 +873,8 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
     nodeStatusClassName =
       'text-sm font-medium text-amber-700 dark:text-amber-400'
   }
-  const separateSubmissions =
-    task.multiResultMode === 'FANOUT' && task.outputs.length > 1
+  const elapsed = taskElapsed(task.acceptedAt, task.completedAt, task.outputs)
+  const upstreamTasks = shownUpstreamTasks(task)
   let upstreamTaskHelp: string | null = null
   if (hasPendingFrozenOutput) {
     upstreamTaskHelp = task.upstreamTaskId
@@ -911,6 +912,17 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
             ? formatTime(locale, task.completedAt)
             : t('Not completed')}
         </DetailValue>
+        <DetailValue label='Elapsed'>
+          {elapsed ? formatElapsed(elapsed.totalMs, t) : '—'}
+          {elapsed?.range ? (
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t('Fastest {{fastest}}, slowest {{slowest}}', {
+                fastest: formatElapsed(elapsed.range.fastestMs, t),
+                slowest: formatElapsed(elapsed.range.slowestMs, t),
+              })}
+            </p>
+          ) : null}
+        </DetailValue>
         <DetailValue label='Execution result'>
           {t(executionLabels[task.derivedExecutionStatus] ?? 'Unknown')}
         </DetailValue>
@@ -935,22 +947,50 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
           </DetailValue>
         ) : null}
         <DetailValue label='Upstream task ID'>
-          {separateSubmissions ? (
-            <span className='text-muted-foreground'>
-              {t(
-                'Each result was submitted separately; see each provider call.'
-              )}
-            </span>
+          {upstreamTasks.length ? (
+            <ul className='space-y-1'>
+              {upstreamTasks.map((upstreamTask) => {
+                const failed = upstreamTaskFailed(upstreamTask, task.outputs)
+                return (
+                  <li
+                    key={upstreamTask.upstreamTaskId}
+                    className='flex flex-wrap items-center gap-x-2'
+                  >
+                    <span
+                      className={
+                        failed ? 'text-destructive font-mono' : 'font-mono'
+                      }
+                    >
+                      <CopyableText
+                        value={upstreamTask.upstreamTaskId}
+                        noTruncate
+                      />
+                    </span>
+                    {upstreamTasks.length > 1 ? (
+                      <span
+                        className={
+                          failed ? 'text-destructive' : 'text-muted-foreground'
+                        }
+                      >
+                        {upstreamTask.outputIndices
+                          .map((index) =>
+                            t('Result {{position}}', { position: index + 1 })
+                          )
+                          .join(' · ')}
+                      </span>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
           ) : (
-            <>
-              <div className='font-mono'>{task.upstreamTaskId ?? '—'}</div>
-              {upstreamTaskHelp ? (
-                <p className='text-muted-foreground mt-1 text-xs'>
-                  {upstreamTaskHelp}
-                </p>
-              ) : null}
-            </>
+            '—'
           )}
+          {upstreamTaskHelp ? (
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {upstreamTaskHelp}
+            </p>
+          ) : null}
         </DetailValue>
         {platformIssue ? (
           <div className='col-span-full rounded-lg border border-amber-500/40 bg-amber-500/5 p-3'>

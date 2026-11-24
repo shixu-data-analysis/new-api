@@ -69,6 +69,10 @@ import {
   type RuntimeManagementView,
 } from './components/RuntimeManagement'
 import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
+import {
+  customerChangeSearch,
+  customerDetailTabOf,
+} from './customer-management-navigation'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
   getModelManagementReturnContext,
@@ -164,6 +168,8 @@ export function AdminContent(props: {
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
   customersTab?: 'support'
+  /** 客户管理: the customer detail tab a link opens (CUSTOMER-AGENT-RECHARGE-001). */
+  customerDetailTab?: 'agent-statistics'
   dashboardTab?: 'provider-balances'
   supportView?: 'failures'
   supportConversationId?: string
@@ -201,6 +207,7 @@ export function AdminContent(props: {
         onCustomerChange={props.onCustomerChange}
         orderId={props.initialOrderId}
         pointLotId={props.initialPointLotId}
+        customerDetailTab={props.customerDetailTab}
         titleActionSlot={props.titleActionSlot}
         tab={props.customersTab}
         supportView={props.supportView}
@@ -397,6 +404,7 @@ export function CanvasCloud() {
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
         customersTab={search.tab === 'support' ? 'support' : undefined}
+        customerDetailTab={customerDetailTabOf(search.tab)}
         dashboardTab={
           search.tab === 'provider-balances' ? 'provider-balances' : undefined
         }
@@ -420,13 +428,7 @@ export function CanvasCloud() {
           void navigate({
             to: '/canvas-cloud/$section',
             params: { section: 'customers' },
-            search: (previous) => ({
-              ...previous,
-              customerId,
-              orderId: undefined,
-              pointLotId: undefined,
-              orderNumber: undefined,
-            }),
+            search: (previous) => customerChangeSearch(previous, customerId),
             replace: true,
           })
         }

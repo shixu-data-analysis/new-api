@@ -169,7 +169,7 @@ function TypeCard(props: {
                       />
                       {row.manualEnabled ? null : (
                         <span className='text-muted-foreground text-xs'>
-                          {t('Disabled')}
+                          {t('Model disabled')}
                         </span>
                       )}
                     </div>

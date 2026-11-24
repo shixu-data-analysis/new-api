@@ -97,6 +97,17 @@ const task = {
   customerBillingStatus: 'SETTLED',
   settledPoints: '12',
   outstandingDebtPoints: '3',
+  upstreamTaskId: null as string | null,
+  upstreamTasks: [] as Array<{
+    upstreamTaskId: string
+    outputIndices: number[]
+    latestOutputIndices: number[]
+  }>,
+  outputSummaries: [] as Array<{
+    outputIndex: number
+    executionStatus: string
+    completedAt: string | null
+  }>,
   acceptedAt: '2026-09-03T00:00:00.000Z',
   completedAt: '2026-09-03T00:02:00.000Z',
 }
@@ -105,6 +116,7 @@ const taskDetail = {
   ...task,
   manualResultTargets: [],
   manualResults: [],
+  outputRetrievalAttempts: [],
   quotedPoints: '20',
   deductedPoints: '12',
   releasedPoints: '8',
@@ -243,13 +255,49 @@ describe('Canvas administrator task records', () => {
     expect(screen.getByText('Outstanding debt: 3')).toBeVisible()
   })
 
-  it('shows sortable accepted and completed times, with a dash while a task is unfinished', async () => {
+  it('orders the columns, shows how long a task took under its accepted time and hides the completed time until shown', async () => {
+    const user = userEvent.setup()
     apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
       page: 1,
       pageSize: 20,
-      total: 2,
+      total: 3,
       items: [
-        task,
+        // Fan-out: results finished apart, so the fastest and slowest show.
+        {
+          ...task,
+          completedAt: '2026-09-03T00:01:52.000Z',
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'SUCCEEDED',
+              completedAt: '2026-09-03T00:00:41.000Z',
+            },
+            {
+              outputIndex: 1,
+              executionStatus: 'SUCCEEDED',
+              completedAt: '2026-09-03T00:01:52.000Z',
+            },
+          ],
+        },
+        // Native: results finished together, so only the total.
+        {
+          ...task,
+          id: '85000000-0000-7000-8000-000000000008',
+          completedAt: '2026-09-03T01:05:00.000Z',
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'SUCCEEDED',
+              completedAt: '2026-09-03T01:05:00.000Z',
+            },
+            {
+              outputIndex: 1,
+              executionStatus: 'SUCCEEDED',
+              completedAt: '2026-09-03T01:05:00.400Z',
+            },
+          ],
+        },
+        // Unfinished: no duration.
         {
           ...task,
           id: '85000000-0000-7000-8000-000000000009',
@@ -260,15 +308,101 @@ describe('Canvas administrator task records', () => {
     mount()
 
     await screen.findByRole('button', { name: task.id })
-    expect(screen.getByRole('button', { name: /Accepted at/ })).toBeVisible()
-    expect(screen.getByRole('button', { name: /Completed at/ })).toBeVisible()
     expect(
-      screen.getAllByText(new Date(task.acceptedAt).toLocaleString())
-    ).toHaveLength(2)
+      screen
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent?.trim())
+        .filter(Boolean)
+    ).toEqual([
+      'Accepted at',
+      'Task',
+      'Customer',
+      'Execution status',
+      'Settled points',
+      'Provider task ID',
+    ])
+    expect(screen.getByText('Elapsed 1 min 52 s')).toBeVisible()
+    expect(screen.getByText('Fastest 41 s, slowest 1 min 52 s')).toBeVisible()
+    // The range wraps inside the accepted column instead of widening it, and never inside a duration.
+    const range = screen.getByText('Fastest 41 s, slowest 1 min 52 s')
+    expect(range).toHaveClass('break-keep')
+    expect(range.textContent).toContain('1\u00a0min\u00a052\u00a0s')
+    expect(range.closest('td')).toHaveClass('whitespace-normal')
+    expect(screen.getByText('Elapsed 1 hr 5 min')).toBeVisible()
+    expect(screen.getAllByText(/^Elapsed /)).toHaveLength(2)
+    expect(screen.getAllByText(/^Fastest /)).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'View' }))
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Completed at' })
+    )
     expect(
-      screen.getByText(new Date(task.completedAt).toLocaleString())
+      await screen.findByRole('columnheader', { name: /Completed at/ })
     ).toBeVisible()
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('lists every provider task ID, kept short with the full ID to copy, red when its result failed', async () => {
+    const fanoutId = 'img_4d2e9a6b-7c13-4b80-95f1-e2a8c06d3b57'
+    apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 3,
+      items: [
+        {
+          ...task,
+          upstreamTasks: [
+            {
+              upstreamTaskId: 'task_7f3c2a11',
+              outputIndices: [0],
+              latestOutputIndices: [0],
+            },
+            {
+              upstreamTaskId: fanoutId,
+              outputIndices: [1],
+              latestOutputIndices: [1],
+            },
+          ],
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'SUCCEEDED',
+              completedAt: task.completedAt,
+            },
+            {
+              outputIndex: 1,
+              executionStatus: 'CONFIRMED_FAILED',
+              completedAt: task.completedAt,
+            },
+          ],
+        },
+        { ...task, id: '85000000-0000-7000-8000-000000000007' },
+        // Recorded before its calls were kept: only the task's own ID, never red.
+        {
+          ...task,
+          id: '85000000-0000-7000-8000-000000000008',
+          upstreamTaskId: 'legacy-up',
+        },
+      ],
+    })
+    mount()
+
+    expect(await screen.findByText('legacy-up')).not.toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('task_7f3c2a11')).not.toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('img_4d2e…3b57')).toHaveClass('text-destructive')
+    expect(screen.queryByText(fanoutId)).toBeNull()
+    expect(
+      screen.getByRole('button', { name: `Copy ${fanoutId}` })
+    ).toBeInTheDocument()
+    // A task with no provider task ID shows a dash.
+    const second = screen
+      .getByRole('button', { name: '85000000-0000-7000-8000-000000000007' })
+      .closest('tr') as HTMLElement
+    expect(within(second).getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('colors the execution status as the customer task table does', async () => {
@@ -382,9 +516,27 @@ describe('Canvas administrator task records', () => {
     expect(
       within(sheet).queryByRole('button', { name: `Copy ${task.id}` })
     ).not.toBeInTheDocument()
+    const taskIdField = (await within(sheet).findByText('Task ID')).closest(
+      'div'
+    ) as HTMLElement
     expect(
-      await within(sheet).findByRole('button', { name: 'Copy' })
+      within(taskIdField).getByRole('button', { name: 'Copy' })
     ).toBeVisible()
+  })
+
+  it('shows a chosen status in its filter by its label, never as the raw value', async () => {
+    routeState.set({ derivedExecutionStatus: 'PARTIAL_SUCCESS' })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ derivedExecutionStatus: 'PARTIAL_SUCCESS' }),
+        expect.any(AbortSignal)
+      )
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+    const status = screen.getByRole('combobox', { name: 'Execution status' })
+    expect(status).toHaveTextContent('Partial success')
+    expect(status).not.toHaveTextContent('PARTIAL_SUCCESS')
   })
 
   it('applies filters carried in the address and shows them as removable tags', async () => {
@@ -539,6 +691,72 @@ describe('Canvas administrator task records', () => {
         expect.any(AbortSignal)
       )
     )
+  })
+
+  it('marks only the provider task ID a failed result was last submitted under', async () => {
+    apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          ...task,
+          upstreamTasks: [
+            {
+              upstreamTaskId: 'fan-first',
+              outputIndices: [0],
+              latestOutputIndices: [],
+            },
+            // Result 2 was submitted again without receiving an ID, then failed: fan-second is no longer its latest.
+            {
+              upstreamTaskId: 'fan-second',
+              outputIndices: [1],
+              latestOutputIndices: [],
+            },
+            {
+              upstreamTaskId: 'fan-first-again',
+              outputIndices: [0],
+              latestOutputIndices: [0],
+            },
+          ],
+          outputSummaries: [
+            {
+              outputIndex: 0,
+              executionStatus: 'CONFIRMED_FAILED',
+              completedAt: task.completedAt,
+            },
+            {
+              outputIndex: 1,
+              executionStatus: 'CONFIRMED_FAILED',
+              completedAt: task.completedAt,
+            },
+          ],
+        },
+      ],
+    })
+    mount()
+    expect(await screen.findByText('fan-first-again')).toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('fan-first')).not.toHaveClass('text-destructive')
+    expect(screen.getByText('fan-second')).not.toHaveClass('text-destructive')
+  })
+
+  it('offers results the provider did not return as a failure reason, and shows it by its label', async () => {
+    routeState.set({ failureReason: 'PROVIDER_OUTPUT_MISSING' })
+    mount()
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminTaskLogs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ failureReason: 'PROVIDER_OUTPUT_MISSING' }),
+        expect.any(AbortSignal)
+      )
+    )
+    const tags = screen.getByRole('list', { name: 'Active filters' })
+    expect(
+      within(tags).getByText(
+        'Failure reason: Provider returned fewer results than requested'
+      )
+    ).toBeVisible()
   })
 
   it('sends a failure reason and acceptance start from the address, and a typed provider task ID only for a specific ID', async () => {

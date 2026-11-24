@@ -15,6 +15,7 @@ import { getCanvasCustomerBusinessFacts } from '../api'
 import { factValueLabels } from '../business-facts'
 import { formatCanvasDateTime } from '../formatters'
 import { BusinessTermText } from './BusinessTerm'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CopyableText } from './CopyableText'
 
 function FactValue(props: { label: string; children: ReactNode }) {
@@ -144,14 +145,12 @@ export function CustomerLotDetails(props: {
           return (
             <div className='flex flex-col items-end gap-1' role='alert'>
               <span>{t('Unable to load customer details')}</span>
-              <Button
+              <CanvasRowAction
                 type='button'
-                variant='outline'
-                size='sm'
                 onClick={() => void row.query.refetch()}
               >
                 {t('Retry')}
-              </Button>
+              </CanvasRowAction>
             </div>
           )
         }

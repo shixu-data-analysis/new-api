@@ -67,6 +67,7 @@ import type { CanvasAgentProfile, CanvasInvitationExactFilter } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { AgentStatusSheet } from './AgentStatusSheet'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CopyableText } from './CopyableText'
@@ -312,28 +313,33 @@ export function AgentManagement(props: {
         enableSorting: false,
         header: t('Actions'),
         size: 256,
-        cell: ({ row }) => (
-          <div className='flex flex-wrap gap-2'>
-            <Button
+        cell: ({ row }) => {
+          // Restoring is the row's main action and comes first; disabling is dangerous and comes last.
+          const active = row.original.status === 'ACTIVE'
+          const statusAction = (
+            <CanvasRowAction
               type='button'
-              variant='outline'
-              size='sm'
+              tone={active ? 'danger' : 'primary'}
               onClick={() => setStatusTarget(row.original)}
             >
-              {row.original.status === 'ACTIVE' ? t('Disable') : t('Restore')}
-            </Button>
-            {onViewInviteCodes ? (
-              <Button
-                type='button'
-                variant='outline'
-                size='sm'
-                onClick={() => onViewInviteCodes(row.original)}
-              >
-                {t('View invite codes')}
-              </Button>
-            ) : null}
-          </div>
-        ),
+              {active ? t('Disable') : t('Restore')}
+            </CanvasRowAction>
+          )
+          return (
+            <div className='flex flex-wrap gap-2'>
+              {active ? null : statusAction}
+              {onViewInviteCodes ? (
+                <CanvasRowAction
+                  type='button'
+                  onClick={() => onViewInviteCodes(row.original)}
+                >
+                  {t('View invite codes')}
+                </CanvasRowAction>
+              ) : null}
+              {active ? statusAction : null}
+            </div>
+          )
+        },
       },
     ],
     [i18n.language, i18n.resolvedLanguage, onViewInviteCodes, t]

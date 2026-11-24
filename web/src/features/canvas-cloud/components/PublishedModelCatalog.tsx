@@ -81,10 +81,12 @@ import {
 import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
 import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
+import { modelControlReasonLabel } from '../model-monitoring-control'
 import type { CanvasAdminTestingModel } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
 import { withCanvasTableColumnSizes } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
 import { ModelBulkRetireDialog } from './catalog-edit/ModelBulkRetireDialog'
 import { ModelEditor, type ModelEditorMode } from './catalog-edit/ModelEditor'
@@ -95,6 +97,7 @@ import {
   executionTargetSpecifications,
 } from './execution-target-label'
 import { ExecutionTargetCoverage } from './ExecutionTargetCoverage'
+import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 import { ModelTagFilterButton } from './ModelTagFilterButton'
 import { ParameterCombinationControlDialog } from './ParameterCombinationControlDialog'
@@ -112,12 +115,13 @@ function customerDisplayAction(enabled: boolean, t: (key: string) => string) {
   return enabled ? t('Turn off display switch') : t('Turn on display switch')
 }
 
-// Disabled models are only looked up here; they are restored from the alert and monitoring pages.
+// A disabled model shows why it was disabled and can be restored or deleted here (MODEL-DELISTED-RESTORE-001).
 const DISABLED_TABLE_COLUMNS = new Set([
   'name',
   'provider',
   'capability',
-  'retire',
+  'disabledReason',
+  'disabledActions',
 ])
 
 function pageWithinRange(pageCount: number) {
@@ -146,6 +150,9 @@ export function PublishedModelCatalog(props: {
   const queryClient = useQueryClient()
   const [editor, setEditor] = useState<ModelEditorMode | null>(null)
   const [retiring, setRetiring] = useState<CanvasAdminTestingModel | null>(null)
+  const [restoring, setRestoring] = useState<CanvasAdminTestingModel | null>(
+    null
+  )
   const [retiringAll, setRetiringAll] = useState(false)
   const [catalogSource, setCatalogSource] = useState('ALL')
   const [search, setSearch] = useState(() => navigation?.listState.search ?? '')
@@ -647,27 +654,51 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => <PublishedModelDetails model={row.original} />,
       },
       {
-        // Only the disabled table shows it: a stopped model has no other actions, and it can still be deleted.
-        id: 'retire',
-        size: 128,
+        // Only the disabled table shows the reason and these actions: a stopped model has no other actions.
+        id: 'disabledReason',
+        size: 160,
+        enableHiding: false,
+        enableSorting: false,
+        header: t('Disable reason'),
+        meta: { label: t('Disable reason') },
+        cell: ({ row }) => {
+          const reason = row.original.modelControl.disabledReason
+          return reason ? t(modelControlReasonLabel(reason)) : '—'
+        },
+      },
+      {
+        id: 'disabledActions',
+        size: 208,
         enableHiding: false,
         enableSorting: false,
         header: t('Model actions'),
         meta: { label: t('Model actions') },
         cell: ({ row }) => (
-          <Button
-            variant='ghost'
-            size='sm'
-            className='text-destructive hover:text-destructive'
-            onClick={() => setRetiring(row.original)}
-          >
-            {t('Delete the model')}
-          </Button>
+          <div className='flex flex-wrap items-center gap-2'>
+            <CanvasRowAction
+              tone='primary'
+              aria-label={t('Restore model: {{model}}', {
+                model: row.original.effectiveDisplayName,
+              })}
+              onClick={() => setRestoring(row.original)}
+            >
+              {t('Restore model')}
+            </CanvasRowAction>
+            <CanvasRowAction
+              tone='danger'
+              aria-label={t('Delete the model: {{model}}', {
+                model: row.original.effectiveDisplayName,
+              })}
+              onClick={() => setRetiring(row.original)}
+            >
+              {t('Delete the model')}
+            </CanvasRowAction>
+          </div>
         ),
       },
       {
         id: 'actions',
-        size: 208,
+        size: 256,
         header: t('Model actions'),
         meta: { label: t('Model actions') },
         enableSorting: false,
@@ -675,84 +706,76 @@ export function PublishedModelCatalog(props: {
         cell: ({ row }) => {
           const model = row.original
           return (
-            <div className='grid gap-2'>
-              <div className='grid w-max gap-2'>
-                <Button
-                  variant='outline'
-                  disabled={presentationBusy}
-                  data-model-navigation-id={`${model.id}:pricing`}
-                  onClick={(event) => {
-                    const returnContext = navigation?.captureReturnContext(
-                      `${model.id}:pricing`
-                    )
-                    event.currentTarget.focus()
-                    onManagePricing(model.id, returnContext)
-                  }}
+            <div className='flex min-w-60 flex-wrap items-center gap-2'>
+              <CanvasRowAction
+                tone='primary'
+                disabled={presentationBusy}
+                data-model-navigation-id={`${model.id}:pricing`}
+                onClick={(event) => {
+                  const returnContext = navigation?.captureReturnContext(
+                    `${model.id}:pricing`
+                  )
+                  event.currentTarget.focus()
+                  onManagePricing(model.id, returnContext)
+                }}
+              >
+                {t('Manage prices')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy || !props.onManageBindings}
+                data-model-navigation-id={`${model.id}:bindings`}
+                onClick={() => {
+                  props.onManageBindings?.(
+                    {
+                      providerId: model.provider.id,
+                      ...(model.binding.credentialGroupId
+                        ? {
+                            credentialGroupId: model.binding.credentialGroupId,
+                          }
+                        : {}),
+                    },
+                    navigation?.captureReturnContext(`${model.id}:bindings`)
+                  )
+                }}
+              >
+                {t('Manage API Key bindings')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy}
+                onClick={() => props.onEditPresentation(model.modelKey)}
+              >
+                {t('Edit display information')}
+              </CanvasRowAction>
+              <CanvasRowAction
+                disabled={presentationBusy}
+                onClick={() =>
+                  setEditor({ kind: 'edit', modelKey: model.modelKey })
+                }
+              >
+                {t('Edit model configuration')}
+              </CanvasRowAction>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<CanvasRowAction disabled={presentationBusy} />}
                 >
-                  {t('Manage prices')}
-                </Button>
-                <Button
-                  variant='outline'
-                  disabled={presentationBusy || !props.onManageBindings}
-                  data-model-navigation-id={`${model.id}:bindings`}
-                  onClick={() => {
-                    props.onManageBindings?.(
-                      {
-                        providerId: model.provider.id,
-                        ...(model.binding.credentialGroupId
-                          ? {
-                              credentialGroupId:
-                                model.binding.credentialGroupId,
-                            }
-                          : {}),
-                      },
-                      navigation?.captureReturnContext(`${model.id}:bindings`)
-                    )
-                  }}
-                >
-                  {t('Manage API Key bindings')}
-                </Button>
-                <Button
-                  variant='outline'
-                  disabled={presentationBusy}
-                  onClick={() => props.onEditPresentation(model.modelKey)}
-                >
-                  {t('Edit display information')}
-                </Button>
-                <Button
-                  variant='outline'
-                  disabled={presentationBusy}
-                  onClick={() =>
-                    setEditor({ kind: 'edit', modelKey: model.modelKey })
-                  }
-                >
-                  {t('Edit model configuration')}
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button variant='outline' disabled={presentationBusy} />
+                  {t('More')}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      setEditor({ kind: 'copy', modelKey: model.modelKey })
                     }
                   >
-                    {t('More')}
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setEditor({ kind: 'copy', modelKey: model.modelKey })
-                      }
-                    >
-                      {t('Copy as a new model')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant='destructive'
-                      onClick={() => setRetiring(model)}
-                    >
-                      {t('Delete the model')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                    {t('Copy as a new model')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant='destructive'
+                    onClick={() => setRetiring(model)}
+                  >
+                    {t('Delete the model')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )
         },
@@ -796,7 +819,11 @@ export function PublishedModelCatalog(props: {
     autoResetPageIndex: false,
   }
   const enabledColumnVisibility = useMemo<VisibilityState>(
-    () => ({ ...columnVisibility, retire: false }),
+    () => ({
+      ...columnVisibility,
+      disabledReason: false,
+      disabledActions: false,
+    }),
     [columnVisibility]
   )
   const { table } = useDataTable({
@@ -961,6 +988,15 @@ export function PublishedModelCatalog(props: {
     <Card>
       {retiring ? (
         <ModelRetireDialog model={retiring} onClose={() => setRetiring(null)} />
+      ) : null}
+      {restoring ? (
+        <LogicalModelControlDialog
+          modelKey={restoring.modelKey}
+          name={restoring.effectiveDisplayName}
+          manualEnabled={false}
+          controlVersion={restoring.modelControl.version}
+          onClose={() => setRestoring(null)}
+        />
       ) : null}
       <CardContent className='min-w-0'>
         <section className='mb-4 space-y-2' aria-label={t('Generation type')}>

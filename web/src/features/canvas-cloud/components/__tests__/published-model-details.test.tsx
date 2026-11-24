@@ -20,6 +20,7 @@ function model(
     description: '',
     resourceEnabled: true,
     modelDisabled: false,
+    modelControl: { version: 0, disabledReason: null },
     presentationVersion: null,
     status: 'ACTIVE',
     customerVisible: false,

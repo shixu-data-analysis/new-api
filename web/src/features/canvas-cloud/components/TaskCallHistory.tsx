@@ -17,8 +17,13 @@ import {
 import { formatErrorRuleMatch } from '../error-rule-format'
 import { newApiCodeTableMatch, newApiRecognitionKeys } from '../new-api-errors'
 import { getCanvasTaskCalls, type CanvasTaskCall } from '../task-call-api'
+import { taskErrorCategoryLabels } from '../task-error-categories'
+import type { TaskOutputOutcome } from '../task-output-outcomes'
+import { executionLabels } from '../task-status-labels'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CallResults } from './CallResults'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CodeBlock } from './CodeBlock'
@@ -34,26 +39,6 @@ const chainStates: Record<string, string> = {
   AWAITING_RESPONSE: 'Awaiting response',
   RESPONDED: 'Responded',
   OUTCOME_UNKNOWN: 'Outcome pending confirmation',
-}
-const errorCategories: Record<string, string> = {
-  INVALID_REQUEST: 'Invalid request',
-  PROVIDER_AUTH_FAILED: 'Provider authentication failed',
-  PROVIDER_BALANCE_INSUFFICIENT: 'Provider balance insufficient',
-  PROVIDER_ACCESS_DENIED: 'Provider access denied',
-  PROVIDER_ENDPOINT_NOT_FOUND: 'Provider endpoint not found',
-  PROVIDER_MODEL_UNAVAILABLE: 'Provider model unavailable',
-  PROVIDER_REQUEST_TIMEOUT: 'Provider request timed out',
-  PROVIDER_RATE_LIMITED: 'Provider rate limited',
-  PROVIDER_INTERNAL_ERROR: 'Provider internal error',
-  PROVIDER_BAD_GATEWAY: 'Provider bad gateway',
-  PROVIDER_UNAVAILABLE: 'Provider unavailable',
-  PROVIDER_GATEWAY_TIMEOUT: 'Provider gateway timed out',
-  PROVIDER_UNKNOWN_ERROR: 'Unknown provider error',
-}
-const judgementStatuses: Record<string, string> = {
-  SUCCEEDED: 'Succeeded',
-  CONFIRMED_FAILED: 'Confirmed failed',
-  UNKNOWN: 'Result pending confirmation',
 }
 // Tooltip text for overview labels whose meaning is not obvious.
 const overviewHints: Record<string, string> = {
@@ -76,8 +61,8 @@ const overviewHints: Record<string, string> = {
     'The Canvas error category given by the matched mapping; it selects the default customer message.',
   'Matched mapping':
     'The error mapping this call matched, with its rule ID and version.',
-  'Execution judgement':
-    'Whether this call made the result confirmed failed or pending confirmation, and whether a mapping or the system decided it.',
+  'Provider response judgement':
+    "How this call's provider response was judged, confirmed failed or pending confirmation, and whether a mapping or the system decided it. Downloading and storing the results come after it; see Results.",
   'Administrator rationale':
     'The rationale entered with the mapping; visible only to administrators and audit records.',
 }
@@ -183,7 +168,7 @@ function executionJudgementText(
     const status = t(
       judgement.status === 'UNKNOWN'
         ? 'Processing, still querying'
-        : judgementStatuses[judgement.status]
+        : executionLabels[judgement.status]
     )
     return judgement.providerStatus
       ? t('{{status}} (provider status {{providerStatus}})', {
@@ -197,7 +182,7 @@ function executionJudgementText(
     judgement.source === 'RULE'
       ? '{{status}} (set by mapping)'
       : '{{status}} (system judgement)',
-    { status: t(judgementStatuses[judgement.status]) }
+    { status: t(executionLabels[judgement.status]) }
   )
 }
 
@@ -253,11 +238,14 @@ function orderedInputMedia(
 export function CallDetails({
   call,
   inputAssets,
+  outcomes = [],
   openingInput,
   onOpenInput,
 }: {
   call: CanvasTaskCall
   inputAssets: CanvasAdminTaskInputAsset[]
+  /** The results this call was last submitted for that did not simply succeed. */
+  outcomes?: ReadonlyArray<TaskOutputOutcome>
   openingInput: string | null
   onOpenInput: (asset: CanvasAdminTaskInputAsset) => void
 }) {
@@ -337,18 +325,36 @@ export function CallDetails({
     [
       'Canvas error code',
       <div key='canvas-error-code'>
-        <div>{present(call.canvasErrorCode)}</div>
+        <div className={call.canvasErrorCode ? 'text-destructive' : undefined}>
+          {present(call.canvasErrorCode)}
+        </div>
         {schemaNote ? (
           <p className='text-muted-foreground mt-1 text-xs'>{schemaNote}</p>
         ) : null}
       </div>,
     ],
-    ['Upstream error code', present(call.upstreamErrorCode)],
+    [
+      'Upstream error code',
+      call.upstreamErrorCode ? (
+        <span key='upstream-error-code' className='text-destructive'>
+          {call.upstreamErrorCode}
+        </span>
+      ) : (
+        '—'
+      ),
+    ],
     [
       'Error category',
-      call.errorCategory
-        ? t(errorCategories[call.errorCategory] ?? 'Unknown error category')
-        : '—',
+      call.errorCategory ? (
+        <span key='error-category' className='text-destructive'>
+          {t(
+            taskErrorCategoryLabels[call.errorCategory] ??
+              'Unknown error category'
+          )}
+        </span>
+      ) : (
+        '—'
+      ),
     ],
     [
       'Matched mapping',
@@ -371,7 +377,19 @@ export function CallDetails({
           ['Recognition', t(newApiRecognitionKeys[call.gatewayError.kind])],
         ] as Array<[string, ReactNode, boolean?]>)
       : []),
-    ['Execution judgement', executionJudgementText(call.executionJudgement, t)],
+    [
+      'Provider response judgement',
+      <span
+        key='judgement'
+        className={
+          call.executionJudgement?.status === 'CONFIRMED_FAILED'
+            ? 'text-destructive'
+            : undefined
+        }
+      >
+        {executionJudgementText(call.executionJudgement, t)}
+      </span>,
+    ],
     ...(call.unrecognizedStatus
       ? ([
           [
@@ -530,6 +548,7 @@ export function CallDetails({
               </ul>
             </section>
           ) : null}
+          <CallResults outcomes={outcomes} />
         </TabsContent>
         <TabsContent value='response' className='mt-4'>
           {call.sanitizedResponse !== null ? (
@@ -568,12 +587,19 @@ export function TaskCallHistory({
   taskId,
   inputAssets = [],
   outputs = [],
+  outcomes = [],
   taskSucceeded = false,
   renderCallCost,
 }: {
   taskId: string
   inputAssets?: CanvasAdminTaskInputAsset[]
-  outputs?: Array<{ outputIndex: number; executionStatus: string }>
+  outputs?: Array<{
+    outputIndex: number
+    executionStatus: string
+    latestSubmissionCallId?: string | null
+  }>
+  /** The task's results that did not simply succeed; each shows under the call it was last submitted in. */
+  outcomes?: ReadonlyArray<TaskOutputOutcome>
   taskSucceeded?: boolean
   /** Provider cost line of a submit call (its completeness and settlement), shown under the call. */
   renderCallCost?: (call: CanvasTaskCall) => ReactNode
@@ -630,6 +656,23 @@ export function TaskCallHistory({
     retry: false,
   })
   const items = query.data?.items ?? []
+  // Cloud names each result's latest submission, whichever page of calls it is on.
+  const latestSubmission = new Map(
+    outputs.map((output) => [output.outputIndex, output.latestSubmissionCallId])
+  )
+  const outcomesOf = (call: CanvasTaskCall) =>
+    outcomes.filter(
+      (outcome) =>
+        latestSubmission.get(outcome.outputIndex) === call.localCallId
+    )
+  // A failed result is marked on the call it was last submitted in, so a collapsed row still shows it.
+  const failedHere = (call: CanvasTaskCall, index: number) =>
+    latestSubmission.get(index) === call.localCallId &&
+    outputs.some(
+      (output) =>
+        output.outputIndex === index &&
+        output.executionStatus === 'CONFIRMED_FAILED'
+    )
   const anyUnsettled = items.some(
     (item) => !callIsSettled(item, outputs, taskSucceeded)
   )
@@ -668,12 +711,20 @@ export function TaskCallHistory({
       header: t('Related object'),
       cell: ({ row }) =>
         row.original.outputIndices.length
-          ? row.original.outputIndices
-              .map(
-                (index) =>
-                  `${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`
-              )
-              .join(' · ')
+          ? row.original.outputIndices.map((index, position) => (
+              <Fragment key={index}>
+                {position ? ' · ' : ''}
+                <span
+                  className={
+                    failedHere(row.original, index)
+                      ? 'text-destructive'
+                      : undefined
+                  }
+                >
+                  {`${t(row.original.callType === 'PREPARE_ASSET' ? 'Input asset' : 'Result')} ${index + 1}`}
+                </span>
+              </Fragment>
+            ))
           : '—',
     },
     {
@@ -714,10 +765,8 @@ export function TaskCallHistory({
       header: t('Actions'),
       enableHiding: false,
       cell: ({ row }) => (
-        <Button
+        <CanvasRowAction
           type='button'
-          variant='link'
-          className='h-auto p-0'
           aria-expanded={isOpen(row.original)}
           onClick={() =>
             setToggled((current) => ({
@@ -727,7 +776,7 @@ export function TaskCallHistory({
           }
         >
           {t(isOpen(row.original) ? 'Hide details' : 'Details')}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]
@@ -756,6 +805,7 @@ export function TaskCallHistory({
                 <CallDetails
                   call={row.original}
                   inputAssets={inputAssets}
+                  outcomes={outcomesOf(row.original)}
                   openingInput={openingInput}
                   onOpenInput={(asset) => void openInput(asset)}
                 />
@@ -786,6 +836,7 @@ export function TaskCallHistory({
             <CallDetails
               call={row.original}
               inputAssets={inputAssets}
+              outcomes={outcomesOf(row.original)}
               openingInput={openingInput}
               onOpenInput={(asset) => void openInput(asset)}
             />

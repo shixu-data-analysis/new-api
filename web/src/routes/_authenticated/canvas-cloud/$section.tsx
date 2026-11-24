@@ -76,7 +76,11 @@ const taskLogSearch = {
   upstreamTask: z.enum(['present', 'absent']).optional().catch(undefined),
   frozenResultsOnly: z.literal(true).optional().catch(undefined),
   failureReason: z
-    .enum(['PROVIDER_OUTPUT_TOO_LARGE', 'RETRY_EXHAUSTED'])
+    .enum([
+      'PROVIDER_OUTPUT_TOO_LARGE',
+      'RETRY_EXHAUSTED',
+      'PROVIDER_OUTPUT_MISSING',
+    ])
     .optional()
     .catch(undefined),
   unrecognizedStatus: z.literal('present').optional().catch(undefined),
@@ -91,8 +95,9 @@ const taskLogSearch = {
 export const canvasCloudSearchSchema = z.object({
   ...taskLogSearch,
   customerId: optionalUuidSearch,
-  // 客户管理 › 客服会话, opened from a Webhook alert's reply link (SUPPORT-CHAT-001).
-  // Other sections' routes keep their own `tab` strings, so this one is a string too and only 'support' is read.
+  // Each section reads only its own values: 客户管理 reads 'support' (客服会话, from a Webhook alert's reply link,
+  // SUPPORT-CHAT-001) and, with a customerId, 'agent-statistics' (the customer detail tab); 经营大盘 reads
+  // 'provider-balances'. Other sections' routes keep their own `tab` strings, so this one is a string too.
   tab: z.string().max(32).optional().catch(undefined),
   conversation: optionalUuidSearch,
   // 客服会话 › 失败提醒, the page a failure alert links to; only 'failures' is read.

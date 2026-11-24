@@ -22,21 +22,37 @@ import { SelectValue } from '@/components/ui/select'
 import type { CanvasBusinessTermKind } from '../business-terms'
 import { BusinessTermText } from './BusinessTerm'
 
-export function CanvasLocalizedSelectValue(props: {
-  value?: string | null
-  emptyLabelKey?: string
-  displayValue?: ReactNode
-  valueLabelKey?: string
-  termKind?: CanvasBusinessTermKind
-  placeholderKey?: string
-}) {
+/**
+ * What a selected value shows. A value is never shown by translating it as it is: an enum value is not a translation key, and
+ * a raw value reached the screen (the task log showed PARTIAL_SUCCESS). So the caller names how the value reads.
+ */
+type CanvasSelectValueLabel =
+  /** Already-localized content, such as a name read from the server. */
+  | { displayValue: ReactNode; valueLabelKey?: never; termKind?: never }
+  /** The translation key of the selected value; undefined reads as Unknown. */
+  | {
+      valueLabelKey: string | undefined
+      displayValue?: never
+      termKind?: never
+    }
+  /** A business term, localized by its kind. */
+  | {
+      termKind: CanvasBusinessTermKind
+      displayValue?: never
+      valueLabelKey?: never
+    }
+
+export function CanvasLocalizedSelectValue(
+  props: {
+    value?: string | null
+    emptyLabelKey?: string
+    placeholderKey?: string
+  } & CanvasSelectValueLabel
+) {
   const { t } = useTranslation()
   const emptyLabelKey = props.emptyLabelKey ?? props.placeholderKey ?? 'Unknown'
   let content: ReactNode = t(emptyLabelKey)
 
-  if (props.value) {
-    content = props.displayValue ?? t(props.valueLabelKey ?? props.value)
-  }
   if (props.value && props.termKind) {
     content = (
       <BusinessTermText
@@ -45,6 +61,10 @@ export function CanvasLocalizedSelectValue(props: {
         fallback={t('Unknown')}
       />
     )
+  } else if (props.value && props.displayValue !== undefined) {
+    content = props.displayValue
+  } else if (props.value) {
+    content = t(props.valueLabelKey ?? 'Unknown')
   }
 
   return (

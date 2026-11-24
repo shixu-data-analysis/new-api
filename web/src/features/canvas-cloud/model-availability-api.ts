@@ -96,16 +96,30 @@ export interface AvailabilityTarget {
   lastSuccessAt: string | null
 }
 
-export interface MissingModel {
+interface AvailabilityModel {
   modelKey: string
   displayName: string
   upstreamIds: string[]
   providerId: string
   providerName: string
   credentialGroupName: string | null
-  firstMissingAt: string
-  enabled: boolean
   controlVersion: number
+}
+
+/** An enabled model whose absence from the provider is confirmed. */
+export interface MissingModel extends AvailabilityModel {
+  firstMissingAt: string
+}
+
+/** The provider's last answer for a model: null until one counts for its current group and upstream IDs. */
+export type UpstreamStatus = 'AVAILABLE' | 'SUSPECTED' | 'MISSING' | null
+
+/** A disabled model of a probed target, listed again or not (MODEL-DELISTED-RESTORE-001). */
+export interface DisabledModel extends AvailabilityModel {
+  disabledReason: string | null
+  upstreamStatus: UpstreamStatus
+  lastListedAt: string | null
+  firstMissingAt: string | null
 }
 
 /** A new provider model ID that contains a keyword and is not in that provider's Catalog (MODEL-LISTING-ALERT-001). */
@@ -127,9 +141,11 @@ export interface AvailabilityOverview {
   }
   providers: AvailabilityProvider[]
   targets: AvailabilityTarget[]
-  models: MissingModel[]
+  missingModels: MissingModel[]
+  disabledModels: DisabledModel[]
   counts: {
     missing: number
+    disabled: number
     failed: number
     paused: number
     listed: number

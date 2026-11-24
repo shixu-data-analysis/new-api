@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader, DataTableRow } from '@/components/data-table'
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -62,6 +61,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm } from './BusinessTerm'
 import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 
 /**
@@ -496,9 +496,7 @@ export function AgentCustomerList(props: { source: AgentCustomerSource }) {
       id: 'usageAction',
       header: t('Action'),
       cell: ({ row }) => (
-        <Button
-          size='sm'
-          variant='outline'
+        <CanvasRowAction
           aria-expanded={expandedCustomerId === row.original.id}
           onClick={() =>
             setExpandedCustomerId(
@@ -509,7 +507,7 @@ export function AgentCustomerList(props: { source: AgentCustomerSource }) {
           }
         >
           {t('Model usage')}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -43,6 +44,7 @@ import {
   modelControlFormSchema,
   modelDisableReasons,
   modelMonitoringReasonLabels,
+  refreshModelControlViews,
 } from '../model-monitoring-control'
 
 interface Failure {
@@ -55,9 +57,9 @@ interface Failure {
 export function ModelAvailabilityBulkDisableDialog(props: {
   models: MissingModel[]
   onClose: () => void
-  onChanged: () => void
 }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [selected, setSelected] = useState(
     () => new Set(props.models.map((model) => model.modelKey))
   )
@@ -124,7 +126,7 @@ export function ModelAvailabilityBulkDisableDialog(props: {
       }
     }
     setFailures(failed)
-    props.onChanged()
+    refreshModelControlViews(queryClient)
   }
 
   const submitFirst = async () => {
@@ -144,9 +146,7 @@ export function ModelAvailabilityBulkDisableDialog(props: {
     try {
       const latest = await getModelAvailability()
       const current = new Map(
-        latest.models
-          .filter((model) => model.enabled)
-          .map((model) => [model.modelKey, model])
+        latest.missingModels.map((model) => [model.modelKey, model])
       )
       const models = failures.flatMap((failure) => {
         const model = current.get(failure.model.modelKey)

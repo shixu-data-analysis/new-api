@@ -67,6 +67,7 @@ import type {
 import { useDashboardFormatters } from '../use-dashboard-formatters'
 import { useServerTableState } from '../use-server-table-state'
 import { AdminTaskRecordDetails } from './AdminTaskRecordDetails'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { CustomerLotDetails } from './CustomerLotDetails'
@@ -986,26 +987,26 @@ function CostDrawer(props: {
       cell: ({ row }) => {
         if (row.original.canSettle) {
           return (
-            <Button
+            <CanvasRowAction
+              tone='primary'
               type='button'
-              variant='link'
-              className='h-auto p-0 whitespace-nowrap'
+              className='whitespace-nowrap'
               onClick={() => setSettleRow(row.original)}
             >
               {t('Settle cost')}
-            </Button>
+            </CanvasRowAction>
           )
         }
         if (!row.original.canRevoke) return null
         return (
-          <Button
+          <CanvasRowAction
+            tone='danger'
             type='button'
-            variant='link'
-            className='h-auto p-0 whitespace-nowrap'
+            className='whitespace-nowrap'
             onClick={() => setRevokeRow(row.original)}
           >
             {t('Revoke settlement')}
-          </Button>
+          </CanvasRowAction>
         )
       },
     },

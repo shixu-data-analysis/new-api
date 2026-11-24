@@ -18,6 +18,7 @@ import i18next from 'i18next'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 
 import type { CanvasModelUsage } from '../../types'
 import { ModelUsageRanking } from '../ModelUsageRanking'
@@ -106,6 +107,15 @@ describe('model usage ranking', () => {
     await i18next.changeLanguage('zhCN')
     mount()
     expect((await screen.findAllByText('video.fast')).length).toBeGreaterThan(0)
+  })
+
+  it('names a disabled model as the availability page and the model list do', async () => {
+    i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)
+    await i18next.changeLanguage('zh')
+    mount()
+    const disabled = await screen.findByText('已停用')
+    expect(disabled.closest('tr')).toHaveTextContent('video.old')
+    await i18next.changeLanguage('en')
   })
 
   it('compares the types and ranks each type by results with the change against the previous period', async () => {

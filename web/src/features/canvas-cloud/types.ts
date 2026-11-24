@@ -1193,6 +1193,8 @@ export interface CanvasAdminTestingModel {
   description: string
   resourceEnabled: boolean
   modelDisabled: boolean
+  /** The model key's current control: its version, which a restore names, and why it disabled the model. */
+  modelControl: { version: number; disabledReason: string | null }
   presentationVersion: number | null
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED'
   customerVisible: boolean
@@ -1733,6 +1735,20 @@ export interface CanvasAdminCustomerPointBalance {
   createdAt?: string
 }
 
+/** A row of the administrator customer list (CUSTOMER-AGENT-RECHARGE-001). */
+export interface CanvasAdminCustomerListItem extends CanvasAdminCustomerPointBalance {
+  /** The agent whose invite code activated the customer; `customerId` is the agent's own customer record. */
+  referralAgent: {
+    principalId: string
+    customerId: string | null
+    username: string | null
+  } | null
+  /** Points bought with recharge codes; Bonus and point returns do not change it. */
+  rechargedPoints: string
+  /** Bonus points ever granted, used or not. */
+  grantedBonusPoints: string
+}
+
 export interface CanvasAdminRechargeOrder {
   id: string
   orderNumber: string
@@ -1886,6 +1902,20 @@ export interface CanvasAdminTaskLog {
   outstandingDebtPoints: string | null
   acceptedAt: string
   completedAt: string | null
+  /** The last Provider task ID the task received; a task recorded before its calls were kept has only this one. */
+  upstreamTaskId: string | null
+  upstreamTasks: CanvasAdminTaskUpstreamTask[]
+}
+
+/**
+ * A Provider task ID the task's submissions received, with the result positions submitted under it; Cloud lists them by
+ * the latest submission that received each, so the last one covering a position is its latest submission.
+ */
+export interface CanvasAdminTaskUpstreamTask {
+  upstreamTaskId: string
+  outputIndices: number[]
+  /** The positions whose latest submission received this ID. */
+  latestOutputIndices: number[]
 }
 
 export interface CanvasTaskOutputSummary {
@@ -1908,6 +1938,7 @@ export type CanvasAdminTaskUpstreamFilter = 'present' | 'absent'
 export type CanvasAdminTaskFailureReason =
   | 'PROVIDER_OUTPUT_TOO_LARGE'
   | 'RETRY_EXHAUSTED'
+  | 'PROVIDER_OUTPUT_MISSING'
 
 export interface CanvasAdminTaskLogQuery {
   taskId?: string
@@ -2127,6 +2158,8 @@ export interface CanvasAdminTaskRecordOutput {
   completedAt: string | null
   billingFinalizedAt: string | null
   customerSafeErrorDetail: string | null
+  /** Task details only: the provider call this result was last submitted in; null when never submitted. */
+  latestSubmissionCallId?: string | null
 }
 
 export interface CanvasAdminTaskInputAsset {
@@ -2162,6 +2195,20 @@ export interface CanvasAdminTaskProviderCost {
 }
 
 /** An administrator's manual result for one UNKNOWN output with frozen points, applied by the Executor that next claims the task. */
+export interface CanvasAdminOutputRetrievalAttempt {
+  outputIndex: number
+  attemptNumber: number
+  reasonCode: string
+  step: 'DOWNLOAD' | 'VALIDATION' | 'STORAGE'
+  outcome: 'RETRY_SCHEDULED' | 'CONFIRMED_FAILED'
+  details: {
+    httpStatus?: number
+    failure?: 'CONNECTION' | 'TIMEOUT'
+  } & Record<string, unknown>
+  occurredAt: string
+  nextRetryAt: string | null
+}
+
 export interface CanvasAdminTaskManualResult {
   id: string
   outputIndex: number
@@ -2240,6 +2287,8 @@ export interface CanvasAdminTaskRecordDetail {
   parameters: Record<string, string | number | boolean | null> | null
   /** How several results are produced; null for a text task, which has one answer. */
   multiResultMode: 'NATIVE' | 'FANOUT' | null
+  /** The Quote priced the whole request once (a fixed-count model): the first result carries the points, the others 0. */
+  requestBatchPricing: boolean
   tokenBilling: CanvasAdminTokenBilling | null
   failureLocation:
     | 'EXECUTOR_PREFLIGHT'
@@ -2257,6 +2306,9 @@ export interface CanvasAdminTaskRecordDetail {
     detail?: string
   } | null
   outputs: CanvasAdminTaskRecordOutput[]
+  /** Every failed attempt to download, check or store a result after the Provider returned it (at most 5 per result). */
+  outputRetrievalAttempts: CanvasAdminOutputRetrievalAttempt[]
+  upstreamTasks: CanvasAdminTaskUpstreamTask[]
   inputAssets: CanvasAdminTaskInputAsset[]
   upstreamTaskId: string | null
   taskError: {

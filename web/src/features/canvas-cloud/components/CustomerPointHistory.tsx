@@ -51,6 +51,7 @@ import { useServerTableState } from '../use-server-table-state'
 import { BusinessTerm, BusinessTermText } from './BusinessTerm'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import type { CustomerFactTarget } from './CustomerBusinessFacts'
 
@@ -416,16 +417,14 @@ export function CustomerPointHistory({
           )
           if (available <= 0n || expired) return null
           return (
-            <Button
+            <CanvasRowAction
               type='button'
-              size='sm'
-              variant={
-                selectedLotId === row.original.id ? 'default' : 'outline'
-              }
+              tone={selectedLotId === row.original.id ? 'primary' : 'normal'}
+              aria-pressed={selectedLotId === row.original.id}
               onClick={() => onDeductLot(row.original)}
             >
               {t('Deduct points')}
-            </Button>
+            </CanvasRowAction>
           )
         },
       })

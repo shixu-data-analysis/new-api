@@ -92,6 +92,7 @@ import {
   CanvasManagementTabsList,
   CanvasManagementTabsTrigger,
 } from './CanvasManagementTabs'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import {
@@ -363,34 +364,29 @@ function CustomerOrders({
         enableHiding: false,
         header: t('Actions'),
         cell: ({ row }) => (
-          <div className='flex flex-wrap gap-1'>
+          <div className='flex flex-wrap gap-2'>
             {onReturnOrder && BigInt(row.original.availablePaidPoints) > 0n ? (
-              <Button
+              <CanvasRowAction
+                tone='primary'
                 type='button'
-                size='sm'
-                variant='outline'
                 onClick={() => onReturnOrder(row.original)}
               >
                 {t('Return points')}
-              </Button>
+              </CanvasRowAction>
             ) : null}
             {onCorrectOrder &&
             row.original.eligibleForPaidCorrection &&
             BigInt(row.original.remainingCorrectionPoints) > 0n ? (
-              <Button
+              <CanvasRowAction
                 type='button'
-                size='sm'
-                variant='outline'
                 onClick={() => onCorrectOrder(row.original)}
               >
                 {t('Correct Paid points')}
-              </Button>
+              </CanvasRowAction>
             ) : null}
             {row.original.pointReturnCount > 0 ? (
-              <Button
+              <CanvasRowAction
                 type='button'
-                size='sm'
-                variant='ghost'
                 aria-expanded={expandedOrderId === row.original.id}
                 onClick={() =>
                   setExpandedOrderId((value) =>
@@ -399,7 +395,7 @@ function CustomerOrders({
                 }
               >
                 {t('Return history')}
-              </Button>
+              </CanvasRowAction>
             ) : null}
           </div>
         ),
@@ -1306,6 +1302,7 @@ export function AdminCustomerOperations({
   selectedOrderId,
   initialOrderId,
   initialLotId,
+  initialTab,
   selectedLotId,
   onCorrectOrder,
   onReturnOrder,
@@ -1316,13 +1313,17 @@ export function AdminCustomerOperations({
   selectedOrderId?: string
   initialOrderId?: string
   initialLotId?: string
+  /** A tab a link opens; agent statistics exist only for an agent. */
+  initialTab?: 'agent-statistics'
   selectedLotId?: string
   onCorrectOrder?: (order: CanvasAdminRechargeOrder) => void
   onReturnOrder?: (order: CanvasAdminRechargeOrder) => void
   onDeductLot?: (lot: import('../types').CanvasAdminPointLot) => void
 }) {
   const { t } = useTranslation()
-  const [tab, setTab] = useState('orders')
+  const openingTab =
+    initialTab === 'agent-statistics' && isAgent ? initialTab : 'orders'
+  const [tab, setTab] = useState(openingTab)
   const [pointTab, setPointTab] = useState('lots')
   const [targetOrderId, setTargetOrderId] = useState(initialOrderId)
   const [orderSourcePointTab, setOrderSourcePointTab] = useState<
@@ -1370,9 +1371,9 @@ export function AdminCustomerOperations({
     setTargetOrderId(initialOrderId)
     setOrderSourcePointTab(undefined)
     pointSourceScrollY.current = undefined
-    setTab('orders')
+    setTab(openingTab)
     setPointTab('lots')
-  }, [customerId, initialLotId, initialOrderId])
+  }, [customerId, initialLotId, initialOrderId, openingTab])
   useEffect(() => {
     if (!initialLotId) return
     setTargetOrderId(undefined)

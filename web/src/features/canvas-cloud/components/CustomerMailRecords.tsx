@@ -84,6 +84,7 @@ import {
 import { useServerTableState } from '../use-server-table-state'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 
@@ -228,13 +229,9 @@ function useMailColumns(onDetail: (batch: CustomerMailBatch) => void) {
         header: () => t('Actions'),
         cell: ({ row }) =>
           row.original.failed > 0 ? (
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => onDetail(row.original)}
-            >
+            <CanvasRowAction onClick={() => onDetail(row.original)}>
               {t('Details')}
-            </Button>
+            </CanvasRowAction>
           ) : null,
         meta: { label: t('Actions') },
       },
@@ -483,24 +480,21 @@ function AutomaticMailActions<Settings extends { enabled: boolean }>(props: {
   const { SettingsDialog } = mail
   const name = t(mail.name)
   return (
-    <div className='flex flex-wrap items-center gap-3'>
-      <Button
-        variant='link'
-        className='h-auto p-0'
+    <div className='flex flex-wrap items-center gap-2'>
+      <CanvasRowAction
+        tone='primary'
         disabled={!settings}
         aria-label={t('{{name}} settings', { name })}
         onClick={() => setSettingsOpen(true)}
       >
         {t('Settings')}
-      </Button>
-      <Button
-        variant='link'
-        className='h-auto p-0'
+      </CanvasRowAction>
+      <CanvasRowAction
         aria-label={t('Preview {{name}}', { name })}
         onClick={() => setPreviewOpen(true)}
       >
         {t('Preview')}
-      </Button>
+      </CanvasRowAction>
       {settingsOpen && settings ? (
         <SettingsDialog
           settings={settings}

@@ -58,6 +58,7 @@ import {
 import type { ModelCatalogChange } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import { useCatalogDecision } from './catalog-decision-context'
 import {
   catalogBindingReasonLabel,
@@ -670,6 +671,7 @@ export function CatalogModelPreview(props: {
             <SelectTrigger className='w-full' aria-label={t('Capability')}>
               <CanvasLocalizedSelectValue
                 value={filters.capability === 'ALL' ? '' : filters.capability}
+                valueLabelKey={filters.capability}
                 emptyLabelKey='All capabilities'
               />
             </SelectTrigger>
@@ -876,10 +878,7 @@ export function CatalogModelPreview(props: {
                     : t('Not visible yet')}
                 </TableCell>
                 <TableCell className='align-top'>
-                  <Button
-                    variant='link'
-                    size='sm'
-                    className='h-auto p-0'
+                  <CanvasRowAction
                     aria-expanded={expanded}
                     aria-controls={expanded ? detailId : undefined}
                     onClick={() =>
@@ -887,7 +886,7 @@ export function CatalogModelPreview(props: {
                     }
                   >
                     {expanded ? t('Collapse') : t('View details')}
-                  </Button>
+                  </CanvasRowAction>
                 </TableCell>
               </TableRow>
               {expanded && (

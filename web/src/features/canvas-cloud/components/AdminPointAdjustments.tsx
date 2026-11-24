@@ -18,9 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { ArrowLeft, Gift, Mail } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -76,6 +77,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { toIntlLocale } from '@/i18n/languages'
 
+import { agentFilterQuery } from '../agent-filter-query'
 import {
   deductCanvasPointLot,
   createCanvasOrderPointReturn,
@@ -100,6 +102,7 @@ import {
 } from '../form-validation'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
 import type {
+  CanvasAdminCustomerListItem,
   CanvasAdminCustomerPointBalance,
   CanvasAdminPointLot,
   CanvasAdminRechargeOrder,
@@ -116,6 +119,11 @@ import { CopyableText } from './CopyableText'
 import { CustomerMailDialog } from './CustomerMailDialog'
 import { CustomerPriceAssignment } from './CustomerPriceAssignment'
 import { CustomerSuspensionDialog } from './CustomerSuspensionDialog'
+import {
+  ALL_OPTION_VALUE,
+  DashboardAgentSelect,
+  type DashboardSelectOption,
+} from './DashboardSearchSelect'
 
 type AdjustmentAction = 'bonus' | 'paid' | 'deduction' | 'return'
 type PendingAction = AdjustmentAction | null
@@ -142,12 +150,14 @@ export function AdminPointAdjustments({
   onCustomerChange,
   orderId,
   pointLotId,
+  customerDetailTab,
   titleActionSlot,
 }: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
   orderId?: string
   pointLotId?: string
+  customerDetailTab?: 'agent-statistics'
   /** Where the list puts 发邮件给全部有效客户, left of Refresh. */
   titleActionSlot?: HTMLElement | null
 }) {
@@ -170,6 +180,17 @@ export function AdminPointAdjustments({
   const [agentIdentity, setAgentIdentity] = useState<
     'ALL' | 'AGENT' | 'CUSTOMER'
   >('ALL')
+  // CUSTOMER-AGENT-RECHARGE-001: the referring agent and recharge filters.
+  const filterId = useId()
+  const allAgents: DashboardSelectOption = {
+    value: ALL_OPTION_VALUE,
+    label: t('All agents'),
+  }
+  const [referralAgent, setReferralAgent] =
+    useState<DashboardSelectOption>(allAgents)
+  const [recharge, setRecharge] = useState<'' | 'RECHARGED' | 'NOT_RECHARGED'>(
+    ''
+  )
   const [refreshingCustomer, setRefreshingCustomer] = useState(false)
   // COMMUNITY-CONVENTION-001: customers picked for a mail, and the open mail or suspension dialog.
   const [mailSelection, setMailSelection] = useState<
@@ -198,7 +219,13 @@ export function AdminPointAdjustments({
     setCustomersPagination((value) =>
       value.pageIndex === 0 ? value : { ...value, pageIndex: 0 }
     )
-  }, [agentIdentity, customerStatus, setCustomersPagination])
+  }, [
+    agentIdentity,
+    customerStatus,
+    recharge,
+    referralAgent.value,
+    setCustomersPagination,
+  ])
 
   const customersQueryKey = [
     'canvas-cloud',
@@ -207,6 +234,8 @@ export function AdminPointAdjustments({
     customersState.query,
     customerStatus,
     agentIdentity,
+    referralAgent.value,
+    recharge,
   ] as const
   const customers = useQuery({
     queryKey: customersQueryKey,
@@ -218,6 +247,8 @@ export function AdminPointAdjustments({
             ? { status: customerStatus as 'ACTIVE' | 'SUSPENDED' | 'CLOSED' }
             : {}),
           agentIdentity,
+          ...agentFilterQuery(referralAgent),
+          ...(recharge ? { recharge } : {}),
         },
         signal
       ),
@@ -574,112 +605,176 @@ export function AdminPointAdjustments({
     }
     changeMailSelection(next)
   }
-  const customerColumns: ColumnDef<CanvasAdminCustomerPointBalance, unknown>[] =
-    [
-      {
-        id: 'select',
-        enableHiding: false,
-        enableSorting: false,
-        header: () => (
-          <Checkbox
-            aria-label={t('Select all on this page')}
-            checked={allPageSelected}
-            indeterminate={
-              !allPageSelected &&
-              pageCustomers.some((row) => mailSelection.has(row.customerId))
-            }
-            onCheckedChange={(checked) =>
-              toggleMailSelection(pageCustomers, checked)
-            }
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            aria-label={t('Select {{title}}', {
-              title: row.original.username ?? '—',
-            })}
-            checked={mailSelection.has(row.original.customerId)}
-            onCheckedChange={(checked) =>
-              toggleMailSelection([row.original], checked)
-            }
-          />
-        ),
-        size: 48,
+  const formatPoints = (value: string) =>
+    new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))
+  const activeFilterCount =
+    (customerStatus ? 1 : 0) +
+    (agentIdentity !== 'ALL' ? 1 : 0) +
+    (referralAgent.value !== ALL_OPTION_VALUE ? 1 : 0) +
+    (recharge ? 1 : 0)
+  const customerColumns: ColumnDef<CanvasAdminCustomerListItem, unknown>[] = [
+    {
+      id: 'select',
+      enableHiding: false,
+      enableSorting: false,
+      header: () => (
+        <Checkbox
+          aria-label={t('Select all on this page')}
+          checked={allPageSelected}
+          indeterminate={
+            !allPageSelected &&
+            pageCustomers.some((row) => mailSelection.has(row.customerId))
+          }
+          onCheckedChange={(checked) =>
+            toggleMailSelection(pageCustomers, checked)
+          }
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          aria-label={t('Select {{title}}', {
+            title: row.original.username ?? '—',
+          })}
+          checked={mailSelection.has(row.original.customerId)}
+          onCheckedChange={(checked) =>
+            toggleMailSelection([row.original], checked)
+          }
+        />
+      ),
+      size: 48,
+    },
+    {
+      id: 'customer',
+      accessorKey: 'username',
+      // The row's identifying column cannot be hidden.
+      enableHiding: false,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Username')} />
+      ),
+      meta: { label: t('Username') },
+      cell: ({ row }) => {
+        const username = row.original.username ?? '—'
+        return (
+          <span className='inline-flex items-center gap-2'>
+            <a
+              href={`/canvas-cloud/customers?customerId=${encodeURIComponent(row.original.customerId)}`}
+              className='text-primary focus-visible:ring-ring font-normal underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
+              onClick={(event) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return
+                }
+                event.preventDefault()
+                openCustomer(row.original)
+              }}
+            >
+              {username}
+            </a>
+            <CopyableText value={username} hideValue />
+          </span>
+        )
       },
-      {
-        id: 'customer',
-        accessorKey: 'username',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Username')} />
-        ),
-        meta: { label: t('Username') },
-        cell: ({ row }) => {
-          const username = row.original.username ?? '—'
-          return (
-            <span className='inline-flex items-center gap-2'>
-              <a
-                href={`/canvas-cloud/customers?customerId=${encodeURIComponent(row.original.customerId)}`}
-                className='text-primary focus-visible:ring-ring font-normal underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
-                onClick={(event) => {
-                  if (
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return
-                  }
-                  event.preventDefault()
-                  openCustomer(row.original)
-                }}
-              >
-                {username}
-              </a>
-              <CopyableText value={username} hideValue />
-            </span>
-          )
-        },
+    },
+    {
+      id: 'status',
+      accessorKey: 'status',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Status')} />
+      ),
+      meta: { label: t('Status') },
+      cell: ({ row }) => (
+        <BusinessTerm kind='customerStatus' value={row.original.status} />
+      ),
+    },
+    {
+      id: 'agentIdentity',
+      accessorFn: (customer) => customer.isAgent,
+      header: t('Agent identity'),
+      meta: { label: t('Agent identity') },
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.isAgent ? t('Agent') : t('Regular customer'),
+    },
+    {
+      id: 'referralAgent',
+      accessorFn: (customer) => customer.referralAgent?.username ?? null,
+      header: t('Referring agent'),
+      meta: { label: t('Referring agent') },
+      enableSorting: false,
+      cell: ({ row }) => {
+        const agent = row.original.referralAgent
+        if (!agent) {
+          return <span className='text-muted-foreground'>{t('No agent')}</span>
+        }
+        const name = agent.username ?? '—'
+        if (!agent.customerId) return name
+        return (
+          <Link
+            to='/canvas-cloud/$section'
+            params={{ section: 'customers' }}
+            search={{ customerId: agent.customerId, tab: 'agent-statistics' }}
+            className='text-primary focus-visible:ring-ring font-normal underline underline-offset-4 focus-visible:ring-2 focus-visible:outline-none'
+            onClick={() => {
+              listScrollY.current = window.scrollY
+            }}
+          >
+            {name}
+          </Link>
+        )
       },
-      {
-        id: 'status',
-        accessorKey: 'status',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Status')} />
-        ),
-        meta: { label: t('Status') },
-        cell: ({ row }) => (
-          <BusinessTerm kind='customerStatus' value={row.original.status} />
-        ),
-      },
-      {
-        id: 'agentIdentity',
-        accessorFn: (customer) => customer.isAgent,
-        header: t('Agent identity'),
-        meta: { label: t('Agent identity') },
-        enableSorting: false,
-        cell: ({ row }) =>
-          row.original.isAgent ? t('Agent') : t('Regular customer'),
-      },
-      {
-        id: 'availablePoints',
-        accessorKey: 'availablePoints',
-        header: ({ column }) => (
-          <DataTableColumnHeader
-            column={column}
-            title={t('Available points')}
-          />
-        ),
-        meta: { label: t('Available points'), align: 'end' },
-        cell: ({ row }) => (
+    },
+    {
+      id: 'rechargedPoints',
+      accessorKey: 'rechargedPoints',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Total recharged points')}
+        />
+      ),
+      meta: { label: t('Total recharged points'), align: 'end' },
+      cell: ({ row }) =>
+        row.original.rechargedPoints === '0' ? (
+          <div className='text-muted-foreground text-right'>
+            {t('Not recharged')}
+          </div>
+        ) : (
           <div className='text-right tabular-nums'>
-            {new Intl.NumberFormat(toIntlLocale(i18n.language)).format(
-              BigInt(row.original.availablePoints)
-            )}
+            {formatPoints(row.original.rechargedPoints)}
           </div>
         ),
-      },
-    ]
+    },
+    {
+      id: 'grantedBonusPoints',
+      accessorKey: 'grantedBonusPoints',
+      header: t('Total granted bonus points'),
+      meta: { label: t('Total granted bonus points'), align: 'end' },
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className='text-right tabular-nums'>
+          {formatPoints(row.original.grantedBonusPoints)}
+        </div>
+      ),
+    },
+    {
+      id: 'availablePoints',
+      accessorKey: 'availablePoints',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Available points')} />
+      ),
+      meta: { label: t('Available points'), align: 'end' },
+      cell: ({ row }) => (
+        <div className='text-right tabular-nums'>
+          {formatPoints(row.original.availablePoints)}
+        </div>
+      ),
+    },
+  ]
 
   if (!customer) {
     if (customerId && customerDetail.isLoading) {
@@ -792,6 +887,54 @@ export function AdminPointAdjustments({
                     </SelectContent>
                   </Select>
                 </DataTableColumnFilterField>
+                <DataTableColumnFilterField
+                  label={t('Referring agent')}
+                  htmlFor={`${filterId}-referral-agent`}
+                >
+                  <DashboardAgentSelect
+                    id={`${filterId}-referral-agent`}
+                    value={referralAgent}
+                    onChange={setReferralAgent}
+                  />
+                </DataTableColumnFilterField>
+                <DataTableColumnFilterField label={t('Recharge status')}>
+                  <Select
+                    value={recharge || 'ALL'}
+                    onValueChange={(value) =>
+                      setRecharge(
+                        value === 'RECHARGED' || value === 'NOT_RECHARGED'
+                          ? value
+                          : ''
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      className='w-full'
+                      aria-label={t('Recharge status')}
+                    >
+                      <CanvasLocalizedSelectValue
+                        value={recharge}
+                        emptyLabelKey='All recharge statuses'
+                        displayValue={
+                          recharge === 'RECHARGED'
+                            ? t('Recharged')
+                            : t('Not recharged')
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='ALL'>
+                        {t('All recharge statuses')}
+                      </SelectItem>
+                      <SelectItem value='RECHARGED'>
+                        {t('Recharged')}
+                      </SelectItem>
+                      <SelectItem value='NOT_RECHARGED'>
+                        {t('Not recharged')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </DataTableColumnFilterField>
               </>
             }
             selectionActions={
@@ -806,13 +949,15 @@ export function AdminPointAdjustments({
                 </Button>
               ) : null
             }
-            hasActiveFilters={Boolean(
-              customerStatus || agentIdentity !== 'ALL'
-            )}
+            hasActiveFilters={activeFilterCount > 0}
+            activeFilterCount={activeFilterCount}
             onResetFilters={() => {
               setCustomerStatus('')
               setAgentIdentity('ALL')
+              setReferralAgent(allAgents)
+              setRecharge('')
             }}
+            initialColumnVisibility={{ grantedBonusPoints: false }}
             getRowId={(row) => row.customerId}
           />
         </CardContent>
@@ -830,8 +975,6 @@ export function AdminPointAdjustments({
   if (pendingAction === 'paid') pendingValues = paidForm.getValues()
   if (pendingAction === 'deduction') pendingValues = deductionForm.getValues()
   if (pendingAction === 'return') pendingValues = pointReturnForm.getValues()
-  const formatPoints = (value: string) =>
-    new Intl.NumberFormat(toIntlLocale(i18n.language)).format(BigInt(value))
   let details: Array<{ label: string; value: string }> = []
   if (pendingAction === 'bonus' && pendingValues) {
     const values = pendingValues as BonusAdjustmentValues
@@ -1084,6 +1227,7 @@ export function AdminPointAdjustments({
         selectedOrderId={selectedOrder?.id}
         initialOrderId={orderId}
         initialLotId={pointLotId}
+        initialTab={customerDetailTab}
         selectedLotId={selectedLot?.id}
         onCorrectOrder={openPaidSheet}
         onDeductLot={openDeductionSheet}

@@ -51,6 +51,7 @@ import type {
 } from '../execution-types'
 import type { CanvasAdminTaskLogQuery } from '../types'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { ModelIdentityTooltip } from './ModelIdentityTooltip'
 
@@ -390,15 +391,14 @@ export function ExecutionCapacityOverview() {
       enableHiding: false,
       cell: ({ row }) =>
         row.original.waitingTasks > 0 ? (
-          <Button
-            variant='link'
+          <CanvasRowAction
             onClick={(event) => {
               drawerTrigger.current = event.currentTarget
               setDrawerGroup(row.original)
             }}
           >
             {t('View waiting tasks')}
-          </Button>
+          </CanvasRowAction>
         ) : (
           '—'
         ),
@@ -673,8 +673,7 @@ function WaitingTasksDrawer(props: {
       header: t('Actions'),
       enableSorting: false,
       cell: ({ row }) => (
-        <Button
-          variant='outline'
+        <CanvasRowAction
           aria-expanded={expandedTaskId === row.original.taskId}
           onClick={(event) => {
             event.stopPropagation()
@@ -684,7 +683,7 @@ function WaitingTasksDrawer(props: {
           {expandedTaskId === row.original.taskId
             ? t('Collapse')
             : t('Details')}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]

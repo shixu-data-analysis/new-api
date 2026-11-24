@@ -104,6 +104,8 @@ const adminRework005Sources = [
   'AdminTaskLogs.tsx',
   'AdminTaskRecordDetails.tsx',
   'TaskCallHistory.tsx',
+  'TaskLogCells.tsx',
+  'CallResults.tsx',
 ]
 const taskParameterLabelKeys = [
   'Quality',
