@@ -215,7 +215,9 @@
               "SUPPORT_ATTACHMENT_NOT_FOUND",
               "SUPPORT_ATTACHMENT_LIMIT",
               "SUPPORT_ATTACHMENT_NOT_UPLOADED",
-              "SUPPORT_STORAGE_UNAVAILABLE"
+              "SUPPORT_STORAGE_UNAVAILABLE",
+              "TURN_BUSY",
+              "SKILL_FILE_NOT_FOUND"
             ],
             "type": "string"
           },
