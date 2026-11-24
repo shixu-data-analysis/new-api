@@ -949,11 +949,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
           {task.upstreamTasks.length ? (
             <ul className='space-y-1'>
               {task.upstreamTasks.map((upstreamTask) => {
-                const failed = upstreamTaskFailed(
-                  upstreamTask,
-                  task.upstreamTasks,
-                  task.outputs
-                )
+                const failed = upstreamTaskFailed(upstreamTask, task.outputs)
                 return (
                   <li
                     key={upstreamTask.upstreamTaskId}

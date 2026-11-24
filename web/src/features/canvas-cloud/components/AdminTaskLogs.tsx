@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils'
 import { getCanvasAdminTaskLogs, getCanvasTaskLogOptions } from '../api'
 import { isCanvasDateRangeValid } from '../date-range'
 import { formatCanvasDateTime } from '../formatters'
+import { taskErrorCategoryLabels } from '../task-error-categories'
 import { billingLabels, executionLabels } from '../task-status-labels'
 import type {
   CanvasAdminTaskFailureReason,
@@ -72,10 +73,11 @@ const failureReasons: CanvasAdminTaskFailureReason[] = [
   'RETRY_EXHAUSTED',
   'PROVIDER_OUTPUT_MISSING',
 ]
+// The two reasons that are error codes read their label from the shared table; RETRY_EXHAUSTED groups several codes.
 const failureReasonLabels: Record<CanvasAdminTaskFailureReason, string> = {
-  PROVIDER_OUTPUT_TOO_LARGE: 'Result file too large',
+  PROVIDER_OUTPUT_TOO_LARGE: taskErrorCategoryLabels.PROVIDER_OUTPUT_TOO_LARGE,
   RETRY_EXHAUSTED: 'Failed after repeated result fetches',
-  PROVIDER_OUTPUT_MISSING: 'Provider returned fewer results than requested',
+  PROVIDER_OUTPUT_MISSING: taskErrorCategoryLabels.PROVIDER_OUTPUT_MISSING,
 }
 const upstreamTaskLabels: Record<
   CanvasAdminTaskUpstreamFilter | 'specific',

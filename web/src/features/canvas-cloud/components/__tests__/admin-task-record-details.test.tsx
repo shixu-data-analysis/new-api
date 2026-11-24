@@ -82,6 +82,7 @@ const task = {
   upstreamTasks: [] as Array<{
     upstreamTaskId: string
     outputIndices: number[]
+    latestOutputIndices: number[]
   }>,
   upstreamTaskId: null,
   taskError: {
@@ -288,8 +289,16 @@ describe('AdminTaskRecordDetails UAT-018', () => {
         },
       ],
       upstreamTasks: [
-        { upstreamTaskId: 'task_7f3c2a11', outputIndices: [0] },
-        { upstreamTaskId: 'task_7f3c2a12', outputIndices: [1] },
+        {
+          upstreamTaskId: 'task_7f3c2a11',
+          outputIndices: [0],
+          latestOutputIndices: [0],
+        },
+        {
+          upstreamTaskId: 'task_7f3c2a12',
+          outputIndices: [1],
+          latestOutputIndices: [1],
+        },
       ],
     })
     mount()

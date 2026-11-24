@@ -9,22 +9,18 @@ License, or (at your option) any later version.
 import type { CanvasAdminTaskUpstreamTask } from './types'
 
 /**
- * Whether a result confirmed failed was last submitted under this Provider task ID: the ID is then shown in red. Cloud lists
- * the IDs by their latest submission, so the last ID covering a result is the one it failed under; an ID a resubmission
- * replaced stays as it is, as the call it was submitted in does.
+ * Whether a result confirmed failed was last submitted under this Provider task ID: the ID is then shown in red. Cloud gives
+ * each ID the positions whose latest submission received it, so an ID a later submission replaced, with an ID or without
+ * one, is not red.
  */
 export function upstreamTaskFailed(
   upstreamTask: CanvasAdminTaskUpstreamTask,
-  upstreamTasks: ReadonlyArray<CanvasAdminTaskUpstreamTask>,
   outputs: ReadonlyArray<{ outputIndex: number; executionStatus: string }>
 ): boolean {
   return outputs.some(
     (output) =>
       output.executionStatus === 'CONFIRMED_FAILED' &&
-      [...upstreamTasks]
-        .reverse()
-        .find((task) => task.outputIndices.includes(output.outputIndex)) ===
-        upstreamTask
+      upstreamTask.latestOutputIndices.includes(output.outputIndex)
   )
 }
 

@@ -56,4 +56,5 @@ const labels = {
 } satisfies Record<ErrorCategory, string> & Record<string, string>
 
 /** Typed by the error-mapping categories, so a category added there without a label fails to compile. */
-export const taskErrorCategoryLabels: Record<string, string> = labels
+export const taskErrorCategoryLabels: typeof labels & Record<string, string> =
+  labels

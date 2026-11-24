@@ -100,6 +100,7 @@ const task = {
   upstreamTasks: [] as Array<{
     upstreamTaskId: string
     outputIndices: number[]
+    latestOutputIndices: number[]
   }>,
   outputSummaries: [] as Array<{
     outputIndex: number
@@ -345,8 +346,16 @@ describe('Canvas administrator task records', () => {
         {
           ...task,
           upstreamTasks: [
-            { upstreamTaskId: 'task_7f3c2a11', outputIndices: [0] },
-            { upstreamTaskId: fanoutId, outputIndices: [1] },
+            {
+              upstreamTaskId: 'task_7f3c2a11',
+              outputIndices: [0],
+              latestOutputIndices: [0],
+            },
+            {
+              upstreamTaskId: fanoutId,
+              outputIndices: [1],
+              latestOutputIndices: [1],
+            },
           ],
           outputSummaries: [
             {
@@ -675,9 +684,22 @@ describe('Canvas administrator task records', () => {
         {
           ...task,
           upstreamTasks: [
-            { upstreamTaskId: 'fan-first', outputIndices: [0] },
-            { upstreamTaskId: 'fan-second', outputIndices: [1] },
-            { upstreamTaskId: 'fan-first-again', outputIndices: [0] },
+            {
+              upstreamTaskId: 'fan-first',
+              outputIndices: [0],
+              latestOutputIndices: [],
+            },
+            // Result 2 was submitted again without receiving an ID, then failed: fan-second is no longer its latest.
+            {
+              upstreamTaskId: 'fan-second',
+              outputIndices: [1],
+              latestOutputIndices: [],
+            },
+            {
+              upstreamTaskId: 'fan-first-again',
+              outputIndices: [0],
+              latestOutputIndices: [0],
+            },
           ],
           outputSummaries: [
             {
@@ -687,7 +709,7 @@ describe('Canvas administrator task records', () => {
             },
             {
               outputIndex: 1,
-              executionStatus: 'SUCCEEDED',
+              executionStatus: 'CONFIRMED_FAILED',
               completedAt: task.completedAt,
             },
           ],

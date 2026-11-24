@@ -1900,6 +1900,8 @@ export interface CanvasAdminTaskLog {
 export interface CanvasAdminTaskUpstreamTask {
   upstreamTaskId: string
   outputIndices: number[]
+  /** The positions whose latest submission received this ID. */
+  latestOutputIndices: number[]
 }
 
 export interface CanvasTaskOutputSummary {
