@@ -390,7 +390,7 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     ).not.toHaveProperty('username')
     expect(
       await screen.findByRole('option', {
-        name: /老周.*Suspended, cannot be messaged/,
+        name: /老周.*ID 10520 · Suspended, cannot be messaged/,
       })
     ).toHaveAttribute('aria-disabled', 'true')
     await user.click(

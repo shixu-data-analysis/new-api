@@ -26,7 +26,10 @@ import en from '@/i18n/locales/en.json'
 import zh from '@/i18n/locales/zh.json'
 
 import { agentFilterQuery } from '../../agent-filter-query'
-import { DashboardAgentSelect } from '../DashboardSearchSelect'
+import {
+  DashboardAgentSelect,
+  DashboardCustomerSelect,
+} from '../DashboardSearchSelect'
 
 const apiMocks = vi.hoisted(() => ({
   getCanvasAgents: vi.fn(),
@@ -188,5 +191,50 @@ describe('DashboardAgentSelect', () => {
 
     const option = await screen.findByRole('option', { name: /uatagentoff/ })
     expect(option).toHaveTextContent('已停用')
+  })
+})
+
+describe('DashboardCustomerSelect', () => {
+  beforeAll(() =>
+    i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+  )
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18next.changeLanguage('en')
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      items: [],
+    })
+  })
+
+  it('filters candidates by name only; its candidates do not show the ID an exact-ID search would match', async () => {
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DashboardCustomerSelect
+          id='customer'
+          value={{ value: '__all__', label: 'All customers' }}
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+
+    await user.type(screen.getByRole('combobox'), '7310', {
+      initialSelectionStart: 0,
+      initialSelectionEnd: 'All customers'.length,
+    })
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenCalledWith(
+        expect.objectContaining({ username: '7310' }),
+        expect.anything()
+      )
+    )
+    expect(
+      apiMocks.getCanvasAdminCustomers.mock.calls.at(-1)?.[0]
+    ).not.toHaveProperty('search')
   })
 })

@@ -19,8 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { agentQualificationLabelKey } from '../agent-earnings-format'
-import { getCanvasAgents } from '../api'
-import { searchCanvasCustomers } from '../customer-search'
+import { getCanvasAdminCustomers, getCanvasAgents } from '../api'
 import { getOperatingDashboardModelOptions } from '../operating-dashboard-api'
 import { SearchSelect, type SearchSelectOption } from './SearchSelect'
 
@@ -87,7 +86,18 @@ export function DashboardCustomerSelect(props: {
       placeholder={t('All customers')}
       fixedOptions={[{ value: ALL_OPTION_VALUE, label: t('All customers') }]}
       load={async (search, signal) =>
-        (await searchCanvasCustomers(search, signal)).map((customer) => ({
+        (
+          await getCanvasAdminCustomers(
+            {
+              page: 1,
+              pageSize: 20,
+              ...(search ? { username: search } : {}),
+              sortBy: 'customer',
+              sortOrder: 'asc',
+            },
+            signal
+          )
+        ).items.map((customer) => ({
           value: customer.customerId,
           label: customer.username ?? customer.customerId,
           ...hint(statusLabels[customer.status]),

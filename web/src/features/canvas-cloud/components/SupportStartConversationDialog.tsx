@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 
-import { searchCanvasCustomers } from '../customer-search'
+import { getCanvasAdminCustomers } from '../api'
 import {
   canMessageCustomer,
   useOpenSupportConversation,
@@ -76,21 +76,36 @@ export function SupportStartConversationDialog(props: {
             placeholder={t('Search customer name or ID')}
             // The hints are translated when loaded, so each language keeps its own candidates.
             queryKey={`support-start-customers:${i18n.language}`}
+            // Names containing the text, or the customer whose New API user ID is exactly it, listed first.
             load={async (search, signal) =>
-              (await searchCanvasCustomers(search, signal)).map((customer) => ({
-                value: customer.customerId,
-                label: customer.username ?? customer.customerId,
-                // The ID tells apart a customer found by it from one whose name contains the same digits.
-                ...(canMessageCustomer(customer.status)
-                  ? { hint: `ID ${customer.userId}` }
-                  : {
-                      hint: t(
-                        INACTIVE_HINTS[customer.status] ??
-                          'Only an active customer can be messaged'
-                      ),
-                      disabled: true,
-                    }),
-              }))
+              (
+                await getCanvasAdminCustomers(
+                  {
+                    page: 1,
+                    pageSize: 20,
+                    ...(search ? { search } : {}),
+                    sortBy: 'customer',
+                    sortOrder: 'asc',
+                  },
+                  signal
+                )
+              ).items.map((customer) => {
+                // The ID tells apart a customer found by it from one whose name contains the same digits, and
+                // customers who share a name.
+                const id = `ID ${customer.userId}`
+                const option = {
+                  value: customer.customerId,
+                  label: customer.username ?? customer.customerId,
+                }
+                if (canMessageCustomer(customer.status)) {
+                  return { ...option, hint: id }
+                }
+                return {
+                  ...option,
+                  hint: `${id} · ${t(INACTIVE_HINTS[customer.status] ?? 'Only an active customer can be messaged')}`,
+                  disabled: true,
+                }
+              })
             }
             onChange={(option) => {
               if (!option.disabled && !open.isPending) open.mutate(option.value)
