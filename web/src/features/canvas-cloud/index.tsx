@@ -73,6 +73,7 @@ import {
   customerChangeSearch,
   customerDetailTabOf,
   customersTabOf,
+  showsCustomerDetails,
   type CustomersTab,
 } from './customer-management-navigation'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
@@ -496,10 +497,7 @@ export function CanvasCloud() {
     <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
         {t(
-          // Only the customer list shows a customer; 客服会话 and 客户邮件 keep the section title.
-          section === 'customers' &&
-            search.customerId &&
-            !customersTabOf(search.tab)
+          section === 'customers' && showsCustomerDetails(search)
             ? 'Customer details'
             : sectionTitles[section]
         )}

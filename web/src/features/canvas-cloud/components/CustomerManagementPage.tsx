@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { NavBadge } from '@/components/layout/components/nav-group'
@@ -63,9 +62,9 @@ export function CustomerManagementPage(props: {
       queryFn: ({ signal }) => getCanvasAdminSupportPendingCount(signal),
       refetchInterval: 60_000,
     }).data ?? 0
-  const [tab, setTab] = useState<string>(props.tab ?? 'customers')
+  // The address holds the tab, so back and forward show the tab the title names.
+  const tab = props.tab ?? 'customers'
   const changeTab = (value: string) => {
-    setTab(value)
     const shown = customersTabOf(value)
     props.onTabChange?.({
       ...(shown ? { tab: shown } : {}),
@@ -106,7 +105,6 @@ export function CustomerManagementPage(props: {
           customerDetailTab={props.customerDetailTab}
           titleActionSlot={props.titleActionSlot}
           onOpenSupportConversation={(conversationId) => {
-            setTab('support')
             props.onTabChange?.({ tab: 'support', conversationId })
           }}
         />

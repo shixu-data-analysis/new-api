@@ -25,6 +25,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 
+import type { CustomersTab } from '../../customer-management-navigation'
 import { CustomerManagementPage } from '../CustomerManagementPage'
 
 // The customer list stands in for AdminPointAdjustments: a selection it keeps in its own state, and the title action
@@ -76,6 +77,27 @@ vi.mock('../CustomerMailRecords', () => ({
   CustomerMailRecords: () => <p>mail records</p>,
 }))
 
+// Stands in for the route: the tab the page reports comes back from the address.
+function RoutedPage(props: {
+  titleActionSlot?: HTMLElement | null
+  onTabChange?: (change: {
+    tab?: CustomersTab
+    conversationId?: string
+  }) => void
+}) {
+  const [tab, setTab] = useState<CustomersTab>()
+  return (
+    <CustomerManagementPage
+      titleActionSlot={props.titleActionSlot}
+      tab={tab}
+      onTabChange={(change) => {
+        setTab(change.tab)
+        props.onTabChange?.(change)
+      }}
+    />
+  )
+}
+
 describe('Customer management tabs', () => {
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', en.translation, true, true)
@@ -89,7 +111,7 @@ describe('Customer management tabs', () => {
     })
     render(
       <QueryClientProvider client={client}>
-        <CustomerManagementPage titleActionSlot={slot} />
+        <RoutedPage titleActionSlot={slot} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('checkbox', { name: 'alice' }))
@@ -124,10 +146,7 @@ describe('Customer management tabs', () => {
       tab: 'support',
       conversationId: 'conversation-1',
     })
-    expect(
-      screen.getByRole('tab', { name: /Support conversations/ })
-    ).toHaveAttribute('aria-selected', 'true')
-    // The route passes the conversation back, as the address bar does.
+    // The route passes the tab and the conversation back, as the address bar does.
     view.rerender(
       <QueryClientProvider client={client}>
         <CustomerManagementPage
@@ -137,6 +156,9 @@ describe('Customer management tabs', () => {
         />
       </QueryClientProvider>
     )
+    expect(
+      screen.getByRole('tab', { name: /Support conversations/ })
+    ).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('conversation conversation-1')).toBeInTheDocument()
   })
 
@@ -147,12 +169,35 @@ describe('Customer management tabs', () => {
     const onTabChange = vi.fn()
     render(
       <QueryClientProvider client={client}>
-        <CustomerManagementPage onTabChange={onTabChange} />
+        <RoutedPage onTabChange={onTabChange} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('tab', { name: 'Customer emails' }))
     expect(onTabChange).toHaveBeenLastCalledWith({ tab: 'mails' })
     fireEvent.click(screen.getByRole('tab', { name: 'Customer list' }))
     expect(onTabChange).toHaveBeenLastCalledWith({})
+  })
+
+  it('shows the tab the address holds, also after back or forward', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage tab='support' />
+      </QueryClientProvider>
+    )
+    expect(
+      screen.getByRole('tab', { name: /Support conversations/ })
+    ).toHaveAttribute('aria-selected', 'true')
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage />
+      </QueryClientProvider>
+    )
+    expect(screen.getByRole('tab', { name: 'Customer list' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
   })
 })

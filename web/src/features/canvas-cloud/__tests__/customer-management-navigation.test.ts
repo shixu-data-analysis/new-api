@@ -22,7 +22,22 @@ import {
   customerChangeSearch,
   customerDetailTabOf,
   customersTabOf,
+  showsCustomerDetails,
 } from '../customer-management-navigation'
+
+describe('showsCustomerDetails', () => {
+  it('titles the page 客户详情 only on the customer list with a customer', () => {
+    expect(showsCustomerDetails({ customerId: 'c1' })).toBe(true)
+    expect(
+      showsCustomerDetails({ customerId: 'c1', tab: 'agent-statistics' })
+    ).toBe(true)
+    expect(showsCustomerDetails({ customerId: 'c1', tab: 'support' })).toBe(
+      false
+    )
+    expect(showsCustomerDetails({ customerId: 'c1', tab: 'mails' })).toBe(false)
+    expect(showsCustomerDetails({})).toBe(false)
+  })
+})
 
 describe('customersTabOf', () => {
   it('reads 客服会话 and 客户邮件; anything else is the customer list', () => {
