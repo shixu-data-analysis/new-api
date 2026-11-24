@@ -55,6 +55,7 @@ interface ContractFixture {
       ModelCatalogImportSource: {
         properties: { schemaVersion: { const: number } }
       }
+      Error: { properties: { code: { enum?: string[] } } }
     }
   }
 }
@@ -169,6 +170,17 @@ describe('catalog import contract generation', () => {
         readFile(generatedTypes, 'utf8'),
       ])
     ).resolves.toEqual(beforeCheck)
+  })
+
+  it('stays current when Cloud adds an error code for another feature', async () => {
+    const result = crossCheck(
+      await mutatedInput((contract) => {
+        contract.components.schemas.Error.properties.code.enum = [
+          'SOME_OTHER_FEATURE_ERROR',
+        ]
+      })
+    )
+    expect(result.status, result.stderr).toBe(0)
   })
 
   it.each([

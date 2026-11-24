@@ -24,9 +24,10 @@ import { fileURLToPath } from 'node:url'
 import { format } from 'oxfmt'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+// The Cloud checkout beside this one: the same feature folder, or the main worktrees side by side.
 const defaultAuthoritativeInput = resolve(
   scriptDirectory,
-  '../../../.worktrees/canvas-cloud-integration/api/openapi-v1.json'
+  '../../../canvas-cloud/api/openapi-v1.json'
 )
 const snapshotPath = resolve(
   scriptDirectory,
@@ -166,6 +167,19 @@ function extractContract(document) {
     contract.components[section][name] = component
     for (const nested of collectReferences(component)) {
       if (!visited.has(nested)) pending.push(nested)
+    }
+  }
+  // The error envelope is Cloud's shared one, whose code list grows with every Cloud feature. Copying the list would make
+  // this snapshot stale on changes unrelated to Catalog import; the code is read as a string (getServerErrorCode).
+  const errorCode = contract.components.schemas?.Error?.properties?.code
+  if (errorCode?.enum) {
+    const { enum: _codes, ...rest } = errorCode
+    contract.components.schemas.Error = {
+      ...contract.components.schemas.Error,
+      properties: {
+        ...contract.components.schemas.Error.properties,
+        code: { ...rest, type: 'string' },
+      },
     }
   }
   for (const name of requiredSchemas) {
