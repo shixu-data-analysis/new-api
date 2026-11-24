@@ -210,7 +210,10 @@ export function SupportConversations(props: {
             </span>
           </span>
           <span className='text-muted-foreground truncate text-sm'>
-            {lastMessagePreview(row.lastMessage, t)}
+            {/* Only a conversation just opened to write first has no message. */}
+            {row.lastMessage
+              ? lastMessagePreview(row.lastMessage, t)
+              : t('No messages')}
           </span>
         </span>
         <span className='text-muted-foreground flex flex-col items-end gap-1 text-xs whitespace-nowrap'>

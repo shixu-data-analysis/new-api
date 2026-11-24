@@ -552,6 +552,7 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     const items = within(
       screen.getByRole('list', { name: 'Conversations' })
     ).getAllByRole('button')
+    expect(items[0]).toHaveTextContent('No messages')
     expect(items.map((item) => item.textContent)).toEqual([
       expect.stringContaining('小雨'),
       expect.stringContaining('小林'),
