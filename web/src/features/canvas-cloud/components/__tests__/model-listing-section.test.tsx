@@ -23,6 +23,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -103,6 +104,46 @@ describe('ModelListingTable', () => {
       'Ignoring failed. Try again.'
     )
     expect(screen.getByText('veo-3')).toBeInTheDocument()
+  })
+  it('narrows the rows to one API provider and to an upstream model ID, with Ignore all for every new model', () => {
+    renderWithQuery(
+      <ModelListingTable
+        models={[
+          listed('kling-4.0'),
+          listed('veo-3', 'GWay'),
+          listed('veo-3-fast', 'GWay'),
+        ]}
+        onChanged={vi.fn()}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Ignore all (3)' })).toBeEnabled()
+    const providers = screen.getByRole('group', { name: 'API provider' })
+    fireEvent.click(within(providers).getByRole('button', { name: 'GWay' }))
+    expect(screen.queryByText('kling-4.0')).toBeNull()
+    expect(screen.getByText('veo-3-fast')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.change(screen.getByPlaceholderText('Upstream model ID'), {
+      target: { value: 'FAST' },
+    })
+    expect(screen.queryByText('veo-3')).toBeNull()
+    expect(screen.getByText('veo-3-fast')).toBeInTheDocument()
+    // Ignore all still covers every new model, not only the rows the filters show.
+    expect(screen.getByRole('button', { name: 'Ignore all (3)' })).toBeEnabled()
+  })
+
+  it('shows 20 rows a page and moves to the next page', () => {
+    renderWithQuery(
+      <ModelListingTable
+        models={Array.from({ length: 21 }, (_, index) =>
+          listed(`model-${String(index).padStart(2, '0')}`)
+        )}
+        onChanged={vi.fn()}
+      />
+    )
+    expect(screen.getByText('model-00')).toBeInTheDocument()
+    expect(screen.queryByText('model-20')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }))
+    expect(screen.getByText('model-20')).toBeInTheDocument()
   })
 })
 

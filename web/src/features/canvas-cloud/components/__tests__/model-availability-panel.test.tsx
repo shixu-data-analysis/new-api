@@ -291,7 +291,7 @@ describe('ModelAvailabilityPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows every disabled model in a table with the same columns, the ones listed again first', async () => {
+  it('lists missing models first, then disabled ones listed again, in one table with Disable all beside the filters', async () => {
     api.getModelAvailability.mockResolvedValue(
       overview({
         missingModels: [missing('a')],
@@ -300,40 +300,85 @@ describe('ModelAvailabilityPanel', () => {
       })
     )
     renderWithQuery(<ModelAvailabilityPanel />)
-    expect(await screen.findByText('Name a')).toBeInTheDocument()
-    const [missingTable, disabledTable] = screen.getAllByRole('table')
-    const headers = (table: HTMLElement) =>
-      within(table)
-        .getAllByRole('columnheader')
-        .slice(1)
-        .map((item) => item.textContent)
-    expect(headers(missingTable as HTMLElement)).toEqual(
-      headers(disabledTable as HTMLElement)
-    )
-    const disabledRows = within(disabledTable as HTMLElement).getAllByRole(
-      'row'
-    )
-    expect(disabledRows[1]).toHaveTextContent('Name c')
-    expect(disabledRows[1]).toHaveTextContent('Listed by the provider')
-    expect(disabledRows[1]).toHaveTextContent('Removed by the provider')
-    expect(disabledRows[2]).toHaveTextContent('Name b')
-    expect(disabledRows[2]).toHaveTextContent('Missing from the provider')
     expect(
-      within(missingTable as HTMLElement).getByRole('button', {
+      await screen.findByRole('heading', {
+        name: 'Missing and disabled models (3)',
+      })
+    ).toBeInTheDocument()
+    const [table] = screen.getAllByRole('table')
+    const rows = within(table as HTMLElement).getAllByRole('row')
+    expect(rows[1]).toHaveTextContent('Name a')
+    expect(rows[1]).toHaveTextContent('Model enabled')
+    expect(rows[2]).toHaveTextContent('Name c')
+    expect(rows[2]).toHaveTextContent('Listed by the provider')
+    expect(rows[2]).toHaveTextContent('Removed by the provider')
+    expect(rows[3]).toHaveTextContent('Name b')
+    expect(rows[3]).toHaveTextContent('Missing from the provider')
+    expect(
+      within(rows[1] as HTMLElement).getByRole('button', {
         name: 'Disable model: Name a',
       })
     ).toHaveAttribute('data-row-action', 'danger')
-    expect(
-      within(disabledTable as HTMLElement).getAllByRole('button', {
-        name: /^Restore model: Name /,
-      })
-    ).toHaveLength(2)
-    for (const restore of within(disabledTable as HTMLElement).getAllByRole(
-      'button',
-      { name: /^Restore model: Name / }
-    )) {
+    for (const restore of within(table as HTMLElement).getAllByRole('button', {
+      name: /^Restore model: Name /,
+    })) {
       expect(restore).toHaveAttribute('data-row-action', 'primary')
     }
+    expect(
+      screen.getByRole('button', { name: 'Disable all (1)' })
+    ).toBeEnabled()
+    expect(screen.queryByText('No confirmed model absences')).toBeNull()
+  })
+
+  it('narrows the table to one API provider and to a model name, and clears only the panel filters', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({
+        missingModels: [missing('a')],
+        disabledModels: [
+          {
+            ...disabled('b', 'AVAILABLE'),
+            providerId: 'p2',
+            providerName: 'Z5API',
+          },
+          disabled('c', 'MISSING'),
+        ],
+      })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    const providers = await screen.findByRole('group', { name: 'API provider' })
+    fireEvent.click(within(providers).getByRole('button', { name: 'Z5API' }))
+    expect(
+      within(providers).getByRole('button', { name: 'Z5API' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Name b')).toBeInTheDocument()
+    expect(screen.queryByText('Name a')).toBeNull()
+    fireEvent.click(
+      within(providers).getByRole('button', { name: 'All API providers' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.change(await screen.findByPlaceholderText('Model'), {
+      target: { value: 'name c' },
+    })
+    expect(screen.queryByText('Name a')).toBeNull()
+    expect(screen.getByText('Name c')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(await screen.findByText('Name a')).toBeInTheDocument()
+  })
+
+  it('shows 20 rows a page and moves to the next page', async () => {
+    api.getModelAvailability.mockResolvedValue(
+      overview({
+        disabledModels: Array.from({ length: 25 }, (_, index) =>
+          disabled(`m${String(index).padStart(2, '0')}`, 'AVAILABLE')
+        ),
+      })
+    )
+    renderWithQuery(<ModelAvailabilityPanel />)
+    expect(await screen.findByText('Name m00')).toBeInTheDocument()
+    expect(screen.queryByText('Name m20')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }))
+    expect(await screen.findByText('Name m20')).toBeInTheDocument()
+    expect(screen.queryByText('Name m00')).toBeNull()
   })
 
   it('restores a disabled model the provider lists again, at its control version', async () => {
@@ -345,9 +390,6 @@ describe('ModelAvailabilityPanel', () => {
       })
     )
     renderWithQuery(<ModelAvailabilityPanel />)
-    expect(
-      await screen.findByText('No confirmed model absences')
-    ).toBeInTheDocument()
     fireEvent.click(
       await screen.findByRole('button', { name: 'Restore model: Name c' })
     )

@@ -84,7 +84,10 @@ import { useOptionalModelManagementNavigation } from '../model-management-naviga
 import { modelControlReasonLabel } from '../model-monitoring-control'
 import type { CanvasAdminTestingModel } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
-import { withCanvasTableColumnSizes } from './canvas-table-layout'
+import {
+  pageWithinRange,
+  withCanvasTableColumnSizes,
+} from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRowAction } from './CanvasRowAction'
 import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
@@ -123,13 +126,6 @@ const DISABLED_TABLE_COLUMNS = new Set([
   'disabledReason',
   'disabledActions',
 ])
-
-function pageWithinRange(pageCount: number) {
-  return (current: PaginationState) =>
-    current.pageIndex < Math.max(1, pageCount)
-      ? current
-      : { ...current, pageIndex: Math.max(0, pageCount - 1) }
-}
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void

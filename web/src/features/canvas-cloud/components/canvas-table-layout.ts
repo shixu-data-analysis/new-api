@@ -1,4 +1,4 @@
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, PaginationState } from '@tanstack/react-table'
 
 import type { DataTableColumnClassName } from '@/components/data-table'
 import { cn } from '@/lib/utils'
@@ -72,4 +72,12 @@ export function withCanvasColumnAlignment<TData>(
       endAligned.has(columnId) &&
         (kind === 'header' ? END_ALIGNED_HEADER : END_ALIGNED_CELL)
     ) || undefined
+}
+
+/** A page that no longer exists after the rows shrank becomes the last page that does. */
+export function pageWithinRange(pageCount: number) {
+  return (current: PaginationState) =>
+    current.pageIndex < Math.max(1, pageCount)
+      ? current
+      : { ...current, pageIndex: Math.max(0, pageCount - 1) }
 }

@@ -35,19 +35,13 @@ import {
   startModelAvailabilityProbe,
   type AvailabilityTarget,
 } from '../model-availability-api'
-import {
-  disabledRows,
-  type AvailabilityControl,
-} from '../model-availability-rows'
+import type { AvailabilityControl } from '../model-availability-rows'
 import { probedUpstreamIds } from '../model-availability-rules'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelAvailabilityBulkDisableDialog } from './ModelAvailabilityBulkDisableDialog'
 import { ModelAvailabilityModelTable } from './ModelAvailabilityModelTable'
 import { ModelAvailabilitySettingsDialog } from './ModelAvailabilitySettingsDialog'
-import {
-  IgnoreAllListingsButton,
-  ModelListingTable,
-} from './ModelListingSection'
+import { ModelListingTable } from './ModelListingSection'
 
 function failureText(
   target: AvailabilityTarget,
@@ -259,17 +253,6 @@ export function ModelAvailabilityPanel() {
           >
             {probeLabel}
           </Button>
-          <Button
-            variant='outline'
-            disabled={pending.length === 0}
-            onClick={() => setBulkOpen(true)}
-          >
-            {t('Disable all ({{count}})', { count: pending.length })}
-          </Button>
-          <IgnoreAllListingsButton
-            models={listing.models}
-            onChanged={refresh}
-          />
           <Button variant='outline' onClick={() => setSettingsOpen(true)}>
             {t('Settings')}
           </Button>
@@ -386,33 +369,20 @@ export function ModelAvailabilityPanel() {
         </div>
       ) : null}
 
-      {pending.length === 0 ? (
-        <div className='space-y-1 py-10 text-center'>
-          <p className='font-medium'>{t('No confirmed model absences')}</p>
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              'Models not yet probed, with failed probes, or below the count do not appear here.'
-            )}
-          </p>
-        </div>
-      ) : (
-        <ModelAvailabilityModelTable
-          title={t('Missing models to handle ({{count}})', {
-            count: pending.length,
-          })}
-          rows={pending.map((model) => ({ kind: 'missing', model }))}
-          onControl={setControl}
-        />
-      )}
-      {data.disabledModels.length ? (
-        <ModelAvailabilityModelTable
-          title={t('Disabled models ({{count}})', {
-            count: data.disabledModels.length,
-          })}
-          rows={disabledRows(data.disabledModels)}
-          onControl={setControl}
-        />
-      ) : null}
+      <ModelAvailabilityModelTable
+        missing={pending}
+        disabled={data.disabledModels}
+        onControl={setControl}
+        bulkAction={
+          <Button
+            variant='outline'
+            disabled={pending.length === 0}
+            onClick={() => setBulkOpen(true)}
+          >
+            {t('Disable all ({{count}})', { count: pending.length })}
+          </Button>
+        }
+      />
 
       <ModelListingTable models={listing.models} onChanged={refresh} />
 
