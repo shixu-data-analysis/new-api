@@ -11080,7 +11080,6 @@
     "Send message": "Envoyer un message",
     "Start conversation": "Démarrer une conversation",
     "Choose a customer. An existing conversation opens as it is.": "Choisissez un client. Une conversation existante s'ouvre telle quelle.",
-    "Search customer name": "Rechercher un nom de client",
     "Suspended, cannot be messaged": "Suspendu, impossible de lui écrire",
     "Closed, cannot be messaged": "Fermé, impossible de lui écrire",
     "Only an active customer can be messaged": "Seul un client actif peut recevoir un message",

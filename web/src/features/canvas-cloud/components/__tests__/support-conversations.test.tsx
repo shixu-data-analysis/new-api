@@ -345,9 +345,15 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       pageSize: 20,
       total: 2,
       items: [
-        { customerId: xiaoyu.customer.id, username: '小雨', status: 'ACTIVE' },
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
         {
           customerId: '92000000-0000-7000-8000-000000000015',
+          userId: '10520',
           username: '老周',
           status: 'SUSPENDED',
         },
@@ -366,19 +372,32 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Start conversation' })
     )
-    await user.click(await screen.findByRole('combobox', { name: 'Customer' }))
+    const customer = await screen.findByRole('combobox', { name: 'Customer' })
+    expect(customer).toHaveAttribute(
+      'placeholder',
+      'Search customer name or ID'
+    )
+    await user.type(customer, '11402')
+    // The text goes to the name-or-ID search, not the username filter.
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: '11402' }),
+        expect.anything()
+      )
+    )
+    expect(
+      apiMocks.getCanvasAdminCustomers.mock.calls.at(-1)?.[0]
+    ).not.toHaveProperty('username')
     expect(
       await screen.findByRole('option', {
         name: /老周.*Suspended, cannot be messaged/,
       })
     ).toHaveAttribute('aria-disabled', 'true')
-    await user.click(await screen.findByRole('option', { name: '小雨' }))
+    await user.click(
+      await screen.findByRole('option', { name: /^小雨.*ID 11402/ })
+    )
     await waitFor(() =>
       expect(onConversationChange).toHaveBeenCalledWith(xiaoyu.id)
-    )
-    expect(apiMocks.getCanvasAdminCustomers).toHaveBeenCalledWith(
-      expect.not.objectContaining({ username: expect.anything() }),
-      expect.anything()
     )
     expect(apiMocks.openCanvasAdminSupportConversation).toHaveBeenCalledTimes(1)
     expect(apiMocks.openCanvasAdminSupportConversation.mock.calls[0]?.[0]).toBe(
@@ -396,7 +415,12 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       pageSize: 20,
       total: 1,
       items: [
-        { customerId: xiaoyu.customer.id, username: '小雨', status: 'ACTIVE' },
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
       ],
     })
     // Suspended by another administrator after the list was read.
@@ -422,13 +446,51 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       await screen.findByRole('button', { name: 'Start conversation' })
     )
     await user.click(await screen.findByRole('combobox', { name: 'Customer' }))
-    await user.click(await screen.findByRole('option', { name: '小雨' }))
+    await user.click(await screen.findByRole('option', { name: /^小雨/ }))
     await waitFor(() =>
       expect(toastMocks.error).toHaveBeenCalledWith(
         'Only an active customer can be messaged'
       )
     )
     expect(onConversationChange).not.toHaveBeenCalled()
+  })
+
+  it('says so when the first message is refused because the customer can no longer be messaged', async () => {
+    apiMocks.getCanvasAdminSupportMessages.mockResolvedValue({
+      messages: [],
+      hasEarlier: false,
+    })
+    apiMocks.replyCanvasAdminSupportConversation.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'SUPPORT_CUSTOMER_INACTIVE',
+          message: 'Only an active customer can be written to',
+        },
+      },
+    })
+    render(
+      wrap(
+        <SupportThread
+          conversation={xiaoyu}
+          quickReplies={{ conversation: [], failureNotice: [] }}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Message 小雨 (ID 11402)',
+    })
+    fireEvent.change(input, { target: { value: '您好' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Only an active customer can be messaged'
+      )
+    )
+    expect(toastMocks.error).not.toHaveBeenCalledWith(
+      'Unable to send the reply. Your text is kept; please try again.'
+    )
   })
 
   it('keeps an opened conversation out of the waiting list, where it opens without being listed', async () => {

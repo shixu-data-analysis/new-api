@@ -234,6 +234,12 @@ export function SupportThread(props: {
         )
         return
       }
+      // A first message to a customer suspended or closed since the conversation was opened (SUPPORT-PROACTIVE-001):
+      // trying again would not help.
+      if (getServerErrorCode(error) === 'SUPPORT_CUSTOMER_INACTIVE') {
+        toast.error(t('Only an active customer can be messaged'))
+        return
+      }
       toast.error(
         t('Unable to send the reply. Your text is kept; please try again.')
       )

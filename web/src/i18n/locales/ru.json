@@ -11080,7 +11080,6 @@
     "Send message": "Написать",
     "Start conversation": "Начать диалог",
     "Choose a customer. An existing conversation opens as it is.": "Выберите клиента. Существующий диалог откроется как есть.",
-    "Search customer name": "Поиск по имени клиента",
     "Suspended, cannot be messaged": "Приостановлен, написать нельзя",
     "Closed, cannot be messaged": "Закрыт, написать нельзя",
     "Only an active customer can be messaged": "Написать можно только активному клиенту",

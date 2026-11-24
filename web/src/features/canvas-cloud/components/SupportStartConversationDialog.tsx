@@ -73,14 +73,15 @@ export function SupportStartConversationDialog(props: {
             id={fieldId}
             value={NO_CHOICE}
             fixedOptions={[]}
-            placeholder={t('Search customer name')}
+            placeholder={t('Search customer name or ID')}
             queryKey='support-start-customers'
             load={async (search, signal) =>
               (await searchCanvasCustomers(search, signal)).map((customer) => ({
                 value: customer.customerId,
                 label: customer.username ?? customer.customerId,
+                // The ID tells apart a customer found by it from one whose name contains the same digits.
                 ...(canMessageCustomer(customer.status)
-                  ? {}
+                  ? { hint: `ID ${customer.userId}` }
                   : {
                       hint: t(
                         INACTIVE_HINTS[customer.status] ??

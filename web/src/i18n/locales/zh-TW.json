@@ -11080,7 +11080,6 @@
     "Send message": "發訊息",
     "Start conversation": "發起會話",
     "Choose a customer. An existing conversation opens as it is.": "選一位客戶。已有會話時直接開啟。",
-    "Search customer name": "搜尋客戶名稱",
     "Suspended, cannot be messaged": "已暫停，無法發訊息",
     "Closed, cannot be messaged": "已關閉，無法發訊息",
     "Only an active customer can be messaged": "只能給狀態有效的客戶發訊息",

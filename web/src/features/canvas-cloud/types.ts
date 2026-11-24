@@ -1727,6 +1727,8 @@ export interface CanvasAdminCustomerPointBalance {
 
 /** A row of the administrator customer list (CUSTOMER-AGENT-RECHARGE-001). */
 export interface CanvasAdminCustomerListItem extends CanvasAdminCustomerPointBalance {
+  /** The New API user ID. */
+  userId: string
   /** The agent whose invite code activated the customer; `customerId` is the agent's own customer record. */
   referralAgent: {
     principalId: string
