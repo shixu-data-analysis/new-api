@@ -119,6 +119,45 @@ describe('DashboardAgentSelect', () => {
       )
     )
   })
+  it('keeps the shown candidates while the next search loads, so the list does not collapse', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAgents
+      .mockResolvedValueOnce({
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        items: [
+          { principalId: 'agent-lin', username: 'linxiao', status: 'ACTIVE' },
+        ],
+      })
+      .mockReturnValueOnce(new Promise(() => undefined))
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DashboardAgentSelect
+          id='agent'
+          value={{ value: '__all__', label: 'All agents' }}
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+
+    const input = screen.getByRole('combobox')
+    await user.click(input)
+    await screen.findByRole('option', { name: /linxiao/ })
+    await user.type(input, 'li', {
+      initialSelectionStart: 0,
+      initialSelectionEnd: 'All agents'.length,
+    })
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAgents).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'li' }),
+        expect.anything()
+      )
+    )
+
+    expect(screen.getByRole('option', { name: /linxiao/ })).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).toBeNull()
+  })
   it('marks a disabled agent with the agent qualification status 已停用', async () => {
     const user = userEvent.setup()
     i18next.addResourceBundle('zh', 'translation', zh.translation, true, true)

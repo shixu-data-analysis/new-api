@@ -60,6 +60,8 @@ export function SearchSelect(props: {
     queryKey: ['canvas-cloud', 'search-select', props.queryKey, debounced],
     queryFn: ({ signal }) => props.load(debounced, signal),
     staleTime: 30_000,
+    // Typing keeps the last candidates until the new ones arrive, so the list does not collapse to 加载中… on every key.
+    placeholderData: (previous) => previous,
   })
   const items = [
     ...props.fixedOptions,
@@ -93,7 +95,9 @@ export function SearchSelect(props: {
         className='w-full'
         placeholder={props.placeholder}
       />
-      <ComboboxContent>
+      {/* The candidate count changes while typing; flipping above the field when it grows would make the list jump. It
+      stays below and scrolls within the space left. */}
+      <ComboboxContent collisionAvoidance={{ side: 'none' }}>
         <ComboboxEmpty>
           {candidates.isFetching ? t('Loading…') : t('No matching results')}
         </ComboboxEmpty>
