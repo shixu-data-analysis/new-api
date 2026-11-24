@@ -68,7 +68,7 @@ import type {
   CanvasAdminAgentStatistics,
   CanvasAdminPointLot,
   CanvasAdminRechargeOrder,
-  CanvasAdminCustomerListItem,
+  CanvasAdminCustomerPage,
   CanvasAdminCustomerPointBalance,
   CanvasAdminCustomerTask,
   CanvasAdminTaskLog,
@@ -1899,13 +1899,14 @@ export async function getCanvasAdminCustomers(
       | 'status'
       | 'availablePoints'
       | 'rechargedPoints'
+      | 'activeDays'
       | 'createdAt'
     sortOrder?: 'asc' | 'desc'
     page?: number
     pageSize?: 10 | 20 | 30 | 40 | 50 | 100
   } = {},
   signal?: AbortSignal
-): Promise<CanvasPage<CanvasAdminCustomerListItem>> {
+): Promise<CanvasAdminCustomerPage> {
   return (
     await api.get(`${webBase}/admin/customers`, {
       params: { page: 1, pageSize: 20, ...query },

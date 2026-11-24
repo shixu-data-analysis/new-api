@@ -63,6 +63,7 @@ import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
+import { RecentActivity } from './RecentActivity'
 
 /**
  * Whose customers the list shows: the signed-in agent's own, or one agent's as the administrator sees them, with the
@@ -226,68 +227,6 @@ function ModelUsage(props: {
         `${row.priceGroupId}:${row.modelKey}:${row.combinationKey}:${row.billingUnit}`
       }
     />
-  )
-}
-
-/** Seven dots for `recentDays`, oldest on the left and today on the right; a day with a submitted task is lit. */
-function RecentActivity(props: { recentDays: string[]; activeDays: string[] }) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.language)
-  const active = new Set(props.activeDays)
-  const format = new Intl.DateTimeFormat(locale, {
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'short',
-    timeZone: 'UTC',
-  })
-  const days = props.recentDays.map((day, index) => {
-    const date = format.format(new Date(`${day}T00:00:00Z`))
-    return {
-      day,
-      label:
-        index === props.recentDays.length - 1
-          ? t('{{date}} (today)', { date })
-          : date,
-      lit: active.has(day),
-    }
-  })
-  const litLabels = days
-    .filter((entry) => entry.lit)
-    .map((entry) => entry.label)
-  // Hover shows each day; the accessible name lists the active days for keyboard, touch and screen reader users.
-  return (
-    <span
-      role='img'
-      aria-label={
-        litLabels.length === 0
-          ? t('Active on {{count}} of the last 7 days', { count: 0 })
-          : t('Active on {{count}} of the last 7 days: {{dates}}', {
-              count: litLabels.length,
-              dates: new Intl.ListFormat(locale, {
-                style: 'narrow',
-                type: 'unit',
-              }).format(litLabels),
-            })
-      }
-      className='inline-flex gap-1 align-middle'
-    >
-      {days.map((entry) => (
-        <span
-          key={entry.day}
-          title={
-            entry.lit
-              ? t('{{day}}: active', { day: entry.label })
-              : t('{{day}}: inactive', { day: entry.label })
-          }
-          data-active={entry.lit}
-          className={
-            entry.lit
-              ? 'bg-primary size-2 rounded-full'
-              : 'bg-border size-2 rounded-full'
-          }
-        />
-      ))}
-    </span>
   )
 }
 

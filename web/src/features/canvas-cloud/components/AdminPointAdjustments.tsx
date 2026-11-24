@@ -124,6 +124,7 @@ import {
   DashboardAgentSelect,
   type DashboardSelectOption,
 } from './DashboardSearchSelect'
+import { RecentActivity } from './RecentActivity'
 
 type AdjustmentAction = 'bonus' | 'paid' | 'deduction' | 'return'
 type PendingAction = AdjustmentAction | null
@@ -582,6 +583,7 @@ export function AdminPointAdjustments({
   }
 
   const pageCustomers = customers.data?.items ?? []
+  const customerRecentDays = customers.data?.recentDays ?? []
   const allPageSelected =
     pageCustomers.length > 0 &&
     pageCustomers.every((row) => mailSelection.has(row.customerId))
@@ -772,6 +774,23 @@ export function AdminPointAdjustments({
         <div className='text-right tabular-nums'>
           {formatPoints(row.original.availablePoints)}
         </div>
+      ),
+    },
+    {
+      id: 'activeDays',
+      accessorKey: 'activeDays',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Active in the last 7 days')}
+        />
+      ),
+      meta: { label: t('Active in the last 7 days') },
+      cell: ({ row }) => (
+        <RecentActivity
+          recentDays={customerRecentDays}
+          activeDays={row.original.activeDays}
+        />
       ),
     },
   ]

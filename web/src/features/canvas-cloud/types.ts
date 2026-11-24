@@ -1737,6 +1737,13 @@ export interface CanvasAdminCustomerListItem extends CanvasAdminCustomerPointBal
   rechargedPoints: string
   /** Bonus points ever granted, used or not. */
   grantedBonusPoints: string
+  /** Dates within the page's `recentDays` on which the customer submitted a task. */
+  activeDays: string[]
+}
+
+export interface CanvasAdminCustomerPage extends CanvasPage<CanvasAdminCustomerListItem> {
+  /** Today and the six days before it as Beijing dates, oldest first. */
+  recentDays: string[]
 }
 
 export interface CanvasAdminRechargeOrder {
