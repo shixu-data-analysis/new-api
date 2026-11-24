@@ -17,6 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+/** The 客户管理 tab an address shows: 客服会话 or 客户邮件; none is the customer list. */
+export type CustomersTab = 'support' | 'mails'
+
+export function customersTabOf(
+  tab: string | undefined
+): CustomersTab | undefined {
+  return tab === 'support' || tab === 'mails' ? tab : undefined
+}
+
 /** The customer detail tab an address opens: `tab=agent-statistics` from the customer list's referring agent link. */
 export function customerDetailTabOf(
   tab: string | undefined

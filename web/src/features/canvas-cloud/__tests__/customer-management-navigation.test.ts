@@ -21,7 +21,17 @@ import { describe, expect, it } from 'vitest'
 import {
   customerChangeSearch,
   customerDetailTabOf,
+  customersTabOf,
 } from '../customer-management-navigation'
+
+describe('customersTabOf', () => {
+  it('reads 客服会话 and 客户邮件; anything else is the customer list', () => {
+    expect(customersTabOf('support')).toBe('support')
+    expect(customersTabOf('mails')).toBe('mails')
+    expect(customersTabOf('agent-statistics')).toBeUndefined()
+    expect(customersTabOf(undefined)).toBeUndefined()
+  })
+})
 
 describe('customerDetailTabOf', () => {
   it('opens agent statistics for the referring agent link', () => {

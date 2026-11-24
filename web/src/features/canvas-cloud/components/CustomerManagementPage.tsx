@@ -24,6 +24,10 @@ import { NavBadge } from '@/components/layout/components/nav-group'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 
 import { getCanvasAdminSupportPendingCount, supportQueryKeys } from '../api'
+import {
+  customersTabOf,
+  type CustomersTab,
+} from '../customer-management-navigation'
 import { AdminPointAdjustments } from './AdminPointAdjustments'
 import {
   CanvasManagementTabsList,
@@ -42,11 +46,12 @@ export function CustomerManagementPage(props: {
   pointLotId?: string
   customerDetailTab?: 'agent-statistics'
   titleActionSlot?: HTMLElement | null
-  tab?: 'support'
+  tab?: CustomersTab
   supportView?: 'failures'
   supportConversationId?: string
-  onSupportChange?: (support: {
-    open: boolean
+  /** The tab shown, kept in the address so the page title follows it; a conversation only with 客服会话. */
+  onTabChange?: (change: {
+    tab?: CustomersTab
     conversationId?: string
   }) => void
 }) {
@@ -58,14 +63,13 @@ export function CustomerManagementPage(props: {
       queryFn: ({ signal }) => getCanvasAdminSupportPendingCount(signal),
       refetchInterval: 60_000,
     }).data ?? 0
-  const [tab, setTab] = useState(
-    props.tab === 'support' ? 'support' : 'customers'
-  )
+  const [tab, setTab] = useState<string>(props.tab ?? 'customers')
   const changeTab = (value: string) => {
     setTab(value)
-    props.onSupportChange?.({
-      open: value === 'support',
-      ...(value === 'support' && props.supportConversationId
+    const shown = customersTabOf(value)
+    props.onTabChange?.({
+      ...(shown ? { tab: shown } : {}),
+      ...(shown === 'support' && props.supportConversationId
         ? { conversationId: props.supportConversationId }
         : {}),
     })
@@ -103,7 +107,7 @@ export function CustomerManagementPage(props: {
           titleActionSlot={props.titleActionSlot}
           onOpenSupportConversation={(conversationId) => {
             setTab('support')
-            props.onSupportChange?.({ open: true, conversationId })
+            props.onTabChange?.({ tab: 'support', conversationId })
           }}
         />
       </TabsContent>
@@ -112,8 +116,8 @@ export function CustomerManagementPage(props: {
           view={props.supportView}
           conversationId={props.supportConversationId}
           onConversationChange={(conversationId) =>
-            props.onSupportChange?.({
-              open: true,
+            props.onTabChange?.({
+              tab: 'support',
               ...(conversationId ? { conversationId } : {}),
             })
           }

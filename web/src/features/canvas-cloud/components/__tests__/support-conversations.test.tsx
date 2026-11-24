@@ -493,6 +493,107 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     )
   })
 
+  it('goes back to the plain list after starting a conversation from the waiting list or a search', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
+      ],
+    })
+    apiMocks.openCanvasAdminSupportConversation.mockResolvedValue(xiaoyu)
+    const onConversationChange = vi.fn()
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={onConversationChange}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    fireEvent.change(
+      await screen.findByRole('searchbox', {
+        name: 'Search customer name or ID',
+      }),
+      { target: { value: '小' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Awaiting reply' }))
+    await user.click(screen.getByRole('button', { name: 'Start conversation' }))
+    await user.click(await screen.findByRole('combobox', { name: 'Customer' }))
+    await user.click(await screen.findByRole('option', { name: /^小雨/ }))
+    await waitFor(() =>
+      expect(onConversationChange).toHaveBeenCalledWith(xiaoyu.id)
+    )
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(
+      screen.getByRole('searchbox', { name: 'Search customer name or ID' })
+    ).toHaveValue('')
+  })
+
+  it('translates the hints of the customer search in the language shown', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          customerId: '92000000-0000-7000-8000-000000000015',
+          userId: '10520',
+          username: '老周',
+          status: 'SUSPENDED',
+        },
+      ],
+    })
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={vi.fn()}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    const open = async () => {
+      await user.click(
+        await screen.findByRole('button', { name: 'Start conversation' })
+      )
+      await user.click(
+        await screen.findByRole('combobox', { name: 'Customer' })
+      )
+    }
+    await open()
+    expect(
+      await screen.findByRole('option', {
+        name: /Suspended, cannot be messaged/,
+      })
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    i18next.addResourceBundle(
+      'zh',
+      'translation',
+      { 'Suspended, cannot be messaged': '已暂停，不能发消息' },
+      true,
+      true
+    )
+    await i18next.changeLanguage('zh')
+    await open()
+    expect(
+      await screen.findByRole('option', { name: /已暂停，不能发消息/ })
+    ).toBeInTheDocument()
+  })
+
   it('keeps an opened conversation out of the waiting list, where it opens without being listed', async () => {
     apiMocks.getCanvasAdminSupportConversations.mockImplementation(
       async (query: { id?: string; filter: string }) => {

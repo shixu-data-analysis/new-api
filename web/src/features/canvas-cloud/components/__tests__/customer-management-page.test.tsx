@@ -113,15 +113,15 @@ describe('Customer management tabs', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
-    const onSupportChange = vi.fn()
+    const onTabChange = vi.fn()
     const view = render(
       <QueryClientProvider client={client}>
-        <CustomerManagementPage onSupportChange={onSupportChange} />
+        <CustomerManagementPage onTabChange={onTabChange} />
       </QueryClientProvider>
     )
     fireEvent.click(screen.getByRole('button', { name: 'message alice' }))
-    expect(onSupportChange).toHaveBeenCalledWith({
-      open: true,
+    expect(onTabChange).toHaveBeenCalledWith({
+      tab: 'support',
       conversationId: 'conversation-1',
     })
     expect(
@@ -133,10 +133,26 @@ describe('Customer management tabs', () => {
         <CustomerManagementPage
           tab='support'
           supportConversationId='conversation-1'
-          onSupportChange={onSupportChange}
+          onTabChange={onTabChange}
         />
       </QueryClientProvider>
     )
     expect(screen.getByText('conversation conversation-1')).toBeInTheDocument()
+  })
+
+  it('reports each tab, so the address and the page title follow it', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const onTabChange = vi.fn()
+    render(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage onTabChange={onTabChange} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Customer emails' }))
+    expect(onTabChange).toHaveBeenLastCalledWith({ tab: 'mails' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Customer list' }))
+    expect(onTabChange).toHaveBeenLastCalledWith({})
   })
 })

@@ -47,7 +47,7 @@ export function SupportStartConversationDialog(props: {
   onClose: () => void
   onOpened: (conversationId: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const fieldId = useId()
   const open = useOpenSupportConversation((conversationId) => {
     props.onClose()
@@ -74,7 +74,8 @@ export function SupportStartConversationDialog(props: {
             value={NO_CHOICE}
             fixedOptions={[]}
             placeholder={t('Search customer name or ID')}
-            queryKey='support-start-customers'
+            // The hints are translated when loaded, so each language keeps its own candidates.
+            queryKey={`support-start-customers:${i18n.language}`}
             load={async (search, signal) =>
               (await searchCanvasCustomers(search, signal)).map((customer) => ({
                 value: customer.customerId,

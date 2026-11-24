@@ -416,7 +416,10 @@ export function SupportConversations(props: {
         <SupportStartConversationDialog
           onClose={() => setStartOpen(false)}
           onOpened={(conversationId) => {
-            if (filter === 'failures') setFilter('all')
+            // Back to the plain list, where the opened conversation is listed first.
+            setFilter('all')
+            setSearch('')
+            resetPage()
             props.onConversationChange?.(conversationId)
           }}
         />
