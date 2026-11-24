@@ -540,6 +540,49 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
     ).toHaveValue('')
   })
 
+  it('keeps the customers shown while the next search loads, instead of emptying the list to Loading', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers
+      .mockResolvedValueOnce({
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        items: [
+          {
+            customerId: '92000000-0000-7000-8000-000000000016',
+            userId: '10530',
+            username: '阿青',
+            status: 'ACTIVE',
+          },
+        ],
+      })
+      .mockReturnValueOnce(new Promise(() => undefined))
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={vi.fn()}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Start conversation' })
+    )
+    const customer = await screen.findByRole('combobox', { name: 'Customer' })
+    await user.click(customer)
+    await screen.findByRole('option', { name: /阿青/ })
+    await user.type(customer, '阿')
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: '阿' }),
+        expect.anything()
+      )
+    )
+
+    expect(screen.getByRole('option', { name: /阿青/ })).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).toBeNull()
+  })
+
   it('translates the hints of the customer search in the language shown', async () => {
     const user = userEvent.setup()
     apiMocks.getCanvasAdminCustomers.mockResolvedValue({

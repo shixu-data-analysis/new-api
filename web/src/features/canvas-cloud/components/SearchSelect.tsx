@@ -96,12 +96,16 @@ export function SearchSelect(props: {
         placeholder={props.placeholder}
       />
       {/* The candidate count changes while typing; flipping above the field when it grows would make the list jump. It
-      stays below and scrolls within the space left. */}
-      <ComboboxContent collisionAvoidance={{ side: 'none' }}>
+      stays below and scrolls within the space left, and keeps about three rows even when a field near the bottom of the
+      window leaves less, running past the edge rather than shrinking to nothing. */}
+      <ComboboxContent
+        collisionAvoidance={{ side: 'none' }}
+        className='max-h-[max(--spacing(28),var(--available-height))]'
+      >
         <ComboboxEmpty>
           {candidates.isFetching ? t('Loading…') : t('No matching results')}
         </ComboboxEmpty>
-        <ComboboxList>
+        <ComboboxList className='max-h-[max(--spacing(28),min(calc(--spacing(72)---spacing(9)),calc(var(--available-height)---spacing(9))))]'>
           {(option: SearchSelectOption) => (
             <ComboboxItem
               key={option.value}

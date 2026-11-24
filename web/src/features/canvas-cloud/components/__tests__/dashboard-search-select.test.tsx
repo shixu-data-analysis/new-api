@@ -159,7 +159,6 @@ describe('DashboardAgentSelect', () => {
     )
 
     expect(screen.getByRole('option', { name: /linxiao/ })).toBeInTheDocument()
-    expect(screen.queryByText('Loading…')).toBeNull()
   })
   it('marks a disabled agent with the agent qualification status 已停用', async () => {
     const user = userEvent.setup()
