@@ -215,7 +215,9 @@
               "SUPPORT_ATTACHMENT_NOT_FOUND",
               "SUPPORT_ATTACHMENT_LIMIT",
               "SUPPORT_ATTACHMENT_NOT_UPLOADED",
-              "SUPPORT_STORAGE_UNAVAILABLE"
+              "SUPPORT_STORAGE_UNAVAILABLE",
+              "SUPPORT_CUSTOMER_NOT_FOUND",
+              "SUPPORT_CUSTOMER_INACTIVE"
             ],
             "type": "string"
           },
