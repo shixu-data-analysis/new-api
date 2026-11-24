@@ -31,7 +31,6 @@ export type AvailabilityModelRow =
   | { kind: 'missing'; model: MissingModel }
   | { kind: 'disabled'; model: DisabledModel }
 
-/** Models the provider lists again come first: they are the ones that can be restored now. */
 /** The table's rows: missing models first, to be handled, then disabled models, the ones the provider lists again first. */
 export function availabilityRows(
   missing: MissingModel[],
@@ -75,13 +74,21 @@ export interface AvailabilityFilters {
   reason: string
 }
 
-export const emptyAvailabilityFilters: AvailabilityFilters = {
-  providerId: '',
+/** The Filters panel conditions; the API provider is chosen apart and Clear filters keeps it. */
+export const emptyAvailabilityPanelFilters: Omit<
+  AvailabilityFilters,
+  'providerId'
+> = {
   state: '',
   model: '',
   upstreamId: '',
   upstream: '',
   reason: '',
+}
+
+export const emptyAvailabilityFilters: AvailabilityFilters = {
+  providerId: '',
+  ...emptyAvailabilityPanelFilters,
 }
 
 const contains = (value: string, query: string) =>

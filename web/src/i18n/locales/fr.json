@@ -9649,7 +9649,6 @@
     "No confirmed model absences": "Aucune absence de modèle confirmée",
     "Models not yet probed, with failed probes, or below the count do not appear here.": "Les modèles non sondés, en échec ou sous le seuil n’apparaissent pas ici.",
     "Missing and disabled models ({{count}})": "Modèles absents et désactivés ({{count}})",
-    "Missing, to handle": "Absent, à traiter",
     "All model states": "Tous les états du modèle",
     "All upstream statuses": "Tous les statuts chez le fournisseur",
     "All disable reasons": "Toutes les raisons de désactivation",

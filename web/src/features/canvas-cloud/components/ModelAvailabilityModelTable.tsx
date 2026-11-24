@@ -29,7 +29,6 @@ import {
   DataTableColumnFilterField,
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -38,16 +37,15 @@ import {
   SelectTrigger,
 } from '@/components/ui/select'
 
+import { listedProviderId, providersOf } from '../api-provider-filter'
 import { formatCanvasDateTime } from '../formatters'
-import type {
-  DisabledModel,
-  MissingModel,
-  UpstreamStatus,
-} from '../model-availability-api'
+import type { DisabledModel, MissingModel } from '../model-availability-api'
 import {
   availabilityRows,
   emptyAvailabilityFilters,
+  emptyAvailabilityPanelFilters,
   matchesAvailabilityFilters,
+  rowUpstreamStatus,
   type AvailabilityControl,
   type AvailabilityFilters,
   type AvailabilityModelRow,
@@ -57,21 +55,27 @@ import {
   modelControlReasonLabel,
   modelDisableReasons,
 } from '../model-monitoring-control'
-import { CANVAS_COLUMN_SIZES, pageWithinRange } from './canvas-table-layout'
+import { ApiProviderFilterButtons } from './ApiProviderFilterButtons'
+import {
+  CANVAS_COLUMN_SIZES,
+  pageWithinRange,
+  wrappedCellsCenteredActions,
+} from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRowAction } from './CanvasRowAction'
 
-const upstreamLabels: Record<Exclude<UpstreamStatus, null>, string> = {
+/** One label per upstream status: the cell and the Upstream status filter read the same table. */
+const upstreamLabels: Record<AvailabilityUpstreamFilter, string> = {
   AVAILABLE: 'Listed by the provider',
   SUSPECTED: 'Absence to be confirmed',
   MISSING: 'Missing from the provider',
+  NOT_PROBED: 'Not probed yet',
 }
 
 function UpstreamCell(props: { row: AvailabilityModelRow }) {
   const { t } = useTranslation()
   const { row } = props
-  const status = row.kind === 'missing' ? 'MISSING' : row.model.upstreamStatus
-  if (status === null) return <div>{t('Not probed yet')}</div>
+  const status = rowUpstreamStatus(row)
   const time =
     status === 'MISSING' && row.model.firstMissingAt
       ? t('First missing {{time}}', {
@@ -95,15 +99,8 @@ function UpstreamCell(props: { row: AvailabilityModelRow }) {
   )
 }
 
-const upstreamFilterLabels: Record<AvailabilityUpstreamFilter, string> = {
-  AVAILABLE: 'Listed by the provider',
-  SUSPECTED: 'Absence to be confirmed',
-  MISSING: 'Missing from the provider',
-  NOT_PROBED: 'Not probed yet',
-}
-
 const stateLabels: Record<AvailabilityModelRow['kind'], string> = {
-  missing: 'Missing, to handle',
+  missing: 'Model enabled',
   disabled: 'Model disabled',
 }
 
@@ -133,17 +130,14 @@ export function ModelAvailabilityModelTable(props: {
     [props.missing, props.disabled]
   )
   const providers = useMemo(
-    () => [
-      ...new Map(
-        rows.map((row) => [row.model.providerId, row.model.providerName])
-      ),
-    ],
+    () =>
+      providersOf(rows, (row) => ({
+        id: row.model.providerId,
+        name: row.model.providerName,
+      })),
     [rows]
   )
-  // As the model list does: a chosen provider whose last row left (restored, or no longer missing) filters nothing.
-  const providerId = providers.some(([id]) => id === filters.providerId)
-    ? filters.providerId
-    : ''
+  const providerId = listedProviderId(providers, filters.providerId)
   const visible = useMemo(
     () =>
       rows.filter((row) =>
@@ -158,6 +152,9 @@ export function ModelAvailabilityModelTable(props: {
   const ensurePageInRange = useCallback((pageCount: number) => {
     setPagination(pageWithinRange(pageCount))
   }, [])
+  // Columns are built once: flexRender mounts each cell function as a component, so a new function would remount every
+  // cell, and the row button a keyboard user is on would lose focus at each refresh.
+  const onControl = props.onControl
   const columns = useMemo<ColumnDef<AvailabilityModelRow, unknown>[]>(
     () => [
       {
@@ -210,13 +207,7 @@ export function ModelAvailabilityModelTable(props: {
               : undefined
           return (
             <>
-              <div>
-                {t(
-                  row.original.kind === 'missing'
-                    ? 'Model enabled'
-                    : 'Model disabled'
-                )}
-              </div>
+              <div>{t(stateLabels[row.original.kind])}</div>
               {reason ? (
                 <div className='text-muted-foreground text-xs'>
                   {t('Reason: {{reason}}', { reason: t(reason) })}
@@ -244,7 +235,7 @@ export function ModelAvailabilityModelTable(props: {
                 { model: model.displayName }
               )}
               onClick={() =>
-                props.onControl({
+                onControl({
                   modelKey: model.modelKey,
                   displayName: model.displayName,
                   controlVersion: model.controlVersion,
@@ -258,7 +249,7 @@ export function ModelAvailabilityModelTable(props: {
         },
       },
     ],
-    [props, t]
+    [onControl, t]
   )
   const { table } = useDataTable({
     data: visible,
@@ -287,32 +278,11 @@ export function ModelAvailabilityModelTable(props: {
         {t('Missing and disabled models ({{count}})', { count: rows.length })}
       </h3>
       {providers.length ? (
-        <section className='space-y-2' aria-label={t('API provider')}>
-          <p className='text-sm font-medium'>{t('API provider')}</p>
-          <div
-            className='flex flex-wrap gap-2'
-            role='group'
-            aria-label={t('API provider')}
-          >
-            <Button
-              variant={!providerId ? 'default' : 'outline'}
-              aria-pressed={!providerId}
-              onClick={() => changeFilters({ providerId: '' })}
-            >
-              {t('All API providers')}
-            </Button>
-            {providers.map(([id, name]) => (
-              <Button
-                key={id}
-                variant={providerId === id ? 'default' : 'outline'}
-                aria-pressed={providerId === id}
-                onClick={() => changeFilters({ providerId: id })}
-              >
-                {name}
-              </Button>
-            ))}
-          </div>
-        </section>
+        <ApiProviderFilterButtons
+          providers={providers}
+          selectedId={providerId}
+          onSelect={(id) => changeFilters({ providerId: id })}
+        />
       ) : null}
       <DataTablePage
         table={table}
@@ -328,21 +298,13 @@ export function ModelAvailabilityModelTable(props: {
         fixedHeight={false}
         paginationInFooter={false}
         applyHeaderSize
-        getColumnClassName={(columnId, section) => {
-          if (columnId === 'actions') return 'text-center'
-          return section === 'cell' ? 'whitespace-normal' : undefined
-        }}
+        getColumnClassName={wrappedCellsCenteredActions}
         toolbar={
           <DataTableToolbar
             table={table}
             hideViewOptions
             hasAdditionalFilters={panelCount > 0}
-            onReset={() =>
-              changeFilters({
-                ...emptyAvailabilityFilters,
-                providerId,
-              })
-            }
+            onReset={() => changeFilters(emptyAvailabilityPanelFilters)}
             leftActions={props.bulkAction}
             filterPanel={
               <DataTableColumnFilterPanel activeCount={panelCount}>
@@ -415,7 +377,7 @@ export function ModelAvailabilityModelTable(props: {
                     onValueChange={(value) =>
                       changeFilters({
                         upstream:
-                          value && value in upstreamFilterLabels
+                          value && value in upstreamLabels
                             ? (value as AvailabilityUpstreamFilter)
                             : '',
                       })
@@ -429,7 +391,7 @@ export function ModelAvailabilityModelTable(props: {
                         value={filters.upstream}
                         valueLabelKey={
                           filters.upstream
-                            ? upstreamFilterLabels[filters.upstream]
+                            ? upstreamLabels[filters.upstream]
                             : undefined
                         }
                         emptyLabelKey='All upstream statuses'
@@ -441,11 +403,11 @@ export function ModelAvailabilityModelTable(props: {
                       </SelectItem>
                       {(
                         Object.keys(
-                          upstreamFilterLabels
+                          upstreamLabels
                         ) as AvailabilityUpstreamFilter[]
                       ).map((value) => (
                         <SelectItem key={value} value={value}>
-                          {t(upstreamFilterLabels[value])}
+                          {t(upstreamLabels[value])}
                         </SelectItem>
                       ))}
                     </SelectContent>

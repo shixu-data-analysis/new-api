@@ -9649,7 +9649,6 @@
     "No confirmed model absences": "暫無已確認的模型缺失預警",
     "Models not yet probed, with failed probes, or below the count do not appear here.": "尚未探測、探測失敗或未達到連續次數的模型不會出現在這裡。",
     "Missing and disabled models ({{count}})": "缺失與已停用的模型（{{count}}）",
-    "Missing, to handle": "缺失待處理",
     "All model states": "全部模型狀態",
     "All upstream statuses": "全部上游狀態",
     "All disable reasons": "全部停用原因",

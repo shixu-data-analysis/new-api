@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation } from '@tanstack/react-query'
+import { useIsMutating, useMutation } from '@tanstack/react-query'
 import type { ColumnDef, PaginationState } from '@tanstack/react-table'
 import { useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,12 +34,18 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+import { listedProviderId, providersOf } from '../api-provider-filter'
 import { formatCanvasDateTime } from '../formatters'
 import {
   ignoreModelListings,
   type ListedModel,
 } from '../model-availability-api'
-import { CANVAS_COLUMN_SIZES, pageWithinRange } from './canvas-table-layout'
+import { ApiProviderFilterButtons } from './ApiProviderFilterButtons'
+import {
+  CANVAS_COLUMN_SIZES,
+  pageWithinRange,
+  wrappedCellsCenteredActions,
+} from './canvas-table-layout'
 import { CanvasRowAction } from './CanvasRowAction'
 
 // MODEL-LISTING-ALERT-001: the new provider models on the 上下架监测 page and the way to dismiss them.
@@ -47,8 +53,12 @@ import { CanvasRowAction } from './CanvasRowAction'
 const entryKey = (model: ListedModel) =>
   `${model.providerId}\n${model.upstreamId}`
 
-function useIgnoreListings(onChanged: () => void) {
+// Row buttons read the pending state through this key, so the columns need not depend on it.
+const ignoreRowKey = ['canvas-cloud', 'model-listing', 'ignore-row']
+
+function useIgnoreListings(onChanged: () => void, mutationKey?: string[]) {
   return useMutation({
+    mutationKey,
     mutationFn: (selection: Parameters<typeof ignoreModelListings>[0]) =>
       ignoreModelListings(selection),
     onSettled: onChanged,
@@ -72,6 +82,32 @@ function IgnoreFailed() {
   )
 }
 
+function IgnoreListingButton(props: {
+  model: ListedModel
+  ignore: (selection: Parameters<typeof ignoreModelListings>[0]) => void
+}) {
+  const { t } = useTranslation()
+  const ignoring = useIsMutating({ mutationKey: ignoreRowKey }) > 0
+  return (
+    <CanvasRowAction
+      disabled={ignoring}
+      aria-label={t('Ignore {{model}}', { model: props.model.upstreamId })}
+      onClick={() =>
+        props.ignore({
+          items: [
+            {
+              providerId: props.model.providerId,
+              upstreamId: props.model.upstreamId,
+            },
+          ],
+        })
+      }
+    >
+      {t('Ignore')}
+    </CanvasRowAction>
+  )
+}
+
 /** Ignores what was shown when it was clicked: one found while the administrator confirmed is newer and stays listed. */
 export function IgnoreAllListingsButton(props: {
   models: ListedModel[]
@@ -82,11 +118,7 @@ export function IgnoreAllListingsButton(props: {
   const ignore = useIgnoreListings(props.onChanged)
   return (
     <>
-      <Button
-        variant='outline'
-        disabled={props.models.length === 0}
-        onClick={() => setConfirming(props.models)}
-      >
+      <Button variant='outline' onClick={() => setConfirming(props.models)}>
         {t('Ignore all ({{count}})', { count: props.models.length })}
       </Button>
       <ConfirmDialog
@@ -124,7 +156,7 @@ export function ModelListingTable(props: {
   onChanged: () => void
 }) {
   const { t } = useTranslation()
-  const ignore = useIgnoreListings(props.onChanged)
+  const ignore = useIgnoreListings(props.onChanged, ignoreRowKey)
   const fieldId = useId()
   const [chosenProviderId, setProviderId] = useState('')
   const [upstreamId, setUpstreamId] = useState('')
@@ -133,17 +165,14 @@ export function ModelListingTable(props: {
     pageSize: 20,
   })
   const providers = useMemo(
-    () => [
-      ...new Map(
-        props.models.map((model) => [model.providerId, model.providerName])
-      ),
-    ],
+    () =>
+      providersOf(props.models, (model) => ({
+        id: model.providerId,
+        name: model.providerName,
+      })),
     [props.models]
   )
-  // As the model list does: a chosen provider whose last new model was ignored filters nothing.
-  const providerId = providers.some(([id]) => id === chosenProviderId)
-    ? chosenProviderId
-    : ''
+  const providerId = listedProviderId(providers, chosenProviderId)
   const query = upstreamId.trim().toLocaleLowerCase()
   const visible = useMemo(
     () =>
@@ -159,6 +188,9 @@ export function ModelListingTable(props: {
   const ensurePageInRange = useCallback((pageCount: number) => {
     setPagination(pageWithinRange(pageCount))
   }, [])
+  // Columns depend only on stable values: flexRender mounts each cell function as a component, and useMutation returns a
+  // new object at each render while its mutate keeps one identity. The row button reads the pending state itself.
+  const ignoreListing = ignore.mutate
   const columns = useMemo<ColumnDef<ListedModel, unknown>[]>(
     () => [
       {
@@ -192,28 +224,11 @@ export function ModelListingTable(props: {
         size: CANVAS_COLUMN_SIZES.compact,
         header: t('Actions'),
         cell: ({ row }) => (
-          <CanvasRowAction
-            disabled={ignore.isPending}
-            aria-label={t('Ignore {{model}}', {
-              model: row.original.upstreamId,
-            })}
-            onClick={() =>
-              ignore.mutate({
-                items: [
-                  {
-                    providerId: row.original.providerId,
-                    upstreamId: row.original.upstreamId,
-                  },
-                ],
-              })
-            }
-          >
-            {t('Ignore')}
-          </CanvasRowAction>
+          <IgnoreListingButton model={row.original} ignore={ignoreListing} />
         ),
       },
     ],
-    [ignore, t]
+    [ignoreListing, t]
   )
   const { table } = useDataTable({
     data: visible,
@@ -247,38 +262,14 @@ export function ModelListingTable(props: {
   return (
     <section className='space-y-3'>
       {title}
-      <section className='space-y-2' aria-label={t('API provider')}>
-        <p className='text-sm font-medium'>{t('API provider')}</p>
-        <div
-          className='flex flex-wrap gap-2'
-          role='group'
-          aria-label={t('API provider')}
-        >
-          <Button
-            variant={!providerId ? 'default' : 'outline'}
-            aria-pressed={!providerId}
-            onClick={() => {
-              setProviderId('')
-              firstPage()
-            }}
-          >
-            {t('All API providers')}
-          </Button>
-          {providers.map(([id, name]) => (
-            <Button
-              key={id}
-              variant={providerId === id ? 'default' : 'outline'}
-              aria-pressed={providerId === id}
-              onClick={() => {
-                setProviderId(id)
-                firstPage()
-              }}
-            >
-              {name}
-            </Button>
-          ))}
-        </div>
-      </section>
+      <ApiProviderFilterButtons
+        providers={providers}
+        selectedId={providerId}
+        onSelect={(id) => {
+          setProviderId(id)
+          firstPage()
+        }}
+      />
       {ignore.isError ? <IgnoreFailed /> : null}
       <DataTablePage
         table={table}
@@ -288,10 +279,7 @@ export function ModelListingTable(props: {
         fixedHeight={false}
         paginationInFooter={false}
         applyHeaderSize
-        getColumnClassName={(columnId, section) => {
-          if (columnId === 'actions') return 'text-center'
-          return section === 'cell' ? 'whitespace-normal' : undefined
-        }}
+        getColumnClassName={wrappedCellsCenteredActions}
         toolbar={
           <DataTableToolbar
             table={table}

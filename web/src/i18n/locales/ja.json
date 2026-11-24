@@ -9649,7 +9649,6 @@
     "No confirmed model absences": "確認済みのモデル欠落はありません",
     "Models not yet probed, with failed probes, or below the count do not appear here.": "未検出、検出失敗、回数未達のモデルはここに表示されません。",
     "Missing and disabled models ({{count}})": "欠落・停止済みモデル（{{count}}）",
-    "Missing, to handle": "欠落・対応待ち",
     "All model states": "すべてのモデルの状態",
     "All upstream statuses": "すべての上流の状態",
     "All disable reasons": "すべての停止理由",

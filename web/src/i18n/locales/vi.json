@@ -9649,7 +9649,6 @@
     "No confirmed model absences": "Chưa có mô hình thiếu được xác nhận",
     "Models not yet probed, with failed probes, or below the count do not appear here.": "Mô hình chưa dò, dò lỗi hoặc chưa đủ số lần sẽ không hiện ở đây.",
     "Missing and disabled models ({{count}})": "Mô hình thiếu và đã tắt ({{count}})",
-    "Missing, to handle": "Thiếu, cần xử lý",
     "All model states": "Tất cả trạng thái mô hình",
     "All upstream statuses": "Tất cả trạng thái phía nhà cung cấp",
     "All disable reasons": "Tất cả lý do tắt",

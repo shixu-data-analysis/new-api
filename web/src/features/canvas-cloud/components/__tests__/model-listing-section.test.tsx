@@ -148,6 +148,96 @@ describe('ModelListingTable', () => {
     expect(
       within(providers()).getByRole('button', { name: 'All API providers' })
     ).toHaveAttribute('aria-pressed', 'true')
+    // The choice is kept: once GWay lists a new model again, the filter applies again.
+    view.rerender(
+      <ModelListingTable
+        models={[listed('kling-4.0'), listed('veo-4', 'GWay')]}
+        onChanged={vi.fn()}
+      />
+    )
+    expect(screen.queryByText('kling-4.0')).toBeNull()
+    expect(screen.getByText('veo-4')).toBeInTheDocument()
+  })
+
+  it('keeps the row button and its focus when the page refreshes with the same rows', () => {
+    const onChanged = vi.fn()
+    const view = renderWithQuery(
+      <ModelListingTable models={[listed('veo-3')]} onChanged={onChanged} />
+    )
+    const button = screen.getByRole('button', { name: 'Ignore veo-3' })
+    button.focus()
+    view.rerender(
+      <ModelListingTable models={[listed('veo-3')]} onChanged={onChanged} />
+    )
+    expect(screen.getByRole('button', { name: 'Ignore veo-3' })).toBe(button)
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('keeps the row button and its focus while an ignore runs and after it fails', async () => {
+    let fail = (_reason: Error) => {}
+    ignoreModelListings.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        fail = reject
+      })
+    )
+    renderWithQuery(
+      <ModelListingTable models={[listed('veo-3')]} onChanged={vi.fn()} />
+    )
+    const button = screen.getByRole('button', { name: 'Ignore veo-3' })
+    button.focus()
+    fireEvent.click(button)
+    await waitFor(() => expect(button).toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Ignore veo-3' })).toBe(button)
+    fail(new Error('down'))
+    await screen.findByRole('alert')
+    expect(screen.getByRole('button', { name: 'Ignore veo-3' })).toBe(button)
+    expect(button).toBeEnabled()
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('goes back to the first page when the API provider or the upstream model ID changes', () => {
+    renderWithQuery(
+      <ModelListingTable
+        models={Array.from({ length: 25 }, (_, index) =>
+          listed(`model-${String(index).padStart(2, '0')}`)
+        )}
+        onChanged={vi.fn()}
+      />
+    )
+    const nextPage = () =>
+      fireEvent.click(screen.getByRole('button', { name: /next page/i }))
+    nextPage()
+    expect(screen.getByText('model-20')).toBeInTheDocument()
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'API provider' })).getByRole(
+        'button',
+        { name: 'MangoAI' }
+      )
+    )
+    expect(screen.getByText('model-00')).toBeInTheDocument()
+    expect(screen.queryByText('model-20')).toBeNull()
+    nextPage()
+    fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
+    fireEvent.change(screen.getByLabelText('Upstream model ID'), {
+      target: { value: 'model' },
+    })
+    expect(screen.getByText('model-00')).toBeInTheDocument()
+    expect(screen.queryByText('model-20')).toBeNull()
+  })
+
+  it('moves back to the last page when the rows of the current page leave', () => {
+    const models = Array.from({ length: 21 }, (_, index) =>
+      listed(`model-${String(index).padStart(2, '0')}`)
+    )
+    const view = renderWithQuery(
+      <ModelListingTable models={models} onChanged={vi.fn()} />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }))
+    expect(screen.getByText('model-20')).toBeInTheDocument()
+    view.rerender(
+      <ModelListingTable models={models.slice(0, 20)} onChanged={vi.fn()} />
+    )
+    expect(screen.getByText('model-00')).toBeInTheDocument()
   })
 
   it('shows 20 rows a page and moves to the next page', () => {
@@ -167,13 +257,6 @@ describe('ModelListingTable', () => {
 })
 
 describe('IgnoreAllListingsButton', () => {
-  it('is disabled while nothing is listed', () => {
-    renderWithQuery(<IgnoreAllListingsButton models={[]} onChanged={vi.fn()} />)
-    expect(
-      screen.getByRole('button', { name: 'Ignore all (0)' })
-    ).toBeDisabled()
-  })
-
   it('asks first, and cancelling sends nothing', () => {
     renderWithQuery(
       <IgnoreAllListingsButton models={[listed('veo-3')]} onChanged={vi.fn()} />

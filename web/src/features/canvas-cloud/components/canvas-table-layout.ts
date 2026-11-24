@@ -81,3 +81,15 @@ export function pageWithinRange(pageCount: number) {
       ? current
       : { ...current, pageIndex: Math.max(0, pageCount - 1) }
 }
+
+/**
+ * Cells that wrap long names and an actions column centred: the 上下架监测 tables. A module-level function, so the
+ * shared row memo is not broken by a new function at each render.
+ */
+export const wrappedCellsCenteredActions: DataTableColumnClassName = (
+  columnId,
+  section
+) => {
+  if (columnId === 'actions') return 'text-center'
+  return section === 'cell' ? 'whitespace-normal' : undefined
+}

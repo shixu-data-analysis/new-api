@@ -9649,7 +9649,6 @@
     "No confirmed model absences": "Подтверждённых отсутствий нет",
     "Models not yet probed, with failed probes, or below the count do not appear here.": "Модели без проверки, со сбоем проверки или ниже порога здесь не показываются.",
     "Missing and disabled models ({{count}})": "Отсутствующие и отключённые модели ({{count}})",
-    "Missing, to handle": "Отсутствует, к обработке",
     "All model states": "Все состояния модели",
     "All upstream statuses": "Все статусы у провайдера",
     "All disable reasons": "Все причины отключения",
