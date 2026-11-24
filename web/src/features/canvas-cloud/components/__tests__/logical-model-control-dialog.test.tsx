@@ -30,7 +30,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LogicalModelControlDialog } from '../LogicalModelControlDialog'
 
 const controlCanvasLogicalModel = vi.hoisted(() => vi.fn())
+const toastSuccess = vi.hoisted(() => vi.fn())
 vi.mock('../../api', () => ({ controlCanvasLogicalModel }))
+vi.mock('sonner', () => ({ toast: { success: toastSuccess, error: vi.fn() } }))
 
 afterEach(cleanup)
 
@@ -39,7 +41,6 @@ describe('LogicalModelControlDialog', () => {
     controlCanvasLogicalModel.mockResolvedValue({})
     const client = new QueryClient()
     const invalidate = vi.spyOn(client, 'invalidateQueries')
-    const onChanged = vi.fn()
     render(
       <QueryClientProvider client={client}>
         <LogicalModelControlDialog
@@ -48,7 +49,6 @@ describe('LogicalModelControlDialog', () => {
           manualEnabled={false}
           controlVersion={4}
           onClose={vi.fn()}
-          onChanged={onChanged}
         />
       </QueryClientProvider>
     )
@@ -59,7 +59,9 @@ describe('LogicalModelControlDialog', () => {
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Restore model' })
     )
-    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('Model state updated')
+    )
     expect(controlCanvasLogicalModel).toHaveBeenCalledWith(
       'a',
       expect.objectContaining({ enabled: true, expectedVersion: 4 })
@@ -72,8 +74,9 @@ describe('LogicalModelControlDialog', () => {
         JSON.stringify(['canvas-cloud', 'admin-testing-models']),
         JSON.stringify(['canvas-cloud', 'model-availability']),
         JSON.stringify(['canvas-cloud', 'model-monitoring-overview']),
+        JSON.stringify(['canvas-cloud', 'model-usage']),
       ])
     )
-    expect(refreshed.length).toBe(4)
+    expect(refreshed.length).toBe(5)
   })
 })

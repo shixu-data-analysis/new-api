@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -42,7 +43,6 @@ export function LogicalModelControlDialog(props: {
   manualEnabled: boolean
   controlVersion: number
   onClose: () => void
-  onChanged?: () => void
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -63,7 +63,7 @@ export function LogicalModelControlDialog(props: {
       }),
     onSuccess: () => {
       refreshModelControlViews(queryClient)
-      props.onChanged?.()
+      toast.success(t('Model state updated'))
       props.onClose()
     },
   })

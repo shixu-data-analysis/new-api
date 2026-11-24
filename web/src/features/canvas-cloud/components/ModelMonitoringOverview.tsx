@@ -15,7 +15,6 @@ import {
 import { ListFilter } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { DataTablePagination } from '@/components/data-table'
 import { ErrorState } from '@/components/error-state'
@@ -705,7 +704,6 @@ export function ModelMonitoringOverview(props: {
           manualEnabled={control.manualEnabled}
           controlVersion={control.controlVersion}
           onClose={() => setControl(null)}
-          onChanged={() => toast.success(t('Model state updated'))}
         />
       ) : null}
     </div>

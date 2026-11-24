@@ -15,8 +15,8 @@ import {
 } from './model-availability-api'
 
 /**
- * A model key's control shows on the model list, the availability page and its badge, and model monitoring:
- * a change made on one of them refreshes all of them, so none offers an action on a stale version.
+ * A model key's control shows on the model list, the availability page and its badge, model monitoring and the usage
+ * ranking: a change made on one of them refreshes all of them, so none shows a stale state or offers a stale version.
  */
 export function refreshModelControlViews(queryClient: QueryClient) {
   for (const queryKey of [
@@ -24,6 +24,7 @@ export function refreshModelControlViews(queryClient: QueryClient) {
     modelAvailabilityQueryKey,
     modelAvailabilityBadgeQueryKey,
     ['canvas-cloud', 'model-monitoring-overview'],
+    ['canvas-cloud', 'model-usage'],
   ]) {
     void queryClient.invalidateQueries({ queryKey })
   }
