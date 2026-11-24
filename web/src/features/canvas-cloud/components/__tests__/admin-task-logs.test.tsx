@@ -97,6 +97,7 @@ const task = {
   customerBillingStatus: 'SETTLED',
   settledPoints: '12',
   outstandingDebtPoints: '3',
+  upstreamTaskId: null as string | null,
   upstreamTasks: [] as Array<{
     upstreamTaskId: string
     outputIndices: number[]
@@ -341,7 +342,7 @@ describe('Canvas administrator task records', () => {
     apiMocks.getCanvasAdminTaskLogs.mockResolvedValue({
       page: 1,
       pageSize: 20,
-      total: 2,
+      total: 3,
       items: [
         {
           ...task,
@@ -371,11 +372,20 @@ describe('Canvas administrator task records', () => {
           ],
         },
         { ...task, id: '85000000-0000-7000-8000-000000000007' },
+        // Recorded before its calls were kept: only the task's own ID, never red.
+        {
+          ...task,
+          id: '85000000-0000-7000-8000-000000000008',
+          upstreamTaskId: 'legacy-up',
+        },
       ],
     })
     mount()
 
-    expect(await screen.findByText('task_7f3c2a11')).not.toHaveClass(
+    expect(await screen.findByText('legacy-up')).not.toHaveClass(
+      'text-destructive'
+    )
+    expect(screen.getByText('task_7f3c2a11')).not.toHaveClass(
       'text-destructive'
     )
     expect(screen.getByText('img_4d2e…3b57')).toHaveClass('text-destructive')
@@ -501,8 +511,11 @@ describe('Canvas administrator task records', () => {
     expect(
       within(sheet).queryByRole('button', { name: `Copy ${task.id}` })
     ).not.toBeInTheDocument()
+    const taskIdField = (
+      await within(sheet).findByText('Task ID')
+    ).closest('div') as HTMLElement
     expect(
-      await within(sheet).findByRole('button', { name: 'Copy' })
+      within(taskIdField).getByRole('button', { name: 'Copy' })
     ).toBeVisible()
   })
 

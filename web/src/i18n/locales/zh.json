@@ -194,7 +194,7 @@
     "HTTP {{status}}": "HTTP {{status}}",
     "Connection timed out": "连接超时",
     "Fastest {{fastest}}, slowest {{slowest}}": "最快 {{fastest}}，最慢 {{slowest}}",
-    "{{minutes}} min {{seconds}} s": "{{minutes}} 分 {{seconds}} 秒",
+    "{{minutes}} min {{seconds}} s": "{{minutes}} 分钟 {{seconds}} 秒",
     "Provider returned fewer results than requested": "服务商返回的结果少于请求数量",
     "Waiting stage": "等待阶段",
     "Wait and next attempt": "已等待／下次尝试",

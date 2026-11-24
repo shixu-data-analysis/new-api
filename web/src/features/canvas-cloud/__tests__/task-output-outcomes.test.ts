@@ -73,7 +73,8 @@ describe('taskOutputOutcomes', () => {
         }),
       ],
       [attempt(2, 2), attempt(2, 1, { details: { failure: 'TIMEOUT' } })],
-      [manual]
+      [manual],
+      false
     )
     expect(outcomes.map((outcome) => outcome.outputIndex)).toEqual([1, 2, 3, 4])
     expect(outcomes[0]).toMatchObject({
@@ -95,7 +96,7 @@ describe('taskOutputOutcomes', () => {
     })
   })
 
-  it('tells a fixed-count model result priced with the whole request from a task free in full', () => {
+  it('marks a result priced with the whole request only for a fixed-count Quote', () => {
     const missing = {
       executionStatus: 'CONFIRMED_FAILED',
       billingStatus: 'RELEASED_FAILED',
@@ -108,19 +109,24 @@ describe('taskOutputOutcomes', () => {
         output(1, missing),
       ],
       [],
-      []
+      [],
+      true
     )
     expect(fixedCount[0]).toMatchObject({ outputIndex: 1, wholeRequest: true })
-    const free = taskOutputOutcomes(
+    // A small Token total split over four results quotes the last one 0: it has points of its own, released as 0.
+    const tokenShare = taskOutputOutcomes(
       [
-        output(0, { quotedPoints: '0', settledPoints: '0' }),
-        output(1, missing),
+        output(0, { quotedPoints: '1', settledPoints: '1' }),
+        output(1, { quotedPoints: '1', settledPoints: '1' }),
+        output(2, { quotedPoints: '1', settledPoints: '1' }),
+        output(3, missing),
       ],
       [],
-      []
+      [],
+      false
     )
-    expect(free[0]).toMatchObject({
-      outputIndex: 1,
+    expect(tokenShare[0]).toMatchObject({
+      outputIndex: 3,
       wholeRequest: false,
       points: '0',
     })
@@ -138,7 +144,8 @@ describe('taskOutputOutcomes', () => {
           details: {},
         }),
       ],
-      []
+      [],
+      false
     )
     expect(outcome?.retrieval).toMatchObject({ step: 'STORAGE', failures: 1 })
   })

@@ -26,8 +26,8 @@ export interface TaskOutputOutcome {
   /** Settled points of a settled result, else the points held or given back for it; null when not known. */
   points: string | null
   /**
-   * Priced as part of one whole request: a fixed-count model quotes the request on its first result and 0 on the others.
-   * A task free in full quotes every result 0 and is not one.
+   * Priced as part of one whole request: a fixed-count model (Cloud requestBatchPricing) quotes the request on its first
+   * result and 0 on the others. Any other result quoted 0, such as one share of a small Token total, has points of its own.
    */
   wholeRequest: boolean
   manualResult: boolean
@@ -43,9 +43,9 @@ export interface TaskOutputOutcome {
 export function taskOutputOutcomes(
   outputs: ReadonlyArray<CanvasAdminTaskRecordOutput>,
   attempts: ReadonlyArray<CanvasAdminOutputRetrievalAttempt>,
-  manualResults: ReadonlyArray<CanvasAdminTaskManualResult>
+  manualResults: ReadonlyArray<CanvasAdminTaskManualResult>,
+  requestBatchPricing: boolean
 ): TaskOutputOutcome[] {
-  const anyQuoted = outputs.some((output) => output.quotedPoints !== '0')
   return outputs.flatMap((output) => {
     const failedAttempts = attempts
       .filter((attempt) => attempt.outputIndex === output.outputIndex)
@@ -70,7 +70,7 @@ export function taskOutputOutcomes(
         billingStatus: output.billingStatus,
         errorCode: output.error?.code ?? null,
         points: settled ? output.settledPoints : output.quotedPoints,
-        wholeRequest: anyQuoted && output.quotedPoints === '0',
+        wholeRequest: requestBatchPricing && output.quotedPoints === '0',
         manualResult,
         retrieval: last
           ? {

@@ -74,6 +74,7 @@ const task = {
     hiddenSecret: 'never',
   },
   multiResultMode: 'FANOUT',
+  requestBatchPricing: false,
   tokenBilling: null,
   failureLocation: 'PROVIDER_RESPONSE',
   inputAssets: [],

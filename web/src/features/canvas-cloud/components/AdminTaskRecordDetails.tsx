@@ -52,7 +52,7 @@ import { formatElapsed, taskElapsed } from '../task-elapsed'
 import { taskErrorCategoryLabels } from '../task-error-categories'
 import { taskOutputOutcomes } from '../task-output-outcomes'
 import { executionLabels } from '../task-status-labels'
-import { upstreamTaskFailed } from '../task-upstream-tasks'
+import { shownUpstreamTasks, upstreamTaskFailed } from '../task-upstream-tasks'
 import type {
   CanvasAdminTaskPointRecord,
   CanvasAdminTaskRecordDetail,
@@ -474,7 +474,8 @@ function ExecutionDetails({ task }: { task: CanvasAdminTaskRecordDetail }) {
           outcomes={taskOutputOutcomes(
             task.outputs,
             task.outputRetrievalAttempts,
-            task.manualResults
+            task.manualResults,
+            task.requestBatchPricing
           )}
           taskSucceeded={task.derivedExecutionStatus === 'SUCCEEDED'}
           renderCallCost={(call) =>
@@ -873,6 +874,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
       'text-sm font-medium text-amber-700 dark:text-amber-400'
   }
   const elapsed = taskElapsed(task.acceptedAt, task.completedAt, task.outputs)
+  const upstreamTasks = shownUpstreamTasks(task)
   let upstreamTaskHelp: string | null = null
   if (hasPendingFrozenOutput) {
     upstreamTaskHelp = task.upstreamTaskId
@@ -945,9 +947,9 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
           </DetailValue>
         ) : null}
         <DetailValue label='Upstream task ID'>
-          {task.upstreamTasks.length ? (
+          {upstreamTasks.length ? (
             <ul className='space-y-1'>
-              {task.upstreamTasks.map((upstreamTask) => {
+              {upstreamTasks.map((upstreamTask) => {
                 const failed = upstreamTaskFailed(upstreamTask, task.outputs)
                 return (
                   <li
@@ -964,7 +966,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
                         noTruncate
                       />
                     </span>
-                    {task.upstreamTasks.length > 1 ? (
+                    {upstreamTasks.length > 1 ? (
                       <span
                         className={
                           failed ? 'text-destructive' : 'text-muted-foreground'
@@ -982,8 +984,7 @@ export function AdminTaskRecordDetails({ taskId }: { taskId: string }) {
               })}
             </ul>
           ) : (
-            // A task recorded before its calls were kept has only the task's own ID.
-            <div className='font-mono'>{task.upstreamTaskId ?? '—'}</div>
+            '—'
           )}
           {upstreamTaskHelp ? (
             <p className='text-muted-foreground mt-1 text-xs'>

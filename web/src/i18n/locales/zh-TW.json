@@ -194,7 +194,7 @@
     "HTTP {{status}}": "HTTP {{status}}",
     "Connection timed out": "連線逾時",
     "Fastest {{fastest}}, slowest {{slowest}}": "最快 {{fastest}}，最慢 {{slowest}}",
-    "{{minutes}} min {{seconds}} s": "{{minutes}} 分 {{seconds}} 秒",
+    "{{minutes}} min {{seconds}} s": "{{minutes}} 分鐘 {{seconds}} 秒",
     "Provider returned fewer results than requested": "服務商回傳的結果少於請求數量",
     "Waiting stage": "等待階段",
     "Wait and next attempt": "已等待／下次嘗試",

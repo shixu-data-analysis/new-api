@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next'
 
 import { formatCanvasDateTime } from '../formatters'
 import { formatElapsed, taskElapsed } from '../task-elapsed'
-import { shortUpstreamTaskId, upstreamTaskFailed } from '../task-upstream-tasks'
+import {
+  shortUpstreamTaskId,
+  shownUpstreamTasks,
+  upstreamTaskFailed,
+} from '../task-upstream-tasks'
 import type { CanvasAdminTaskLog } from '../types'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CopyableText } from './CopyableText'
@@ -40,10 +44,11 @@ export function TaskAcceptedCell({ task }: { task: CanvasAdminTaskLog }) {
 
 /** Every Provider task ID of the task, one per line; an ID whose result failed is red. */
 export function TaskUpstreamIdsCell({ task }: { task: CanvasAdminTaskLog }) {
-  if (task.upstreamTasks.length === 0) return <>—</>
+  const upstreamTasks = shownUpstreamTasks(task)
+  if (upstreamTasks.length === 0) return <>—</>
   return (
     <ul className='space-y-0.5'>
-      {task.upstreamTasks.map((upstreamTask) => (
+      {upstreamTasks.map((upstreamTask) => (
         <li
           key={upstreamTask.upstreamTaskId}
           className='flex items-center gap-1'

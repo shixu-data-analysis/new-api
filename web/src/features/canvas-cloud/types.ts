@@ -1892,6 +1892,8 @@ export interface CanvasAdminTaskLog {
   outstandingDebtPoints: string | null
   acceptedAt: string
   completedAt: string | null
+  /** The last Provider task ID the task received; a task recorded before its calls were kept has only this one. */
+  upstreamTaskId: string | null
   upstreamTasks: CanvasAdminTaskUpstreamTask[]
 }
 
@@ -2275,6 +2277,8 @@ export interface CanvasAdminTaskRecordDetail {
   parameters: Record<string, string | number | boolean | null> | null
   /** How several results are produced; null for a text task, which has one answer. */
   multiResultMode: 'NATIVE' | 'FANOUT' | null
+  /** The Quote priced the whole request once (a fixed-count model): the first result carries the points, the others 0. */
+  requestBatchPricing: boolean
   tokenBilling: CanvasAdminTokenBilling | null
   failureLocation:
     | 'EXECUTOR_PREFLIGHT'

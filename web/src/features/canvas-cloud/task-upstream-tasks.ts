@@ -24,6 +24,26 @@ export function upstreamTaskFailed(
   )
 }
 
+/**
+ * The Provider task IDs a task shows: those of its submissions, or for a task recorded before its calls were kept its own
+ * ID alone, with no result positions (never red).
+ */
+export function shownUpstreamTasks(task: {
+  upstreamTasks: CanvasAdminTaskUpstreamTask[]
+  upstreamTaskId: string | null
+}): CanvasAdminTaskUpstreamTask[] {
+  if (task.upstreamTasks.length > 0 || task.upstreamTaskId === null) {
+    return task.upstreamTasks
+  }
+  return [
+    {
+      upstreamTaskId: task.upstreamTaskId,
+      outputIndices: [],
+      latestOutputIndices: [],
+    },
+  ]
+}
+
 /** A long Provider task ID kept to its start and end in a list; the full ID is in its tooltip and what is copied. */
 export function shortUpstreamTaskId(upstreamTaskId: string): string {
   if (upstreamTaskId.length <= 16) return upstreamTaskId
