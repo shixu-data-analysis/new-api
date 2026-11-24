@@ -216,6 +216,8 @@
               "SUPPORT_ATTACHMENT_LIMIT",
               "SUPPORT_ATTACHMENT_NOT_UPLOADED",
               "SUPPORT_STORAGE_UNAVAILABLE",
+              "SUPPORT_CUSTOMER_NOT_FOUND",
+              "SUPPORT_CUSTOMER_INACTIVE",
               "TURN_BUSY",
               "SKILL_FILE_NOT_FOUND"
             ],
