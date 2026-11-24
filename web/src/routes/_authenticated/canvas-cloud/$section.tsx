@@ -95,8 +95,8 @@ const taskLogSearch = {
 export const canvasCloudSearchSchema = z.object({
   ...taskLogSearch,
   customerId: optionalUuidSearch,
-  // Each section reads only its own values: 客户管理 reads 'support' (客服会话, from a Webhook alert's reply link,
-  // SUPPORT-CHAT-001) and, with a customerId, 'agent-statistics' (the customer detail tab); 经营大盘 reads
+  // Each section reads only its own values: 客户管理 reads its tab, 'support' (客服会话, also a Webhook alert's reply
+  // link, SUPPORT-CHAT-001) or 'mails' (客户邮件), and, with a customerId, 'agent-statistics' (the customer detail tab); 经营大盘 reads
   // 'provider-balances'. Other sections' routes keep their own `tab` strings, so this one is a string too.
   tab: z.string().max(32).optional().catch(undefined),
   conversation: optionalUuidSearch,

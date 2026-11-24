@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ReactNode } from 'react'
@@ -66,8 +72,12 @@ const apiMocks = vi.hoisted(() => ({
   getCanvasAdminSupportFailureAlerts: vi.fn(),
   notifyCanvasAdminSupportFailureAlerts: vi.fn(),
   dismissCanvasAdminSupportFailureAlerts: vi.fn(),
+  openCanvasAdminSupportConversation: vi.fn(),
+  getCanvasAdminCustomers: vi.fn(),
 }))
 vi.mock('../../api', () => apiMocks)
+const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast: toastMocks }))
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
@@ -313,6 +323,410 @@ describe('SUPPORT-CHAT-001 客服会话', () => {
       { filter: 'all', id: yuki.id, page: 1, pageSize: 10 },
       expect.anything()
     )
+  })
+
+  // SUPPORT-PROACTIVE-001: an administrator writes first.
+  const xiaoyu: CanvasAdminSupportConversation = {
+    id: '92000000-0000-7000-8000-000000000004',
+    customer: {
+      id: '92000000-0000-7000-8000-000000000014',
+      userId: '11402',
+      name: '小雨',
+    },
+    pending: false,
+    pendingSince: null,
+    lastMessage: null,
+  }
+
+  it('starts a conversation with an active customer and lists the others as not choosable', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      items: [
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
+        {
+          customerId: '92000000-0000-7000-8000-000000000015',
+          userId: '10520',
+          username: '老周',
+          status: 'SUSPENDED',
+        },
+      ],
+    })
+    apiMocks.openCanvasAdminSupportConversation.mockResolvedValue(xiaoyu)
+    const onConversationChange = vi.fn()
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={onConversationChange}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Start conversation' })
+    )
+    const customer = await screen.findByRole('combobox', { name: 'Customer' })
+    expect(customer).toHaveAttribute(
+      'placeholder',
+      'Search customer name or ID'
+    )
+    await user.type(customer, '11402')
+    // The text goes to the name-or-ID search, not the username filter.
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: '11402' }),
+        expect.anything()
+      )
+    )
+    expect(
+      apiMocks.getCanvasAdminCustomers.mock.calls.at(-1)?.[0]
+    ).not.toHaveProperty('username')
+    expect(
+      await screen.findByRole('option', {
+        name: /老周.*ID 10520 · Suspended, cannot be messaged/,
+      })
+    ).toHaveAttribute('aria-disabled', 'true')
+    await user.click(
+      await screen.findByRole('option', { name: /^小雨.*ID 11402/ })
+    )
+    await waitFor(() =>
+      expect(onConversationChange).toHaveBeenCalledWith(xiaoyu.id)
+    )
+    expect(apiMocks.openCanvasAdminSupportConversation).toHaveBeenCalledTimes(1)
+    expect(apiMocks.openCanvasAdminSupportConversation.mock.calls[0]?.[0]).toBe(
+      xiaoyu.customer.id
+    )
+    expect(
+      screen.queryByRole('dialog', { name: 'Start conversation' })
+    ).toBeNull()
+  })
+
+  it('says so when the customer can no longer be messaged', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
+      ],
+    })
+    // Suspended by another administrator after the list was read.
+    apiMocks.openCanvasAdminSupportConversation.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'SUPPORT_CUSTOMER_INACTIVE',
+          message: 'Only an active customer can be written to',
+        },
+      },
+    })
+    const onConversationChange = vi.fn()
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={onConversationChange}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Start conversation' })
+    )
+    await user.click(await screen.findByRole('combobox', { name: 'Customer' }))
+    await user.click(await screen.findByRole('option', { name: /^小雨/ }))
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Only an active customer can be messaged'
+      )
+    )
+    expect(onConversationChange).not.toHaveBeenCalled()
+  })
+
+  it('says so when the first message is refused because the customer can no longer be messaged', async () => {
+    apiMocks.getCanvasAdminSupportMessages.mockResolvedValue({
+      messages: [],
+      hasEarlier: false,
+    })
+    apiMocks.replyCanvasAdminSupportConversation.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          code: 'SUPPORT_CUSTOMER_INACTIVE',
+          message: 'Only an active customer can be written to',
+        },
+      },
+    })
+    render(
+      wrap(
+        <SupportThread
+          conversation={xiaoyu}
+          quickReplies={{ conversation: [], failureNotice: [] }}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    const input = await screen.findByRole('textbox', {
+      name: 'Message 小雨 (ID 11402)',
+    })
+    fireEvent.change(input, { target: { value: '您好' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() =>
+      expect(toastMocks.error).toHaveBeenCalledWith(
+        'Only an active customer can be messaged'
+      )
+    )
+    expect(toastMocks.error).not.toHaveBeenCalledWith(
+      'Unable to send the reply. Your text is kept; please try again.'
+    )
+  })
+
+  it('goes back to the plain list after starting a conversation from the waiting list or a search', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          customerId: xiaoyu.customer.id,
+          userId: '11402',
+          username: '小雨',
+          status: 'ACTIVE',
+        },
+      ],
+    })
+    apiMocks.openCanvasAdminSupportConversation.mockResolvedValue(xiaoyu)
+    const onConversationChange = vi.fn()
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={onConversationChange}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    fireEvent.change(
+      await screen.findByRole('searchbox', {
+        name: 'Search customer name or ID',
+      }),
+      { target: { value: '小' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Awaiting reply' }))
+    await user.click(screen.getByRole('button', { name: 'Start conversation' }))
+    await user.click(await screen.findByRole('combobox', { name: 'Customer' }))
+    await user.click(await screen.findByRole('option', { name: /^小雨/ }))
+    await waitFor(() =>
+      expect(onConversationChange).toHaveBeenCalledWith(xiaoyu.id)
+    )
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(
+      screen.getByRole('searchbox', { name: 'Search customer name or ID' })
+    ).toHaveValue('')
+  })
+
+  it('keeps the customers shown while the next search loads, instead of emptying the list to Loading', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers
+      .mockResolvedValueOnce({
+        page: 1,
+        pageSize: 20,
+        total: 1,
+        items: [
+          {
+            customerId: '92000000-0000-7000-8000-000000000016',
+            userId: '10530',
+            username: '阿青',
+            status: 'ACTIVE',
+          },
+        ],
+      })
+      .mockReturnValueOnce(new Promise(() => undefined))
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={vi.fn()}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    await user.click(
+      await screen.findByRole('button', { name: 'Start conversation' })
+    )
+    const customer = await screen.findByRole('combobox', { name: 'Customer' })
+    await user.click(customer)
+    await screen.findByRole('option', { name: /阿青/ })
+    await user.type(customer, '阿')
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: '阿' }),
+        expect.anything()
+      )
+    )
+
+    expect(screen.getByRole('option', { name: /阿青/ })).toBeInTheDocument()
+    expect(screen.queryByText('Loading…')).toBeNull()
+  })
+
+  it('translates the hints of the customer search in the language shown', async () => {
+    const user = userEvent.setup()
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          customerId: '92000000-0000-7000-8000-000000000015',
+          userId: '10520',
+          username: '老周',
+          status: 'SUSPENDED',
+        },
+      ],
+    })
+    render(
+      wrap(
+        <SupportConversations
+          onConversationChange={vi.fn()}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    const open = async () => {
+      await user.click(
+        await screen.findByRole('button', { name: 'Start conversation' })
+      )
+      await user.click(
+        await screen.findByRole('combobox', { name: 'Customer' })
+      )
+    }
+    await open()
+    expect(
+      await screen.findByRole('option', {
+        name: /Suspended, cannot be messaged/,
+      })
+    ).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    i18next.addResourceBundle(
+      'zh',
+      'translation',
+      { 'Suspended, cannot be messaged': '已暂停，不能发消息' },
+      true,
+      true
+    )
+    await i18next.changeLanguage('zh')
+    await open()
+    expect(
+      await screen.findByRole('option', { name: /已暂停，不能发消息/ })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps an opened conversation out of the waiting list, where it opens without being listed', async () => {
+    apiMocks.getCanvasAdminSupportConversations.mockImplementation(
+      async (query: { id?: string; filter: string }) => {
+        if (query.id) {
+          return { page: 1, pageSize: 10, total: 1, items: [xiaoyu] }
+        }
+        return query.filter === 'pending'
+          ? { page: 1, pageSize: 20, total: 0, items: [] }
+          : { page: 1, pageSize: 20, total: 2, items: [xiaolin, mia] }
+      }
+    )
+    apiMocks.getCanvasAdminSupportMessages.mockResolvedValue({
+      messages: [],
+      hasEarlier: false,
+    })
+    render(
+      wrap(
+        <SupportConversations
+          conversationId={xiaoyu.id}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    expect(
+      await screen.findByRole('heading', { name: '小雨' })
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Awaiting reply' }))
+    expect(
+      await screen.findByText('No conversations awaiting reply')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Conversations' })).toBeNull()
+    expect(screen.getByRole('heading', { name: '小雨' })).toBeInTheDocument()
+  })
+
+  it('lists a conversation opened to write first on top, before its first message', async () => {
+    apiMocks.getCanvasAdminSupportConversations.mockImplementation(
+      async (query: { id?: string }) =>
+        query.id
+          ? { page: 1, pageSize: 10, total: 1, items: [xiaoyu] }
+          : { page: 1, pageSize: 20, total: 2, items: [xiaolin, mia] }
+    )
+    apiMocks.getCanvasAdminSupportMessages.mockResolvedValue({
+      messages: [],
+      hasEarlier: false,
+    })
+    render(
+      wrap(
+        <SupportConversations
+          conversationId={xiaoyu.id}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    expect(
+      await screen.findByRole('textbox', { name: 'Message 小雨 (ID 11402)' })
+    ).toBeInTheDocument()
+    const items = within(
+      screen.getByRole('list', { name: 'Conversations' })
+    ).getAllByRole('button')
+    expect(items[0]).toHaveTextContent('No messages')
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringContaining('小雨'),
+      expect.stringContaining('小林'),
+      expect.stringContaining('Mia'),
+    ])
+  })
+
+  it('shows the opened conversation instead of the empty note when there is no other', async () => {
+    apiMocks.getCanvasAdminSupportConversations.mockImplementation(
+      async (query: { id?: string }) =>
+        query.id
+          ? { page: 1, pageSize: 10, total: 1, items: [xiaoyu] }
+          : { page: 1, pageSize: 20, total: 0, items: [] }
+    )
+    apiMocks.getCanvasAdminSupportMessages.mockResolvedValue({
+      messages: [],
+      hasEarlier: false,
+    })
+    render(
+      wrap(
+        <SupportConversations
+          conversationId={xiaoyu.id}
+          onOpenCustomer={vi.fn()}
+        />
+      )
+    )
+    expect(
+      await screen.findByRole('heading', { name: '小雨' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No conversations yet')).toBeNull()
   })
 
   it('waits for a slow first load instead of starting another one', async () => {

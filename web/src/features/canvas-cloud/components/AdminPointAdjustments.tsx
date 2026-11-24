@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeft, Gift, Mail } from 'lucide-react'
+import { ArrowLeft, Gift, Mail, MessageSquare } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
@@ -101,6 +101,10 @@ import {
   type PointReturnValues,
 } from '../form-validation'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
+import {
+  canMessageCustomer,
+  useOpenSupportConversation,
+} from '../support-open-conversation'
 import type {
   CanvasAdminCustomerListItem,
   CanvasAdminCustomerPointBalance,
@@ -119,11 +123,9 @@ import { CopyableText } from './CopyableText'
 import { CustomerMailDialog } from './CustomerMailDialog'
 import { CustomerPriceAssignment } from './CustomerPriceAssignment'
 import { CustomerSuspensionDialog } from './CustomerSuspensionDialog'
-import {
-  ALL_OPTION_VALUE,
-  DashboardAgentSelect,
-  type DashboardSelectOption,
-} from './DashboardSearchSelect'
+import { ALL_OPTION_VALUE, DashboardAgentSelect } from './DashboardSearchSelect'
+import { RecentActivity } from './RecentActivity'
+import type { SearchSelectOption } from './SearchSelect'
 
 type AdjustmentAction = 'bonus' | 'paid' | 'deduction' | 'return'
 type PendingAction = AdjustmentAction | null
@@ -152,6 +154,7 @@ export function AdminPointAdjustments({
   pointLotId,
   customerDetailTab,
   titleActionSlot,
+  onOpenSupportConversation,
 }: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
@@ -160,9 +163,14 @@ export function AdminPointAdjustments({
   customerDetailTab?: 'agent-statistics'
   /** Where the list puts 发邮件给全部有效客户, left of Refresh. */
   titleActionSlot?: HTMLElement | null
+  /** Shows 发消息, which opens the customer's support conversation (SUPPORT-PROACTIVE-001). */
+  onOpenSupportConversation?: (conversationId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const openSupport = useOpenSupportConversation((conversationId) =>
+    onOpenSupportConversation?.(conversationId)
+  )
   const [localCustomer, setLocalCustomer] =
     useState<CanvasAdminCustomerPointBalance | null>(null)
   const listScrollY = useRef(0)
@@ -182,12 +190,12 @@ export function AdminPointAdjustments({
   >('ALL')
   // CUSTOMER-AGENT-RECHARGE-001: the referring agent and recharge filters.
   const filterId = useId()
-  const allAgents: DashboardSelectOption = {
+  const allAgents: SearchSelectOption = {
     value: ALL_OPTION_VALUE,
     label: t('All agents'),
   }
   const [referralAgent, setReferralAgent] =
-    useState<DashboardSelectOption>(allAgents)
+    useState<SearchSelectOption>(allAgents)
   const [recharge, setRecharge] = useState<'' | 'RECHARGED' | 'NOT_RECHARGED'>(
     ''
   )
@@ -582,6 +590,7 @@ export function AdminPointAdjustments({
   }
 
   const pageCustomers = customers.data?.items ?? []
+  const customerRecentDays = customers.data?.recentDays ?? []
   const allPageSelected =
     pageCustomers.length > 0 &&
     pageCustomers.every((row) => mailSelection.has(row.customerId))
@@ -772,6 +781,23 @@ export function AdminPointAdjustments({
         <div className='text-right tabular-nums'>
           {formatPoints(row.original.availablePoints)}
         </div>
+      ),
+    },
+    {
+      id: 'activeDays',
+      accessorKey: 'activeDays',
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('Active in the last 7 days')}
+        />
+      ),
+      meta: { label: t('Active in the last 7 days') },
+      cell: ({ row }) => (
+        <RecentActivity
+          recentDays={customerRecentDays}
+          activeDays={row.original.activeDays}
+        />
       ),
     },
   ]
@@ -1157,6 +1183,18 @@ export function AdminPointAdjustments({
               </div>
             </div>
             <div className='flex flex-wrap gap-2'>
+              {onOpenSupportConversation &&
+              canMessageCustomer(customer.status) ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={openSupport.isPending}
+                  onClick={() => openSupport.mutate(customer.customerId)}
+                >
+                  <MessageSquare className='size-4' />
+                  {t('Send message')}
+                </Button>
+              ) : null}
               <Button
                 type='button'
                 variant='outline'

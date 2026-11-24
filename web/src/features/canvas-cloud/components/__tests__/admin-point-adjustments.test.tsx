@@ -36,6 +36,10 @@ const apiMocks = vi.hoisted(() => ({
   grantCanvasManualBonus: vi.fn(),
   grantCanvasPaidCorrection: vi.fn(),
   previewCanvasOrderPointReturn: vi.fn(),
+  openCanvasAdminSupportConversation: vi.fn(),
+  supportQueryKeys: {
+    conversations: ['canvas-cloud', 'admin', 'support', 'conversations'],
+  },
 }))
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -94,6 +98,7 @@ const customerListItem = {
   referralAgent: null,
   rechargedPoints: '500',
   grantedBonusPoints: '400',
+  activeDays: [],
 }
 const order = {
   id: '85000000-0000-7000-8000-000000000002',
@@ -238,6 +243,52 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(await screen.findByText(/Outstanding debt/)).toBeVisible()
     expect(screen.queryByText('Customer management')).not.toBeInTheDocument()
     expect(screen.queryByText('Customer details')).not.toBeInTheDocument()
+  })
+
+  it('opens the support conversation of an active customer to write first (SUPPORT-PROACTIVE-001)', async () => {
+    const conversationId = '92000000-0000-7000-8000-000000000004'
+    apiMocks.openCanvasAdminSupportConversation.mockResolvedValue({
+      id: conversationId,
+      customer: {
+        id: customer.customerId,
+        userId: '11402',
+        name: 'uatcustomer',
+      },
+      pending: false,
+      pendingSince: null,
+      lastMessage: null,
+    })
+    const onOpenSupportConversation = vi.fn()
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={customer.customerId}
+        onOpenSupportConversation={onOpenSupportConversation}
+      />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Send message' }))
+    await waitFor(() =>
+      expect(onOpenSupportConversation).toHaveBeenCalledWith(conversationId)
+    )
+    expect(apiMocks.openCanvasAdminSupportConversation.mock.calls[0]?.[0]).toBe(
+      customer.customerId
+    )
+  })
+
+  it('offers no message to a suspended customer', async () => {
+    apiMocks.getCanvasAdminCustomer.mockResolvedValue({
+      ...customer,
+      status: 'SUSPENDED',
+    })
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={customer.customerId}
+        onOpenSupportConversation={vi.fn()}
+      />
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Restore account' })
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Send message' })).toBeNull()
   })
 
   it('loads an exact customer directly and shows only the three confirmed primary tabs', async () => {
@@ -855,6 +906,7 @@ describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
     },
     rechargedPoints: '50000',
     grantedBonusPoints: '3300',
+    activeDays: [],
   }
   const direct = {
     ...customer,
@@ -863,6 +915,7 @@ describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
     referralAgent: null,
     rechargedPoints: '0',
     grantedBonusPoints: '300',
+    activeDays: [],
   }
 
   beforeAll(() =>
@@ -1111,5 +1164,79 @@ describe('CUSTOMER-AGENT-RECHARGE-001 referring agent and recharge', () => {
       await screen.findByRole('tab', { name: 'Recharge records' })
     ).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByRole('tab', { name: 'Agent statistics' })).toBeNull()
+  })
+})
+
+describe('CUSTOMER-LIST-ACTIVITY-001 active in the last 7 days', () => {
+  const recentDays = [
+    '2026-11-19',
+    '2026-11-20',
+    '2026-11-21',
+    '2026-11-22',
+    '2026-11-23',
+    '2026-11-24',
+    '2026-11-25',
+  ]
+
+  beforeAll(() =>
+    i18next.addResourceBundle('en', 'translation', en.translation, true, true)
+  )
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18next.changeLanguage('en')
+    apiMocks.getCanvasAdminCustomers.mockResolvedValue({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      recentDays,
+      items: [
+        { ...customerListItem, activeDays: ['2026-11-20', '2026-11-25'] },
+      ],
+    })
+  })
+
+  it('shows the seven days after Available points, lighting the active ones', async () => {
+    renderWithQuery(<AdminPointAdjustments />)
+    const activity = await screen.findByRole('img', {
+      name: /^Active on 2 of the last 7 days: /,
+    })
+    const dots = activity.querySelectorAll('[data-active]')
+    expect(dots).toHaveLength(7)
+    expect(
+      [...dots].map((dot) => dot.getAttribute('data-active'))
+    ).toStrictEqual([
+      'false',
+      'true',
+      'false',
+      'false',
+      'false',
+      'false',
+      'true',
+    ])
+    const headers = screen
+      .getAllByRole('columnheader')
+      .map((header) => header.textContent)
+    expect(headers.indexOf('Active in the last 7 days')).toBe(
+      headers.indexOf('Available points') + 1
+    )
+  })
+
+  it('sorts by active days from the column header', async () => {
+    const user = userEvent.setup()
+    renderWithQuery(<AdminPointAdjustments />)
+    await screen.findByRole('img', { name: /^Active on 2 of the last 7 days/ })
+
+    await user.click(
+      screen.getByRole('button', { name: 'Active in the last 7 days' })
+    )
+    await user.click(await screen.findByRole('menuitem', { name: 'Desc' }))
+
+    await waitFor(() =>
+      expect(apiMocks.getCanvasAdminCustomers).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sortBy: 'activeDays', sortOrder: 'desc' }),
+        expect.anything()
+      )
+    )
   })
 })

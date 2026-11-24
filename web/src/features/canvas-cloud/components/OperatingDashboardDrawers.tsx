@@ -71,15 +71,12 @@ import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CopyableText } from './CopyableText'
 import { CustomerLotDetails } from './CustomerLotDetails'
-import {
-  ALL_OPTION_VALUE,
-  DashboardModelSelect,
-  type DashboardSelectOption,
-} from './DashboardSearchSelect'
+import { ALL_OPTION_VALUE, DashboardModelSelect } from './DashboardSearchSelect'
 import {
   ProviderCostRevocationDialog,
   ProviderCostSettlementDialog,
 } from './ProviderCostSettlementDialogs'
+import type { SearchSelectOption } from './SearchSelect'
 
 export interface DashboardDrawerScope extends DashboardScopeQuery {
   /** Period end; drawers read up to it so their totals match the page. */
@@ -275,7 +272,7 @@ function TaskIdFilter(props: {
 /** Model condition of a drawer: starts from the grouped row's model and can be changed to any model or cleared. */
 function useModelFilter(presetModelKey: string | undefined) {
   const { t } = useTranslation()
-  const preset: DashboardSelectOption = presetModelKey
+  const preset: SearchSelectOption = presetModelKey
     ? { value: presetModelKey, label: presetModelKey }
     : { value: ALL_OPTION_VALUE, label: t('All models') }
   const [option, setOption] = useState(preset)

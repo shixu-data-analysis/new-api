@@ -72,6 +72,9 @@ import { SystemAnnouncementsPage } from './components/SystemAnnouncementsPage'
 import {
   customerChangeSearch,
   customerDetailTabOf,
+  customersTabOf,
+  showsCustomerDetails,
+  type CustomersTab,
 } from './customer-management-navigation'
 import { customerRedeemOrderSearch } from './customer-points-navigation'
 import {
@@ -167,14 +170,14 @@ export function AdminContent(props: {
   initialOrderId?: string
   initialPointLotId?: string
   onCustomerChange?: (customerId?: string) => void
-  customersTab?: 'support'
+  customersTab?: CustomersTab
   /** 客户管理: the customer detail tab a link opens (CUSTOMER-AGENT-RECHARGE-001). */
   customerDetailTab?: 'agent-statistics'
   dashboardTab?: 'provider-balances'
   supportView?: 'failures'
   supportConversationId?: string
-  onSupportChange?: (support: {
-    open: boolean
+  onCustomersTabChange?: (change: {
+    tab?: CustomersTab
     conversationId?: string
   }) => void
   onReturnToModelList?: () => void
@@ -212,7 +215,7 @@ export function AdminContent(props: {
         tab={props.customersTab}
         supportView={props.supportView}
         supportConversationId={props.supportConversationId}
-        onSupportChange={props.onSupportChange}
+        onTabChange={props.onCustomersTabChange}
       />
     )
   }
@@ -403,21 +406,21 @@ export function CanvasCloud() {
         initialCustomerId={search.customerId}
         initialOrderId={search.orderId}
         initialPointLotId={search.pointLotId}
-        customersTab={search.tab === 'support' ? 'support' : undefined}
+        customersTab={customersTabOf(search.tab)}
         customerDetailTab={customerDetailTabOf(search.tab)}
         dashboardTab={
           search.tab === 'provider-balances' ? 'provider-balances' : undefined
         }
         supportView={search.supportView === 'failures' ? 'failures' : undefined}
         supportConversationId={search.conversation}
-        onSupportChange={(support) =>
+        onCustomersTabChange={(change) =>
           void navigate({
             to: '/canvas-cloud/$section',
             params: { section: 'customers' },
             search: (previous) => ({
               ...previous,
-              tab: support.open ? 'support' : undefined,
-              conversation: support.open ? support.conversationId : undefined,
+              tab: change.tab,
+              conversation: change.conversationId,
               // The failure alert link opens 失败提醒 once; later choices stay on the page.
               supportView: undefined,
             }),
@@ -494,7 +497,7 @@ export function CanvasCloud() {
     <SectionPageLayout fluid={false}>
       <SectionPageLayout.Title>
         {t(
-          section === 'customers' && search.customerId
+          section === 'customers' && showsCustomerDetails(search)
             ? 'Customer details'
             : sectionTitles[section]
         )}

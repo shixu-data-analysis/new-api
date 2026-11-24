@@ -31,9 +31,90 @@ export type AvailabilityModelRow =
   | { kind: 'missing'; model: MissingModel }
   | { kind: 'disabled'; model: DisabledModel }
 
-/** Models the provider lists again come first: they are the ones that can be restored now. */
-export function disabledRows(models: DisabledModel[]): AvailabilityModelRow[] {
-  const listed = models.filter((model) => model.upstreamStatus === 'AVAILABLE')
-  const others = models.filter((model) => model.upstreamStatus !== 'AVAILABLE')
-  return [...listed, ...others].map((model) => ({ kind: 'disabled', model }))
+/** The table's rows: missing models first, to be handled, then disabled models, the ones the provider lists again first. */
+export function availabilityRows(
+  missing: MissingModel[],
+  disabled: DisabledModel[]
+): AvailabilityModelRow[] {
+  const listed = disabled.filter(
+    (model) => model.upstreamStatus === 'AVAILABLE'
+  )
+  const others = disabled.filter(
+    (model) => model.upstreamStatus !== 'AVAILABLE'
+  )
+  return [
+    ...missing.map((model) => ({ kind: 'missing' as const, model })),
+    ...[...listed, ...others].map((model) => ({
+      kind: 'disabled' as const,
+      model,
+    })),
+  ]
+}
+
+/** The provider's last answer a row shows; a missing model is missing by definition. */
+export type AvailabilityUpstreamFilter =
+  | 'AVAILABLE'
+  | 'SUSPECTED'
+  | 'MISSING'
+  | 'NOT_PROBED'
+
+export function rowUpstreamStatus(
+  row: AvailabilityModelRow
+): AvailabilityUpstreamFilter {
+  if (row.kind === 'missing') return 'MISSING'
+  return row.model.upstreamStatus ?? 'NOT_PROBED'
+}
+
+export interface AvailabilityFilters {
+  providerId: string
+  state: '' | AvailabilityModelRow['kind']
+  model: string
+  upstreamId: string
+  upstream: '' | AvailabilityUpstreamFilter
+  reason: string
+}
+
+/** The Filters panel conditions; the API provider is chosen apart and Clear filters keeps it. */
+export const emptyAvailabilityPanelFilters: Omit<
+  AvailabilityFilters,
+  'providerId'
+> = {
+  state: '',
+  model: '',
+  upstreamId: '',
+  upstream: '',
+  reason: '',
+}
+
+export const emptyAvailabilityFilters: AvailabilityFilters = {
+  providerId: '',
+  ...emptyAvailabilityPanelFilters,
+}
+
+const contains = (value: string, query: string) =>
+  value.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
+
+/** Every chosen filter must hold; text matches any part, ignoring case. */
+export function matchesAvailabilityFilters(
+  row: AvailabilityModelRow,
+  filters: AvailabilityFilters
+): boolean {
+  if (filters.providerId && row.model.providerId !== filters.providerId) {
+    return false
+  }
+  if (filters.state && row.kind !== filters.state) return false
+  if (filters.model.trim() && !contains(row.model.displayName, filters.model)) {
+    return false
+  }
+  if (
+    filters.upstreamId.trim() &&
+    !row.model.upstreamIds.some((id) => contains(id, filters.upstreamId))
+  ) {
+    return false
+  }
+  if (filters.upstream && rowUpstreamStatus(row) !== filters.upstream) {
+    return false
+  }
+  const reason = row.kind === 'disabled' ? row.model.disabledReason : null
+  return !filters.reason || reason === filters.reason
 }

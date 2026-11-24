@@ -16,125 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from '@/components/ui/combobox'
-import { useDebounce } from '@/hooks'
 
 import { agentQualificationLabelKey } from '../agent-earnings-format'
 import { getCanvasAdminCustomers, getCanvasAgents } from '../api'
 import { getOperatingDashboardModelOptions } from '../operating-dashboard-api'
-
-export interface DashboardSelectOption {
-  value: string
-  label: string
-  /** Shown after the label, such as a disabled status. */
-  hint?: string
-}
-
-/**
- * Searchable single choice for the dashboard's agent and customer filters. The typed text only requests candidates; the
- * filter changes once an option is chosen. Fixed options (such as "All" or "No agent") stay at the top.
- */
-export function DashboardSearchSelect(props: {
-  id?: string
-  value: DashboardSelectOption
-  fixedOptions: DashboardSelectOption[]
-  placeholder: string
-  load: (
-    search: string,
-    signal: AbortSignal
-  ) => Promise<DashboardSelectOption[]>
-  queryKey: string
-  onChange: (option: DashboardSelectOption) => void
-}) {
-  const { t } = useTranslation()
-  const [search, setSearch] = useState('')
-  const debounced = useDebounce(search.trim(), 300)
-  const candidates = useQuery({
-    queryKey: [
-      'canvas-cloud',
-      'operating-dashboard',
-      'options',
-      props.queryKey,
-      debounced,
-    ],
-    queryFn: ({ signal }) => props.load(debounced, signal),
-    staleTime: 30_000,
-  })
-  const items = [
-    ...props.fixedOptions,
-    ...(candidates.data ?? []).filter(
-      (option) =>
-        !props.fixedOptions.some((fixed) => fixed.value === option.value)
-    ),
-  ]
-  return (
-    <Combobox<DashboardSelectOption>
-      items={items}
-      value={props.value}
-      filter={null}
-      // A fixed option shows its label in the current language, not the one saved when it was chosen. The value object
-      // itself stays as chosen: a new object on every render would make the combobox overwrite the typed search.
-      itemToStringLabel={(option) =>
-        props.fixedOptions.find((fixed) => fixed.value === option.value)
-          ?.label ?? option.label
-      }
-      isItemEqualToValue={(left, right) => left.value === right.value}
-      onInputValueChange={(value, details) => {
-        if (details.reason === 'input-change') setSearch(value)
-      }}
-      onValueChange={(option) => {
-        if (option) props.onChange(option)
-        setSearch('')
-      }}
-    >
-      <ComboboxInput
-        id={props.id}
-        className='w-full'
-        placeholder={props.placeholder}
-      />
-      <ComboboxContent>
-        <ComboboxEmpty>
-          {candidates.isFetching ? t('Loading…') : t('No matching results')}
-        </ComboboxEmpty>
-        <ComboboxList>
-          {(option: DashboardSelectOption) => (
-            <ComboboxItem key={option.value} value={option}>
-              <span className='truncate'>{option.label}</span>
-              {option.hint ? (
-                <span className='text-muted-foreground ms-2 shrink-0 text-xs'>
-                  {option.hint}
-                </span>
-              ) : null}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
-  )
-}
+import { SearchSelect, type SearchSelectOption } from './SearchSelect'
 
 export const ALL_OPTION_VALUE = '__all__'
 export const NO_AGENT_OPTION_VALUE = '__none__'
 
 export function DashboardAgentSelect(props: {
   id?: string
-  value: DashboardSelectOption
-  onChange: (option: DashboardSelectOption) => void
+  value: SearchSelectOption
+  onChange: (option: SearchSelectOption) => void
 }) {
   const { t } = useTranslation()
   return (
-    <DashboardSearchSelect
+    <SearchSelect
       id={props.id}
       value={props.value}
       queryKey='agents'
@@ -170,8 +69,8 @@ export function DashboardAgentSelect(props: {
 
 export function DashboardCustomerSelect(props: {
   id?: string
-  value: DashboardSelectOption
-  onChange: (option: DashboardSelectOption) => void
+  value: SearchSelectOption
+  onChange: (option: SearchSelectOption) => void
 }) {
   const { t } = useTranslation()
   const statusLabels: Partial<Record<string, string>> = {
@@ -180,7 +79,7 @@ export function DashboardCustomerSelect(props: {
   }
   const hint = (label: string | undefined) => (label ? { hint: t(label) } : {})
   return (
-    <DashboardSearchSelect
+    <SearchSelect
       id={props.id}
       value={props.value}
       queryKey='customers'
@@ -211,12 +110,12 @@ export function DashboardCustomerSelect(props: {
 
 export function DashboardModelSelect(props: {
   id?: string
-  value: DashboardSelectOption
-  onChange: (option: DashboardSelectOption) => void
+  value: SearchSelectOption
+  onChange: (option: SearchSelectOption) => void
 }) {
   const { t } = useTranslation()
   return (
-    <DashboardSearchSelect
+    <SearchSelect
       id={props.id}
       value={props.value}
       queryKey='models'

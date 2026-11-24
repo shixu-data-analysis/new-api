@@ -78,13 +78,18 @@ import {
   getCanvasAdminTestingModels,
   publishCanvasExecutionTargetPresentation,
 } from '../api'
+import { listedProviderId, providersOf } from '../api-provider-filter'
 import { getCatalogEditorOptions, getCurrentCatalog } from '../catalog-edit-api'
 import { unsupportedFieldsOfCatalog } from '../catalog-edit-logic'
 import { useOptionalModelManagementNavigation } from '../model-management-navigation-hooks'
 import { modelControlReasonLabel } from '../model-monitoring-control'
 import type { CanvasAdminTestingModel } from '../types'
 import { ActiveFilterTags } from './ActiveFilterTags'
-import { withCanvasTableColumnSizes } from './canvas-table-layout'
+import { ApiProviderFilterButtons } from './ApiProviderFilterButtons'
+import {
+  pageWithinRange,
+  withCanvasTableColumnSizes,
+} from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
 import { CanvasRowAction } from './CanvasRowAction'
 import { UnsupportedFieldsBadge } from './catalog-edit/EditFields'
@@ -123,13 +128,6 @@ const DISABLED_TABLE_COLUMNS = new Set([
   'disabledReason',
   'disabledActions',
 ])
-
-function pageWithinRange(pageCount: number) {
-  return (current: PaginationState) =>
-    current.pageIndex < Math.max(1, pageCount)
-      ? current
-      : { ...current, pageIndex: Math.max(0, pageCount - 1) }
-}
 
 export function PublishedModelCatalog(props: {
   onManagePricing: (modelId: string, returnContext?: { nonce: string }) => void
@@ -424,19 +422,13 @@ export function PublishedModelCatalog(props: {
     [models.data]
   )
   const apiProviders = useMemo(
-    () => [
-      ...new Map(
-        (models.data ?? []).map((model) => [model.provider.id, model.provider])
-      ).values(),
-    ],
+    () => providersOf(models.data ?? [], (model) => model.provider),
     [models.data]
   )
   const selectedCapability = generationTypes.includes(capability)
     ? capability
     : ''
-  const selectedProvider = apiProviders.some((item) => item.id === provider)
-    ? provider
-    : ''
+  const selectedProvider = listedProviderId(apiProviders, provider)
   const matchingModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase()
     const idQuery = modelId.trim().toLocaleLowerCase()
@@ -1025,32 +1017,12 @@ export function PublishedModelCatalog(props: {
             ))}
           </div>
         </section>
-        <section className='mb-4 space-y-2' aria-label={t('API provider')}>
-          <p className='text-sm font-medium'>{t('API provider')}</p>
-          <div
-            className='flex flex-wrap gap-2'
-            role='group'
-            aria-label={t('API provider')}
-          >
-            <Button
-              variant={!selectedProvider ? 'default' : 'outline'}
-              aria-pressed={!selectedProvider}
-              onClick={() => setProvider('')}
-            >
-              {t('All API providers')}
-            </Button>
-            {apiProviders.map((item) => (
-              <Button
-                key={item.id}
-                variant={selectedProvider === item.id ? 'default' : 'outline'}
-                aria-pressed={selectedProvider === item.id}
-                onClick={() => setProvider(item.id)}
-              >
-                {item.name}
-              </Button>
-            ))}
-          </div>
-        </section>
+        <ApiProviderFilterButtons
+          className='mb-4'
+          providers={apiProviders}
+          selectedId={selectedProvider}
+          onSelect={setProvider}
+        />
         <section className='mb-4 space-y-2' aria-label={t('Model categories')}>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <Button

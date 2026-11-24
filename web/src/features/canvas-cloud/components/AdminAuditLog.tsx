@@ -53,9 +53,8 @@ import { CanvasServerTable } from './CanvasServerTable'
 import {
   ALL_OPTION_VALUE,
   DashboardCustomerSelect,
-  DashboardSearchSelect,
-  type DashboardSelectOption,
 } from './DashboardSearchSelect'
+import { SearchSelect, type SearchSelectOption } from './SearchSelect'
 
 const DEFAULT_SCOPE: CanvasAuditActorScope = 'ADMIN'
 const scopeLabelKeys: Record<CanvasAuditActorScope, string> = {
@@ -105,7 +104,7 @@ export function AdminAuditLog() {
   )
   const [scope, setScope] = useState<CanvasAuditActorScope>(DEFAULT_SCOPE)
   const [actionCode, setActionCode] = useState('')
-  const [customer, setCustomer] = useState<DashboardSelectOption>()
+  const [customer, setCustomer] = useState<SearchSelectOption>()
   const [from, setFrom] = useState<Date>()
   const [to, setTo] = useState<Date>()
   const [openEventId, setOpenEventId] = useState<string>()
@@ -274,7 +273,7 @@ export function AdminAuditLog() {
         label={t('Action')}
         htmlFor={`${fieldId}-action`}
       >
-        <DashboardSearchSelect
+        <SearchSelect
           id={`${fieldId}-action`}
           value={
             actionCode
