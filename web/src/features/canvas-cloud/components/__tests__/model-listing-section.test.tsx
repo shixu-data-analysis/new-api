@@ -122,13 +122,32 @@ describe('ModelListingTable', () => {
     expect(screen.queryByText('kling-4.0')).toBeNull()
     expect(screen.getByText('veo-3-fast')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
-    fireEvent.change(screen.getByPlaceholderText('Upstream model ID'), {
+    fireEvent.change(screen.getByLabelText('Upstream model ID'), {
       target: { value: 'FAST' },
     })
     expect(screen.queryByText('veo-3')).toBeNull()
     expect(screen.getByText('veo-3-fast')).toBeInTheDocument()
     // Ignore all still covers every new model, not only the rows the filters show.
     expect(screen.getByRole('button', { name: 'Ignore all (3)' })).toBeEnabled()
+  })
+
+  it('stops filtering by a chosen API provider once its last new model is ignored', () => {
+    const view = renderWithQuery(
+      <ModelListingTable
+        models={[listed('kling-4.0'), listed('veo-3', 'GWay')]}
+        onChanged={vi.fn()}
+      />
+    )
+    const providers = () => screen.getByRole('group', { name: 'API provider' })
+    fireEvent.click(within(providers()).getByRole('button', { name: 'GWay' }))
+    expect(screen.queryByText('kling-4.0')).toBeNull()
+    view.rerender(
+      <ModelListingTable models={[listed('kling-4.0')]} onChanged={vi.fn()} />
+    )
+    expect(screen.getByText('kling-4.0')).toBeInTheDocument()
+    expect(
+      within(providers()).getByRole('button', { name: 'All API providers' })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows 20 rows a page and moves to the next page', () => {

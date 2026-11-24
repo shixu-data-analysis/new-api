@@ -29,6 +29,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isModelManagementTab } from '../model-management-tabs'
 import { ModelAvailabilityBulkDisableDialog } from '../ModelAvailabilityBulkDisableDialog'
+import { ModelAvailabilityModelTable } from '../ModelAvailabilityModelTable'
 import { ModelAvailabilityPanel } from '../ModelAvailabilityPanel'
 import { ModelAvailabilityRuleDialog } from '../ModelAvailabilityRuleDialog'
 import { ModelAvailabilitySettingsDialog } from '../ModelAvailabilitySettingsDialog'
@@ -356,13 +357,45 @@ describe('ModelAvailabilityPanel', () => {
       within(providers).getByRole('button', { name: 'All API providers' })
     )
     fireEvent.click(screen.getByRole('button', { name: /^Column filters/ }))
-    fireEvent.change(await screen.findByPlaceholderText('Model'), {
+    fireEvent.change(await screen.findByLabelText('Model'), {
       target: { value: 'name c' },
     })
     expect(screen.queryByText('Name a')).toBeNull()
     expect(screen.getByText('Name c')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(await screen.findByText('Name a')).toBeInTheDocument()
+  })
+
+  it('stops filtering by a chosen API provider once its last row leaves, so the other rows show again', () => {
+    const z5 = {
+      ...disabled('b', 'AVAILABLE'),
+      providerId: 'p2',
+      providerName: 'Z5API',
+    }
+    const view = render(
+      <ModelAvailabilityModelTable
+        missing={[]}
+        disabled={[z5, disabled('c', 'MISSING')]}
+        bulkAction={null}
+        onControl={vi.fn()}
+      />
+    )
+    const providers = () => screen.getByRole('group', { name: 'API provider' })
+    fireEvent.click(within(providers()).getByRole('button', { name: 'Z5API' }))
+    expect(screen.queryByText('Name c')).toBeNull()
+    // Name b was restored and left the table: Z5API has no row and no button any more.
+    view.rerender(
+      <ModelAvailabilityModelTable
+        missing={[]}
+        disabled={[disabled('c', 'MISSING')]}
+        bulkAction={null}
+        onControl={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Name c')).toBeInTheDocument()
+    expect(
+      within(providers()).getByRole('button', { name: 'All API providers' })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows 20 rows a page and moves to the next page', async () => {

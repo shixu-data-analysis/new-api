@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation } from '@tanstack/react-query'
 import type { ColumnDef, PaginationState } from '@tanstack/react-table'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -125,7 +125,8 @@ export function ModelListingTable(props: {
 }) {
   const { t } = useTranslation()
   const ignore = useIgnoreListings(props.onChanged)
-  const [providerId, setProviderId] = useState('')
+  const fieldId = useId()
+  const [chosenProviderId, setProviderId] = useState('')
   const [upstreamId, setUpstreamId] = useState('')
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -139,6 +140,10 @@ export function ModelListingTable(props: {
     ],
     [props.models]
   )
+  // As the model list does: a chosen provider whose last new model was ignored filters nothing.
+  const providerId = providers.some(([id]) => id === chosenProviderId)
+    ? chosenProviderId
+    : ''
   const query = upstreamId.trim().toLocaleLowerCase()
   const visible = useMemo(
     () =>
@@ -304,8 +309,12 @@ export function ModelListingTable(props: {
             }
             filterPanel={
               <DataTableColumnFilterPanel activeCount={query ? 1 : 0}>
-                <DataTableColumnFilterField label={t('Upstream model ID')}>
+                <DataTableColumnFilterField
+                  label={t('Upstream model ID')}
+                  htmlFor={`${fieldId}-upstream-id`}
+                >
                   <Input
+                    id={`${fieldId}-upstream-id`}
                     value={upstreamId}
                     placeholder={t('Upstream model ID')}
                     onChange={(event) => {

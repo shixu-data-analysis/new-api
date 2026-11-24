@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef, PaginationState } from '@tanstack/react-table'
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useId, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -120,6 +120,7 @@ export function ModelAvailabilityModelTable(props: {
   onControl: (control: AvailabilityControl) => void
 }) {
   const { t } = useTranslation()
+  const fieldId = useId()
   const [filters, setFilters] = useState<AvailabilityFilters>(
     emptyAvailabilityFilters
   )
@@ -139,9 +140,16 @@ export function ModelAvailabilityModelTable(props: {
     ],
     [rows]
   )
+  // As the model list does: a chosen provider whose last row left (restored, or no longer missing) filters nothing.
+  const providerId = providers.some(([id]) => id === filters.providerId)
+    ? filters.providerId
+    : ''
   const visible = useMemo(
-    () => rows.filter((row) => matchesAvailabilityFilters(row, filters)),
-    [rows, filters]
+    () =>
+      rows.filter((row) =>
+        matchesAvailabilityFilters(row, { ...filters, providerId })
+      ),
+    [rows, filters, providerId]
   )
   const changeFilters = (next: Partial<AvailabilityFilters>) => {
     setFilters((current) => ({ ...current, ...next }))
@@ -287,8 +295,8 @@ export function ModelAvailabilityModelTable(props: {
             aria-label={t('API provider')}
           >
             <Button
-              variant={!filters.providerId ? 'default' : 'outline'}
-              aria-pressed={!filters.providerId}
+              variant={!providerId ? 'default' : 'outline'}
+              aria-pressed={!providerId}
               onClick={() => changeFilters({ providerId: '' })}
             >
               {t('All API providers')}
@@ -296,8 +304,8 @@ export function ModelAvailabilityModelTable(props: {
             {providers.map(([id, name]) => (
               <Button
                 key={id}
-                variant={filters.providerId === id ? 'default' : 'outline'}
-                aria-pressed={filters.providerId === id}
+                variant={providerId === id ? 'default' : 'outline'}
+                aria-pressed={providerId === id}
                 onClick={() => changeFilters({ providerId: id })}
               >
                 {name}
@@ -332,7 +340,7 @@ export function ModelAvailabilityModelTable(props: {
             onReset={() =>
               changeFilters({
                 ...emptyAvailabilityFilters,
-                providerId: filters.providerId,
+                providerId,
               })
             }
             leftActions={props.bulkAction}
@@ -375,8 +383,12 @@ export function ModelAvailabilityModelTable(props: {
                     </SelectContent>
                   </Select>
                 </DataTableColumnFilterField>
-                <DataTableColumnFilterField label={t('Model')}>
+                <DataTableColumnFilterField
+                  label={t('Model')}
+                  htmlFor={`${fieldId}-model`}
+                >
                   <Input
+                    id={`${fieldId}-model`}
                     value={filters.model}
                     placeholder={t('Model')}
                     onChange={(event) =>
@@ -384,8 +396,12 @@ export function ModelAvailabilityModelTable(props: {
                     }
                   />
                 </DataTableColumnFilterField>
-                <DataTableColumnFilterField label={t('Upstream model ID')}>
+                <DataTableColumnFilterField
+                  label={t('Upstream model ID')}
+                  htmlFor={`${fieldId}-upstream-id`}
+                >
                   <Input
+                    id={`${fieldId}-upstream-id`}
                     value={filters.upstreamId}
                     placeholder={t('Upstream model ID')}
                     onChange={(event) =>
