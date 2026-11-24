@@ -2157,6 +2157,22 @@ export async function getCanvasAdminSupportConversations(
   ).data
 }
 
+/**
+ * Opens the customer's one conversation so an administrator can write first (SUPPORT-PROACTIVE-001). It writes no message:
+ * until the first one the conversation stays out of the list and out of the client.
+ */
+export async function openCanvasAdminSupportConversation(
+  customerId: string
+): Promise<CanvasAdminSupportConversation> {
+  return (
+    await api.post<CanvasAdminSupportConversation>(
+      `${webBase}/admin/support/conversations`,
+      { customerId },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+
 export async function getCanvasAdminSupportPendingCount(
   signal?: AbortSignal
 ): Promise<number> {

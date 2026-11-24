@@ -31,7 +31,8 @@ import {
 import { useDebounce } from '@/hooks'
 
 import { agentQualificationLabelKey } from '../agent-earnings-format'
-import { getCanvasAdminCustomers, getCanvasAgents } from '../api'
+import { getCanvasAgents } from '../api'
+import { searchCanvasCustomers } from '../customer-search'
 import { getOperatingDashboardModelOptions } from '../operating-dashboard-api'
 
 export interface DashboardSelectOption {
@@ -39,6 +40,8 @@ export interface DashboardSelectOption {
   label: string
   /** Shown after the label, such as a disabled status. */
   hint?: string
+  /** Listed but not choosable; the hint says why. */
+  disabled?: boolean
 }
 
 /**
@@ -109,7 +112,11 @@ export function DashboardSearchSelect(props: {
         </ComboboxEmpty>
         <ComboboxList>
           {(option: DashboardSelectOption) => (
-            <ComboboxItem key={option.value} value={option}>
+            <ComboboxItem
+              key={option.value}
+              value={option}
+              disabled={option.disabled}
+            >
               <span className='truncate'>{option.label}</span>
               {option.hint ? (
                 <span className='text-muted-foreground ms-2 shrink-0 text-xs'>
@@ -187,18 +194,7 @@ export function DashboardCustomerSelect(props: {
       placeholder={t('All customers')}
       fixedOptions={[{ value: ALL_OPTION_VALUE, label: t('All customers') }]}
       load={async (search, signal) =>
-        (
-          await getCanvasAdminCustomers(
-            {
-              page: 1,
-              pageSize: 20,
-              ...(search ? { username: search } : {}),
-              sortBy: 'customer',
-              sortOrder: 'asc',
-            },
-            signal
-          )
-        ).items.map((customer) => ({
+        (await searchCanvasCustomers(search, signal)).map((customer) => ({
           value: customer.customerId,
           label: customer.username ?? customer.customerId,
           ...hint(statusLabels[customer.status]),

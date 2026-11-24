@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { Settings } from 'lucide-react'
+import { MessageSquarePlus, Settings } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -42,6 +42,7 @@ import type { CanvasAdminSupportConversation } from '../types'
 import { SupportFailureAlerts } from './SupportFailureAlerts'
 import { SUPPORT_SPLIT_LAYOUT, SupportListItem } from './SupportListItem'
 import { SupportSettingsDialog } from './SupportSettingsDialog'
+import { SupportStartConversationDialog } from './SupportStartConversationDialog'
 import { SupportThread } from './SupportThread'
 
 const REFRESH_MILLISECONDS = 10_000
@@ -86,6 +87,7 @@ export function SupportConversations(props: {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(20)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [startOpen, setStartOpen] = useState(false)
   const conversations = useQuery({
     queryKey: [
       ...supportQueryKeys.conversations,
@@ -167,10 +169,11 @@ export function SupportConversations(props: {
     // It stands in for the list row, so it refreshes like the list (for 待回复 and 标记为已处理).
     refetchInterval: refreshWhileVisible(REFRESH_MILLISECONDS),
   })
+  // A linked conversation that is not on this page, such as one an administrator just opened to write first, is listed
+  // first (SUPPORT-PROACTIVE-001).
+  const pinned = onPage ? null : (linked.data?.items[0] ?? null)
   const selected: CanvasAdminSupportConversation | null =
-    onPage ??
-    linked.data?.items[0] ??
-    (props.conversationId ? null : (rows[0] ?? null))
+    onPage ?? pinned ?? (props.conversationId ? null : (rows[0] ?? null))
   const searching = debouncedSearch !== ''
   let emptyText = t('No conversations yet')
   if (filter === 'pending') emptyText = t('No conversations awaiting reply')
@@ -189,6 +192,42 @@ export function SupportConversations(props: {
         }).format(date)
   }
   const resetPage = () => setPage(1)
+  const conversationItem = (row: CanvasAdminSupportConversation) => {
+    const name = row.customer.name ?? t('Customer')
+    return (
+      <SupportListItem
+        key={row.id}
+        selected={selected?.id === row.id}
+        className='grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5'
+        onClick={() => props.onConversationChange?.(row.id)}
+      >
+        <span className='flex min-w-0 flex-col gap-0.5'>
+          <span className='flex items-baseline gap-1.5'>
+            <span className='truncate font-semibold'>{name}</span>
+            <span className='text-muted-foreground shrink-0 text-xs'>
+              ID {row.customer.userId}
+            </span>
+          </span>
+          <span className='text-muted-foreground truncate text-sm'>
+            {lastMessagePreview(row.lastMessage, t)}
+          </span>
+        </span>
+        <span className='text-muted-foreground flex flex-col items-end gap-1 text-xs whitespace-nowrap'>
+          {row.lastMessage ? (
+            <span>{time(row.lastMessage.createdAt)}</span>
+          ) : null}
+          {row.pending ? (
+            <Badge
+              variant='outline'
+              className='border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+            >
+              {t('Awaiting reply')}
+            </Badge>
+          ) : null}
+        </span>
+      </SupportListItem>
+    )
+  }
 
   return (
     <div className='space-y-4'>
@@ -249,6 +288,15 @@ export function SupportConversations(props: {
           variant='outline'
           size='sm'
           className='sm:ms-auto'
+          onClick={() => setStartOpen(true)}
+        >
+          <MessageSquarePlus aria-hidden='true' />
+          {t('Start conversation')}
+        </Button>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
           onClick={() => setSettingsOpen(true)}
         >
           <Settings aria-hidden='true' />
@@ -302,7 +350,7 @@ export function SupportConversations(props: {
                   {t('Loading…')}
                 </p>
               ) : null}
-              {!conversations.isPending && rows.length === 0 ? (
+              {!conversations.isPending && rows.length === 0 && !pinned ? (
                 <div className='space-y-3 p-3' role='status'>
                   <p className='text-muted-foreground text-sm'>{emptyText}</p>
                   {/* 待回复 is a view of its own; only a search is a filter to clear. */}
@@ -320,46 +368,10 @@ export function SupportConversations(props: {
                   ) : null}
                 </div>
               ) : null}
-              {rows.length > 0 ? (
+              {rows.length > 0 || pinned ? (
                 <ul className='grid gap-0.5' aria-label={t('Conversations')}>
-                  {rows.map((row) => {
-                    const name = row.customer.name ?? t('Customer')
-                    return (
-                      <SupportListItem
-                        key={row.id}
-                        selected={selected?.id === row.id}
-                        className='grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5'
-                        onClick={() => props.onConversationChange?.(row.id)}
-                      >
-                        <span className='flex min-w-0 flex-col gap-0.5'>
-                          <span className='flex items-baseline gap-1.5'>
-                            <span className='truncate font-semibold'>
-                              {name}
-                            </span>
-                            <span className='text-muted-foreground shrink-0 text-xs'>
-                              ID {row.customer.userId}
-                            </span>
-                          </span>
-                          <span className='text-muted-foreground truncate text-sm'>
-                            {lastMessagePreview(row.lastMessage, t)}
-                          </span>
-                        </span>
-                        <span className='text-muted-foreground flex flex-col items-end gap-1 text-xs whitespace-nowrap'>
-                          {row.lastMessage ? (
-                            <span>{time(row.lastMessage.createdAt)}</span>
-                          ) : null}
-                          {row.pending ? (
-                            <Badge
-                              variant='outline'
-                              className='border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                            >
-                              {t('Awaiting reply')}
-                            </Badge>
-                          ) : null}
-                        </span>
-                      </SupportListItem>
-                    )
-                  })}
+                  {pinned ? conversationItem(pinned) : null}
+                  {rows.map(conversationItem)}
                 </ul>
               ) : null}
               {total > 0 ? (
@@ -396,6 +408,15 @@ export function SupportConversations(props: {
         </div>
       ) : null}
 
+      {startOpen ? (
+        <SupportStartConversationDialog
+          onClose={() => setStartOpen(false)}
+          onOpened={(conversationId) => {
+            if (filter === 'failures') setFilter('all')
+            props.onConversationChange?.(conversationId)
+          }}
+        />
+      ) : null}
       {settingsOpen && settings.data ? (
         <SupportSettingsDialog
           settings={settings.data}

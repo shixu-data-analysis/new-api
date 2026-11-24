@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { ArrowLeft, Gift, Mail } from 'lucide-react'
+import { ArrowLeft, Gift, Mail, MessageSquare } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
@@ -101,6 +101,7 @@ import {
   type PointReturnValues,
 } from '../form-validation'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
+import { useOpenSupportConversation } from '../support-open-conversation'
 import type {
   CanvasAdminCustomerListItem,
   CanvasAdminCustomerPointBalance,
@@ -153,6 +154,7 @@ export function AdminPointAdjustments({
   pointLotId,
   customerDetailTab,
   titleActionSlot,
+  onOpenSupportConversation,
 }: {
   customerId?: string
   onCustomerChange?: (customerId?: string) => void
@@ -161,9 +163,14 @@ export function AdminPointAdjustments({
   customerDetailTab?: 'agent-statistics'
   /** Where the list puts 发邮件给全部有效客户, left of Refresh. */
   titleActionSlot?: HTMLElement | null
+  /** Shows 发消息, which opens the customer's support conversation (SUPPORT-PROACTIVE-001). */
+  onOpenSupportConversation?: (conversationId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
+  const openSupport = useOpenSupportConversation((conversationId) =>
+    onOpenSupportConversation?.(conversationId)
+  )
   const [localCustomer, setLocalCustomer] =
     useState<CanvasAdminCustomerPointBalance | null>(null)
   const listScrollY = useRef(0)
@@ -1176,6 +1183,18 @@ export function AdminPointAdjustments({
               </div>
             </div>
             <div className='flex flex-wrap gap-2'>
+              {/* Only an active customer can be written to. */}
+              {onOpenSupportConversation && customer.status === 'ACTIVE' ? (
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={openSupport.isPending}
+                  onClick={() => openSupport.mutate(customer.customerId)}
+                >
+                  <MessageSquare className='size-4' />
+                  {t('Send message')}
+                </Button>
+              ) : null}
               <Button
                 type='button'
                 variant='outline'

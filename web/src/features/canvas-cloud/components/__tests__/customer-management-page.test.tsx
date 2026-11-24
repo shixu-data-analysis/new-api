@@ -30,7 +30,10 @@ import { CustomerManagementPage } from '../CustomerManagementPage'
 // The customer list stands in for AdminPointAdjustments: a selection it keeps in its own state, and the title action
 // it puts into the slot the page gives it.
 vi.mock('../AdminPointAdjustments', () => ({
-  AdminPointAdjustments: (props: { titleActionSlot?: HTMLElement | null }) => {
+  AdminPointAdjustments: (props: {
+    titleActionSlot?: HTMLElement | null
+    onOpenSupportConversation?: (conversationId: string) => void
+  }) => {
     const [checked, setChecked] = useState(false)
     return (
       <>
@@ -42,6 +45,12 @@ vi.mock('../AdminPointAdjustments', () => ({
           />
           alice
         </label>
+        <button
+          type='button'
+          onClick={() => props.onOpenSupportConversation?.('conversation-1')}
+        >
+          message alice
+        </button>
         {props.titleActionSlot
           ? createPortal(
               <button type='button'>Email every active customer</button>,
@@ -57,6 +66,11 @@ vi.mock('../../api', () => ({
     pendingCount: ['canvas-cloud', 'admin', 'support', 'pending-count'],
   },
   getCanvasAdminSupportPendingCount: vi.fn().mockResolvedValue(2),
+}))
+vi.mock('../SupportConversations', () => ({
+  SupportConversations: (props: { conversationId?: string }) => (
+    <p>conversation {props.conversationId ?? 'none'}</p>
+  ),
 }))
 vi.mock('../CustomerMailRecords', () => ({
   CustomerMailRecords: () => <p>mail records</p>,
@@ -93,5 +107,36 @@ describe('Customer management tabs', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Customer list' }))
     expect(screen.getByRole('checkbox', { name: 'alice' })).toBeChecked()
     slot.remove()
+  })
+
+  it('switches to the support tab with the conversation the customer details opened (SUPPORT-PROACTIVE-001)', () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const onSupportChange = vi.fn()
+    const view = render(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage onSupportChange={onSupportChange} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'message alice' }))
+    expect(onSupportChange).toHaveBeenCalledWith({
+      open: true,
+      conversationId: 'conversation-1',
+    })
+    expect(
+      screen.getByRole('tab', { name: /Support conversations/ })
+    ).toHaveAttribute('aria-selected', 'true')
+    // The route passes the conversation back, as the address bar does.
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <CustomerManagementPage
+          tab='support'
+          supportConversationId='conversation-1'
+          onSupportChange={onSupportChange}
+        />
+      </QueryClientProvider>
+    )
+    expect(screen.getByText('conversation conversation-1')).toBeInTheDocument()
   })
 })

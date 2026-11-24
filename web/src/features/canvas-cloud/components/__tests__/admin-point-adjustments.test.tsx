@@ -36,6 +36,10 @@ const apiMocks = vi.hoisted(() => ({
   grantCanvasManualBonus: vi.fn(),
   grantCanvasPaidCorrection: vi.fn(),
   previewCanvasOrderPointReturn: vi.fn(),
+  openCanvasAdminSupportConversation: vi.fn(),
+  supportQueryKeys: {
+    conversations: ['canvas-cloud', 'admin', 'support', 'conversations'],
+  },
 }))
 const toastMocks = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -239,6 +243,52 @@ describe('ADMIN-REWORK-004 customer management', () => {
     expect(await screen.findByText(/Outstanding debt/)).toBeVisible()
     expect(screen.queryByText('Customer management')).not.toBeInTheDocument()
     expect(screen.queryByText('Customer details')).not.toBeInTheDocument()
+  })
+
+  it('opens the support conversation of an active customer to write first (SUPPORT-PROACTIVE-001)', async () => {
+    const conversationId = '92000000-0000-7000-8000-000000000004'
+    apiMocks.openCanvasAdminSupportConversation.mockResolvedValue({
+      id: conversationId,
+      customer: {
+        id: customer.customerId,
+        userId: '11402',
+        name: 'uatcustomer',
+      },
+      pending: false,
+      pendingSince: null,
+      lastMessage: null,
+    })
+    const onOpenSupportConversation = vi.fn()
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={customer.customerId}
+        onOpenSupportConversation={onOpenSupportConversation}
+      />
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Send message' }))
+    await waitFor(() =>
+      expect(onOpenSupportConversation).toHaveBeenCalledWith(conversationId)
+    )
+    expect(apiMocks.openCanvasAdminSupportConversation.mock.calls[0]?.[0]).toBe(
+      customer.customerId
+    )
+  })
+
+  it('offers no message to a suspended customer', async () => {
+    apiMocks.getCanvasAdminCustomer.mockResolvedValue({
+      ...customer,
+      status: 'SUSPENDED',
+    })
+    renderWithQuery(
+      <AdminPointAdjustments
+        customerId={customer.customerId}
+        onOpenSupportConversation={vi.fn()}
+      />
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Restore account' })
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Send message' })).toBeNull()
   })
 
   it('loads an exact customer directly and shows only the three confirmed primary tabs', async () => {

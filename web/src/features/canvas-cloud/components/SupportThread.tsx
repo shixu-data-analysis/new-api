@@ -120,6 +120,13 @@ export function SupportThread(props: {
   const { conversation } = props
   const name = conversation.customer.name ?? t('Customer')
   const thread = useSupportMessages(conversation.id)
+  // A conversation an administrator opened to write first has no message yet (SUPPORT-PROACTIVE-001).
+  const composerLabel = t(
+    thread.state === 'ready' && thread.messages.length === 0
+      ? 'Message {{name}} (ID {{id}})'
+      : 'Reply to {{name}} (ID {{id}})',
+    { name, id: conversation.customer.userId }
+  )
   const [draft, setDraft] = useState('')
   // Kept between replies; off sends a reply that lights the client's dot without the preview card.
   const [popup, setPopup] = useState(true)
@@ -385,18 +392,12 @@ export function SupportThread(props: {
             </ul>
           ) : null}
           <label htmlFor={inputId} className='sr-only'>
-            {t('Reply to {{name}} (ID {{id}})', {
-              name,
-              id: conversation.customer.userId,
-            })}
+            {composerLabel}
           </label>
           <Textarea
             id={inputId}
             className='min-h-14 resize-none rounded-none border-0 p-0 shadow-none focus-visible:ring-0'
-            placeholder={t('Reply to {{name}} (ID {{id}})', {
-              name,
-              id: conversation.customer.userId,
-            })}
+            placeholder={composerLabel}
             value={draft}
             // Read-only while sending, so a successful send never clears what was typed meanwhile.
             readOnly={send.isPending}

@@ -101,6 +101,10 @@ export function CustomerManagementPage(props: {
           pointLotId={props.pointLotId}
           customerDetailTab={props.customerDetailTab}
           titleActionSlot={props.titleActionSlot}
+          onOpenSupportConversation={(conversationId) => {
+            setTab('support')
+            props.onSupportChange?.({ open: true, conversationId })
+          }}
         />
       </TabsContent>
       <TabsContent value='support'>
