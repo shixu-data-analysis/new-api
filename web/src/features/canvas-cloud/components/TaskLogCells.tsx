@@ -31,7 +31,7 @@ export function TaskAcceptedCell({ task }: { task: CanvasAdminTaskLog }) {
         </div>
       ) : null}
       {elapsed?.range ? (
-        <div className='text-muted-foreground text-xs'>
+        <div className='text-muted-foreground text-xs break-keep'>
           {t('Fastest {{fastest}}, slowest {{slowest}}', {
             fastest: formatElapsed(elapsed.range.fastestMs, t),
             slowest: formatElapsed(elapsed.range.slowestMs, t),

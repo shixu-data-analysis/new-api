@@ -6,9 +6,10 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
-import { taskElapsed } from '../task-elapsed'
+import { formatElapsed, taskElapsed } from '../task-elapsed'
 
 const acceptedAt = '2026-11-24T10:00:00.000Z'
 const at = (seconds: number) =>
@@ -36,6 +37,15 @@ describe('taskElapsed', () => {
         { completedAt: at(3700) },
       ])?.range
     ).toEqual({ fastestMs: 3_610_000, slowestMs: 3_700_000 })
+  })
+
+  it('writes a duration with spaces that do not break', () => {
+    const t = ((key: string, values: Record<string, number>) =>
+      key.replaceAll(/{{(\w+)}}/g, (_, name: string) =>
+        String(values[name])
+      )) as unknown as TFunction
+    expect(formatElapsed(112_000, t)).toBe('1\u00a0min\u00a052\u00a0s')
+    expect(formatElapsed(3_650_000, t)).toBe('1\u00a0hr\u00a00\u00a0min')
   })
 
   it('is null while the task is unfinished', () => {

@@ -323,6 +323,11 @@ describe('Canvas administrator task records', () => {
     ])
     expect(screen.getByText('Elapsed 1 min 52 s')).toBeVisible()
     expect(screen.getByText('Fastest 41 s, slowest 1 min 52 s')).toBeVisible()
+    // The range wraps inside the accepted column instead of widening it, and never inside a duration.
+    const range = screen.getByText('Fastest 41 s, slowest 1 min 52 s')
+    expect(range).toHaveClass('break-keep')
+    expect(range.textContent).toContain('1\u00a0min\u00a052\u00a0s')
+    expect(range.closest('td')).toHaveClass('whitespace-normal')
     expect(screen.getByText('Elapsed 1 hr 5 min')).toBeVisible()
     expect(screen.getAllByText(/^Elapsed /)).toHaveLength(2)
     expect(screen.getAllByText(/^Fastest /)).toHaveLength(1)
@@ -511,9 +516,9 @@ describe('Canvas administrator task records', () => {
     expect(
       within(sheet).queryByRole('button', { name: `Copy ${task.id}` })
     ).not.toBeInTheDocument()
-    const taskIdField = (
-      await within(sheet).findByText('Task ID')
-    ).closest('div') as HTMLElement
+    const taskIdField = (await within(sheet).findByText('Task ID')).closest(
+      'div'
+    ) as HTMLElement
     expect(
       within(taskIdField).getByRole('button', { name: 'Copy' })
     ).toBeVisible()

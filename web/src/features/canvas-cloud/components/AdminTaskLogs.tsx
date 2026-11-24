@@ -908,9 +908,14 @@ export function AdminTaskLogs() {
           })
         }}
         getRowId={(row) => row.id}
-        getColumnClassName={(columnId) =>
-          columnId === 'settledPoints' ? 'text-right' : undefined
-        }
+        getColumnClassName={(columnId, kind) => {
+          if (columnId === 'settledPoints') return 'text-right'
+          // The fastest and slowest durations wrap inside the wide column instead of widening it.
+          if (kind === 'cell' && columnId === 'acceptedAt') {
+            return 'whitespace-normal'
+          }
+          return undefined
+        }}
       />
       <TaskRecordDetailsSheet
         taskId={selectedTaskId}

@@ -57,9 +57,15 @@ function elapsedParts(
   }
 }
 
+/** A duration as one unbroken phrase: its spaces do not break, so a wrapping line breaks between durations, never inside one. */
 export function formatElapsed(ms: number, t: TFunction): string {
   const parts = elapsedParts(ms)
-  if ('hours' in parts) return t('{{hours}} hr {{minutes}} min', parts)
-  if ('minutes' in parts) return t('{{minutes}} min {{seconds}} s', parts)
-  return t('{{seconds}} s', parts)
+  const unbroken = (text: string) => text.replaceAll(' ', '\u00a0')
+  if ('hours' in parts) {
+    return unbroken(t('{{hours}} hr {{minutes}} min', parts))
+  }
+  if ('minutes' in parts) {
+    return unbroken(t('{{minutes}} min {{seconds}} s', parts))
+  }
+  return unbroken(t('{{seconds}} s', parts))
 }
