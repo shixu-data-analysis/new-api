@@ -31,6 +31,7 @@ import type { CanvasCustomerTask, CanvasCustomerTaskAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
 import { CanvasDateRangeFilter } from './CanvasDateRangeFilter'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 
 // Cells whose text wraps within the column: the full task ID, model names and result explanations.
@@ -339,7 +340,7 @@ export function CustomerTasks() {
                 </p>
               ))}
               {assets.length ? (
-                <div className='flex flex-wrap gap-1 pt-1'>
+                <div className='flex flex-wrap gap-2 pt-1'>
                   {assets.map((asset) => {
                     const key = `${row.original.id}:${asset.assetId}`
                     const pending = downloadingAsset === key
@@ -347,21 +348,17 @@ export function CustomerTasks() {
                       number: asset.outputIndex + 1,
                     })
                     return (
-                      <Button
+                      <CanvasRowAction
                         key={asset.assetId}
                         type='button'
-                        size='sm'
-                        variant='outline'
                         disabled={downloadingAsset !== null}
-                        aria-label={label}
-                        title={label}
                         onClick={() =>
                           void downloadResult(row.original.id, asset)
                         }
                       >
                         <Download aria-hidden='true' />
                         {pending ? t('Downloading…') : label}
-                      </Button>
+                      </CanvasRowAction>
                     )
                   })}
                 </div>

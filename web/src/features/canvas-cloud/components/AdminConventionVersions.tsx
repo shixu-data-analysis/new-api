@@ -45,6 +45,7 @@ import {
 } from '../customer-notices-api'
 import { formatCanvasDateTimeMinutes } from '../formatters'
 import { useServerTableState } from '../use-server-table-state'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 
 const BODY_LIMIT = 10000
@@ -103,13 +104,9 @@ export function AdminConventionVersions(props: {
         enableSorting: false,
         header: () => t('Actions'),
         cell: ({ row }) => (
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => setViewing(row.original.id)}
-          >
+          <CanvasRowAction onClick={() => setViewing(row.original.id)}>
             {t('View convention')}
-          </Button>
+          </CanvasRowAction>
         ),
         meta: { label: t('Actions') },
       },

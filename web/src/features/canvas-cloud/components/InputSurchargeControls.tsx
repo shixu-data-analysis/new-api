@@ -32,6 +32,7 @@ import type {
   CanvasModelPricingModel,
   CanvasReferenceVideoTier,
 } from '../types'
+import { CanvasRowAction } from './CanvasRowAction'
 
 // INPUT-ASSET-BILLING-001: how reference materials are charged, chosen beside the billing unit and published with the
 // prices. Reference videos by the generated quality or by their own short-edge tier; reference images per image beyond a
@@ -290,15 +291,15 @@ function ReferenceVideoTierEditor(props: {
             id: 'remove',
             header: <span className='sr-only'>{t('Actions')}</span>,
             cell: (tier: CanvasReferenceVideoTier) => (
-              <button
+              <CanvasRowAction
                 type='button'
-                className='text-muted-foreground text-sm hover:underline'
+                tone='danger'
                 onClick={() =>
                   props.onChange(props.tiers.filter((item) => item !== tier))
                 }
               >
                 {t('Delete')}
-              </button>
+              </CanvasRowAction>
             ),
           },
         ]}

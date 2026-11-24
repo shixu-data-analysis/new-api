@@ -26,7 +26,6 @@ import { StaticDataTable } from '@/components/data-table/static/static-data-tabl
 import { DataTableColumnFilterField } from '@/components/data-table/toolbar/column-filter-panel'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
-import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -50,6 +49,7 @@ import { formatExactPointQuantity } from '../number-format'
 import { useServerTableState } from '../use-server-table-state'
 import { AgentMonthPicker } from './AgentMonthPicker'
 import { CANVAS_COLUMN_SIZES } from './canvas-table-layout'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 
 type StatementTableProps =
@@ -272,9 +272,7 @@ export function AgentStatementTable(props: StatementTableProps) {
       enableSorting: false,
       header: t('Action'),
       cell: ({ row }) => (
-        <Button
-          size='sm'
-          variant='outline'
+        <CanvasRowAction
           aria-expanded={expandedId === row.original.id}
           onClick={() =>
             setExpandedId(
@@ -283,7 +281,7 @@ export function AgentStatementTable(props: StatementTableProps) {
           }
         >
           {t('Statement action details')}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]

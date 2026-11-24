@@ -49,6 +49,7 @@ import {
   type CustomRule,
   type ListSource,
 } from '../model-availability-api'
+import { CanvasRowAction } from './CanvasRowAction'
 import { ModelAvailabilityRuleDialog } from './ModelAvailabilityRuleDialog'
 import { NotificationSendTo } from './NotificationSendTo'
 
@@ -360,13 +361,11 @@ export function ModelAvailabilitySettingsDialog(props: {
                                 t('Try each model')}
                               {draft.untested ? ` · ${t('Not tested')}` : ''}
                             </p>
-                            <Button
-                              variant='link'
-                              className='h-auto p-0'
+                            <CanvasRowAction
                               onClick={() => setRuleFor(provider.providerId)}
                             >
                               {t('Edit rule')}
-                            </Button>
+                            </CanvasRowAction>
                           </div>
                         ) : (
                           <span className='text-muted-foreground text-sm'>

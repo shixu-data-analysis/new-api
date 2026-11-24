@@ -23,6 +23,7 @@ import { executionLabels } from '../task-status-labels'
 import type { CanvasAdminTaskInputAsset } from '../types'
 import { useServerTableState } from '../use-server-table-state'
 import { CallResults } from './CallResults'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasServerTable } from './CanvasServerTable'
 import { CanvasTooltip } from './CanvasTooltip'
 import { CodeBlock } from './CodeBlock'
@@ -764,10 +765,8 @@ export function TaskCallHistory({
       header: t('Actions'),
       enableHiding: false,
       cell: ({ row }) => (
-        <Button
+        <CanvasRowAction
           type='button'
-          variant='link'
-          className='h-auto p-0'
           aria-expanded={isOpen(row.original)}
           onClick={() =>
             setToggled((current) => ({
@@ -777,7 +776,7 @@ export function TaskCallHistory({
           }
         >
           {t(isOpen(row.original) ? 'Hide details' : 'Details')}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]

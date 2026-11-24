@@ -8,12 +8,12 @@ License, or (at your option) any later version.
 */
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 
 import type { PricingEditorRow } from '../lib/model-pricing-editor'
+import { CanvasRowAction } from './CanvasRowAction'
 
 export interface PricingCellNote {
   text: string
@@ -107,14 +107,9 @@ export function PendingPriceCell(props: {
         </span>
       ) : null}
       {props.onCancel ? (
-        <Button
-          type='button'
-          variant='link'
-          className='h-auto p-0 text-xs'
-          onClick={props.onCancel}
-        >
+        <CanvasRowAction tone='danger' type='button' onClick={props.onCancel}>
           {t('Cancel schedule')}
-        </Button>
+        </CanvasRowAction>
       ) : null}
     </div>
   )

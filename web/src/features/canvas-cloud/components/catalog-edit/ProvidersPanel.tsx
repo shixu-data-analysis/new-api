@@ -38,6 +38,7 @@ import type {
   CatalogProviderDefinition,
   CurrentCatalogView,
 } from '../../catalog-edit-types'
+import { CanvasRowAction } from '../CanvasRowAction'
 import { catalogEditErrorText, catalogEditFailure } from './catalog-edit-errors'
 import { PromptReferenceRewrites } from './PromptReferenceRewrites'
 
@@ -467,13 +468,12 @@ export function ProvidersPanel() {
               id: 'actions',
               header: t('Actions'),
               cell: (provider) => (
-                <Button
-                  variant='outline'
-                  size='sm'
+                <CanvasRowAction
+                  tone='primary'
                   onClick={() => setEditing(provider)}
                 >
                   {t('Edit')}
-                </Button>
+                </CanvasRowAction>
               ),
             },
           ]}

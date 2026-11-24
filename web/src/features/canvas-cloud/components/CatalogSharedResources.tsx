@@ -31,7 +31,6 @@ import {
   DataTableColumnFilterPanel,
 } from '@/components/data-table/toolbar/column-filter-panel'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -61,6 +60,7 @@ import type {
 } from '../generated/model-catalog-import'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
 import { CanvasLocalizedSelectValue } from './CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './CanvasRowAction'
 import {
   catalogChangeBadgeClass,
   catalogListText,
@@ -288,15 +288,12 @@ function PlanStopRow(props: {
           ) : null}
         </TableCell>
         <TableCell className='align-top'>
-          <Button
-            variant='link'
-            size='sm'
-            className='h-auto p-0'
+          <CanvasRowAction
             aria-expanded={props.expanded}
             onClick={props.onToggle}
           >
             {props.expanded ? t('Collapse') : t('View details')}
-          </Button>
+          </CanvasRowAction>
         </TableCell>
       </TableRow>
       {props.expanded ? (
@@ -601,16 +598,13 @@ export function CatalogSharedResources(props: {
                   {kind === 'UNCHANGED' ? (
                     '—'
                   ) : (
-                    <Button
-                      variant='link'
-                      size='sm'
-                      className='h-auto p-0'
+                    <CanvasRowAction
                       aria-expanded={expanded}
                       aria-controls={expanded ? detailId : undefined}
                       onClick={() => setExpandedKey(expanded ? null : rowKey)}
                     >
                       {expanded ? t('Collapse') : t('View details')}
-                    </Button>
+                    </CanvasRowAction>
                   )}
                 </TableCell>
               </TableRow>

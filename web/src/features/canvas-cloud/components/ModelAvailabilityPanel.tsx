@@ -22,14 +22,6 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 import { getServerErrorStatus } from '@/lib/server-error-message'
 
@@ -42,72 +34,20 @@ import {
   probeFailureKey,
   startModelAvailabilityProbe,
   type AvailabilityTarget,
-  type MissingModel,
 } from '../model-availability-api'
+import {
+  disabledRows,
+  type AvailabilityControl,
+} from '../model-availability-rows'
 import { probedUpstreamIds } from '../model-availability-rules'
 import { LogicalModelControlDialog } from './LogicalModelControlDialog'
 import { ModelAvailabilityBulkDisableDialog } from './ModelAvailabilityBulkDisableDialog'
+import { ModelAvailabilityModelTable } from './ModelAvailabilityModelTable'
 import { ModelAvailabilitySettingsDialog } from './ModelAvailabilitySettingsDialog'
 import {
   IgnoreAllListingsButton,
   ModelListingTable,
 } from './ModelListingSection'
-
-function MissingTable(props: {
-  title: string
-  models: MissingModel[]
-  onControl: (model: MissingModel) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className='overflow-x-auto rounded-lg border'>
-      <Table className='min-w-[680px]'>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{props.title}</TableHead>
-            <TableHead>{t('API provider')}</TableHead>
-            <TableHead>{t('First missing')}</TableHead>
-            <TableHead className='text-center'>{t('Actions')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {props.models.map((model) => (
-            <TableRow key={model.modelKey}>
-              <TableCell>
-                <div className='font-medium'>{model.displayName}</div>
-                <div className='text-muted-foreground font-mono text-xs'>
-                  {model.upstreamIds.join(', ')}
-                </div>
-              </TableCell>
-              <TableCell>
-                {model.providerName}
-                {model.credentialGroupName ? (
-                  <div className='text-muted-foreground text-xs'>
-                    {t('API Key group: {{name}}', {
-                      name: model.credentialGroupName,
-                    })}
-                  </div>
-                ) : null}
-              </TableCell>
-              <TableCell className='tabular-nums'>
-                {formatCanvasDateTime(model.firstMissingAt)}
-              </TableCell>
-              <TableCell className='text-center'>
-                <Button
-                  size='sm'
-                  variant={model.enabled ? 'destructive' : 'outline'}
-                  onClick={() => props.onControl(model)}
-                >
-                  {model.enabled ? t('Disable model') : t('Restore model')}
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
 
 function failureText(
   target: AvailabilityTarget,
@@ -135,8 +75,7 @@ export function ModelAvailabilityPanel() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
   const [editRuleFor, setEditRuleFor] = useState<string | null>(null)
-  const [control, setControl] = useState<MissingModel | null>(null)
-  const [showHandled, setShowHandled] = useState(false)
+  const [control, setControl] = useState<AvailabilityControl | null>(null)
   const query = useQuery({
     queryKey: modelAvailabilityQueryKey,
     queryFn: ({ signal }) => getModelAvailability(signal),
@@ -229,8 +168,7 @@ export function ModelAvailabilityPanel() {
         )
       : null,
   ].filter((gap): gap is string => gap !== null)
-  const pending = data.models.filter((model) => model.enabled)
-  const handled = data.models.filter((model) => !model.enabled)
+  const pending = data.missingModels
   const failed = data.targets.filter(
     (target) => target.alerting && target.failureReason !== 'COST_RISK'
   )
@@ -280,7 +218,7 @@ export function ModelAvailabilityPanel() {
         <div className='space-y-1'>
           <p className='text-sm font-medium'>
             {t(
-              'Missing models {{missing}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}',
+              'Missing models {{missing}} · Disabled {{disabled}} · Failed probes {{failed}} · Paused {{paused}} · New models {{listed}}',
               counts
             )}
           </p>
@@ -448,7 +386,7 @@ export function ModelAvailabilityPanel() {
         </div>
       ) : null}
 
-      {data.models.length === 0 ? (
+      {pending.length === 0 ? (
         <div className='space-y-1 py-10 text-center'>
           <p className='font-medium'>{t('No confirmed model absences')}</p>
           <p className='text-muted-foreground text-sm'>
@@ -458,44 +396,23 @@ export function ModelAvailabilityPanel() {
           </p>
         </div>
       ) : (
-        <>
-          {pending.length ? (
-            <MissingTable
-              title={t('Missing models to handle ({{count}})', {
-                count: pending.length,
-              })}
-              models={pending}
-              onControl={setControl}
-            />
-          ) : null}
-          {handled.length ? (
-            <div className='space-y-2'>
-              <Button
-                variant='link'
-                className='h-auto p-0'
-                aria-expanded={showHandled}
-                onClick={() => setShowHandled((value) => !value)}
-              >
-                {t(
-                  showHandled
-                    ? 'Hide handled ({{count}})'
-                    : 'Show handled ({{count}})',
-                  {
-                    count: handled.length,
-                  }
-                )}
-              </Button>
-              {showHandled ? (
-                <MissingTable
-                  title={t('Disabled models')}
-                  models={handled}
-                  onControl={setControl}
-                />
-              ) : null}
-            </div>
-          ) : null}
-        </>
+        <ModelAvailabilityModelTable
+          title={t('Missing models to handle ({{count}})', {
+            count: pending.length,
+          })}
+          rows={pending.map((model) => ({ kind: 'missing', model }))}
+          onControl={setControl}
+        />
       )}
+      {data.disabledModels.length ? (
+        <ModelAvailabilityModelTable
+          title={t('Disabled models ({{count}})', {
+            count: data.disabledModels.length,
+          })}
+          rows={disabledRows(data.disabledModels)}
+          onControl={setControl}
+        />
+      ) : null}
 
       <ModelListingTable models={listing.models} onChanged={refresh} />
 
@@ -514,7 +431,6 @@ export function ModelAvailabilityPanel() {
         <ModelAvailabilityBulkDisableDialog
           models={pending}
           onClose={() => setBulkOpen(false)}
-          onChanged={refresh}
         />
       ) : null}
       {control ? (
@@ -524,7 +440,6 @@ export function ModelAvailabilityPanel() {
           manualEnabled={control.enabled}
           controlVersion={control.controlVersion}
           onClose={() => setControl(null)}
-          onChanged={refresh}
         />
       ) : null}
     </div>

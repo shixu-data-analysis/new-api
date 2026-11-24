@@ -75,6 +75,7 @@ import { canvasCompactName } from './brand'
 import { BusinessTerm } from './components/BusinessTerm'
 import { CanvasDateRangeFilter } from './components/CanvasDateRangeFilter'
 import { CanvasLocalizedSelectValue } from './components/CanvasLocalizedSelectValue'
+import { CanvasRowAction } from './components/CanvasRowAction'
 import { CanvasServerTable } from './components/CanvasServerTable'
 import { CodeBlock } from './components/CodeBlock'
 import { copyText } from './copy-text'
@@ -727,9 +728,9 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
       enableSorting: false,
       header: t('Actions'),
       cell: ({ row }) => (
-        <Button
+        <CanvasRowAction
+          tone='primary'
           type='button'
-          variant='outline'
           disabled={
             row.original.availableCount === 0 || downloadBatch.isPending
           }
@@ -740,7 +741,7 @@ export function CanvasRechargeCodes(props: { embedded?: boolean } = {}) {
         >
           <Download aria-hidden='true' />
           {batchDownloadLabel(row.original)}
-        </Button>
+        </CanvasRowAction>
       ),
     },
   ]

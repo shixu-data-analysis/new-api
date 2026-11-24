@@ -94,6 +94,7 @@ import {
 import { taskErrorCategoryLabels } from '../task-error-categories'
 import { BusinessTerm } from './BusinessTerm'
 import { canvasStaticColumnWidth } from './canvas-table-layout'
+import { CanvasRowAction } from './CanvasRowAction'
 import { CanvasStatusBadge } from './CanvasStatusBadge'
 import { CodeBlock } from './CodeBlock'
 import { ExecutionAttentionCard } from './ExecutionAttention'
@@ -1907,19 +1908,18 @@ function LimitSection(props: {
                   .getValues('rules')
                   .findIndex((item) => item.id === rule.id)
                 return (
-                  <div className='flex gap-2'>
-                    <Button
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <CanvasRowAction
+                      tone='primary'
                       type='button'
-                      variant='outline'
                       disabled={editingIndex !== null}
                       onClick={() => setEditingIndex(index)}
                     >
                       {t('Edit')}
-                    </Button>
-                    <Button
+                    </CanvasRowAction>
+                    <CanvasRowAction
+                      tone='danger'
                       type='button'
-                      variant='outline'
-                      className='text-destructive hover:text-destructive'
                       disabled={editingIndex !== null}
                       onClick={() =>
                         showReview(
@@ -1933,7 +1933,7 @@ function LimitSection(props: {
                       }
                     >
                       {t('Delete')}
-                    </Button>
+                    </CanvasRowAction>
                   </div>
                 )
               },
@@ -3034,38 +3034,33 @@ function ErrorSection(props: {
             {hasCustomMessage ? ` · ${t('Custom message')}` : ''}
           </span>
         </div>
-        <div className='flex justify-end gap-1'>
-          <Button
+        <div className='flex flex-wrap justify-end gap-2'>
+          <CanvasRowAction
+            tone='primary'
             type='button'
-            size='sm'
-            variant='ghost'
             onClick={() => openEditor(index)}
           >
             {t('Edit')}
-          </Button>
+          </CanvasRowAction>
           {rule.source === 'CUSTOM' ? (
-            <Button
+            <CanvasRowAction
+              tone='danger'
               type='button'
-              size='sm'
-              variant='ghost'
-              className='text-destructive'
               onClick={() => {
                 fields.remove(index)
                 toast.success(t('Deleted. It takes effect after publishing.'))
               }}
             >
               {t('Delete')}
-            </Button>
+            </CanvasRowAction>
           ) : null}
           {rule.source !== 'CUSTOM' && isOverride ? (
-            <Button
+            <CanvasRowAction
               type='button'
-              size='sm'
-              variant='ghost'
               onClick={() => restoreSystemDefault(index)}
             >
               {t('Restore')}
-            </Button>
+            </CanvasRowAction>
           ) : null}
         </div>
       </div>
