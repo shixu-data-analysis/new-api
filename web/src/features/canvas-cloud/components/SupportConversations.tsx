@@ -169,12 +169,13 @@ export function SupportConversations(props: {
     // It stands in for the list row, so it refreshes like the list (for 待回复 and 标记为已处理).
     refetchInterval: refreshWhileVisible(REFRESH_MILLISECONDS),
   })
-  // A linked conversation that is not on this page, such as one an administrator just opened to write first, is listed
-  // first (SUPPORT-PROACTIVE-001).
-  const pinned = onPage ? null : (linked.data?.items[0] ?? null)
+  const linkedRow = onPage ? null : (linked.data?.items[0] ?? null)
   const selected: CanvasAdminSupportConversation | null =
-    onPage ?? pinned ?? (props.conversationId ? null : (rows[0] ?? null))
+    onPage ?? linkedRow ?? (props.conversationId ? null : (rows[0] ?? null))
   const searching = debouncedSearch !== ''
+  // A linked conversation that is not on this page, such as one just opened to write first, is listed first in the plain
+  // list (SUPPORT-PROACTIVE-001). Under 待回复 or a search it still opens, but stays out of the results it does not match.
+  const pinned = filter === 'all' && !searching ? linkedRow : null
   let emptyText = t('No conversations yet')
   if (filter === 'pending') emptyText = t('No conversations awaiting reply')
   if (searching) emptyText = t('No matching conversations')

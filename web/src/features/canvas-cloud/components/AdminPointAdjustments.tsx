@@ -101,7 +101,10 @@ import {
   type PointReturnValues,
 } from '../form-validation'
 import { formatCanvasDateTime, formatMoneyMinor } from '../formatters'
-import { useOpenSupportConversation } from '../support-open-conversation'
+import {
+  canMessageCustomer,
+  useOpenSupportConversation,
+} from '../support-open-conversation'
 import type {
   CanvasAdminCustomerListItem,
   CanvasAdminCustomerPointBalance,
@@ -120,12 +123,9 @@ import { CopyableText } from './CopyableText'
 import { CustomerMailDialog } from './CustomerMailDialog'
 import { CustomerPriceAssignment } from './CustomerPriceAssignment'
 import { CustomerSuspensionDialog } from './CustomerSuspensionDialog'
-import {
-  ALL_OPTION_VALUE,
-  DashboardAgentSelect,
-  type DashboardSelectOption,
-} from './DashboardSearchSelect'
+import { ALL_OPTION_VALUE, DashboardAgentSelect } from './DashboardSearchSelect'
 import { RecentActivity } from './RecentActivity'
+import type { SearchSelectOption } from './SearchSelect'
 
 type AdjustmentAction = 'bonus' | 'paid' | 'deduction' | 'return'
 type PendingAction = AdjustmentAction | null
@@ -190,12 +190,12 @@ export function AdminPointAdjustments({
   >('ALL')
   // CUSTOMER-AGENT-RECHARGE-001: the referring agent and recharge filters.
   const filterId = useId()
-  const allAgents: DashboardSelectOption = {
+  const allAgents: SearchSelectOption = {
     value: ALL_OPTION_VALUE,
     label: t('All agents'),
   }
   const [referralAgent, setReferralAgent] =
-    useState<DashboardSelectOption>(allAgents)
+    useState<SearchSelectOption>(allAgents)
   const [recharge, setRecharge] = useState<'' | 'RECHARGED' | 'NOT_RECHARGED'>(
     ''
   )
@@ -1183,8 +1183,8 @@ export function AdminPointAdjustments({
               </div>
             </div>
             <div className='flex flex-wrap gap-2'>
-              {/* Only an active customer can be written to. */}
-              {onOpenSupportConversation && customer.status === 'ACTIVE' ? (
+              {onOpenSupportConversation &&
+              canMessageCustomer(customer.status) ? (
                 <Button
                   type='button'
                   variant='outline'

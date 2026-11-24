@@ -1,4 +1,3 @@
-import { getCanvasAdminCustomers } from './api'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { getCanvasAdminCustomers } from './api'
 import type { CanvasAdminCustomerListItem } from './types'
 
-/** Customers whose username contains the text, for the searchable customer choices (first 20, by name). */
+/** Customers whose name contains the text, or whose New API user ID is exactly it, for the customer choices (first 20). */
 export async function searchCanvasCustomers(
   search: string,
   signal: AbortSignal
@@ -29,7 +29,7 @@ export async function searchCanvasCustomers(
       {
         page: 1,
         pageSize: 20,
-        ...(search ? { username: search } : {}),
+        ...(search ? { search } : {}),
         sortBy: 'customer',
         sortOrder: 'asc',
       },

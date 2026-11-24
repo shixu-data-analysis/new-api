@@ -1888,6 +1888,8 @@ export async function getCanvasAdminCustomerTasks(
 export async function getCanvasAdminCustomers(
   query: {
     username?: string
+    /** A username that contains the text, or the exact New API user ID when it is digits. */
+    search?: string
     email?: string
     status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
     agentIdentity?: 'ALL' | 'AGENT' | 'CUSTOMER'

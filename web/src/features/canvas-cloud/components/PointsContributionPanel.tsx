@@ -73,7 +73,6 @@ import {
   ALL_OPTION_VALUE,
   DashboardAgentSelect,
   DashboardCustomerSelect,
-  type DashboardSelectOption,
 } from './DashboardSearchSelect'
 import {
   OperatingDashboardDrawers,
@@ -81,6 +80,7 @@ import {
   type DashboardDrawerRequest,
 } from './OperatingDashboardDrawers'
 import { OperatingDashboardWaterfall } from './OperatingDashboardWaterfall'
+import type { SearchSelectOption } from './SearchSelect'
 
 type View = 'numbers' | 'chart'
 
@@ -269,19 +269,19 @@ export function PointsContributionPanel() {
   const format = useDashboardFormatters()
   const filterId = useId()
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const allAgents: DashboardSelectOption = {
+  const allAgents: SearchSelectOption = {
     value: ALL_OPTION_VALUE,
     label: t('All agents'),
   }
-  const allCustomers: DashboardSelectOption = {
+  const allCustomers: SearchSelectOption = {
     value: ALL_OPTION_VALUE,
     label: t('All customers'),
   }
   const [periodType, setPeriodType] = useState<DashboardPeriodType>('MONTH')
   const [customFrom, setCustomFrom] = useState<Date>()
   const [customTo, setCustomTo] = useState<Date>()
-  const [agent, setAgent] = useState<DashboardSelectOption>(allAgents)
-  const [customer, setCustomer] = useState<DashboardSelectOption>(allCustomers)
+  const [agent, setAgent] = useState<SearchSelectOption>(allAgents)
+  const [customer, setCustomer] = useState<SearchSelectOption>(allCustomers)
   const [view, setView] = useState<View>('numbers')
   const [groupBy, setGroupBy] = useState<DashboardGroupBy>('MODEL')
   const [issuePage, setIssuePage] = useState(1)

@@ -29,10 +29,13 @@ import {
 import { Label } from '@/components/ui/label'
 
 import { searchCanvasCustomers } from '../customer-search'
-import { useOpenSupportConversation } from '../support-open-conversation'
-import { DashboardSearchSelect } from './DashboardSearchSelect'
+import {
+  canMessageCustomer,
+  useOpenSupportConversation,
+} from '../support-open-conversation'
+import { SearchSelect } from './SearchSelect'
 
-// Only an active customer can be written to; the others stay listed, not choosable, with the reason (SUPPORT-PROACTIVE-001).
+// A customer who cannot be written to stays listed, not choosable, with the reason (SUPPORT-PROACTIVE-001).
 const INACTIVE_HINTS: Partial<Record<string, string>> = {
   SUSPENDED: 'Suspended, cannot be messaged',
   CLOSED: 'Closed, cannot be messaged',
@@ -66,21 +69,26 @@ export function SupportStartConversationDialog(props: {
         </DialogHeader>
         <div className='grid gap-2'>
           <Label htmlFor={fieldId}>{t('Customer')}</Label>
-          <DashboardSearchSelect
+          <SearchSelect
             id={fieldId}
             value={NO_CHOICE}
             fixedOptions={[]}
             placeholder={t('Search customer name')}
             queryKey='support-start-customers'
             load={async (search, signal) =>
-              (await searchCanvasCustomers(search, signal)).map((customer) => {
-                const hint = INACTIVE_HINTS[customer.status]
-                return {
-                  value: customer.customerId,
-                  label: customer.username ?? customer.customerId,
-                  ...(hint ? { hint: t(hint), disabled: true } : {}),
-                }
-              })
+              (await searchCanvasCustomers(search, signal)).map((customer) => ({
+                value: customer.customerId,
+                label: customer.username ?? customer.customerId,
+                ...(canMessageCustomer(customer.status)
+                  ? {}
+                  : {
+                      hint: t(
+                        INACTIVE_HINTS[customer.status] ??
+                          'Only an active customer can be messaged'
+                      ),
+                      disabled: true,
+                    }),
+              }))
             }
             onChange={(option) => {
               if (!option.disabled && !open.isPending) open.mutate(option.value)

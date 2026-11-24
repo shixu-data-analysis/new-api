@@ -24,6 +24,11 @@ import { getServerErrorCode } from '@/lib/server-error-message'
 
 import { openCanvasAdminSupportConversation, supportQueryKeys } from './api'
 
+/** Only an active customer can be written to first (SUPPORT-PROACTIVE-001); Cloud checks the same on open and send. */
+export function canMessageCustomer(status: string): boolean {
+  return status === 'ACTIVE'
+}
+
 /**
  * Opens a customer's one conversation for an administrator who writes first (SUPPORT-PROACTIVE-001), from the customer
  * details or from 客服会话. The page reads a conversation that is not on its list by its ID; the answer is stored under

@@ -20,12 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   ALL_OPTION_VALUE,
   NO_AGENT_OPTION_VALUE,
-  type DashboardSelectOption,
 } from './components/DashboardSearchSelect'
+import type { SearchSelectOption } from './components/SearchSelect'
 
 /** The query an agent option filters by: one agent, the customers without one, or every customer. */
 export function agentFilterQuery(
-  option: DashboardSelectOption
+  option: SearchSelectOption
 ): { agentPrincipalId: string } | { noAgent: true } | Record<string, never> {
   if (option.value === NO_AGENT_OPTION_VALUE) return { noAgent: true }
   if (option.value === ALL_OPTION_VALUE) return {}
