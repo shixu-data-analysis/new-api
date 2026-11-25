@@ -45,7 +45,8 @@ const operations = [
   ['/internal/v1/model-catalog-imports/{importId}/publications', 'post'],
 ]
 const sharedErrorReference = '#/components/schemas/Error'
-// The error codes the Catalog import page tells apart (publicationErrorReason in AdminModelCatalog.tsx).
+// The error codes the Catalog import page tells apart. They are emitted as CatalogImportErrorCode, which
+// publicationErrorReason in AdminModelCatalog.tsx compares against, so a code outside this list fails the type check.
 const catalogImportErrorCodes = [
   'CATALOG_IMPORT_EXPIRED',
   'CATALOG_PLAN_ACTOR_MISMATCH',
@@ -67,6 +68,17 @@ function catalogImportErrorEnvelope(cloudError) {
     throw new Error(
       `Cloud error codes the Catalog import page reads are missing: ${missing.join(', ')}`
     )
+  }
+  const required = cloudError?.required ?? []
+  for (const field of ['code', 'message']) {
+    if (
+      cloudError?.properties?.[field]?.type !== 'string' ||
+      !required.includes(field)
+    ) {
+      throw new Error(
+        `Cloud error envelope is missing the required string ${field} Catalog import reads`
+      )
+    }
   }
   const diagnostics = cloudError?.properties?.diagnostics
   if (!diagnostics) {
@@ -205,6 +217,10 @@ function extractContract(document) {
       )
       contract.components.schemas ??= {}
       contract.components.schemas.Error = envelope
+      contract.components.schemas.CatalogImportErrorCode = {
+        type: 'string',
+        enum: catalogImportErrorCodes,
+      }
       for (const nested of collectReferences(envelope)) {
         if (!visited.has(nested)) pending.push(nested)
       }

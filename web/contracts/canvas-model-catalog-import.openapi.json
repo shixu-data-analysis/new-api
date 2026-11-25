@@ -65,6 +65,17 @@
       }
     },
     "schemas": {
+      "CatalogImportErrorCode": {
+        "enum": [
+          "CATALOG_IMPORT_EXPIRED",
+          "CATALOG_PLAN_ACTOR_MISMATCH",
+          "CATALOG_PLAN_SNAPSHOT_INVALID",
+          "CATALOG_PLAN_VALIDATOR_CHANGED",
+          "IDEMPOTENCY_CONFLICT",
+          "VALIDATION_FAILED"
+        ],
+        "type": "string"
+      },
       "Error": {
         "additionalProperties": true,
         "properties": {

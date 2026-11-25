@@ -55,7 +55,10 @@ interface ContractFixture {
       ModelCatalogImportSource: {
         properties: { schemaVersion: { const: number } }
       }
-      Error: { properties: { code: { enum?: string[] } } }
+      Error: {
+        required: string[]
+        properties: { code: { enum?: string[] } }
+      }
     }
   }
 }
@@ -240,6 +243,13 @@ describe('catalog import contract generation', () => {
           properties: Record<string, unknown>
         }
         delete error.properties.diagnostics
+      },
+    ],
+    [
+      'required error message',
+      (contract: ContractFixture) => {
+        const error = contract.components.schemas.Error
+        error.required = error.required.filter((field) => field !== 'message')
       },
     ],
     [
