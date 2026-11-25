@@ -44,6 +44,8 @@ const operations = [
   ['/internal/v1/model-catalog-imports/plan', 'post'],
   ['/internal/v1/model-catalog-imports/{importId}/publications', 'post'],
 ]
+const sharedErrorReference = '#/components/schemas/Error'
+const sharedErrorStub = { type: 'object', additionalProperties: true }
 const requiredSchemas = [
   'ModelCatalogDiagnostic',
   'ModelCatalogImportPlan',
@@ -158,6 +160,13 @@ function extractContract(document) {
     const reference = pending.pop()
     if (visited.has(reference)) continue
     visited.add(reference)
+    // Cloud's error envelope is shared by every Cloud feature, so copying it would make this snapshot stale on changes
+    // unrelated to Catalog import. The web reads errors through getServerErrorCode and never this type; it stays a stub.
+    if (reference === sharedErrorReference) {
+      contract.components.schemas ??= {}
+      contract.components.schemas.Error = sharedErrorStub
+      continue
+    }
     const { section, name } = componentReference(reference)
     const component = document?.components?.[section]?.[name]
     if (!component) {
@@ -167,19 +176,6 @@ function extractContract(document) {
     contract.components[section][name] = component
     for (const nested of collectReferences(component)) {
       if (!visited.has(nested)) pending.push(nested)
-    }
-  }
-  // The error envelope is Cloud's shared one, whose code list grows with every Cloud feature. Copying the list would make
-  // this snapshot stale on changes unrelated to Catalog import; the code is read as a string (getServerErrorCode).
-  const errorCode = contract.components.schemas?.Error?.properties?.code
-  if (errorCode?.enum) {
-    const { enum: _codes, ...rest } = errorCode
-    contract.components.schemas.Error = {
-      ...contract.components.schemas.Error,
-      properties: {
-        ...contract.components.schemas.Error.properties,
-        code: { ...rest, type: 'string' },
-      },
     }
   }
   for (const name of requiredSchemas) {
@@ -333,7 +329,7 @@ async function main() {
     )
     if (committedSnapshotSource !== expectedSnapshot) {
       throw new Error(
-        'Committed catalog import contract snapshot is stale or not repository-formatted. Run yarn canvas:catalog-types.'
+        'Committed catalog import contract snapshot is stale or not repository-formatted. Run bun run canvas:catalog-types.'
       )
     }
     if (input) {
@@ -345,7 +341,7 @@ async function main() {
         committedSnapshotSource
       ) {
         throw new Error(
-          'Catalog import contract snapshot is stale against the authoritative Cloud OpenAPI. Run yarn canvas:catalog-types.'
+          'Catalog import contract snapshot is stale against the authoritative Cloud OpenAPI. Run bun run canvas:catalog-types.'
         )
       }
     }
@@ -364,7 +360,7 @@ async function main() {
     })
     if (committedTypes !== generated) {
       throw new Error(
-        'Generated catalog import types are stale against the committed contract snapshot. Run yarn canvas:catalog-types.'
+        'Generated catalog import types are stale against the committed contract snapshot. Run bun run canvas:catalog-types.'
       )
     }
     process.stdout.write(
