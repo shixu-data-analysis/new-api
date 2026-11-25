@@ -45,7 +45,46 @@ const operations = [
   ['/internal/v1/model-catalog-imports/{importId}/publications', 'post'],
 ]
 const sharedErrorReference = '#/components/schemas/Error'
-const sharedErrorStub = { type: 'object', additionalProperties: true }
+// The error codes the Catalog import page tells apart (publicationErrorReason in AdminModelCatalog.tsx).
+const catalogImportErrorCodes = [
+  'CATALOG_IMPORT_EXPIRED',
+  'CATALOG_PLAN_ACTOR_MISMATCH',
+  'CATALOG_PLAN_SNAPSHOT_INVALID',
+  'CATALOG_PLAN_VALIDATOR_CHANGED',
+  'IDEMPOTENCY_CONFLICT',
+  'VALIDATION_FAILED',
+]
+
+// Cloud's error envelope is shared by every Cloud feature. The snapshot keeps only what the Catalog import page reads
+// from it: the code and message as strings, the diagnostics as Cloud defines them, and that the codes the page tells
+// apart still exist. A Cloud change elsewhere in the envelope or a new code for another feature leaves it current.
+function catalogImportErrorEnvelope(cloudError) {
+  const codes = cloudError?.properties?.code?.enum ?? []
+  const missing = catalogImportErrorCodes.filter(
+    (code) => !codes.includes(code)
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `Cloud error codes the Catalog import page reads are missing: ${missing.join(', ')}`
+    )
+  }
+  const diagnostics = cloudError?.properties?.diagnostics
+  if (!diagnostics) {
+    throw new Error(
+      'Cloud error envelope is missing the diagnostics Catalog import reads'
+    )
+  }
+  return {
+    type: 'object',
+    additionalProperties: true,
+    required: ['code', 'message'],
+    properties: {
+      code: { type: 'string' },
+      message: { type: 'string' },
+      diagnostics,
+    },
+  }
+}
 const requiredSchemas = [
   'ModelCatalogDiagnostic',
   'ModelCatalogImportPlan',
@@ -160,11 +199,15 @@ function extractContract(document) {
     const reference = pending.pop()
     if (visited.has(reference)) continue
     visited.add(reference)
-    // Cloud's error envelope is shared by every Cloud feature, so copying it would make this snapshot stale on changes
-    // unrelated to Catalog import. The web reads errors through getServerErrorCode and never this type; it stays a stub.
     if (reference === sharedErrorReference) {
+      const envelope = catalogImportErrorEnvelope(
+        document?.components?.schemas?.Error
+      )
       contract.components.schemas ??= {}
-      contract.components.schemas.Error = sharedErrorStub
+      contract.components.schemas.Error = envelope
+      for (const nested of collectReferences(envelope)) {
+        if (!visited.has(nested)) pending.push(nested)
+      }
       continue
     }
     const { section, name } = componentReference(reference)

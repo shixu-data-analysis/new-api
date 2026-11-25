@@ -67,6 +67,22 @@
     "schemas": {
       "Error": {
         "additionalProperties": true,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "diagnostics": {
+            "description": "Bundle validation failures expose source-located diagnostics. A missing Profile templateLanguageVersion uses SOURCE_FIELD_REQUIRED and TEMPLATE_LANGUAGE_VERSION_REQUIRED; an explicit unsupported version uses TEMPLATE_LANGUAGE_UNSUPPORTED for both code and templateReason.",
+            "items": {
+              "$ref": "#/components/schemas/ModelCatalogDiagnostic"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["code", "message"],
         "type": "object"
       },
       "ModelCatalogChange": {

@@ -55,9 +55,29 @@ interface ContractFixture {
       ModelCatalogImportSource: {
         properties: { schemaVersion: { const: number } }
       }
-      Error: Record<string, unknown>
+      Error: { properties: { code: { enum?: string[] } } }
     }
   }
+}
+
+// Cloud's shared error codes: the ones the Catalog import page tells apart, and one of another feature.
+const cloudErrorCodes = [
+  'CATALOG_IMPORT_EXPIRED',
+  'CATALOG_PLAN_ACTOR_MISMATCH',
+  'CATALOG_PLAN_SNAPSHOT_INVALID',
+  'CATALOG_PLAN_VALIDATOR_CHANGED',
+  'IDEMPOTENCY_CONFLICT',
+  'VALIDATION_FAILED',
+  'SUPPORT_CUSTOMER_INACTIVE',
+]
+
+// The committed snapshot read back as Cloud's OpenAPI, whose error envelope lists every code.
+async function cloudInputFromSnapshot(): Promise<ContractFixture> {
+  const contract = JSON.parse(
+    await readFile(snapshot, 'utf8')
+  ) as ContractFixture
+  contract.components.schemas.Error.properties.code.enum = [...cloudErrorCodes]
+  return contract
 }
 
 async function mutatedInput(
@@ -65,9 +85,7 @@ async function mutatedInput(
 ): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'catalog-contract-'))
   temporaryDirectories.push(directory)
-  const contract = JSON.parse(
-    await readFile(snapshot, 'utf8')
-  ) as ContractFixture
+  const contract = await cloudInputFromSnapshot()
   mutate(contract)
   const input = join(directory, 'openapi.json')
   await writeFile(input, `${JSON.stringify(contract)}\n`)
@@ -113,7 +131,10 @@ describe('catalog import contract generation', () => {
         resolve(process.cwd(), '.gitignore'),
         join(directory, '.gitignore')
       ),
-      copyFile(snapshot, join(directory, 'openapi.json')),
+      writeFile(
+        join(directory, 'openapi.json'),
+        `${JSON.stringify(await cloudInputFromSnapshot())}\n`
+      ),
       symlink(
         resolve(process.cwd(), 'node_modules'),
         join(directory, 'node_modules')
@@ -172,16 +193,28 @@ describe('catalog import contract generation', () => {
     ).resolves.toEqual(beforeCheck)
   })
 
-  it('stays current when Cloud changes its shared error envelope for another feature', async () => {
+  it('stays current when Cloud adds an error code or detail for another feature', async () => {
     const result = crossCheck(
       await mutatedInput((contract) => {
-        contract.components.schemas.Error = {
-          type: 'object',
-          properties: { code: { enum: ['SOME_OTHER_FEATURE_ERROR'] } },
+        const error = contract.components.schemas.Error as {
+          properties: Record<string, unknown> & { code: { enum?: string[] } }
         }
+        error.properties.code.enum?.push('SOME_OTHER_FEATURE_ERROR')
+        error.properties.historicalGroups = { type: 'array' }
       })
     )
     expect(result.status, result.stderr).toBe(0)
+  })
+
+  it('rejects a Cloud that no longer has an error code the import page tells apart', async () => {
+    const result = crossCheck(
+      await mutatedInput((contract) => {
+        contract.components.schemas.Error.properties.code.enum =
+          cloudErrorCodes.filter((code) => code !== 'CATALOG_IMPORT_EXPIRED')
+      })
+    )
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/CATALOG_IMPORT_EXPIRED/u)
   })
 
   it.each([
@@ -198,6 +231,15 @@ describe('catalog import contract generation', () => {
           '/v1/web/admin/model-catalog-imports/plan'
         ].post.responses['401'].$ref =
           '#/components/responses/BusinessRuleViolation'
+      },
+    ],
+    [
+      'error diagnostics',
+      (contract: ContractFixture) => {
+        const error = contract.components.schemas.Error as {
+          properties: Record<string, unknown>
+        }
+        delete error.properties.diagnostics
       },
     ],
     [
