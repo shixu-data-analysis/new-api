@@ -60,6 +60,11 @@ const catalogImportErrorCodes = [
 // from it: the code and message as strings, the diagnostics as Cloud defines them, and that the codes the page tells
 // apart still exist. A Cloud change elsewhere in the envelope or a new code for another feature leaves it current.
 function catalogImportErrorEnvelope(cloudError) {
+  if (!cloudError) {
+    throw new Error(
+      'Cloud error envelope (components.schemas.Error) is missing'
+    )
+  }
   const codes = cloudError?.properties?.code?.enum ?? []
   const missing = catalogImportErrorCodes.filter(
     (code) => !codes.includes(code)
@@ -217,6 +222,11 @@ function extractContract(document) {
       )
       contract.components.schemas ??= {}
       contract.components.schemas.Error = envelope
+      if (document?.components?.schemas?.CatalogImportErrorCode) {
+        throw new Error(
+          'Cloud defines CatalogImportErrorCode, the name this snapshot gives the codes the import page reads'
+        )
+      }
       contract.components.schemas.CatalogImportErrorCode = {
         type: 'string',
         enum: catalogImportErrorCodes,

@@ -55,6 +55,7 @@ interface ContractFixture {
       ModelCatalogImportSource: {
         properties: { schemaVersion: { const: number } }
       }
+      CatalogImportErrorCode?: unknown
       Error: {
         required: string[]
         properties: { code: { enum?: string[] } }
@@ -80,6 +81,8 @@ async function cloudInputFromSnapshot(): Promise<ContractFixture> {
     await readFile(snapshot, 'utf8')
   ) as ContractFixture
   contract.components.schemas.Error.properties.code.enum = [...cloudErrorCodes]
+  // The snapshot's own name for the codes the import page reads; Cloud has no such schema.
+  delete contract.components.schemas.CatalogImportErrorCode
   return contract
 }
 
@@ -209,6 +212,19 @@ describe('catalog import contract generation', () => {
     expect(result.status, result.stderr).toBe(0)
   })
 
+  it('rejects a Cloud error envelope without the diagnostics the import page reads', async () => {
+    const result = crossCheck(
+      await mutatedInput((contract) => {
+        const error = contract.components.schemas.Error as {
+          properties: Record<string, unknown>
+        }
+        delete error.properties.diagnostics
+      })
+    )
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toMatch(/missing the diagnostics/u)
+  })
+
   it('rejects a Cloud that no longer has an error code the import page tells apart', async () => {
     const result = crossCheck(
       await mutatedInput((contract) => {
@@ -234,15 +250,6 @@ describe('catalog import contract generation', () => {
           '/v1/web/admin/model-catalog-imports/plan'
         ].post.responses['401'].$ref =
           '#/components/responses/BusinessRuleViolation'
-      },
-    ],
-    [
-      'error diagnostics',
-      (contract: ContractFixture) => {
-        const error = contract.components.schemas.Error as {
-          properties: Record<string, unknown>
-        }
-        delete error.properties.diagnostics
       },
     ],
     [
