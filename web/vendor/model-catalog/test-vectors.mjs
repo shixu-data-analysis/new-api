@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { collapsePromptWhitespaceIssue, idempotencyHeaderIssue, isPromptReferenceFormat, REQUEST_VALIDATOR_VECTORS_SHA256, resolveCatalogRequest, validateCatalogRequest } from "@pixmiao/model-catalog/request-validator";
+import { collapsePromptWhitespaceIssue, idempotencyHeaderIssue, rewriteFramePromptReferencesIssue, isPromptReferenceFormat, REQUEST_VALIDATOR_VECTORS_SHA256, resolveCatalogRequest, validateCatalogRequest } from "@pixmiao/model-catalog/request-validator";
 const root = dirname(fileURLToPath(import.meta.url));
 const vectorBytes = readFileSync(resolve(root, "tests/request-validator-vectors.json"));
 assert.equal(createHash("sha256").update(vectorBytes).digest("hex"), REQUEST_VALIDATOR_VECTORS_SHA256);
@@ -28,4 +28,7 @@ for (const vector of vectors.profileRequestOptionVectors.idempotencyHeaders) tes
 });
 for (const vector of vectors.profileRequestOptionVectors.collapsePromptWhitespace) test("collapse prompt whitespace: " + vector.name, () => {
   assert.equal(collapsePromptWhitespaceIssue(vector.value, vector.kind) === undefined, vector.valid);
+});
+for (const vector of vectors.profileRequestOptionVectors.rewriteFramePromptReferences) test("rewrite frame prompt references: " + vector.name, () => {
+  assert.equal(rewriteFramePromptReferencesIssue(vector.value, vector.kind) === undefined, vector.valid);
 });
