@@ -15,7 +15,8 @@
     "omitEmpty": [1, 1],
     "orientationForRatio": [1, 1],
     "mediaUrlByRole": [2, 2],
-    "mediaUrlsByRole": [2, 2]
+    "mediaUrlsByRole": [2, 2],
+    "mediaItemsByRole": [2, 2]
   },
   "functionSemantics": {
     "lowercase": "String(first).toLowerCase; preserve undefined or null.",
@@ -31,16 +32,18 @@
     "omitEmpty": "Return omit sentinel only for undefined, null, empty string or empty array; preserve zero, false and objects.",
     "orientationForRatio": "Positive decimal W:H string; portrait if width is less than height, otherwise landscape; invalid yields ORIENTATION_RATIO_INVALID.",
     "mediaUrlByRole": "Two args: media array and nonempty role string. Exact role match; zero returns undefined, one returns URL, multiple yield MEDIA_ROLE_AMBIGUOUS.",
-    "mediaUrlsByRole": "Two args: media array and nonempty role string. Exact role match; return URLs in input order or empty array."
+    "mediaUrlsByRole": "Two args: media array and nonempty role string. Exact role match; return URLs in input order or empty array.",
+    "mediaItemsByRole": "Two args: media array and nonempty role string. Exact role match; return the matching media objects in input order or empty array."
   },
   "references": ["model.upstreamId", "model.protocolOptions", "request.prompt", "request.negativePrompt", "request.aspectRatio", "request.quality", "request.durationSeconds", "request.maxTokens", "request.batchSize", "request.outputIndex", "request.seed", "request.generateAudio", "request.watermark", "request.cameraFixed", "request.enableUpsample", "request.background", "request.rawParams", "request.systemInstruction", "request.generationConfig", "request.mediaPublicUrl", "request.mediaSafeName", "request.mediaAssetType", "request.taskId", "media.images", "media.videos", "media.audios"],
   "limits": { "depth": 32, "arrayItems": 10000, "listItems": 50, "functionArgs": 20, "jsonBytes": 524288, "jsonDepth": 32, "jsonKeys": 10000, "jsonStringLength": 100000 },
   "rules": {
     "expression": "Exactly one operator and only its declared companion fields; unknown dollar keys fail validation.",
-    "reference": "Only exact allowlisted paths, their descendants, and a lexically scoped map alias may be read; missing paths yield undefined.",
+    "reference": "Only exact allowlisted paths, their descendants, and a lexically scoped map alias or map position may be read; missing paths yield undefined.",
+    "map": "$map takes from, as and template, and optionally indexAs. as and indexAs are distinct identifiers; indexAs binds the 1-based position of the current item in the from array.",
     "presence": "Default, if and coalesce treat only undefined, null and empty string as absent. False, zero and empty arrays are present.",
     "omit": "Explicit omit and omitEmpty of undefined, null, empty string or empty array remove object fields and array entries. Other undefined values also remove object fields but remain undefined array entries.",
-    "media": "Non-array media or empty role yields MEDIA_ARGUMENT_INVALID; non-object item or non-string role yields MEDIA_ITEM_INVALID; matching missing/empty URL yields MEDIA_URL_INVALID. Single role lookup fails on multiple matches; plural lookup preserves input order and returns an empty array on zero matches.",
+    "media": "Non-array media or empty role yields MEDIA_ARGUMENT_INVALID; non-object item or non-string role yields MEDIA_ITEM_INVALID; matching missing/empty URL yields MEDIA_URL_INVALID. Single role lookup fails on multiple matches; plural URL and item lookups preserve input order and return an empty array on zero matches.",
     "json": "Strict JSON parsing rejects duplicate and unsafe keys, invalid Unicode, excess size or depth, and malformed JSON.",
     "diagnostic": "Errors expose phase, stable reason and template path; messages never include media URLs, request values or secret payloads."
   }

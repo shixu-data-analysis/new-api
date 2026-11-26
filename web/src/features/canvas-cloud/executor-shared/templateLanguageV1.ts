@@ -75,9 +75,12 @@ export function validateTemplate(template: unknown, location = "template", local
   if ("$map" in record) {
     if (!record.$map || typeof record.$map !== "object" || Array.isArray(record.$map)) fail("VALIDATION", "EXPRESSION_INVALID", location, "Template map is invalid");
     const map = record.$map as Record<string, unknown>;
-    if (Object.keys(map).sort().join(",") !== "as,from,template" || typeof map.as !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(map.as)) fail("VALIDATION", "EXPRESSION_INVALID", location, "Template map alias is invalid");
+    const keys = Object.keys(map).sort().join(",");
+    if ((keys !== "as,from,template" && keys !== "as,from,indexAs,template") || !isLocalName(map.as)) fail("VALIDATION", "EXPRESSION_INVALID", location, "Template map alias is invalid");
+    // The position names a reference by its place in the list, so a template can pair an item with the prompt's Nth reference.
+    if ("indexAs" in map && (!isLocalName(map.indexAs) || map.indexAs === map.as)) fail("VALIDATION", "EXPRESSION_INVALID", location, "Template map position name is invalid");
     validateTemplate(map.from, `${location}.$map.from`, localNames, depth + 1);
-    validateTemplate(map.template, `${location}.$map.template`, new Set([...localNames, map.as]), depth + 1);
+    validateTemplate(map.template, `${location}.$map.template`, new Set([...localNames, map.as, ...("indexAs" in map ? [map.indexAs as string] : [])]), depth + 1);
     return;
   }
   if ("$omit" in record) {
@@ -123,7 +126,10 @@ function evaluate(template: unknown, context: TemplateContext, locals: Record<st
     if (source === undefined || source === null) return [];
     if (!Array.isArray(source)) fail("EVALUATION", "MAP_REQUIRES_ARRAY", `${field}.$map.from`, "Template $map source must resolve to an array");
     if (source.length > language.limits.arrayItems) fail("EVALUATION", "MAP_TOO_MANY_ITEMS", `${field}.$map.from`, "Template $map source exceeds maximum items");
-    return source.map((item, index) => evaluate(map.template, context, { ...locals, [String(map.as)]: item }, depth + 1, `${field}.$map.template[${index}]`)).filter((child) => child !== OMIT);
+    return source.map((item, index) => {
+      const scope = { ...locals, [String(map.as)]: item, ...("indexAs" in map ? { [String(map.indexAs)]: index + 1 } : {}) };
+      return evaluate(map.template, context, scope, depth + 1, `${field}.$map.template[${index}]`);
+    }).filter((child) => child !== OMIT);
   }
   if ("$merge" in record) {
     const output: Record<string, unknown> = {};
@@ -142,6 +148,10 @@ function evaluate(template: unknown, context: TemplateContext, locals: Record<st
     if (value !== OMIT && value !== undefined) output[key] = value;
   }
   return output;
+}
+
+function isLocalName(name: unknown): name is string {
+  return typeof name === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(name);
 }
 
 function isAllowedReference(reference: string, localNames: ReadonlySet<string>) {
@@ -164,16 +174,18 @@ function readReference(reference: string, context: TemplateContext, locals: Reco
 
 function callFunction(name: string, args: unknown[], field: string) {
   const first = args[0];
-  if (name === "mediaUrlByRole" || name === "mediaUrlsByRole") {
+  if (name === "mediaUrlByRole" || name === "mediaUrlsByRole" || name === "mediaItemsByRole") {
     if (!Array.isArray(first) || typeof args[1] !== "string" || !args[1].trim()) fail("EVALUATION", "MEDIA_ARGUMENT_INVALID", field, `${name} expects a media array and role`);
-    const urls = first.flatMap((item: unknown) => {
+    const items = first.flatMap((item: unknown) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) fail("EVALUATION", "MEDIA_ITEM_INVALID", field, `${name} expects media objects`);
       const media = item as Record<string, unknown>;
       if (typeof media.role !== "string" || !media.role.trim()) fail("EVALUATION", "MEDIA_ITEM_INVALID", field, `${name} expects media objects`);
       if (media.role !== args[1]) return [];
       if (typeof media.url !== "string" || !media.url.trim()) fail("EVALUATION", "MEDIA_URL_INVALID", field, `${name} expects a media URL`);
-      return [media.url];
+      return [media];
     });
+    if (name === "mediaItemsByRole") return items;
+    const urls = items.map((media) => media.url);
     if (name === "mediaUrlsByRole") return urls;
     if (urls.length > 1) fail("EVALUATION", "MEDIA_ROLE_AMBIGUOUS", field, "mediaUrlByRole found multiple media for role");
     return urls[0];
