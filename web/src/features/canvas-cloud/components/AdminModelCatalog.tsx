@@ -63,6 +63,7 @@ import type {
   ModelCatalogDecision,
   ModelCatalogDiagnostic,
   ModelCatalogImportPlan,
+  ModelCatalogOverride,
 } from '../generated/model-catalog-import'
 import { useModelManagementEditing } from '../model-management-editor-page-context'
 import type { ModelManagementReturnContext } from '../model-management-navigation-state'
@@ -276,6 +277,7 @@ const countBadgeClass = {
   pending:
     'rounded-full bg-orange-100 px-2 text-xs font-medium text-orange-800 dark:bg-orange-500/20 dark:text-orange-200',
   conflict: 'bg-destructive rounded-full px-2 text-xs font-medium text-white',
+  kept: 'rounded-full bg-amber-100 px-2 text-xs font-medium text-amber-800 dark:bg-amber-500/20 dark:text-amber-200',
 } as const
 
 export function AdminModelCatalog(props: {
@@ -371,18 +373,20 @@ export function AdminModelCatalog(props: {
   // The server computes what each selected Bundle version does; its plan and token replace the current ones.
   const overridePreview = useMutation({
     mutationFn: previewCanvasModelCatalogOverrides,
-    onSuccess: (next) => setPlan(next),
-    onError: (error) => {
-      setPlan(null)
-      planActorPrincipalId.current = null
-      setFailure({
-        message: t(
-          'The preview changed. Select the catalog source folder again.'
-        ),
-        details: errorDetails(error, t).details,
-      })
-    },
   })
+  // The importer's latest selection shows at once; the plan follows when the server has computed it.
+  const [requestedOverrides, setRequestedOverrides] = useState<{
+    importId: string
+    overrides: ModelCatalogOverride[]
+  } | null>(null)
+  const resetOverridePreview = overridePreview.reset
+  const planImportId = plan?.importId
+  // A preview belongs to the plan it was asked for. When that plan is replaced (another folder or
+  // administrator, expiry, publication), the running preview is dropped so its result never lands.
+  useEffect(() => {
+    resetOverridePreview()
+    setRequestedOverrides(null)
+  }, [planImportId, resetOverridePreview])
   const publisher = useMutation({
     mutationFn: publishCanvasModelCatalogImport,
     onSuccess: async () => {
@@ -482,7 +486,8 @@ export function AdminModelCatalog(props: {
           reviewCatalogModel(
             model,
             plan?.changes ?? [],
-            plan?.diagnostics ?? []
+            plan?.diagnostics ?? [],
+            plan?.decisions ?? []
           )
         ),
     [plan]
@@ -504,8 +509,12 @@ export function AdminModelCatalog(props: {
   const publishableChanges = (plan?.changes ?? []).filter(
     (change) => change.action === 'CREATE' || change.action === 'CREATE_VERSION'
   )
+  // An admin version kept publishes nothing, so it is listed apart from the models that change.
   const changedModels = (plan?.models ?? []).filter(
-    (model) => model.action !== 'NO_OP'
+    (model) => model.action !== 'NO_OP' && model.action !== 'DECISION'
+  )
+  const keptModels = (plan?.models ?? []).filter(
+    (model) => model.action === 'DECISION'
   )
   const channelVersionChanges = (plan?.changes ?? [])
     .filter(
@@ -560,33 +569,65 @@ export function AdminModelCatalog(props: {
     unknownDiagnostics.length > 0 ||
     unknownAction
   )
+  // What the plan and its token were computed with; publication sends exactly these.
   const overrides = (plan?.decisions ?? [])
     .filter((decision) => decision.overridden)
     .map(({ resourceType, key }) => ({ resourceType, key }))
+  const selectedOverrides =
+    requestedOverrides && requestedOverrides.importId === plan?.importId
+      ? requestedOverrides.overrides
+      : overrides
   const decisionState = {
-    decisions: plan?.decisions ?? [],
-    busy: overridePreview.isPending,
+    decisions: (plan?.decisions ?? []).map((decision) => ({
+      ...decision,
+      overridden: selectedOverrides.some(
+        (entry) =>
+          entry.resourceType === decision.resourceType &&
+          entry.key === decision.key
+      ),
+    })),
     onToggle: (decision: ModelCatalogDecision, overridden: boolean) => {
       if (!plan?.importId) return
-      const next = overrides.filter(
+      const importId = plan.importId
+      const others = selectedOverrides.filter(
         (entry) =>
           entry.resourceType !== decision.resourceType ||
           entry.key !== decision.key
       )
-      overridePreview.mutate({
-        importId: plan.importId,
-        overrides: overridden
-          ? [
-              ...next,
-              { resourceType: decision.resourceType, key: decision.key },
-            ]
-          : next,
-      })
+      const next = overridden
+        ? [
+            ...others,
+            { resourceType: decision.resourceType, key: decision.key },
+          ]
+        : others
+      setRequestedOverrides({ importId, overrides: next })
+      // Callbacks passed to mutate run for the latest call only, so an earlier selection's plan never lands.
+      overridePreview.mutate(
+        { importId, overrides: next },
+        {
+          onSuccess: (nextPlan) => {
+            setPlan(nextPlan)
+            setRequestedOverrides(null)
+          },
+          onError: (error) => {
+            setPlan(null)
+            setRequestedOverrides(null)
+            planActorPrincipalId.current = null
+            setFailure({
+              message: t(
+                'The preview changed. Select the catalog source folder again.'
+              ),
+              details: errorDetails(error, t).details,
+            })
+          },
+        }
+      )
     },
   }
   const canPublish =
     (plan?.action === 'PUBLISH' || recoveringExisting) &&
     !planBlocked &&
+    !overridePreview.isPending &&
     Boolean(plan.importId) &&
     Boolean(plan.planToken) &&
     (publishableChanges.length > 0 || recoveringExisting)
@@ -1040,6 +1081,14 @@ export function AdminModelCatalog(props: {
                             count: modelCounts.changed,
                           })}
                         </span>
+                        {modelCounts.kept > 0 && ' '}
+                        {modelCounts.kept > 0 && (
+                          <span className={countBadgeClass.kept}>
+                            {t('{{count}} admin versions kept', {
+                              count: modelCounts.kept,
+                            })}
+                          </span>
+                        )}
                         {modelCounts.pending > 0 && ' '}
                         {modelCounts.pending > 0 && (
                           <span className={countBadgeClass.pending}>
@@ -1130,6 +1179,21 @@ export function AdminModelCatalog(props: {
                       t('Following a Channel configuration, content unchanged'),
                       changedModels.filter((model) => !model.inBundle)
                     ),
+                    ...(keptModels.length
+                      ? [
+                          {
+                            label: t(
+                              'Admin versions kept, different from the Bundle'
+                            ),
+                            value: keptModels
+                              .map(
+                                (model) =>
+                                  `${model.displayName} v${model.currentVersion}`
+                              )
+                              .join(t(', ')),
+                          },
+                        ]
+                      : []),
                     ...(channelVersionChanges.length
                       ? [
                           {
@@ -1144,7 +1208,11 @@ export function AdminModelCatalog(props: {
                     },
                     {
                       label: t('Unchanged models skipped'),
-                      value: String(plan.models.length - changedModels.length),
+                      value: String(
+                        plan.models.length -
+                          changedModels.length -
+                          keptModels.length
+                      ),
                     },
                   ]),
               { label: t('Plan action'), value: t(plan.action) },

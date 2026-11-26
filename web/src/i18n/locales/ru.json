@@ -11299,6 +11299,9 @@
     "Restore model: {{model}}": "Восстановить модель: {{model}}",
     "Delete the model: {{model}}": "Удалить модель: {{model}}",
     "Enter complete invite code": "Введите полный код приглашения",
-    "Invite code created, but it could not be revealed": "Код приглашения создан, но показать его не удалось"
+    "Invite code created, but it could not be revealed": "Код приглашения создан, но показать его не удалось",
+    "Admin version kept": "Сохранена версия админки",
+    "{{count}} admin versions kept": "версий админки сохранено: {{count}}",
+    "Admin versions kept, different from the Bundle": "Сохранённые версии админки (отличаются от пакета, не перезаписаны)"
   }
 }

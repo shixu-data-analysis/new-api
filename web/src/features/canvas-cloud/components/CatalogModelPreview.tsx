@@ -644,6 +644,7 @@ export function CatalogModelPreview(props: {
     ['CHANGED', t('Changed')],
     ['CREATE', t('New')],
     ['NEW_VERSION', t('New version')],
+    ['ADMIN_KEPT', t('Admin version kept')],
     ['DESCRIPTION', t('Description updated')],
     ['CONFLICT', t('In conflict')],
     ['UNCHANGED', t('Unchanged')],
