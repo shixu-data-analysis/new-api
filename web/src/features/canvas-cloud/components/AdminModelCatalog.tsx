@@ -59,6 +59,7 @@ import {
   readCatalogSource,
 } from '../catalogSourceReader'
 import type {
+  CatalogImportErrorCode,
   ModelCatalogDecision,
   ModelCatalogDiagnostic,
   ModelCatalogImportPlan,
@@ -226,7 +227,8 @@ function errorDetails(error: unknown, t: TFunction): CatalogFailure {
 }
 
 function publicationErrorReason(error: unknown, t: TFunction): string {
-  const code = getServerErrorCode(error)
+  // Only the codes the snapshot checks still exist in Cloud are told apart; comparing another one fails the type check.
+  const code = getServerErrorCode(error) as CatalogImportErrorCode | null
   const status = getServerErrorStatus(error)
   const response = (
     error as {

@@ -24,9 +24,10 @@ import { fileURLToPath } from 'node:url'
 import { format } from 'oxfmt'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
+// The Cloud checkout beside this one: the same feature folder, or the main worktrees side by side.
 const defaultAuthoritativeInput = resolve(
   scriptDirectory,
-  '../../../.worktrees/canvas-cloud-integration/api/openapi-v1.json'
+  '../../../canvas-cloud/api/openapi-v1.json'
 )
 const snapshotPath = resolve(
   scriptDirectory,
@@ -43,6 +44,64 @@ const operations = [
   ['/internal/v1/model-catalog-imports/plan', 'post'],
   ['/internal/v1/model-catalog-imports/{importId}/publications', 'post'],
 ]
+const sharedErrorReference = '#/components/schemas/Error'
+// The error codes the Catalog import page tells apart. They are emitted as CatalogImportErrorCode, which
+// publicationErrorReason in AdminModelCatalog.tsx compares against, so a code outside this list fails the type check.
+const catalogImportErrorCodes = [
+  'CATALOG_IMPORT_EXPIRED',
+  'CATALOG_PLAN_ACTOR_MISMATCH',
+  'CATALOG_PLAN_SNAPSHOT_INVALID',
+  'CATALOG_PLAN_VALIDATOR_CHANGED',
+  'IDEMPOTENCY_CONFLICT',
+  'VALIDATION_FAILED',
+]
+
+// Cloud's error envelope is shared by every Cloud feature. The snapshot keeps only what the Catalog import page reads
+// from it: the code and message as strings, the diagnostics as Cloud defines them, and that the codes the page tells
+// apart still exist. A Cloud change elsewhere in the envelope or a new code for another feature leaves it current.
+function catalogImportErrorEnvelope(cloudError) {
+  if (!cloudError) {
+    throw new Error(
+      'Cloud error envelope (components.schemas.Error) is missing'
+    )
+  }
+  const codes = cloudError?.properties?.code?.enum ?? []
+  const missing = catalogImportErrorCodes.filter(
+    (code) => !codes.includes(code)
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `Cloud error codes the Catalog import page reads are missing: ${missing.join(', ')}`
+    )
+  }
+  const required = cloudError?.required ?? []
+  for (const field of ['code', 'message']) {
+    if (
+      cloudError?.properties?.[field]?.type !== 'string' ||
+      !required.includes(field)
+    ) {
+      throw new Error(
+        `Cloud error envelope is missing the required string ${field} Catalog import reads`
+      )
+    }
+  }
+  const diagnostics = cloudError?.properties?.diagnostics
+  if (!diagnostics) {
+    throw new Error(
+      'Cloud error envelope is missing the diagnostics Catalog import reads'
+    )
+  }
+  return {
+    type: 'object',
+    additionalProperties: true,
+    required: ['code', 'message'],
+    properties: {
+      code: { type: 'string' },
+      message: { type: 'string' },
+      diagnostics,
+    },
+  }
+}
 const requiredSchemas = [
   'ModelCatalogDiagnostic',
   'ModelCatalogImportPlan',
@@ -157,6 +216,26 @@ function extractContract(document) {
     const reference = pending.pop()
     if (visited.has(reference)) continue
     visited.add(reference)
+    if (reference === sharedErrorReference) {
+      const envelope = catalogImportErrorEnvelope(
+        document?.components?.schemas?.Error
+      )
+      contract.components.schemas ??= {}
+      contract.components.schemas.Error = envelope
+      if (document?.components?.schemas?.CatalogImportErrorCode) {
+        throw new Error(
+          'Cloud defines CatalogImportErrorCode, the name this snapshot gives the codes the import page reads'
+        )
+      }
+      contract.components.schemas.CatalogImportErrorCode = {
+        type: 'string',
+        enum: catalogImportErrorCodes,
+      }
+      for (const nested of collectReferences(envelope)) {
+        if (!visited.has(nested)) pending.push(nested)
+      }
+      continue
+    }
     const { section, name } = componentReference(reference)
     const component = document?.components?.[section]?.[name]
     if (!component) {
@@ -319,7 +398,7 @@ async function main() {
     )
     if (committedSnapshotSource !== expectedSnapshot) {
       throw new Error(
-        'Committed catalog import contract snapshot is stale or not repository-formatted. Run yarn canvas:catalog-types.'
+        'Committed catalog import contract snapshot is stale or not repository-formatted. Run bun run canvas:catalog-types.'
       )
     }
     if (input) {
@@ -331,7 +410,7 @@ async function main() {
         committedSnapshotSource
       ) {
         throw new Error(
-          'Catalog import contract snapshot is stale against the authoritative Cloud OpenAPI. Run yarn canvas:catalog-types.'
+          'Catalog import contract snapshot is stale against the authoritative Cloud OpenAPI. Run bun run canvas:catalog-types.'
         )
       }
     }
@@ -350,7 +429,7 @@ async function main() {
     })
     if (committedTypes !== generated) {
       throw new Error(
-        'Generated catalog import types are stale against the committed contract snapshot. Run yarn canvas:catalog-types.'
+        'Generated catalog import types are stale against the committed contract snapshot. Run bun run canvas:catalog-types.'
       )
     }
     process.stdout.write(

@@ -65,197 +65,22 @@
       }
     },
     "schemas": {
-      "CatalogRequestValidationIssue": {
-        "additionalProperties": false,
-        "properties": {
-          "actual": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ]
-          },
-          "allowed": {
-            "items": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                }
-              ]
-            },
-            "type": "array"
-          },
-          "assetId": {
-            "type": "string"
-          },
-          "assetIndex": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "code": {
-            "type": "string"
-          },
-          "field": {
-            "type": "string"
-          },
-          "maximum": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ]
-          },
-          "maximumSource": {
-            "description": "MEDIA_TOTAL_DURATION_EXCEEDED: the maximum is the requested output length (mediaConstraints.video.totalDurationWithinOutput).",
-            "enum": ["OUTPUT_DURATION"],
-            "type": "string"
-          },
-          "mediaKind": {
-            "enum": ["image", "video", "audio"],
-            "type": "string"
-          },
-          "minimum": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              }
-            ]
-          }
-        },
-        "required": ["code", "field"],
-        "type": "object"
+      "CatalogImportErrorCode": {
+        "enum": [
+          "CATALOG_IMPORT_EXPIRED",
+          "CATALOG_PLAN_ACTOR_MISMATCH",
+          "CATALOG_PLAN_SNAPSHOT_INVALID",
+          "CATALOG_PLAN_VALIDATOR_CHANGED",
+          "IDEMPOTENCY_CONFLICT",
+          "VALIDATION_FAILED"
+        ],
+        "type": "string"
       },
       "Error": {
-        "additionalProperties": false,
+        "additionalProperties": true,
         "properties": {
           "code": {
-            "enum": [
-              "NOTIFICATION_ADDRESS_NOT_FOUND",
-              "NOTIFICATION_ADDRESS_REJECTED",
-              "NOTIFICATION_ADDRESS_REQUIRED",
-              "NOTIFICATION_ADDRESS_UNAVAILABLE",
-              "NOTIFICATION_ADDRESS_UNKNOWN",
-              "NOTIFICATION_EVENT_UNKNOWN",
-              "NOTIFICATION_SETTINGS_CONFLICT",
-              "NOTIFICATION_TEST_IN_PROGRESS",
-              "NOTIFICATION_WEBHOOK_UNAVAILABLE",
-              "UNAUTHORIZED",
-              "FORBIDDEN",
-              "INVITE_REGISTRATION_REQUIRED",
-              "NOT_FOUND",
-              "NOT_AN_INVITER",
-              "IDEMPOTENCY_CONFLICT",
-              "CONFLICT",
-              "INVALID_STATE_TRANSITION",
-              "QUOTE_EXPIRED",
-              "HIGHER_PRICE_CONFIRMATION_REQUIRED",
-              "INSUFFICIENT_POINTS",
-              "RECHARGE_CODE_ALREADY_REDEEMED",
-              "RECHARGE_CODE_UNAVAILABLE",
-              "PROMOTION_GATE_CLOSED",
-              "VALIDATION_FAILED",
-              "PAYLOAD_TOO_LARGE",
-              "INTERNAL_ERROR",
-              "SERVICE_UNAVAILABLE",
-              "AUDIT_UNAVAILABLE",
-              "CATALOG_IMPORT_EXPIRED",
-              "CATALOG_PLAN_ACTOR_MISMATCH",
-              "CATALOG_PLAN_VALIDATOR_CHANGED",
-              "CATALOG_PLAN_SNAPSHOT_INVALID",
-              "CATALOG_PLAN_HASH_MISMATCH",
-              "CATALOG_PLAN_TOKEN_MISMATCH",
-              "CATALOG_PLAN_STALE",
-              "CATALOG_PLAN_PUBLICATION_CONFLICT",
-              "CATALOG_PLAN_BLOCKING",
-              "CATALOG_PLAN_NO_CHANGES",
-              "MODEL_UNAVAILABLE",
-              "MODEL_VERSION_CHANGED",
-              "CODE_ENCRYPTION_UNAVAILABLE",
-              "INVALID_INVITE_CAPACITY",
-              "INVALID_VALIDITY_WINDOW",
-              "INVALID_INITIAL_BONUS",
-              "PRICE_GROUP_UNAVAILABLE",
-              "PROMOTION_UNAVAILABLE",
-              "PROMOTION_CHANGED",
-              "INVITER_UNAVAILABLE",
-              "INVITER_TARGET_UNAVAILABLE",
-              "INVALID_RECHARGE_NAME",
-              "INVALID_RECHARGE_COUNT",
-              "AMOUNT_NOT_REDEEMABLE",
-              "INVITER_CAPABILITY_ALREADY_GRANTED",
-              "CREDENTIAL_GROUP_VERSION_STALE",
-              "CREDENTIAL_GROUP_ARCHIVED",
-              "PREVIEW_STALE",
-              "MODEL_PROVIDER_MISMATCH",
-              "CREDENTIAL_SCHEME_MISMATCH",
-              "NO_CHANGES",
-              "CREDENTIAL_GROUP_HAS_BINDINGS",
-              "CREDENTIAL_GROUP_ACTIVE",
-              "CONSENT_REQUIRED",
-              "CONVENTION_UNCHANGED",
-              "CONVENTION_VERSION_CHANGED",
-              "EMAIL_NOT_CONFIGURED",
-              "EMAIL_NOT_SENT",
-              "TASK_DEBT_OUTSTANDING",
-              "USER_OUTPUT_LIMIT",
-              "SUPPORT_CONVERSATION_NOT_FOUND",
-              "SUPPORT_RATE_LIMITED",
-              "SUPPORT_ATTACHMENT_NOT_FOUND",
-              "SUPPORT_ATTACHMENT_LIMIT",
-              "SUPPORT_ATTACHMENT_NOT_UPLOADED",
-              "SUPPORT_STORAGE_UNAVAILABLE",
-              "SUPPORT_CUSTOMER_NOT_FOUND",
-              "SUPPORT_CUSTOMER_INACTIVE",
-              "TURN_BUSY",
-              "SKILL_FILE_NOT_FOUND"
-            ],
             "type": "string"
-          },
-          "details": {
-            "additionalProperties": true,
-            "description": "Structured business details. Catalog request failures expose validationIssues and validatorVersion; clients map stable codes and fields rather than parsing message.",
-            "properties": {
-              "historicalGroups": {
-                "description": "For historicalBinding only: all actual old-binding credential groups, deduplicated and sorted by id; contains no secret data.",
-                "items": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "id": {
-                      "format": "uuid",
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["id", "name"],
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              "validationIssues": {
-                "items": {
-                  "$ref": "#/components/schemas/CatalogRequestValidationIssue"
-                },
-                "type": "array"
-              },
-              "validatorVersion": {
-                "type": "string"
-              }
-            },
-            "type": "object"
           },
           "diagnostics": {
             "description": "Bundle validation failures expose source-located diagnostics. A missing Profile templateLanguageVersion uses SOURCE_FIELD_REQUIRED and TEMPLATE_LANGUAGE_VERSION_REQUIRED; an explicit unsupported version uses TEMPLATE_LANGUAGE_UNSUPPORTED for both code and templateReason.",
@@ -266,12 +91,9 @@
           },
           "message": {
             "type": "string"
-          },
-          "requestId": {
-            "type": "string"
           }
         },
-        "required": ["code", "message", "requestId"],
+        "required": ["code", "message"],
         "type": "object"
       },
       "ModelCatalogChange": {
