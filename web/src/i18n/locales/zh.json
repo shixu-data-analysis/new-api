@@ -11299,6 +11299,9 @@
     "Restore model: {{model}}": "恢复模型：{{model}}",
     "Delete the model: {{model}}": "删除模型：{{model}}",
     "Enter complete invite code": "输入完整邀请码",
-    "Invite code created, but it could not be revealed": "邀请码已创建，但无法显示"
+    "Invite code created, but it could not be revealed": "邀请码已创建，但无法显示",
+    "Admin version kept": "保留管理端版本",
+    "{{count}} admin versions kept": "{{count}} 个保留管理端版本",
+    "Admin versions kept, different from the Bundle": "保留管理端版本（与目录包不同，未覆盖）"
   }
 }

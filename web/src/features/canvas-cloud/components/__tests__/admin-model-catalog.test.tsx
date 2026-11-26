@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -16,6 +17,7 @@ import { AdminModelCatalog } from '../AdminModelCatalog'
 const mocks = vi.hoisted(() => ({
   plan: vi.fn(),
   publish: vi.fn(),
+  preview: vi.fn(),
   published: vi.fn(),
   tags: vi.fn(),
   priceGroups: vi.fn(),
@@ -78,7 +80,7 @@ vi.mock('../../api', async (original) => ({
     .isCanvasAccessForbidden,
   planCanvasModelCatalogImport: mocks.plan,
   publishCanvasModelCatalogImport: mocks.publish,
-  previewCanvasModelCatalogOverrides: vi.fn(),
+  previewCanvasModelCatalogOverrides: mocks.preview,
   getCanvasAdminTestingModels: mocks.published,
   getCanvasAdminModelTags: mocks.tags,
   getCanvasPriceGroups: mocks.priceGroups,
@@ -283,6 +285,39 @@ function catalogPlan(overrides: Record<string, unknown> = {}) {
   }
 }
 
+// A plan with one new model and two models an administrator changed; listed keys select the Bundle version.
+const FIRST_KEPT_KEY = 'canvas.image.kept'
+const KEPT_KEYS = [FIRST_KEPT_KEY, 'canvas.image.kept-two']
+function keptAdminPlan(overridden: string[] = [], importId = IMPORT_ONE_ID) {
+  return catalogPlan({
+    importId,
+    models: [
+      planModel(),
+      ...KEPT_KEYS.map((key, index) =>
+        planModel({
+          productKey: key,
+          displayName: index === 0 ? 'Kept model' : 'Second kept model',
+          action: overridden.includes(key) ? 'CREATE_VERSION' : 'DECISION',
+          currentVersion: 3,
+          proposedVersion: overridden.includes(key) ? 4 : 3,
+          credential: keptCredential,
+        })
+      ),
+    ],
+    decisions: KEPT_KEYS.map((key) => ({
+      resourceType: 'CUSTOMER_MODEL',
+      key,
+      overridden: overridden.includes(key),
+      currentVersion: 3,
+      impact: [],
+      definition: {
+        current: { displayName: 'Admin name' },
+        proposed: { displayName: 'Bundle name' },
+      },
+    })),
+  })
+}
+
 function bundleFiles(
   model: unknown,
   profile: Record<string, unknown> = { schemaVersion: 1 }
@@ -314,6 +349,7 @@ describe('Canvas model catalog folder upload', () => {
     )
     mocks.plan.mockReset()
     mocks.publish.mockReset()
+    mocks.preview.mockReset()
     mocks.published.mockReset()
     mocks.published.mockResolvedValue([])
     mocks.tags.mockReset()
@@ -1523,6 +1559,145 @@ describe('Canvas model catalog folder upload', () => {
     resolvePublication?.({})
     await waitFor(() =>
       expect(mocks.toastSuccess).toHaveBeenCalledWith('Model catalog published')
+    )
+  })
+  it('lists admin versions kept apart from the models to publish', async () => {
+    mocks.plan.mockResolvedValue(keptAdminPlan())
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    expect(
+      await screen.findByRole('tab', {
+        name: 'Models 1 models changed 2 admin versions kept 1 models pending',
+      })
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Admin version kept')).toHaveLength(2)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review publication content' })
+    )
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveTextContent(/Models to publish:\s*1/)
+    expect(dialog).toHaveTextContent(
+      /Admin versions kept, different from the Bundle:\s*Kept model v3, Second kept model v3/
+    )
+    expect(dialog).toHaveTextContent(/Unchanged models skipped:\s*0/)
+  })
+
+  it('applies override selections at once and keeps only the latest preview', async () => {
+    const previews: Array<(value: unknown) => void> = []
+    mocks.plan.mockResolvedValue(keptAdminPlan())
+    mocks.preview.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          previews.push(resolve)
+        })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    await screen.findByRole('tab', { name: /2 admin versions kept/ })
+    const checkboxes = screen.getAllByRole('checkbox', {
+      name: 'Overwrite with the Bundle',
+    })
+    expect(checkboxes).toHaveLength(2)
+    for (const checkbox of checkboxes) fireEvent.click(checkbox)
+    for (const checkbox of checkboxes) {
+      expect(checkbox).toBeChecked()
+      expect(checkbox).toBeEnabled()
+    }
+    expect(
+      screen.getByRole('button', { name: 'Review publication content' })
+    ).toBeDisabled()
+    await waitFor(() => expect(previews).toHaveLength(2))
+    expect(mocks.preview).toHaveBeenLastCalledWith(
+      {
+        importId: IMPORT_ONE_ID,
+        overrides: KEPT_KEYS.map((key) => ({
+          resourceType: 'CUSTOMER_MODEL',
+          key,
+        })),
+      },
+      expect.any(Object)
+    )
+    previews[1]?.(keptAdminPlan(KEPT_KEYS))
+    previews[0]?.(keptAdminPlan([FIRST_KEPT_KEY]))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Review publication content' })
+      ).toBeEnabled()
+    )
+    for (const checkbox of screen.getAllByRole('checkbox', {
+      name: 'Overwrite with the Bundle',
+    })) {
+      expect(checkbox).toBeChecked()
+    }
+    expect(screen.queryByText('Admin version kept')).not.toBeInTheDocument()
+  })
+
+  it('drops a running override preview when another folder is selected', async () => {
+    let resolvePreview: ((value: unknown) => void) | undefined
+    mocks.plan
+      .mockResolvedValueOnce(keptAdminPlan())
+      .mockResolvedValueOnce(catalogPlan({ importId: IMPORT_TWO_ID }))
+    mocks.preview.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreview = resolve
+      })
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdminModelCatalog principalId={ADMIN_ONE_ID} />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Import and publish' }))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    await screen.findByRole('tab', { name: /2 admin versions kept/ })
+    for (const checkbox of screen
+      .getAllByRole('checkbox', { name: 'Overwrite with the Bundle' })
+      .slice(0, 1)) {
+      fireEvent.click(checkbox)
+    }
+    await waitFor(() => expect(mocks.preview).toHaveBeenCalledTimes(1))
+    fireEvent.change(screen.getByLabelText('Choose Bundle folder'), {
+      target: { files: bundleFiles(modelDefinition) },
+    })
+    const review = await screen.findByRole('button', {
+      name: 'Review publication content',
+    })
+    await waitFor(() => expect(review).toBeEnabled())
+    // The old import's preview settles after the new plan; act flushes its callbacks.
+    await act(async () => {
+      resolvePreview?.(keptAdminPlan([FIRST_KEPT_KEY]))
+    })
+    expect(
+      screen.queryByRole('checkbox', { name: 'Overwrite with the Bundle' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Review publication content' })
+    ).toBeEnabled()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Review publication content' })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Publish Bundle' }))
+    await waitFor(() =>
+      expect(mocks.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ importId: IMPORT_TWO_ID, overrides: [] }),
+        expect.any(Object)
+      )
     )
   })
 })

@@ -20,7 +20,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   catalogDiagnosticTarget,
+  catalogModelHasChange,
   catalogModelHasPending,
+  catalogModelTabCounts,
   catalogPlanStops,
   catalogProfileUnsupported,
   catalogSharedChanges,
@@ -58,6 +60,7 @@ describe('catalog plan model review', () => {
       'DESCRIPTION',
     ],
     ['NO_OP', [], 'UNCHANGED'],
+    ['DECISION', [], 'ADMIN_KEPT'],
   ] as const)('classifies a %s model as %s', (action, changes, kind) => {
     expect(
       reviewCatalogModel(catalogPlanModel({ action }), [...changes]).kind
@@ -165,6 +168,147 @@ describe('catalog plan model review', () => {
       'a.unchanged',
       'g.unchanged',
     ])
+  })
+
+  it('counts an admin version kept apart from changes and filters it on its own', () => {
+    const kept = reviewCatalogModel(
+      catalogPlanModel({ action: 'DECISION' }),
+      []
+    )
+    const changed = reviewCatalogModel(
+      catalogPlanModel({ productKey: 'b.new', action: 'CREATE' }),
+      []
+    )
+
+    expect(catalogModelHasChange(kept)).toBe(false)
+    expect(catalogModelTabCounts([kept, changed])).toMatchObject({
+      changed: 1,
+      kept: 1,
+    })
+    expect(
+      matchesCatalogModelFilters(kept, {
+        ...emptyCatalogModelFilters,
+        change: 'CHANGED',
+      })
+    ).toBe(false)
+    expect(
+      matchesCatalogModelFilters(kept, {
+        ...emptyCatalogModelFilters,
+        change: 'ADMIN_KEPT',
+      })
+    ).toBe(true)
+  })
+
+  it('keeps a model with an admin decision in place when the Bundle version is selected', () => {
+    const decision = {
+      resourceType: 'CUSTOMER_MODEL' as const,
+      key: 'c.decided',
+      overridden: false,
+      currentVersion: 3,
+      impact: [],
+      definition: { current: {}, proposed: {} },
+    }
+    const order = (
+      action: 'DECISION' | 'CREATE_VERSION',
+      needsPricing: boolean
+    ) =>
+      sortCatalogModelReviews(
+        [
+          catalogPlanModel({ productKey: 'a.new', action: 'CREATE' }),
+          catalogPlanModel({
+            productKey: 'c.decided',
+            action,
+            pricing: needsPricing
+              ? [
+                  catalogPriceItem({
+                    status: 'NEEDS_PRICING',
+                    reasonCode: 'NEW_SPECIFICATION',
+                  }),
+                ]
+              : [],
+          }),
+          catalogPlanModel({
+            productKey: 'b.version',
+            action: 'CREATE_VERSION',
+          }),
+          catalogPlanModel({ productKey: 'd.unchanged' }),
+        ].map((model) => reviewCatalogModel(model, [], [], [decision]))
+      ).map((review) => review.model.productKey)
+
+    expect(order('DECISION', false)).toEqual(order('CREATE_VERSION', true))
+    expect(order('DECISION', false)).toEqual([
+      'a.new',
+      'b.version',
+      'c.decided',
+      'd.unchanged',
+    ])
+  })
+
+  it('keeps a blocked model with an admin decision at the top', () => {
+    const decision = {
+      resourceType: 'CUSTOMER_MODEL' as const,
+      key: 'b.decided',
+      overridden: true,
+      currentVersion: 3,
+      impact: [],
+      definition: { current: {}, proposed: {} },
+    }
+    const order = sortCatalogModelReviews(
+      [
+        catalogPlanModel({ productKey: 'a.new', action: 'CREATE' }),
+        catalogPlanModel({
+          productKey: 'b.decided',
+          action: 'CREATE_VERSION',
+          credential: {
+            ...catalogPlanModel().credential,
+            status: 'BLOCKED',
+            reasonCode: 'BINDING_CONFLICT',
+          },
+        }),
+      ].map((model) => reviewCatalogModel(model, [], [], [decision]))
+    ).map((review) => review.model.productKey)
+
+    expect(order).toEqual(['b.decided', 'a.new'])
+  })
+
+  it('keeps a shared resource with an admin decision in place when the Bundle version is selected', () => {
+    const decision = (overridden: boolean) => ({
+      resourceType: 'PROVIDER_CHANNEL' as const,
+      key: 'c.channel',
+      overridden,
+      currentVersion: 2,
+      impact: [],
+      definition: { current: {}, proposed: {} },
+    })
+    const order = (overridden: boolean) =>
+      sortCatalogSharedChanges(
+        catalogSharedChanges([
+          catalogChange({
+            resourceType: 'PROVIDER_CHANNEL',
+            key: 'a.new',
+            action: 'CREATE',
+          }),
+          catalogChange({
+            resourceType: 'PROVIDER_CHANNEL',
+            key: 'c.channel',
+            action: overridden ? 'CREATE_VERSION' : 'REUSE',
+          }),
+          catalogChange({
+            resourceType: 'PROVIDER_CHANNEL',
+            key: 'b.version',
+            action: 'CREATE_VERSION',
+          }),
+          catalogChange({
+            resourceType: 'PROVIDER_CHANNEL',
+            key: 'd.same',
+            action: 'REUSE',
+          }),
+        ]),
+        [decision(overridden)]
+      ).map((change) => change.key)
+
+    expect(order(false)).toEqual(order(true))
+    expect(order(false)).toEqual(['b.version', 'a.new', 'c.channel', 'd.same'])
   })
 
   it('filters by capability, API provider, change and attention state', () => {

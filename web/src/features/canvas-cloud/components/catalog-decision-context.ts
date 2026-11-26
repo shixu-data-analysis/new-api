@@ -12,13 +12,11 @@ import type { ModelCatalogDecision } from '../generated/model-catalog-import'
 
 interface CatalogDecisionState {
   decisions: ModelCatalogDecision[]
-  busy: boolean
   onToggle: (decision: ModelCatalogDecision, overridden: boolean) => void
 }
 
 const CatalogDecisionContext = createContext<CatalogDecisionState>({
   decisions: [],
-  busy: false,
   onToggle: () => undefined,
 })
 

@@ -338,8 +338,8 @@ export function CatalogSharedResources(props: {
   // A located row stays visible even when it does not match the filters; filters stay unchanged.
   const [pinnedKey, setPinnedKey] = useState<string | null>(null)
   const sorted = useMemo(
-    () => sortCatalogSharedChanges(props.changes),
-    [props.changes]
+    () => sortCatalogSharedChanges(props.changes, props.plan.decisions),
+    [props.changes, props.plan.decisions]
   )
   const filtered = useMemo(
     () =>

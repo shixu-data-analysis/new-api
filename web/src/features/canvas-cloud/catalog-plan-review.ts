@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { unsupportedProfileFields } from './catalog-channel-draft'
 import type {
   ModelCatalogChange,
+  ModelCatalogDecision,
   ModelCatalogDiagnostic,
   ModelCatalogPlan,
 } from './generated/model-catalog-import'
@@ -29,6 +30,7 @@ export type CatalogPricingItem = CatalogPlanModel['pricing'][number]
 export type CatalogModelChangeKind =
   | 'CREATE'
   | 'NEW_VERSION'
+  | 'ADMIN_KEPT'
   | 'DESCRIPTION'
   | 'CONFLICT'
   | 'UNCHANGED'
@@ -47,6 +49,8 @@ export type CatalogModelBlocker = {
 export type CatalogModelReview = {
   model: CatalogPlanModel
   kind: CatalogModelChangeKind
+  /** An administrator changed the model, so the importer decides between it and the Bundle version. */
+  decided: boolean
   /** What stops this model, explained on its own row. */
   diagnostics: ModelCatalogDiagnostic[]
   /** Price items (specification × price plan) that need pricing, price conflicts excluded. */
@@ -92,7 +96,8 @@ function blocksPublication(diagnostic: ModelCatalogDiagnostic): boolean {
 export function reviewCatalogModel(
   model: CatalogPlanModel,
   changes: ModelCatalogChange[],
-  planDiagnostics: ModelCatalogDiagnostic[] = []
+  planDiagnostics: ModelCatalogDiagnostic[] = [],
+  decisions: ModelCatalogDecision[] = []
 ): CatalogModelReview {
   const diagnostics = planDiagnostics.filter(
     (diagnostic) =>
@@ -106,6 +111,8 @@ export function reviewCatalogModel(
   if (conflicts.length || model.action === 'CONFLICT') kind = 'CONFLICT'
   else if (model.action === 'CREATE') kind = 'CREATE'
   else if (model.action === 'CREATE_VERSION') kind = 'NEW_VERSION'
+  // The admin version stays and nothing is published for it, though the Bundle differs.
+  else if (model.action === 'DECISION') kind = 'ADMIN_KEPT'
   else if (
     changes.some(
       (change) =>
@@ -135,6 +142,11 @@ export function reviewCatalogModel(
   return {
     model,
     kind,
+    decided: decisions.some(
+      (decision) =>
+        decision.resourceType === 'CUSTOMER_MODEL' &&
+        decision.key === model.productKey
+    ),
     diagnostics,
     pricingCount: model.pricing.filter(
       (price) =>
@@ -153,7 +165,7 @@ export function catalogModelHasPending(review: CatalogModelReview): boolean {
 }
 
 export function catalogModelHasChange(review: CatalogModelReview): boolean {
-  return review.kind !== 'UNCHANGED'
+  return review.kind !== 'UNCHANGED' && review.kind !== 'ADMIN_KEPT'
 }
 
 /** Counts shown next to the "Models" tab. */
@@ -161,6 +173,7 @@ export function catalogModelTabCounts(reviews: CatalogModelReview[]) {
   const open = reviews.filter((review) => review.blockers.length === 0)
   return {
     changed: open.filter(catalogModelHasChange).length,
+    kept: open.filter((review) => review.kind === 'ADMIN_KEPT').length,
     pending: open.filter(catalogModelHasPending).length,
     blocked: reviews.length - open.length,
   }
@@ -170,12 +183,15 @@ const modelKindRank: Record<CatalogModelChangeKind, number> = {
   CONFLICT: 0,
   CREATE: 2,
   NEW_VERSION: 3,
-  DESCRIPTION: 4,
-  UNCHANGED: 5,
+  ADMIN_KEPT: 4,
+  DESCRIPTION: 5,
+  UNCHANGED: 6,
 }
 
 function modelRank(review: CatalogModelReview): number {
   if (review.blockers.length > 0) return 0
+  // Selecting the Bundle version changes the row's kind and may need pricing; the row stays where the importer found it.
+  if (review.decided) return modelKindRank.ADMIN_KEPT
   if (catalogModelHasPending(review)) return 1
   return modelKindRank[review.kind]
 }
@@ -185,7 +201,10 @@ function compareText(left: string, right: string): number {
   return left > right ? 1 : 0
 }
 
-/** Blocked, then pending, then new, new version, description update and unchanged; then model key. */
+/**
+ * Blocked, then pending, then new, new version, admin decision, description update and unchanged; then model key.
+ * A model with an admin decision keeps the decision's place whether or not the Bundle version is selected.
+ */
 export function sortCatalogModelReviews(
   reviews: CatalogModelReview[]
 ): CatalogModelReview[] {
@@ -284,17 +303,36 @@ const sharedKindRank: Record<CatalogSharedChangeKind, number> = {
   CONFLICT: 0,
   NEW_VERSION: 1,
   CREATE: 2,
-  UNCHANGED: 3,
+  UNCHANGED: 4,
+}
+// Between new resources and unchanged ones, like a model's admin decision.
+const SHARED_DECIDED_RANK = 3
+
+function sharedRank(
+  change: CatalogSharedChange,
+  decisions: ModelCatalogDecision[]
+): number {
+  const kind = catalogSharedChangeKind(change)
+  if (kind === 'CONFLICT') return sharedKindRank.CONFLICT
+  const decided = decisions.some(
+    (decision) =>
+      decision.resourceType === change.resourceType &&
+      decision.key === change.key
+  )
+  return decided ? SHARED_DECIDED_RANK : sharedKindRank[kind]
 }
 
-/** Conflicts, then new versions, new and unchanged; then resource type and key. */
+/**
+ * Conflicts, then new versions, new, admin decisions and unchanged; then resource type and key. A resource with an
+ * admin decision keeps its place whether or not the Bundle version is selected.
+ */
 export function sortCatalogSharedChanges(
-  changes: CatalogSharedChange[]
+  changes: CatalogSharedChange[],
+  decisions: ModelCatalogDecision[] = []
 ): CatalogSharedChange[] {
   return [...changes].sort(
     (left, right) =>
-      sharedKindRank[catalogSharedChangeKind(left)] -
-        sharedKindRank[catalogSharedChangeKind(right)] ||
+      sharedRank(left, decisions) - sharedRank(right, decisions) ||
       catalogSharedResourceTypes.indexOf(left.resourceType) -
         catalogSharedResourceTypes.indexOf(right.resourceType) ||
       compareText(left.key, right.key)
