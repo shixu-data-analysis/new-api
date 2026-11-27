@@ -11344,6 +11344,9 @@
     "Restore model: {{model}}": "Restaurer le modèle : {{model}}",
     "Delete the model: {{model}}": "Supprimer le modèle : {{model}}",
     "Enter complete invite code": "Saisissez le code d’invitation complet",
-    "Invite code created, but it could not be revealed": "Code d’invitation créé, mais impossible de l’afficher"
+    "Invite code created, but it could not be revealed": "Code d’invitation créé, mais impossible de l’afficher",
+    "Admin version kept": "Version admin conservée",
+    "{{count}} admin versions kept": "{{count}} versions admin conservées",
+    "Admin versions kept, different from the Bundle": "Versions admin conservées (différentes du paquet, non écrasées)"
   }
 }

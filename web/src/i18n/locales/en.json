@@ -11344,6 +11344,9 @@
     "Restore model: {{model}}": "Restore model: {{model}}",
     "Delete the model: {{model}}": "Delete the model: {{model}}",
     "Enter complete invite code": "Enter complete invite code",
-    "Invite code created, but it could not be revealed": "Invite code created, but it could not be revealed"
+    "Invite code created, but it could not be revealed": "Invite code created, but it could not be revealed",
+    "Admin version kept": "Admin version kept",
+    "{{count}} admin versions kept": "{{count}} admin versions kept",
+    "Admin versions kept, different from the Bundle": "Admin versions kept (different from the Bundle, not overwritten)"
   }
 }

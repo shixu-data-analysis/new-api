@@ -11344,6 +11344,9 @@
     "Restore model: {{model}}": "Khôi phục mô hình: {{model}}",
     "Delete the model: {{model}}": "Xóa mô hình: {{model}}",
     "Enter complete invite code": "Nhập đầy đủ mã mời",
-    "Invite code created, but it could not be revealed": "Đã tạo mã mời nhưng không thể hiển thị"
+    "Invite code created, but it could not be revealed": "Đã tạo mã mời nhưng không thể hiển thị",
+    "Admin version kept": "Giữ phiên bản quản trị",
+    "{{count}} admin versions kept": "{{count}} phiên bản quản trị được giữ",
+    "Admin versions kept, different from the Bundle": "Phiên bản quản trị được giữ (khác gói, không ghi đè)"
   }
 }

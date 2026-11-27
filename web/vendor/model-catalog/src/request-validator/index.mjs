@@ -1,6 +1,6 @@
 /** Catalog-driven request validation shared by browser and server runtimes. */
-export const REQUEST_VALIDATOR_VERSION = "1.18.0";
-export const REQUEST_VALIDATOR_VECTORS_SHA256 = "6398f466c4c876b4e547db47f154819972f26511690fc26f1afc0d74132762b7";
+export const REQUEST_VALIDATOR_VERSION = "1.19.0";
+export const REQUEST_VALIDATOR_VECTORS_SHA256 = "a792be9275f977e4a58c7656d7190b04a22d046765db5bcb091026bd47161943";
 
 export const CatalogRequestIssueCode = Object.freeze({
   PROMPT_TOO_LONG: "PROMPT_TOO_LONG",
@@ -438,6 +438,14 @@ export const PROMPT_WHITESPACE_KINDS = Object.freeze(["image.generate", "video.g
 export function collapsePromptWhitespaceIssue(value, kind) {
   if (typeof value !== "boolean") return "collapsePromptWhitespace must be a boolean";
   if (!PROMPT_WHITESPACE_KINDS.includes(kind)) return "collapsePromptWhitespace is only allowed for image.generate and video.generate Profiles";
+  return undefined;
+}
+
+// Only video tasks carry first and last frames. A Provider that sends frames in their own fields, apart from the numbered
+// references, sets this to false: a reference bound to a frame is then sent as the user wrote it.
+export function rewriteFramePromptReferencesIssue(value, kind) {
+  if (typeof value !== "boolean") return "rewriteFramePromptReferences must be a boolean";
+  if (kind !== "video.generate") return "rewriteFramePromptReferences is only allowed for video.generate Profiles";
   return undefined;
 }
 

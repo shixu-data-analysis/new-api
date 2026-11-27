@@ -11344,6 +11344,9 @@
     "Restore model: {{model}}": "モデルを復元：{{model}}",
     "Delete the model: {{model}}": "モデルを削除：{{model}}",
     "Enter complete invite code": "招待コードをすべて入力",
-    "Invite code created, but it could not be revealed": "招待コードを作成しましたが、表示できませんでした"
+    "Invite code created, but it could not be revealed": "招待コードを作成しましたが、表示できませんでした",
+    "Admin version kept": "管理画面版を保持",
+    "{{count}} admin versions kept": "管理画面版を保持 {{count}} 件",
+    "Admin versions kept, different from the Bundle": "保持する管理画面版（カタログパッケージと異なり、上書きしない）"
   }
 }

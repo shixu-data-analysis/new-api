@@ -24,7 +24,7 @@ export function CatalogDecisionCell(props: {
   objectKey: string
 }) {
   const { t } = useTranslation()
-  const { decision, busy, onToggle } = useCatalogDecision(
+  const { decision, onToggle } = useCatalogDecision(
     props.resourceType,
     props.objectKey
   )
@@ -43,7 +43,6 @@ export function CatalogDecisionCell(props: {
         <Checkbox
           id={id}
           checked={decision.overridden}
-          disabled={busy}
           onCheckedChange={(next) => onToggle(decision, next === true)}
         />
         <Label htmlFor={id} className='font-normal'>

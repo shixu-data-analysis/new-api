@@ -83,6 +83,7 @@ export function catalogModelChangeLabel(
   return {
     CREATE: t('New'),
     NEW_VERSION: t('New version'),
+    ADMIN_KEPT: t('Admin version kept'),
     DESCRIPTION: t('Description updated'),
     CONFLICT: t('In conflict'),
     UNCHANGED: t('Unchanged'),
@@ -117,6 +118,8 @@ const changeBadgeTone = {
   CREATE: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-200',
   NEW_VERSION:
     'bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-200',
+  ADMIN_KEPT:
+    'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200',
   DESCRIPTION:
     'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-200',
   CONFLICT: 'bg-destructive/10 text-destructive dark:bg-destructive/20',

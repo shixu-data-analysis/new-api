@@ -117,6 +117,13 @@
       {"name": "zero", "value": 0, "kind": "image.generate", "valid": false},
       {"name": "null", "value": null, "kind": "video.generate", "valid": false},
       {"name": "chat Profile", "value": false, "kind": "chat.generate", "valid": false}
+    ],
+    "rewriteFramePromptReferences": [
+      {"name": "disabled on video", "value": false, "kind": "video.generate", "valid": true},
+      {"name": "enabled on video", "value": true, "kind": "video.generate", "valid": true},
+      {"name": "string false", "value": "false", "kind": "video.generate", "valid": false},
+      {"name": "null", "value": null, "kind": "video.generate", "valid": false},
+      {"name": "image Profile", "value": false, "kind": "image.generate", "valid": false}
     ]
   }
 }

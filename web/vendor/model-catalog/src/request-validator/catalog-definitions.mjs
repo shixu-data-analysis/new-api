@@ -1,5 +1,5 @@
 /** Catalog definition rules shared by the repository check and Cloud. */
-import { collapsePromptWhitespaceIssue, MAX_INPUT_TIERS, CONVERSATION_PROTOCOLS, conversationProtocolOf, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
+import { collapsePromptWhitespaceIssue, rewriteFramePromptReferencesIssue, MAX_INPUT_TIERS, CONVERSATION_PROTOCOLS, conversationProtocolOf, defaultParamsIssues, credentialHeaderName, idempotencyHeaderIssue, imageTokenEstimateIssue, isAspectRatio, isPromptReferenceFormat, profileStatesIssue, videoTokenEstimateIssue, VIDEO_ESTIMATE_METHODS, IMAGE_OUTPUT_ESTIMATE_METHODS, IMAGE_REFERENCE_ESTIMATE_METHODS, PROMPT_REFERENCE_FORMAT_KINDS, PROMPT_TOKENIZERS, REQUEST_VALIDATOR_DURATION_FIELDS, REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS, REQUEST_VALIDATOR_OPTION_FIELDS, REQUEST_VALIDATOR_OPTION_TYPES, REQUEST_VALIDATOR_OPTION_VALUE_FIELDS, REQUEST_VALIDATOR_PARAM_SCHEMA_FIELDS, REQUEST_VALIDATOR_REFERENCE_LIMIT_FIELDS, TOKEN_USAGE_CATEGORIES, videoQualityShortEdge, videoUpscaleOperation } from "./index.mjs";
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const PROFILE_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/;
@@ -191,6 +191,8 @@ function validateRequestOptions(profile, request, location) {
   // Independent of the reference format: the Cloud Executor collapses image and video prompt whitespace unless this is false.
   const whitespaceIssue = Object.hasOwn(request, "collapsePromptWhitespace") ? collapsePromptWhitespaceIssue(request.collapsePromptWhitespace, profile.kind) : undefined;
   if (whitespaceIssue) fail(`${location}.${whitespaceIssue}`);
+  const frameIssue = Object.hasOwn(request, "rewriteFramePromptReferences") ? rewriteFramePromptReferencesIssue(request.rewriteFramePromptReferences, profile.kind) : undefined;
+  if (frameIssue) fail(`${location}.${frameIssue}`);
   // The credential header is checked once the Profile's OpenAPI security schemes are known.
   const issue = Object.hasOwn(request, "idempotencyHeader") ? idempotencyHeaderIssue(request.idempotencyHeader, profile.workflow) : undefined;
   if (issue) fail(`${location}.${issue}`);
