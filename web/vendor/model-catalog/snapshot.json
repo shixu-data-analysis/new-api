@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generated": true,
   "sourceRepository": "pixmiao/pixmiao-catalog",
-  "sourceCommit": "WORKTREE",
+  "sourceCommit": "56a4b2ab8bac1bfc5e732cb95769b17198d9bfce",
   "validatorVersion": "1.19.0",
   "vectorsSha256": "a792be9275f977e4a58c7656d7190b04a22d046765db5bcb091026bd47161943",
   "generatorSha256": "e9d8cd8c823f074880a9b1e36f963b4b8738a301deecdb8654c2de2ca0aadfb4",
