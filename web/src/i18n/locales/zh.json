@@ -10232,6 +10232,8 @@
     "What the user sees": "用户看到的样子",
     "Which API provider this Channel belongs to.": "这个接口属于哪个 API 服务商。",
     "Write capabilities only; the default description in the catalog": "只写能力；作为目录默认描述",
+    "Prompt guide for Agents": "提示词写法（给 Agent 看）",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "这个模型自己的提示词规矩，比如画布会自动加上的参数；Agent 写提示词前会先读（{{length}}/{{count}}）",
     "Write it as width:height with positive numbers": "写成 宽:高，都是正数",
     "WxH": "宽x高",
     "{{count}} changes": "已修改 {{count}} 项",

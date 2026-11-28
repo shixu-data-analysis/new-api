@@ -10233,6 +10233,8 @@
     "What the user sees": "ユーザーに見える表示",
     "Which API provider this Channel belongs to.": "このインターフェースが属する API プロバイダーです。",
     "Write capabilities only; the default description in the catalog": "機能だけを書きます。カタログの既定の説明になります",
+    "Prompt guide for Agents": "プロンプトの書き方（Agent 向け）",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "このモデル固有のプロンプトの決まり（キャンバスが自動で付けるパラメーターなど）。Agent はプロンプトを書く前に読みます（{{length}}/{{count}}）",
     "Write it as width:height with positive numbers": "幅:高さ の形式で正の数を書いてください",
     "WxH": "幅x高さ",
     "{{count}} changes": "{{count}} 件の変更",

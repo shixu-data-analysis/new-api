@@ -8,6 +8,7 @@ License, or (at your option) any later version.
 */
 // The checks of the model form. They run on any model of the page, not only the one on screen, so a model added
 // without being opened is checked before the page publishes it.
+import { PROMPT_GUIDE_MAX_CHARACTERS } from '@pixmiao/model-catalog/catalog-definitions'
 import { defaultParamsIssues } from '@pixmiao/model-catalog/request-validator'
 import type { TFunction } from 'i18next'
 
@@ -216,6 +217,12 @@ export function modelFormIssues(
         { field: labels[issue.field] ?? issue.field }
       )
     }
+  }
+  // The note for Agents on writing the model's prompt; the editor trims it and drops it when empty.
+  if ((interaction.promptGuide?.length ?? 0) > PROMPT_GUIDE_MAX_CHARACTERS) {
+    found.promptGuide = t('At most {{count}} characters', {
+      count: PROMPT_GUIDE_MAX_CHARACTERS,
+    })
   }
   return found
 }

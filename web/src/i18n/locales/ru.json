@@ -10233,6 +10233,8 @@
     "What the user sees": "Что видит пользователь",
     "Which API provider this Channel belongs to.": "API-поставщик этого интерфейса.",
     "Write capabilities only; the default description in the catalog": "Пишите только возможности; описание каталога по умолчанию",
+    "Prompt guide for Agents": "Правила промпта для агентов",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "Собственные правила промпта этой модели, например параметры, которые холст добавляет сам; агенты читают их перед написанием промпта ({{length}}/{{count}})",
     "Write it as width:height with positive numbers": "Пишите ширина:высота положительными числами",
     "WxH": "ШxВ",
     "{{count}} changes": "Изменений: {{count}}",

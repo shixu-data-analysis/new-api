@@ -10232,6 +10232,8 @@
     "What the user sees": "What the user sees",
     "Which API provider this Channel belongs to.": "Which API provider this Channel belongs to.",
     "Write capabilities only; the default description in the catalog": "Write capabilities only; the default description in the catalog",
+    "Prompt guide for Agents": "Prompt guide for Agents",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})",
     "Write it as width:height with positive numbers": "Write it as width:height with positive numbers",
     "WxH": "WxH",
     "{{count}} changes": "{{count}} changes",

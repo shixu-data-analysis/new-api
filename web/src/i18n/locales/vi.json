@@ -10233,6 +10233,8 @@
     "What the user sees": "Người dùng thấy gì",
     "Which API provider this Channel belongs to.": "API provider của giao diện này.",
     "Write capabilities only; the default description in the catalog": "Chỉ viết khả năng; là mô tả mặc định của danh mục",
+    "Prompt guide for Agents": "Quy tắc prompt cho Agent",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "Quy tắc prompt riêng của mô hình này, ví dụ các tham số canvas tự thêm; Agent đọc trước khi viết prompt ({{length}}/{{count}})",
     "Write it as width:height with positive numbers": "Viết rộng:cao với số dương",
     "WxH": "RxC",
     "{{count}} changes": "{{count}} thay đổi",

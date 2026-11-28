@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { PROMPT_GUIDE_MAX_CHARACTERS } from '@pixmiao/model-catalog/catalog-definitions'
 import {
   REQUEST_VALIDATOR_MEDIA_CONSTRAINT_FIELDS,
   videoUpscaleOperation,
@@ -16,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { StaticDataTable } from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Textarea } from '@/components/ui/textarea'
 
 import type { Accepts } from '../../catalog-channel-draft'
 import {
@@ -1612,6 +1614,35 @@ export function ModelReferenceSection(
       </p>
       {number('minPromptCharacters', t('Fewest prompt characters'))}
       {number('maxPromptCharacters', t('Most prompt characters'))}
+      <EditField
+        label={t('Prompt guide for Agents')}
+        wide
+        error={fieldError(errors, ['promptGuide'])}
+        was={was(['promptGuide'])}
+        help={t(
+          "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})",
+          {
+            length: String(interactionOf(draft).promptGuide ?? '').length,
+            count: PROMPT_GUIDE_MAX_CHARACTERS,
+          }
+        )}
+      >
+        {(id, describedBy) => (
+          <Textarea
+            id={id}
+            rows={3}
+            aria-describedby={describedBy}
+            value={String(interactionOf(draft).promptGuide ?? '')}
+            // An empty note leaves the field out; spaces around it are dropped once the field is left.
+            onChange={(event) =>
+              set(['promptGuide'], event.target.value || undefined)
+            }
+            onBlur={(event) =>
+              set(['promptGuide'], event.target.value.trim() || undefined)
+            }
+          />
+        )}
+      </EditField>
       {video ? (
         <>
           <p className='text-muted-foreground text-xs font-medium md:col-span-2'>

@@ -476,3 +476,44 @@ describe('Model form checks', () => {
     ])
   })
 })
+
+describe('A model\'s prompt guide in the editor', () => {
+  it('is there when a published model is edited, and keeps no surrounding spaces', async () => {
+    const catalog = {
+      ...draftCatalog(),
+      modelBundleVersions: {},
+    } as unknown as CurrentCatalogView
+    ;(catalog.bundle.models as unknown[]).push({
+      productKey: 'draft.image.mj',
+      displayName: 'MJ',
+      description: '',
+      capability: 'image.generate',
+      sourceKind: 'relay',
+      release: {
+        channelId: 'draft.image',
+        execution: { providerModel: { modelId: 'mj' } },
+        publicInteraction: {
+          defaultParams: {},
+          paramSchema: {},
+          referenceLimits: {},
+          promptGuide: '用英文写。',
+        },
+      },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelEditor
+          mode={{ kind: 'edit', modelKey: 'draft.image.mj' }}
+          catalogOverride={catalog}
+          onClose={() => {}}
+          onEditPresentation={() => {}}
+        />
+      </QueryClientProvider>
+    )
+    const field = await screen.findByLabelText('Prompt guide for Agents')
+    expect(field).toHaveValue('用英文写。')
+    fireEvent.change(field, { target: { value: '  比例用节点参数。 ' } })
+    fireEvent.blur(field)
+    expect(field).toHaveValue('比例用节点参数。')
+  })
+})

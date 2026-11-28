@@ -16,6 +16,7 @@ import {
   unsupportedModelFields,
 } from '../catalog-edit-logic'
 import type { CatalogModelDefinition } from '../catalog-edit-types'
+import { channelSendsOf, modelFormIssues } from '../catalog-model-form-issues'
 
 describe('product key', () => {
   it('follows the provider, type and upstream model ID', () => {
@@ -480,5 +481,65 @@ describe('sentFieldsOf field types', () => {
       ['on', 'boolean'],
       ['width', 'number'],
     ])
+  })
+})
+
+describe('prompt guide', () => {
+  const model = {
+    productKey: 'relay.image.mj',
+    displayName: 'MJ',
+    description: '',
+    capability: 'image.generate',
+    sourceKind: 'relay',
+    release: {
+      channelId: 'relay.mj',
+      execution: { providerModel: { modelId: 'mj' } },
+      publicInteraction: {
+        defaultParams: {},
+        paramSchema: {},
+        referenceLimits: {},
+      },
+    },
+  } as CatalogModelDefinition
+
+  it('refuses a note longer than the Catalog takes before it is sent', () => {
+    const t = ((key: string, values?: Record<string, unknown>) =>
+      `${key}:${values?.count ?? ''}`) as never
+    const catalog = {
+      bundle: {
+        providers: [],
+        channels: [],
+        models: [],
+        adapterProfiles: [],
+        openapiContracts: [],
+      },
+    } as never
+    const issues = (promptGuide: string) =>
+      modelFormIssues(
+        {
+          draft: {
+            ...model,
+            release: {
+              ...model.release,
+              publicInteraction: {
+                ...model.release.publicInteraction,
+                promptGuide,
+              },
+            },
+          },
+          kind: 'edit',
+          source: model,
+          others: [],
+          groupChoice: { kind: 'existing', id: 'g' },
+          newGroup: null,
+          catalog,
+          ...channelSendsOf(catalog, 'relay.mj'),
+        } as never,
+        t
+      )
+    expect(issues('长'.repeat(500)).promptGuide).toBeUndefined()
+    expect(issues('长'.repeat(501)).promptGuide).toBe(
+      'At most {{count}} characters:500'
+    )
   })
 })

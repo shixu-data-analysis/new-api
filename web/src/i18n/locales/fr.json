@@ -10233,6 +10233,8 @@
     "What the user sees": "Ce que voit l'utilisateur",
     "Which API provider this Channel belongs to.": "Le fournisseur d'API de cette interface.",
     "Write capabilities only; the default description in the catalog": "Écrivez seulement les capacités ; description par défaut du catalogue",
+    "Prompt guide for Agents": "Règles de prompt pour les Agents",
+    "This model's own prompt rules, such as parameters the canvas adds by itself; Agents read it before writing a prompt ({{length}}/{{count}})": "Les règles de prompt propres à ce modèle, comme les paramètres que le canevas ajoute lui-même ; les Agents les lisent avant d'écrire un prompt ({{length}}/{{count}})",
     "Write it as width:height with positive numbers": "Écrivez largeur:hauteur avec des nombres positifs",
     "WxH": "LxH",
     "{{count}} changes": "{{count}} modifications",
