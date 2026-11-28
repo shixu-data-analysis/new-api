@@ -34,6 +34,8 @@ export interface CatalogModelDefinition {
       paramSchema: CatalogJson
       referenceLimits: CatalogJson
       mediaConstraints?: CatalogJson
+      /** A note for Agents on how to write this model's prompt; kept as the Catalog writes it. */
+      promptGuide?: string
     }
   }
 }

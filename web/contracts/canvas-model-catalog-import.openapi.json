@@ -771,6 +771,12 @@
                       "additionalProperties": true,
                       "type": "object"
                     },
+                    "promptGuide": {
+                      "description": "A note for Agents on how to write this model's prompt; optional.",
+                      "maxLength": 500,
+                      "minLength": 1,
+                      "type": "string"
+                    },
                     "referenceLimits": {
                       "additionalProperties": true,
                       "type": "object"
