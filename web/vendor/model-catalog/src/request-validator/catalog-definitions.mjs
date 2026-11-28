@@ -674,6 +674,12 @@ const MODEL_FIELDS = ["productKey", "displayName", "description", "capability", 
  * size for every aspect ratio and quality, defaults within the limits), so an admin form can take a model that is still
  * being written and mark what is missing. validateCatalogDefinitions runs it on every model first.
  */
+/**
+ * The longest note on how to write a model's prompt. An Agent reads it before writing one for the model (design 9.17
+ * 1a): the model's own rules, such as which parameters the canvas adds to the prompt, so a skill never repeats them.
+ */
+export const PROMPT_GUIDE_MAX_CHARACTERS = 500;
+
 function validateModelShape(raw, location) {
   const value = object(raw, location);
   exactKeys(value, MODEL_FIELDS, location);
@@ -703,7 +709,10 @@ function validateModelShape(raw, location) {
     }
   }
   const interaction = object(release.publicInteraction, `${name}.release.publicInteraction`);
-  exactKeys(interaction, ["defaultParams", "paramSchema", "referenceLimits", "mediaConstraints"], `${name}.release.publicInteraction`);
+  exactKeys(interaction, ["defaultParams", "paramSchema", "referenceLimits", "mediaConstraints", "promptGuide"], `${name}.release.publicInteraction`);
+  if (interaction.promptGuide !== undefined && (typeof interaction.promptGuide !== "string" || !interaction.promptGuide.trim() || interaction.promptGuide !== interaction.promptGuide.trim() || interaction.promptGuide.length > PROMPT_GUIDE_MAX_CHARACTERS)) {
+    fail(`${name}.release.publicInteraction.promptGuide must be text of 1 to ${PROMPT_GUIDE_MAX_CHARACTERS} characters without surrounding spaces`);
+  }
   const defaultParams = object(interaction.defaultParams, `${name}.publicInteraction.defaultParams`);
   const paramSchema = validateParamSchema(interaction.paramSchema, `${name}.publicInteraction.paramSchema`, value.capability);
   if (defaultParams.sizeMap !== undefined) validateSizeMapShape(defaultParams.sizeMap, `${name}.publicInteraction.defaultParams.sizeMap`);
@@ -711,6 +720,7 @@ function validateModelShape(raw, location) {
   if (paramSchema.options !== undefined) validateOptionShapes(paramSchema.options, `${name}.publicInteraction.paramSchema.options`);
   if (interaction.mediaConstraints !== undefined) validateMediaConstraints(interaction.mediaConstraints, `${name}.publicInteraction.mediaConstraints`);
   for (const [section, sectionValue] of Object.entries(interaction)) {
+    if (section === "promptGuide") continue;
     const data = object(sectionValue, `${name}.publicInteraction.${section}`);
     for (const forbidden of ["billingUnit", "billing_unit", "tokenRates", "token_rates"]) if (Object.hasOwn(data, forbidden)) fail(`${name} contains commercial pricing field ${forbidden}`);
   }
